@@ -17,7 +17,7 @@ where
     L: Library,
 {
     /// `Project::ExportTo`: `Unsupported` in this build.
-    pub(crate) fn export_to(
+    pub fn export_to(
         &mut self,
         _id: ProjectId,
         _format: ProjectExportFormat,

@@ -36,9 +36,9 @@ use crate::{EngineBridge, EtherController, HostServices, MessageSink, content_ha
 const TAP_RESET_MS: u64 = 2_000;
 const MAX_TAPS: usize = 8;
 /// Autosave waits for the transport to stop, but not longer than this after the last edit.
-pub(crate) const AUTOSAVE_PLAYING_MAX: u64 = 10 * 60_000;
+pub const AUTOSAVE_PLAYING_MAX: u64 = 10 * 60_000;
 
-pub(crate) fn no_project() -> CommandError {
+pub fn no_project() -> CommandError {
     crate::tx::keyed_err(
         ErrorCode::InvalidState,
         crate::text::msg("error.project.none_open"),
@@ -46,10 +46,7 @@ pub(crate) fn no_project() -> CommandError {
 }
 
 /// The plugin devices whose plugin `ops` set, with their state in `project` before `ops`.
-pub(crate) fn plugin_states_set_by(
-    project: &Project,
-    ops: &[Op],
-) -> Vec<(DeviceId, Option<Base64Bytes>)> {
+pub fn plugin_states_set_by(project: &Project, ops: &[Op]) -> Vec<(DeviceId, Option<Base64Bytes>)> {
     let mut out: Vec<(DeviceId, Option<Base64Bytes>)> = Vec::new();
     for op in ops {
         if let Op::Update {
@@ -95,7 +92,7 @@ pub fn store_err(e: StoreError) -> CommandError {
 
 /// Patch changes as they go on the wire (audit #4): plugin state blobs stripped, and
 /// `DeviceParam`s turned back into device upserts while a receiver predates them.
-pub(crate) fn wire_changes(
+pub fn wire_changes(
     compat: &crate::PatchCompat,
     project: &Project,
     changes: &mut Vec<PatchChange>,
@@ -133,7 +130,7 @@ fn basename(path: &str) -> &str {
 }
 
 /// File name for an imported copy: `media/<id>-<sanitized name>`.
-pub(crate) fn media_file_name(id: MediaId, name: &str) -> String {
+pub fn media_file_name(id: MediaId, name: &str) -> String {
     let mut clean: String = name
         .chars()
         .map(|c| {
@@ -206,7 +203,7 @@ where
     S: ProjectStore,
     L: Library,
 {
-    pub(crate) fn dispatch(
+    pub fn dispatch(
         &mut self,
         msg: &ClientMessage,
         now: u64,
@@ -333,7 +330,7 @@ where
 
     /// Run `f` as one transaction and commit it (one undo step, merged with the previous
     /// one when `gesture` is still open). Emits the patch and applies engine effects.
-    pub(crate) fn edit_with(
+    pub fn edit_with(
         &mut self,
         label: impl Into<doc::UndoLabel>,
         gesture: Option<GestureId>,
@@ -404,12 +401,12 @@ where
     }
 
     /// Patch + dirty flag + engine effects of ops applied to the document.
-    pub(crate) fn after_ops(&mut self, applied: &[Op], now: u64, out: &mut dyn MessageSink) {
+    pub fn after_ops(&mut self, applied: &[Op], now: u64, out: &mut dyn MessageSink) {
         self.after_ops_from(applied, None, now, out);
     }
 
     /// [`Self::after_ops`] for ops made by another site (`origin`, collab).
-    pub(crate) fn after_ops_from(
+    pub fn after_ops_from(
         &mut self,
         applied: &[Op],
         origin: Option<OpOrigin>,
@@ -465,7 +462,7 @@ where
         }
     }
 
-    pub(crate) fn set_dirty(&mut self, dirty: bool, out: &mut dyn MessageSink) {
+    pub fn set_dirty(&mut self, dirty: bool, out: &mut dyn MessageSink) {
         if let Some(doc) = self.doc.as_mut()
             && doc.dirty != dirty
         {
@@ -479,7 +476,7 @@ where
         }
     }
 
-    pub(crate) fn emit_armed(&mut self, out: &mut dyn MessageSink) {
+    pub fn emit_armed(&mut self, out: &mut dyn MessageSink) {
         event(
             out,
             Event::Recording {
@@ -493,7 +490,7 @@ where
     /// Undo or redo one step without emitting anything (`Edit::{Undo, Redo}`, and
     /// `History::JumpTo` step by step). Returns the applied ops, `None` if there was
     /// nothing to undo/redo.
-    pub(crate) fn undo_redo_step(&mut self, undo: bool) -> CmdResult<Option<Vec<Op>>> {
+    pub fn undo_redo_step(&mut self, undo: bool) -> CmdResult<Option<Vec<Op>>> {
         // Plugin states the step sets, as they were before it.
         let mut before = Vec::new();
         let applied = if self.session_active() {
@@ -522,10 +519,7 @@ where
     /// it reverts...): the running instances are re-created from the document's state, as a
     /// preset load does, instead of keeping their live state. A step that leaves the blob as
     /// it was (a sandbox toggle) keeps the live state.
-    pub(crate) fn reload_changed_plugin_states(
-        &mut self,
-        before: &[(DeviceId, Option<Base64Bytes>)],
-    ) {
+    pub fn reload_changed_plugin_states(&mut self, before: &[(DeviceId, Option<Base64Bytes>)]) {
         let Some(doc) = self.doc.as_ref() else { return };
         let changed: Vec<DeviceId> = before
             .iter()
@@ -679,7 +673,7 @@ where
         Ok(())
     }
 
-    pub(crate) fn stop(&mut self) -> CmdResult<()> {
+    pub fn stop(&mut self) -> CmdResult<()> {
         if self.transport.playing {
             self.engine_transport(TransportControl::Stop)?;
             self.transport.playing = false;
@@ -731,13 +725,13 @@ where
         )
     }
 
-    pub(crate) fn new_gesture(&mut self) -> GestureId {
+    pub fn new_gesture(&mut self) -> GestureId {
         let g = GestureId(self.next_gesture);
         self.next_gesture = self.next_gesture.wrapping_add(1).max(0x8000_0000);
         g
     }
 
-    pub(crate) fn transport_state(&self) -> Option<TransportState> {
+    pub fn transport_state(&self) -> Option<TransportState> {
         if let Some(s) = self.ext_transport_state() {
             return Some(s);
         }
@@ -757,7 +751,7 @@ where
         })
     }
 
-    pub(crate) fn emit_transport_if_changed(&mut self, out: &mut dyn MessageSink) {
+    pub fn emit_transport_if_changed(&mut self, out: &mut dyn MessageSink) {
         let state = self.transport_state();
         if let Some(state) = state
             && Some(&state) != self.last_transport.as_ref()
@@ -851,7 +845,7 @@ where
 
     /// One plugin notification other than `ParamEdited` (those are coalesced per poll by
     /// `plugin_notifications`, `plugins/edits.rs`).
-    pub(crate) fn plugin_notification(
+    pub fn plugin_notification(
         &mut self,
         device: DeviceId,
         n: PluginNotification,
@@ -945,7 +939,7 @@ where
 
     // ─── Media ──────────────────────────────────────────────────────────────────────────
 
-    pub(crate) fn locations(&self) -> Vec<BrowseRoot> {
+    pub fn locations(&self) -> Vec<BrowseRoot> {
         let mut roots = self.library.roots();
         if self.doc.is_some() {
             roots.push(BrowseRoot {
@@ -1216,7 +1210,7 @@ where
 
     // ─── Tick ───────────────────────────────────────────────────────────────────────────
 
-    pub(crate) fn tick_impl(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn tick_impl(&mut self, now: u64, out: &mut dyn MessageSink) {
         // Engine outputs.
         let mut outputs = std::mem::take(&mut self.outputs);
         self.bridge.poll(&mut outputs);
@@ -1391,7 +1385,7 @@ where
     }
 
     /// Publish the graph if dirty (from `handle`: only if the last publish is old enough).
-    pub(crate) fn publish_if_due(&mut self, now: u64, force: bool, out: &mut dyn MessageSink) {
+    pub fn publish_if_due(&mut self, now: u64, force: bool, out: &mut dyn MessageSink) {
         if !self.engine.graph_dirty || self.engine.off {
             self.engine.graph_dirty = false;
             return;
@@ -1426,7 +1420,7 @@ where
     }
 
     /// Before a save.
-    pub(crate) fn ext_before_save(&mut self, now: u64, kind: SaveKind, out: &mut dyn MessageSink) {
+    pub fn ext_before_save(&mut self, now: u64, kind: SaveKind, out: &mut dyn MessageSink) {
         self.ext_each(|e, ctl| e.before_save(ctl, now, kind, out));
     }
 
@@ -1466,28 +1460,28 @@ where
     }
 
     /// The engine was rebuilt for a newly loaded project.
-    pub(crate) fn ext_engine_changed(&mut self, out: &mut dyn MessageSink) {
+    pub fn ext_engine_changed(&mut self, out: &mut dyn MessageSink) {
         self.ext_each(|e, ctl| e.engine_changed(ctl, out));
     }
 
     /// `true` while the document is a read-only view here.
-    pub(crate) fn ext_view_only(&self) -> bool {
+    pub fn ext_view_only(&self) -> bool {
         self.ext_ask(|e, ctl| e.view_only(ctl).then_some(()))
             .is_some()
     }
 
     /// A project was loaded.
-    pub(crate) fn ext_project_loaded(&mut self, pid: ProjectId, out: &mut dyn MessageSink) {
+    pub fn ext_project_loaded(&mut self, pid: ProjectId, out: &mut dyn MessageSink) {
         self.ext_each(|e, ctl| e.project_loaded(ctl, pid, out));
     }
 
     /// Why an extension holds saves back, if one does.
-    pub(crate) fn save_refused(&self) -> Option<CommandError> {
+    pub fn save_refused(&self) -> Option<CommandError> {
         self.ext_ask(|e, ctl| e.save_refused(ctl))
     }
 
     /// `true` while an extension shares the document with others.
-    pub(crate) fn session_active(&self) -> bool {
+    pub fn session_active(&self) -> bool {
         self.ext_ask(|e, ctl| e.session_active(ctl).then_some(()))
             .is_some()
     }
@@ -1502,7 +1496,7 @@ where
 
     /// Refuse what needs a running engine (play, record). The local engine always runs in
     /// this build, so this only guards against the overlay's off state.
-    pub(crate) fn require_engine(&self) -> CmdResult<()> {
+    pub fn require_engine(&self) -> CmdResult<()> {
         if self.engine.off {
             return Err(internal("the audio engine is off"));
         }
@@ -1511,13 +1505,13 @@ where
 
     /// Report the engine's status (`force`: even unchanged): which engine plays is an
     /// extension's choice (`ControllerExt::engine_status`); the app's own has nothing to say.
-    pub(crate) fn engine_emit_status(&mut self, force: bool, out: &mut dyn MessageSink) {
+    pub fn engine_emit_status(&mut self, force: bool, out: &mut dyn MessageSink) {
         self.ext_each(|e, ctl| e.engine_status(ctl, force, out));
     }
 
     /// A project is about to load: clear any stale local-engine-off state so it opens with
     /// the local engine on (only the private overlay ever turns it off).
-    pub(crate) fn engine_on_project_load(&mut self, id: ProjectId, _now: u64) {
+    pub fn engine_on_project_load(&mut self, id: ProjectId, _now: u64) {
         if self.engine.off && self.engine.off_project != Some(id) {
             self.engine.off = false;
             self.engine.off_project = None;

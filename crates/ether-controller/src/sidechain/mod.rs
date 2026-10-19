@@ -27,7 +27,7 @@ use ether_core::{ScPoint, SidechainTapDesc};
 use crate::doc::DocCtx;
 use crate::tx::{CmdResult, invalid};
 
-pub(crate) fn set_sidechain(
+pub fn set_sidechain(
     ctx: &mut DocCtx,
     device: DeviceId,
     source: Option<TrackId>,
@@ -76,7 +76,7 @@ pub(crate) fn set_sidechain(
 }
 
 /// Clears device `d`'s sidechain (source, then tap).
-pub(crate) fn cut(ctx: &mut DocCtx, d: &Device) -> CmdResult<()> {
+pub fn cut(ctx: &mut DocCtx, d: &Device) -> CmdResult<()> {
     if d.sidechain.is_some() {
         ctx.set_device(d.id, DeviceChange::Sidechain(None))?;
     }
@@ -89,14 +89,14 @@ pub(crate) fn cut(ctx: &mut DocCtx, d: &Device) -> CmdResult<()> {
 /// Whether device `d`'s sidechain may stop being valid when `d` moves within its track
 /// (into or out of a rack chain / drum pad): only a tap of a chain of its own track can
 /// (its rack must stay before the device); other sources don't depend on the position.
-pub(crate) fn depends_on_position(d: &Device) -> bool {
+pub fn depends_on_position(d: &Device) -> bool {
     d.sidechain == Some(d.track) && d.sidechain_tap.is_some_and(|t| t.chain.is_some())
 }
 
 /// `TrackDesc::sidechain_taps` of `track`: the engine point of every sidechained device on it
 /// (any depth) that doesn't tap its source's post-fader output (devices without a node are
 /// skipped, like in the chains).
-pub(crate) fn taps_desc(
+pub fn taps_desc(
     p: &Project,
     track: TrackId,
     ctx: &crate::compile::CompileContext,

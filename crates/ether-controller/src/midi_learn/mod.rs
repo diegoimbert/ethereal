@@ -71,7 +71,7 @@ use crate::store::{Library, ProjectStore};
 use crate::tx::{CmdResult, internal};
 use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 
-pub(crate) use doc::apply;
+pub use doc::apply;
 use input::Decoded;
 
 /// A mapping's gesture ends after this long without messages (one undo step per movement).
@@ -83,7 +83,7 @@ const MAX_REMEMBERED: usize = 4096;
 
 /// Runtime MIDI learn state (not in the document).
 #[derive(Debug, Default)]
-pub(crate) struct MidiLearnState {
+pub struct MidiLearnState {
     /// Target being learned.
     learn: Option<MidiMapTarget>,
     /// The one gesture of mapping-driven continuous moves and the time of its last message.
@@ -150,7 +150,7 @@ where
     L: Library,
 {
     /// `MidiMap::Learn` / `MidiMap::List` (not document commands).
-    pub(crate) fn midi_map_command(
+    pub fn midi_map_command(
         &mut self,
         c: &MidiMapCommand,
         out: &mut dyn MessageSink,
@@ -184,7 +184,7 @@ where
     }
 
     /// Called from every tick.
-    pub(crate) fn midi_learn_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn midi_learn_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         // Another project: nothing carries over (learn, gesture, press detection).
         let project = self.doc.as_ref().map(|d| d.project.id);
         if project != self.midi_learn.project {

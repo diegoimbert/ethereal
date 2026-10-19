@@ -44,7 +44,7 @@ use crate::store::{Library, ProjectStore};
 use crate::tx::{CmdResult, invalid, invalid_state, not_found};
 use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 
-pub(crate) use editable::check_editable;
+pub use editable::check_editable;
 use job::{PassSpec, RenderJob, Step};
 
 /// Work per tick: at most this many units of work...
@@ -88,7 +88,7 @@ struct Running {
 
 /// The running render job (hosted by `ExportState::render`).
 #[derive(Default)]
-pub(crate) struct RenderState {
+pub struct RenderState {
     running: Option<Running>,
     last_progress: Option<f32>,
 }
@@ -266,7 +266,7 @@ where
     S: ProjectStore,
     L: Library,
 {
-    pub(crate) fn freeze_command(
+    pub fn freeze_command(
         &mut self,
         command: &FreezeCommand,
         now: u64,
@@ -609,7 +609,7 @@ where
     }
 
     /// Called every tick: advance the running render job.
-    pub(crate) fn freeze_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn freeze_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         let Some(mut running) = self.export.render.running.take() else {
             return;
         };
@@ -806,7 +806,7 @@ fn no_project() -> ether_core::protocol::CommandError {
 }
 
 /// The frozen render of `track` for the engine (see the module docs).
-pub(crate) fn frozen_desc(p: &Project, track: &Track) -> Option<FrozenDesc> {
+pub fn frozen_desc(p: &Project, track: &Track) -> Option<FrozenDesc> {
     let _ = p;
     let f = track.freeze.as_ref()?;
     Some(FrozenDesc {
@@ -822,7 +822,7 @@ pub(crate) fn frozen_desc(p: &Project, track: &Track) -> Option<FrozenDesc> {
 /// tracks that are not inside a frozen group are untouched, so the "taps are unaffected by
 /// mute/solo" rule (#359, #371) holds for them; a sidechain fed by an inert track hears
 /// silence.
-pub(crate) fn apply_inert(p: &Project, tracks: &mut [ether_core::graph::TrackDesc]) {
+pub fn apply_inert(p: &Project, tracks: &mut [ether_core::graph::TrackDesc]) {
     if !p
         .tracks
         .values()

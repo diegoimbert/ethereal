@@ -9,7 +9,7 @@ use super::{DocCtx, order_after, order_before};
 use crate::tx::{CmdResult, invalid};
 
 /// Default track colors (same palette as the UI mock).
-pub(crate) const TRACK_COLORS: [u32; 10] = [
+pub const TRACK_COLORS: [u32; 10] = [
     0xe8919d, 0xe8a585, 0xe6c07e, 0xa9cf8b, 0x86cfa8, 0x7cc6c0, 0x86bfe0, 0x8fa8e6, 0xbd9ae3,
     0xd99adf,
 ];
@@ -42,7 +42,7 @@ fn default_input(kind: TrackKind) -> TrackInput {
 }
 
 /// Sorted `(order, id)` of the children of `parent` (`None` = top level), minus `except`.
-pub(crate) fn siblings(
+pub fn siblings(
     p: &Project,
     parent: Option<TrackId>,
     except: Option<TrackId>,

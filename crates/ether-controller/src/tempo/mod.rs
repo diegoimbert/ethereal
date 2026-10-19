@@ -24,10 +24,10 @@ use crate::doc::{DocCtx, MAX_BPM, MIN_BPM};
 use crate::tx::{CmdResult, invalid, not_found};
 
 /// Metronome volume range (dB).
-pub(crate) const MIN_METRONOME_DB: f32 = -144.0;
-pub(crate) const MAX_METRONOME_DB: f32 = 6.0;
+pub const MIN_METRONOME_DB: f32 = -144.0;
+pub const MAX_METRONOME_DB: f32 = 6.0;
 
-pub(crate) fn apply(ctx: &mut DocCtx, c: &TempoCommand) -> CmdResult<()> {
+pub fn apply(ctx: &mut DocCtx, c: &TempoCommand) -> CmdResult<()> {
     match c {
         TempoCommand::AddTempoPoint {
             id,
@@ -262,7 +262,7 @@ fn check_free_signature_time(
 
 /// Click settings for the render graph (`count_in_end` is set on the published desc by
 /// the controller while a record count-in runs: `EngineState::count_in_end`).
-pub(crate) fn metronome_desc(s: &ProjectSettings) -> MetronomeDesc {
+pub fn metronome_desc(s: &ProjectSettings) -> MetronomeDesc {
     MetronomeDesc {
         volume: s.metronome_volume.to_linear(),
         accent: s.metronome_accent,

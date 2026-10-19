@@ -90,7 +90,7 @@ struct Current {
 
 /// Tempo sync of a preview (`Browser::Preview { sync: true }`).
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct PreviewSync {
+pub struct PreviewSync {
     /// Playback speed (project bpm / item bpm; 1 = unchanged).
     pub ratio: f64,
     /// Delay the start to the next beat while the transport plays.
@@ -99,7 +99,7 @@ pub(crate) struct PreviewSync {
 
 /// Preview runtime state (one field on `EtherController`).
 #[derive(Default)]
-pub(crate) struct PreviewState {
+pub struct PreviewState {
     /// Last id handed out (ids start at 1).
     last_id: u64,
     current: Option<Current>,
@@ -193,7 +193,7 @@ where
     L: Library,
 {
     /// `Media::Preview` / `Media::StopPreview`.
-    pub(crate) fn preview_command(
+    pub fn preview_command(
         &mut self,
         c: &MediaCommand,
         out: &mut dyn MessageSink,
@@ -210,7 +210,7 @@ where
     }
 
     /// Called every tick (after the engine outputs were polled).
-    pub(crate) fn preview_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn preview_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         let _ = now;
         if let Some(id) = self.outputs.preview_ended.take()
             && self
@@ -225,7 +225,7 @@ where
     }
 
     /// Start a preview (`sync`: tempo sync, see the module docs).
-    pub(crate) fn start_preview(
+    pub fn start_preview(
         &mut self,
         source: &MediaSource,
         sync: Option<PreviewSync>,

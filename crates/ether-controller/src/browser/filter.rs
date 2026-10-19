@@ -34,7 +34,7 @@ use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 use super::{FACTORY_ROOT, PROJECTS_ROOT, changed};
 
 /// The filter file inside the user library root.
-pub(crate) const FILTER_FILE: &str = "Settings/library-filters.json";
+pub const FILTER_FILE: &str = "Settings/library-filters.json";
 
 /// Compiled regex size limit per list (bytes of program; generous for hand-written rules).
 const SIZE_LIMIT: usize = 4 << 20;
@@ -189,7 +189,7 @@ fn parse(bytes: &[u8]) -> Option<FileFilter> {
 
 /// Runtime filter state (in `BrowserState`).
 #[derive(Debug, Default)]
-pub(crate) struct FilterState {
+pub struct FilterState {
     /// The current filter, once loaded.
     current: Option<(FileFilter, CompiledFilter)>,
 }
@@ -202,7 +202,7 @@ where
     L: Library,
 {
     /// The current filter, compiled (loaded from the user library on first use).
-    pub(crate) fn browser_filter(&mut self) -> &CompiledFilter {
+    pub fn browser_filter(&mut self) -> &CompiledFilter {
         self.browser_filter_load();
         &self.browser.filter.current.as_ref().expect("loaded").1
     }
@@ -238,7 +238,7 @@ where
     }
 
     /// `Browser::{Get,Set,Reset,Check}FileFilter`.
-    pub(crate) fn browser_filter_command(
+    pub fn browser_filter_command(
         &mut self,
         command: &BrowserCommand,
         now: u64,
@@ -348,7 +348,7 @@ where
 }
 
 /// File names seen by the last scan of each root (root → name → count).
-pub(crate) type SeenNames = HashMap<String, HashMap<String, u32>>;
+pub type SeenNames = HashMap<String, HashMap<String, u32>>;
 
 #[cfg(test)]
 mod tests {

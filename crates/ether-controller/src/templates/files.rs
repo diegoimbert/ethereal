@@ -23,13 +23,13 @@ const MAX_FILES: usize = 1024;
 /// Longest file stem derived from a template name (characters).
 const MAX_STEM: usize = 80;
 /// The default project template's file, relative to the user root.
-pub(crate) const DEFAULT_FILE: &str = "Templates/default.json";
+pub const DEFAULT_FILE: &str = "Templates/default.json";
 /// Prefix of factory template ids.
-pub(crate) const FACTORY: &str = "factory/";
+pub const FACTORY: &str = "factory/";
 
 /// Where a template id points.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Location {
+pub enum Location {
     /// A user template: its kind and its path relative to the user root.
     User {
         kind: TemplateKind,
@@ -41,14 +41,14 @@ pub(crate) enum Location {
 }
 
 /// Folder name and id prefix of a kind.
-pub(crate) fn kind_dir(kind: TemplateKind) -> (&'static str, &'static str) {
+pub fn kind_dir(kind: TemplateKind) -> (&'static str, &'static str) {
     match kind {
         TemplateKind::Project => ("Projects", "projects"),
         TemplateKind::Tracks => ("Tracks", "tracks"),
     }
 }
 
-pub(crate) fn body_kind(body: &TemplateBody) -> TemplateKind {
+pub fn body_kind(body: &TemplateBody) -> TemplateKind {
     match body {
         TemplateBody::Project { .. } => TemplateKind::Project,
         TemplateBody::Tracks { .. } => TemplateKind::Tracks,
@@ -56,12 +56,12 @@ pub(crate) fn body_kind(body: &TemplateBody) -> TemplateKind {
 }
 
 /// The user template id of `stem`.
-pub(crate) fn user_id(kind: TemplateKind, stem: &str) -> TemplateId {
+pub fn user_id(kind: TemplateKind, stem: &str) -> TemplateId {
     format!("{}/{stem}", kind_dir(kind).1)
 }
 
 /// Path (relative to the user root) of a user template file.
-pub(crate) fn user_path(kind: TemplateKind, stem: &str) -> String {
+pub fn user_path(kind: TemplateKind, stem: &str) -> String {
     format!(
         "{TEMPLATES_DIR}/{}/{stem}.{TEMPLATE_EXTENSION}",
         kind_dir(kind).0
@@ -69,7 +69,7 @@ pub(crate) fn user_path(kind: TemplateKind, stem: &str) -> String {
 }
 
 /// Parse a template id.
-pub(crate) fn locate(id: &str) -> Result<Location, StoreError> {
+pub fn locate(id: &str) -> Result<Location, StoreError> {
     let bad = || StoreError::InvalidPath(id.to_string());
     let (prefix, rest) = id.split_once('/').ok_or_else(bad)?;
     if rest.is_empty() || rest.contains('/') {
@@ -95,7 +95,7 @@ pub(crate) fn locate(id: &str) -> Result<Location, StoreError> {
 /// A file stem for a template name: characters that are unsafe in file names on any OS
 /// become `-`, leading dots and surrounding spaces are trimmed, at most [`MAX_STEM`]
 /// characters.
-pub(crate) fn file_stem(name: &str) -> String {
+pub fn file_stem(name: &str) -> String {
     let cleaned: String = name
         .chars()
         .map(|c| {
@@ -121,7 +121,7 @@ pub(crate) fn file_stem(name: &str) -> String {
 
 /// Tags lowercased, trimmed, deduplicated and sorted; empty author/description dropped
 /// (same rules as presets).
-pub(crate) fn normalize_meta(meta: &PresetMeta) -> PresetMeta {
+pub fn normalize_meta(meta: &PresetMeta) -> PresetMeta {
     let tags: BTreeSet<String> = meta
         .tags
         .iter()
@@ -141,7 +141,7 @@ pub(crate) fn normalize_meta(meta: &PresetMeta) -> PresetMeta {
     }
 }
 
-pub(crate) fn info(id: TemplateId, file: &TemplateFile, default: Option<&str>) -> TemplateInfo {
+pub fn info(id: TemplateId, file: &TemplateFile, default: Option<&str>) -> TemplateInfo {
     TemplateInfo {
         default: default == Some(id.as_str()),
         factory: id.starts_with(FACTORY),
@@ -154,7 +154,7 @@ pub(crate) fn info(id: TemplateId, file: &TemplateFile, default: Option<&str>) -
 }
 
 /// Read and parse a user template file.
-pub(crate) fn read_user<L: Library>(
+pub fn read_user<L: Library>(
     library: &mut L,
     root: &str,
     path: &str,
@@ -166,7 +166,7 @@ pub(crate) fn read_user<L: Library>(
 
 /// Every parsed user template of `kind`: `(stem, file)`. Unreadable or invalid files are
 /// skipped (and so are files whose body is of the other kind); missing folders are empty.
-pub(crate) fn user_templates<L: Library>(
+pub fn user_templates<L: Library>(
     library: &mut L,
     root: &str,
     kind: TemplateKind,
@@ -194,11 +194,7 @@ pub(crate) fn user_templates<L: Library>(
 }
 
 /// Stems of every template file of `kind` (valid or not).
-pub(crate) fn user_stems<L: Library>(
-    library: &mut L,
-    root: &str,
-    kind: TemplateKind,
-) -> Vec<String> {
+pub fn user_stems<L: Library>(library: &mut L, root: &str, kind: TemplateKind) -> Vec<String> {
     let dir = format!("{TEMPLATES_DIR}/{}", kind_dir(kind).0);
     let ext = format!(".{TEMPLATE_EXTENSION}");
     library
@@ -213,13 +209,13 @@ pub(crate) fn user_stems<L: Library>(
 }
 
 /// The stored default project template id (`None`: none, or unreadable).
-pub(crate) fn read_default<L: Library>(library: &mut L, root: &str) -> Option<TemplateId> {
+pub fn read_default<L: Library>(library: &mut L, root: &str) -> Option<TemplateId> {
     let bytes = library.read(root, DEFAULT_FILE).ok()?;
     let v: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
     v.get("template")?.as_str().map(str::to_string)
 }
 
-pub(crate) fn write_default<L: Library>(
+pub fn write_default<L: Library>(
     library: &mut L,
     root: &str,
     template: Option<&str>,

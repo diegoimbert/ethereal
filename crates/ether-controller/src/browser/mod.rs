@@ -79,17 +79,17 @@ use index::{Entry, Index};
 use persist::{IndexFile, StoredItem, UserFolder};
 
 /// Folder listings per tick.
-pub(crate) const DIRS_PER_TICK: usize = 24;
+pub const DIRS_PER_TICK: usize = 24;
 /// Directory entries handled per tick (a listing is never split).
-pub(crate) const ENTRIES_PER_TICK: usize = 2000;
+pub const ENTRIES_PER_TICK: usize = 2000;
 /// Wall-clock budget of the scan and probe work in one tick (`HostServices::now_ms`; the
 /// count limits above still bound it on hosts with a coarse or frozen clock).
-pub(crate) const TICK_BUDGET_MS: u64 = 8;
+pub const TICK_BUDGET_MS: u64 = 8;
 /// Header probes per tick, and the bytes they may read.
 const PROBE_FILES_PER_TICK: usize = 16;
 const PROBE_BYTES_PER_TICK: f64 = (4 << 20) as f64;
 /// Larger files are not probed (their header metadata stays unknown).
-pub(crate) const MAX_PROBE_BYTES: f64 = (16 << 20) as f64;
+pub const MAX_PROBE_BYTES: f64 = (16 << 20) as f64;
 /// Deepest folder level walked below a root.
 const MAX_DEPTH: usize = 16;
 const PROGRESS_EVERY_MS: u64 = 250;
@@ -97,15 +97,15 @@ const CHANGED_EVERY_MS: u64 = 2000;
 /// Persist this long after the last change (later while a scan runs).
 const PERSIST_AFTER_MS: u64 = 2000;
 const PERSIST_LATEST_MS: u64 = 15_000;
-pub(crate) const RESCAN_EVERY_MS: u64 = 15 * 60_000;
+pub const RESCAN_EVERY_MS: u64 = 15 * 60_000;
 /// Tempo-sync ratios are clamped to this range.
 const MIN_RATIO: f64 = 0.25;
 const MAX_RATIO: f64 = 4.0;
 
 /// Root id of the factory presets.
-pub(crate) const FACTORY_ROOT: &str = "factory";
+pub const FACTORY_ROOT: &str = "factory";
 /// Root id of project items (not listed as a root).
-pub(crate) const PROJECTS_ROOT: &str = "projects";
+pub const PROJECTS_ROOT: &str = "projects";
 const USER_LIBRARY_NAME: &str = "User Library";
 const PACK_FILE: &str = "pack.json";
 /// Longest user folder name (`RenameFolder`).
@@ -129,7 +129,7 @@ struct RootScan {
 
 /// Browser runtime state (one field on `EtherController`).
 #[derive(Default)]
-pub(crate) struct BrowserState {
+pub struct BrowserState {
     started: bool,
     index: Index,
     folders: Vec<UserFolder>,
@@ -410,7 +410,7 @@ where
     S: ProjectStore,
     L: Library,
 {
-    pub(crate) fn browser_command(
+    pub fn browser_command(
         &mut self,
         command: &BrowserCommand,
         now: u64,
@@ -555,7 +555,7 @@ where
     }
 
     /// Called every tick.
-    pub(crate) fn browser_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn browser_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         if !self.browser.started {
             return;
         }

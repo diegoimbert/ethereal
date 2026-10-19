@@ -28,7 +28,7 @@ const DETECT_MAX_BPM: f64 = 160.0;
 /// BPM-detection stub (no audio analysis): the tempo in [80, 160) BPM at which `seconds` of
 /// audio span a power-of-two number of 4/4 bars (loops are usually 1, 2, 4, 8... bars),
 /// rounded to 0.01. `None` for an empty or absurdly long file.
-pub(crate) fn detect_bpm(seconds: f64) -> Option<f64> {
+pub fn detect_bpm(seconds: f64) -> Option<f64> {
     if !(seconds.is_finite() && seconds > 0.0) {
         return None;
     }
@@ -39,7 +39,7 @@ pub(crate) fn detect_bpm(seconds: f64) -> Option<f64> {
 }
 
 /// `WarpCommand::DetectTempo`: [`detect_bpm`] on the clip's media length.
-pub(crate) fn detect_tempo(p: &Project, clip: ClipId) -> CmdResult<ReplyValue> {
+pub fn detect_tempo(p: &Project, clip: ClipId) -> CmdResult<ReplyValue> {
     let c = p
         .clips
         .get(&clip)
@@ -61,7 +61,7 @@ pub(crate) fn detect_tempo(p: &Project, clip: ClipId) -> CmdResult<ReplyValue> {
 /// past the edge markers with the edge segments' slopes. With one marker (or none) the
 /// slope comes from `source_bpm` through that marker (or through the content start); with
 /// no usable `source_bpm` either, the clip plays unwarped.
-pub(crate) fn warp_desc(p: &Project, clip: &Clip, audio: &AudioContent) -> Option<WarpDesc> {
+pub fn warp_desc(p: &Project, clip: &Clip, audio: &AudioContent) -> Option<WarpDesc> {
     if !audio.warp.enabled {
         return None;
     }
@@ -90,13 +90,13 @@ pub(crate) fn warp_desc(p: &Project, clip: &Clip, audio: &AudioContent) -> Optio
 /// (`ether_core::sched::source_seconds`: piecewise linear through the warp markers,
 /// extrapolated past the edge markers with the edge slopes; unwarped, the tempo at the clip
 /// start), and its inverse.
-pub(crate) struct ContentMap {
+pub struct ContentMap {
     markers: Option<Vec<(f64, f64)>>,
     ref_bpm: f64,
 }
 
 impl ContentMap {
-    pub(crate) fn of(p: &Project, clip: &Clip, audio: &AudioContent) -> Self {
+    pub fn of(p: &Project, clip: &Clip, audio: &AudioContent) -> Self {
         Self {
             markers: warp_desc(p, clip, audio)
                 .map(|w| w.markers)
@@ -106,7 +106,7 @@ impl ContentMap {
     }
 
     /// Source seconds at content beat `c`.
-    pub(crate) fn forward(&self, c: f64) -> f64 {
+    pub fn forward(&self, c: f64) -> f64 {
         match &self.markers {
             Some(m) => {
                 let i = m.partition_point(|&(b, _)| b <= c).clamp(1, m.len() - 1);
@@ -122,7 +122,7 @@ impl ContentMap {
     }
 
     /// Content beat reading source second `s` (assumes sources increase with beats).
-    pub(crate) fn inverse(&self, s: f64) -> f64 {
+    pub fn inverse(&self, s: f64) -> f64 {
         match &self.markers {
             Some(m) => {
                 let i = m
@@ -155,7 +155,7 @@ fn marker_values(beat: Beats, source: Seconds) -> CmdResult<(Beats, Seconds)> {
 }
 
 /// Closest a moved marker gets to its neighbours (beats; the warp editor's `MIN_GAP`).
-pub(crate) const MARKER_MIN_GAP: f64 = 1.0 / 64.0;
+pub const MARKER_MIN_GAP: f64 = 1.0 / 64.0;
 
 /// Clamp a move of marker `m` to `(beat, source)` between its neighbours (by beat, among
 /// the clip's other markers): a marker never crosses another, so a move only re-times the
@@ -199,7 +199,7 @@ fn between_neighbours(
 }
 
 /// Apply a `WarpCommand` (document edit).
-pub(crate) fn command(ctx: &mut DocCtx, c: &WarpCommand) -> CmdResult<()> {
+pub fn command(ctx: &mut DocCtx, c: &WarpCommand) -> CmdResult<()> {
     match c {
         WarpCommand::SetWarp { clip, warp } => set_warp(ctx, *clip, *warp),
         WarpCommand::AddMarker {

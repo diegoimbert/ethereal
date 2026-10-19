@@ -32,7 +32,7 @@ use ether_core::protocol::devices::{DeviceCategory, DeviceSpec};
 use ether_core::protocol::model::*;
 use ether_core::protocol::racks::{ModulationCommand, RackCommand};
 
-pub(crate) use compile::{chain_racks_desc, modulation_desc};
+pub use compile::{chain_racks_desc, modulation_desc};
 
 use crate::doc::{DocCtx, builtin_descriptor, default_device_name, order_before};
 use crate::tx::{CmdResult, invalid, not_found};
@@ -62,11 +62,7 @@ fn new_chain(id: RackChainId, rack: DeviceId, order: OrderKey, name: String) -> 
 /// rack's (`derive_id(rack, 0)`), so every client computes the same one. Instrument racks
 /// start empty (their chains come with an instrument); duplicates, presets and loaded
 /// documents keep exactly their chains (they never go through the insert commands).
-pub(crate) fn add_first_chain(
-    ctx: &mut DocCtx,
-    rack: DeviceId,
-    device: &BuiltinDevice,
-) -> CmdResult<()> {
+pub fn add_first_chain(ctx: &mut DocCtx, rack: DeviceId, device: &BuiltinDevice) -> CmdResult<()> {
     if !matches!(
         device.device_type(),
         BuiltinDeviceType::AudioEffectRack | BuiltinDeviceType::MidiEffectRack
@@ -87,7 +83,7 @@ pub(crate) fn add_first_chain(
 }
 
 /// Whether `d` is a chain rack (instrument / audio effect / MIDI effect rack).
-pub(crate) fn is_chain_rack(d: &Device) -> bool {
+pub fn is_chain_rack(d: &Device) -> bool {
     matches!(&d.kind, DeviceKind::Builtin { device } if device.device_type().is_rack())
 }
 
@@ -325,7 +321,7 @@ fn onto_chain(ctx: &mut DocCtx, d: &Device, chain: RackChainId, order: OrderKey)
     ctx.set_device(d.id, DeviceChange::Order(order))
 }
 
-pub(crate) fn rack_command(ctx: &mut DocCtx, command: &RackCommand) -> CmdResult<()> {
+pub fn rack_command(ctx: &mut DocCtx, command: &RackCommand) -> CmdResult<()> {
     match command {
         RackCommand::AddChain {
             id,
@@ -568,7 +564,7 @@ pub(crate) fn rack_command(ctx: &mut DocCtx, command: &RackCommand) -> CmdResult
 /// of `chain_id` with the content rules of `Rack::InsertDevice` (no nested racks, chain
 /// fit). Built-ins get their default params, plugins are instantiated with `kind`'s state.
 /// Returns the inserted device.
-pub(crate) fn append_chain_device(
+pub fn append_chain_device(
     ctx: &mut DocCtx,
     id: DeviceId,
     chain_id: RackChainId,
@@ -785,7 +781,7 @@ fn group(
 /// Track / device duplication: `devices` maps the original devices (a track's, or a device
 /// with its drum pads' devices) to their copies (already inserted). Copies every copied rack's chains with their devices (added to `devices`),
 /// then the modulators and mappings among all copied devices.
-pub(crate) fn copy_for_track(
+pub fn copy_for_track(
     ctx: &mut DocCtx,
     devices: &mut BTreeMap<DeviceId, DeviceId>,
 ) -> CmdResult<()> {
@@ -1034,10 +1030,7 @@ fn carry_automation(ctx: &mut DocCtx, ids: &BTreeMap<DeviceId, DeviceId>) -> Cmd
 
 /// Copy the modulators of the devices in `devices` (old → new) and the mappings between
 /// them (source and target both copied) onto the copies.
-pub(crate) fn copy_modulation(
-    ctx: &mut DocCtx,
-    devices: &BTreeMap<DeviceId, DeviceId>,
-) -> CmdResult<()> {
+pub fn copy_modulation(ctx: &mut DocCtx, devices: &BTreeMap<DeviceId, DeviceId>) -> CmdResult<()> {
     let mut mods: Vec<Modulator> = ctx
         .p()
         .modulators
@@ -1097,7 +1090,7 @@ fn modulator_param_info(
         .ok_or_else(|| not_found(format!("modulator param {}", param.0)))
 }
 
-pub(crate) fn modulation_command(ctx: &mut DocCtx, command: &ModulationCommand) -> CmdResult<()> {
+pub fn modulation_command(ctx: &mut DocCtx, command: &ModulationCommand) -> CmdResult<()> {
     match command {
         ModulationCommand::AddModulator {
             id,

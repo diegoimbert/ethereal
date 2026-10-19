@@ -55,7 +55,7 @@ pub struct UndoLabel {
 impl UndoLabel {
     /// A `Batch`'s label: its key when the catalog has it, else the text (keyed when it is
     /// one of the catalog's messages without arguments).
-    pub(crate) fn batch(text: &str, key: Option<&TextKey>) -> Self {
+    pub fn batch(text: &str, key: Option<&TextKey>) -> Self {
         match key {
             Some(key) if crate::text::exists(&key.id) => Self {
                 text: text.to_owned(),
@@ -66,7 +66,7 @@ impl UndoLabel {
     }
 
     /// The label of catalog message `key` (its English text from the catalog).
-    pub(crate) fn keyed(key: TextKey) -> Self {
+    pub fn keyed(key: TextKey) -> Self {
         Self {
             text: crate::text::english(&key),
             key: Some(key),
@@ -119,7 +119,7 @@ impl PartialEq<&str> for UndoLabel {
 }
 
 /// The label of catalog message `id` (without arguments): `edit_with(doc::undo("undo.capture.capture"), …)`.
-pub(crate) fn undo(id: &str) -> UndoLabel {
+pub fn undo(id: &str) -> UndoLabel {
     UndoLabel::keyed(TextKey::new(id))
 }
 
@@ -226,7 +226,7 @@ fn param_label(
 
 /// The undo label of `command` (`project`: the open project, to name devices and
 /// parameters; `None` gives the generic label).
-pub(crate) fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
+pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
     match command {
         Command::Edit(c) => match c {
             E::Undo => k("undo.edit.undo"),

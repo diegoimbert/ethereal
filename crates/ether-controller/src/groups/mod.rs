@@ -38,7 +38,7 @@ fn siblings(p: &Project, parent: Option<TrackId>) -> Vec<(OrderKey, TrackId)> {
 /// Name of a group created by `GroupSelected { name: None }`.
 pub const DEFAULT_GROUP_NAME: &str = "Group";
 
-pub(crate) fn track_command(ctx: &mut DocCtx, command: &TrackCommand) -> CmdResult<()> {
+pub fn track_command(ctx: &mut DocCtx, command: &TrackCommand) -> CmdResult<()> {
     match command {
         TrackCommand::GroupSelected { ids, group, name } => {
             group_selected(ctx, ids, *group, name.as_deref())
@@ -134,7 +134,7 @@ fn group_selected(
 }
 
 /// What ungrouping `group` would lose (for the `force` check), as a human list.
-pub(crate) fn ungroup_losses(p: &Project, group: TrackId) -> Vec<String> {
+pub fn ungroup_losses(p: &Project, group: TrackId) -> Vec<String> {
     let mut lost = Vec::new();
     let devices = p.devices_of(group).len();
     if devices > 0 {
@@ -237,7 +237,7 @@ fn set_vca(ctx: &mut DocCtx, id: TrackId, vca: Option<TrackId>) -> CmdResult<()>
 
 /// `RenderGraphDesc::vcas`: every VCA track with its fader, mute, parent VCA and volume
 /// automation.
-pub(crate) fn vca_descs(p: &Project, ctx: &CompileContext) -> Vec<VcaDesc> {
+pub fn vca_descs(p: &Project, ctx: &CompileContext) -> Vec<VcaDesc> {
     let _ = ctx;
     let mut vcas: Vec<&Track> = p
         .tracks
@@ -306,7 +306,7 @@ fn soloed_vcas(p: &Project) -> BTreeSet<TrackId> {
 
 /// Fold VCA solo into the assigned tracks' `TrackDesc::solo` (CONTRACTS.md §12.10: soloing
 /// a VCA solos its tracks, nested VCAs included). Called by `compile_graph_with`.
-pub(crate) fn fold_vca_solo(p: &Project, tracks: &mut [TrackDesc]) {
+pub fn fold_vca_solo(p: &Project, tracks: &mut [TrackDesc]) {
     let soloed = soloed_vcas(p);
     if soloed.is_empty() {
         return;

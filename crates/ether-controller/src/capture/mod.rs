@@ -68,7 +68,7 @@ struct Captured {
 
 /// The capture ring and its availability (runtime, site-local).
 #[derive(Debug, Default)]
-pub(crate) struct CaptureState {
+pub struct CaptureState {
     ring: VecDeque<Captured>,
     /// Note-ons in `ring`.
     note_ons: u32,
@@ -174,7 +174,7 @@ where
     S: ProjectStore,
     L: Library,
 {
-    pub(crate) fn capture_command(
+    pub fn capture_command(
         &mut self,
         command: &CaptureCommand,
         now: u64,
@@ -205,7 +205,7 @@ where
     }
 
     /// One incoming MIDI message (all ports).
-    pub(crate) fn capture_input(&mut self, event: &MidiInputEvent, now: u64) {
+    pub fn capture_input(&mut self, event: &MidiInputEvent, now: u64) {
         // Channel voice messages only (no system / realtime bytes).
         if !(0x80..0xf0).contains(&event.data[0]) || !event.time_ms.is_finite() {
             return;
@@ -223,7 +223,7 @@ where
     }
 
     /// Called every tick.
-    pub(crate) fn capture_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn capture_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         self.capture_sync(now);
         self.capture_announce(out);
     }

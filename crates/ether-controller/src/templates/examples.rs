@@ -32,7 +32,7 @@ const T: u64 = 1_767_225_600_000;
 /// A drum sound of the examples' kit, on its General MIDI key (the drum rack's first bank
 /// starts at C1 = 36).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum Drum {
+pub enum Drum {
     Kick,
     Snare,
     Clap,
@@ -41,7 +41,7 @@ pub(crate) enum Drum {
 }
 
 impl Drum {
-    pub(crate) const ALL: [Drum; 5] = [
+    pub const ALL: [Drum; 5] = [
         Drum::Kick,
         Drum::Snare,
         Drum::Clap,
@@ -50,7 +50,7 @@ impl Drum {
     ];
 
     /// The pad's key: kick C1, snare D1, clap D#1, closed hat F#1, open hat A#1.
-    pub(crate) fn note(self) -> u8 {
+    pub fn note(self) -> u8 {
         match self {
             Drum::Kick => 36,
             Drum::Snare => 38,
@@ -61,7 +61,7 @@ impl Drum {
     }
 
     /// The pad's name (shown lowercase, like every name).
-    pub(crate) fn name(self) -> &'static str {
+    pub fn name(self) -> &'static str {
         match self {
             Drum::Kick => "kick",
             Drum::Snare => "snare",
@@ -74,7 +74,7 @@ impl Drum {
 
 /// What a pad plays. Only presets for now; a sample variant comes with the sample pack.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PadSound {
+pub enum PadSound {
     /// A built-in instrument loaded with one of its factory presets.
     Preset {
         device: BuiltinDeviceType,
@@ -83,7 +83,7 @@ pub(crate) enum PadSound {
 }
 
 /// The sound of each drum of the kit (see the module docs: the sample pack swaps it here).
-pub(crate) fn pad_sound(drum: Drum) -> PadSound {
+pub fn pad_sound(drum: Drum) -> PadSound {
     let preset = match drum {
         Drum::Kick => "poly-synth/kick",
         Drum::Snare => "poly-synth/snare",
@@ -144,7 +144,7 @@ struct ExampleTrack {
     effects: Vec<Effect>,
 }
 
-pub(crate) struct Example {
+pub struct Example {
     pub slug: &'static str,
     name: &'static str,
     description: &'static str,
@@ -362,7 +362,7 @@ fn bassline() -> Example {
 }
 
 /// Every example, in the order the welcome screen lists them.
-pub(crate) fn all() -> Vec<Example> {
+pub fn all() -> Vec<Example> {
     vec![house(), hip_hop(), lofi(), bassline()]
 }
 
@@ -575,7 +575,7 @@ fn add_pad(ctx: &mut DocCtx, rack: DeviceId, drum: Drum) -> CmdResult<()> {
 }
 
 /// The example as a project template (fixed ids, from a seed of its own).
-pub(crate) fn template(ex: &Example, seed: u64) -> CmdResult<Template> {
+pub fn template(ex: &Example, seed: u64) -> CmdResult<Template> {
     let mut ids = IdGen::new(seed);
     let mut project = Project::new(&mut ids, T);
     project.settings.name = ex.name.into();

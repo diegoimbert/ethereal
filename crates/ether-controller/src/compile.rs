@@ -200,7 +200,7 @@ fn tracks_in_order(p: &Project) -> Vec<&Track> {
 }
 
 /// Resolved output bus of a track.
-pub(crate) fn resolve_output(p: &Project, t: &Track) -> Option<TrackId> {
+pub fn resolve_output(p: &Project, t: &Track) -> Option<TrackId> {
     match &t.output {
         TrackOutput::None => None,
         TrackOutput::Track { track } => Some(*track),
@@ -258,7 +258,7 @@ fn resolve_target(
 /// The gain and transposition envelopes of an audio clip (enabled lanes with points among
 /// `lanes`, the clip's), as its content desc carries them. The transposition's
 /// [`RateIntegral`] covers the content the clip can play.
-pub(crate) fn clip_param_envelopes<'a>(
+pub fn clip_param_envelopes<'a>(
     lanes: impl IntoIterator<Item = &'a AutomationLane>,
     points: impl Fn(AutomationLaneId) -> Vec<(f64, f64, CurveShape)>,
     clip: &Clip,
@@ -305,7 +305,7 @@ pub(crate) fn clip_param_envelopes<'a>(
 /// note per MIDI clip, every lane per clip, every point per lane, every clip, send and
 /// device per track: O(clips × notes). These are built once per compile (O(n log n)) and
 /// give each parent its children in the order the scans produced.
-pub(crate) struct Groups<'a> {
+pub struct Groups<'a> {
     /// Unmuted notes of each clip, sorted like [`Project::notes_of`].
     notes: HashMap<ClipId, Vec<&'a Note>>,
     /// Envelopes of each clip (all lanes owned by the clip), in id order.
@@ -338,7 +338,7 @@ fn children<'s, 'a, K: std::hash::Hash + Eq, V>(
 }
 
 impl<'a> Groups<'a> {
-    pub(crate) fn new(p: &'a Project) -> Self {
+    pub fn new(p: &'a Project) -> Self {
         let mut notes = group(p.notes.values().filter(|n| !n.muted).map(|n| (n.clip, n)));
         for v in notes.values_mut() {
             v.sort_unstable_by(|a, b| {
@@ -388,7 +388,7 @@ impl<'a> Groups<'a> {
     }
 }
 
-pub(crate) fn clip_desc(
+pub fn clip_desc(
     p: &Project,
     g: &Groups,
     ctx: &CompileContext,
@@ -467,7 +467,7 @@ pub(crate) fn clip_desc(
 /// names and colours, arrangement markers, pinned notes, chat and MIDI mappings, none of
 /// which the compiler reads. They don't mark the graph dirty, so renaming a track no longer
 /// recompiles a large project. Anything not listed here republishes.
-pub(crate) fn graph_neutral(op: &Op) -> bool {
+pub fn graph_neutral(op: &Op) -> bool {
     use EntityUpdate as U;
     match op {
         Op::Settings { change } => matches!(

@@ -62,7 +62,7 @@ const LOST_CONTENT: &str = "device content (samples, impulse response, routing)"
 const LOST_SIDECHAIN: &str = "sidechain input";
 
 /// One side of a replacement.
-pub(crate) struct Side<'a> {
+pub struct Side<'a> {
     /// `None`: not a plugin (a built-in device, or a missing device).
     pub format: Option<PluginFormat>,
     pub id: &'a str,
@@ -74,7 +74,7 @@ pub(crate) struct Side<'a> {
 
 /// How parameters move: `map: None` keeps them as they are.
 #[derive(Debug, PartialEq)]
-pub(crate) struct Plan {
+pub struct Plan {
     pub matched: ParamMatch,
     pub map: Option<Vec<(ParamId, ParamId)>>,
 }
@@ -87,7 +87,7 @@ fn same_family(old: &Side<'_>, new: &Side<'_>) -> bool {
 /// Parameters matched by normalized name (`from` → `to`): the first parameter of each name
 /// on the `to` side, one source per target. The one place both plugin replacement and
 /// missing devices match parameters by name.
-pub(crate) fn match_by_name(
+pub fn match_by_name(
     from: &[(ParamId, String)],
     to: &[(ParamId, String)],
 ) -> Vec<(ParamId, ParamId)> {
@@ -106,7 +106,7 @@ pub(crate) fn match_by_name(
 
 /// The parameter map for replacing `old` with `new` (`used`: the old device's parameters
 /// that carry something: a value, a lane or a mapping).
-pub(crate) fn plan(old: &Side<'_>, new: &Side<'_>, used: &BTreeSet<ParamId>, retain: bool) -> Plan {
+pub fn plan(old: &Side<'_>, new: &Side<'_>, used: &BTreeSet<ParamId>, retain: bool) -> Plan {
     if !retain {
         return Plan {
             matched: ParamMatch::Reset,
@@ -194,7 +194,7 @@ fn missing_info(p: &MissingParam) -> ParamInfo {
 }
 
 /// A replacement checked against the document, ready to apply ([`super::replace_plugin_device`]).
-pub(crate) struct Prepared {
+pub struct Prepared {
     pub report: ReplaceReport,
     pub edit: PluginEdit,
     /// The old plugin's live state (written into the document before the edit, so the undo
@@ -261,7 +261,7 @@ where
 
     /// Check replacing `device` (any device but a rack) with `to` and work out the parameter
     /// map, values and report. Changes nothing.
-    pub(crate) fn prepare_replacement(
+    pub fn prepare_replacement(
         &mut self,
         device: DeviceId,
         to: &Replacement,
@@ -628,7 +628,7 @@ where
     }
 
     /// [`Self::keep_live_state`] with the state of `device`'s running instance, if any.
-    pub(crate) fn keep_running_state(&mut self, device: DeviceId) {
+    pub fn keep_running_state(&mut self, device: DeviceId) {
         if self.engine.node(device).is_some() {
             let live = self.bridge.plugin_state(device).ok().flatten();
             self.keep_live_state(device, live);
@@ -637,7 +637,7 @@ where
 
     /// The old plugin's live state goes into the document first (like a save, not an edit),
     /// so the device the undo step puts back loads as it was.
-    pub(crate) fn keep_live_state(&mut self, device: DeviceId, state: Option<Base64Bytes>) {
+    pub fn keep_live_state(&mut self, device: DeviceId, state: Option<Base64Bytes>) {
         if let Some(state) = state
             && let Some(DeviceKind::Plugin { plugin }) = self
                 .doc
@@ -649,7 +649,7 @@ where
         }
     }
 
-    pub(crate) fn replace_device(
+    pub fn replace_device(
         &mut self,
         device: DeviceId,
         to: &Replacement,

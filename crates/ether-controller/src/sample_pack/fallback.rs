@@ -16,19 +16,19 @@ const SOUNDS: [(&str, &str, u8, usize); 3] = [
 ];
 
 /// The built-in kit's id (qualified).
-pub(crate) const KIT: &str = "builtin/basic";
+pub const KIT: &str = "builtin/basic";
 
 fn sound(id: &str) -> Option<(&'static str, &'static str, u8, usize)> {
     SOUNDS.iter().copied().find(|s| s.0 == id)
 }
 
 /// The WAV bytes of built-in sample `id` (unqualified).
-pub(crate) fn bytes(id: &str) -> Option<Vec<u8>> {
+pub fn bytes(id: &str) -> Option<Vec<u8>> {
     let (.., i) = sound(id)?;
     kit::wav(&kit::synth(i)).ok()
 }
 
-pub(crate) fn samples() -> Vec<SampleInfo> {
+pub fn samples() -> Vec<SampleInfo> {
     SOUNDS
         .iter()
         .map(|&(id, name, _, i)| SampleInfo {
@@ -48,7 +48,7 @@ pub(crate) fn samples() -> Vec<SampleInfo> {
         .collect()
 }
 
-pub(crate) fn kit_info() -> KitInfo {
+pub fn kit_info() -> KitInfo {
     KitInfo {
         id: KIT.to_string(),
         name: "basic kit".into(),

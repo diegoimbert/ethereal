@@ -9,11 +9,11 @@ use ether_core::protocol::warp::WarpCommand;
 use super::DocCtx;
 use crate::tx::{CmdResult, invalid, unsupported};
 
-pub(crate) const MIN_BPM: f64 = 20.0;
-pub(crate) const MAX_BPM: f64 = 999.0;
+pub const MIN_BPM: f64 = 20.0;
+pub const MAX_BPM: f64 = 999.0;
 
 /// The tempo point in effect at `at`.
-pub(crate) fn tempo_point_at(p: &Project, at: Beats) -> Option<TempoPoint> {
+pub fn tempo_point_at(p: &Project, at: Beats) -> Option<TempoPoint> {
     p.tempo_map()
         .tempo
         .into_iter()
@@ -31,7 +31,7 @@ fn signature_point_at(p: &Project, at: Beats) -> Option<TimeSignaturePoint> {
         .or_else(|| p.tempo_map().signatures.into_iter().next())
 }
 
-pub(crate) fn check_signature(s: TimeSignature) -> CmdResult<()> {
+pub fn check_signature(s: TimeSignature) -> CmdResult<()> {
     if s.numerator == 0 || s.numerator > 99 || !matches!(s.denominator, 1 | 2 | 4 | 8 | 16 | 32) {
         return Err(invalid(format!(
             "invalid time signature {}/{}",
@@ -41,7 +41,7 @@ pub(crate) fn check_signature(s: TimeSignature) -> CmdResult<()> {
     Ok(())
 }
 
-pub(crate) fn transport(ctx: &mut DocCtx, c: &TransportCommand) -> CmdResult<()> {
+pub fn transport(ctx: &mut DocCtx, c: &TransportCommand) -> CmdResult<()> {
     match c {
         TransportCommand::SetLoopEnabled { enabled } => {
             ctx.tx.settings(SettingsChange::LoopEnabled(*enabled))
@@ -91,7 +91,7 @@ pub(crate) fn transport(ctx: &mut DocCtx, c: &TransportCommand) -> CmdResult<()>
     }
 }
 
-pub(crate) fn recording(ctx: &mut DocCtx, c: &RecordingCommand) -> CmdResult<()> {
+pub fn recording(ctx: &mut DocCtx, c: &RecordingCommand) -> CmdResult<()> {
     match c {
         RecordingCommand::SetMonitor { track, monitor } => {
             ctx.track(*track)?;
@@ -111,11 +111,11 @@ pub(crate) fn recording(ctx: &mut DocCtx, c: &RecordingCommand) -> CmdResult<()>
     }
 }
 
-pub(crate) fn warp(ctx: &mut DocCtx, c: &WarpCommand) -> CmdResult<()> {
+pub fn warp(ctx: &mut DocCtx, c: &WarpCommand) -> CmdResult<()> {
     crate::warp::command(ctx, c)
 }
 
-pub(crate) fn rename_project(ctx: &mut DocCtx, name: &str) -> CmdResult<()> {
+pub fn rename_project(ctx: &mut DocCtx, name: &str) -> CmdResult<()> {
     let name = name.trim();
     if name.is_empty() {
         return Err(invalid("project name must not be empty"));

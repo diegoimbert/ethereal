@@ -17,9 +17,9 @@
 //! names from the source) for the project it opened; they live until another project opens.
 
 mod devices;
-pub(crate) mod media;
-pub(crate) mod normalize;
-pub(crate) mod plugins;
+pub mod media;
+pub mod normalize;
+pub mod plugins;
 mod replace;
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -58,7 +58,7 @@ pub struct ImportHints {
 }
 
 #[derive(Default)]
-pub(crate) struct ResolverState {
+pub struct ResolverState {
     search: Option<Box<MediaSearch>>,
     hints: ImportHints,
     /// Descriptors of installed plugins probed for `Replace` (by format and upper-case id).
@@ -67,14 +67,14 @@ pub(crate) struct ResolverState {
 
 impl ResolverState {
     /// The import opened `hints.project`.
-    pub(crate) fn set_import_hints(&mut self, hints: ImportHints) {
+    pub fn set_import_hints(&mut self, hints: ImportHints) {
         self.search = None;
         self.hints = hints;
     }
 }
 
 /// A plugin resolution checked against the document, ready to apply.
-pub(crate) struct PluginEdit {
+pub struct PluginEdit {
     device: DeviceId,
     /// What the device becomes (a plugin, or a built-in replacing a missing device).
     kind: DeviceKind,
@@ -124,7 +124,7 @@ where
         ids.into_iter().collect()
     }
 
-    pub(crate) fn resolve_command(
+    pub fn resolve_command(
         &mut self,
         c: &ResolveCommand,
         now: u64,
@@ -436,7 +436,7 @@ where
     }
 
     /// Called every tick: steps a running media search.
-    pub(crate) fn resolve_tick(&mut self, _now: u64, out: &mut dyn MessageSink) {
+    pub fn resolve_tick(&mut self, _now: u64, out: &mut dyn MessageSink) {
         let Some(search) = self.resolver.search.as_mut() else {
             return;
         };

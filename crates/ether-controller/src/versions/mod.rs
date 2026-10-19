@@ -53,7 +53,7 @@ const MAX_NAME_CHARS: usize = 120;
 
 /// Controller-side state (not in the document).
 #[derive(Debug, Default)]
-pub(crate) struct VersionsState {
+pub struct VersionsState {
     /// The project the session marker was written for.
     project: Option<ProjectId>,
     /// Document revision at the last autosave version (or when the project was loaded).
@@ -190,7 +190,7 @@ where
     S: ProjectStore,
     L: Library,
 {
-    pub(crate) fn version_command(
+    pub fn version_command(
         &mut self,
         command: &VersionCommand,
         now: u64,
@@ -276,7 +276,7 @@ where
     }
 
     /// Called every tick: a rolling autosave version when due.
-    pub(crate) fn versions_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn versions_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         let Some(id) = self.doc.as_ref().map(|d| d.project.id) else {
             return;
         };
@@ -311,7 +311,7 @@ where
     /// A project became the open document (create, open, restore, recover): start its
     /// session (marker, version clock). Loading another project closes the previous
     /// session cleanly.
-    pub(crate) fn versions_on_load(&mut self, now: u64) {
+    pub fn versions_on_load(&mut self, now: u64) {
         let Some(id) = self.doc.as_ref().map(|d| d.project.id) else {
             return;
         };
@@ -339,17 +339,17 @@ where
 
     /// The open document moved to another project folder (Save As): the old folder's
     /// session is closed, the new one's starts.
-    pub(crate) fn versions_on_identity_change(&mut self, now: u64) {
+    pub fn versions_on_identity_change(&mut self, now: u64) {
         self.versions_on_load(now);
     }
 
     /// A copied project folder (Duplicate, Save As) must not carry the source's marker.
-    pub(crate) fn versions_forget_marker(&mut self, id: ProjectId) {
+    pub fn versions_forget_marker(&mut self, id: ProjectId) {
         let _ = self.store.remove(id, SESSION_MARKER);
     }
 
     /// Clean close: remove the open project's marker.
-    pub(crate) fn versions_close(&mut self) {
+    pub fn versions_close(&mut self) {
         if let Some(id) = self.versions.project.take() {
             let _ = self.store.remove(id, SESSION_MARKER);
         }

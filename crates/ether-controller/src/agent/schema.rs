@@ -12,7 +12,7 @@ use serde_json::{Map, Value};
 
 /// A tool input error, shown to the model as an `is_error` result.
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) struct InputError(pub String);
+pub struct InputError(pub String);
 
 impl InputError {
     pub fn new(message: impl Into<String>) -> Self {
@@ -45,7 +45,7 @@ fn describe(v: &Value) -> &'static str {
 }
 
 /// Validate `v` against `schema`; `path` names `v` in errors (`input.notes[3].pitch`).
-pub(crate) fn validate(schema: &Value, v: &Value, path: &str) -> Result<(), InputError> {
+pub fn validate(schema: &Value, v: &Value, path: &str) -> Result<(), InputError> {
     let fail = |m: String| Err(InputError(format!("{path}: {m}")));
     if let Some(ty) = schema.get("type") {
         let ok = match ty {
@@ -152,7 +152,7 @@ pub(crate) fn validate(schema: &Value, v: &Value, path: &str) -> Result<(), Inpu
 
 /// Typed access to a validated input object (`null` reads as absent).
 #[derive(Clone, Copy)]
-pub(crate) struct Args<'a>(pub &'a Map<String, Value>);
+pub struct Args<'a>(pub &'a Map<String, Value>);
 
 impl<'a> Args<'a> {
     pub fn get(&self, key: &str) -> Option<&'a Value> {
@@ -221,7 +221,7 @@ impl<'a> Args<'a> {
     }
 }
 
-pub(crate) fn parse_id<I: FromStr>(s: &str, what: &str) -> Result<I, InputError> {
+pub fn parse_id<I: FromStr>(s: &str, what: &str) -> Result<I, InputError> {
     s.trim().parse().map_err(|_| {
         InputError(format!(
             "`{s}` is not a valid {what} id (ids are 26-character ULIDs as returned by \

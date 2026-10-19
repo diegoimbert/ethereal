@@ -20,7 +20,7 @@ use crate::recording::{NoteSpecDraft, RecordedMidi};
 
 /// A pass's MIDI read as MPE.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct MpeRecorded {
+pub struct MpeRecorded {
     /// Messages outside the member channels (read as on any track).
     pub channel_events: Vec<RecordedMidi>,
     /// `(index in the pass's notes, kind, curve)`, sorted by note then kind.
@@ -56,7 +56,7 @@ struct Held {
 /// Read `events` (one pass, sorted, absolute positions) of a clip starting at `from` as
 /// MPE. `notes`: the pass's notes (`notes_from_midi(events, from, ..)`); `gap`: the
 /// thinning window in beats.
-pub(crate) fn read(
+pub fn read(
     events: &[RecordedMidi],
     from: f64,
     notes: &[NoteSpecDraft],

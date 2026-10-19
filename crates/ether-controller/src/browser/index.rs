@@ -12,11 +12,11 @@ use ether_core::protocol::browser::{
 use ether_core::protocol::model::PresetDevice;
 
 /// Largest page.
-pub(crate) const MAX_LIMIT: u32 = 200;
+pub const MAX_LIMIT: u32 = 200;
 
 /// One indexed item plus what queries need.
 #[derive(Clone, Debug)]
-pub(crate) struct Entry {
+pub struct Entry {
     /// `favourite` and `tags` are kept in sync with the index's user data.
     pub item: LibraryItem,
     /// Presets: the device type (the `device` filter).
@@ -66,7 +66,7 @@ impl Entry {
 }
 
 /// Same device type (plugins by format and id).
-pub(crate) fn same_device(a: &PresetDevice, b: &PresetDevice) -> bool {
+pub fn same_device(a: &PresetDevice, b: &PresetDevice) -> bool {
     match (a, b) {
         (PresetDevice::Builtin { device: x }, PresetDevice::Builtin { device: y }) => x == y,
         (
@@ -86,7 +86,7 @@ pub(crate) fn same_device(a: &PresetDevice, b: &PresetDevice) -> bool {
 }
 
 /// Lowercase, trimmed, non-empty, deduplicated, sorted.
-pub(crate) fn normalize_tags(tags: &[String]) -> Vec<String> {
+pub fn normalize_tags(tags: &[String]) -> Vec<String> {
     tags.iter()
         .map(|t| t.trim().to_lowercase())
         .filter(|t| !t.is_empty())
@@ -96,7 +96,7 @@ pub(crate) fn normalize_tags(tags: &[String]) -> Vec<String> {
 }
 
 #[derive(Default)]
-pub(crate) struct Index {
+pub struct Index {
     entries: Vec<Entry>,
     by_id: HashMap<String, usize>,
     /// Entry positions sorted by (lowercase name, id); rebuilt lazily.

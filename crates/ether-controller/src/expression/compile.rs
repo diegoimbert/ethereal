@@ -11,7 +11,7 @@ use ether_core::protocol::model::*;
 /// The expression of `track`'s main-lane MIDI clips (the clips `compile.rs` plays by id;
 /// comp pieces of take lanes play without expression until flattened), plus its MPE
 /// settings. Empty curves are skipped.
-pub(crate) fn track_expression(project: &Project, track: &Track) -> TrackExpressionDesc {
+pub fn track_expression(project: &Project, track: &Track) -> TrackExpressionDesc {
     let mut desc = TrackExpressionDesc {
         clips: Vec::new(),
         mpe: if track.kind == TrackKind::Midi {
@@ -107,7 +107,7 @@ fn curve(points: &[ExpressionPoint]) -> CurveDesc {
 /// The ids of `clip`'s notes in the order of its compiled `ClipContentDesc::Midi { notes }`
 /// (`compile::clip_desc`: unmuted notes sorted by start, then swing applied and re-sorted
 /// stably). The swing pass is run on the same descs so the order matches exactly.
-pub(crate) fn compiled_note_order(project: &Project, clip: ClipId) -> Vec<NoteId> {
+pub fn compiled_note_order(project: &Project, clip: ClipId) -> Vec<NoteId> {
     let Some(c) = project.clips.get(&clip) else {
         return Vec::new();
     };
@@ -139,7 +139,7 @@ pub(crate) fn compiled_note_order(project: &Project, clip: ClipId) -> Vec<NoteId
 /// Value of a model curve at `t` (`ether_core::expression::evaluate`) and the shape to
 /// continue with from there (`Curve` segments continue `Linear`: a partial tension
 /// segment has no exact `CurveShape`). `None` without points.
-pub(crate) fn evaluate_points(points: &[ExpressionPoint], t: f64) -> Option<(f32, CurveShape)> {
+pub fn evaluate_points(points: &[ExpressionPoint], t: f64) -> Option<(f32, CurveShape)> {
     let first = points.first()?;
     let i = points.partition_point(|p| p.time.0 <= t);
     if i == 0 {

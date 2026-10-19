@@ -19,7 +19,7 @@ const MAX_FILES: usize = 4096;
 const MAX_STEM: usize = 80;
 
 /// Folder of a device type's user presets, relative to `Presets/`.
-pub(crate) fn device_dir(device: &PresetDevice) -> String {
+pub fn device_dir(device: &PresetDevice) -> String {
     match device {
         PresetDevice::Builtin { device } => device.key(),
         PresetDevice::Plugin {
@@ -59,7 +59,7 @@ fn safe_component(s: &str) -> String {
 
 /// A file stem for a preset name: characters that are unsafe in file names on any OS become
 /// `-`, leading dots and surrounding spaces are trimmed, at most [`MAX_STEM`] characters.
-pub(crate) fn file_stem(name: &str) -> String {
+pub fn file_stem(name: &str) -> String {
     let cleaned: String = name
         .chars()
         .map(|c| {
@@ -84,7 +84,7 @@ pub(crate) fn file_stem(name: &str) -> String {
 }
 
 /// Library path (relative to the user root) of a user preset id.
-pub(crate) fn library_path(id: &str) -> Result<String, StoreError> {
+pub fn library_path(id: &str) -> Result<String, StoreError> {
     check_relative_path(id)?;
     if id.is_empty() || !id.ends_with(&format!(".{PRESET_EXTENSION}")) {
         return Err(StoreError::InvalidPath(id.to_string()));
@@ -93,7 +93,7 @@ pub(crate) fn library_path(id: &str) -> Result<String, StoreError> {
 }
 
 /// Same device type (plugins: same format and id; display name/vendor may differ).
-pub(crate) fn same_device(a: &PresetDevice, b: &PresetDevice) -> bool {
+pub fn same_device(a: &PresetDevice, b: &PresetDevice) -> bool {
     match (a, b) {
         (PresetDevice::Builtin { device: x }, PresetDevice::Builtin { device: y }) => x == y,
         (
@@ -113,7 +113,7 @@ pub(crate) fn same_device(a: &PresetDevice, b: &PresetDevice) -> bool {
 }
 
 /// Tags lowercased, trimmed, deduplicated and sorted; empty author/description dropped.
-pub(crate) fn normalize_meta(meta: &PresetMeta) -> PresetMeta {
+pub fn normalize_meta(meta: &PresetMeta) -> PresetMeta {
     let tags: BTreeSet<String> = meta
         .tags
         .iter()
@@ -134,7 +134,7 @@ pub(crate) fn normalize_meta(meta: &PresetMeta) -> PresetMeta {
 }
 
 /// Case-insensitive substring match on name, tags and author.
-pub(crate) fn matches_text(name: &str, meta: &PresetMeta, text: Option<&str>) -> bool {
+pub fn matches_text(name: &str, meta: &PresetMeta, text: Option<&str>) -> bool {
     let Some(q) = text.map(str::trim).filter(|q| !q.is_empty()) else {
         return true;
     };
@@ -147,7 +147,7 @@ pub(crate) fn matches_text(name: &str, meta: &PresetMeta, text: Option<&str>) ->
             .is_some_and(|a| a.to_lowercase().contains(&q))
 }
 
-pub(crate) fn info(source: PresetSource, id: String, p: &Preset) -> PresetInfo {
+pub fn info(source: PresetSource, id: String, p: &Preset) -> PresetInfo {
     PresetInfo {
         preset: PresetRef { source, id },
         name: p.name.clone(),
@@ -157,7 +157,7 @@ pub(crate) fn info(source: PresetSource, id: String, p: &Preset) -> PresetInfo {
 }
 
 /// Built-in types whose factory presets a `List { device }` covers.
-pub(crate) fn factory_types(device: Option<&PresetDevice>) -> Vec<BuiltinDeviceType> {
+pub fn factory_types(device: Option<&PresetDevice>) -> Vec<BuiltinDeviceType> {
     match device {
         None => BuiltinDeviceType::ALL.to_vec(),
         Some(PresetDevice::Builtin { device }) => vec![*device],
@@ -166,7 +166,7 @@ pub(crate) fn factory_types(device: Option<&PresetDevice>) -> Vec<BuiltinDeviceT
 }
 
 /// The embedded factory preset `id` (`"<device-key>/<slug>"`), parsed.
-pub(crate) fn factory_preset(id: &str) -> Option<Preset> {
+pub fn factory_preset(id: &str) -> Option<Preset> {
     let key = id.split_once('/')?.0;
     let ty = BuiltinDeviceType::ALL
         .into_iter()
@@ -180,11 +180,7 @@ pub(crate) fn factory_preset(id: &str) -> Option<Preset> {
 /// Every parsed user preset (id relative to `Presets/`) under `dir` (relative to
 /// `Presets/`, `""` = all). Unreadable or invalid files are skipped; missing folders are
 /// empty.
-pub(crate) fn user_presets<L: Library>(
-    library: &mut L,
-    root: &str,
-    dir: &str,
-) -> Vec<(String, Preset)> {
+pub fn user_presets<L: Library>(library: &mut L, root: &str, dir: &str) -> Vec<(String, Preset)> {
     let mut files = Vec::new();
     walk(library, root, dir, 0, &mut files);
     files

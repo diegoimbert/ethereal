@@ -31,7 +31,7 @@ use crate::tx::CmdResult;
 use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 
 #[derive(Default)]
-pub(crate) struct AnalysisState {
+pub struct AnalysisState {
     /// Device → number of watches.
     watched: BTreeMap<DeviceId, u32>,
     /// Node keys the engine was told to collect.
@@ -42,7 +42,7 @@ pub(crate) struct AnalysisState {
 impl AnalysisState {
     /// Current refcount of `device` (tests, diagnostics).
     #[cfg(test)]
-    pub(crate) fn count(&self, device: DeviceId) -> u32 {
+    pub fn count(&self, device: DeviceId) -> u32 {
         self.watched.get(&device).copied().unwrap_or(0)
     }
 }
@@ -58,7 +58,7 @@ fn kind_tag(k: AnalysisKind) -> u8 {
 }
 
 /// Decode an engine frame (encodings: `ether_core::analysis` module docs).
-pub(crate) fn decode(frame: &AnalysisFrame) -> Option<AnalysisData> {
+pub fn decode(frame: &AnalysisFrame) -> Option<AnalysisData> {
     let v = frame.values();
     Some(match frame.kind {
         AnalysisKind::Spectrum | AnalysisKind::SpectrumPre => {
@@ -117,7 +117,7 @@ where
         self.analysis.watched.clear();
     }
 
-    pub(crate) fn analysis_command(&mut self, command: &AnalysisCommand) -> CmdResult<ReplyValue> {
+    pub fn analysis_command(&mut self, command: &AnalysisCommand) -> CmdResult<ReplyValue> {
         let w = &mut self.analysis.watched;
         match command {
             AnalysisCommand::Watch { device } => *w.entry(*device).or_insert(0) += 1,
@@ -134,7 +134,7 @@ where
     }
 
     /// Called every tick (see the module docs).
-    pub(crate) fn analysis_tick(&mut self, out: &mut dyn MessageSink) {
+    pub fn analysis_tick(&mut self, out: &mut dyn MessageSink) {
         // Engine-side watches follow the device watches (and node re-creation).
         let want: BTreeSet<NodeKey> = self
             .analysis

@@ -9,20 +9,20 @@ use ether_core::protocol::model::*;
 use super::{DocCtx, order_after, order_before};
 use crate::tx::{CmdResult, invalid, not_found, unsupported};
 
-pub(crate) fn builtin_descriptor(device: &BuiltinDevice) -> DeviceDescriptor {
+pub fn builtin_descriptor(device: &BuiltinDevice) -> DeviceDescriptor {
     ether_devices::descriptor(device.device_type())
 }
 
 /// A fresh built-in device's name: its descriptor's, lowercase (owner request: default names
 /// are lowercase). Every insert path uses it (track chain, rack chain, drum pad, grouping,
 /// replacements); a plugin keeps its vendor's name.
-pub(crate) fn default_device_name(device: &BuiltinDevice) -> String {
+pub fn default_device_name(device: &BuiltinDevice) -> String {
     crate::text::device_default_name(&builtin_descriptor(device).name)
 }
 
 /// A missing device's descriptor: the parameters its source gave, linear over their ranges
 /// (no node: values and automation are kept for its replacement).
-pub(crate) fn missing_descriptor(m: &MissingDevice) -> DeviceDescriptor {
+pub fn missing_descriptor(m: &MissingDevice) -> DeviceDescriptor {
     use ether_core::protocol::devices::{DeviceTypeRef, ParamInfo, ParamScale, ParamUnit};
     let (category, inputs, outputs, midi) = match m.role {
         MissingRole::Instrument => (DeviceCategory::Instrument, 0, 2, true),

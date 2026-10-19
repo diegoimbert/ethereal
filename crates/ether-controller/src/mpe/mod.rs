@@ -13,7 +13,7 @@
 //!   VST3 note expression, else MPE MIDI through `ether_core::expression::mpe::MpeOut`), and
 //!   the Poly Synth responds to per-note pitch/pressure/timbre.
 
-pub(crate) mod record;
+pub mod record;
 
 use ether_core::protocol::model::{MpeSettings, TrackChange, TrackId, TrackKind, check_mpe};
 
@@ -21,11 +21,7 @@ use crate::doc::DocCtx;
 use crate::tx::{CmdResult, invalid};
 
 /// `Expression::SetTrackMpe`.
-pub(crate) fn set_track_mpe(
-    ctx: &mut DocCtx,
-    track: TrackId,
-    mpe: Option<MpeSettings>,
-) -> CmdResult<()> {
+pub fn set_track_mpe(ctx: &mut DocCtx, track: TrackId, mpe: Option<MpeSettings>) -> CmdResult<()> {
     let t = ctx.track(track)?;
     if t.kind != TrackKind::Midi {
         return Err(invalid("MPE is for MIDI tracks"));

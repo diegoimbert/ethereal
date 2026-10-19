@@ -195,7 +195,7 @@ where
 }
 
 /// The extensions of one controller.
-pub(crate) struct Extensions<B, H, S, L, X>(Vec<Box<dyn ControllerExt<B, H, S, L, X>>>);
+pub struct Extensions<B, H, S, L, X>(Vec<Box<dyn ControllerExt<B, H, S, L, X>>>);
 
 impl<B, H, S, L, X> Default for Extensions<B, H, S, L, X> {
     fn default() -> Self {
@@ -216,7 +216,7 @@ where
     }
 
     /// Run `f` over the extensions, each with the controller (they are out of it meanwhile).
-    pub(crate) fn with_extensions<R>(
+    pub fn with_extensions<R>(
         &mut self,
         mut f: impl FnMut(&mut dyn ControllerExt<B, H, S, L, X>, &mut Self) -> Option<R>,
     ) -> Option<R> {
@@ -237,7 +237,7 @@ where
         result
     }
 
-    pub(crate) fn ext_command(
+    pub fn ext_command(
         &mut self,
         command: &Command,
         now: u64,
@@ -247,7 +247,7 @@ where
     }
 
     /// Every extension in turn (none returns early).
-    pub(crate) fn ext_each(
+    pub fn ext_each(
         &mut self,
         mut f: impl FnMut(&mut dyn ControllerExt<B, H, S, L, X>, &mut Self),
     ) {
@@ -258,14 +258,14 @@ where
     }
 
     /// The first extension's `Some` answer to a question that doesn't change anything.
-    pub(crate) fn ext_ask<R>(
+    pub fn ext_ask<R>(
         &self,
         f: impl Fn(&dyn ControllerExt<B, H, S, L, X>, &Self) -> Option<R>,
     ) -> Option<R> {
         self.extensions.0.iter().find_map(|e| f(e.as_ref(), self))
     }
 
-    pub(crate) fn ext_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn ext_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         self.with_extensions::<()>(|ext, ctl| {
             ext.tick(ctl, now, out);
             None

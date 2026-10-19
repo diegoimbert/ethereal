@@ -145,7 +145,7 @@ where
     S: ProjectStore,
     L: Library,
 {
-    pub(crate) fn preset_command(
+    pub fn preset_command(
         &mut self,
         command: &PresetCommand,
         gesture: Option<GestureId>,

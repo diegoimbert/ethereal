@@ -48,7 +48,7 @@ fn check(chain: &[&Device]) -> CmdResult<()> {
 }
 
 /// Check the MIDI-effect ordering rule on `track`'s chain (and its rack chains).
-pub(crate) fn check_chain_order(p: &Project, track: TrackId) -> CmdResult<()> {
+pub fn check_chain_order(p: &Project, track: TrackId) -> CmdResult<()> {
     let top = p.devices_of(track);
     check(&top)?;
     for rack in &top {
@@ -63,7 +63,7 @@ pub(crate) fn check_chain_order(p: &Project, track: TrackId) -> CmdResult<()> {
 const SOURCE_PROJECT: f64 = 1.0;
 
 /// Whether `ty` takes the resolved scale through `Node::set_data`.
-pub(crate) fn wants_scale(ty: BuiltinDeviceType) -> bool {
+pub fn wants_scale(ty: BuiltinDeviceType) -> bool {
     matches!(
         ty,
         BuiltinDeviceType::ScaleQuantize | BuiltinDeviceType::Randomizer
@@ -73,7 +73,7 @@ pub(crate) fn wants_scale(ty: BuiltinDeviceType) -> bool {
 /// The scale pushed to `device`'s node: the track's resolved scale (a `FollowProject`
 /// track uses the project scale, a `Chromatic` one chromatic), or the project scale when a
 /// Scale Quantize's `Scale` source is `Project`. `None` for devices that take no scale.
-pub(crate) fn scale_for(p: &Project, device: &Device) -> Option<MusicalScale> {
+pub fn scale_for(p: &Project, device: &Device) -> Option<MusicalScale> {
     let DeviceKind::Builtin { device: kind } = &device.kind else {
         return None;
     };
@@ -103,7 +103,7 @@ pub(crate) fn scale_for(p: &Project, device: &Device) -> Option<MusicalScale> {
 /// since the last push (`sent`; a re-created node is removed from it by the caller).
 /// Called after node sync (creation, track/project scale edits republish) and after a
 /// Scale Quantize's params change (its `Scale` source picks track or project).
-pub(crate) fn push_scales<B: crate::EngineBridge + ?Sized>(
+pub fn push_scales<B: crate::EngineBridge + ?Sized>(
     bridge: &mut B,
     project: Option<&Project>,
     live: impl Fn(DeviceId) -> bool,

@@ -18,11 +18,11 @@ use crate::media::hash::content_hash;
 use crate::store::ProjectStore;
 
 /// Sample rate of the kit's files.
-pub(crate) const RATE: u32 = 48_000;
+pub const RATE: u32 = 48_000;
 
 /// One pad of the kit.
 #[derive(Clone, Debug)]
-pub(crate) struct KitPad {
+pub struct KitPad {
     pub pad: DrumPadId,
     pub device: DeviceId,
     pub note: u8,
@@ -80,7 +80,7 @@ impl Biquad {
 }
 
 /// Mono samples of sound `i` of [`SOUNDS`].
-pub(crate) fn synth(i: usize) -> Vec<f32> {
+pub fn synth(i: usize) -> Vec<f32> {
     let r = RATE as f64;
     let secs = [0.6, 0.35, 0.12][i];
     let n = (secs * r) as usize;
@@ -139,7 +139,7 @@ pub(crate) fn synth(i: usize) -> Vec<f32> {
 }
 
 /// 16-bit mono WAV bytes of `x`.
-pub(crate) fn wav(x: &[f32]) -> Result<Vec<u8>, String> {
+pub fn wav(x: &[f32]) -> Result<Vec<u8>, String> {
     let spec = hound::WavSpec {
         channels: 1,
         sample_rate: RATE,
@@ -159,7 +159,7 @@ pub(crate) fn wav(x: &[f32]) -> Result<Vec<u8>, String> {
 /// Write the kit's files for a drums conversion whose rack is `rack` and return its pads
 /// (ids derived from `rack`). `keys` = (kick, snare, hi-hat); a key repeated by an earlier
 /// sound gets no pad of its own.
-pub(crate) fn write<S: ProjectStore>(
+pub fn write<S: ProjectStore>(
     store: &mut S,
     project: &Project,
     rack: DeviceId,

@@ -12,7 +12,7 @@ use crate::tx::CmdResult;
 
 /// Copied material of one track.
 #[derive(Clone, Debug)]
-pub(crate) struct TrackCopy {
+pub struct TrackCopy {
     pub track: TrackId,
     pub kind: TrackKind,
     /// Clip pieces inside the range (main and take lanes), starts relative to the range.
@@ -25,7 +25,7 @@ pub(crate) struct TrackCopy {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct TimeClipboard {
+pub struct TimeClipboard {
     pub length: f64,
     pub tracks: Vec<TrackCopy>,
 }

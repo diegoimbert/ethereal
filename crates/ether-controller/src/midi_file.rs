@@ -25,7 +25,7 @@ fn basename(path: &str) -> &str {
 }
 
 /// A file name for `name` (no separators, control or reserved characters) with `.mid`.
-pub(crate) fn midi_file_name(name: &str) -> String {
+pub fn midi_file_name(name: &str) -> String {
     let clean: String = name
         .chars()
         .map(|c| {
@@ -48,7 +48,7 @@ where
     L: Library,
 {
     /// `Media::ReadMidiFile`.
-    pub(crate) fn read_midi_file(&mut self, source: &MediaSource) -> CmdResult<ReplyValue> {
+    pub fn read_midi_file(&mut self, source: &MediaSource) -> CmdResult<ReplyValue> {
         let (bytes, name) = match source {
             MediaSource::Location { location, path } => {
                 check_relative_path(path).map_err(store_err)?;
@@ -98,7 +98,7 @@ where
     }
 
     /// `Media::WriteMidiFile`.
-    pub(crate) fn write_midi_file(&mut self, r: &MidiExportRequest) -> CmdResult<ReplyValue> {
+    pub fn write_midi_file(&mut self, r: &MidiExportRequest) -> CmdResult<ReplyValue> {
         let p = &self
             .doc
             .as_ref()
@@ -192,7 +192,7 @@ fn played_notes(p: &Project, clip: &Clip) -> Vec<MidiFileNote> {
 }
 
 /// The SMF bytes of `r` (see `Media::WriteMidiFile`).
-pub(crate) fn midi_file_bytes(p: &Project, r: &MidiExportRequest) -> CmdResult<Vec<u8>> {
+pub fn midi_file_bytes(p: &Project, r: &MidiExportRequest) -> CmdResult<Vec<u8>> {
     if r.clips.is_empty() {
         return Err(invalid("no clips to export"));
     }

@@ -25,7 +25,7 @@ use crate::doc::DocCtx;
 use crate::tx::{CmdResult, invalid, not_found};
 
 /// `Device::SetIr`.
-pub(crate) fn set_ir(ctx: &mut DocCtx, device: DeviceId, ir: Option<&IrSource>) -> CmdResult<()> {
+pub fn set_ir(ctx: &mut DocCtx, device: DeviceId, ir: Option<&IrSource>) -> CmdResult<()> {
     let d = ctx.device(device)?;
     if !matches!(
         d.kind,
@@ -56,7 +56,7 @@ pub(crate) fn set_ir(ctx: &mut DocCtx, device: DeviceId, ir: Option<&IrSource>) 
 }
 
 /// `Device::ListFactoryIrs`.
-pub(crate) fn list_factory_irs() -> CmdResult<ReplyValue> {
+pub fn list_factory_irs() -> CmdResult<ReplyValue> {
     Ok(ReplyValue::FactoryIrs {
         irs: ether_devices::fx_space::factory_irs(),
     })
@@ -64,12 +64,12 @@ pub(crate) fn list_factory_irs() -> CmdResult<ReplyValue> {
 
 /// Whether a live node built from `old` takes `new` in place (`engine.rs`, next to the
 /// sampler slices): only the IR of a convolution reverb changed.
-pub(crate) fn updatable_in_place(old: &BuiltinDevice, new: &BuiltinDevice) -> bool {
+pub fn updatable_in_place(old: &BuiltinDevice, new: &BuiltinDevice) -> bool {
     ether_devices::fx_space::updatable_in_place(old, new)
 }
 
 /// Whether `kind` is a convolution reverb whose IR is one of `media` (rebuilt on load).
-pub(crate) fn uses_media(kind: &DeviceKind, media: &[MediaId]) -> bool {
+pub fn uses_media(kind: &DeviceKind, media: &[MediaId]) -> bool {
     matches!(kind, DeviceKind::Builtin {
         device: BuiltinDevice::ConvolutionReverb { ir: Some(IrSource::Media { media: m }) }
     } if media.contains(m))

@@ -28,11 +28,11 @@ use crate::media::StreamResampler;
 use crate::store::{Library, ProjectStore, StoreError};
 
 /// Longest tail accepted (`ExportRequest::tail_seconds`).
-pub(crate) const MAX_TAIL_SECONDS: f64 = 60.0;
+pub const MAX_TAIL_SECONDS: f64 = 60.0;
 
 /// A file of the job: `stem = None` is the mix (or a master "stem").
 #[derive(Clone, Debug)]
-pub(crate) struct Pass {
+pub struct Pass {
     pub stem: Option<TrackId>,
     /// One name per format ([`formats`] order).
     pub file_names: Vec<String>,
@@ -58,7 +58,7 @@ const MAX_CAPTURE_BYTES: usize = 768 << 20;
 
 /// What a finished file became.
 #[derive(Clone, Debug)]
-pub(crate) enum Delivered {
+pub enum Delivered {
     File(String),
     Download(ExportDownload, Vec<u8>),
 }
@@ -67,10 +67,10 @@ pub(crate) enum Delivered {
 /// render unit is one engine block, or one block through one chain). The tick loops over
 /// units until its time budget (`export/mod.rs`), so this bounds how far a tick can
 /// overshoot it.
-pub(crate) const UNIT_FRAMES: usize = 4096;
+pub const UNIT_FRAMES: usize = 4096;
 
 /// Built-in device nodes created in one unit (plugins: one per unit).
-pub(crate) const UNIT_BUILTINS: usize = 8;
+pub const UNIT_BUILTINS: usize = 8;
 
 /// Work done by the largest unit so far (tests/diagnostics).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -213,7 +213,7 @@ impl Chain {
 }
 
 /// The formats of a request: `format`, then the extra ones.
-pub(crate) fn formats(request: &ExportRequest) -> Vec<ExportFormat> {
+pub fn formats(request: &ExportRequest) -> Vec<ExportFormat> {
     std::iter::once(request.format)
         .chain(request.extra_formats.iter().flatten().copied())
         .collect()
@@ -229,12 +229,12 @@ fn output_rate(format: &ExportFormat, engine_rate: u32) -> u32 {
 }
 
 /// Outcome of one unit of work.
-pub(crate) enum Step {
+pub enum Step {
     Working,
     Done(Vec<Delivered>),
 }
 
-pub(crate) struct Job {
+pub struct Job {
     pub id: ExportJobId,
     pub project_id: ProjectId,
     project: Box<Project>,
@@ -268,7 +268,7 @@ pub(crate) struct Job {
 }
 
 /// `name` made safe as a single, visible file-name segment.
-pub(crate) fn sanitize(name: &str) -> String {
+pub fn sanitize(name: &str) -> String {
     let cleaned: String = name
         .chars()
         .map(|c| {
@@ -291,7 +291,7 @@ pub(crate) fn sanitize(name: &str) -> String {
 }
 
 /// Timeline range of a request, in beats (`Err` = user-facing message).
-pub(crate) fn range_of(p: &Project, range: &ExportRange) -> Result<(Beats, Beats), String> {
+pub fn range_of(p: &Project, range: &ExportRange) -> Result<(Beats, Beats), String> {
     let (start, end) = match *range {
         ExportRange::Loop => (p.settings.loop_region.start, p.settings.loop_region.end),
         ExportRange::Custom { start, end } => (start, end),
@@ -362,7 +362,7 @@ fn subtree(p: &Project, root: TrackId) -> BTreeSet<TrackId> {
 }
 
 /// The rendered graph: never the click, no looping, no inputs.
-pub(crate) fn offline_overrides(desc: &mut RenderGraphDesc) {
+pub fn offline_overrides(desc: &mut RenderGraphDesc) {
     desc.metronome = false;
     desc.click.count_in_end = None;
     desc.loop_enabled = false;
@@ -377,7 +377,7 @@ pub(crate) fn offline_overrides(desc: &mut RenderGraphDesc) {
 /// module docs of `export`): that track's post-fader output straight into master, its
 /// sends/returns included, every other source silent, master chain excluded (the master's
 /// devices are not instantiated for stems).
-pub(crate) fn stem_graph(desc: &mut RenderGraphDesc, p: &Project, stem: TrackId) {
+pub fn stem_graph(desc: &mut RenderGraphDesc, p: &Project, stem: TrackId) {
     let Some(stem_track) = p.tracks.get(&stem) else {
         return;
     };
@@ -988,7 +988,7 @@ impl Job {
 /// against `existing` (lower-cased names already in `exports/`), so an export never
 /// overwrites a file; a collision gets a ` (2)`, ` (3)`, ... suffix (the same one in every
 /// format). The formats have distinct containers (`validate`).
-pub(crate) fn plan_passes(
+pub fn plan_passes(
     p: &Project,
     request: &ExportRequest,
     stems: &[TrackId],
@@ -1055,7 +1055,7 @@ pub(crate) fn plan_passes(
 ///
 /// A return's tap is everything sent through it, which is its stem. The master is never
 /// captured.
-pub(crate) fn capturable(p: &Project, stems: &[TrackId]) -> BTreeSet<TrackId> {
+pub fn capturable(p: &Project, stems: &[TrackId]) -> BTreeSet<TrackId> {
     let Some(master) = p.tracks.values().find(|t| t.kind == TrackKind::Master) else {
         return BTreeSet::new();
     };

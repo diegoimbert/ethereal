@@ -57,7 +57,7 @@ struct NodeEntry {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct EngineState {
+pub struct EngineState {
     nodes: BTreeMap<DeviceId, NodeEntry>,
     /// Devices whose node creation failed for this signature (not retried until changed).
     failed: BTreeMap<DeviceId, NodeSig>,
@@ -121,7 +121,7 @@ pub(crate) struct EngineState {
 /// FX-space impulse responses): they are re-created to pick it up. (Also the private overlay's
 /// collab engine mirror; unused in the OSS build.)
 #[allow(dead_code)]
-pub(crate) fn samplers_using(project: &Project, loaded: &[MediaId]) -> Vec<DeviceId> {
+pub fn samplers_using(project: &Project, loaded: &[MediaId]) -> Vec<DeviceId> {
     project
         .devices
         .values()
@@ -146,7 +146,7 @@ pub const LATENCY_REPUBLISH_MS: u64 = 50;
 /// One plugin always loads, however long it takes.
 pub const PLUGIN_LOAD_BUDGET_MS: u64 = 100;
 
-pub(crate) fn bridge_err(e: BridgeError) -> ether_core::protocol::CommandError {
+pub fn bridge_err(e: BridgeError) -> ether_core::protocol::CommandError {
     match e {
         BridgeError::Unsupported(m) => unsupported(m),
         other => cmd_err(ErrorCode::Plugin, other.to_string()),
@@ -702,7 +702,7 @@ impl EngineState {
 }
 
 /// [`DocHost`] over the bridge + node table.
-pub(crate) struct EngineCtx<'a, B> {
+pub struct EngineCtx<'a, B> {
     pub bridge: &'a mut B,
     pub eng: &'a mut EngineState,
     /// Loaded media (peaks, for auto-slicing).
@@ -786,7 +786,7 @@ impl<B: EngineBridge> DocHost for EngineCtx<'_, B> {
 }
 
 /// What the user reads when the engine can't take the project's graph.
-pub(crate) fn capacity_message(engine_error: &str) -> crate::text::Msg {
+pub fn capacity_message(engine_error: &str) -> crate::text::Msg {
     crate::text::msg("notice.engine.too_large")
         .arg("error", engine_error)
         .into()

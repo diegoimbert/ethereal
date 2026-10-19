@@ -14,7 +14,7 @@
 use serde_json::{Value, json};
 
 /// One registered tool.
-pub(crate) struct ToolDef {
+pub struct ToolDef {
     pub name: &'static str,
     pub description: &'static str,
     pub schema: fn() -> Value,
@@ -55,12 +55,12 @@ fn page(default_limit: u32, max: u32) -> (Value, Value) {
 }
 
 /// Default page size of `get_device_params` (plugins can have thousands of params).
-pub(crate) const DEVICE_PARAMS_PAGE: u32 = 64;
+pub const DEVICE_PARAMS_PAGE: u32 = 64;
 
 /// Max notes per `add_notes` / `create_midi_clip` call.
-pub(crate) const MAX_NOTES_PER_CALL: u32 = 1024;
+pub const MAX_NOTES_PER_CALL: u32 = 1024;
 /// Max items removed/deleted per call.
-pub(crate) const MAX_IDS_PER_CALL: u32 = 1024;
+pub const MAX_IDS_PER_CALL: u32 = 1024;
 
 fn note_schema() -> Value {
     json!({
@@ -84,7 +84,7 @@ fn device_type_schema() -> Value {
     })
 }
 
-pub(crate) static TOOLS: &[ToolDef] = &[
+pub static TOOLS: &[ToolDef] = &[
     // ─── Reading ───
     ToolDef {
         name: "get_project_overview",
@@ -642,12 +642,12 @@ pub(crate) static TOOLS: &[ToolDef] = &[
     },
 ];
 
-pub(crate) fn find(name: &str) -> Option<&'static ToolDef> {
+pub fn find(name: &str) -> Option<&'static ToolDef> {
     TOOLS.iter().find(|t| t.name == name)
 }
 
 /// Tools that never edit (no undo step, no recency).
-pub(crate) const READ_ONLY: &[&str] = &[
+pub const READ_ONLY: &[&str] = &[
     "get_project_overview",
     "find",
     "list_clips",
@@ -662,12 +662,12 @@ pub(crate) const READ_ONLY: &[&str] = &[
     "search_browser",
 ];
 
-pub(crate) fn is_read_only(name: &str) -> bool {
+pub fn is_read_only(name: &str) -> bool {
     READ_ONLY.contains(&name)
 }
 
 /// #583: tools that never edit the shared document (the read-only ones, plus local playback,
 /// saving and exporting the local copy): the only ones available on a listen (view-only) link.
-pub(crate) fn allowed_view_only(name: &str) -> bool {
+pub fn allowed_view_only(name: &str) -> bool {
     is_read_only(name) || matches!(name, "transport" | "save_project" | "export_audio")
 }

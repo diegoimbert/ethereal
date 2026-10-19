@@ -7,7 +7,7 @@ use ether_core::protocol::model::*;
 use crate::doc::DocCtx;
 use crate::tx::{CmdResult, internal, invalid, not_found};
 
-pub(crate) fn apply(ctx: &mut DocCtx, c: &MidiMapCommand) -> CmdResult<()> {
+pub fn apply(ctx: &mut DocCtx, c: &MidiMapCommand) -> CmdResult<()> {
     match c {
         MidiMapCommand::Map { mapping } => map(ctx, mapping.clone()),
         MidiMapCommand::Edit { id, min, max, mode } => {

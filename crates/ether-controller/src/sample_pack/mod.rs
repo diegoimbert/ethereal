@@ -16,8 +16,8 @@
 //!   per tick.
 //! - **Built-in kit** ([`fallback`]): pack `builtin`, synthesized, always `cached`.
 
-pub(crate) mod cache;
-pub(crate) mod fallback;
+pub mod cache;
+pub mod fallback;
 #[doc(hidden)]
 pub mod fixture;
 pub mod manifest;
@@ -39,14 +39,14 @@ use cache::Cache;
 use manifest::{Manifest, PackFile};
 
 /// Concurrent file downloads.
-pub(crate) const MAX_IN_FLIGHT: usize = 4;
+pub const MAX_IN_FLIGHT: usize = 4;
 
 struct Download {
     file: String,
     received: u64,
 }
 
-pub(crate) struct SamplesState {
+pub struct SamplesState {
     /// The source in use since the last `Open` (`None` = never opened).
     source: Option<String>,
     status: PackStatus,
@@ -200,7 +200,7 @@ where
     S: ProjectStore,
     L: Library,
 {
-    pub(crate) fn samples_command(
+    pub fn samples_command(
         &mut self,
         c: &SamplesCommand,
         out: &mut dyn MessageSink,
@@ -496,7 +496,7 @@ where
         }
     }
 
-    pub(crate) fn samples_tick(&mut self, out: &mut dyn MessageSink) {
+    pub fn samples_tick(&mut self, out: &mut dyn MessageSink) {
         if self.samples.manifest_req.is_none() && self.samples.in_flight.is_empty() {
             return;
         }
@@ -536,7 +536,7 @@ where
 
     /// The bytes of a cached (or built-in) sample, by qualified id.
     #[allow(dead_code)] // used by previews and imports (#519 part b)
-    pub(crate) fn sample_bytes(&mut self, sample: &str) -> Result<Vec<u8>, StoreError> {
+    pub fn sample_bytes(&mut self, sample: &str) -> Result<Vec<u8>, StoreError> {
         let not_found = || StoreError::NotFound(sample.to_string());
         let (pack, id) = split(sample).ok_or_else(not_found)?;
         if pack == BUILTIN_PACK {

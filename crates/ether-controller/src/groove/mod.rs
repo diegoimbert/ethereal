@@ -17,7 +17,7 @@ use ether_core::protocol::model::*;
 use crate::doc::DocCtx;
 use crate::tx::{CmdResult, invalid};
 
-pub(crate) fn apply(ctx: &mut DocCtx, c: &GrooveCommand) -> CmdResult<()> {
+pub fn apply(ctx: &mut DocCtx, c: &GrooveCommand) -> CmdResult<()> {
     match c {
         GrooveCommand::Humanize {
             clip,
@@ -94,10 +94,10 @@ fn humanize(
 }
 
 /// Small deterministic PRNG, bit-identical to `mulberry32` in `ui/src/transport/mock/random.ts`.
-pub(crate) struct Mulberry32(u32);
+pub struct Mulberry32(u32);
 
 impl Mulberry32 {
-    pub(crate) fn new(seed: u32) -> Self {
+    pub fn new(seed: u32) -> Self {
         Self(seed)
     }
 
@@ -114,7 +114,7 @@ impl Mulberry32 {
 /// Swing delay for a position `t` on `grid`: `swing · grid / 3` when `t` sits (within
 /// `Beats::EPSILON`) on an odd multiple of `grid`, else 0. `swing` is clamped to 0..=1
 /// (non-finite = 0).
-pub(crate) fn swing_delay(t: f64, grid: f64, swing: f32) -> f64 {
+pub fn swing_delay(t: f64, grid: f64, swing: f32) -> f64 {
     if !(swing.is_finite() && swing > 0.0 && grid.is_finite() && grid > 0.0) {
         return 0.0;
     }
@@ -133,12 +133,7 @@ pub(crate) fn swing_delay(t: f64, grid: f64, swing: f32) -> f64 {
 /// lands on the same grid parity when the loop length is a multiple of two grid steps
 /// (any whole number of beats on a 1/8 or 1/16 grid); for other loop lengths the later
 /// iterations repeat the first pass's swing. Keeps `notes` sorted by start.
-pub(crate) fn swing_notes(
-    settings: &ProjectSettings,
-    start: f64,
-    offset: f64,
-    notes: &mut [NoteDesc],
-) {
+pub fn swing_notes(settings: &ProjectSettings, start: f64, offset: f64, notes: &mut [NoteDesc]) {
     let grid = settings.swing_grid.0;
     let active = settings.swing > 0.0 && grid > 0.0;
     if !active {

@@ -26,15 +26,15 @@ use ether_core::protocol::project::ProjectCommand;
 
 use crate::tx::{CmdResult, Tx, invalid, not_found, unsupported};
 
-pub(crate) use clips::clip_start;
+pub use clips::clip_start;
 pub use labels::UndoLabel;
 pub use labels::{ExtLabels, set_ext_labels};
-pub(crate) use labels::{label_of, undo};
-pub(crate) use misc::{MAX_BPM, MIN_BPM};
-pub(crate) use reverse::reverse_envelopes;
+pub use labels::{label_of, undo};
+pub use misc::{MAX_BPM, MIN_BPM};
+pub use reverse::reverse_envelopes;
 
 /// What document commands need from the engine side.
-pub(crate) trait DocHost {
+pub trait DocHost {
     /// Descriptor of a device (built-ins: static; plugins: the instantiated plugin's).
     fn descriptor(&mut self, device: DeviceId, kind: &DeviceKind) -> Option<DeviceDescriptor>;
     /// Live state blob of a plugin device (to keep it across remove/undo, duplicate, ...).
@@ -62,7 +62,7 @@ pub(crate) trait DocHost {
     }
 }
 
-pub(crate) struct DocCtx<'a, 'p> {
+pub struct DocCtx<'a, 'p> {
     pub tx: Tx<'p>,
     pub ids: &'a mut IdGen,
     pub now: u64,
@@ -643,7 +643,7 @@ impl DocCtx<'_, '_> {
 
 /// Order key for inserting before `before` among `siblings` (sorted, excluding the moved
 /// item). `before: None` = at the end.
-pub(crate) fn order_before<I: PartialEq + Copy + std::fmt::Display>(
+pub fn order_before<I: PartialEq + Copy + std::fmt::Display>(
     siblings: &[(OrderKey, I)],
     before: Option<I>,
 ) -> CmdResult<OrderKey> {
@@ -664,7 +664,7 @@ pub(crate) fn order_before<I: PartialEq + Copy + std::fmt::Display>(
 }
 
 /// Order key right after `after` among `siblings` (sorted).
-pub(crate) fn order_after<I: PartialEq + Copy>(
+pub fn order_after<I: PartialEq + Copy>(
     siblings: &[(OrderKey, I)],
     after: I,
 ) -> CmdResult<OrderKey> {
@@ -677,7 +677,7 @@ pub(crate) fn order_after<I: PartialEq + Copy>(
 // ─── Dispatch ───────────────────────────────────────────────────────────────────────────
 
 /// `true` if `command` edits the document (undoable, allowed inside a `Batch`).
-pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>) -> bool {
+pub fn is_document_command(command: &Command, current: Option<ProjectId>) -> bool {
     use ether_core::protocol::devices::DeviceCommand as D;
     use ether_core::protocol::midi_map::MidiMapCommand as M;
     use ether_core::protocol::recording::RecordingCommand as R;
@@ -736,7 +736,7 @@ pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>)
 }
 
 /// Apply one document command (see [`is_document_command`]).
-pub(crate) fn apply(ctx: &mut DocCtx, command: &Command) -> CmdResult<ReplyValue> {
+pub fn apply(ctx: &mut DocCtx, command: &Command) -> CmdResult<ReplyValue> {
     match command {
         Command::Track(c) => tracks::apply(ctx, c),
         Command::Clip(c) => clips::apply(ctx, c),
@@ -780,4 +780,4 @@ pub(crate) fn apply(ctx: &mut DocCtx, command: &Command) -> CmdResult<ReplyValue
     Ok(ReplyValue::Unit)
 }
 
-pub(crate) use devices::{builtin_descriptor, default_device_name, missing_descriptor};
+pub use devices::{builtin_descriptor, default_device_name, missing_descriptor};

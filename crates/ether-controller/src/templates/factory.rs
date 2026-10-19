@@ -153,7 +153,7 @@ fn reverb_return() -> Template {
 
 /// Every factory template: `(slug, template)`, in listing order: the track templates, then
 /// the example projects ([`super::examples`]).
-pub(crate) fn all() -> Vec<(&'static str, Template)> {
+pub fn all() -> Vec<(&'static str, Template)> {
     let mut all = vec![
         ("vocal-chain", vocal_chain()),
         ("synth-keys", synth_keys()),
@@ -169,7 +169,7 @@ pub(crate) fn all() -> Vec<(&'static str, Template)> {
     all
 }
 
-pub(crate) fn get(slug: &str) -> Option<Template> {
+pub fn get(slug: &str) -> Option<Template> {
     all().into_iter().find(|(s, _)| *s == slug).map(|(_, t)| t)
 }
 

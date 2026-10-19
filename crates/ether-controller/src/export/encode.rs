@@ -18,7 +18,7 @@ use flacenc::source::{Fill, FrameBuf};
 use crate::store::ExportFile;
 
 /// Peak level normalized files are scaled to: -0.1 dBFS.
-pub(crate) const NORMALIZE_PEAK: f32 = 0.988_553_1;
+pub const NORMALIZE_PEAK: f32 = 0.988_553_1;
 
 /// FLAC block size (per channel).
 const FLAC_BLOCK: usize = 4096;
@@ -28,7 +28,7 @@ const FLAC_HEADER: usize = 4 + 4 + 34;
 
 /// Peak of a signal fed block by block (non-finite samples are ignored).
 #[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct PeakScan(f32);
+pub struct PeakScan(f32);
 
 impl PeakScan {
     pub fn scan(&mut self, block: &[&[f32]]) {
@@ -47,7 +47,7 @@ impl PeakScan {
 }
 
 /// Gain that puts `peak` at [`NORMALIZE_PEAK`] (1 for silence).
-pub(crate) fn normalize_gain(peak: f32) -> f32 {
+pub fn normalize_gain(peak: f32) -> f32 {
     if peak <= 1e-9 {
         1.0
     } else {
@@ -56,7 +56,7 @@ pub(crate) fn normalize_gain(peak: f32) -> f32 {
 }
 
 /// Deterministic TPDF dither source (xorshift64*), so exports are reproducible.
-pub(crate) struct Dither(u64);
+pub struct Dither(u64);
 
 impl Dither {
     pub fn new(seed: u64) -> Self {
@@ -74,13 +74,13 @@ impl Dither {
     }
 
     /// Triangular noise in (-1, 1) LSB.
-    pub fn next(&mut self) -> f32 {
+    pub(crate) fn next(&mut self) -> f32 {
         self.uniform() - self.uniform()
     }
 }
 
 /// Bits per sample of an integer depth.
-pub(crate) fn int_bits(depth: BitDepth) -> Option<u32> {
+pub fn int_bits(depth: BitDepth) -> Option<u32> {
     match depth {
         BitDepth::Int16 => Some(16),
         BitDepth::Int24 => Some(24),
@@ -89,7 +89,7 @@ pub(crate) fn int_bits(depth: BitDepth) -> Option<u32> {
 }
 
 /// Quantize one sample to a signed `bits`-bit integer (scale `2^(bits-1)`, clipped).
-pub(crate) fn quantize(x: f32, bits: u32, dither: Option<&mut Dither>) -> i32 {
+pub fn quantize(x: f32, bits: u32, dither: Option<&mut Dither>) -> i32 {
     let scale = (1i64 << (bits - 1)) as f64;
     let x = if x.is_finite() { x as f64 } else { 0.0 };
     let d = dither.map_or(0.0, |d| d.next() as f64);
@@ -97,14 +97,14 @@ pub(crate) fn quantize(x: f32, bits: u32, dither: Option<&mut Dither>) -> i32 {
 }
 
 /// Seed of the 16-bit dither (fixed: identical renders give identical files).
-pub(crate) const DITHER_SEED: u64 = 0x9E37_79B9_7F4A_7C15;
+pub const DITHER_SEED: u64 = 0x9E37_79B9_7F4A_7C15;
 
 /// Where an encoder writes a file (#434): memory (downloads, and stores that only take
 /// whole files) or a file the store streams to disk ([`ProjectStore::create_export`]).
 /// Seekable: WAV, FLAC and MP3 headers are filled in once the file is done.
 ///
 /// [`ProjectStore::create_export`]: crate::store::ProjectStore::create_export
-pub(crate) enum Sink {
+pub enum Sink {
     Memory(Cursor<Vec<u8>>),
     File(Box<dyn ExportFile>),
 }
@@ -185,7 +185,7 @@ fn block_frames(block: &[&[f32]]) -> usize {
 }
 
 /// WAV encoder fed block by block.
-pub(crate) struct WavEncoder {
+pub struct WavEncoder {
     writer: hound::WavWriter<SharedSink>,
     sink: SharedSink,
     bits: Option<u32>,
@@ -254,7 +254,7 @@ impl WavEncoder {
 }
 
 /// Bits per WAV sample of a depth.
-pub(crate) fn wav_bits(depth: BitDepth) -> u16 {
+pub fn wav_bits(depth: BitDepth) -> u16 {
     match depth {
         BitDepth::Int16 => 16,
         BitDepth::Int24 => 24,
@@ -265,7 +265,7 @@ pub(crate) fn wav_bits(depth: BitDepth) -> u16 {
 /// FLAC encoder fed block by block (fixed block size; the last block may be shorter).
 /// Frames are written as they are encoded after room for the header, which is filled in
 /// at the end. MD5 is left unset (all zero = "not computed", allowed).
-pub(crate) struct FlacEncoder {
+pub struct FlacEncoder {
     config: Verified<config::Encoder>,
     /// Verbatim coding for a last block shorter than the FLAC minimum (flacenc's
     /// predictors don't handle those).
@@ -397,26 +397,26 @@ impl FlacEncoder {
 }
 
 /// MP3 bitrate (CBR, kbps): the most MPEG-1 Layer III allows.
-pub(crate) const MP3_KBPS: u32 = 320;
+pub const MP3_KBPS: u32 = 320;
 
 /// Samples per channel in an MPEG-1 Layer III frame.
-pub(crate) const MP3_FRAME: usize = 1152;
+pub const MP3_FRAME: usize = 1152;
 
 /// Delay of a Layer III decoder's synthesis filterbank, in samples. The LAME tag's encoder
 /// delay leaves it out; gapless decoders skip `delay + 529` samples.
-pub(crate) const MP3_DECODER_DELAY: usize = 529;
+pub const MP3_DECODER_DELAY: usize = 529;
 
 /// `rusty_mp3`'s encoder delay in the LAME-tag convention (decoder delay excluded): input
 /// sample `i` comes out of a decoder at `i + MP3_ENCODER_DELAY + MP3_DECODER_DELAY`,
 /// counted from the first audio frame (the test `mp3_lead_is_the_codec_delay` pins it).
-pub(crate) const MP3_ENCODER_DELAY: usize = 528;
+pub const MP3_ENCODER_DELAY: usize = 528;
 
 /// The rates MPEG-1 Layer III encodes.
-pub(crate) const MP3_RATES: [u32; 3] = [32_000, 44_100, 48_000];
+pub const MP3_RATES: [u32; 3] = [32_000, 44_100, 48_000];
 
 /// The MP3 rate for a signal at `rate` (when the request names none): `rate` itself when
 /// MP3 has it, else 44.1 kHz for its multiples and 48 kHz for the rest.
-pub(crate) fn mp3_rate(rate: u32) -> u32 {
+pub fn mp3_rate(rate: u32) -> u32 {
     if MP3_RATES.contains(&rate) {
         rate
     } else if rate.is_multiple_of(11_025) {
@@ -430,7 +430,7 @@ pub(crate) fn mp3_rate(rate: u32) -> u32 {
 /// rounded up so that it, the encoder delay and the decoder delay fill whole codec frames.
 /// The tail padding is then exactly [`MP3_DECODER_DELAY`], so whatever a decoder trims, the
 /// extra samples it outputs are at the start (see [`Mp3Encoder`]).
-pub(crate) fn mp3_trimmed_frames(frames: usize) -> usize {
+pub fn mp3_trimmed_frames(frames: usize) -> usize {
     let delay = MP3_ENCODER_DELAY + MP3_DECODER_DELAY;
     (frames + delay).div_ceil(MP3_FRAME) * MP3_FRAME - delay
 }
@@ -472,7 +472,7 @@ fn crc16(crc: u16, bytes: &[u8]) -> u16 {
 ///
 /// The audio frames are written as they are encoded, after room for the Info frame, which
 /// is written last (its counts and CRC cover the whole file).
-pub(crate) struct Mp3Encoder {
+pub struct Mp3Encoder {
     enc: rusty_mp3::Mp3Encoder,
     rate: u32,
     channels: usize,
@@ -608,7 +608,7 @@ impl Mp3Encoder {
 }
 
 /// A file being encoded, fed block by block ([`Encoder::push`]), then finished.
-pub(crate) enum Encoder {
+pub enum Encoder {
     Wav(Box<WavEncoder>),
     Flac(Box<FlacEncoder>),
     Mp3(Box<Mp3Encoder>),
@@ -653,7 +653,7 @@ impl Encoder {
 }
 
 /// File extension and MIME type of a container.
-pub(crate) fn file_type(container: AudioContainer) -> (&'static str, &'static str) {
+pub fn file_type(container: AudioContainer) -> (&'static str, &'static str) {
     match container {
         AudioContainer::Wav => ("wav", "audio/wav"),
         AudioContainer::Flac => ("flac", "audio/flac"),

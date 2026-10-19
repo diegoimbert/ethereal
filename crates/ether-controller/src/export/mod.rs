@@ -79,9 +79,9 @@
 //! - So stems sum to the mix only with neutral master devices, neutral groups (unity, no
 //!   devices) and linear returns, and without solo or sidechains.
 
-pub(crate) mod encode;
+pub mod encode;
 mod job;
-pub(crate) mod offline;
+pub mod offline;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -100,7 +100,7 @@ use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 use job::{Delivered, Job, Step};
 
 /// Most bytes one `ReadChunk` serves (the protocol promises at least 256 KiB).
-pub(crate) const MAX_CHUNK_BYTES: usize = 1 << 20;
+pub const MAX_CHUNK_BYTES: usize = 1 << 20;
 /// Work per tick: at most this many units of work (see "Bounded ticks")...
 const MAX_UNITS_PER_TICK: usize = 256;
 /// ...and no more than this long (when the host clock advances).
@@ -113,7 +113,7 @@ struct Download {
 
 /// The running job and finished downloads.
 #[derive(Default)]
-pub(crate) struct ExportState {
+pub struct ExportState {
     job: Option<Box<Job>>,
     downloads: BTreeMap<String, Download>,
     last_progress: Option<f32>,
@@ -121,7 +121,7 @@ pub(crate) struct ExportState {
     last_stats: job::UnitStats,
     /// v0.2 (`freeze-bounce`): the running freeze/bounce/consolidate render, independent of
     /// the export job (kept here so the controller struct needs no new field).
-    pub(crate) render: crate::freeze::RenderState,
+    pub render: crate::freeze::RenderState,
 }
 
 pub use job::UnitStats as ExportUnitStats;
@@ -129,7 +129,7 @@ pub use job::UnitStats as ExportUnitStats;
 impl ExportState {
     /// Keep `bytes` engine-side as a download for `Export::ReadChunk` (base-114 bundles).
     /// Dropped with the others when `project` is no longer open.
-    pub(crate) fn add_download(&mut self, token: String, project: ProjectId, bytes: Vec<u8>) {
+    pub fn add_download(&mut self, token: String, project: ProjectId, bytes: Vec<u8>) {
         self.downloads.insert(token, Download { project, bytes });
     }
 }
@@ -141,7 +141,7 @@ fn export_event(out: &mut dyn MessageSink, e: ExportEvent) {
 /// The end of the arrangement in beats (the `Project` export range's end; 0 when empty).
 /// (Also the private overlay's static-share export; unused in the OSS build.)
 #[allow(dead_code)]
-pub(crate) fn project_length(p: &ether_core::protocol::model::Project) -> f64 {
+pub fn project_length(p: &ether_core::protocol::model::Project) -> f64 {
     job::range_of(p, &ether_core::protocol::export::ExportRange::Project)
         .map_or(0.0, |(_, end)| end.0)
 }
@@ -211,7 +211,7 @@ where
     L: Library,
 {
     /// `Command::Export`.
-    pub(crate) fn export_command(
+    pub fn export_command(
         &mut self,
         c: &ExportCommand,
         out: &mut dyn MessageSink,
@@ -308,7 +308,7 @@ where
     }
 
     /// Called from every tick: steps the running job, emits `Event::Export`.
-    pub(crate) fn export_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn export_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         let current = self.doc.as_ref().map(|d| d.project.id);
         // Closing/switching the project drops its downloads and stops its job.
         self.export

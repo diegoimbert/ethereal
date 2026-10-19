@@ -22,17 +22,17 @@ use crate::store::{Library, ProjectStore};
 use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 
 /// Gesture-less plugin edits closer together than this share one undo step.
-pub(crate) const PLUGIN_EDIT_WINDOW_MS: u64 = 250;
+pub const PLUGIN_EDIT_WINDOW_MS: u64 = 250;
 
 /// Edits applied in one transaction: a device and its plugin gesture (if any).
 type EditGroup = (DeviceId, Option<GestureId>);
 
 /// Undo label (message id) of grouped gesture-less plugin edits ("plugin edit").
-pub(crate) const PLUGIN_EDIT_LABEL: &str = "undo.plugin.edit";
+pub const PLUGIN_EDIT_LABEL: &str = "undo.plugin.edit";
 
 /// The open "plugin edit" undo step: its gesture and the time of its last edit.
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct EditWindow {
+pub struct EditWindow {
     gesture: GestureId,
     last_ms: u64,
 }
@@ -64,7 +64,7 @@ where
     L: Library,
 {
     /// Handle one poll's plugin notifications (see the module docs).
-    pub(crate) fn plugin_notifications(
+    pub fn plugin_notifications(
         &mut self,
         notes: Vec<(DeviceId, PluginNotification)>,
         now: u64,

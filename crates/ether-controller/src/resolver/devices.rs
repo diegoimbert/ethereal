@@ -129,7 +129,7 @@ fn fits(role: MissingRole, ty: T) -> bool {
 
 /// Built-in replacements for a missing device, best first: the kind of device its name says
 /// (0.6), else the role's generic choice (0.3).
-pub(crate) fn candidates(m: &MissingDevice) -> Vec<DeviceCandidate> {
+pub fn candidates(m: &MissingDevice) -> Vec<DeviceCandidate> {
     let ws: Vec<String> = words(&m.description)
         .into_iter()
         .chain(words(m.source_id.rsplit(':').next().unwrap_or("")))

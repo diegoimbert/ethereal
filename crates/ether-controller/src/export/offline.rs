@@ -13,19 +13,19 @@ use ether_core::{AudioSource, EngineConfig, NodeKey, RenderGraphDesc};
 use ether_media::{DecodedAudio, InMemorySource};
 
 use super::job::UNIT_BUILTINS;
-pub(crate) use super::job::UNIT_FRAMES;
+pub use super::job::UNIT_FRAMES;
 use crate::compile::{CompileContext, compile_graph_with};
 use crate::engine::EngineState;
 use crate::media::{IncrementalDecoder, IncrementalResampler, extension_of};
 use crate::store::{Library, ProjectStore};
 use crate::{BridgeError, EngineBridge};
 
-pub(crate) fn engine_err(e: ether_core::EngineError) -> String {
+pub fn engine_err(e: ether_core::EngineError) -> String {
     format!("offline engine: {e}")
 }
 
 /// The project's tempo map for the engine (beats ↔ seconds of a render).
-pub(crate) fn tempo_rt(p: &Project) -> TempoMapRt {
+pub fn tempo_rt(p: &Project) -> TempoMapRt {
     let map = p.tempo_map();
     let tempo: Vec<TempoPointDesc> = map
         .tempo
@@ -54,7 +54,7 @@ enum MediaLoad {
 
 /// Decodes and resamples media to the engine rate with the live pipeline's code
 /// (bit-identical sources), one unit at a time.
-pub(crate) struct MediaLoader {
+pub struct MediaLoader {
     project: ProjectId,
     engine_rate: u32,
     queue: VecDeque<MediaRef>,
@@ -140,7 +140,7 @@ impl ether_devices::SampleResolver for Resolver {
 
 /// A fresh offline engine with the media registered; device nodes are created a few per
 /// unit by [`NodeSetup::step`], then [`NodeSetup::finish`] compiles and publishes the graph.
-pub(crate) struct NodeSetup {
+pub struct NodeSetup {
     renderer: OfflineRenderer,
     sources: Resolver,
     queue: VecDeque<DeviceId>,
@@ -312,7 +312,7 @@ impl NodeSetup {
 }
 
 /// Renders a started [`OfflineRenderer`] block by block, dropping the graph latency first.
-pub(crate) struct Capture {
+pub struct Capture {
     renderer: OfflineRenderer,
     /// Leading frames still to drop (graph latency).
     skip: usize,

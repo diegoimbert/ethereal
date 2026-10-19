@@ -25,7 +25,7 @@ const EPS: f64 = Beats::EPSILON;
 
 /// One breakpoint, curve value widened to f64 (expression values are f32).
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Pt {
+pub struct Pt {
     pub t: f64,
     pub v: f64,
     pub curve: CurveShape,
@@ -73,7 +73,7 @@ fn value_at(pts: &[Pt], t: f64) -> (f64, CurveShape) {
 /// before, `Curve` flips its tension). Where the region cuts a segment or an edge is
 /// covered by the first/last point's hold, an edge point is added so the mirror is exact,
 /// and dropped again when it is redundant (a double reverse gives the input back).
-pub(crate) fn reverse_points(pts: &[Pt], r0: f64, r1: f64) -> Vec<Pt> {
+pub fn reverse_points(pts: &[Pt], r0: f64, r1: f64) -> Vec<Pt> {
     let left: Vec<Pt> = pts.iter().copied().filter(|p| p.t < r0).collect();
     let inner: Vec<Pt> = pts
         .iter()
@@ -243,7 +243,7 @@ fn reverse_lanes(ctx: &mut DocCtx, clip: ClipId, r0: f64, r1: f64) -> CmdResult<
     Ok(())
 }
 
-pub(crate) fn reverse_envelopes(ctx: &mut DocCtx, clip: ClipId, r0: f64, r1: f64) -> CmdResult<()> {
+pub fn reverse_envelopes(ctx: &mut DocCtx, clip: ClipId, r0: f64, r1: f64) -> CmdResult<()> {
     for lane in ctx.p().lane_ids_owned_by(AutomationOwner::Clip { clip }) {
         let old: Vec<AutomationPoint> = ctx.p().points_of(lane).into_iter().cloned().collect();
         let all: Vec<Pt> = old
