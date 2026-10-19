@@ -214,7 +214,9 @@ jobs:
 
   full-e2e:
     # The Playwright suite on the full build (pushes to main and manual runs: the per-PR e2e is
-    # ci.yml's, on the open-source build).
+    # ci.yml's, on the open-source build). It runs ee/app's config: the OSS specs and the EE ones
+    # (an EE `<name>.full.spec.ts` replaces the OSS `<name>.spec.ts`) against the full UI;
+    # apps/web's config would test the open-source UI and leave the EE specs out.
     name: Full e2e (${{ matrix.shard }}/4)
     needs: resolve
     if: needs.resolve.outputs.enabled == 'true' && needs.resolve.outputs.all == 'true'
@@ -267,8 +269,8 @@ jobs:
           ETHER_E2E_PREBUILD: "1"
           SHARD: ${{ matrix.shard }}
         run: >-
-          node scripts/ci/private-step.mjs e2e -- "cd apps/web && node scripts/build-wasm.mjs &&
-          npx playwright test --workers=2 --shard=$SHARD/4 --grep-invert '@frames|@pixels' --retries=1 --reporter=list"
+          node scripts/ci/private-step.mjs e2e -- "cd ee/app && npm run test:e2e --
+          --workers=2 --shard=$SHARD/4 --grep-invert '@frames|@pixels' --retries=1 --reporter=list"
       - uses: ./.github/actions/full-logs
         if: always()
         with:
