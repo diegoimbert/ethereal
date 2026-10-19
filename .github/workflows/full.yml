@@ -285,6 +285,7 @@ jobs:
         if: runner.environment == 'github-hosted'
         with:
           name: full-macos
+          exclude: ether-desktop
       - name: test
         # ether-desktop's tests run on Linux (its macOS test build cannot link); #45 is the AU
         # deadlock ci.yml also leaves out.
@@ -326,6 +327,7 @@ jobs:
         if: runner.environment == 'github-hosted'
         with:
           name: full-windows
+          exclude: ether-desktop
       - name: test
         run: node scripts/ci/private-step.mjs test -- cargo nextest run --profile ci --workspace --all-features --exclude ether-desktop
       - uses: ./.github/actions/full-logs
