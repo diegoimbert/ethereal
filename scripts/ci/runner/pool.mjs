@@ -227,6 +227,7 @@ async function start(slot) {
     PLAYWRIGHT_BROWSERS_PATH: p("cache", "ms-playwright"),
     COREPACK_HOME: p("cache", "corepack"),
     ACTIONS_RUNNER_HOOK_JOB_STARTED: join(here, "job-started.sh"),
+    ACTIONS_RUNNER_HOOK_JOB_COMPLETED: join(here, "job-completed.sh"),
     CI_POOL_JOB: job,
     CI_POOL_TARGETS: p("targets"),
   };
