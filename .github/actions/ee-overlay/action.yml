@@ -16,6 +16,11 @@ inputs:
   repository:
     description: The private repository
     default: diegoimbert/ethereal-private
+  drift-check:
+    description: >-
+      "true": before the overlay, warn about OSS files the overlay overrides that changed since
+      ee/ took them in (only their paths and the result are logged)
+    default: "false"
 
 outputs:
   ee-sha:
@@ -48,6 +53,14 @@ runs:
         git -C ee submodule update -q --init --depth 1 > /dev/null 2>&1
         echo "sha=$(git -C ee rev-parse HEAD)" >> "$GITHUB_OUTPUT"
         echo "ee/ fetched at $(git -C ee rev-parse --short=12 HEAD)"
+    - name: Overlay drift (warning only)
+      if: inputs.drift-check == 'true'
+      shell: bash
+      run: |
+        # Prints OSS paths and a count, nothing of ee/'s content (`--names`).
+        if [ -f ee/overlay-owned.txt ]; then
+          node ee/overlay.mjs --owned check --names || echo "::warning::overlay drift: OSS files the full product overrides changed (listed above); port them into ee/"
+        fi
     - name: Overlay (quiet)
       shell: bash
       run: node scripts/ci/private-step.mjs overlay -- node ee/overlay.mjs --oss .
