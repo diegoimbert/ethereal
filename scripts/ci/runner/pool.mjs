@@ -208,8 +208,12 @@ async function start(slot) {
     RUSTC_WRAPPER: p("bin", "sccache"),
     SCCACHE_DIR: p("cache", "sccache"),
     SCCACHE_CACHE_SIZE: "60G",
-    // Each slot its own sccache server, never the owner's (default port 4226).
+    // Jobs share the host's network: each slot its own sccache server (never the owner's, on
+    // the default 4226) and its own dev/Playwright ports (scripts/dev-env.mjs; worktrees use
+    // 20000-29999).
     SCCACHE_SERVER_PORT: String(4310 + slot),
+    ETHER_INSTANCE: `ci-pool-${slot}`,
+    ETHER_DEV_PORT: String(31000 + 10 * slot),
     npm_config_store_dir: p("cache", "pnpm-store"),
     PLAYWRIGHT_BROWSERS_PATH: p("cache", "ms-playwright"),
     COREPACK_HOME: p("cache", "corepack"),
