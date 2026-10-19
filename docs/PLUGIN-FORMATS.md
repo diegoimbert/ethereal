@@ -48,6 +48,8 @@ Scanning stays out-of-process and crash-safe:
 
 The sandbox helper takes `--format <clap|vst3|au>` (default `clap`) through `SandboxOptions.format`. It loads through `Formats::instantiate`, so sandboxing works for every format as soon as its host does.
 
+Platform limits: the sandbox helper runs on macOS and Linux only (`ether_native::sandbox::spawn` returns an error on Windows, where plugins always run in-process). CLAP editors use the plugin's own floating window everywhere, and a host-made window (for plugins that only embed) only on macOS (`ether-clap/src/gui.rs`, `HostWindow::SUPPORTED`): elsewhere an embed-only CLAP plugin has no editor. VST3 editors open on macOS, Windows and Linux (X11).
+
 Other contract points:
 
 - **`PluginController::set_param_value`** (defaulted to `Unsupported`) sets a param while the plugin is inactive. The sandbox helper relies on it.
