@@ -15,17 +15,19 @@
 use std::collections::BTreeSet;
 
 use ether_core::plugin::PluginNotification;
+use ether_core::protocol::freeze::FreezeCommand;
 use ether_core::protocol::model::Op;
-use ether_core::protocol::model::{Base64Bytes, DeviceId, ProjectId};
+use ether_core::protocol::model::{Base64Bytes, DeviceId, ProjectId, SiteId};
 use ether_core::protocol::transport::TransportState;
 use ether_core::protocol::{Command, CommandError, ReplyValue};
 
-pub use crate::doc::UndoLabel;
+pub use crate::doc::{DocCtx, ExtDocCommands, UndoLabel, set_ext_doc_commands};
+pub use crate::freeze::{Finish, RenderUpdate};
 pub use crate::saving::SaveKind;
 
 use crate::resolver::ImportHints;
 
-use crate::store::{Library, ProjectStore};
+use crate::store::{Library, ProjectStore, RenderSidecar};
 use crate::tx::CmdResult;
 use crate::{BridgeError, EngineBridge, EtherController, HostServices, MessageSink};
 
@@ -158,6 +160,32 @@ where
         let _ = (ctl, now, kind, out);
     }
 
+    /// A file to write right after the document by this save (e.g. a journal naming the
+    /// document it goes with), from the document's JSON.
+    fn save_sidecar(
+        &mut self,
+        ctl: &mut EtherController<B, H, S, L, X>,
+        project: ProjectId,
+    ) -> Option<RenderSidecar> {
+        let _ = (ctl, project);
+        None
+    }
+
+    /// The open project was saved (`with_sidecar`: with a [`Self::save_sidecar`] file).
+    fn saved(
+        &mut self,
+        ctl: &mut EtherController<B, H, S, L, X>,
+        project: ProjectId,
+        with_sidecar: bool,
+    ) {
+        let _ = (ctl, project, with_sidecar);
+    }
+
+    /// A stored project was copied (`SaveAs`, `Duplicate`) as `copy`: a private project.
+    fn project_copied(&mut self, ctl: &mut EtherController<B, H, S, L, X>, copy: ProjectId) {
+        let _ = (ctl, copy);
+    }
+
     /// A plugin's instance was re-created from the document.
     fn plugin_reloaded(&mut self, ctl: &mut EtherController<B, H, S, L, X>, device: DeviceId) {
         let _ = (ctl, device);
@@ -181,6 +209,50 @@ where
         out: &mut dyn MessageSink,
     ) {
         let _ = (ctl, out);
+    }
+
+    /// A render is about to start: `Some` runs it elsewhere (the extension reports its
+    /// progress as `Event::Freeze` and calls `finish_render` when it is done; its reply is
+    /// the command's). `finish`: what the render's end does here.
+    fn offload_render(
+        &mut self,
+        ctl: &mut EtherController<B, H, S, L, X>,
+        command: &FreezeCommand,
+        job: &str,
+        finish: &Finish,
+        out: &mut dyn MessageSink,
+    ) -> Option<ReplyValue> {
+        let _ = (ctl, command, job, finish, out);
+        None
+    }
+
+    /// `FreezeCommand::Cancel` of a render this extension runs elsewhere (`true`: it was).
+    fn cancel_render(&mut self, ctl: &mut EtherController<B, H, S, L, X>, job: &str) -> bool {
+        let _ = (ctl, job);
+        false
+    }
+
+    /// `true` while a render this extension runs elsewhere is under way (no second one).
+    fn render_busy(&self, ctl: &EtherController<B, H, S, L, X>) -> bool {
+        let _ = ctl;
+        false
+    }
+
+    /// Whether the site a render runs for (`freeze_for`) is still there (`false` drops it).
+    fn render_requester_present(&self, ctl: &EtherController<B, H, S, L, X>, site: SiteId) -> bool {
+        let _ = (ctl, site);
+        true
+    }
+
+    /// How a render for another site (`freeze_for`) goes.
+    fn render_update(
+        &mut self,
+        ctl: &mut EtherController<B, H, S, L, X>,
+        site: SiteId,
+        job: &str,
+        update: RenderUpdate,
+    ) {
+        let _ = (ctl, site, job, update);
     }
 
     /// Report the engine's status (`force`: even unchanged).

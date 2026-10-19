@@ -13,8 +13,8 @@ use ether_core::protocol::{CommandError, ErrorCode, Event, ReplyValue};
 use crate::bundle;
 use crate::handlers::{event, no_project, notify, store_err};
 use crate::saving::SaveKind;
-use crate::store::{Library, ProjectStore, StoreError};
-use crate::tx::{CmdResult, invalid, unsupported};
+use crate::store::{Library, ProjectStore, RenderDocument, StoreError};
+use crate::tx::{CmdResult, invalid};
 use crate::{EngineBridge, EtherController, HostServices, MessageSink, OpenDoc, TransportRt};
 
 fn file_err(e: FileError) -> CommandError {
@@ -282,21 +282,34 @@ where
         let project = self.with_plugin_states(&doc.project);
         self.doc = Some(doc);
         let background = kind == SaveKind::Routine && !self.plugin_states.write_failed;
+        // An extension's file written right after the document (`ControllerExt::save_sidecar`).
+        let sidecar = self.with_extensions(|e, ctl| e.save_sidecar(ctl, id));
+        let with_sidecar = sidecar.is_some();
         let summary = if background {
             let version = self.config.app_version.clone();
-            self.store.save_in_background(
-                id,
-                &name,
-                Box::new(move || {
-                    file::save(&project, &version)
-                        .map_err(|e| StoreError::Io(format!("project file: {e}")))
-                }),
-            )
+            let render: RenderDocument = Box::new(move || {
+                file::save(&project, &version)
+                    .map_err(|e| StoreError::Io(format!("project file: {e}")))
+            });
+            match sidecar {
+                Some(sidecar) => self
+                    .store
+                    .save_in_background_with(id, &name, render, sidecar),
+                None => self.store.save_in_background(id, &name, render),
+            }
         } else {
             let json = file::save(&project, &self.config.app_version).map_err(file_err)?;
-            self.store.save(id, &json)
+            let saved = self.store.save(id, &json);
+            if saved.is_ok()
+                && let Some((path, bytes)) = sidecar.and_then(|f| f(&json))
+                && let Err(e) = self.store.write(id, &path, &bytes)
+            {
+                tracing::warn!(error = %e, path, "could not write a sidecar file");
+            }
+            saved
         }
         .map_err(store_err)?;
+        self.ext_each(|e, ctl| e.saved(ctl, id, with_sidecar));
         if !background {
             self.plugin_states.write_failed = false;
         }
@@ -486,8 +499,9 @@ where
             StoreError::AlreadyExists(_) => invalid(format!("project {new_id} already exists")),
             e => store_err(e),
         })?;
-        // A copy is a private project: `duplicate` never copies the original's `share.json`.
         let mut project = doc.project.clone();
+        // A copy is a private project: the extensions drop their files from it.
+        self.ext_each(|e, ctl| e.project_copied(ctl, new_id));
         project.id = new_id;
         project.settings.name = name;
         // #564: the copy still holds the old document until this lands: remove it on failure.
@@ -545,6 +559,7 @@ where
             return Ok(ReplyValue::Saved { project: existing });
         }
         self.store.duplicate(id, new_id).map_err(store_err)?;
+        self.ext_each(|e, ctl| e.project_copied(ctl, new_id));
         // A duplicate is a private project: `duplicate` never copies the original's
         // `share.json`.
         // project-versions: the copy is not open anywhere.
@@ -607,9 +622,8 @@ where
             file::load(&json).map_err(file_err)?
         };
         let name = project.settings.name.clone();
-        // Hiding device names is a static-share feature (the private overlay).
         if hide_devices {
-            return Err(unsupported("hiding devices is not available in this build"));
+            project.strip_devices();
         }
         let mut media = std::collections::BTreeMap::new();
         if include_media {

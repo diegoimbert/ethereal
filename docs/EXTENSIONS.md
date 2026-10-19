@@ -104,6 +104,13 @@ It keeps its own state and gets the controller with every hook:
   `transport_state` / `transport_changed`, `save_refused` / `before_save`, `plugin_notes` /
   `plugin_reloaded`, `project_loaded`, `engine_changed` / `engine_status`. Each defaults to
   the app's single-user behavior.
+- Saves: `save_sidecar` (a file written right after the document, in the same job), `saved`,
+  `project_copied` (a `SaveAs` / `Duplicate` copy is a private project).
+- Renders (freeze, bounce, consolidate): `offload_render` runs one elsewhere (the result comes
+  back through `finish_render`), `cancel_render` / `render_busy`; `freeze_for(site, ...)` runs
+  one here for another site, reported through `render_update` (`render_requester_present`
+  drops it when that site is gone).
+- Document commands of an extension (one undo step, like the app's): `set_ext_doc_commands`.
 
 An extension that needs state of its own inside the controller gives it as the controller's
 fifth type parameter: `EtherController<B, H, S, L, X>` (`X = ()` by default) built with
