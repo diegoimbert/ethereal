@@ -1,0 +1,4 @@
+# Review routing: every path is owned by the maintainer (see MAINTAINERS.md). When the project
+# gains maintainers for an area, add a more specific line for it below this one (the last
+# matching pattern wins).
+* @diegoimbert

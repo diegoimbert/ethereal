@@ -37,7 +37,8 @@
   min-width: 0;
   text-overflow: ellipsis;
 }
-.eth-desktop-band__open {
+.eth-desktop-band__open,
+.eth-desktop-band__discord {
   flex: none;
 }
 /* Close: at the band's far end. The text and "Open on desktop" stay centered: an invisible

@@ -1435,6 +1435,8 @@
   "shell.desktop_band.label": "application de bureau",
   "shell.desktop_band.text": "ethereal fonctionne mieux dans l’application de bureau",
   "shell.desktop_band.open": "ouvrir dans l’application",
+  "community.discord.label": "discord",
+  "community.discord.join": "rejoindre le discord d’ethereal",
   "shell.notice.info": "info",
   "shell.notice.warning": "avertissement",
   "shell.notice.error": "erreur",
