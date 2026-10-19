@@ -71,7 +71,7 @@ tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 # --- real-time plumbing ---
-rtrb = "0.3"
+rtrb = "0.4"
 assert_no_alloc = "1.1"
 crossbeam-channel = "0.5"
 
@@ -89,7 +89,7 @@ rustfft = "6.4"
 clack-host = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d" }
 clack-extensions = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d", features = ["clack-host", "audio-ports", "gui", "latency", "log", "note-ports", "params", "remote-controls", "state", "timer", "tail"] }
 clack-plugin = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d" }
-libloading = "0.8"
+libloading = "0.9"
 
 # --- plugins: VST3 + AU (formats-base; used by ether-vst3 / ether-au). All permissive. ---
 # VST3 COM bindings, host and plugin side, pre-generated from the (MIT-licensed, since 3.8)
@@ -114,7 +114,7 @@ wasm-bindgen = "0.2.100"
 js-sys = "0.3.77"
 web-sys = { version = "0.3.77", features = ["console", "MessagePort", "Worker", "AudioWorkletGlobalScope"] }
 console_error_panic_hook = "0.1"
-getrandom = "0.3"
+getrandom = "0.4"
 
 # --- desktop app ---
 tauri = { version = "2", features = [] }
@@ -137,7 +137,7 @@ tauri-plugin-http = { version = "2", default-features = false }
 # remote-engine: WebSocket server (sync, no async runtime).
 tungstenite = "0.27"
 # remote-engine: SIGTERM/SIGINT save the project and close clients.
-signal-hook = "0.3"
+signal-hook = "0.4"
 # export: WAV/FLAC/MP3 writing.
 hound = "3.5"
 flacenc = "0.4"

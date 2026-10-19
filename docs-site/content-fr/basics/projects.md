@@ -51,9 +51,9 @@ Un nouveau projet reste un **brouillon** tant que vous n’y changez rien (une m
 
 ### visites guidées {#guided-tours}
 
-La liste **pour commencer** de l’écran d’accueil lance des visites guidées de la vraie application : jouer avec des amis, enregistrer de l’audio, importer un projet d’une autre DAW. En lancer une crée un projet pour elle et vous guide pas à pas. Quand vous terminez ou quittez la visite, vous revenez à l’écran d’accueil.
+La liste **pour commencer** de l’écran d’accueil lance des visites guidées de la vraie application : faire votre premier morceau, jouer avec des amis, enregistrer de l’audio, importer un projet d’une autre DAW. En lancer une crée un projet pour elle et vous guide pas à pas. Quand vous terminez ou quittez la visite, vous revenez à l’écran d’accueil.
 
-Une visite terminée affiche une coche. Cliquer de nouveau dessus vous demande si vous voulez la **recommencer**. Les guides marqués **bientôt** ne sont pas encore disponibles.
+Une visite terminée affiche une coche. Cliquer de nouveau dessus vous demande si vous voulez la **recommencer**. Sur un téléphone, les guides sont marqués **bientôt** : les visites se font dans l’application de bureau et la version web.
 
 ### rouvrir votre dernier projet {#reopening-your-last-project}
 

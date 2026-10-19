@@ -123,7 +123,6 @@
   --eth-size-detail-min-height: 80px;
   --eth-size-main-min-size: 160px;
   --eth-size-splitter-width: 6px;
-  --eth-size-detail-collapsed-height: 24px;
   --eth-size-popover-min-width: 140px;
   --eth-size-select-list-max-height: 320px;
   --eth-size-select-search-width: 280px;
@@ -259,6 +258,7 @@
   --eth-track-13: #c7b8a8;
   --eth-track-14: #a4b6a9;
   --eth-track-15: #d6d9e2;
+  --eth-track-fallback: #8a91a8;
 }
 
 /* Theme: dark (default). */

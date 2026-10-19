@@ -119,7 +119,7 @@ impl Module {
         let sym = |names: &[&[u8]]| -> Option<*mut c_void> {
             names.iter().find_map(|name| {
                 // SAFETY: we only read the symbol address; the type is given at the call site.
-                unsafe { lib.get::<*mut c_void>(name) }
+                unsafe { lib.get::<*mut c_void>(*name) }
                     .ok()
                     .map(|s| *s)
                     .filter(|p| !p.is_null())

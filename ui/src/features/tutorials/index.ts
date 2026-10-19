@@ -5,6 +5,6 @@ export { canStartTutorial, startTutorial } from "./start";
 export { isTourDone, markTourDone, useTutorialProgress } from "./progress";
 export { exitTour, useTour } from "./store";
 export { platformOf } from "./targets";
-export { EXAMPLES, RECORD_AUDIO_TOUR, TOURS } from "./tours";
+export { EXAMPLES, FIRST_TRACK_TOUR, RECORD_AUDIO_TOUR, TOURS } from "./tours";
 export type { ExampleDef } from "./tours";
 export type { TourDef, TourPlatform, TourStep } from "./types";

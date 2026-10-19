@@ -668,6 +668,11 @@ export interface MessageArgs {
   "tutorials.examples.lofi.keys": { b: Tag };
   "tutorials.examples.tempo.body": { bars: number; bpm: string | number };
   "tutorials.examples.tracks.body": { b: Tag };
+  "tutorials.first_track.add_track.body": { b: Tag };
+  "tutorials.first_track.clip.body": { b: Tag };
+  "tutorials.first_track.instrument.p1": { b: Tag };
+  "tutorials.first_track.notes.add": { b: Tag };
+  "tutorials.first_track.open_clip.body": { b: Tag };
   "tutorials.record.add_track.body": { b: Tag };
   "tutorials.record.arm.arming": { b: Tag };
   "tutorials.record.arm.arming_browser": { b: Tag };

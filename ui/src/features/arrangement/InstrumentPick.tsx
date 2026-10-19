@@ -33,6 +33,7 @@ export function InstrumentPick({ track }: { track: Track }) {
         {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- only keeps its events from reaching the track header around it */}
         <div
           className="eth-arr-header__pick-panel"
+          data-tour="instrument-pick"
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
           onDoubleClick={(e) => e.stopPropagation()}

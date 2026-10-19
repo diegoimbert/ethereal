@@ -310,8 +310,9 @@ describe("GetStarted", () => {
     );
     expect(screen.getByRole("button", { name: "record audio" })).toBeDisabled();
     act(() => useProjectScreen.setState({ launching: false }));
-    // Not written yet.
-    expect(screen.getByText("make your first track").closest("li")).toHaveAttribute("data-soon");
+    // No guide is a dead end (#14): each one starts its tour.
+    expect(screen.getByRole("button", { name: "make your first track" })).toBeEnabled();
+    expect(screen.queryByText("soon")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "record audio" }));
     await vi.waitFor(() => expect(startTutorial).toHaveBeenCalledTimes(1));
     expect(vi.mocked(startTutorial).mock.calls[0]![0]).toBe(RECORD_AUDIO_TOUR);
