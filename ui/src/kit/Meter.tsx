@@ -19,8 +19,17 @@ export interface MeterProps {
  */
 export function Meter({ levels, height, minDb = -60, maxDb = 6, className }: MeterProps) {
   const channels = typeof levels === "number" ? [levels] : levels;
+  // The loudest channel's position on the scale (0..1), rounded so it doesn't churn the a11y tree.
+  const now = Math.round(Math.max(0, ...channels.map((lin) => meterPosition(lin, minDb, maxDb))) * 100) / 100;
   return (
-    <div className={clsx("eth-meter", className)} style={height !== undefined ? { height } : undefined} role="meter" aria-valuemin={0} aria-valuemax={1}>
+    <div
+      className={clsx("eth-meter", className)}
+      style={height !== undefined ? { height } : undefined}
+      role="meter"
+      aria-valuemin={0}
+      aria-valuemax={1}
+      aria-valuenow={now}
+    >
       {channels.map((lin, i) => (
         <div key={i} className="eth-meter__channel">
           <div className="eth-meter__gradient" />

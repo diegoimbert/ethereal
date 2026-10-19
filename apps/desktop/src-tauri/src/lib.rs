@@ -435,6 +435,12 @@ fn open_in_browser(url: &str) -> std::io::Result<()> {
 pub fn run() {
     let _ = MAIN_THREAD.set(std::thread::current().id());
     init_tracing();
+    // `app-identity`: an install made under an earlier bundle identifier (`dev.ethereal.app`)
+    // has its data, logs and WebView storage moved to this identifier's directories, before
+    // Tauri or the WebView open them. Release builds only (dev instances have their own dirs).
+    if !cfg!(debug_assertions) {
+        ether_native::app_identity::migrate_on_startup();
+    }
 
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default();

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import { useEngineCommands } from "@/features/transport-bar/engine";
-import { Button } from "@/kit";
+import { Button, DismissibleError } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
 import { useT } from "@/i18n";
@@ -33,9 +33,9 @@ export function SafeModeBanner() {
         {t("project.safe.load")}
       </Button>
       {error && (
-        <button type="button" className="eth-project__error" role="alert" title={t("common.dismiss")} onClick={clearError}>
+        <DismissibleError className="eth-project__error" onDismiss={clearError}>
           {error}
-        </button>
+        </DismissibleError>
       )}
     </div>
   );

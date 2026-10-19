@@ -9,6 +9,7 @@
 import "./desktopBand.css";
 import { ExternalLink, X } from "lucide-react";
 import { useSyncExternalStore, type ReactNode } from "react";
+import { DiscordLink } from "@/features/community";
 import { useT } from "@/i18n";
 import { Button, IconButton, Logo } from "@/kit";
 import { isTauri } from "@/transport";
@@ -43,9 +44,11 @@ export function resetDesktopBandDismissal(): void {
 export interface DesktopBandProps {
   /** Navigate to the deep link (injectable for tests). */
   openDeepLink?: (url: string) => void;
+  /** Open a web link in a new tab (injectable for tests; default `openExternal`). */
+  openLink?: (url: string) => void;
 }
 
-export function DesktopBand({ openDeepLink }: DesktopBandProps) {
+export function DesktopBand({ openDeepLink, openLink }: DesktopBandProps) {
   const t = useT();
   const closed = useSyncExternalStore(subscribe, isDismissed, isDismissed);
 
@@ -61,6 +64,7 @@ export function DesktopBand({ openDeepLink }: DesktopBandProps) {
         <ExternalLink aria-hidden />
         {t("shell.desktop_band.open")}
       </Button>
+      <DiscordLink className="eth-desktop-band__discord" open={openLink} />
       <IconButton size="sm" tone="ghost" className="eth-desktop-band__close" label={t("common.close")} icon={<X />} onClick={dismissDesktopBand} />
     </aside>
   );

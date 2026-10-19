@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use Ethereal in your work, please cite it as below."
+type: software
+title: Ethereal
+abstract: "A collaborative digital audio workstation (DAW) with a Rust audio engine and a React/TypeScript UI, for desktop and the web."
+authors:
+  - family-names: Imbert
+    given-names: Diego
+  - name: "The Ethereal contributors"
+version: 0.6.0
+date-released: 2026-10-15
+license: AGPL-3.0-or-later
+repository-code: "https://github.com/diegoimbert/ethereal"
+url: "https://ethereal.ws"
+keywords:
+  - daw
+  - audio
+  - music production
+  - rust
+  - webassembly

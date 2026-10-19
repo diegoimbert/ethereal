@@ -311,7 +311,7 @@ describe("GetStarted", () => {
     expect(screen.getByRole("button", { name: "record audio" })).toBeDisabled();
     act(() => useProjectScreen.setState({ launching: false }));
     // Not written yet.
-    expect(screen.getByText("make your first track").closest("li")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByText("make your first track").closest("li")).toHaveAttribute("data-soon");
     fireEvent.click(screen.getByRole("button", { name: "record audio" }));
     await vi.waitFor(() => expect(startTutorial).toHaveBeenCalledTimes(1));
     expect(vi.mocked(startTutorial).mock.calls[0]![0]).toBe(RECORD_AUDIO_TOUR);
