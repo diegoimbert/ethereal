@@ -140,7 +140,7 @@ tungstenite = "0.27"
 signal-hook = "0.4"
 # export: WAV/FLAC/MP3 writing.
 hound = "3.5"
-flacenc = "0.4"
+flacenc = "0.5"
 # Pure-Rust MP3 encoder (no C, builds for wasm32): MP3 exports.
 rusty_mp3 = "1.0"
 
