@@ -22,7 +22,7 @@ run-name: >-
 #
 # Runners: repository variables FULL_RUNNER / FULL_E2E_RUNNER / FULL_MACOS_RUNNER / FULL_WINDOWS_RUNNER (JSON, e.g.
 # '"ubuntu-latest"' or '["self-hosted","devbox-pool"]') pick the build jobs' runners;
-# GitHub-hosted by default. The short jobs (Resolve, ee/build, main is red) stay GitHub-hosted, so
+# GitHub-hosted by default. The short jobs (Resolve, ee/build) stay GitHub-hosted, so
 # a busy pool never holds up the start of a run. On the devbox pool (docs/CI-RUNNERS.md) the job
 # ids name the cargo target dirs (`full-*`, apart from ci.yml's open-source ones), the
 # GitHub-hosted-only steps are skipped, and a hook empties the overlay from the workspace after
@@ -46,6 +46,9 @@ on:
 permissions:
   contents: read
 
+# Pushes to main share one group that never cancels a running run: it goes to the end (green or
+# red), the newest push waits, the ones in between are skipped (reported as cancelled). The
+# `Main status` workflow reports the latest run that finished.
 concurrency:
   group: full-${{ github.ref }}-${{ inputs.ref }}
   cancel-in-progress: false
@@ -372,32 +375,3 @@ jobs:
           echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           bad="$(echo "$RESULTS" | jq -r '[to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | .key] | join(", ")')"
           if [ -n "$bad" ]; then echo "::error::full product: $bad"; exit 1; fi
-
-  main-red:
-    # Like ci.yml's: a failed push to main comments on the one open `ci-main` issue (or opens it).
-    # Only the run link and the names of the failed jobs: the logs are private.
-    name: main is red
-    needs: [ee-build]
-    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      issues: write
-    steps:
-      - env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          RUN_ID: ${{ github.run_id }}
-          SHA: ${{ github.sha }}
-        run: |
-          body="The full product failed on \`main\` at $SHA: $RUN (logs: \`just full-logs $RUN_ID\`)"
-          open=$(gh issue list --label ci-main --state open --json number --jq '.[0].number // empty')
-          if [ -n "$open" ]; then
-            gh issue comment "$open" --body "$body"
-          else
-            gh label create ci-main --color B60205 --description "CI is red on main" 2>/dev/null || true
-            gh issue create --title "CI is red on main" --label ci-main --body "$body
-
-          Pull requests run no builds or tests; \`main\` is where a break shows up first. Fix forward, then close this issue."
-          fi

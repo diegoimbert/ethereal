@@ -15,8 +15,8 @@ name: CI
 #
 # What runs when: pull requests run the cheap checks only (`What changed` and `Policy`; the CLA
 # check and `ee/pointer` come from elsewhere). Builds and tests run on `main` and manual runs,
-# every platform. A failure there is fixed forward: the `main is red` job opens (or comments on)
-# an issue labelled `ci-main`, and the fix lands as a follow-up pull request.
+# every platform. A failure there is fixed forward: the `Main status` workflow (main-status.yml)
+# opens (or comments on) an issue labelled `ci-main`, and the fix lands as a follow-up pull request.
 #
 # Caches: the repository has 10 GB of Actions cache. Only `main` saves Rust caches (pull
 # requests restore them), so pull requests cannot evict `main`'s and every job starts warm.
@@ -37,12 +37,12 @@ permissions:
   contents: read
 
 concurrency:
-  # A new push to a pull request supersedes its last run. Runs on `main` are not serialized as a
-  # whole: each build job is a lane of its own (the job-level `concurrency` below), so a quick
-  # Linux job tests the newest `main` while a slow Windows job of an older run finishes. A lane
-  # runs one job at a time, always to the end (it saves the caches pull requests start from), and
-  # only the newest waiting one: older waiting ones are dropped (reported as cancelled).
-  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  # A new push to a pull request supersedes its last run. Pushes to `main` share one group that
+  # never cancels a running run: one run goes to the end (every job, so it ends green or red, and
+  # it saves the caches pull requests start from), the newest push waits, and the pushes in
+  # between are skipped (GitHub reports them as cancelled; they never started). The `Main status`
+  # workflow reports the latest run that finished. Manual runs are a group of their own.
+  group: ci-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref) || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -96,8 +96,6 @@ jobs:
     if: needs.changes.outputs.full == 'true'
     runs-on: ${{ fromJSON(needs.changes.outputs.linux) }}
     timeout-minutes: 60
-    concurrency:
-      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-rust-linux
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -160,8 +158,6 @@ jobs:
     if: needs.changes.outputs.full == 'true'
     runs-on: macos-latest
     timeout-minutes: 60
-    concurrency:
-      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-rust-macos
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -194,8 +190,6 @@ jobs:
     if: needs.changes.outputs.full == 'true'
     runs-on: windows-latest
     timeout-minutes: 75
-    concurrency:
-      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-rust-windows
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -229,8 +223,6 @@ jobs:
     if: needs.changes.outputs.full == 'true'
     runs-on: ${{ fromJSON(needs.changes.outputs.linux) }}
     timeout-minutes: 20
-    concurrency:
-      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-web
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -263,8 +255,6 @@ jobs:
     if: needs.changes.outputs.full == 'true'
     runs-on: ${{ fromJSON(needs.changes.outputs.linux) }}
     timeout-minutes: 40
-    concurrency:
-      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-web-build
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -354,8 +344,6 @@ jobs:
     if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    concurrency:
-      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-e2e-${{ strategy.job-index }}
     strategy:
       fail-fast: false
       matrix:
@@ -412,8 +400,6 @@ jobs:
     if: needs.changes.outputs.full == 'true'
     runs-on: ${{ matrix.os == 'linux' && fromJSON(needs.changes.outputs.linux) || matrix.os }}
     timeout-minutes: 60
-    concurrency:
-      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-package-${{ strategy.job-index }}
     strategy:
       fail-fast: false
       matrix:
@@ -546,33 +532,3 @@ jobs:
       - name: Advisories (pnpm audit, production dependencies)
         continue-on-error: ${{ steps.deps.outputs.gate != 'true' }}
         run: pnpm audit --prod --audit-level high
-
-  # --- main is red ---------------------------------------------------------------------------
-
-  main-red:
-    # Pull requests no longer run the cross-platform jobs, so `main` is where a macOS, Windows
-    # or packaging break shows up first: fix it forward. One open `ci-main` issue collects them.
-    name: main is red
-    needs: [changes, rust-linux, rust-macos, rust-windows, web, web-build, e2e, package, policy]
-    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    permissions:
-      issues: write
-    steps:
-      - env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          SHA: ${{ github.sha }}
-        run: |
-          body="CI failed on \`main\` at $SHA: $RUN"
-          open=$(gh issue list --label ci-main --state open --json number --jq '.[0].number // empty')
-          if [ -n "$open" ]; then
-            gh issue comment "$open" --body "$body"
-          else
-            gh label create ci-main --color B60205 --description "CI is red on main" 2>/dev/null || true
-            gh issue create --title "CI is red on main" --label ci-main --body "$body
-
-          Pull requests run Linux and the cheap checks only; the cross-platform jobs run on \`main\`. Fix forward, then close this issue."
-          fi
