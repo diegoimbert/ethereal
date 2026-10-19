@@ -1,0 +1,63 @@
+# What a full-product run builds (full.yml, full-platforms.yml), after the checkout of the OSS ref:
+# whether it may see the private code at all (the token is set: never on a fork's event), the OSS
+# commit, and the private commit to overlay (requested, else the commit's ee pointer, else EE main).
+name: Full product resolve
+description: Resolve the OSS and private commits a full-product run builds
+
+inputs:
+  token:
+    description: ETHER_PRIVATE_TOKEN (empty = no access, nothing is built)
+    default: ""
+  ee-ref:
+    description: Requested private ref (empty = the commit's ee pointer, else EE main)
+    default: ""
+  all:
+    description: The dispatch's `all` input (pushes are always all)
+    default: "false"
+
+outputs:
+  enabled:
+    value: ${{ steps.r.outputs.enabled }}
+  oss_ref:
+    value: ${{ steps.r.outputs.oss_ref }}
+  ee_ref:
+    value: ${{ steps.r.outputs.ee_ref }}
+  all:
+    value: ${{ steps.r.outputs.all }}
+
+runs:
+  using: composite
+  steps:
+    - id: r
+      shell: bash
+      env:
+        TOKEN: ${{ inputs.token }}
+        EVENT: ${{ github.event_name }}
+        IN_EE_REF: ${{ inputs.ee-ref }}
+        IN_ALL: ${{ inputs.all }}
+      run: |
+        set -euo pipefail
+        if [ -z "$TOKEN" ]; then
+          echo "enabled=false" >> "$GITHUB_OUTPUT"
+          echo "No access to the private repository: the full product is not built here." >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+        fi
+        echo "::add-mask::$TOKEN"
+        oss_ref="$(git rev-parse HEAD)"
+        # The pointer this commit records for ee/.
+        head_ptr="$(git ls-tree HEAD ee | awk '$2 == "commit" { print $3 }')"
+        auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+        echo "::add-mask::$auth"
+        ee_main="$(git -c http.extraheader="$auth" ls-remote https://github.com/diegoimbert/ethereal-private refs/heads/main | cut -f1)"
+        if [ -n "$IN_EE_REF" ]; then ee_ref="$IN_EE_REF"; why="requested"
+        else ee_ref="${head_ptr:-$ee_main}"; why="this commit's ee pointer"
+        fi
+        all=false
+        if [ "$EVENT" = push ] || { [ "$EVENT" = workflow_dispatch ] && [ "$IN_ALL" = true ]; }; then all=true; fi
+        {
+          echo "enabled=true"
+          echo "oss_ref=$oss_ref"
+          echo "ee_ref=$ee_ref"
+          echo "all=$all"
+        } >> "$GITHUB_OUTPUT"
+        echo "OSS \`$oss_ref\` + EE \`${ee_ref:0:12}\` ($why); all: $all" >> "$GITHUB_STEP_SUMMARY"

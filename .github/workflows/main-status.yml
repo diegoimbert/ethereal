@@ -1,7 +1,7 @@
 name: Main status
 
-# The green/red signal of `main`: after a push run of CI, CI (Windows) or Full product finishes, report the
-# latest *finished* push run of each on the one open `ci-main` issue (scripts/ci/main-status.mjs):
+# The green/red signal of `main`: after a push run of CI, CI (Windows), Full product or Full product
+# (macOS, Windows) finishes, report the latest *finished* push run of each on the one open `ci-main` issue (scripts/ci/main-status.mjs):
 # a comment per red run, and the issue closes itself once every workflow's latest finished run is
 # green. A run skipped by the main concurrency group (reported as cancelled) is ignored.
 #
@@ -9,7 +9,7 @@ name: Main status
 # `main` (never the triggering run's code) and reads run metadata only.
 on:
   workflow_run:
-    workflows: [CI, CI (Windows), Full product]
+    workflows: [CI, CI (Windows), Full product, Full product (macOS, Windows)]
     types: [completed]
     branches: [main]
   workflow_dispatch:

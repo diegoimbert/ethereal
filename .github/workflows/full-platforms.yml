@@ -1,0 +1,142 @@
+name: Full product (macOS, Windows)
+# A dispatch names the commits it builds, like full.yml's.
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch'
+  && format('Full product (macOS, Windows): {0} + ee {1}', inputs.ref, inputs.ee_ref || 'pointer') || '' }}
+
+# full.yml's macOS and Windows Rust tests, in a workflow of their own: they take ~50-60 min where
+# full.yml's Linux jobs take ~30, and pushes to `main` are serialized per workflow (one run goes to
+# the end, the newest push waits), so with them in full.yml every Linux result waited for the last
+# Windows run. Same safety rules as full.yml (read its header): the private code comes with
+# ETHER_PRIVATE_TOKEN (never on a fork's event), every step that compiles or runs it goes through
+# scripts/ci/private-step.mjs, the logs are uploaded encrypted (`just full-logs <run-id>`), and the
+# Actions cache holds third-party builds only. Pull requests don't run this; on demand:
+# `gh workflow run full-platforms.yml --ref <branch> -f ref=<sha>`. Its result reaches the
+# `ci-main` issue through the `Main status` workflow; full.yml's `ee/build` check doesn't include it.
+#
+# Runners: repository variables FULL_MACOS_RUNNER / FULL_WINDOWS_RUNNER (JSON), GitHub-hosted by
+# default (the devbox pool is Linux).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: OSS ref to build (e.g. refs/pull/N/head after reading the diff)
+        default: main
+      ee_ref:
+        description: Private ref to overlay (empty = the ref's ee pointer, else EE main)
+        default: ""
+
+permissions:
+  contents: read
+
+# As full.yml: pushes to main share one group that never cancels a running run.
+concurrency:
+  group: full-platforms-${{ github.ref }}-${{ inputs.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: line-tables-only
+  ETHER_AUDIO: "null"
+  RUST_BACKTRACE: "1"
+  # As full.yml: the private engine messages, merged into the controller's tables at build time.
+  ETHER_EXTRA_LOCALES: ${{ github.workspace }}/ee/app/src/i18n/ee-locales
+
+jobs:
+  resolve:
+    name: Resolve
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      enabled: ${{ steps.r.outputs.enabled }}
+      oss_ref: ${{ steps.r.outputs.oss_ref }}
+      ee_ref: ${{ steps.r.outputs.ee_ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.ref || '' }}
+      - id: r
+        uses: ./.github/actions/full-resolve
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
+          ee-ref: ${{ inputs.ee_ref }}
+
+  rust-macos:
+    name: Full Rust (macOS)
+    needs: resolve
+    if: needs.resolve.outputs.enabled == 'true'
+    runs-on: ${{ fromJSON(vars.FULL_MACOS_RUNNER || '"macos-latest"') }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.oss_ref }}
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-nextest@0.9.148
+      - uses: ./.github/actions/ee-overlay
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
+          ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+      # Self-hosted runners keep their own target dirs: no Actions cache there.
+      - uses: ./.github/actions/chef-cache
+        if: runner.environment == 'github-hosted'
+        with:
+          name: full-macos
+          exclude: ether-desktop
+      - name: test
+        # ether-desktop's tests run on Linux (its macOS test build cannot link); #45 is the AU
+        # deadlock ci.yml also leaves out.
+        run: >-
+          node scripts/ci/private-step.mjs test -- cargo nextest run --profile ci --workspace --all-features
+          --exclude ether-desktop -E 'not test(=dropping_without_deactivate_is_safe)'
+      - uses: ./.github/actions/full-logs
+        if: always()
+        with:
+          name: full-logs-rust-macos
+
+  rust-windows:
+    name: Full Rust (Windows)
+    needs: resolve
+    if: needs.resolve.outputs.enabled == 'true'
+    runs-on: ${{ fromJSON(vars.FULL_WINDOWS_RUNNER || '"windows-latest"') }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.oss_ref }}
+      - name: Windows (aws-lc-sys without NASM)
+        run: echo "AWS_LC_SYS_PREBUILT_NASM=1" >> "$GITHUB_ENV"
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-nextest@0.9.148
+      - uses: ./.github/actions/ee-overlay
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
+          ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+      # Self-hosted runners keep their own target dirs: no Actions cache there.
+      - uses: ./.github/actions/chef-cache
+        if: runner.environment == 'github-hosted'
+        with:
+          name: full-windows
+          exclude: ether-desktop
+      - name: test
+        run: node scripts/ci/private-step.mjs test -- cargo nextest run --profile ci --workspace --all-features --exclude ether-desktop
+      - uses: ./.github/actions/full-logs
+        if: always()
+        with:
+          name: full-logs-rust-windows
