@@ -86,9 +86,7 @@ async function capture(page: Page, theme: "dark" | "light", device: string): Pro
   await expect(page.getByTestId("mobile-mixer")).toBeHidden();
 
   await touch.sleep(400);
-  await touch.tap(on);
-  await touch.sleep(120);
-  await touch.tap(on);
+  await touch.doubleTap(on);
   await expect(page.getByTestId("mobile-editor")).toBeVisible();
   await page.waitForTimeout(300);
   await save("piano-roll");

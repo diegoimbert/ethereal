@@ -51,8 +51,13 @@ export interface Pt {
  */
 export async function touchscreen(page: Page) {
   const cdp = await page.context().newCDPSession(page);
-  const send = (type: "touchStart" | "touchMove" | "touchEnd" | "touchCancel", points: Array<Pt & { id: number }>) =>
-    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: points.map((p) => ({ x: p.x, y: p.y, id: p.id, radiusX: 4, radiusY: 4, force: 1 })) });
+  // `timestamp` (seconds since the epoch): the event's own time, whatever the round trip takes.
+  const send = (type: "touchStart" | "touchMove" | "touchEnd" | "touchCancel", points: Array<Pt & { id: number }>, timestamp?: number) =>
+    cdp.send("Input.dispatchTouchEvent", {
+      type,
+      touchPoints: points.map((p) => ({ x: p.x, y: p.y, id: p.id, radiusX: 4, radiusY: 4, force: 1 })),
+      ...(timestamp === undefined ? {} : { timestamp }),
+    });
   const lerp = (a: Pt, b: Pt, k: number): Pt => ({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k });
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   return {
@@ -64,6 +69,17 @@ export async function touchscreen(page: Page) {
     async tap(p: Pt) {
       await send("touchStart", [{ ...p, id: 1 }]);
       await send("touchEnd", []);
+    },
+    /**
+     * Two taps `gap` ms apart by their event times (the app's double-tap window is 300 ms), so a
+     * slow round trip to the browser on a busy machine can't split them into two single taps.
+     */
+    async doubleTap(p: Pt, gap = 120) {
+      const t = Date.now() / 1000;
+      await send("touchStart", [{ ...p, id: 1 }], t);
+      await send("touchEnd", [], t + 0.01);
+      await send("touchStart", [{ ...p, id: 1 }], t + gap / 1000);
+      await send("touchEnd", [], t + gap / 1000 + 0.01);
     },
     async longPress(p: Pt, ms = 650) {
       await send("touchStart", [{ ...p, id: 1 }]);

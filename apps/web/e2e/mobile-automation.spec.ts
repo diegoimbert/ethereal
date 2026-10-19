@@ -39,9 +39,7 @@ test("show a track's automation from its sheet; add, move and delete points by t
   const box = (await lane.boundingBox())!;
   // Double-tap: a point.
   const at = { x: box.x + 60, y: box.y + box.height * 0.3 };
-  await touch.tap(at);
-  await touch.sleep(120);
-  await touch.tap(at);
+  await touch.doubleTap(at);
   await expect.poll(async () => (await points(page)).length).toBe(1);
   const p0 = (await points(page))[0]!;
   await shot(page, "automation");
@@ -58,8 +56,6 @@ test("show a track's automation from its sheet; add, move and delete points by t
   // Back where it was, then a double-tap on the point deletes it.
   await touch.drag({ x: box.x + 100, y: box.y + box.height / 2 }, { x: box.x + 220, y: box.y + box.height / 2 });
   const q = await automationPoint(page, p0.id);
-  await touch.tap(q);
-  await touch.sleep(120);
-  await touch.tap(q);
+  await touch.doubleTap(q);
   await expect.poll(async () => (await points(page)).length).toBe(0);
 });
