@@ -1,4 +1,4 @@
-//! Section edits (owner report, `section-edit` node): copying, pasting and duplicating a time
+//! Section edits (owner report, `section-edit`): copying, pasting and duplicating a time
 //! selection keeps the section's EXACT length, gaps included, and copies only the selected
 //! span of the clips it crosses (never the whole clip).
 

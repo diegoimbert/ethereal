@@ -1,4 +1,4 @@
-//! Multisampler zones (v0.2, owned by the `multisampler` node; model
+//! Multisampler zones (v0.2, `multisampler`; model
 //! `ether_model::multisampler`, CONTRACTS.md §12.4).
 //!
 //! - [`set_zones`]: `Device::SetZones` (document command from `doc/devices.rs`): one

@@ -1,4 +1,4 @@
-//! Track input from another track (v0.2, owned by the `groups-buses` node; CONTRACTS.md
+//! Track input from another track (v0.2, `groups-buses`; CONTRACTS.md
 //! §12.10): `TrackInput::Track { track, tap }` → `TrackDesc::input_tap`.
 //!
 //! # Contract

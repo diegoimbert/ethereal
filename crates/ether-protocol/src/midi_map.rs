@@ -1,4 +1,4 @@
-//! MIDI learn / controller mappings (roadmap v2, `midi-learn` node).
+//! MIDI learn / controller mappings (roadmap v2, `midi-learn`).
 //!
 //! Mappings are document entities (`Project::midi_mappings`, see `ether_model::midi_map`);
 //! `Map`/`Unmap`/`Edit` are undoable. Learn mode is runtime state:

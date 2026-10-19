@@ -1,5 +1,4 @@
-//! v0.2 devices owned by the `midi-fx` node (contracts-3 froze the param tables; see
-//! docs/ROADMAP.md "v0.2" and the device agent guide there).
+//! v0.2 MIDI effects (contracts-3 froze the param tables; see docs/DEVICES.md).
 //!
 //! MIDI effects (`DeviceCategory::NoteEffect`, CONTRACTS.md §12.4.4): consume `ctx.events`, write the transformed note/MIDI stream to `ctx.out_events` (forward what they don't transform and every `AllNotesOff`, never `Param`); generated notes use note ids from `0x8000_0000 | n`; audio untouched (`channels() == (0, 0)`). Delays only (never earlier than input); a device that holds notes back reports no latency (musical delay).
 //!

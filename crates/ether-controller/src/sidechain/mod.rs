@@ -1,5 +1,4 @@
-//! Sidechain routing (roadmap v2, owned by the `sidechain` node; see `docs/ROADMAP.md` and
-//! CONTRACTS.md §11.10).
+//! Sidechain routing (roadmap v2; see CONTRACTS.md §11.10).
 //!
 //! `DeviceCommand::SetSidechain` is a document command ([`set_sidechain`], dispatched from
 //! `doc/devices.rs`): `DeviceChange::Sidechain` / `DeviceChange::SidechainTap` ops in one

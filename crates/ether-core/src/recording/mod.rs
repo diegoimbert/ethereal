@@ -1,4 +1,4 @@
-//! Engine-side recording (owned by the `recording` wave-3 node; see `docs/WAVE3.md`).
+//! Engine-side recording.
 //!
 //! The engine calls [`RecordingRt::process`] once per sub-block (before any track is
 //! rendered) and [`RecordingRt::capture`] once the sub-block's track jobs finished. They:

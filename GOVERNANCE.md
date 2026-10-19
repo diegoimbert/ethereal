@@ -10,7 +10,7 @@ Ethereal is a solo-maintainer project: [@diegoimbert](https://github.com/diegoim
 - **Larger changes** (new features, file-format or protocol changes, dependencies with a wide
   footprint) start as an issue, so the approach is agreed before the work
   ([CONTRIBUTING.md](CONTRIBUTING.md#before-you-start)).
-- **Direction** is set by the maintainer and recorded in [docs/ROADMAP.md](docs/ROADMAP.md).
+- **Direction** is set by the maintainer and recorded in the [issue tracker](https://github.com/diegoimbert/ethereal/issues) (issues and milestones).
 
 ## Releases
 

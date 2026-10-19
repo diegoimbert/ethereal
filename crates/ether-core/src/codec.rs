@@ -1,5 +1,4 @@
-//! Render-graph snapshot codec (roadmap v2, owned by the `web-perf` node; see
-//! `docs/ROADMAP.md`).
+//! Render-graph snapshot codec (roadmap v2; see CONTRACTS.md §11.8).
 //!
 //! The web host ships every published [`RenderGraphDesc`] from the controller Worker to the
 //! AudioWorklet. [`BinaryCodec`] is the compact binary encoding behind this trait (it

@@ -1,5 +1,4 @@
-//! v0.2 devices owned by the `racks-modulation` node (contracts-3 froze the param tables; see
-//! docs/ROADMAP.md "v0.2" and the device agent guide there).
+//! v0.2 racks (contracts-3 froze the param tables; see docs/DEVICES.md).
 //!
 //! Racks (`ether_model::rack`): the rack node's params are the 8 macros and the chain
 //! selector (shared by the three types, `ether_model::rack_macro_param`,

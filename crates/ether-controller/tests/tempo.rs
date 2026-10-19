@@ -1,5 +1,5 @@
 //! Tempo map editing, metronome settings and the record count-in click
-//! (roadmap v2, `tempo-metronome` node).
+//! (roadmap v2, `tempo-metronome`).
 
 mod common;
 

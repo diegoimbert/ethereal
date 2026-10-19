@@ -1,5 +1,4 @@
-//! Arrangement markers (locators). Roadmap v2, owned by the `clip-editing` node (see
-//! `docs/ROADMAP.md`).
+//! Arrangement markers (locators; roadmap v2, see CONTRACTS.md §11.4).
 //!
 //! A marker is a named position on the arrangement timeline. Markers are plain entities
 //! (no parent), edited with `MarkerCommand` and jumped to with `Transport::Locate`.

@@ -1,5 +1,4 @@
-//! Drum racks and sampler slicing (roadmap v2, owned by the `drum-rack` node; see
-//! `docs/ROADMAP.md`, CONTRACTS.md §11.12, `ether_model::drum_rack` and
+//! Drum racks and sampler slicing (roadmap v2; see CONTRACTS.md §11.12, `ether_model::drum_rack` and
 //! `ether_protocol::drum_rack`).
 //!
 //! - `DrumRackCommand` / `SliceCommand` are document commands ([`rack_command`],

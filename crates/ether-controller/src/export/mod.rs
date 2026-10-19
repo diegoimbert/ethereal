@@ -1,5 +1,4 @@
-//! Offline export (roadmap v2, owned by the `export` node; see `docs/ROADMAP.md` and
-//! `ether_protocol::export`).
+//! Offline export (roadmap v2; see CONTRACTS.md §11.1 and `ether_protocol::export`).
 //!
 //! A job snapshots the document and builds an independent
 //! `ether_core::offline::OfflineRenderer` per file at the engine rate: fresh device nodes

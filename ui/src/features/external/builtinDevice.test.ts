@@ -1,5 +1,5 @@
 /**
- * The Add-device picker's `builtinDevice(type)` (`features/devices/descriptors.ts`, BCR 2 of
+ * The Add-device picker's `builtinDevice(type)` (`features/devices/descriptors.ts`, added with
  * `external-instrument`) gives every built-in its default data, like Rust
  * `BuiltinDevice::new` (mirrored by the mock's `newBuiltinDevice`): the external devices'
  * routing and the convolution reverb's IR included, so the controller accepts the insert.

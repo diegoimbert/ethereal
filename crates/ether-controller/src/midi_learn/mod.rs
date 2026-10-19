@@ -1,5 +1,5 @@
-//! MIDI learn / controller mappings (roadmap v2, owned by the `midi-learn` node; see
-//! `docs/ROADMAP.md`, CONTRACTS.md §11.9 and `ether_protocol::midi_map`).
+//! MIDI learn / controller mappings (roadmap v2; see
+//! CONTRACTS.md §11.9 and `ether_protocol::midi_map`).
 //!
 //! - Document part (`Map`/`Edit`/`Unmap`): [`apply`], dispatched from `doc::apply`. Undoable.
 //! - Runtime part (`Learn`, `List`): [`EtherController::midi_map_command`]. Not undoable.
