@@ -55,11 +55,20 @@ runs:
       run: |
         set -euo pipefail
         recipe="$RUNNER_TEMP/chef-recipe.json"
+        # Cook writes a skeleton of the workspace (stub sources) where it runs: never in the
+        # checkout. Same toolchain and cargo config; the target dir is the checkout's.
+        ws="$GITHUB_WORKSPACE"
+        chef="$RUNNER_TEMP/chef-ws"
+        rm -rf "$chef" && mkdir -p "$chef"
+        cp "$ws/rust-toolchain.toml" "$chef/"
+        if [ -d "$ws/.cargo" ]; then cp -R "$ws/.cargo" "$chef/"; fi
+        export CARGO_TARGET_DIR="$ws/target"
+        step() { node "$ws/scripts/ci/private-step.mjs" "$@"; }
         # shellcheck disable=SC2086
-        node scripts/ci/private-step.mjs chef-cook -- cargo chef cook --recipe-path "$recipe" $COOK
+        (cd "$chef" && step chef-cook -- cargo chef cook --recipe-path "$recipe" $COOK)
         if [ "$CLIPPY" = true ]; then
           # shellcheck disable=SC2086
-          node scripts/ci/private-step.mjs chef-cook-clippy -- cargo chef cook --recipe-path "$recipe" --clippy $COOK
+          (cd "$chef" && step chef-cook-clippy -- cargo chef cook --recipe-path "$recipe" --clippy $COOK)
         fi
         node scripts/ci/chef-strip.mjs target
     - name: Only third-party artifacts left?
