@@ -137,7 +137,7 @@ tauri-plugin-http = { version = "2", default-features = false }
 # remote-engine: WebSocket server (sync, no async runtime).
 tungstenite = "0.27"
 # remote-engine: SIGTERM/SIGINT save the project and close clients.
-signal-hook = "0.3"
+signal-hook = "0.4"
 # export: WAV/FLAC/MP3 writing.
 hound = "3.5"
 flacenc = "0.4"
