@@ -79,7 +79,7 @@ crossbeam-channel = "0.5"
 cpal = "0.16"
 midir = "0.10"
 symphonia = { version = "0.5", default-features = false, features = ["wav", "pcm", "aiff", "flac", "mp3", "ogg", "vorbis", "isomp4", "aac", "alac"] }
-rubato = "0.16"
+rubato = "5.0"
 # #717: Standard MIDI File import/export (no rayon: wasm-safe).
 midly = { version = "0.5", default-features = false, features = ["std"] }
 realfft = "3.5"
@@ -135,7 +135,7 @@ tauri-plugin-http = { version = "2", default-features = false }
 
 # --- engine server, export ---
 # remote-engine: WebSocket server (sync, no async runtime).
-tungstenite = "0.27"
+tungstenite = "0.30"
 # remote-engine: SIGTERM/SIGINT save the project and close clients.
 signal-hook = "0.4"
 # export: WAV/FLAC/MP3 writing.

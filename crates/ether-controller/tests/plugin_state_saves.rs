@@ -335,3 +335,28 @@ fn undoing_a_plugin_delete_restores_the_running_state() {
     assert_eq!(doc_state(&h, d), Some(vec![10]));
     assert_eq!(last_create(&h, d), Some(Some(vec![10])));
 }
+
+/// `EtherController::load_plugin_state` (an extension's new state for a plugin): loaded in
+/// place when the host can, else the instance is re-created from the document.
+#[test]
+fn a_new_state_loads_into_the_running_instance_when_it_can() {
+    let mut h = plugin_harness();
+    let t = track(&mut h);
+    let d = insert_plugin(&mut h, t);
+    h.tick();
+    let state = Base64Bytes(vec![7, 7]);
+    assert_eq!(h.ctl.load_plugin_state(d, &state), Ok(true));
+    assert!(
+        h.ctl
+            .bridge
+            .calls
+            .iter()
+            .any(|c| matches!(c, Call::SetPluginState(x, s) if *x == d && *s == state))
+    );
+    // A host that can't: re-created, the error says why.
+    h.ctl.bridge.live_state_fails = true;
+    assert!(h.ctl.load_plugin_state(d, &Base64Bytes(vec![8])).is_err());
+    // No running instance: nothing to load into.
+    let none: DeviceId = h.id();
+    assert_eq!(h.ctl.load_plugin_state(none, &state), Ok(false));
+}
