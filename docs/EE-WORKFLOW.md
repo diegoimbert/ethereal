@@ -6,6 +6,25 @@ submodule**. `.gitmodules` marks it `update = none`, so a public clone (even
 `git clone --recursive`) leaves `ee/` empty, and everything here builds and tests without it.
 Contributors without access to the private repository can ignore this page.
 
+## Building the full app
+
+From a normal OSS checkout (your uncommitted changes included):
+
+| Command | What it builds |
+|---|---|
+| `just full-desktop [args]` | the desktop app, dev build, every feature |
+| `just full-build [args]` | the desktop release bundle (`tauri build --features full`) |
+| `just full-server [args]` | the headless engine server, every feature |
+| `just full-web [args]` | the web app's dev server |
+
+They initialise `ee/` and its submodules when missing (that needs read access to the private
+repository). While the private Rust code still overlays OSS files (`ee/overlay.mjs`), they
+build in a cached copy, `target/full-tree`: this checkout with the overlay applied, refreshed
+on every run by rewriting only the files whose content changed, so its cargo target stays
+warm. `node scripts/full.mjs prepare` only refreshes it. Once `ee/` builds on its own, the
+same commands build there in place. Extra arguments go to the underlying command (e.g.
+`just full-desktop --release`).
+
 Rules:
 
 - **Dependency direction**: `ee/` may depend on this repo, never the reverse. Nothing outside
