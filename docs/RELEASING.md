@@ -1,9 +1,11 @@
 # Releasing Ethereal
 
-Releases are built and published by `.github/workflows/release.yml`, which (with the dev
-deploy, `deploy-dev.yml`) lives in the private `ee/` repository: official binaries are the full
-product, OSS main plus the `ee/` commit it points at (docs/EE-WORKFLOW.md). The GitHub Release
-itself is still created in this repository. The rest of this page describes that workflow.
+Releases are built and published by `.github/workflows/release.yml` (and dev.ethereal.ws by
+`deploy-dev.yml`), in this repository: official binaries are the full product, main plus the
+private `ee/` commit it points at (docs/EE-WORKFLOW.md), overlaid with the `ETHER_PRIVATE_TOKEN`
+secret. As in the full-product CI, the steps that compile private code write their output to
+logs that are uploaded encrypted (`just full-logs <run-id>`), and no Rust cache is saved. The
+rest of this page describes that workflow.
 
 ## When it runs
 
@@ -125,7 +127,10 @@ the quarantine prompt. The sandbox helper is always signed first
 (`scripts/release/sign-macos-helper.mjs`, ad-hoc here): codesign refuses to sign the `.app`
 around an unsigned nested binary. The linker only signs arm64 binaries, so without this the
 x86_64 build fails. With the secrets below, the workflow signs (and, on macOS,
-notarizes) automatically. Add them under Settings → Secrets and variables → Actions.
+notarizes) automatically. Add them to the **`release` environment** (Settings →
+Environments → release: deployment branch `main` only, the owner as required reviewer), not as
+repository secrets: only a publishing dispatch on `main` uses that environment, after a
+reviewer approves it. A dry run or a run on another branch builds unsigned.
 
 ### macOS (Developer ID)
 
@@ -220,8 +225,8 @@ of the next version (say so in its notes). From then on they update from this re
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | its password |
 
 ```sh
-gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.config/ethereal/updater.key
-gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD < ~/.config/ethereal/updater.key.password
+gh secret set TAURI_SIGNING_PRIVATE_KEY --env release < ~/.config/ethereal/updater.key
+gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD --env release < ~/.config/ethereal/updater.key.password
 ```
 
 The keypair was made with `pnpm tauri signer generate -w ~/.config/ethereal/updater.key`.
@@ -311,15 +316,15 @@ The release workflow never sets that variable, and release builds don't read it.
   that exist on the default branch). It builds all platforms and uploads artifacts, and the
   publish job is skipped. Before the workflow is on the default branch, temporarily add a
   `push: branches: [release-dry-run]` trigger and push that branch instead. Either way it
-  uses paid runner minutes (macOS runners cost the most), so do it sparingly.
+  takes the shared runners for a long time (four desktop builds), so do it sparingly.
 
 ## Web app on Cloudflare Pages
 
-Every push to `main` also deploys the web build (`apps/web/dist` plus the COOP/COEP
+A publishing release also deploys the web build (`apps/web/dist` plus the COOP/COEP
 `_headers` from `scripts/release/web/`) to Cloudflare Pages (job `pages` in
 `.github/workflows/release.yml`, `wrangler` pinned by version). The deploy runs even when
 another platform's build failed, as long as the web bundle built. It is skipped (with a
-warning), not failed, until these are configured in the GitHub repository settings:
+warning), not failed, until these are configured in the `release` environment:
 
 - Secret `CLOUDFLARE_API_TOKEN`: an API token with **Account > Cloudflare Pages > Edit**
   (Cloudflare dashboard > My Profile > API Tokens > Create Token > custom token).
@@ -334,7 +339,9 @@ Pages dashboard). The COOP/COEP headers are required: the web engine uses Shared
 
 A scheduled workflow checks the default branch (`main`) every 15 minutes and, when its tip
 moved, deploys the web build alone to `https://dev.ethereal.ws`
-(`.github/workflows/deploy-dev.yml`, same secrets; the build steps are the composite action
+(`.github/workflows/deploy-dev.yml`; the same two Cloudflare secrets, in the `dev` environment
+(deployment branch `main` only); a run whose commit is already the project's latest deployment
+stops right away; the build steps are the composite action
 `.github/actions/web-build`, shared with the release's `web` job). Its Pages project is
 `ethereal-dev` (Cloudflare Pages production branch `dev`), with the same Functions bindings
 as the release project (`STATIC_SHARE` → `ethereal-static-share`, `ROOMS` → the signaling
