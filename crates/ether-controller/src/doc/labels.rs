@@ -47,7 +47,7 @@ use ether_core::protocol::warp::WarpCommand as W;
 /// An undo label: the English text (agents, logs, the fallback) and, when it is one of the
 /// catalog's, its message, which the UI shows in the user's language (docs/LOCALIZATION.md).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct UndoLabel {
+pub struct UndoLabel {
     pub text: String,
     pub key: Option<TextKey>,
 }

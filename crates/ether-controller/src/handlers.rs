@@ -199,7 +199,7 @@ fn share_edits(command: &Command, current: Option<ProjectId>) -> bool {
     }
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,
@@ -218,20 +218,15 @@ where
         if let Some(r) = self.ext_command(command, now, out) {
             return r;
         }
-        // base-53: while listening on a peer, transport commands go to the host and
-        // recording is refused (loop changes are document commands: intercept first).
-        if let Some(r) = self.collab_transport_intercept(command, out) {
-            return r;
-        }
         if let Some(doc) = self.doc.as_ref() {
             // v0.2 (`freeze-bounce`): frozen tracks can't be edited.
             crate::freeze::check_editable(&doc.project, command)?;
         }
         // base-62: a note added by this command is authored by our session identity (a no-op
         // in the OSS build: the private overlay's session tracks it).
-        self.social_note_scope(command);
+        self.ext_before_command(command);
         // base-115: a listen link is view only (docs/SHARING.md §2.3).
-        if self.share_view_only() && share_edits(command, current) {
+        if self.ext_view_only() && share_edits(command, current) {
             return Err(crate::tx::keyed_err(
                 ether_core::protocol::ErrorCode::InvalidState,
                 crate::text::msg("error.share.view_only"),
@@ -260,14 +255,14 @@ where
                     } else {
                         SaveKind::Full
                     };
-                    self.collab_before_save(now, kind, out);
+                    self.ext_before_save(now, kind, out);
                 }
                 self.project_command(p, now, out)
             }
             Command::Transport(t) => {
                 let r = self.transport_command(t, now, out);
                 // base-62: peers see our playhead move at once.
-                self.social_transport_changed();
+                self.ext_transport_changed();
                 r
             }
             Command::Device(DeviceCommand::ListBuiltin) => Ok(ReplyValue::DeviceTypes {
@@ -377,18 +372,30 @@ where
         if ops.is_empty() {
             return Ok(());
         }
+        // An extension may refuse the edit (e.g. content still on its way).
+        if let Some(e) = self.ext_ask(|e, ctl| e.refuse_edit(ctl, &ops)) {
+            if self
+                .doc
+                .as_ref()
+                .is_some_and(|d| self.engine.has_orphans(&d.project))
+            {
+                self.engine.graph_dirty = true;
+            }
+            return Err(e);
+        }
         let tx = Transaction {
             label: label.text.clone(),
             ops,
             key: label.key.clone(),
         };
+        let doc = self.doc.as_mut().expect("checked above");
         doc.history.set_now_ms(now);
         let (applied, inverse) = doc
             .history
             .commit_with_inverse(&mut doc.project, tx, gesture)
             .map_err(model_err)?;
         // Collab: stamp and send (no-op outside a session).
-        self.collab_local_commit(&label, &applied, &inverse);
+        self.ext_committed(&label, &applied, &inverse);
         self.after_ops(&applied, now, out);
         for w in warnings {
             notify(out, NotificationLevel::Warning, w);
@@ -448,7 +455,7 @@ where
             self.media.sync(&mut self.bridge, Some(&doc.project));
         }
         // Dedicated engines run for other sites follow the document too (docs/COLLAB.md §16).
-        self.collab_engine_ops(applied);
+        self.ext_applied(applied);
         self.set_dirty(true, out);
         if renamed {
             self.emit_list_changed(out);
@@ -489,10 +496,10 @@ where
     pub(crate) fn undo_redo_step(&mut self, undo: bool) -> CmdResult<Option<Vec<Op>>> {
         // Plugin states the step sets, as they were before it.
         let mut before = Vec::new();
-        let applied = if self.collab_active() {
+        let applied = if self.session_active() {
             // Collab: per-site undo (only this site's steps; peers' later changes win),
             // stamped and sent like an edit.
-            self.collab_undo_redo(undo, &mut before)?
+            self.ext_undo_redo(undo, &mut before)?
         } else {
             let doc = self.doc.as_mut().ok_or_else(no_project)?;
             let f = |p: &mut Project, ops: &[Op], _: &[Op]| {
@@ -536,7 +543,7 @@ where
             if self.engine.node(id).is_some() {
                 self.engine.request_reload_from_doc(id);
             }
-            self.collab_engine_reload_plugin(id);
+            self.ext_plugin_reloaded(id);
         }
     }
 
@@ -583,7 +590,7 @@ where
                 }
                 self.transport.tap_gesture = None;
                 if let Some(applied) = self.undo_redo_step(true)? {
-                    if !self.collab_active()
+                    if !self.session_active()
                         && let Some(doc) = self.doc.as_mut()
                     {
                         doc.history.discard_redo();
@@ -731,7 +738,7 @@ where
     }
 
     pub(crate) fn transport_state(&self) -> Option<TransportState> {
-        if let Some(s) = self.collab_listen_transport_state() {
+        if let Some(s) = self.ext_transport_state() {
             return Some(s);
         }
         let doc = self.doc.as_ref()?;
@@ -1246,6 +1253,7 @@ where
         // Plugin notifications.
         let mut notes = Vec::new();
         self.bridge.poll_plugins(&mut notes);
+        self.ext_each(|e, ctl| e.plugin_notes(ctl, &mut notes, now));
         self.plugin_notifications(notes, now, out);
         self.plugins_tick(now, out);
         // Roadmap v2 hooks.
@@ -1254,9 +1262,7 @@ where
         self.midi_learn_tick(now, out);
         self.export_tick(now, out);
         self.recording_tick(now, out);
-        self.collab_tick(now, out);
         // base-115: sharing (hub, signaling, joiner links) after the collab session.
-        self.share_tick(now, out);
         // v0.2 hooks.
         self.analysis_tick(out);
         self.freeze_tick(now, out);
@@ -1337,6 +1343,10 @@ where
         let Some(after) = self.config.autosave_after_ms else {
             return;
         };
+        // An extension may hold saves back (e.g. a document still arriving).
+        if self.save_refused().is_some() {
+            return;
+        }
         let Some(doc) = self.doc.as_ref() else {
             return;
         };
@@ -1364,7 +1374,7 @@ where
                 return;
             }
         }
-        self.collab_before_save(now, SaveKind::Routine, out);
+        self.ext_before_save(now, SaveKind::Routine, out);
         if let Err(e) = self.save_current_with(SaveKind::Routine, out) {
             notify(
                 out,
@@ -1404,80 +1414,82 @@ where
         }
     }
 
-    // ─── Collaboration / sharing no-ops (private overlay) ─────────────────────────────
+    // ─── Extension seams (`ext` module) ──────────────────────────────────────────────
     //
-    // The collab session, share links, presence and pinned notes live in the private
-    // collaboration overlay. In this build every hook the shared code reaches is a no-op so
-    // ordinary single-user projects behave exactly as before: no session is ever active, so
-    // the guarded branches below (undo/redo, relink, version restore, ...) take their
-    // single-user path.
+    // Where an extension takes part in the app's own work. Without one, each is a no-op: no
+    // session is ever active, so the guarded branches (undo/redo, relink, version restore,
+    // ...) take their single-user path.
 
-    /// `Some` intercepts a command the session handles (transport to a listened host); in
-    /// this build nothing is intercepted.
-    fn collab_transport_intercept(
-        &mut self,
-        _command: &Command,
-        _out: &mut dyn MessageSink,
-    ) -> Option<CmdResult<ReplyValue>> {
-        None
+    /// A command the app is about to handle.
+    fn ext_before_command(&mut self, command: &Command) {
+        self.ext_each(|e, ctl| e.before_command(ctl, command));
     }
 
-    /// Records the note author a chat/note command carries (no session: nothing to record).
-    fn social_note_scope(&mut self, _command: &Command) {}
-
-    /// Replicate plugin states changed since the last save (no session: nothing to send).
-    pub(crate) fn collab_before_save(
-        &mut self,
-        _now: u64,
-        _kind: SaveKind,
-        _out: &mut dyn MessageSink,
-    ) {
+    /// Before a save.
+    pub(crate) fn ext_before_save(&mut self, now: u64, kind: SaveKind, out: &mut dyn MessageSink) {
+        self.ext_each(|e, ctl| e.before_save(ctl, now, kind, out));
     }
 
-    /// Tell peers the transport moved (no session: nobody to tell).
-    fn social_transport_changed(&mut self) {}
+    /// The local transport moved.
+    fn ext_transport_changed(&mut self) {
+        self.ext_each(|e, ctl| e.transport_changed(ctl));
+    }
 
-    /// Stamp and send a locally committed transaction (no session: nothing to send).
-    fn collab_local_commit(&mut self, _label: &doc::UndoLabel, _ops: &[Op], _inverse: &[Op]) {}
+    /// A local edit was committed.
+    fn ext_committed(&mut self, label: &doc::UndoLabel, ops: &[Op], inverse: &[Op]) {
+        self.ext_each(|e, ctl| e.committed(ctl, label, ops, inverse));
+    }
 
-    /// Mirror applied ops to dedicated engines (no dedicated engines in this build).
-    fn collab_engine_ops(&mut self, _ops: &[Op]) {}
+    /// Ops were applied to the document.
+    fn ext_applied(&mut self, ops: &[Op]) {
+        self.ext_each(|e, ctl| e.applied(ctl, ops));
+    }
 
-    /// Re-create a replicated plugin state on a dedicated engine (none exist here).
-    fn collab_engine_reload_plugin(&mut self, _device: DeviceId) {}
+    /// A plugin instance was re-created from the document.
+    fn ext_plugin_reloaded(&mut self, device: DeviceId) {
+        self.ext_each(|e, ctl| e.plugin_reloaded(ctl, device));
+    }
 
-    /// Per-site undo/redo inside a session; unreachable (a session is never active).
-    fn collab_undo_redo(
+    /// Undo/redo through the extension that keeps the history while a session is active.
+    fn ext_undo_redo(
         &mut self,
-        _undo: bool,
-        _plugin_states_before: &mut Vec<(DeviceId, Option<Base64Bytes>)>,
+        undo: bool,
+        plugin_states_before: &mut Vec<(DeviceId, Option<Base64Bytes>)>,
     ) -> CmdResult<Option<Vec<Op>>> {
-        Ok(None)
+        self.with_extensions(|e, ctl| e.undo_redo(ctl, undo, plugin_states_before))
+            .unwrap_or(Ok(None))
     }
 
-    /// The host's transport while listening on a peer (`None`: not listening).
-    fn collab_listen_transport_state(&self) -> Option<TransportState> {
-        None
+    /// The transport another engine plays, if an extension says so.
+    fn ext_transport_state(&self) -> Option<TransportState> {
+        self.ext_ask(|e, ctl| e.transport_state(ctl))
     }
 
-    fn collab_tick(&mut self, _now: u64, _out: &mut dyn MessageSink) {}
-
-    /// React to a project load in dedicated engines (none exist here).
-    pub(crate) fn collab_engine_project_changed(&mut self, _out: &mut dyn MessageSink) {}
-
-    /// `true` while joined through a view-only link (never in this build).
-    pub(crate) fn share_view_only(&self) -> bool {
-        false
+    /// The engine was rebuilt for a newly loaded project.
+    pub(crate) fn ext_engine_changed(&mut self, out: &mut dyn MessageSink) {
+        self.ext_each(|e, ctl| e.engine_changed(ctl, out));
     }
 
-    fn share_tick(&mut self, _now: u64, _out: &mut dyn MessageSink) {}
+    /// `true` while the document is a read-only view here.
+    pub(crate) fn ext_view_only(&self) -> bool {
+        self.ext_ask(|e, ctl| e.view_only(ctl).then_some(()))
+            .is_some()
+    }
 
-    /// Resume/pause sharing of another project (nothing is shared here).
-    pub(crate) fn share_project_loaded(&mut self, _pid: ProjectId, _out: &mut dyn MessageSink) {}
+    /// A project was loaded.
+    pub(crate) fn ext_project_loaded(&mut self, pid: ProjectId, out: &mut dyn MessageSink) {
+        self.ext_each(|e, ctl| e.project_loaded(ctl, pid, out));
+    }
 
-    /// `true` while a collaboration session is active (never in this build).
-    pub(crate) fn collab_active(&self) -> bool {
-        false
+    /// Why an extension holds saves back, if one does.
+    pub(crate) fn save_refused(&self) -> Option<CommandError> {
+        self.ext_ask(|e, ctl| e.save_refused(ctl))
+    }
+
+    /// `true` while an extension shares the document with others.
+    pub(crate) fn session_active(&self) -> bool {
+        self.ext_ask(|e, ctl| e.session_active(ctl).then_some(()))
+            .is_some()
     }
 
     // ─── Local engine status (kept protocol; the remote-engine choice is private) ──────
@@ -1497,11 +1509,10 @@ where
         Ok(())
     }
 
-    /// Report the local engine's status (`force`: even unchanged). Which engine plays is an
-    /// extension's choice (remote and dedicated engines); this build has only its own, so
-    /// there is nothing to report.
+    /// Report the engine's status (`force`: even unchanged): which engine plays is an
+    /// extension's choice (`ControllerExt::engine_status`); the app's own has nothing to say.
     pub(crate) fn engine_emit_status(&mut self, force: bool, out: &mut dyn MessageSink) {
-        let _ = (force, out);
+        self.ext_each(|e, ctl| e.engine_status(ctl, force, out));
     }
 
     /// A project is about to load: clear any stale local-engine-off state so it opens with

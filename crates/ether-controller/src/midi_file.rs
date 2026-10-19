@@ -40,7 +40,7 @@ pub(crate) fn midi_file_name(name: &str) -> String {
     format!("{}.mid", if clean.is_empty() { "midi" } else { clean })
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

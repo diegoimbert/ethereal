@@ -62,7 +62,7 @@ fn check_name(name: &str) -> CmdResult<String> {
     Ok(name.to_string())
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,
@@ -275,6 +275,9 @@ where
         kind: SaveKind,
         out: &mut dyn MessageSink,
     ) -> CmdResult<ProjectSummary> {
+        if let Some(e) = self.save_refused() {
+            return Err(e);
+        }
         let doc = self.doc.take().ok_or_else(no_project)?;
         let (id, name) = (doc.project.id, doc.project.settings.name.clone());
         self.plugin_states
@@ -363,7 +366,8 @@ where
             self.finish_recording(now, out);
         }
         self.settle_background_saves(out);
-        if self.has_unsaved_work() {
+        // Work an extension holds back (`save_refused`) is dropped, never saved.
+        if self.has_unsaved_work() && self.save_refused().is_none() {
             self.save_current(out)?;
         }
         Ok(())
@@ -786,7 +790,7 @@ where
         );
         self.engine_emit_status(false, out);
         // After `ProjectLoaded`, which is always the first event of a load.
-        self.collab_engine_project_changed(out);
+        self.ext_engine_changed(out);
         self.emit_armed(out);
         event(
             out,
@@ -810,7 +814,7 @@ where
         // base-115: hosting/joined sessions of another project pause; this one resumes
         // sharing or reconnects (docs/SHARING.md §7).
         let pid = self.doc.as_ref().expect("just set").project.id;
-        self.share_project_loaded(pid, out);
+        self.ext_project_loaded(pid, out);
     }
 }
 

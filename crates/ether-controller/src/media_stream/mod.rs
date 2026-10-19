@@ -66,7 +66,7 @@ pub fn should_stream(media: &MediaRef, engine_sample_rate: u32) -> bool {
         && media.frames as f64 / media.sample_rate as f64 >= STREAM_MIN_SECONDS
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,
