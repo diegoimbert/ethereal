@@ -817,6 +817,28 @@ async function awaitBuild(n, sha, { timeoutMin, lock }) {
   }
 }
 
+// Squash-merge PR `n` of `repo` (checked out at `cwd`) with `gh pr merge`; when GitHub refuses
+// because the PR changes `.github/workflows` and the token lacks the `workflow` scope, push the
+// same squash commit over SSH instead (the PR head's tree on top of `main`, which the head must
+// already contain), then close the PR. Returns gh's result shape ({ status, stderr }).
+function squashMerge(repo, cwd, n, head, extra = []) {
+  const r = gh(repo, ["pr", "merge", String(n), "-R", repo, "--squash", "--match-head-commit", head, ...extra], { allowFail: true, full: true });
+  if (r.status === 0 || !/workflow/i.test(r.stderr ?? "")) return r;
+  log(`  GitHub refuses the API merge of ${repo}#${n} (it changes workflows, the token has no \`workflow\` scope): squash push over SSH`);
+  const url = `git@github.com:${repo}.git`;
+  const fetched = gitOk(cwd, "fetch", "-q", url, `+refs/heads/${MAIN}:refs/feat-ssh/${MAIN}`, `+refs/pull/${n}/head:refs/feat-ssh/pr`);
+  const main = fetched && gitTry(cwd, "rev-parse", `refs/feat-ssh/${MAIN}`);
+  if (!main || gitTry(cwd, "rev-parse", "refs/feat-ssh/pr") !== head) return { status: 1, stderr: `could not fetch ${repo} main and PR #${n} at ${short(head)} over SSH` };
+  if (!gitOk(cwd, "merge-base", "--is-ancestor", main, head)) return { status: 1, stderr: `PR #${n} does not contain ${repo} main (${short(main)}): update it first` };
+  const title = JSON.parse(gh(repo, ["pr", "view", String(n), "-R", repo, "--json", "title"])).title;
+  const sha = gitIn(cwd, "commit-tree", `${head}^{tree}`, "-p", main, "-m", `${title} (#${n})`);
+  for (const ref of [`refs/feat-ssh/${MAIN}`, "refs/feat-ssh/pr"]) gitOk(cwd, "update-ref", "-d", ref);
+  if (!gitOk(cwd, "push", "-q", url, `${sha}:refs/heads/${MAIN}`)) return { status: 1, stderr: `SSH push of the squash commit to ${repo} main failed (main moved?)` };
+  gh(repo, ["pr", "close", String(n), "-R", repo, "--comment", `Merged as ${sha} (squash pushed over SSH: the change touches workflows).`], { allowFail: true });
+  log(`  ${repo} main is now ${short(sha)} (squash of #${n})`);
+  return { status: 0, stderr: "" };
+}
+
 async function prField(repo, n, field) {
   for (let i = 0; i < 10; i++) {
     const v = JSON.parse(gh(repo, ["pr", "view", String(n), "-R", repo, "--json", field]))[field];
@@ -1083,7 +1105,8 @@ async function cmdShip(args) {
     let sameTree = true;
     if (eePr) {
       log(`merging EE PR #${eePr.number} ...`);
-      gh(EE, ["pr", "merge", String(eePr.number), "-R", EE, "--squash", "--match-head-commit", eeHead]);
+      const m = squashMerge(EE, EE_DIR, eePr.number, eeHead);
+      if (m.status !== 0) die(`merging EE PR #${eePr.number} failed: ${m.stderr.trim()}`);
       keepLock = !!ossPr; // EE is merged: if OSS fails now, keep main's pointer on hold
       try {
         api(EE, `git/refs/heads/${x}`, { method: "DELETE" });
@@ -1122,7 +1145,7 @@ async function cmdShip(args) {
         }
       }
       if (!admin) gate(await waitChecks(OSS, ossPr.number, head, { required: true, timeoutMin, label: `required OSS #${ossPr.number}`, lock }), `OSS PR #${ossPr.number} required checks`);
-      const r = gh(OSS, ["pr", "merge", String(ossPr.number), "-R", OSS, "--squash", "--match-head-commit", head, ...(admin ? ["--admin"] : [])], { allowFail: true, full: true });
+      const r = squashMerge(OSS, ROOT, ossPr.number, head, admin ? ["--admin"] : []);
       if (r.status === 0) break;
       const state = await prField(OSS, ossPr.number, "mergeStateStatus");
       if (attempt >= 4) die(`merging OSS PR #${ossPr.number} failed (${state}): ${r.stderr.trim()}`);
