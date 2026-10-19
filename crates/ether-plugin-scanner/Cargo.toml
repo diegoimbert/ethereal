@@ -1,22 +1,65 @@
 [package]
 name = "ether-plugin-scanner"
 description = "Out-of-process plugin scanner binary (CLAP, VST3, AU)."
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-repository.workspace = true
-authors.workspace = true
-publish.workspace = true
+
+[package.edition]
+workspace = true
+
+[package.version]
+workspace = true
+
+[package.authors]
+workspace = true
+
+[package.repository]
+workspace = true
+
+[package.rust-version]
+workspace = true
+
+[package.publish]
+workspace = true
 
 [dependencies]
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-ether-core.workspace = true
-ether-plugin-host.workspace = true
-ether-clap.workspace = true
-ether-vst3.workspace = true
-ether-au.workspace = true
-serde_json.workspace = true
-
-[lints]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-au]
 workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-clap]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-core]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-plugin-host]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-vst3]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.serde_json]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+
+[target.'cfg(not(target_arch = "wasm32"))'.build-dependencies]
+
+[[bin]]
+path = "src/main.rs"
+name = "ether-plugin-scanner"
+required-features = []
+
+[[test]]
+path = "tests/au.rs"
+name = "au"
+required-features = []
+
+[[test]]
+path = "tests/scanner.rs"
+name = "scanner"
+required-features = []
+
+[[test]]
+path = "tests/vst3.rs"
+name = "vst3"
+required-features = []

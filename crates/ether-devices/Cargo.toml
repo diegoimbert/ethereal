@@ -1,20 +1,199 @@
 [package]
 name = "ether-devices"
 description = "Built-in devices: synth, sampler, compressor, delay."
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-repository.workspace = true
-authors.workspace = true
-publish.workspace = true
 
-[dependencies]
-ether-core.workspace = true
-realfft.workspace = true
-
-[dev-dependencies]
-assert_no_alloc.workspace = true
-serde_json.workspace = true
-
-[lints]
+[package.edition]
 workspace = true
+
+[package.version]
+workspace = true
+
+[package.authors]
+workspace = true
+
+[package.repository]
+workspace = true
+
+[package.rust-version]
+workspace = true
+
+[package.publish]
+workspace = true
+
+[dependencies.ether-core]
+workspace = true
+
+[dependencies.realfft]
+workspace = true
+
+[dev-dependencies.assert_no_alloc]
+workspace = true
+
+[dev-dependencies.serde_json]
+workspace = true
+
+[[test]]
+path = "tests/compressor_detector.rs"
+name = "compressor_detector"
+required-features = []
+
+[[test]]
+path = "tests/device_ui_layouts.rs"
+name = "device_ui_layouts"
+required-features = []
+
+[[test]]
+path = "tests/devices2.rs"
+name = "devices2"
+required-features = []
+
+[[test]]
+path = "tests/drum_rack.rs"
+name = "drum_rack"
+required-features = []
+
+[[test]]
+path = "tests/effects_defaults.rs"
+name = "effects_defaults"
+required-features = []
+
+[[test]]
+path = "tests/effects_features.rs"
+name = "effects_features"
+required-features = []
+
+[[test]]
+path = "tests/engine_text.rs"
+name = "engine_text"
+required-features = []
+
+[[test]]
+path = "tests/eq_analysis.rs"
+name = "eq_analysis"
+required-features = []
+
+[[test]]
+path = "tests/external.rs"
+name = "external"
+required-features = []
+
+[[test]]
+path = "tests/external_engine.rs"
+name = "external_engine"
+required-features = []
+
+[[test]]
+path = "tests/fm_synth.rs"
+name = "fm_synth"
+required-features = []
+
+[[test]]
+path = "tests/fx_analysis.rs"
+name = "fx_analysis"
+required-features = []
+
+[[test]]
+path = "tests/fx_color.rs"
+name = "fx_color"
+required-features = []
+
+[[test]]
+path = "tests/fx_dynamics.rs"
+name = "fx_dynamics"
+required-features = []
+
+[[test]]
+path = "tests/fx_modulation.rs"
+name = "fx_modulation"
+required-features = []
+
+[[test]]
+path = "tests/fx_space.rs"
+name = "fx_space"
+required-features = []
+
+[[test]]
+path = "tests/implemented.rs"
+name = "implemented"
+required-features = []
+
+[[test]]
+path = "tests/instruments_golden.rs"
+name = "instruments_golden"
+required-features = []
+
+[[test]]
+path = "tests/instruments_poly_synth.rs"
+name = "instruments_poly_synth"
+required-features = []
+
+[[test]]
+path = "tests/instruments_synth_sampler.rs"
+name = "instruments_synth_sampler"
+required-features = []
+
+[[test]]
+path = "tests/layouts.rs"
+name = "layouts"
+required-features = []
+
+[[test]]
+path = "tests/midi_fx.rs"
+name = "midi_fx"
+required-features = []
+
+[[test]]
+path = "tests/multisampler.rs"
+name = "multisampler"
+required-features = []
+
+[[test]]
+path = "tests/perf_devices.rs"
+name = "perf_devices"
+required-features = []
+
+[[test]]
+path = "tests/poly_synth.rs"
+name = "poly_synth"
+required-features = []
+
+[[test]]
+path = "tests/racks.rs"
+name = "racks"
+required-features = []
+
+[[test]]
+path = "tests/render.rs"
+name = "render"
+required-features = []
+
+[[test]]
+path = "tests/sidechain.rs"
+name = "sidechain"
+required-features = []
+
+[[test]]
+path = "tests/silence_skipping.rs"
+name = "silence_skipping"
+required-features = []
+
+[[test]]
+path = "tests/sound_quality.rs"
+name = "sound_quality"
+required-features = []
+
+[[test]]
+path = "tests/v02_descriptors.rs"
+name = "v02_descriptors"
+required-features = []
+
+[[test]]
+path = "tests/v03_descriptors.rs"
+name = "v03_descriptors"
+required-features = []
+
+[lib]
+path = "src/lib.rs"
+name = "ether_devices"
+required-features = []
+crate-type = ["lib"]

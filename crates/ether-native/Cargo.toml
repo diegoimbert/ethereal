@@ -1,93 +1,251 @@
 [package]
 name = "ether-native"
 description = "Native host: cpal RT thread, disk streaming, GC thread."
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-repository.workspace = true
-authors.workspace = true
-publish.workspace = true
+
+[package.edition]
+workspace = true
+
+[package.version]
+workspace = true
+
+[package.authors]
+workspace = true
+
+[package.repository]
+workspace = true
+
+[package.rust-version]
+workspace = true
+
+[package.publish]
+workspace = true
 
 [dependencies]
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-ether-core.workspace = true
-# Complex warp (feature `warp-complex`): Signalsmith Stretch (C++).
-ether-stretch.workspace = true
-ether-controller.workspace = true
-ether-devices.workspace = true
-ether-media.workspace = true
-# Plugin formats (features `plugins-*`): every format goes through ether-plugin-host's
-# Formats; a format left out is `Unsupported` ("not supported by this build").
-ether-plugin-host.workspace = true
-ether-clap = { workspace = true, optional = true }
-ether-vst3 = { workspace = true, optional = true }
-ether-au = { workspace = true, optional = true }
-# Sandboxed plugins (feature `sandbox`; sandbox.rs).
-ether-sandbox = { workspace = true, optional = true }
-midir.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
-cpal.workspace = true
-crossbeam-channel.workspace = true
-getrandom.workspace = true
-assert_no_alloc = { workspace = true, features = ["warn_debug"] }
-rtrb.workspace = true
-rubato.workspace = true
-# ASIO driver support on Windows (cpal's asio-sys builds against the Steinberg ASIO SDK).
-[target.'cfg(windows)'.dependencies]
-cpal = { workspace = true, features = ["asio"] }
-# The ASIO driver names without loading the drivers (the version cpal uses).
-asio-sys = "0.2"
-# COM on the threads that open ASIO drivers (`cpal_host.rs`).
-windows-sys = { workspace = true, features = ["Win32_System_Com", "Win32_Media"] }
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.assert_no_alloc]
+workspace = true
+features = ["warn_debug"]
 
-[lints]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.cpal]
 workspace = true
 
-# Cargo features (feature-flags; docs/ARCHITECTURE.md "Cargo features"). The default is the
-# fast dev core (`just dev-desktop`, `cargo test -p ether-native`); the shipped apps, the
-# gates and `just test-all` / `just check-all` build `full`. A feature that is off compiles
-# its code out; its commands reply `Unsupported` (the paths the web host already takes).
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.crossbeam-channel]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-au]
+workspace = true
+optional = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-clap]
+workspace = true
+optional = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-controller]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-core]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-devices]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-media]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-plugin-host]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-sandbox]
+workspace = true
+optional = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-stretch]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-vst3]
+workspace = true
+optional = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.getrandom]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.midir]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.rtrb]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.rubato]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.serde]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.serde_json]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.thiserror]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.tracing]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+
+[target.'cfg(not(target_arch = "wasm32"))'.build-dependencies]
+
+[target."cfg(windows)".dependencies]
+asio-sys = "0.2"
+
+[target."cfg(windows)".dependencies.cpal]
+workspace = true
+features = ["asio"]
+
+[target."cfg(windows)".dependencies.windows-sys]
+workspace = true
+features = ["Win32_System_Com", "Win32_Media"]
+
+[target."cfg(windows)".dev-dependencies]
+
+[target."cfg(windows)".build-dependencies]
+
 [features]
 default = []
 full = ["plugins", "warp-complex"]
-# Every plugin format and the sandbox.
 plugins = ["plugins-clap", "plugins-vst3", "plugins-au", "sandbox"]
+plugins-au = ["dep:ether-au"]
 plugins-clap = ["dep:ether-clap"]
 plugins-vst3 = ["dep:ether-vst3"]
-plugins-au = ["dep:ether-au"]
-# Out-of-process (sandboxed) plugin instances. Off: a sandboxed instance fails `Unsupported`.
 sandbox = ["dep:ether-sandbox"]
-# Complex warp (Signalsmith Stretch). Off: Complex-warped clips play Repitch, as on the web.
 warp-complex = ["ether-stretch/signalsmith"]
 
 [[test]]
+path = "tests/formats_e2e.rs"
 name = "formats_e2e"
 required-features = ["plugins-clap", "plugins-vst3", "sandbox"]
 
 [[test]]
+path = "tests/plugins_e2e.rs"
 name = "plugins_e2e"
 required-features = ["plugins-clap", "sandbox"]
 
 [[test]]
+path = "tests/plugin_folders_e2e.rs"
 name = "plugin_folders_e2e"
 required-features = ["plugins-clap"]
 
 [[test]]
+path = "tests/agent_plugins_e2e.rs"
 name = "agent_plugins_e2e"
 required-features = ["plugins-clap"]
 
 [[test]]
+path = "tests/plugin_sidechain.rs"
 name = "plugin_sidechain"
 required-features = ["plugins-clap", "plugins-vst3", "sandbox"]
 
 [[test]]
+path = "tests/disk_stream_render.rs"
 name = "disk_stream_render"
 required-features = ["warp-complex"]
 
 [[test]]
+path = "tests/multicore_no_alloc.rs"
 name = "multicore_no_alloc"
 required-features = ["warp-complex"]
+
+[[test]]
+path = "tests/browser_e2e.rs"
+name = "browser_e2e"
+required-features = []
+
+[[test]]
+path = "tests/drum_rack_e2e.rs"
+name = "drum_rack_e2e"
+required-features = []
+
+[[test]]
+path = "tests/e2e_flow.rs"
+name = "e2e_flow"
+required-features = []
+
+[[test]]
+path = "tests/e2e_warp.rs"
+name = "e2e_warp"
+required-features = []
+
+[[test]]
+path = "tests/export_e2e.rs"
+name = "export_e2e"
+required-features = []
+
+[[test]]
+path = "tests/file_filters_e2e.rs"
+name = "file_filters_e2e"
+required-features = []
+
+[[test]]
+path = "tests/file_import_e2e.rs"
+name = "file_import_e2e"
+required-features = []
+
+[[test]]
+path = "tests/media_preview_e2e.rs"
+name = "media_preview_e2e"
+required-features = []
+
+[[test]]
+path = "tests/media_refs_e2e.rs"
+name = "media_refs_e2e"
+required-features = []
+
+[[test]]
+path = "tests/multicore.rs"
+name = "multicore"
+required-features = []
+
+[[test]]
+path = "tests/multicore_bench.rs"
+name = "multicore_bench"
+required-features = []
+
+[[test]]
+path = "tests/multicore_real.rs"
+name = "multicore_real"
+required-features = []
+
+[[test]]
+path = "tests/null_host.rs"
+name = "null_host"
+required-features = []
+
+[[test]]
+path = "tests/perf_audio.rs"
+name = "perf_audio"
+required-features = []
+
+[[test]]
+path = "tests/quit_save.rs"
+name = "quit_save"
+required-features = []
+
+[[test]]
+path = "tests/recording_e2e.rs"
+name = "recording_e2e"
+required-features = []
+
+[[test]]
+path = "tests/sidechain_render.rs"
+name = "sidechain_render"
+required-features = []
+
+[[test]]
+path = "tests/tempo_metronome.rs"
+name = "tempo_metronome"
+required-features = []
+
+[lib]
+path = "src/lib.rs"
+name = "ether_native"
+required-features = []
+crate-type = ["lib"]

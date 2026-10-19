@@ -1,34 +1,58 @@
 [package]
 name = "ether-server"
 description = "Headless native engine host serving the UI protocol over WebSocket (remote engine)."
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-repository.workspace = true
-authors.workspace = true
-publish.workspace = true
 
-# Native only: the host is `ether-native` (controller + cpal/null audio + disk store +
-# plugins); the socket is `tungstenite` (blocking, one thread per connection).
-[dependencies]
-ether-protocol.workspace = true
-ether-native.workspace = true
-crossbeam-channel.workspace = true
-getrandom.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-signal-hook.workspace = true
-thiserror.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
-tungstenite.workspace = true
-
-[lints]
+[package.edition]
 workspace = true
 
-# Cargo features (feature-flags; docs/ARCHITECTURE.md "Cargo features"): the host's
-# features, passed through to `ether-native`. Default: the fast dev core
-# (`just dev-server`); `full` is everything (`just dev-server-full`, the gates).
+[package.version]
+workspace = true
+
+[package.authors]
+workspace = true
+
+[package.repository]
+workspace = true
+
+[package.rust-version]
+workspace = true
+
+[package.publish]
+workspace = true
+
+[dependencies.crossbeam-channel]
+workspace = true
+
+[dependencies.ether-native]
+workspace = true
+
+[dependencies.ether-protocol]
+workspace = true
+
+[dependencies.getrandom]
+workspace = true
+
+[dependencies.serde]
+workspace = true
+
+[dependencies.serde_json]
+workspace = true
+
+[dependencies.signal-hook]
+workspace = true
+
+[dependencies.thiserror]
+workspace = true
+
+[dependencies.tracing]
+workspace = true
+
+[dependencies.tracing-subscriber]
+workspace = true
+
+[dependencies.tungstenite]
+workspace = true
+
 [features]
 default = []
 full = ["plugins", "warp-complex"]
@@ -36,5 +60,27 @@ plugins = ["ether-native/plugins"]
 warp-complex = ["ether-native/warp-complex"]
 
 [[bin]]
-name = "ether-server"
 path = "src/main.rs"
+name = "ether-server"
+required-features = []
+
+[[test]]
+path = "tests/frame_vectors.rs"
+name = "frame_vectors"
+required-features = []
+
+[[test]]
+path = "tests/hardening.rs"
+name = "hardening"
+required-features = []
+
+[[test]]
+path = "tests/session.rs"
+name = "session"
+required-features = []
+
+[lib]
+path = "src/lib.rs"
+name = "ether_server"
+required-features = []
+crate-type = ["lib"]

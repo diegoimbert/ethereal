@@ -1,45 +1,96 @@
 [package]
 name = "ether-vst3"
 description = "VST3 plugin hosting (PluginFormatHost for .vst3 bundles). Owned by the `vst3` node."
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-repository.workspace = true
-authors.workspace = true
-publish.workspace = true
+
+[package.edition]
+workspace = true
+
+[package.version]
+workspace = true
+
+[package.authors]
+workspace = true
+
+[package.repository]
+workspace = true
+
+[package.rust-version]
+workspace = true
+
+[package.publish]
+workspace = true
 
 [dependencies]
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-# Plugin calls on the audio thread are exempt from the debug allocation check (`rt.rs`).
-assert_no_alloc.workspace = true
-ether-core.workspace = true
-ether-plugin-host.workspace = true
-# VST3 COM bindings (host side here; plugin side in the test fixture). MIT OR Apache-2.0.
-vst3.workspace = true
-libloading.workspace = true
-rtrb.workspace = true
-serde_json.workspace = true
-tracing.workspace = true
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.assert_no_alloc]
+workspace = true
 
-# CFBundle for `bundleEntry`, AppKit host windows for editors.
-[target.'cfg(target_os = "macos")'.dependencies]
-objc2.workspace = true
-objc2-core-foundation.workspace = true
-objc2-app-kit.workspace = true
-objc2-foundation.workspace = true
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-core]
+workspace = true
 
-# Win32 host windows for editors.
-[target.'cfg(windows)'.dependencies]
-windows-sys.workspace = true
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-plugin-host]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.libloading]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.rtrb]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.serde_json]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.tracing]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.vst3]
+workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 
-# Minimal VST3 plugin (a gain effect with a separate controller + a single-component
-# instrument) used by the tests of this crate, `ether-plugin-scanner` and `ether-sandbox`.
+[target.'cfg(not(target_arch = "wasm32"))'.build-dependencies]
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2]
+workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2-app-kit]
+workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2-core-foundation]
+workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2-foundation]
+workspace = true
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+
+[target.'cfg(target_os = "macos")'.build-dependencies]
+
+[target."cfg(windows)".dependencies.windows-sys]
+workspace = true
+
+[target."cfg(windows)".dev-dependencies]
+
+[target."cfg(windows)".build-dependencies]
+
+[[test]]
+path = "tests/host.rs"
+name = "host"
+required-features = []
+
+[[test]]
+path = "tests/plugin_sidechain.rs"
+name = "plugin_sidechain"
+required-features = []
+
 [[example]]
+path = "examples/ether_vst3_test_plugin.rs"
 name = "ether_vst3_test_plugin"
+required-features = []
 crate-type = ["cdylib"]
 
-[lints]
-workspace = true
+[lib]
+path = "src/lib.rs"
+name = "ether_vst3"
+required-features = []
+crate-type = ["lib"]

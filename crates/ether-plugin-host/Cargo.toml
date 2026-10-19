@@ -1,36 +1,77 @@
 [package]
 name = "ether-plugin-host"
 description = "Format-agnostic plugin loading (PluginFormatHost trait, format registry, out-of-process scan runner)."
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-repository.workspace = true
-authors.workspace = true
-publish.workspace = true
+
+[package.edition]
+workspace = true
+
+[package.version]
+workspace = true
+
+[package.authors]
+workspace = true
+
+[package.repository]
+workspace = true
+
+[package.rust-version]
+workspace = true
+
+[package.publish]
+workspace = true
 
 [dependencies]
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-ether-core.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-# The app main window's handle (`editor_owner`).
-raw-window-handle.workspace = true
-
-# Host windows for embedded plugin editors on Linux (`x11_window`): Xlib loaded at runtime.
-[target.'cfg(target_os = "linux")'.dependencies]
-x11-dl.workspace = true
-tracing.workspace = true
-
-# Key forwarding from plugin editor windows (`editor_keys`): an NSEvent local monitor.
-[target.'cfg(target_os = "macos")'.dependencies]
-objc2.workspace = true
-block2.workspace = true
-objc2-app-kit = { workspace = true, features = ["NSEvent", "NSWindow", "NSResponder", "block2"] }
-
-# ... and a WH_GETMESSAGE hook on Windows; the plugin UI thread (`ui_thread`).
-[target.'cfg(windows)'.dependencies]
-windows-sys = { workspace = true, features = ["Win32_UI_Input_KeyboardAndMouse", "Win32_System_Threading", "Win32_System_Ole"] }
-
-[lints]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-core]
 workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.raw-window-handle]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.serde]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies.serde_json]
+workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+
+[target.'cfg(not(target_arch = "wasm32"))'.build-dependencies]
+
+[target.'cfg(target_os = "linux")'.dependencies.tracing]
+workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies.x11-dl]
+workspace = true
+
+[target.'cfg(target_os = "linux")'.dev-dependencies]
+
+[target.'cfg(target_os = "linux")'.build-dependencies]
+
+[target.'cfg(target_os = "macos")'.dependencies.block2]
+workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2]
+workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies.objc2-app-kit]
+workspace = true
+features = ["NSEvent", "NSWindow", "NSResponder", "block2"]
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+
+[target.'cfg(target_os = "macos")'.build-dependencies]
+
+[target."cfg(windows)".dependencies.windows-sys]
+workspace = true
+features = ["Win32_UI_Input_KeyboardAndMouse", "Win32_System_Threading", "Win32_System_Ole"]
+
+[target."cfg(windows)".dev-dependencies]
+
+[target."cfg(windows)".build-dependencies]
+
+[lib]
+path = "src/lib.rs"
+name = "ether_plugin_host"
+required-features = []
+crate-type = ["lib"]

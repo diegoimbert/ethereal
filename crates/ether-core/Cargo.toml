@@ -1,29 +1,248 @@
 [package]
 name = "ether-core"
 description = "Real-time DSP engine core: graph, scheduler, tempo map, transport, mixer, PDC."
-version.workspace = true
-edition.workspace = true
-rust-version.workspace = true
-repository.workspace = true
-authors.workspace = true
-publish.workspace = true
 
-[dependencies]
-ether-protocol.workspace = true
-ether-stretch.workspace = true
-serde.workspace = true
-# v0.2 (contracts-3): the codec's JSON blob for v0.2 track fields (`codec.rs`).
-serde_json.workspace = true
-rtrb.workspace = true
-thiserror.workspace = true
-
-[dev-dependencies]
-# Real stretchers (C++ Signalsmith and its Rust port) for the Complex-warp render tests
-# (src/warp/tests.rs).
-ether-stretch = { workspace = true, features = ["signalsmith", "rust-stretch"] }
-assert_no_alloc.workspace = true
-proptest.workspace = true
-serde_json.workspace = true
-
-[lints]
+[package.edition]
 workspace = true
+
+[package.version]
+workspace = true
+
+[package.authors]
+workspace = true
+
+[package.repository]
+workspace = true
+
+[package.rust-version]
+workspace = true
+
+[package.publish]
+workspace = true
+
+[dependencies.ether-protocol]
+workspace = true
+
+[dependencies.ether-stretch]
+workspace = true
+
+[dependencies.rtrb]
+workspace = true
+
+[dependencies.serde]
+workspace = true
+
+[dependencies.serde_json]
+workspace = true
+
+[dependencies.thiserror]
+workspace = true
+
+[dev-dependencies.assert_no_alloc]
+workspace = true
+
+[dev-dependencies.ether-stretch]
+workspace = true
+features = ["signalsmith", "rust-stretch"]
+
+[dev-dependencies.proptest]
+workspace = true
+
+[dev-dependencies.serde_json]
+workspace = true
+
+[[test]]
+path = "tests/base24_hooks.rs"
+name = "base24_hooks"
+required-features = []
+
+[[test]]
+path = "tests/codec.rs"
+name = "codec"
+required-features = []
+
+[[test]]
+path = "tests/codec_alloc.rs"
+name = "codec_alloc"
+required-features = []
+
+[[test]]
+path = "tests/codec_fixture.rs"
+name = "codec_fixture"
+required-features = []
+
+[[test]]
+path = "tests/crossfades_render.rs"
+name = "crossfades_render"
+required-features = []
+
+[[test]]
+path = "tests/drum_rack.rs"
+name = "drum_rack"
+required-features = []
+
+[[test]]
+path = "tests/drum_rack_no_alloc.rs"
+name = "drum_rack_no_alloc"
+required-features = []
+
+[[test]]
+path = "tests/engine.rs"
+name = "engine"
+required-features = []
+
+[[test]]
+path = "tests/expression.rs"
+name = "expression"
+required-features = []
+
+[[test]]
+path = "tests/expression_no_alloc.rs"
+name = "expression_no_alloc"
+required-features = []
+
+[[test]]
+path = "tests/fades_render.rs"
+name = "fades_render"
+required-features = []
+
+[[test]]
+path = "tests/fades_vectors.rs"
+name = "fades_vectors"
+required-features = []
+
+[[test]]
+path = "tests/groups.rs"
+name = "groups"
+required-features = []
+
+[[test]]
+path = "tests/hw_io.rs"
+name = "hw_io"
+required-features = []
+
+[[test]]
+path = "tests/metronome.rs"
+name = "metronome"
+required-features = []
+
+[[test]]
+path = "tests/metronome_no_alloc.rs"
+name = "metronome_no_alloc"
+required-features = []
+
+[[test]]
+path = "tests/midi_fx_engine.rs"
+name = "midi_fx_engine"
+required-features = []
+
+[[test]]
+path = "tests/modulation.rs"
+name = "modulation"
+required-features = []
+
+[[test]]
+path = "tests/modulation_no_alloc.rs"
+name = "modulation_no_alloc"
+required-features = []
+
+[[test]]
+path = "tests/mpe.rs"
+name = "mpe"
+required-features = []
+
+[[test]]
+path = "tests/nested_sidechain.rs"
+name = "nested_sidechain"
+required-features = []
+
+[[test]]
+path = "tests/no_alloc.rs"
+name = "no_alloc"
+required-features = []
+
+[[test]]
+path = "tests/parallel.rs"
+name = "parallel"
+required-features = []
+
+[[test]]
+path = "tests/parallel_graphs.rs"
+name = "parallel_graphs"
+required-features = []
+
+[[test]]
+path = "tests/perf_engine.rs"
+name = "perf_engine"
+required-features = []
+
+[[test]]
+path = "tests/preview_fade.rs"
+name = "preview_fade"
+required-features = []
+
+[[test]]
+path = "tests/racks.rs"
+name = "racks"
+required-features = []
+
+[[test]]
+path = "tests/recording_no_alloc.rs"
+name = "recording_no_alloc"
+required-features = []
+
+[[test]]
+path = "tests/roadmap_v3_hooks.rs"
+name = "roadmap_v3_hooks"
+required-features = []
+
+[[test]]
+path = "tests/roadmap_v4_hooks.rs"
+name = "roadmap_v4_hooks"
+required-features = []
+
+[[test]]
+path = "tests/sample_accurate.rs"
+name = "sample_accurate"
+required-features = []
+
+[[test]]
+path = "tests/sample_accurate_no_alloc.rs"
+name = "sample_accurate_no_alloc"
+required-features = []
+
+[[test]]
+path = "tests/silence.rs"
+name = "silence"
+required-features = []
+
+[[test]]
+path = "tests/stream_tap.rs"
+name = "stream_tap"
+required-features = []
+
+[[test]]
+path = "tests/stuck_notes.rs"
+name = "stuck_notes"
+required-features = []
+
+[[test]]
+path = "tests/tap_recording.rs"
+name = "tap_recording"
+required-features = []
+
+[[test]]
+path = "tests/tempo_vectors.rs"
+name = "tempo_vectors"
+required-features = []
+
+[[test]]
+path = "tests/touching_notes.rs"
+name = "touching_notes"
+required-features = []
+
+[lib]
+path = "src/lib.rs"
+name = "ether_core"
+required-features = []
+crate-type = ["lib"]
