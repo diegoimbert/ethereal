@@ -32,7 +32,7 @@ pub const REQUEST_BASE: u32 = 0x8000_0000;
 /// start at `0x8000_0000`).
 pub const GESTURE_BASE: u32 = 0x4000_0000;
 /// The desktop app's release bundle identifier (its app data dir name).
-pub const DESKTOP_IDENTIFIER: &str = "dev.ethereal.app";
+pub use ether_native::app_identity::{DESKTOP_IDENTIFIER, LEGACY_DESKTOP_IDENTIFIERS};
 
 /// Contents of the runtime file.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -89,13 +89,20 @@ pub fn read_runtime_file(path: &Path) -> std::io::Result<RuntimeInfo> {
 
 /// Where the desktop app keeps its runtime file, most specific first: the dev build of
 /// instance `instance` (`<data>/ethereal-dev/<instance>/`), then the release build
+/// (`<data>/ws.ethereal.daw/`), then a running release made under an earlier identifier
 /// (`<data>/dev.ethereal.app/`). `<data>` is the OS data dir ([`crate::cli::os_data_dir`]).
 pub fn desktop_runtime_candidates(instance: &str) -> Vec<PathBuf> {
     let data = crate::cli::os_data_dir();
-    vec![
+    let mut out = vec![
         data.join("ethereal-dev").join(instance).join(RUNTIME_FILE),
         data.join(DESKTOP_IDENTIFIER).join(RUNTIME_FILE),
-    ]
+    ];
+    out.extend(
+        LEGACY_DESKTOP_IDENTIFIERS
+            .iter()
+            .map(|id| data.join(id).join(RUNTIME_FILE)),
+    );
+    out
 }
 
 /// A running bridge. Dropping it stops the listener and deletes the runtime file.
