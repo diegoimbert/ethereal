@@ -45,6 +45,7 @@ const PANEL_NAMES = {
   metronome: "shell.panel.metronome",
   "midi learn": "shell.panel.midi_learn",
   "mobile editor": "shell.panel.mobile_editor",
+  news: "shell.panel.news",
   "project menu": "shell.panel.project_menu",
   quit: "shell.panel.quit",
   rail: "shell.panel.rail",

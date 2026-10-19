@@ -11,6 +11,11 @@ name: CI
 # Dependabot (.github/dependabot.yml) proposes the bumps. The Rust toolchain is pinned in
 # rust-toolchain.toml, tools installed by taiki-e/install-action are pinned to exact versions.
 #
+# What runs when: pull requests run the cheap checks only (`What changed` and `Policy`; the CLA
+# check and `ee/pointer` come from elsewhere). Builds and tests run on `main` and manual runs,
+# every platform. A failure there is fixed forward: the `main is red` job opens (or comments on)
+# an issue labelled `ci-main`, and the fix lands as a follow-up pull request.
+#
 # Caches: the repository has 10 GB of Actions cache. Only `main` saves Rust caches (pull
 # requests restore them), so pull requests cannot evict `main`'s and every job starts warm.
 on:
@@ -43,44 +48,36 @@ env:
 
 jobs:
   changes:
-    # A pull request that touches no Rust, packaging or CI file (UI, web, docs) skips the Rust and
-    # packaging jobs: they would rebuild the same thing, and macOS runners are scarce. `main`
-    # runs everything.
+    # Decides what this run builds. Pull requests: nothing (the build and test jobs report as
+    # skipped). `main` and manual runs: everything, on every platform.
     name: What changed
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      rust: ${{ steps.diff.outputs.rust }}
+      full: ${{ steps.what.outputs.full }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - id: diff
+      - id: what
         env:
           EVENT: ${{ github.event_name }}
-          BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          rust=true
-          if [ "$EVENT" = pull_request ]; then
-            git fetch --no-tags --depth=1 origin "$BASE"
-            git diff --name-only FETCH_HEAD HEAD > "$RUNNER_TEMP/changed.txt"
-            grep -qE '^(crates/|apps/desktop/|ui/src/generated/|third-party/|\.cargo/|\.config/|\.github/|scripts/(build-sandbox-helper\.mjs|release/)|Cargo\.(toml|lock)$|rust-toolchain\.toml$|deny\.toml$|package\.json$|pnpm-lock\.yaml$)' "$RUNNER_TEMP/changed.txt" || rust=false
-          fi
-          echo "rust=$rust" >> "$GITHUB_OUTPUT"
-          echo "Rust and packaging jobs: $rust"
+          full=true
+          [ "$EVENT" = pull_request ] && full=false
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "Builds and tests: $full"
 
   # --- Rust ---------------------------------------------------------------------------------
 
   rust-linux:
     name: Rust (Linux)
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: ./.github/actions/free-disk
       - name: Linux system deps (Tauri, ALSA)
         run: |
           sudo apt-get update
@@ -127,13 +124,14 @@ jobs:
     # macOS runners are the scarcest (5 at a time per account), so this job stays lean.
     name: Rust (macOS)
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
+    if: needs.changes.outputs.full == 'true'
     runs-on: macos-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: ./.github/actions/free-disk
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -158,13 +156,14 @@ jobs:
   rust-windows:
     name: Rust (Windows)
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
+    if: needs.changes.outputs.full == 'true'
     runs-on: windows-latest
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: ./.github/actions/free-disk
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -187,13 +186,15 @@ jobs:
 
   web:
     name: Web (tsc, eslint, prettier, vitest)
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -209,14 +210,16 @@ jobs:
         run: node scripts/check-case-clashes.mjs
       - name: vitest
         run: pnpm -r test
-      - name: release scripts
-        run: node --test scripts/release/*.test.mjs
+      - name: release and CI scripts
+        run: node --test scripts/release/*.test.mjs scripts/ci/*.test.mjs
 
   web-build:
     # The web build the e2e shards test (wasm engine + UI, `vite build`), the native server some
     # specs drive, the release's web zip, and the production bundle under the deployed
     # Content-Security-Policy (any violation fails, e2e/global-teardown.ts).
     name: Web build (wasm, dist, server) + CSP
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -240,7 +243,7 @@ jobs:
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: wasm-bindgen@${{ steps.wb.outputs.version }}
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -296,7 +299,8 @@ jobs:
     # Left out: `@frames` (frame-time budgets) and `@pixels` (text rasterization against the
     # DOM), both calibrated on the devbox and not stable on shared runners.
     name: e2e (${{ matrix.shard }}/4)
-    needs: web-build
+    needs: [changes, web-build]
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -307,7 +311,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -352,7 +356,7 @@ jobs:
     # codegen unit; here only the packaging is under test, so both are off to keep it fast.
     name: Package (${{ matrix.name }})
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
+    if: needs.changes.outputs.full == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -374,6 +378,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: ./.github/actions/free-disk
       - name: Windows (aws-lc-sys without NASM)
         if: runner.os == 'Windows'
         shell: bash
@@ -391,7 +396,7 @@ jobs:
           key: package-${{ matrix.target }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-on-failure: true
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -448,7 +453,7 @@ jobs:
         run: actionlint
       - name: Licenses, bans, sources (cargo-deny)
         run: cargo deny check licenses bans sources
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -484,3 +489,33 @@ jobs:
       - name: Advisories (pnpm audit, production dependencies)
         continue-on-error: ${{ steps.deps.outputs.gate != 'true' }}
         run: pnpm audit --prod --audit-level high
+
+  # --- main is red ---------------------------------------------------------------------------
+
+  main-red:
+    # Pull requests no longer run the cross-platform jobs, so `main` is where a macOS, Windows
+    # or packaging break shows up first: fix it forward. One open `ci-main` issue collects them.
+    name: main is red
+    needs: [changes, rust-linux, rust-macos, rust-windows, web, web-build, e2e, package, policy]
+    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          body="CI failed on \`main\` at $SHA: $RUN"
+          open=$(gh issue list --label ci-main --state open --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "$body"
+          else
+            gh label create ci-main --color B60205 --description "CI is red on main" 2>/dev/null || true
+            gh issue create --title "CI is red on main" --label ci-main --body "$body
+
+          Pull requests run Linux and the cheap checks only; the cross-platform jobs run on \`main\`. Fix forward, then close this issue."
+          fi

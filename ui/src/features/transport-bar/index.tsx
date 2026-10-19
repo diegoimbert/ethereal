@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { EngineStatus, GestureId, TimeSignaturePoint } from "@/generated";
 import { Circle, Pause, Play, Redo2, Repeat, Square, Timer, Undo2 } from "lucide-react";
-import { Button } from "@/kit";
+import { Button, DismissibleError } from "@/kit";
 import { timeSignaturePoints, useCpuLoad, usePlayhead, useProjectStore, useReadOnly } from "@/state";
 import { inputSettings } from "@/timeline";
 import { cmd, nextGestureId } from "@/transport";
@@ -229,9 +229,9 @@ export function TransportBar() {
 
       <div className="eth-tb__side eth-tb__side--end">
         {error && (
-          <button type="button" className="eth-tb__error" role="alert" title={t("common.dismiss")} onClick={clearError}>
+          <DismissibleError className="eth-tb__error" onDismiss={clearError}>
             {error}
-          </button>
+          </DismissibleError>
         )}
         {!readOnly && (
           <div className="eth-tb__group">

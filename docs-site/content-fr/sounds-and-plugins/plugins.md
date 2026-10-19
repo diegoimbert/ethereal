@@ -68,6 +68,8 @@ Si un plug-in est installé dans plusieurs formats (par exemple en CLAP et VST3)
 
 Cliquez sur le bouton de fenêtre dans l’en-tête d’un plug-in pour ouvrir l’interface propre au plug-in. Elle s’ouvre dans une fenêtre séparée qui reste au-dessus de la fenêtre principale d’Ethereal. Cliquez à nouveau sur le bouton pour la fermer. La carte du plug-in dans Ethereal liste aussi ses paramètres, avec le texte de valeur propre au plug-in (comme « 250 ms » ou « -6 dB »).
 
+Sur Windows et Linux, une fenêtre de plug-in CLAP ne s’ouvre que si le plug-in sait ouvrir sa propre fenêtre. Beaucoup de plug-ins CLAP ne savent que s’afficher dans une fenêtre créée par l’hôte, ce qu’Ethereal ne fait pour l’instant que sur macOS : leur fenêtre ne s’ouvre pas, mais leurs paramètres restent sur leur carte. Les fenêtres VST3 s’ouvrent sur tous les systèmes.
+
 ### fenêtres de plug-ins sous linux {#plugin-windows-on-linux}
 
 Sous Linux, les fenêtres des plug-ins ont besoin d’un affichage X. Sur un bureau Wayland, cela veut dire XWayland.
@@ -85,6 +87,9 @@ Quand une fenêtre de plug-in a le focus :
 Par défaut, les plug-ins tournent à l’intérieur d’Ethereal. Pour un plug-in dont vous vous méfiez, faites un clic droit sur son en-tête et choisissez **exécuter isolé (protégé des plantages, +1 bloc de latence)**. Le plug-in tourne alors dans son propre processus. S’il plante, Ethereal continue de jouer : l’appareil affiche **planté · contourné** et la piste joue sans lui. Cliquez sur **⟳** pour recharger le plug-in depuis son dernier état enregistré.
 
 L’isolation ajoute un bloc audio de latence. Pour revenir en arrière, faites un clic droit sur l’en-tête et choisissez **exécuter dans le processus (sans isolation)**.
+
+> [!note]
+> L’isolation fonctionne sur macOS et Linux. Sous Windows, les plug-ins tournent toujours à l’intérieur d’Ethereal : choisir d’exécuter un plug-in isolé n’y change rien.
 
 ## ouvrir un projet sans les plug-ins {#opening-a-project-without-plugins}
 

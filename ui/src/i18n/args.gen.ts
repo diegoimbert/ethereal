@@ -70,6 +70,9 @@ export interface MessageArgs {
   "arrangement.import.failed": { name: string | number };
   "arrangement.import.progress": { name: string | number };
   "arrangement.import.progress_percent": { name: string | number; percent: string | number };
+  "arrangement.summary.audio_clip": { end: string | number; muted: string; name: string | number; start: string | number };
+  "arrangement.summary.midi_clip": { end: string | number; muted: string; name: string | number; start: string | number };
+  "arrangement.summary.track": { count: number; name: string | number };
   "arrangement.track_menu.copy": { count: number };
   "arrangement.track_menu.cut": { count: number };
   "arrangement.track_menu.delete": { count: number };
@@ -401,6 +404,8 @@ export interface MessageArgs {
   "name.track.midi": { n: string | number };
   "name.track.return": { letter: string | number };
   "name.track.vca": { n: string | number };
+  "news.list.error": { error: string | number };
+  "news.viewer.next": { count: string | number };
   "notice.audio.crash_failed": { error: string | number };
   "notice.audio.device_unavailable": { error: string | number };
   "notice.audio.engine_error": { error: string | number };
@@ -451,9 +456,14 @@ export interface MessageArgs {
   "piano_roll.band": { name: string | number; track: string | number };
   "piano_roll.band_focus": { name: string | number; track: string | number };
   "piano_roll.beat.row_pad": { name: string | number; note: string | number };
+  "piano_roll.beat.row_steps": { count: number; steps: string | number; total: string | number };
   "piano_roll.beat.row_stray": { name: string | number };
   "piano_roll.clip_count": { count: number };
   "piano_roll.menu.delete_notes": { count: number };
+  "piano_roll.summary.note": { length: string | number; muted: string; pitch: string | number; position: string | number; velocity: string | number };
+  "piano_roll.summary.notes": { count: number };
+  "piano_roll.summary.selected_many": { count: number };
+  "piano_roll.summary.selected_one": { note: string | number };
   "piano_roll.velocity": { value: string | number };
   "plugins.device.found_hint": { format: string | number; id: string | number };
   "plugins.device.load": { name: string | number };

@@ -51,7 +51,7 @@ export function GetStarted({ commands, onStarted }: { commands: EngineCommands; 
           );
           if (!tour || !available)
             return (
-              <li key={a.title} className="eth-welcome__article" aria-disabled="true">
+              <li key={a.title} className="eth-welcome__article" data-soon>
                 {body}
                 <span className="eth-welcome__soon">{t("project.start.soon")}</span>
               </li>

@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent, 
 import { MoreHorizontal, Plus, Search, X } from "lucide-react";
 import type { ProjectSummary } from "@/generated";
 import { errorMessage, useOptionalConnection, type EngineCommands } from "@/features/transport-bar/engine";
-import { Badge, Button, Dialog, IconButton, openContextMenu, TextInput, type ContextMenuEntry } from "@/kit";
+import { Badge, Button, Dialog, DismissibleError, IconButton, openContextMenu, TextInput, type ContextMenuEntry } from "@/kit";
 import { useRecoveryShown } from "@/features/versions/store";
+import { DiscordLink } from "@/features/community";
 import { newProjectCommand, ProjectTemplatePicker, type ProjectTemplateChoice } from "@/features/templates";
 import { useProjectStore } from "@/state";
 import { cmd, newProjectId, type EngineTransport } from "@/transport";
@@ -78,23 +79,19 @@ export function ProjectScreen({ commands }: { commands: EngineCommands }) {
 }
 
 function ErrorLine({ commands, extra, clearExtra }: { commands: EngineCommands; extra?: string | null; clearExtra?: () => void }) {
-  const t = useT();
   const { error, clearError } = commands;
   const shown = extra ?? error;
   if (!shown) return null;
   return (
-    <button
-      type="button"
+    <DismissibleError
       className="eth-project__error"
-      role="alert"
-      title={t("common.dismiss")}
-      onClick={() => {
+      onDismiss={() => {
         clearError();
         clearExtra?.();
       }}
     >
       {shown}
-    </button>
+    </DismissibleError>
   );
 }
 
@@ -275,6 +272,7 @@ function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(
           </span>
         )}
         <span className="eth-welcome__actions">
+          <DiscordLink variant="icon" />
           <Button
             size="sm"
             tone="accent"
