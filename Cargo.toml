@@ -71,7 +71,7 @@ tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 # --- real-time plumbing ---
-rtrb = "0.3"
+rtrb = "0.4"
 assert_no_alloc = "1.1"
 crossbeam-channel = "0.5"
 
