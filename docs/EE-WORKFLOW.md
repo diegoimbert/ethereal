@@ -67,12 +67,12 @@ detached at the pointer; `just feat ee` puts it back on `x`.
 All CI runs in this repository, on GitHub-hosted runners; the private repository has none.
 
 - **Full build** (`.github/workflows/full.yml`): the full product (this repo + `ee/` overlaid)
-  for every same-repo PR, every push to `main`, and on demand. Its **`ee/build`** job is the
-  check `feat ship` waits for. A PR builds against its `ee` pointer when it moves it, else EE
-  `main`; pull requests run Linux (Rust) and the web build, `main` adds macOS, Windows and the
-  e2e suite. A fork's PR cannot read the private repository (GitHub withholds the secret), so
-  its full jobs are skipped; a maintainer builds it by hand after reading it:
-  `gh workflow run full.yml -f ref=refs/pull/N/head`.
+  on every push to `main` (Linux, macOS, Windows, web, e2e) and on demand; its aggregate job is
+  **`ee/build`**. Pull requests run no builds or tests (owner, 2026-10-19): only CLA, Policy,
+  What changed and `ee/pointer` gate a merge, so run the relevant tests locally, and fix `main`
+  forward if it goes red. A PR's full build on demand:
+  `gh workflow run full.yml --ref <branch> -f ref=<sha> -f all=false` (it uses the commit's `ee`
+  pointer; a fork's PR only after reading it: `-f ref=refs/pull/N/head`).
   - The private code never shows in the public log: each step's output goes to a file
     (`scripts/ci/private-step.mjs`), the log shows the result and the names of what failed, and
     the files are uploaded **encrypted with age** to the recipients in `ee/.sops.yaml`.

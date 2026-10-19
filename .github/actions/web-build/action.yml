@@ -1,5 +1,5 @@
 # Build the web app (wasm engine + UI) of the full product and assemble the Cloudflare Pages site
-# (the deployed folder `<out>/site`: dist + the COOP/COEP `_headers`).
+# (the deployed folder `<out>/site`: dist + the COOP/COEP `_headers`, and `<out>/functions`).
 # Shared by release.yml (the `web` job) and deploy-dev.yml so the two builds never drift.
 #
 # Runs after .github/actions/ee-overlay: the install and build go through
@@ -60,3 +60,6 @@ runs:
         mkdir -p "$OUT/site"
         cp -R apps/web/dist/. "$OUT/site/"
         cp scripts/release/web/_headers "$OUT/site/_headers"
+        # The full product's Pages Functions (/signal, /static), from the overlay: wrangler
+        # bundles `functions/` from next to the deployed folder.
+        if [ -d scripts/release/web/functions ]; then cp -R scripts/release/web/functions "$OUT/functions"; fi
