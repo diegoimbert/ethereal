@@ -13,6 +13,10 @@
 //!   and parallel dev instances so nobody contends for the sound card.
 //! - `offline`: like `null` but as fast as possible (yielding between blocks).
 
+// cpal 0.17 deprecates `Device::name()` for `id()` / `description()`; the saved device
+// settings match by name, so the names stay until that migration (issue to follow).
+#![allow(deprecated)]
+
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::thread::JoinHandle;
@@ -194,7 +198,7 @@ pub fn resolve(settings: &AudioSettings) -> Result<ResolvedConfig, AudioError> {
                 info: StreamInfo {
                     backend: AudioBackendKind::Cpal,
                     device: device.name().ok(),
-                    sample_rate: config.sample_rate.0,
+                    sample_rate: config.sample_rate,
                     buffer_size: match config.buffer_size {
                         cpal::BufferSize::Fixed(n) => n,
                         cpal::BufferSize::Default => 0,
@@ -228,14 +232,14 @@ fn cpal_config(
     let format = default.sample_format();
     let wanted = force_rate.or(settings.sample_rate);
     let supported = match wanted {
-        Some(rate) if rate != default.sample_rate().0 => device
+        Some(rate) if rate != default.sample_rate() => device
             .supported_output_configs()
             .map_err(|e| AudioError::Backend(e.to_string()))?
             .filter(|c| c.sample_format() == format && c.channels() == default.channels())
-            .find_map(|c| c.try_with_sample_rate(cpal::SampleRate(rate)))
+            .find_map(|c| c.try_with_sample_rate(rate))
             .or_else(|| {
                 device.supported_output_configs().ok()?.find_map(|c| {
-                    c.try_with_sample_rate(cpal::SampleRate(rate))
+                    c.try_with_sample_rate(rate)
                         .filter(|c| is_supported_format(c.sample_format()))
                 })
             }),
@@ -327,7 +331,7 @@ pub fn list_devices(current: &AudioSettings) -> AudioDeviceList {
                             [44_100, 48_000, 88_200, 96_000, 176_400, 192_000]
                                 .into_iter()
                                 .filter(move |r| {
-                                    c.min_sample_rate().0 <= *r && *r <= c.max_sample_rate().0
+                                    c.min_sample_rate() <= *r && *r <= c.max_sample_rate()
                                 })
                         })
                         .collect()
@@ -619,7 +623,7 @@ fn build_cpal(
     let info = StreamInfo {
         backend: AudioBackendKind::Cpal,
         device: device.name().ok(),
-        sample_rate: config.sample_rate.0,
+        sample_rate: config.sample_rate,
         buffer_size: match config.buffer_size {
             cpal::BufferSize::Fixed(n) => n,
             cpal::BufferSize::Default => 0,

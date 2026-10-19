@@ -12,6 +12,10 @@
 //! could be created ("no ASIO driver could be opened" until Ethereal restarted): COM is
 //! initialized on each thread that gets the ASIO host.
 
+// cpal 0.17 deprecates `Device::name()` for `id()` / `description()`; the saved device
+// settings match by name, so the names stay until that migration (issue to follow).
+#![allow(deprecated)]
+
 use std::ops::Deref;
 
 use cpal::traits::{DeviceTrait, HostTrait};
