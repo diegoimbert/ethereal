@@ -140,7 +140,7 @@ tungstenite = "0.27"
 signal-hook = "0.4"
 # export: WAV/FLAC/MP3 writing.
 hound = "3.5"
-flacenc = "0.4"
+flacenc = "0.5"
 # Pure-Rust MP3 encoder (no C, builds for wasm32): MP3 exports.
 rusty_mp3 = "1.0"
 
@@ -150,7 +150,7 @@ rmcp = { version = "3.5", default-features = false, features = ["server", "trans
 
 # --- the default sample pack: the files' sha256 and the manifest's Ed25519 signature check (pure
 # Rust, so the web engine verifies too; ring needs a C toolchain for wasm32). ---
-sha2 = "0.10"
+sha2 = "0.11"
 ed25519-dalek = { version = "2.2", default-features = false, features = ["std"] }
 
 # --- tooling / tests ---

@@ -332,6 +332,11 @@ export interface ExtensionPoints {
   "desktopMenu.labels": () => Readonly<Record<string, string>>;
   /** Buttons in the device library's footer and the plugin folders panel ("explore plugins"). */
   "plugins.actions": ComponentType<{ place: "library" | "folders" | "folders-web"; onClose?(): void }>;
+  /**
+   * Toasts in the app's one stack, after its notices (`app/App.tsx`): an extension's toasts
+   * (chat messages, ...) share it, so they never overlap the app's.
+   */
+  "app.toasts": ComponentType;
   /** A hint under the undo history (`features/undo-history`). */
   "history.hint": ComponentType;
   /** Web routes (`apps/web`). */

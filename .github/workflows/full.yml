@@ -262,7 +262,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
       - name: install
-        run: node scripts/ci/private-step.mjs install -- "pnpm install --frozen-lockfile && cd apps/web && npx playwright install ${{ runner.environment == 'github-hosted' && '--with-deps' || '' }} chromium-headless-shell"
+        # ee/'s own workspace too: its services (the signaling adapter the share specs start).
+        run: node scripts/ci/private-step.mjs install -- "pnpm install --frozen-lockfile && pnpm --dir ee install --frozen-lockfile && cd apps/web && npx playwright install ${{ runner.environment == 'github-hosted' && '--with-deps' || '' }} chromium-headless-shell"
       - name: Playwright
         env:
           ETHEREAL_TOURS: "1"
