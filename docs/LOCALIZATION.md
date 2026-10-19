@@ -43,7 +43,8 @@ catalog file plus one line of code.
   quoted in bold as its `fr.json` translation (`NOT_LABELS` lists the bold words that aren't
   labels there). It follows the French typography below.
   `features/docs/translations.test.ts` checks all of that. When an English page gains, loses
-  or renames a heading (or its `covers` change), its translation is stale: the app shows that
+  or renames a heading, gains or loses a paragraph, list item, table row or link (or its
+  `covers` change), its translation is stale: the app shows that
   page in English until it is updated, and the test fails, so a PR that changes an English page
   updates `content-fr` too (as a new UI string gets its `fr.json` entry). Adding a language's docs: a
   `contentXx.ts` like `contentFr.ts`, one line in `TRANSLATIONS`, one in the test.
