@@ -25,7 +25,8 @@ concurrency:
 
 jobs:
   sync:
-    runs-on: ubuntu-latest
+    # Runner: repository variable SYNC_RUNNER (JSON), GitHub-hosted by default.
+    runs-on: ${{ fromJSON(vars.SYNC_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 15
     steps:
       - id: gate
