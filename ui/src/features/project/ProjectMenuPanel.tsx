@@ -13,6 +13,7 @@ import { useProjectStore } from "@/state";
 import { openResolver, resolveMissingLabel, useMissingCount } from "@/features/import-resolver";
 import { appProjectCommands, byId, deleteOpenProject, openProjectCommands } from "./projectCommands";
 import { docsCommands } from "@/features/docs/commands";
+import { newsCommands } from "@/features/news";
 import { Trans, useT } from "@/i18n";
 
 /** Which submenu of the project menu is open (one at a time), shared by its items. */
@@ -66,6 +67,7 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
     ...appProjectCommands(transport),
     ...(project ? openProjectCommands(transport, { id: project.id, name: project.settings.name }) : []),
     ...docsCommands(),
+    ...newsCommands(),
   ]);
   /** The menu item of command `id` (the menu closes, then it runs). */
   const item = (id: string, opts: { short?: boolean; danger?: boolean; onClick?(): void } = {}) => {
@@ -166,12 +168,14 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
         {item("app:docs")}
         {/* #518: the example beats, on the welcome screen. */}
         {item("app:examples")}
+        {/* news: past announcements (docs/NEWS.md). */}
+        {item("app:news")}
       </div>
     </OpenSub.Provider>
   );
 }
 
-/** What the menu needs of a command (`ProjectCommand`, the palette's docs entries). */
+/** What the menu needs of a command (`ProjectCommand`, the palette's docs and news entries). */
 interface MenuCommand {
   id: string;
   label: string;

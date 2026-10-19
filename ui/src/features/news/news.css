@@ -1,0 +1,65 @@
+/* news: the viewer and the "News…" list (docs/NEWS.md). */
+.eth-news {
+  --dialog-width: min(calc(var(--eth-size-tooltip-max-width) * 2.5), 92vw);
+}
+.eth-news__header {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+}
+.eth-news__title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-news__date {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-weight: normal;
+}
+.eth-news .eth-dialog__body {
+  padding: 0;
+}
+.eth-news__body {
+  display: flex;
+}
+.eth-news__frame {
+  display: block;
+  width: 100%;
+  max-height: calc(100vh - var(--eth-size-dialog-chrome));
+  border: 0;
+  /* Until the page paints its own background. */
+  background: var(--eth-color-bg-inset);
+}
+.eth-news-list__body {
+  min-width: min(calc(var(--eth-size-tooltip-max-width) * 2), 80vw);
+}
+.eth-news-list__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.eth-news-list__item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--eth-space-md);
+  width: 100%;
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border: 0;
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.eth-news-list__item:hover,
+.eth-news-list__item:focus-visible {
+  background: var(--eth-color-bg-hover);
+}
