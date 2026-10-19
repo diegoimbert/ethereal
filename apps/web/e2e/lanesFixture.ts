@@ -33,9 +33,10 @@ export async function buildLanesFixture(page: Page): Promise<LanesFixture> {
   const cmds: Command[] = [
     { domain: "Track", command: { type: "Create", id: auto, kind: "Midi", name: "Automated", color: null, parent: null, before: null } },
     { domain: "Track", command: { type: "Create", id: group, kind: "Group", name: "group", color: null, parent: null, before: null } },
-    ...kids.map(
-      (id, i): Command => ({ domain: "Track", command: { type: "Create", id, kind: "Midi", name: `Child ${i}`, color: null, parent: group, before: null } }),
-    ),
+    ...kids.map((id, i): Command => ({
+      domain: "Track",
+      command: { type: "Create", id, kind: "Midi", name: `Child ${i}`, color: null, parent: group, before: null },
+    })),
     { domain: "Device", command: { type: "Insert", id: ulid(8, 9), track: auto, device: { type: "Builtin", device: { type: "Synth" } }, before: null } },
   ];
   await sendBatched(page, cmds);

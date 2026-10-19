@@ -27,14 +27,22 @@ on:
     # A pointer bump of the private submodule changes nothing this workflow builds.
     paths-ignore: [ee]
   workflow_dispatch:
+    inputs:
+      full:
+        description: "Builds and tests on every platform (false: the pull-request checks only)"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
-  # A new push to a pull request supersedes its last run; runs on `main` always finish (they
-  # save the caches every pull request starts from).
+  # A new push to a pull request supersedes its last run. Runs on `main` are not serialized as a
+  # whole: each build job is a lane of its own (the job-level `concurrency` below), so a quick
+  # Linux job tests the newest `main` while a slow Windows job of an older run finishes. A lane
+  # runs one job at a time, always to the end (it saves the caches pull requests start from), and
+  # only the newest waiting one: older waiting ones are dropped (reported as cancelled).
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -66,9 +74,13 @@ jobs:
           EVENT: ${{ github.event_name }}
           POOL: ${{ vars.CI_POOL }}
           ACTOR: ${{ github.actor }}
+          # Manual runs: the `full` input (the Dependabot notices workflow dispatches the cheap
+          # checks only).
+          FULL_INPUT: ${{ inputs.full }}
         run: |
           full=true
           [ "$EVENT" = pull_request ] && full=false
+          [ "$EVENT" = workflow_dispatch ] && [ "$FULL_INPUT" = false ] && full=false
           linux='"ubuntu-latest"'
           case "$ACTOR" in *'[bot]') ;; *)
             if [ "$POOL" = devbox ] && [ "$EVENT" != pull_request ]; then linux='["self-hosted","devbox-pool"]'; fi ;;
@@ -84,6 +96,8 @@ jobs:
     if: needs.changes.outputs.full == 'true'
     runs-on: ${{ fromJSON(needs.changes.outputs.linux) }}
     timeout-minutes: 60
+    concurrency:
+      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-rust-linux
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -141,6 +155,8 @@ jobs:
     if: needs.changes.outputs.full == 'true'
     runs-on: macos-latest
     timeout-minutes: 60
+    concurrency:
+      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-rust-macos
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -175,6 +191,8 @@ jobs:
     if: needs.changes.outputs.full == 'true'
     runs-on: windows-latest
     timeout-minutes: 75
+    concurrency:
+      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-rust-windows
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -208,6 +226,8 @@ jobs:
     if: needs.changes.outputs.full == 'true'
     runs-on: ${{ fromJSON(needs.changes.outputs.linux) }}
     timeout-minutes: 20
+    concurrency:
+      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-web
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -240,6 +260,8 @@ jobs:
     if: needs.changes.outputs.full == 'true'
     runs-on: ${{ fromJSON(needs.changes.outputs.linux) }}
     timeout-minutes: 40
+    concurrency:
+      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-web-build
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -323,6 +345,8 @@ jobs:
     if: needs.changes.outputs.full == 'true'
     runs-on: ${{ fromJSON(needs.changes.outputs.linux) }}
     timeout-minutes: 30
+    concurrency:
+      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-e2e-${{ strategy.job-index }}
     strategy:
       fail-fast: false
       matrix:
@@ -379,6 +403,8 @@ jobs:
     if: needs.changes.outputs.full == 'true'
     runs-on: ${{ matrix.os == 'linux' && fromJSON(needs.changes.outputs.linux) || matrix.os }}
     timeout-minutes: 60
+    concurrency:
+      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-package-${{ strategy.job-index }}
     strategy:
       fail-fast: false
       matrix:

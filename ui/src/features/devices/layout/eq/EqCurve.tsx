@@ -66,8 +66,7 @@ const DOUBLE_MS = 500;
 const clamp = (v: number, lo: number, hi: number) => (v < lo ? lo : v > hi ? hi : v);
 
 type Grab =
-  | { type: "band"; index: number; mode: "move" | "q"; x: number; y: number; fx: number; gain: number; q: number }
-  | { type: "crossover"; param: number };
+  { type: "band"; index: number; mode: "move" | "q"; x: number; y: number; fx: number; gain: number; q: number } | { type: "crossover"; param: number };
 
 function toggleOn(b: ResolvedBand): void {
   const on = b.bindings.on;

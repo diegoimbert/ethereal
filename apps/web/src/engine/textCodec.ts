@@ -11,7 +11,7 @@ class Utf8Decoder {
   decode(bytes?: Uint8Array): string {
     if (!bytes) return "";
     let out = "";
-    for (let i = 0; i < bytes.length; ) {
+    for (let i = 0; i < bytes.length;) {
       const b = bytes[i++]!;
       let cp: number;
       if (b < 0x80) cp = b;
