@@ -1,4 +1,4 @@
-//! Built-in `Reverb` device (roadmap v2, owned by the `devices-2` node).
+//! Built-in `Reverb` device (roadmap v2, `devices-2`).
 //!
 //! Algorithmic stereo reverb: stereo pre-delay → two series allpass diffusers per channel
 //! → a multichannel diffuser per channel → an 8-line feedback delay network (FDN) with a

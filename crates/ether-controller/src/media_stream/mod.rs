@@ -1,4 +1,4 @@
-//! Streaming long audio from disk (v0.3, owned by the `audio-streaming` node; CONTRACTS.md
+//! Streaming long audio from disk (v0.3, `audio-streaming`; CONTRACTS.md
 //! §13.1).
 //!
 //! Today every media is decoded whole and resampled by the controller (`media/`), then

@@ -86,12 +86,12 @@ detached at the pointer; `just feat ee` puts it back on `x`.
 All CI runs in this repository, on GitHub-hosted runners; the private repository has none.
 
 - **Full build** (`.github/workflows/full.yml`): the full product (this repo + `ee/` overlaid)
-  for every same-repo PR, every push to `main`, and on demand. Its **`ee/build`** job is the
-  check `feat ship` waits for. A PR builds against its `ee` pointer when it moves it, else EE
-  `main`; pull requests run Linux (Rust) and the web build, `main` adds macOS, Windows and the
-  e2e suite. A fork's PR cannot read the private repository (GitHub withholds the secret), so
-  its full jobs are skipped; a maintainer builds it by hand after reading it:
-  `gh workflow run full.yml -f ref=refs/pull/N/head`.
+  on every push to `main` (Linux, macOS, Windows, web, e2e) and on demand; its aggregate job is
+  **`ee/build`**. Pull requests run no builds or tests (owner, 2026-10-19): only CLA, Policy,
+  What changed and `ee/pointer` gate a merge, so run the relevant tests locally, and fix `main`
+  forward if it goes red. A PR's full build on demand:
+  `gh workflow run full.yml --ref <branch> -f ref=<sha> -f all=false` (it uses the commit's `ee`
+  pointer; a fork's PR only after reading it: `-f ref=refs/pull/N/head`).
   - The private code never shows in the public log: each step's output goes to a file
     (`scripts/ci/private-step.mjs`), the log shows the result and the names of what failed, and
     the files are uploaded **encrypted with age** to the recipients in `ee/.sops.yaml`.
@@ -108,7 +108,11 @@ All CI runs in this repository, on GitHub-hosted runners; the private repository
   PR's pointer on its EE branch tip (or EE `main` once that merged), merges `main` into a PR
   whose only conflict is the gitlink, and posts the **`ee/pointer`** status on OSS PRs. Its API
   commits touch nothing but `ee` and are fast-forward only, retried when the branch moved.
-- Releases and the dev deploy still run on the private side until they move here too.
+- **Release and dev deploy** (`.github/workflows/release.yml`, `deploy-dev.yml`; docs/RELEASING.md):
+  the same overlay and encrypted logs; the signing and Cloudflare secrets live in the protected
+  `release` and `dev` environments (`main` only; `release` also needs the owner's approval).
+- **EE-only changes** (no OSS PR): `feat ship` dispatches `full.yml` on `main` with
+  `ee_ref=<EE head>` and waits for it before merging.
 
 Secrets (this repository): `ETHER_PRIVATE_TOKEN` (read the private repository: the full build)
 and `ETHER_BOT_TOKEN` (write this repository's contents, pull requests and statuses, read the

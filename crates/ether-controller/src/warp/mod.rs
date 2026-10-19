@@ -1,4 +1,4 @@
-//! Controller-side warp logic (owned by the `warp` wave-3 node; see `docs/WAVE3.md`).
+//! Controller-side warp logic.
 //!
 //! - [`command`]: `WarpCommand` document edits (`doc/misc.rs` delegates here). Enabling warp
 //!   on a clip without markers initializes two markers (content start and media end) from

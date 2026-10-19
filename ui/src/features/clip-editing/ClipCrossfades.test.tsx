@@ -1,4 +1,4 @@
-/** Crossfade gestures on arrangement clips (`crossfades` node), against the MockTransport. */
+/** Crossfade gestures on arrangement clips (`crossfades`), against the MockTransport. */
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AudioContent, Clip, Command } from "@/generated";

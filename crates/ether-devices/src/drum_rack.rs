@@ -1,5 +1,4 @@
-//! Built-in `DrumRack` device (roadmap v2, owned by the `drum-rack` node; see
-//! `docs/ROADMAP.md` and CONTRACTS.md §11.12).
+//! Built-in `DrumRack` device (roadmap v2; see CONTRACTS.md §11.12).
 //!
 //! The drum rack's own node in the track chain. Pad chains are separate nodes listed in
 //! `TrackDesc::racks`; the engine runs them where this node sits in the chain (note routing,

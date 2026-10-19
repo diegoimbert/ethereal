@@ -1,5 +1,4 @@
-//! Engine-side drum racks (roadmap v2, owned by the `drum-rack` node; see
-//! `docs/ROADMAP.md` and CONTRACTS.md §11.12).
+//! Engine-side drum racks (roadmap v2; see CONTRACTS.md §11.12).
 //!
 //! Wired into `graph.rs`/`engine.rs`/`mixer.rs` (base-17/base-24), so this node only edits
 //! this module:

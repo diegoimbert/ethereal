@@ -1,4 +1,4 @@
-//! Browser v2 (v0.2, `browser-v2` node; CONTRACTS.md §12.8): an engine-side library index with
+//! Browser v2 (v0.2, `browser-v2`; CONTRACTS.md §12.8): an engine-side library index with
 //! search, tags, favourites, sample packs and user folders, paged queries, and tempo-synced
 //! preview. v0.1's `Media::{ListLocations, ListDirectory}` keep working (folder view).
 //!

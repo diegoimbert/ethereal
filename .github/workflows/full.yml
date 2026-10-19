@@ -1,14 +1,17 @@
 name: Full product
+# A dispatch names the commits it builds (`feat ship` finds an EE-only change's build by it).
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch'
+  && format('Full product: {0} + ee {1}', inputs.ref, inputs.ee_ref || 'pointer') || '' }}
 
 # The full product: this repository with the private `ee/` repository overlaid (docs/EE-WORKFLOW.md),
-# built and tested on GitHub-hosted runners. The `ee/build` job is the check `just feat ship`
-# waits for.
+# built and tested on every push to main and on demand. Pull requests run no builds or tests
+# (owner, 2026-10-19: only CLA, Policy, What changed and ee/pointer gate a merge); a PR's full
+# build is a dispatch: `gh workflow run full.yml --ref <branch> -f ref=<sha>` (a fork's PR only
+# after reading it: `-f ref=refs/pull/N/head`). Never `pull_request_target`.
 #
 # Safety, since this repository is public:
-#   - The private code is fetched with the ETHER_PRIVATE_TOKEN secret, which GitHub withholds from
-#     pull requests from forks: there, every job here is skipped (the OSS-only ci.yml still gates
-#     them). A maintainer builds a fork's pull request by hand after reading it:
-#     `gh workflow run full.yml -f ref=refs/pull/N/head`. Never `pull_request_target`.
+#   - The private code is fetched with the ETHER_PRIVATE_TOKEN secret (never on fork events).
 #   - No private code in the public log: every step that compiles or runs it goes through
 #     scripts/ci/private-step.mjs (its output goes to a file; the log shows the result and the
 #     names of what failed), and the files are uploaded encrypted with age to the private
@@ -20,7 +23,6 @@ name: Full product
 # Runners: repository variables FULL_RUNNER / FULL_MACOS_RUNNER / FULL_WINDOWS_RUNNER (JSON, e.g.
 # '"ubuntu-latest"' or '["self-hosted","linux"]') pick them; GitHub-hosted by default.
 on:
-  pull_request:
   push:
     branches: [main]
   workflow_dispatch:
@@ -40,8 +42,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: full-${{ github.event.pull_request.number || github.ref }}-${{ inputs.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: full-${{ github.ref }}-${{ inputs.ref }}
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: never
@@ -68,7 +70,6 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.ref || '' }}
-          fetch-depth: 2
       - id: r
         env:
           HAS_TOKEN: ${{ secrets.ETHER_PRIVATE_TOKEN != '' }}
@@ -76,30 +77,21 @@ jobs:
           EVENT: ${{ github.event_name }}
           IN_EE_REF: ${{ inputs.ee_ref }}
           IN_ALL: ${{ inputs.all }}
-          BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           if [ "$HAS_TOKEN" != true ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "No access to the private repository (a fork's pull request?): the full product is not built here." >> "$GITHUB_STEP_SUMMARY"
+            echo "No access to the private repository: the full product is not built here." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           echo "::add-mask::$TOKEN"
           oss_ref="$(git rev-parse HEAD)"
-          # The pointer this commit records for ee/, and the base's (pull requests).
-          ptr() { git ls-tree "$1" ee | awk '$2 == "commit" { print $3 }'; }
-          head_ptr="$(ptr HEAD)"
-          base_ptr=""
-          if [ "$EVENT" = pull_request ]; then
-            git fetch -q --depth=1 origin "$BASE"
-            base_ptr="$(ptr FETCH_HEAD)"
-          fi
+          # The pointer this commit records for ee/.
+          head_ptr="$(git ls-tree HEAD ee | awk '$2 == "commit" { print $3 }')"
           auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
           echo "::add-mask::$auth"
           ee_main="$(git -c http.extraheader="$auth" ls-remote https://github.com/diegoimbert/ethereal-private refs/heads/main | cut -f1)"
           if [ -n "$IN_EE_REF" ]; then ee_ref="$IN_EE_REF"; why="requested"
-          elif [ "$EVENT" = pull_request ] && [ -n "$head_ptr" ] && [ "$head_ptr" != "$base_ptr" ]; then ee_ref="$head_ptr"; why="the pull request's ee pointer"
-          elif [ "$EVENT" = pull_request ]; then ee_ref="$ee_main"; why="EE main (the pull request leaves ee alone)"
           else ee_ref="${head_ptr:-$ee_main}"; why="this commit's ee pointer"
           fi
           all=false
@@ -138,7 +130,9 @@ jobs:
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+      # Self-hosted runners keep their own target dirs: no Actions cache there.
       - uses: ./.github/actions/chef-cache
+        if: runner.environment == 'github-hosted'
         with:
           name: full-linux
           clippy: "true"
@@ -286,7 +280,9 @@ jobs:
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+      # Self-hosted runners keep their own target dirs: no Actions cache there.
       - uses: ./.github/actions/chef-cache
+        if: runner.environment == 'github-hosted'
         with:
           name: full-macos
       - name: test
@@ -325,7 +321,9 @@ jobs:
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+      # Self-hosted runners keep their own target dirs: no Actions cache there.
       - uses: ./.github/actions/chef-cache
+        if: runner.environment == 'github-hosted'
         with:
           name: full-windows
       - name: test
@@ -336,8 +334,8 @@ jobs:
           name: full-logs-rust-windows
 
   ee-build:
-    # The check `just feat ship` waits for: green when every full-product job passed (or the run
-    # could not see the private code: a fork's pull request).
+    # The aggregate check: green when every full-product job passed or was skipped (macOS,
+    # Windows and e2e on a dispatch without `all`).
     name: ee/build
     needs: [resolve, rust-linux, web, e2e, rust-macos, rust-windows]
     if: always()
