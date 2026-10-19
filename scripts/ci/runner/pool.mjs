@@ -91,12 +91,17 @@ async function download(url, sha256, dest) {
 const toolEnv = () => ({ ...env, RUSTUP_HOME: p("rustup"), CARGO_HOME: p("cargo"), PATH: `${p("cargo", "bin")}:${env.PATH}` });
 
 async function setup() {
-  for (const d of ["bin", "cache/sccache", "cache/pnpm-store", "cache/ms-playwright", "cache/corepack", "targets", "slots", "job", "dl"]) mkdirSync(p(d), { recursive: true });
+  for (const d of ["bin", "cache/sccache", "cache/pnpm-store", "cache/ms-playwright", "cache/corepack", "targets", "slots", "job", "dl"])
+    mkdirSync(p(d), { recursive: true });
   const runnerDir = p(`runner-${RUNNER.version}`);
   if (!existsSync(join(runnerDir, "run.sh"))) {
     log(`installing the Actions runner ${RUNNER.version}`);
     const tgz = p("dl", "runner.tgz");
-    await download(`https://github.com/actions/runner/releases/download/v${RUNNER.version}/actions-runner-linux-x64-${RUNNER.version}.tar.gz`, RUNNER.sha256, tgz);
+    await download(
+      `https://github.com/actions/runner/releases/download/v${RUNNER.version}/actions-runner-linux-x64-${RUNNER.version}.tar.gz`,
+      RUNNER.sha256,
+      tgz,
+    );
     mkdirSync(runnerDir, { recursive: true });
     sh("tar", ["-xzf", tgz, "-C", runnerDir]);
     rmSync(tgz);
@@ -109,7 +114,11 @@ async function setup() {
   if (!existsSync(p("bin", "sccache"))) {
     log(`installing sccache ${SCCACHE.version}`);
     const tgz = p("dl", "sccache.tgz");
-    await download(`https://github.com/mozilla/sccache/releases/download/v${SCCACHE.version}/sccache-v${SCCACHE.version}-x86_64-unknown-linux-musl.tar.gz`, SCCACHE.sha256, tgz);
+    await download(
+      `https://github.com/mozilla/sccache/releases/download/v${SCCACHE.version}/sccache-v${SCCACHE.version}-x86_64-unknown-linux-musl.tar.gz`,
+      SCCACHE.sha256,
+      tgz,
+    );
     sh("tar", ["-xzf", tgz, "-C", p("bin"), "--strip-components=1", "--wildcards", "*/sccache"]);
     rmSync(tgz);
   }
@@ -270,7 +279,8 @@ function pruneTargets() {
     const what = idleDays > cfg.targetDays ? "delete" : kb(dir) > maxKb ? "empty" : null;
     if (!what) continue;
     const cmd = what === "delete" ? `rm -rf "$1" "$1.lock"` : `find "$1" -mindepth 1 -delete`;
-    if (sh("flock", ["-n", lock, "sh", "-c", cmd, "_", dir], { allowFail: true }).status === 0) log(`targets: ${what === "delete" ? "deleted unused" : "emptied"} ${dir}`);
+    if (sh("flock", ["-n", lock, "sh", "-c", cmd, "_", dir], { allowFail: true }).status === 0)
+      log(`targets: ${what === "delete" ? "deleted unused" : "emptied"} ${dir}`);
   }
   for (let slot = 1; slot <= cfg.slots; slot++) {
     const t = p("slots", String(slot), "target");
@@ -310,7 +320,9 @@ async function run() {
       if (last?.runnerId) {
         // The unit is gone: its job is done (the runner deregistered itself) or it died early.
         await api("DELETE", `repos/${cfg.repo}/actions/runners/${last.runnerId}`).catch(() => {});
-        const out = sh("journalctl", ["--user", "-u", unitOf(slot), "--since", `@${Math.floor(last.at / 1000)}`, "-o", "cat", "--no-pager"], { allowFail: true }).stdout;
+        const out = sh("journalctl", ["--user", "-u", unitOf(slot), "--since", `@${Math.floor(last.at / 1000)}`, "-o", "cat", "--no-pager"], {
+          allowFail: true,
+        }).stdout;
         const job = /Running job: (.*)/.exec(out)?.[1];
         const secs = Math.round((Date.now() - last.at) / 1000);
         if (job) {
