@@ -94,7 +94,7 @@ struct MediaEdit {
     hash: String,
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,
@@ -615,7 +615,7 @@ where
                 m.name, m.sample_rate, m.channels, probed.sample_rate, probed.channels
             ));
         }
-        if m.hash.as_deref().is_some_and(|h| h != probed.hash) && self.collab_active() {
+        if m.hash.as_deref().is_some_and(|h| h != probed.hash) && self.session_active() {
             return Err(format!(
                 "\"{}\" has different content: in a session, relink to the same file",
                 m.name

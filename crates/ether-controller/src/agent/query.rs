@@ -32,7 +32,7 @@ fn candidates_json(c: &[Match], max: usize) -> Value {
     json!(c.iter().take(max).map(Match::to_json).collect::<Vec<_>>())
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

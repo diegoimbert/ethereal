@@ -631,8 +631,9 @@ struct TransportRt {
     tap_gesture: Option<GestureId>,
 }
 
-/// The standard controller implementation.
-pub struct EtherController<B, H, S, L>
+/// The standard controller implementation. `X`: an extension's own state (`ext` module),
+/// `()` without one.
+pub struct EtherController<B, H, S, L, X = ()>
 where
     B: EngineBridge,
     H: HostServices,
@@ -691,7 +692,7 @@ where
     /// v0.3: the history panel (`undo_history` module; runtime).
     undo_history: undo_history::UndoHistoryState,
     /// The extensions (`ext` module): features built outside this repository.
-    extensions: ext::Extensions<B, H, S, L>,
+    extensions: ext::Extensions<B, H, S, L, X>,
     /// `import-resolver`: media search job and the last import's hints (`resolver`).
     resolver: resolver::ResolverState,
     /// #519: the default sample pack (`sample_pack` module; runtime).
@@ -699,6 +700,8 @@ where
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
+    /// An extension's own state (`ext` module; `()` without one).
+    pub ext: X,
     _private: (),
 }
 
@@ -715,12 +718,27 @@ where
         Self::with_config(bridge, host, store, library, ControllerConfig::default())
     }
 
-    pub fn with_config(
+    pub fn with_config(bridge: B, host: H, store: S, library: L, config: ControllerConfig) -> Self {
+        Self::with_state(bridge, host, store, library, config, ())
+    }
+}
+
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
+where
+    B: EngineBridge,
+    H: HostServices,
+    S: store::ProjectStore,
+    L: store::Library,
+{
+    /// A controller with an extension's state `ext` (`ext` module; [`Self::with_config`]
+    /// otherwise).
+    pub fn with_state(
         bridge: B,
         mut host: H,
         store: S,
         library: L,
         config: ControllerConfig,
+        ext: X,
     ) -> Self {
         let seed = host.random_seed();
         Self {
@@ -762,6 +780,7 @@ where
             last_transport: None,
             outputs: EngineOutputs::default(),
             config,
+            ext,
             _private: (),
         }
     }
@@ -850,7 +869,7 @@ where
     }
 }
 
-impl<B, H, S, L> Controller for EtherController<B, H, S, L>
+impl<B, H, S, L, X> Controller for EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,
