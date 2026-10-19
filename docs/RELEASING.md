@@ -1,9 +1,8 @@
 # Releasing Ethereal
 
-Releases are built and published by `.github/workflows/release.yml` (and dev.ethereal.ws by
-`deploy-dev.yml`), in this repository: official binaries are the full product, main plus the
-private `ee/` commit it points at (docs/EE-WORKFLOW.md), overlaid with the `ETHER_PRIVATE_TOKEN`
-secret. As in the full-product CI, the steps that compile private code write their output to
+Releases are built and published by `.github/workflows/release.yml`, in this repository:
+official binaries are the full product, main plus the private `ee/` commit it points at
+(docs/EE-WORKFLOW.md), overlaid with the `ETHER_PRIVATE_TOKEN` secret. As in the full-product CI, the steps that compile private code write their output to
 logs that are uploaded encrypted (`just full-logs <run-id>`), and no Rust cache is saved. The
 rest of this page describes that workflow.
 
@@ -337,20 +336,6 @@ warning), not failed, until these are configured in the `release` environment:
 
 The site is served at `https://<project>.pages.dev` (a custom domain can be attached in the
 Pages dashboard). The COOP/COEP headers are required: the web engine uses SharedArrayBuffer.
-
-### dev.ethereal.ws
-
-A scheduled workflow checks the default branch (`main`) every 15 minutes and, when its tip
-moved, deploys the web build alone to `https://dev.ethereal.ws`
-(`.github/workflows/deploy-dev.yml`; the same two Cloudflare secrets, in the `dev` environment
-(deployment branch `main` only); a run whose commit is already the project's latest deployment
-stops right away; the build steps are the composite action
-`.github/actions/web-build`, shared with the release's `web` job). Its Pages project is
-`ethereal-dev` (Cloudflare Pages production branch `dev`), with the same Functions bindings
-as the release project (`STATIC_SHARE` → `ethereal-static-share`, `ROOMS` → the signaling
-durable object), so the dev site shares the production share storage and signaling. The app
-shows its version as `<VERSION>-dev.<short sha>`. Runs are serialized: a newer run waits for
-the one in progress.
 
 ## Download page
 
