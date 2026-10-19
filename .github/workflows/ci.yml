@@ -181,10 +181,24 @@ jobs:
       - name: clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: test
+        # Pull requests test the crates with Windows-specific code (plugin hosting, the native
+        # audio host, the server, the MCP bridge); the platform-neutral rest runs on Linux, and
+        # `main` (plus manual runs) tests the whole workspace here. Compiling every crate's test
+        # harness is most of this job's time on a 4-vCPU runner.
         # `ether-desktop`'s test binaries link the Tauri app, which needs the Common Controls v6
         # manifest an installed app carries; bare, they don't start (0xc0000139). Its tests run on
         # Linux, and the Windows packaging job builds and bundles it.
-        run: cargo nextest run --profile ci --workspace --all-features --exclude ether-desktop
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            set -- -p ether-clap -p ether-vst3 -p ether-plugin-host -p ether-plugin-scanner \
+              -p ether-sandbox -p ether-native -p ether-server -p ether-mcp
+          else
+            set -- --workspace --exclude ether-desktop
+          fi
+          cargo nextest run --profile ci --all-features "$@"
 
   # --- Web ----------------------------------------------------------------------------------
 
