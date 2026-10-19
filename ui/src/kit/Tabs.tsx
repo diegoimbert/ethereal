@@ -37,6 +37,7 @@ export function Tabs<Id extends string>({ items, value, onChange, label, size = 
     ref.current?.querySelectorAll<HTMLElement>('[role="tab"]')[items.indexOf(next)]?.focus();
   };
   return (
+    // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- a tablist: focus is on its tabs (roving)
     <div ref={ref} className={clsx("eth-tabs", `eth-tabs--${size}`, className)} role="tablist" aria-label={label} onKeyDown={onKeyDown}>
       {items.map((it) => {
         const selected = it.id === value;

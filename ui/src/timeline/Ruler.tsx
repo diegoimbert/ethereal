@@ -203,6 +203,7 @@ export function Ruler({
   };
 
   return (
+    // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- a pointer-only control (press to locate); the transport locates from the keyboard
     <div
       ref={rootRef}
       className={className ? `eth-ruler ${className}` : "eth-ruler"}

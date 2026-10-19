@@ -145,6 +145,7 @@ function ConnectedMarkerLane({ transport }: { transport: EngineTransport }) {
           {/* The tempo and signature changes, with the markers (not on the ruler's numbers). */}
           <TempoMapMarkers view={arrangementView} snap={snap} />
           {markers.map((m) => (
+            // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- a pointer handle (drag to move, double-click to rename); its context menu renames and deletes it
             <div
               key={m.id}
               className={clsx("eth-markers__marker", "eth-user-text", dragging === m.id && "eth-markers__marker--dragging")}

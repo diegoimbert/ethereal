@@ -99,10 +99,12 @@ export function ValueScale({ info, range, height, name, onRange }: ValueScalePro
   };
 
   return (
+    // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- a pointer-only gesture (drag to zoom the value range, double-click to reset), no keyboard equivalent yet
     <div
       ref={ref}
       className="eth-auto-scale"
       data-zoomed={!isFullRange(range) || undefined}
+      // eslint-disable-next-line jsx-a11y/role-has-required-aria-props -- it scrolls the lane's value range, not an element (no aria-controls target)
       role="scrollbar"
       aria-orientation="vertical"
       aria-label={t("automation.scale.label", { name })}
