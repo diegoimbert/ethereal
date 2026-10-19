@@ -51,9 +51,9 @@ A new project is a **draft** until you change something in it (an edit, an undo 
 
 ### guided tours
 
-The **get started** list on the welcome screen starts guided tours of the real app: jamming with friends, recording audio, bringing in a project from another DAW. Starting one makes a project for it and walks you through the steps. When you finish or leave the tour, you come back to the welcome screen.
+The **get started** list on the welcome screen starts guided tours of the real app: making your first track, jamming with friends, recording audio, bringing in a project from another DAW. Starting one makes a project for it and walks you through the steps. When you finish or leave the tour, you come back to the welcome screen.
 
-A tour you've finished shows a check mark. Clicking it again asks whether you want to **do it again**. Guides marked **soon** aren't available yet.
+A tour you've finished shows a check mark. Clicking it again asks whether you want to **do it again**. On a phone the guides are marked **soon**: the tours run in the desktop app and the web version.
 
 ### reopening your last project
 

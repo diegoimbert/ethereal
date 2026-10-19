@@ -51,6 +51,7 @@ describe("no hard-coded design values", () => {
       'const ok = "var(--eth-color-text)"; const c = "white";',
       '<Knob size={32} /> <Fader height={120} /> <Knob size="sm" /> <Knob size={n} />',
       '<div style={{ left: 0, width: 40 }} /> <div style={{ top: "3px" }} /> <div style={{ height }} />',
+      "const fallback = track?.color ?? 0x888888; const rgb = color & 0xffffff; const id = 0x1f;",
     ].join("\n");
     expect(kinds("x.tsx", ts)).toEqual([
       "color:#ff0000",
@@ -60,6 +61,7 @@ describe("no hard-coded design values", () => {
       "size-prop:height={120}",
       "inline-style:style={{ left: 0, width: 40",
       'inline-style:style={{ top: "3px"',
+      "color:0x888888",
     ]);
   });
 });

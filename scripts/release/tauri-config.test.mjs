@@ -41,3 +41,8 @@ test("macOS signs the staged helpers, ether-mcp included", () => {
   const sign = readFileSync(fileURLToPath(new URL("./sign-macos-helper.mjs", import.meta.url)), "utf8");
   assert.match(sign, /"ether-mcp"/);
 });
+
+test("the base config's version is VERSION (a local `tauri build` is labeled like the release)", () => {
+  const version = readFileSync(fileURLToPath(new URL("../../VERSION", import.meta.url)), "utf8").trim();
+  assert.equal(baseConf.version, version, "bump apps/desktop/src-tauri/tauri.conf.json's version with VERSION");
+});
