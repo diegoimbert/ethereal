@@ -8,16 +8,15 @@
 // engine. A wrong token is refused.
 //
 // No sleeps: every step waits on UI or engine state.
-import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
 import { createOnLaunch, createTrack, launch, openEngineServer, openLibrary, playButton } from "./ui";
+import { buildServer } from "./server";
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
 
 interface Handle {
@@ -27,44 +26,6 @@ interface Handle {
 const project = (page: Page): Promise<Project | null> => page.evaluate(() => (window as unknown as { __ether: Handle }).__ether.state().project);
 
 const count = (o: object | undefined) => (o ? Object.keys(o).length : 0);
-
-/** Build `ether-server` and return the binary path (cargo tells where it is). */
-function buildServer(): string {
-  const out = execFileSync(
-    "cargo",
-    [
-      "build",
-      "-p",
-      "ether-server",
-      "--bin",
-      "ether-server",
-      // Every Cargo feature, like the shipped server (docs/ARCHITECTURE.md "Cargo features").
-      "--features",
-      "full",
-      "--message-format=json",
-    ],
-    {
-      cwd: repoRoot,
-      env: {
-        ...process.env,
-        CARGO_BUILD_JOBS: process.env.CARGO_BUILD_JOBS ?? "3",
-      },
-      encoding: "utf8",
-      maxBuffer: 256 * 1024 * 1024,
-      stdio: ["ignore", "pipe", "inherit"],
-    },
-  );
-  for (const line of out.split("\n")) {
-    if (!line.startsWith("{")) continue;
-    const msg = JSON.parse(line) as {
-      reason?: string;
-      target?: { name: string };
-      executable?: string | null;
-    };
-    if (msg.reason === "compiler-artifact" && msg.target?.name === "ether-server" && msg.executable) return msg.executable;
-  }
-  throw new Error("cargo did not report the ether-server binary");
-}
 
 let server: ChildProcess | null = null;
 let serverUrl = "";
