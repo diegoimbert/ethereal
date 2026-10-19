@@ -27,6 +27,61 @@ use crate::AuComponentId;
 
 pub use plugin::AuPlugin;
 
+/// The host's reference to an `AUAudioUnit`, shared by the controller and its active node.
+///
+/// Releasing a v2 unit first waits for the bridge's own references to go. Apple's v2 bridge
+/// (`AUAudioUnitV2Bridge`) retains the unit for a few milliseconds at a time on its
+/// parameter-refresh thread (`AUScheduledParameterRefresher`, after the unit announces a
+/// parameter-list change, as it does while it is set up, rendered and torn down). When that
+/// thread holds the last reference, the unit is deallocated there, and
+/// `-[AUAudioUnitV2Bridge invalidateAudioUnit]` waits for the very messenger it runs on to
+/// drain: that thread hangs, and so does every later v2 unit deallocation in the process
+/// (they drain the same messenger). Waiting until the unit has had no other reference for a
+/// while keeps the last release on the host's thread.
+pub(crate) struct Unit {
+    au: Retained<AUAudioUnit>,
+    /// Hosted through Apple's v2 bridge (a v2 component instantiated synchronously).
+    v2: bool,
+}
+
+/// How long a v2 unit must go without other references before it is released.
+const SETTLE_QUIET: Duration = Duration::from_millis(20);
+/// Release anyway after this long (a reference the host doesn't know about).
+const SETTLE_TIMEOUT: Duration = Duration::from_secs(2);
+
+impl std::ops::Deref for Unit {
+    type Target = AUAudioUnit;
+    fn deref(&self) -> &AUAudioUnit {
+        &self.au
+    }
+}
+
+// SAFETY: retain/release are thread-safe; the unit is messaged by the controller on the
+// plugin main thread and by the node through the render-thread APIs, as `AUAudioUnit` allows.
+unsafe impl Send for Unit {}
+unsafe impl Sync for Unit {}
+
+impl Drop for Unit {
+    fn drop(&mut self) {
+        if !self.v2 {
+            return;
+        }
+        let start = Instant::now();
+        let mut quiet_since = start;
+        while start.elapsed() < SETTLE_TIMEOUT {
+            // SAFETY: plain NSObject getter.
+            let count: usize = unsafe { objc2::msg_send![&*self.au, retainCount] };
+            let now = Instant::now();
+            if count > 1 {
+                quiet_since = now;
+            } else if now - quiet_since >= SETTLE_QUIET {
+                break;
+            }
+            std::thread::sleep(Duration::from_micros(500));
+        }
+    }
+}
+
 /// Component types we host: effects, instruments, music effects, MIDI processors.
 const TYPES: [&[u8; 4]; 4] = [b"aufx", b"aumu", b"aumf", b"aumi"];
 
@@ -233,9 +288,7 @@ fn ns_error(e: &NSError) -> String {
 /// (in-process, via Apple's v2 bridge). v3 extensions and components flagged
 /// `RequiresAsyncInstantiation` use `instantiateWithComponentDescription:options:
 /// completionHandler:` while this thread's run loop is pumped ([`pump_until`]).
-pub(crate) fn instantiate(
-    id: &AuComponentId,
-) -> Result<(Retained<AUAudioUnit>, String, String), PluginError> {
+pub(crate) fn instantiate(id: &AuComponentId) -> Result<(Unit, String, String), PluginError> {
     let comp = find(id).ok_or_else(|| PluginError::NotFound(id.to_string()))?;
     let info = info(comp, id);
     let desc = desc_of(id);
@@ -287,5 +340,5 @@ pub(crate) fn instantiate(
             }
         }
     };
-    Ok((au, info.name, info.vendor))
+    Ok((Unit { au, v2: !is_async }, info.name, info.vendor))
 }

@@ -99,8 +99,11 @@ test("reverse a MIDI clip with R (arrangement), and selected notes with R (piano
   await expect.poll(() => notes(page, id)).toEqual(original);
 
   // --- Piano roll: select both notes, R mirrors them inside their span ---------------------
-  await openClip(page, id);
+  // The editor is still open on the clip (selecting it kept it there). No second double-click:
+  // on the open clip with both panels expanded it collapses them (App.tsx), which lands a
+  // moment later and took the piano roll away under ⌘A on a slow runner.
   await expect(page.getByTestId("piano-roll-grid")).toBeVisible();
+  await expect(page.getByRole("button", { name: "collapse the editor panel" })).toBeVisible();
   await page.getByTestId("piano-roll").focus();
   await page.keyboard.press("ControlOrMeta+a");
   // ⌘A selects the notes only (a plain marquee's selection), no section over the clip.

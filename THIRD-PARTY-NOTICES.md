@@ -506,7 +506,7 @@ Components: 601 (Rust crates, npm packages and vendored source).
 | `urlpattern` | 0.6.0 | MIT | https://github.com/denoland/rust-urlpattern |
 | `utf-8` | 0.7.6 | MIT OR Apache-2.0 | https://github.com/SimonSapin/rust-utf8 |
 | `utf8_iter` | 1.0.4 | Apache-2.0 OR MIT | https://github.com/hsivonen/utf8_iter |
-| `uuid` | 1.26.1 | Apache-2.0 OR MIT | https://github.com/uuid-rs/uuid |
+| `uuid` | 1.28.0 | Apache-2.0 OR MIT | https://github.com/uuid-rs/uuid |
 | `valuable` | 0.1.1 | MIT | https://github.com/tokio-rs/valuable |
 | `vst3` | 0.3.0 | MIT OR Apache-2.0 | https://github.com/coupler-rs/vst3-rs |
 | `walkdir` | 2.5.0 | Unlicense/MIT | https://github.com/BurntSushi/walkdir |

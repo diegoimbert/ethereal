@@ -83,6 +83,8 @@ export class MockAgent {
         };
       case "CallTool":
         return { type: "AgentToolResult", ...this.call(c.name, c.input) };
+      case "SetSelection":
+        return { type: "Unit" };
     }
   }
 
