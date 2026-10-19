@@ -23,9 +23,10 @@ use objc2_foundation::{
     NSData, NSDictionary, NSError, NSPropertyListFormat, NSPropertyListSerialization, NSString,
 };
 
+use super::Unit;
 use super::editor::{self, EditorWindow};
 use super::node::{
-    AuNode, MAX_CHANNELS, NodeInit, NodeShared, ParamLinks, RenderFn, ScheduleMidiFn,
+    Activation, AuNode, MAX_CHANNELS, NodeInit, NodeShared, ParamLinks, RenderFn, ScheduleMidiFn,
     ScheduleParamFn, rt_parts,
 };
 use super::params::ParamSet;
@@ -43,6 +44,8 @@ struct Observed {
 }
 
 struct ActiveLink {
+    /// Shared with the node: the last of the two to go deactivates the unit.
+    _unit: Arc<Activation>,
     shared: Arc<NodeShared>,
     sample_rate: f64,
     fault_reported: bool,
@@ -51,7 +54,6 @@ struct ActiveLink {
 /// An AU instance (main-thread half). Not `Send`: create and use it on the plugin main
 /// thread (on macOS, the process main thread for editors).
 pub struct AuPlugin {
-    au: Retained<AUAudioUnit>,
     id: AuComponentId,
     name: String,
     category: DeviceCategory,
@@ -68,6 +70,8 @@ pub struct AuPlugin {
     editor: Option<EditorWindow>,
     /// Custom editor available (cached at load).
     has_view: bool,
+    /// Last: the unit's other objects (parameter tree, editor) are released before it.
+    au: Arc<Unit>,
 }
 
 impl std::fmt::Debug for AuPlugin {
@@ -143,6 +147,7 @@ impl AuPlugin {
         let id = AuComponentId::parse(plugin_id)
             .ok_or_else(|| PluginError::NotFound(format!("not an AU id: {plugin_id}")))?;
         let (au, name, _vendor) = super::instantiate(&id)?;
+        let au = Arc::new(au);
         let mut plugin = Self {
             au,
             id,
@@ -288,6 +293,14 @@ impl AuPlugin {
         self.observer_token = std::ptr::null_mut();
     }
 
+    /// Forget the activation (the unit is deactivated now if the node is already gone).
+    fn end_activation(&mut self) {
+        self.link = None;
+        if let Ok(mut l) = self.observed.links.lock() {
+            *l = None;
+        }
+    }
+
     fn plist_state(&self) -> Result<Vec<u8>, PluginError> {
         // SAFETY: plain getters.
         let dict = unsafe {
@@ -400,7 +413,7 @@ impl PluginController for AuPlugin {
         // encoding check would reject the generated binding. The low 32 bits are what a
         // `UInt32` implementation reads either way (arm64/x86_64 register passing).
         let frames = max_frames as u64;
-        let _: () = unsafe { msg_send![&*self.au, setMaximumFramesToRender: frames] };
+        let _: () = unsafe { msg_send![&**self.au, setMaximumFramesToRender: frames] };
 
         let parts = rt_parts(in_channels, sidechain, max_frames);
         // Host blocks must be installed before allocating render resources.
@@ -448,7 +461,11 @@ impl PluginController for AuPlugin {
         let shared = Arc::new(NodeShared::default());
         self.latency = self.query_latency(sample_rate);
         shared.latency.store(self.latency, Ordering::Relaxed);
+        let unit = Arc::new(Activation {
+            au: self.au.clone(),
+        });
         self.link = Some(ActiveLink {
+            _unit: unit.clone(),
             shared: shared.clone(),
             sample_rate,
             fault_reported: false,
@@ -456,7 +473,7 @@ impl PluginController for AuPlugin {
         let has_input = in_channels > 0;
         Ok(Box::new(AuNode::new(
             NodeInit {
-                au: self.au.clone(),
+                unit,
                 render,
                 schedule_param,
                 schedule_midi,
@@ -476,18 +493,10 @@ impl PluginController for AuPlugin {
     }
 
     fn deactivate(&mut self, node: Box<dyn PluginNode>) {
-        // Stop the unit from using the node's host blocks before they are freed.
-        unsafe {
-            self.au.deallocateRenderResources();
-            self.au.setMusicalContextBlock(std::ptr::null_mut());
-            self.au.setTransportStateBlock(std::ptr::null_mut());
-            self.au.setMIDIOutputEventBlock(std::ptr::null_mut());
-        }
+        // The node goes last: dropping it ends the activation (`Activation` deallocates the
+        // render resources and detaches the host blocks) before it frees the state they use.
+        self.end_activation();
         drop(node);
-        self.link = None;
-        if let Ok(mut l) = self.observed.links.lock() {
-            *l = None;
-        }
     }
 
     fn save_state(&mut self) -> Result<Vec<u8>, PluginError> {
@@ -607,5 +616,8 @@ impl Drop for AuPlugin {
     fn drop(&mut self) {
         self.close_editor();
         self.remove_observer();
+        // Still active (dropped without `deactivate`): a node that is still alive ends the
+        // activation when it goes.
+        self.end_activation();
     }
 }
