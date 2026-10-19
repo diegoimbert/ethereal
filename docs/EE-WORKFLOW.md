@@ -136,9 +136,9 @@ All CI runs in this repository, on GitHub-hosted runners; the private repository
   PR's pointer on its EE branch tip (or EE `main` once that merged), merges `main` into a PR
   whose only conflict is the gitlink, and posts the **`ee/pointer`** status on OSS PRs. Its API
   commits touch nothing but `ee` and are fast-forward only, retried when the branch moved.
-- **Release and dev deploy** (`.github/workflows/release.yml`, `deploy-dev.yml`; docs/RELEASING.md):
-  the same overlay and encrypted logs; the signing and Cloudflare secrets live in the protected
-  `release` and `dev` environments (`main` only; `release` also needs the owner's approval).
+- **Release** (`.github/workflows/release.yml`; docs/RELEASING.md): the same overlay and
+  encrypted logs; the signing and Cloudflare secrets live in the protected `release`
+  environment (`main` only, and the owner's approval).
 - **EE-only changes** (no OSS PR): `feat ship` merges them on the gating checks like any other;
   the `ee` pointer bump that follows is a push to `main`, which runs `full.yml`. To build one
   before merging: `gh workflow run full.yml --ref main -f ref=main -f ee_ref=<EE head>`.

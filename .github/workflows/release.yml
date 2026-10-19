@@ -331,7 +331,6 @@ jobs:
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.prepare.outputs.ee_sha }}
-      # Shared with deploy-dev.yml (dev.ethereal.ws).
       - name: Build + Pages site
         uses: ./.github/actions/web-build
         with:

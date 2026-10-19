@@ -1,6 +1,6 @@
 # Build the web app (wasm engine + UI) of the full product and assemble the Cloudflare Pages site
 # (the deployed folder `<out>/site`: dist + the COOP/COEP `_headers`, and `<out>/functions`).
-# Shared by release.yml (the `web` job) and deploy-dev.yml so the two builds never drift.
+# Used by release.yml (the `web` job).
 #
 # Runs after .github/actions/ee-overlay: the install and build go through
 # scripts/ci/private-step.mjs (their output is private; .github/actions/full-logs uploads it
