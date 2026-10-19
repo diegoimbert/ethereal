@@ -131,6 +131,11 @@ jobs:
         run: >-
           cargo nextest run --profile ci --workspace --all-features
           -E 'not (test(=appended_params_keep_the_default_sound) | test(=patches_from_before_render_as_before))'
+      - name: Sweep stale test binaries (self-hosted target dir)
+        if: ${{ !cancelled() && runner.environment != 'github-hosted' }}
+        continue-on-error: true
+        timeout-minutes: 5
+        run: node scripts/ci/sweep-test-binaries.mjs -- --workspace --all-features
       - name: doctests
         run: cargo test --workspace --all-features --doc
       - name: wasm32 check
