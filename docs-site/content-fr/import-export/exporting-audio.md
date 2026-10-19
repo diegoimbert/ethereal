@@ -18,7 +18,7 @@ covers:
   - export/a-plugin-that-can-t-render-offline-fails-the-export #when-a-plugin-stops-the-export
 ---
 
-Quand votre morceau est prêt à être partagé, exportez-le en fichier audio. Cette page passe en revue chaque option de la fenêtre d’export, y compris les stems (un fichier par piste). Pour envoyer le projet lui-même vers une autre DAW, voir [exporter vers d’autres DAW](/docs/import-export/exporting-to-other-daws).
+Quand votre morceau est prêt à être partagé, exportez-le en fichier audio. Cette page passe en revue chaque option de la fenêtre d’export, y compris les stems (un fichier par piste).
 
 ## la fenêtre exporter l’audio {#the-export-audio-dialog}
 
@@ -91,6 +91,5 @@ L’export fait le rendu hors ligne, avec de nouvelles copies de vos plug-ins ch
 
 ## et ensuite {#where-next}
 
-- [Le partage](/docs/sharing/overview) : partagez un lien vers votre morceau plutôt qu’un fichier.
-- [Exporter vers d’autres DAW](/docs/import-export/exporting-to-other-daws) : envoyez le projet entier.
 - [Le mixage](/docs/making-music/mixing) : trouvez d’abord le bon équilibre.
+- [Déplacer des projets entre ordinateurs](/docs/basics/moving-projects) : envoyez le projet entier dans un seul fichier .ether.

@@ -18,7 +18,7 @@ covers:
   - export/a-plugin-that-can-t-render-offline-fails-the-export #when-a-plugin-stops-the-export
 ---
 
-When your song is ready to share, export it as an audio file. This page goes through every option of the export dialog, including stems (one file per track). To send the project itself to another DAW, see [exporting to other DAWs](/docs/import-export/exporting-to-other-daws).
+When your song is ready to share, export it as an audio file. This page goes through every option of the export dialog, including stems (one file per track).
 
 ## the export audio dialog
 
@@ -91,6 +91,5 @@ The export renders offline, with fresh copies of your plugins loaded with their 
 
 ## where next
 
-- [Sharing](/docs/sharing/overview): share a link to your song instead of a file.
-- [Exporting to other DAWs](/docs/import-export/exporting-to-other-daws): send the whole project.
 - [Mixing](/docs/making-music/mixing): get the balance right first.
+- [Moving projects between computers](/docs/basics/moving-projects): send the whole project as one .ether file.

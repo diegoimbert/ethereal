@@ -43,7 +43,7 @@ If the project is empty (no clips at all), capture also guesses the tempo from w
 - Every play or stop starts a new capture take. Capture uses only the latest take that has notes, not something from several play/stop cycles ago.
 - After a capture the buffer is emptied, and the button goes dim until you play again.
 - It holds up to 10 minutes of playing.
-- It is cleared when you switch projects. It is never saved, and it is not shared in a [live session](/docs/sharing/live-sessions).
+- It is cleared when you switch projects. It is never saved.
 
 Pitch bend, mod wheel and other controllers you played are captured too, as [expression lanes](/docs/making-music/expression-and-mpe) on the clip.
 

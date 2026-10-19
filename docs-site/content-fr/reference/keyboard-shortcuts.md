@@ -61,7 +61,7 @@ Quand deux actions qui fonctionnent au même endroit partagent une touche, les d
 
 ### toute commande peut avoir un raccourci {#any-command-can-get-a-shortcut}
 
-Chaque commande de la palette (ajouter un appareil, ouvrir un panneau, partager…) est dans l’éditeur et peut recevoir un raccourci, sauf celles liées au projet en cours, comme « aller à la piste ».
+Chaque commande de la palette (ajouter un appareil, ouvrir un panneau…) est dans l’éditeur et peut recevoir un raccourci, sauf celles liées au projet en cours, comme « aller à la piste ».
 
 ### imprimer un aide-mémoire {#printing-a-cheat-sheet}
 

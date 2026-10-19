@@ -121,7 +121,7 @@ By default the browser lists only files Ethereal can use, and hides system and s
 
 Rules are regular expressions matched against file names, ignoring case. For example, `\.wav$` matches WAV files. A rule that isn't valid is marked as you type, and nothing is saved until every rule is valid. The line under the lists says how many of your library's files the rules would show. **reset to defaults** brings back the original rules.
 
-DAW projects (`.als`, `.flp`, `.rpp`, `.dawproject`) aren't opened from the browser. Use [import from another DAW](/docs/import-export/other-daws) instead.
+DAW projects (`.als`, `.flp`, `.rpp`, `.dawproject`) aren't opened from the browser.
 
 ## where next
 

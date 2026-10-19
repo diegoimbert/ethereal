@@ -34,7 +34,6 @@ Vous pouvez aussi faire glisser des fichiers depuis le gestionnaire de fichiers 
 - **des fichiers audio sous les pistes** : chacun reçoit une nouvelle piste audio.
 - **des fichiers audio sur le navigateur** : ils sont ajoutés au projet sans placer de clip.
 - **des fichiers MIDI** (`.mid`, `.midi`) sur une piste MIDI ou sous les pistes : ils deviennent des clips MIDI. Voir [les fichiers MIDI](/docs/import-export/midi-files).
-- **un projet d’une autre DAW** (`.als`, `.flp`, `.rpp`, `.dawproject`), déposé n’importe où : il est importé comme nouveau projet. Voir [les projets d’autres DAW](/docs/import-export/other-daws).
 - **un projet Ethereal** (`.ether`), déposé n’importe où : il est importé et ouvert comme nouveau projet.
 
 ## limites et erreurs {#limits-and-errors}
@@ -43,10 +42,7 @@ Ethereal vérifie chaque fichier avant de le lire. Les fichiers de plus de 1 Go,
 
 Chaque fichier en cours d’import affiche une ligne avec sa progression en bas de la fenêtre. Si un fichier échoue, les autres sont quand même importés, et celui qui a échoué reste dans la liste avec son erreur jusqu’à ce que vous le fermiez. Vous pouvez annuler un fichier tant qu’il est encore en cours de lecture. Une fois son audio dans le projet, l’import ne peut plus être annulé : utilisez plutôt l’annulation.
 
-Dans une [session en direct](/docs/sharing/live-sessions), l’audio importé est envoyé à tous les participants de la session.
-
 ## et ensuite {#where-next}
 
 - [Les clips](/docs/making-music/clips) : déplacez, rognez et bouclez votre audio.
 - [Les clips audio](/docs/making-music/audio-clips) : fondus, warp et inversion.
-- [Les projets d’autres DAW](/docs/import-export/other-daws) : importez un morceau entier.

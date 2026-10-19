@@ -86,17 +86,6 @@ These are the words you'll meet in the app and in these docs. Each entry is shor
 - **Safe mode**: opening a project with every plugin turned off, to get past a plugin that crashes. See [safe mode](/docs/advanced/safe-mode).
 - **Command palette**: the search box for every command, opened with [[action:palette.open]]. See [the command palette and settings](/docs/basics/command-palette-and-settings).
 
-## sharing
-
-- **Live session**: working on one project together, in real time. See [live sessions](/docs/sharing/live-sessions).
-- **Host**: the person who shared the project. Their computer keeps the session together. See [live sessions](/docs/sharing/live-sessions).
-- **Invite link**: the link that lets someone join. A **can edit** link lets them change the project; a **can listen** link only lets them listen. See [sharing your music](/docs/sharing/overview).
-- **Offline copy**: the copy of a shared project you keep working on while the host is offline. Your edits sync when the host is back. See [live sessions](/docs/sharing/live-sessions).
-- **Local copy**: a separate project named "… (local copy)". It is made when changes you made offline to a shared project can't be merged back into the session. See [live sessions](/docs/sharing/live-sessions).
-- **Play with**: choosing whose computer plays the sound in a session. See [listening on a friend's computer](/docs/sharing/listening-together).
-- **Static link (snapshot)**: a read-only copy of a project published on the web, for people to listen to. See [static share links](/docs/sharing/static-links).
-- **Share viewer**: the read-only page that opens a static link. See [the share viewer](/docs/sharing/share-viewer).
-
 ## the app
 
 - **Engine**: the part of Ethereal that makes the sound. In the desktop app it runs on your computer; in the web app it runs inside your browser tab. See [what is Ethereal](/docs/welcome/what-is-ethereal).
