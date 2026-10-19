@@ -224,9 +224,7 @@ export interface GetStartedContribution {
 
 /** An app-level event for an extension's analytics (none are recorded in this build). */
 export type AppEvent =
-  | { type: "project_opened" }
-  | { type: "device_inserted"; category: string; source: string }
-  | { type: "export"; format: string; outcome: "ok" | "failed" };
+  { type: "project_opened" } | { type: "device_inserted"; category: string; source: string } | { type: "export"; format: string; outcome: "ok" | "failed" };
 
 /** A crash an error boundary caught (`app/PanelBoundary.tsx`). */
 export interface CaughtCrash {
