@@ -1498,7 +1498,9 @@ where
     /// this build, so this only guards against the overlay's off state.
     pub fn require_engine(&self) -> CmdResult<()> {
         if self.engine.off {
-            return Err(internal("the audio engine is off"));
+            return Err(self
+                .ext_ask(|e, ctl| e.engine_off_error(ctl))
+                .unwrap_or_else(|| internal("the audio engine is off")));
         }
         Ok(())
     }
@@ -1511,7 +1513,7 @@ where
 
     /// A project is about to load: clear any stale local-engine-off state so it opens with
     /// the local engine on (only the private overlay ever turns it off).
-    pub fn engine_on_project_load(&mut self, id: ProjectId, _now: u64) {
+    pub fn engine_on_project_load(&mut self, id: ProjectId, now: u64) {
         if self.engine.off && self.engine.off_project != Some(id) {
             self.engine.off = false;
             self.engine.off_project = None;
@@ -1520,7 +1522,30 @@ where
         }
         if self.engine.off_next == Some(id) {
             self.engine.off_next = None;
+            if !self.engine.off {
+                self.engine_tear_down(now);
+            }
             self.engine.off_project = Some(id);
         }
+        // The status is emitted by the caller, after `ProjectLoaded` (which comes first).
+    }
+
+    /// Stop, destroy every node, publish an empty graph, forget the engine's media.
+    pub fn engine_tear_down(&mut self, now: u64) {
+        if self.transport.playing {
+            let _ = self.bridge.transport(TransportControl::Stop);
+            self.transport.playing = false;
+        }
+        self.engine.reset();
+        // Nodes are destroyed after the empty graph is in.
+        let host = &self.host;
+        let _ = self
+            .engine
+            .publish(&mut self.bridge, None, &self.armed, now, &|| host.now_ms());
+        self.engine.refused = None;
+        self.engine.off = true;
+        self.engine.off_project = self.doc.as_ref().map(|d| d.project.id);
+        self.engine.graph_dirty = false;
+        self.media.set_engine_off(&mut self.bridge, true);
     }
 }

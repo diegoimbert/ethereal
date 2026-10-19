@@ -215,3 +215,65 @@ fn extensions_add_files_to_saves_and_see_copies() {
     })));
     assert!(log.borrow().iter().any(|l| l == "copied"));
 }
+
+/// A stateless extension (its state is the controller's `ext`): the edit it makes from its
+/// own command reaches its own `committed`.
+#[derive(Default)]
+struct Metronome;
+
+type LogCtl = ether_controller::EtherController<
+    FakeBridge,
+    FakeHost,
+    MemoryStore,
+    MemoryLibrary,
+    Vec<String>,
+>;
+
+impl ControllerExt<FakeBridge, FakeHost, MemoryStore, MemoryLibrary, Vec<String>> for Metronome {
+    fn command(
+        &mut self,
+        ctl: &mut LogCtl,
+        command: &Command,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) -> Option<api::CmdResult<ReplyValue>> {
+        let Command::Ext(c) = command else {
+            return None;
+        };
+        (c.domain == "Metronome").then(|| {
+            ctl.edit_with("metronome on", None, now, out, |ctx| {
+                ctx.tx
+                    .settings(ether_core::protocol::model::SettingsChange::Metronome(true))
+            })
+            .map(|()| ReplyValue::Unit)
+        })
+    }
+
+    fn committed(
+        &mut self,
+        ctl: &mut LogCtl,
+        label: &ether_controller::ext::UndoLabel,
+        _ops: &[ether_core::protocol::model::Op],
+        _inverse: &[ether_core::protocol::model::Op],
+    ) {
+        ctl.ext.push(label.text.clone());
+    }
+}
+
+#[test]
+fn a_stateless_extension_sees_the_hooks_its_own_hooks_trigger() {
+    let mut h: Harness<Vec<String>> = Harness::build(
+        FakeBridge::default(),
+        MemoryLibrary::new(),
+        Default::default(),
+        |b, h, s, l, c| ether_controller::EtherController::with_state(b, h, s, l, c, Vec::new()),
+    );
+    h.ctl.add_stateless_extension::<Metronome>();
+    h.create_project("Test");
+    let cmd = Command::Ext(ExtCommand {
+        domain: "Metronome".into(),
+        command: serde_json::json!({ "type": "On" }),
+    });
+    assert_eq!(ok(&h.send(cmd)), ReplyValue::Unit);
+    assert_eq!(h.ctl.ext, vec!["metronome on".to_string()]);
+}

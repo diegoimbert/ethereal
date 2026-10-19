@@ -259,6 +259,23 @@ pub fn set_controller_setup(setup: fn(&mut WebController)) {
 
 static CONTROLLER_SETUP: std::sync::OnceLock<fn(&mut WebController)> = std::sync::OnceLock::new();
 
+/// Builds the web controller instead of the app's own (an extension's, with its state:
+/// `EtherController::with_state`; docs/EXTENSIONS.md). Call once, before the UI creates it.
+pub fn set_controller_factory(factory: WebControllerFactory) {
+    let _ = CONTROLLER_FACTORY.set(factory);
+}
+
+/// What [`set_controller_factory`] takes.
+pub type WebControllerFactory = fn(
+    WebBridge<SabMemory>,
+    WebHost,
+    WebStore<JsFs>,
+    WebLibrary<JsFs>,
+    ControllerConfig,
+) -> Box<dyn Controller>;
+
+static CONTROLLER_FACTORY: std::sync::OnceLock<WebControllerFactory> = std::sync::OnceLock::new();
+
 /// Controller side (Web Worker).
 #[wasm_bindgen]
 pub struct WasmController {
@@ -295,20 +312,32 @@ impl WasmController {
             .map(|e| format!("Demo samples could not be written: {e}"));
         let host = WebHost::new(seed);
         let http = host.http.clone();
-        let mut ctl: WebController = EtherController::with_config(
-            bridge,
-            host,
-            WebStore::new(fs.clone()),
-            WebLibrary::new(fs),
-            ControllerConfig {
-                engine_sample_rate: sample_rate,
-                ..ControllerConfig::default()
-            },
-        );
-        if let Some(setup) = CONTROLLER_SETUP.get() {
-            setup(&mut ctl);
-        }
-        let controller: Box<dyn Controller> = Box::new(ctl);
+        let config = ControllerConfig {
+            engine_sample_rate: sample_rate,
+            ..ControllerConfig::default()
+        };
+        let controller: Box<dyn Controller> = match CONTROLLER_FACTORY.get() {
+            Some(factory) => factory(
+                bridge,
+                host,
+                WebStore::new(fs.clone()),
+                WebLibrary::new(fs),
+                config,
+            ),
+            None => {
+                let mut ctl: WebController = EtherController::with_config(
+                    bridge,
+                    host,
+                    WebStore::new(fs.clone()),
+                    WebLibrary::new(fs),
+                    config,
+                );
+                if let Some(setup) = CONTROLLER_SETUP.get() {
+                    setup(&mut ctl);
+                }
+                Box::new(ctl)
+            }
+        };
         Ok(WasmController {
             controller,
             shared,

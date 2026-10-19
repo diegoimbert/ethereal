@@ -255,6 +255,13 @@ where
         let _ = (ctl, site, job, update);
     }
 
+    /// Why play and record are refused while the local engine is off (`None`: the app's
+    /// message).
+    fn engine_off_error(&self, ctl: &EtherController<B, H, S, L, X>) -> Option<CommandError> {
+        let _ = ctl;
+        None
+    }
+
     /// Report the engine's status (`force`: even unchanged).
     fn engine_status(
         &mut self,
@@ -266,8 +273,21 @@ where
     }
 }
 
+/// An extension, boxed.
+type BoxedExt<B, H, S, L, X> = Box<dyn ControllerExt<B, H, S, L, X>>;
+
+/// One added extension.
+enum Slot<B, H, S, L, X> {
+    /// With its own state: out of the controller while one of its hooks runs (a hook it
+    /// triggers itself doesn't reach it).
+    Stateful(Option<BoxedExt<B, H, S, L, X>>),
+    /// Stateless (its state, if any, is the controller's `ext`): a fresh one for every
+    /// call, so the hooks it triggers reach it too.
+    Stateless(fn() -> BoxedExt<B, H, S, L, X>),
+}
+
 /// The extensions of one controller.
-pub struct Extensions<B, H, S, L, X>(Vec<Box<dyn ControllerExt<B, H, S, L, X>>>);
+pub struct Extensions<B, H, S, L, X>(Vec<Slot<B, H, S, L, X>>);
 
 impl<B, H, S, L, X> Default for Extensions<B, H, S, L, X> {
     fn default() -> Self {
@@ -284,29 +304,50 @@ where
 {
     /// Add an extension (before the host starts; they run in the order added).
     pub fn add_extension(&mut self, ext: impl ControllerExt<B, H, S, L, X> + 'static) {
-        self.extensions.0.push(Box::new(ext));
+        self.extensions.0.push(Slot::Stateful(Some(Box::new(ext))));
     }
 
-    /// Run `f` over the extensions, each with the controller (they are out of it meanwhile).
+    /// Add a stateless extension (its state lives in the controller's `ext`): its hooks
+    /// may trigger hooks of its own (an edit it makes reaches its `committed`).
+    pub fn add_stateless_extension<E>(&mut self)
+    where
+        E: ControllerExt<B, H, S, L, X> + Default + 'static,
+    {
+        self.extensions
+            .0
+            .push(Slot::Stateless(|| Box::new(E::default())));
+    }
+
+    /// Run `f` over the extensions, each with the controller, until one answers `Some`.
     pub fn with_extensions<R>(
         &mut self,
         mut f: impl FnMut(&mut dyn ControllerExt<B, H, S, L, X>, &mut Self) -> Option<R>,
     ) -> Option<R> {
-        if self.extensions.0.is_empty() {
-            return None;
-        }
-        let mut exts = std::mem::take(&mut self.extensions.0);
-        let mut result = None;
-        for ext in exts.iter_mut() {
-            result = f(ext.as_mut(), self);
+        let mut i = 0;
+        while i < self.extensions.0.len() {
+            let result = match &mut self.extensions.0[i] {
+                Slot::Stateful(slot) => match slot.take() {
+                    Some(mut ext) => {
+                        let result = f(ext.as_mut(), self);
+                        if let Slot::Stateful(slot) = &mut self.extensions.0[i] {
+                            *slot = Some(ext);
+                        }
+                        result
+                    }
+                    // Running further up the stack.
+                    None => None,
+                },
+                Slot::Stateless(make) => {
+                    let mut ext = make();
+                    f(ext.as_mut(), self)
+                }
+            };
             if result.is_some() {
-                break;
+                return result;
             }
+            i += 1;
         }
-        // Extensions added while they ran (none expected) go after the existing ones.
-        exts.append(&mut self.extensions.0);
-        self.extensions.0 = exts;
-        result
+        None
     }
 
     pub fn ext_command(
@@ -334,7 +375,11 @@ where
         &self,
         f: impl Fn(&dyn ControllerExt<B, H, S, L, X>, &Self) -> Option<R>,
     ) -> Option<R> {
-        self.extensions.0.iter().find_map(|e| f(e.as_ref(), self))
+        self.extensions.0.iter().find_map(|slot| match slot {
+            Slot::Stateful(Some(e)) => f(e.as_ref(), self),
+            Slot::Stateful(None) => None,
+            Slot::Stateless(make) => f(make().as_ref(), self),
+        })
     }
 
     pub fn ext_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
