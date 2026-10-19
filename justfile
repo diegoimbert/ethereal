@@ -48,7 +48,7 @@ full-web *args:
 dev-ui:
     {{env}}; echo "UI on http://localhost:$ETHER_DEV_PORT"; pnpm --filter @ethereal/ui dev
 
-# Browser build host (COOP/COEP headers; wasm engine once wasm-host lands).
+# Browser build host (COOP/COEP headers; the wasm engine).
 dev-web:
     {{env}}; echo "web on http://localhost:$ETHER_DEV_PORT"; pnpm --filter @ethereal/web dev
 
