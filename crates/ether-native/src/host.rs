@@ -104,7 +104,10 @@ pub struct UnsavedProject {
     pub error: String,
 }
 
-impl HostedController for NativeController {
+/// Any native controller (`X`: an extension's state, [`set_controller_factory`]).
+impl<X: 'static> HostedController
+    for EtherController<NativeBridge, NativeServices, DiskStore, DiskStore, X>
+{
     fn before_shutdown(&mut self, out: &mut dyn MessageSink) -> Option<UnsavedProject> {
         // Waits for background autosaves first and saves again one that failed (#561).
         match self.save_before_close(out) {
@@ -163,6 +166,9 @@ pub fn ether_controller_with(patch_compat: PatchCompat) -> ControllerFactory {
             patch_compat,
             ..native_controller_config(bridge.sample_rate())
         };
+        if let Some(factory) = CONTROLLER_FACTORY.get() {
+            return factory(bridge, services, store, library, config);
+        }
         let mut ctl = EtherController::with_config(bridge, services, store, library, config);
         if let Some(setup) = CONTROLLER_SETUP.get() {
             setup(&mut ctl);
@@ -170,6 +176,25 @@ pub fn ether_controller_with(patch_compat: PatchCompat) -> ControllerFactory {
         Box::new(ctl)
     })
 }
+
+/// Builds every native controller this process creates instead of the app's own (an
+/// extension's controller, with its state: `EtherController::with_state`; docs/EXTENSIONS.md).
+/// Call once, before the host starts.
+pub fn set_controller_factory(factory: NativeControllerFactory) {
+    let _ = CONTROLLER_FACTORY.set(factory);
+}
+
+/// What [`set_controller_factory`] takes.
+pub type NativeControllerFactory = fn(
+    NativeBridge,
+    NativeServices,
+    DiskStore,
+    DiskStore,
+    ControllerConfig,
+) -> Box<dyn HostedController>;
+
+static CONTROLLER_FACTORY: std::sync::OnceLock<NativeControllerFactory> =
+    std::sync::OnceLock::new();
 
 /// Set up every native controller this process creates (its extensions,
 /// `EtherController::add_extension`; docs/EXTENSIONS.md). Call once, before the host starts.

@@ -409,8 +409,9 @@ pub type Ctl = EtherController<FakeBridge, FakeHost, MemoryStore, MemoryLibrary>
 
 pub const T0: u64 = 1_750_000_000_000;
 
-pub struct Harness {
-    pub ctl: Ctl,
+/// `X`: an extension's controller state (`()` for the app's own controller).
+pub struct Harness<X = ()> {
+    pub ctl: EtherController<FakeBridge, FakeHost, MemoryStore, MemoryLibrary, X>,
     next_request: u32,
     ids: IdGen,
 }
@@ -425,13 +426,7 @@ impl Harness {
     }
 
     pub fn with(bridge: FakeBridge, library: MemoryLibrary, config: ControllerConfig) -> Self {
-        let mut store = MemoryStore::new();
-        store.now_ms = T0;
-        Self {
-            ctl: EtherController::with_config(bridge, FakeHost::at(T0), store, library, config),
-            next_request: 1,
-            ids: IdGen::new(99),
-        }
+        Harness::build(bridge, library, config, EtherController::with_config)
     }
 
     /// A harness with a created, open project.
@@ -439,6 +434,36 @@ impl Harness {
         let mut h = Self::new();
         h.create_project("Test");
         h
+    }
+}
+
+/// The store a harness starts with (at [`T0`]).
+pub fn test_store() -> MemoryStore {
+    let mut store = MemoryStore::new();
+    store.now_ms = T0;
+    store
+}
+
+impl<X> Harness<X> {
+    /// A harness over the controller `make` builds (an extension's, with its state).
+    pub fn build(
+        bridge: FakeBridge,
+        library: MemoryLibrary,
+        config: ControllerConfig,
+        make: impl FnOnce(
+            FakeBridge,
+            FakeHost,
+            MemoryStore,
+            MemoryLibrary,
+            ControllerConfig,
+        )
+            -> EtherController<FakeBridge, FakeHost, MemoryStore, MemoryLibrary, X>,
+    ) -> Self {
+        Self {
+            ctl: make(bridge, FakeHost::at(T0), test_store(), library, config),
+            next_request: 1,
+            ids: IdGen::new(99),
+        }
     }
 
     pub fn id<I: Id>(&mut self) -> I {

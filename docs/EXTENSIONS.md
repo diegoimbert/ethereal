@@ -102,7 +102,8 @@ It keeps its own state and gets the controller with every hook:
 - The app's seams: `before_command`, `refuse_edit`, `committed` and `applied` (document edits),
   `undo_redo` and `session_active` (an extension that keeps a shared history), `view_only`,
   `transport_state` / `transport_changed`, `save_refused` / `before_save`, `plugin_notes` /
-  `plugin_reloaded`, `project_loaded`, `engine_changed` / `engine_status`. Each defaults to
+  `plugin_reloaded`, `project_loaded`, `engine_changed` / `engine_status` /
+  `engine_off_error` (an extension that turns the local engine off). Each defaults to
   the app's single-user behavior.
 - Saves: `save_sidecar` (a file written right after the document, in the same job), `saved`,
   `project_copied` (a `SaveAs` / `Duplicate` copy is a private project).
@@ -122,4 +123,6 @@ and the helpers of `ether_controller::ext::api`.
 
 The hosts add a process's extensions to every controller they create:
 `ether_native::host::set_controller_setup(f)` (desktop app, engine server) and
-`ether_wasm::web::set_controller_setup(f)` (web), called once at startup.
+`ether_wasm::web::set_controller_setup(f)` (web), called once at startup. An extension with
+state of its own builds the controller itself instead: `set_controller_factory(f)` (both
+hosts), `f` returning a controller made with `with_state`.
