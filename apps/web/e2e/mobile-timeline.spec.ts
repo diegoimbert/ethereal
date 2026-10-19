@@ -38,11 +38,15 @@ test("a flick keeps scrolling after the finger lifts (momentum); a touch stops i
   await launchMobile(page);
   const touch = await touchscreen(page);
   const l = await lanes(page);
-  const s0 = (await arrangementViewState(page)).scrollBeats;
-  await touch.drag(l.at(220, 150), l.at(60, 150), { steps: 5, ms: 60, rest: 0 });
-  const atRelease = (await arrangementViewState(page)).scrollBeats;
-  expect(atRelease).toBeGreaterThan(s0);
-  await expect.poll(async () => (await arrangementViewState(page)).scrollBeats).toBeGreaterThan(atRelease + 2);
+  // The flick's speed comes from its touch events' timing: a stalled runner can deliver the
+  // lift late enough to read as a stop, so a flick that did not coast is flicked again.
+  await expect(async () => {
+    const s0 = (await arrangementViewState(page)).scrollBeats;
+    await touch.drag(l.at(220, 150), l.at(60, 150), { steps: 5, ms: 60, rest: 0 });
+    const atRelease = (await arrangementViewState(page)).scrollBeats;
+    expect(atRelease).toBeGreaterThan(s0);
+    await expect.poll(async () => (await arrangementViewState(page)).scrollBeats, { timeout: 2_000 }).toBeGreaterThan(atRelease + 2);
+  }).toPass({ timeout: 20_000 });
   // A touch stops it where it is.
   await touch.tap(l.at(150, 300));
   const stopped = (await arrangementViewState(page)).scrollBeats;

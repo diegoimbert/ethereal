@@ -405,7 +405,8 @@ mod tests {
         ];
         let paths = |v: Vec<ScanTarget>| {
             v.into_iter()
-                .map(|t| format!("{:?} {}", t.format, t.path.display()))
+                // `/` on every platform (Windows joins with `\`).
+                .map(|t| format!("{:?} {}", t.format, t.path.display()).replace('\\', "/"))
                 .collect::<Vec<_>>()
         };
         assert_eq!(

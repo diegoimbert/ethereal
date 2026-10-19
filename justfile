@@ -121,6 +121,11 @@ check-notices-fresh: notices
 check-licenses:
     cargo deny check licenses
 
+# Security advisories, yanked crates, bans and dependency sources (deny.toml; CI).
+# Needs `cargo install cargo-deny`.
+check-advisories:
+    cargo deny check advisories bans sources
+
 # cargo check for the wasm32 target (engine-side crates), with every feature and with none.
 check-wasm:
     cargo check --target wasm32-unknown-unknown {{wasm_crates}} --all-features
