@@ -20,7 +20,10 @@ run-name: >-
 #     on main): the Rust jobs cache only third-party builds (cargo-chef, .github/actions/chef-cache,
 #     checked before every save), the web jobs restore ci.yml's OSS-only caches; only main saves.
 #
-# Runners: repository variables FULL_RUNNER / FULL_E2E_RUNNER / FULL_MACOS_RUNNER / FULL_WINDOWS_RUNNER (JSON, e.g.
+# macOS and Windows: full-platforms.yml, a workflow of its own (their ~50-60 min would hold up
+# this one's cycle on `main`, whose pushes are serialized per workflow).
+#
+# Runners: repository variables FULL_RUNNER / FULL_E2E_RUNNER (JSON, e.g.
 # '"ubuntu-latest"' or '["self-hosted","devbox-pool"]') pick the build jobs' runners;
 # GitHub-hosted by default. The short jobs (Resolve, ee/build) stay GitHub-hosted, so
 # a busy pool never holds up the start of a run. On the devbox pool (docs/CI-RUNNERS.md) the job
@@ -39,7 +42,7 @@ on:
         description: Private ref to overlay (empty = the ref's ee pointer, else EE main)
         default: ""
       all:
-        description: Also macOS, Windows and the e2e suite
+        description: Also the e2e suite (macOS and Windows are full-platforms.yml)
         type: boolean
         default: true
 
@@ -83,38 +86,11 @@ jobs:
           persist-credentials: false
           ref: ${{ inputs.ref || '' }}
       - id: r
-        env:
-          HAS_TOKEN: ${{ secrets.ETHER_PRIVATE_TOKEN != '' }}
-          TOKEN: ${{ secrets.ETHER_PRIVATE_TOKEN }}
-          EVENT: ${{ github.event_name }}
-          IN_EE_REF: ${{ inputs.ee_ref }}
-          IN_ALL: ${{ inputs.all }}
-        run: |
-          set -euo pipefail
-          if [ "$HAS_TOKEN" != true ]; then
-            echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "No access to the private repository: the full product is not built here." >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          echo "::add-mask::$TOKEN"
-          oss_ref="$(git rev-parse HEAD)"
-          # The pointer this commit records for ee/.
-          head_ptr="$(git ls-tree HEAD ee | awk '$2 == "commit" { print $3 }')"
-          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
-          echo "::add-mask::$auth"
-          ee_main="$(git -c http.extraheader="$auth" ls-remote https://github.com/diegoimbert/ethereal-private refs/heads/main | cut -f1)"
-          if [ -n "$IN_EE_REF" ]; then ee_ref="$IN_EE_REF"; why="requested"
-          else ee_ref="${head_ptr:-$ee_main}"; why="this commit's ee pointer"
-          fi
-          all=false
-          if [ "$EVENT" = push ] || { [ "$EVENT" = workflow_dispatch ] && [ "$IN_ALL" = true ]; }; then all=true; fi
-          {
-            echo "enabled=true"
-            echo "oss_ref=$oss_ref"
-            echo "ee_ref=$ee_ref"
-            echo "all=$all"
-          } >> "$GITHUB_OUTPUT"
-          echo "OSS \`$oss_ref\` + EE \`${ee_ref:0:12}\` ($why); macOS, Windows and e2e: $all" >> "$GITHUB_STEP_SUMMARY"
+        uses: ./.github/actions/full-resolve
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
+          ee-ref: ${{ inputs.ee_ref }}
+          all: ${{ inputs.all }}
 
   full-rust-linux:
     name: Full Rust (Linux)
@@ -285,86 +261,11 @@ jobs:
         with:
           name: full-logs-e2e-${{ matrix.shard }}
 
-  rust-macos:
-    name: Full Rust (macOS)
-    needs: resolve
-    if: needs.resolve.outputs.enabled == 'true' && needs.resolve.outputs.all == 'true'
-    runs-on: ${{ fromJSON(vars.FULL_MACOS_RUNNER || '"macos-latest"') }}
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ needs.resolve.outputs.oss_ref }}
-      - name: Toolchain (from rust-toolchain.toml)
-        run: rustup show active-toolchain || rustup toolchain install
-      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
-        with:
-          tool: cargo-nextest@0.9.148
-      - uses: ./.github/actions/ee-overlay
-        with:
-          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
-          ee-ref: ${{ needs.resolve.outputs.ee_ref }}
-      # Self-hosted runners keep their own target dirs: no Actions cache there.
-      - uses: ./.github/actions/chef-cache
-        if: runner.environment == 'github-hosted'
-        with:
-          name: full-macos
-          exclude: ether-desktop
-      - name: test
-        # ether-desktop's tests run on Linux (its macOS test build cannot link); #45 is the AU
-        # deadlock ci.yml also leaves out.
-        run: >-
-          node scripts/ci/private-step.mjs test -- cargo nextest run --profile ci --workspace --all-features
-          --exclude ether-desktop -E 'not test(=dropping_without_deactivate_is_safe)'
-      - uses: ./.github/actions/full-logs
-        if: always()
-        with:
-          name: full-logs-rust-macos
-
-  rust-windows:
-    name: Full Rust (Windows)
-    needs: resolve
-    if: needs.resolve.outputs.enabled == 'true' && needs.resolve.outputs.all == 'true'
-    runs-on: ${{ fromJSON(vars.FULL_WINDOWS_RUNNER || '"windows-latest"') }}
-    timeout-minutes: 90
-    defaults:
-      run:
-        shell: bash
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ needs.resolve.outputs.oss_ref }}
-      - name: Windows (aws-lc-sys without NASM)
-        run: echo "AWS_LC_SYS_PREBUILT_NASM=1" >> "$GITHUB_ENV"
-      - name: Toolchain (from rust-toolchain.toml)
-        run: rustup show active-toolchain || rustup toolchain install
-      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
-        with:
-          tool: cargo-nextest@0.9.148
-      - uses: ./.github/actions/ee-overlay
-        with:
-          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
-          ee-ref: ${{ needs.resolve.outputs.ee_ref }}
-      # Self-hosted runners keep their own target dirs: no Actions cache there.
-      - uses: ./.github/actions/chef-cache
-        if: runner.environment == 'github-hosted'
-        with:
-          name: full-windows
-          exclude: ether-desktop
-      - name: test
-        run: node scripts/ci/private-step.mjs test -- cargo nextest run --profile ci --workspace --all-features --exclude ether-desktop
-      - uses: ./.github/actions/full-logs
-        if: always()
-        with:
-          name: full-logs-rust-windows
-
   ee-build:
-    # The aggregate check: green when every full-product job passed or was skipped (macOS,
-    # Windows and e2e on a dispatch without `all`).
+    # The aggregate check: green when every job of this workflow passed or was skipped (e2e on a
+    # dispatch without `all`). macOS and Windows are full-platforms.yml's, outside this check.
     name: ee/build
-    needs: [resolve, full-rust-linux, full-web, full-e2e, rust-macos, rust-windows]
+    needs: [resolve, full-rust-linux, full-web, full-e2e]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
