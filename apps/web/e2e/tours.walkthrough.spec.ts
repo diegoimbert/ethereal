@@ -43,16 +43,10 @@ const play: Action = (page) => page.getByRole("toolbar", { name: "transport" }).
 
 /**
  * The web walk of every tour on the welcome screen, by its item's title. `example`: an example
- * beat's tour (#518), started by its "show me how" button in the examples section.
+ * beat's tour (#518), started by its "show me how" button in the examples section. The jam and
+ * import tours are not in the open-source build (the full product walks them).
  */
 const TOURS: ReadonlyArray<{ title: string; id: string; script: Script; example?: true }> = [
-  {
-    title: "jam with your friends",
-    id: "jam",
-    script: {
-      "share-button": (page) => page.getByTestId("share-button").click(),
-    },
-  },
   {
     title: "record audio",
     id: "record-audio",
@@ -67,13 +61,6 @@ const TOURS: ReadonlyArray<{ title: string; id: string; script: Script; example?
       },
       inputs: (page) => page.locator('[data-tour="rec-inputs"]').click(),
       arm: (page) => page.locator('[data-tour="rec-inputs-panel"]').getByRole("button", { name: /^arm / }).first().click(),
-    },
-  },
-  {
-    title: "bring a project from another DAW",
-    id: "import-daw",
-    script: {
-      menu: (page) => page.locator('[data-tour="project-menu"]').click(),
     },
   },
   { title: "house beat", id: "example-house-beat", example: true, script: { play } },

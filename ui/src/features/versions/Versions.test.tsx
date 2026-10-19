@@ -154,7 +154,8 @@ describe("RecoveryDialog", () => {
     );
     const dialog = await screen.findByRole("dialog", { name: "recover unsaved work?" });
     // The project screen waits behind it.
-    expect(useRecoveryShown.getState().shown).toBe(true);
+    // (Set by an effect once the dialog is open: it can land just after the dialog renders.)
+    await waitFor(() => expect(useRecoveryShown.getState().shown).toBe(true));
     const name = mock.snapshot().settings.name;
     expect(within(dialog).getByText(name)).toBeInTheDocument();
     fireEvent.click(await enabled(dialog, `recover ${name}`));

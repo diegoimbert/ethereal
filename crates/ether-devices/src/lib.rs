@@ -1,12 +1,10 @@
-//! Built-in devices: basic-shape synth, sampler, compressor, delay; roadmap v2 adds EQ,
-//! reverb, limiter, utility (`devices-2`) and the drum rack (`drum-rack`), one module each.
-//! v0.2 (contracts-3) adds one module per device group, each owned by its node:
-//! [`poly_synth`] (`synth-2`), [`multisampler`], [`fx_color`], [`fx_modulation`],
-//! [`fx_dynamics`], [`fx_analysis`], [`midi_fx`], [`racks`] + [`modulators`]
-//! (`racks-modulation`); shared scaffolding in [`contract`]; factory presets through
-//! [`factory_presets`] (v0.1 types: [`factory`], `presets`). v0.3 (contracts-4) adds
-//! [`fx_space`] (`fx-space`: convolution reverb) and [`external`] (`external-instrument`).
-//! [`fm_synth`] (`fm-synth`) is the four-operator FM instrument.
+//! The built-in devices, one module per device or group: the basic synth, sampler,
+//! compressor, delay, EQ, reverb, limiter, utility and drum rack; [`poly_synth`],
+//! [`fm_synth`] (four-operator FM), [`multisampler`]; the effect groups [`fx_color`],
+//! [`fx_modulation`], [`fx_dynamics`], [`fx_analysis`], [`fx_space`] (convolution reverb) and
+//! [`midi_fx`]; [`racks`] and [`modulators`]; [`external`] (external instruments and
+//! effects). Shared scaffolding is in [`contract`]; factory presets come from
+//! [`factory_presets`] ([`factory`] holds the older types).
 //!
 //! Every device implements [`ether_core::Device`]; parameter ids and ranges are defined
 //! by each device's [`DeviceDescriptor`] (the UI renders a generic param UI from it).

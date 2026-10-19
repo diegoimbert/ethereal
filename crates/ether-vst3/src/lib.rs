@@ -46,6 +46,9 @@
 //! not contain the bundle path: `PluginDescriptor.path` (the `.vst3` bundle) comes from the
 //! host's plugin catalog.
 #![cfg(not(target_arch = "wasm32"))]
+// The VST3 SDK bindings type their enum constants as the C enum type, which is `i32` on Windows
+// and `u32` elsewhere: the `as i32` casts the API needs are no-ops on Windows only.
+#![cfg_attr(windows, allow(clippy::unnecessary_cast))]
 
 mod events;
 mod gui;

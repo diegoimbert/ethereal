@@ -16,10 +16,13 @@ Report bugs and request features in the [issue tracker](https://github.com/diego
 What works today:
 
 - **Arrangement editing**: audio and MIDI tracks, piano roll, automation, warping and time
-  stretching, recording and comping, groups, sidechain, built-in instruments and effects,
+  stretching (the source tempo of a clip is guessed from its length, not detected from the
+  audio), recording and comping, groups, sidechain, built-in instruments and effects,
   racks and a drum rack.
-- **Plugin hosting** (desktop): CLAP, VST3 and AU (macOS), scanned out of process and
-  optionally sandboxed. See [docs/PLUGIN-FORMATS.md](docs/PLUGIN-FORMATS.md)
+- **Plugin hosting** (desktop): CLAP, VST3 and AU (macOS), scanned out of process. Plugins
+  can run sandboxed on macOS and Linux (not on Windows yet). CLAP editors that need a
+  host-made window open only on macOS; VST3 editors open everywhere. See
+  [docs/PLUGIN-FORMATS.md](docs/PLUGIN-FORMATS.md).
 - **Audio export** to WAV, FLAC and MP3, a headless remote engine (`ether-server`) and an
   MCP server that lets AI agents edit projects (both below).
 

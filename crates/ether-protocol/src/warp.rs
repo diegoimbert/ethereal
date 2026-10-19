@@ -26,7 +26,9 @@ pub enum WarpCommand {
     RemoveMarker {
         id: WarpMarkerId,
     },
-    /// Estimate the source tempo. Replies `Tempo`.
+    /// Guess the source tempo from the clip's file length, with no audio analysis: the tempo
+    /// in [80, 160) BPM at which the file spans a power-of-two number of 4/4 bars (right for
+    /// loops, a guess for anything else). Replies `Tempo` (`None` when no tempo fits).
     DetectTempo {
         clip: ClipId,
     },
