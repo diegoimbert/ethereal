@@ -399,6 +399,7 @@ impl NativeHost {
         // a missing device only makes this run use the null backend (`run_settings`), so a
         // temporary fallback never becomes the saved choice.
         // `ETHER_AUDIO` forces the backend of settings loaded from disk (not of explicit ones).
+        let from_disk = config.audio.is_none();
         let (settings, forced_backend) = match config.audio.clone() {
             Some(s) => (s, None),
             None => (load_audio_settings(&config.data_dir), env_backend()),
@@ -520,6 +521,10 @@ impl NativeHost {
                     config.data_dir.clone(),
                     config.instance.clone(),
                 );
+                // Settings saved by device name only get the ids (once).
+                if from_disk {
+                    audio.record_device_ids();
+                }
                 // No device at startup: audio comes on when it is plugged in.
                 let want = audio.run_settings(&audio.settings);
                 audio.watch_fallback(&want, Instant::now());
@@ -891,6 +896,28 @@ impl AudioState {
         }
     }
 
+    /// While a cpal stream runs: save the ids of the chosen devices (and their current names)
+    /// if the settings lack them ([`AudioSettings::with_device_ids`]). For settings saved by
+    /// name only, this is their one-time migration.
+    fn record_device_ids(&mut self) {
+        let cpal = self
+            .output
+            .as_ref()
+            .is_some_and(|o| o.info.backend == AudioBackendKind::Cpal);
+        if !cpal {
+            return;
+        }
+        if let Some(s) = self.settings.with_device_ids() {
+            tracing::info!(
+                output = ?s.output_device_id,
+                input = ?s.input_device_id,
+                "audio device ids saved"
+            );
+            save_audio_settings(&self.data_dir, &s);
+            self.settings = s;
+        }
+    }
+
     /// Close the device (`true`: the engine moves to the null backend) or open the saved
     /// one again. A device that can't be opened any more falls back to the null backend,
     /// as at startup, and the warning to show is returned.
@@ -952,6 +979,7 @@ impl AudioState {
                 self.output = Some(out);
                 self.settings = new;
                 self.lost = None;
+                self.record_device_ids();
                 Ok(note)
             }
             Err((e, engine)) => {
@@ -1242,10 +1270,10 @@ impl ControllerThread {
                     status: self.audio.status(),
                 },
             ),
-            EngineCommand::ListAudioDevices => reply_ok(
+            EngineCommand::ListAudioDevices { all } => reply_ok(
                 id,
                 ReplyValue::AudioDevices {
-                    devices: audio::list_devices(&self.audio.settings),
+                    devices: audio::list_devices(&self.audio.settings, all.unwrap_or(false)),
                 },
             ),
             EngineCommand::SetAudioConfig { config } => {

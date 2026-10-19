@@ -63,6 +63,8 @@
 
 .eth-audio-settings__toolbar {
   display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
   justify-content: flex-end;
   margin-bottom: calc(var(--eth-space-sm) * -1);
 }

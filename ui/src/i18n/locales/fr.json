@@ -53,6 +53,7 @@
   "settings.audio.no_devices": "aucun périphérique.",
   "settings.audio.choose_input_hint": "choisissez un périphérique d’entrée pour enregistrer : aucune entrée n’est encore ouverte, les enregistrements seraient donc muets.",
   "settings.audio.refresh": "actualiser les périphériques",
+  "settings.audio.all_devices": "afficher tous les périphériques",
   "settings.audio.driver": "pilote",
   "settings.audio.output": "périphérique de sortie",
   "settings.audio.system_default": "{name} (par défaut du système)",
