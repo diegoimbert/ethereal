@@ -177,13 +177,11 @@ jobs:
       - name: clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: test
-        # dropping_without_deactivate_is_safe deadlocks on these runners (#45).
         run: >-
           cargo nextest run --profile ci --all-features
           -p ether-au -p ether-clap -p ether-vst3 -p ether-plugin-host -p ether-plugin-scanner
           -p ether-sandbox -p ether-native -p ether-server -p ether-mcp
           -p ether-core -p ether-devices -p ether-media -p ether-stretch
-          -E 'not test(=dropping_without_deactivate_is_safe)'
 
   rust-windows:
     name: Rust (Windows)
