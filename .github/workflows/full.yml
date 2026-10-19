@@ -1,0 +1,352 @@
+name: Full product
+
+# The full product: this repository with the private `ee/` repository overlaid (docs/EE-WORKFLOW.md),
+# built and tested on GitHub-hosted runners. The `ee/build` job is the check `just feat ship`
+# waits for.
+#
+# Safety, since this repository is public:
+#   - The private code is fetched with the ETHER_PRIVATE_TOKEN secret, which GitHub withholds from
+#     pull requests from forks: there, every job here is skipped (the OSS-only ci.yml still gates
+#     them). A maintainer builds a fork's pull request by hand after reading it:
+#     `gh workflow run full.yml -f ref=refs/pull/N/head`. Never `pull_request_target`.
+#   - No private code in the public log: every step that compiles or runs it goes through
+#     scripts/ci/private-step.mjs (its output goes to a file; the log shows the result and the
+#     names of what failed), and the files are uploaded encrypted with age to the private
+#     repository's recipients (`just full-logs <run-id>` decrypts them).
+#   - No private build output in the Actions cache (a fork's pull request can restore caches made
+#     on main): the Rust jobs cache only third-party builds (cargo-chef, .github/actions/chef-cache,
+#     checked before every save), the web jobs restore ci.yml's OSS-only caches; only main saves.
+#
+# Runners: repository variables FULL_RUNNER / FULL_MACOS_RUNNER / FULL_WINDOWS_RUNNER (JSON, e.g.
+# '"ubuntu-latest"' or '["self-hosted","linux"]') pick them; GitHub-hosted by default.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: OSS ref to build (e.g. refs/pull/N/head after reading the diff)
+        default: main
+      ee_ref:
+        description: Private ref to overlay (empty = the ref's ee pointer, else EE main)
+        default: ""
+      all:
+        description: Also macOS, Windows and the e2e suite
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: full-${{ github.event.pull_request.number || github.ref }}-${{ inputs.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: line-tables-only
+  ETHER_AUDIO: "null"
+  RUST_BACKTRACE: "1"
+  NODE_VERSION: "24"
+
+jobs:
+  resolve:
+    # What to build, and whether this run may see the private code at all.
+    name: Resolve
+    runs-on: ${{ fromJSON(vars.FULL_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    outputs:
+      enabled: ${{ steps.r.outputs.enabled }}
+      oss_ref: ${{ steps.r.outputs.oss_ref }}
+      ee_ref: ${{ steps.r.outputs.ee_ref }}
+      all: ${{ steps.r.outputs.all }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.ref || '' }}
+          fetch-depth: 2
+      - id: r
+        env:
+          HAS_TOKEN: ${{ secrets.ETHER_PRIVATE_TOKEN != '' }}
+          TOKEN: ${{ secrets.ETHER_PRIVATE_TOKEN }}
+          EVENT: ${{ github.event_name }}
+          IN_EE_REF: ${{ inputs.ee_ref }}
+          IN_ALL: ${{ inputs.all }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$HAS_TOKEN" != true ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "No access to the private repository (a fork's pull request?): the full product is not built here." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "::add-mask::$TOKEN"
+          oss_ref="$(git rev-parse HEAD)"
+          # The pointer this commit records for ee/, and the base's (pull requests).
+          ptr() { git ls-tree "$1" ee | awk '$2 == "commit" { print $3 }'; }
+          head_ptr="$(ptr HEAD)"
+          base_ptr=""
+          if [ "$EVENT" = pull_request ]; then
+            git fetch -q --depth=1 origin "$BASE"
+            base_ptr="$(ptr FETCH_HEAD)"
+          fi
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+          echo "::add-mask::$auth"
+          ee_main="$(git -c http.extraheader="$auth" ls-remote https://github.com/diegoimbert/ethereal-private refs/heads/main | cut -f1)"
+          if [ -n "$IN_EE_REF" ]; then ee_ref="$IN_EE_REF"; why="requested"
+          elif [ "$EVENT" = pull_request ] && [ -n "$head_ptr" ] && [ "$head_ptr" != "$base_ptr" ]; then ee_ref="$head_ptr"; why="the pull request's ee pointer"
+          elif [ "$EVENT" = pull_request ]; then ee_ref="$ee_main"; why="EE main (the pull request leaves ee alone)"
+          else ee_ref="${head_ptr:-$ee_main}"; why="this commit's ee pointer"
+          fi
+          all=false
+          if [ "$EVENT" = push ] || { [ "$EVENT" = workflow_dispatch ] && [ "$IN_ALL" = true ]; }; then all=true; fi
+          {
+            echo "enabled=true"
+            echo "oss_ref=$oss_ref"
+            echo "ee_ref=$ee_ref"
+            echo "all=$all"
+          } >> "$GITHUB_OUTPUT"
+          echo "OSS \`$oss_ref\` + EE \`${ee_ref:0:12}\` ($why); macOS, Windows and e2e: $all" >> "$GITHUB_STEP_SUMMARY"
+
+  rust-linux:
+    name: Full Rust (Linux)
+    needs: resolve
+    if: needs.resolve.outputs.enabled == 'true'
+    runs-on: ${{ fromJSON(vars.FULL_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.oss_ref }}
+      - uses: ./.github/actions/free-disk
+      - name: Linux system deps (Tauri, ALSA)
+        if: runner.environment == 'github-hosted'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libssl-dev pkg-config > /dev/null
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-nextest@0.9.148
+      - uses: ./.github/actions/ee-overlay
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
+          ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+      - uses: ./.github/actions/chef-cache
+        with:
+          name: full-linux
+          clippy: "true"
+      - name: fmt
+        run: node scripts/ci/private-step.mjs fmt -- cargo fmt --all --check
+      - name: clippy
+        run: node scripts/ci/private-step.mjs clippy -- cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: test
+        run: >-
+          node scripts/ci/private-step.mjs test -- cargo nextest run --profile ci --workspace --all-features
+          -E 'not (test(=appended_params_keep_the_default_sound) | test(=patches_from_before_render_as_before))'
+      - name: wasm32 check
+        run: node scripts/ci/private-step.mjs wasm32 -- cargo check --target wasm32-unknown-unknown -p ether-protocol -p ether-model -p ether-core -p ether-devices -p ether-media -p ether-controller -p ether-stretch -p ether-wasm --all-features
+      - uses: ./.github/actions/full-logs
+        if: always()
+        with:
+          name: full-logs-rust-linux
+
+  web:
+    name: Full web (tsc, eslint, prettier, vitest, build)
+    needs: resolve
+    if: needs.resolve.outputs.enabled == 'true'
+    runs-on: ${{ fromJSON(vars.FULL_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.oss_ref }}
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: web-build
+          save-if: "false"
+      - name: wasm-bindgen version (from Cargo.lock)
+        id: wb
+        run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: wasm-bindgen@${{ steps.wb.outputs.version }}
+      - uses: ./.github/actions/ee-overlay
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
+          ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      # No setup-node cache: it would save the overlaid tree's package store.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: install
+        run: node scripts/ci/private-step.mjs install -- pnpm install --frozen-lockfile
+      - name: tsc
+        run: node scripts/ci/private-step.mjs tsc -- pnpm -r typecheck
+      - name: eslint
+        run: node scripts/ci/private-step.mjs eslint -- pnpm -r lint
+      - name: prettier
+        run: node scripts/ci/private-step.mjs prettier -- pnpm format:check
+      - name: vitest
+        run: node scripts/ci/private-step.mjs vitest -- pnpm -r test
+      - name: build ui + web
+        run: node scripts/ci/private-step.mjs build -- "pnpm --filter @ethereal/ui build && pnpm --filter @ethereal/web build"
+      - uses: ./.github/actions/full-logs
+        if: always()
+        with:
+          name: full-logs-web
+
+  e2e:
+    # The Playwright suite on the full build (pushes to main and manual runs: the per-PR e2e is
+    # ci.yml's, on the open-source build).
+    name: Full e2e (${{ matrix.shard }}/4)
+    needs: resolve
+    if: needs.resolve.outputs.enabled == 'true' && needs.resolve.outputs.all == 'true'
+    runs-on: ${{ fromJSON(vars.FULL_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.oss_ref }}
+      - uses: ./.github/actions/free-disk
+      - name: Linux system deps (ALSA)
+        if: runner.environment == 'github-hosted'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libasound2-dev pkg-config > /dev/null
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: web-build
+          save-if: "false"
+      - name: wasm-bindgen version (from Cargo.lock)
+        id: wb
+        run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: wasm-bindgen@${{ steps.wb.outputs.version }}
+      - uses: ./.github/actions/ee-overlay
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
+          ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: install
+        run: node scripts/ci/private-step.mjs install -- "pnpm install --frozen-lockfile && cd apps/web && npx playwright install --with-deps chromium-headless-shell"
+      - name: Playwright
+        env:
+          ETHEREAL_TOURS: "1"
+          ETHER_E2E_PREBUILD: "1"
+          SHARD: ${{ matrix.shard }}
+        run: >-
+          node scripts/ci/private-step.mjs e2e -- "cd apps/web && node scripts/build-wasm.mjs &&
+          npx playwright test --workers=2 --shard=$SHARD/4 --grep-invert '@frames|@pixels' --retries=1 --reporter=list"
+      - uses: ./.github/actions/full-logs
+        if: always()
+        with:
+          name: full-logs-e2e-${{ matrix.shard }}
+
+  rust-macos:
+    name: Full Rust (macOS)
+    needs: resolve
+    if: needs.resolve.outputs.enabled == 'true' && needs.resolve.outputs.all == 'true'
+    runs-on: ${{ fromJSON(vars.FULL_MACOS_RUNNER || '"macos-latest"') }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.oss_ref }}
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-nextest@0.9.148
+      - uses: ./.github/actions/ee-overlay
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
+          ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+      - uses: ./.github/actions/chef-cache
+        with:
+          name: full-macos
+      - name: test
+        # ether-desktop's tests run on Linux (its macOS test build cannot link); #45 is the AU
+        # deadlock ci.yml also leaves out.
+        run: >-
+          node scripts/ci/private-step.mjs test -- cargo nextest run --profile ci --workspace --all-features
+          --exclude ether-desktop -E 'not test(=dropping_without_deactivate_is_safe)'
+      - uses: ./.github/actions/full-logs
+        if: always()
+        with:
+          name: full-logs-rust-macos
+
+  rust-windows:
+    name: Full Rust (Windows)
+    needs: resolve
+    if: needs.resolve.outputs.enabled == 'true' && needs.resolve.outputs.all == 'true'
+    runs-on: ${{ fromJSON(vars.FULL_WINDOWS_RUNNER || '"windows-latest"') }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.oss_ref }}
+      - name: Windows (aws-lc-sys without NASM)
+        run: echo "AWS_LC_SYS_PREBUILT_NASM=1" >> "$GITHUB_ENV"
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-nextest@0.9.148
+      - uses: ./.github/actions/ee-overlay
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
+          ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+      - uses: ./.github/actions/chef-cache
+        with:
+          name: full-windows
+      - name: test
+        run: node scripts/ci/private-step.mjs test -- cargo nextest run --profile ci --workspace --all-features --exclude ether-desktop
+      - uses: ./.github/actions/full-logs
+        if: always()
+        with:
+          name: full-logs-rust-windows
+
+  ee-build:
+    # The check `just feat ship` waits for: green when every full-product job passed (or the run
+    # could not see the private code: a fork's pull request).
+    name: ee/build
+    needs: [resolve, rust-linux, web, e2e, rust-macos, rust-windows]
+    if: always()
+    runs-on: ${{ fromJSON(vars.FULL_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 5
+    steps:
+      - env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          bad="$(echo "$RESULTS" | jq -r '[to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | .key] | join(", ")')"
+          if [ -n "$bad" ]; then echo "::error::full product: $bad"; exit 1; fi
