@@ -1,4 +1,8 @@
 name: Full product
+# A dispatch names the commits it builds (`feat ship` finds an EE-only change's build by it).
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch'
+  && format('Full product: {0} + ee {1}', inputs.ref, inputs.ee_ref || 'pointer') || '' }}
 
 # The full product: this repository with the private `ee/` repository overlaid (docs/EE-WORKFLOW.md),
 # built and tested on GitHub-hosted runners. The `ee/build` job is the check `just feat ship`

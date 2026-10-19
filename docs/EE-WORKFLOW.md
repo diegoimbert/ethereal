@@ -89,7 +89,11 @@ All CI runs in this repository, on GitHub-hosted runners; the private repository
   PR's pointer on its EE branch tip (or EE `main` once that merged), merges `main` into a PR
   whose only conflict is the gitlink, and posts the **`ee/pointer`** status on OSS PRs. Its API
   commits touch nothing but `ee` and are fast-forward only, retried when the branch moved.
-- Releases and the dev deploy still run on the private side until they move here too.
+- **Release and dev deploy** (`.github/workflows/release.yml`, `deploy-dev.yml`; docs/RELEASING.md):
+  the same overlay and encrypted logs; the signing and Cloudflare secrets live in the protected
+  `release` and `dev` environments (`main` only; `release` also needs the owner's approval).
+- **EE-only changes** (no OSS PR): `feat ship` dispatches `full.yml` on `main` with
+  `ee_ref=<EE head>` and waits for it before merging.
 
 Secrets (this repository): `ETHER_PRIVATE_TOKEN` (read the private repository: the full build)
 and `ETHER_BOT_TOKEN` (write this repository's contents, pull requests and statuses, read the
