@@ -10,8 +10,9 @@ GitHub-hosted runners.
 
 | job                                           | runner                                                                          |
 | --------------------------------------------- | ------------------------------------------------------------------------------- |
-| Linux jobs of a push to `main` or a manual run | the pool, when the repository variable `CI_POOL` is `devbox`; else GitHub-hosted |
-| the full product's Linux build jobs (`full.yml`) | the pool, when `FULL_RUNNER` is `["self-hosted","devbox-pool"]`; else GitHub-hosted |
+| Linux jobs of a push to `main` or a manual run, but e2e | the pool, when the repository variable `CI_POOL` is `devbox`; else GitHub-hosted |
+| the full product's Linux build jobs (`full.yml`), but e2e | the pool, when `FULL_RUNNER` is `["self-hosted","devbox-pool"]`; else GitHub-hosted |
+| e2e shards                                    | GitHub-hosted (they build nothing, and four of them per run would fill the pool) |
 | pull requests (forks included), any bot       | always GitHub-hosted                                                            |
 | macOS, Windows                                | always GitHub-hosted                                                            |
 

@@ -20,7 +20,7 @@ run-name: >-
 #     on main): the Rust jobs cache only third-party builds (cargo-chef, .github/actions/chef-cache,
 #     checked before every save), the web jobs restore ci.yml's OSS-only caches; only main saves.
 #
-# Runners: repository variables FULL_RUNNER / FULL_MACOS_RUNNER / FULL_WINDOWS_RUNNER (JSON, e.g.
+# Runners: repository variables FULL_RUNNER / FULL_E2E_RUNNER / FULL_MACOS_RUNNER / FULL_WINDOWS_RUNNER (JSON, e.g.
 # '"ubuntu-latest"' or '["self-hosted","devbox-pool"]') pick the build jobs' runners;
 # GitHub-hosted by default. The short jobs (Resolve, ee/build, main is red) stay GitHub-hosted, so
 # a busy pool never holds up the start of a run. On the devbox pool (docs/CI-RUNNERS.md) the job
@@ -149,6 +149,11 @@ jobs:
         run: >-
           node scripts/ci/private-step.mjs test -- cargo nextest run --profile ci --workspace --all-features
           -E 'not (test(=appended_params_keep_the_default_sound) | test(=patches_from_before_render_as_before))'
+      - name: Sweep stale test binaries (self-hosted target dir)
+        if: ${{ !cancelled() && runner.environment != 'github-hosted' }}
+        continue-on-error: true
+        timeout-minutes: 5
+        run: node scripts/ci/private-step.mjs sweep -- node scripts/ci/sweep-test-binaries.mjs -- --workspace --all-features
       - name: wasm32 check
         run: node scripts/ci/private-step.mjs wasm32 -- cargo check --target wasm32-unknown-unknown -p ether-protocol -p ether-model -p ether-core -p ether-devices -p ether-media -p ether-controller -p ether-stretch -p ether-wasm --all-features
       - uses: ./.github/actions/full-logs
@@ -215,7 +220,9 @@ jobs:
     name: Full e2e (${{ matrix.shard }}/4)
     needs: resolve
     if: needs.resolve.outputs.enabled == 'true' && needs.resolve.outputs.all == 'true'
-    runs-on: ${{ fromJSON(vars.FULL_RUNNER || '"ubuntu-latest"') }}
+    # Its own variable (FULL_E2E_RUNNER): four shards per run would hold the pool's few slots;
+    # GitHub-hosted by default.
+    runs-on: ${{ fromJSON(vars.FULL_E2E_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
