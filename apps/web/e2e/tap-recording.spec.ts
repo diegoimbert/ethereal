@@ -10,16 +10,15 @@
 //
 // `TAP_RECORDING_SHOTS=<dir>` also saves PR screenshots (armed tapped track, recorded takes;
 // dark and light). No sleeps except the recording itself.
-import { execFileSync, spawn, type ChildProcess } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import type { Project, TakeLane } from "@/generated";
 import { createOnLaunch, createTrack, launch, newProject, openEngineServer, pickOption, playButton, selectTrack, stopButton, headerButton } from "./ui";
+import { buildServer } from "./server";
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const TOKEN = `e2e-${Math.random().toString(36).slice(2)}`;
 const shots = process.env.TAP_RECORDING_SHOTS;
 const ulid = (kind: number, n: number) => `01J${kind}${String(n).padStart(22, "0")}`;
@@ -80,22 +79,6 @@ test("browser build: a tapped track can't be armed, with the reason shown", asyn
 
   expect(errors).toEqual([]);
 });
-
-function buildServer(): string {
-  const out = execFileSync("cargo", ["build", "-p", "ether-server", "--bin", "ether-server", "--features", "full", "--message-format=json"], {
-    cwd: repoRoot,
-    env: { ...process.env, CARGO_BUILD_JOBS: process.env.CARGO_BUILD_JOBS ?? "3" },
-    encoding: "utf8",
-    maxBuffer: 256 * 1024 * 1024,
-    stdio: ["ignore", "pipe", "inherit"],
-  });
-  for (const line of out.split("\n")) {
-    if (!line.startsWith("{")) continue;
-    const msg = JSON.parse(line) as { reason?: string; target?: { name: string }; executable?: string | null };
-    if (msg.reason === "compiler-artifact" && msg.target?.name === "ether-server" && msg.executable) return msg.executable;
-  }
-  throw new Error("cargo did not report the ether-server binary");
-}
 
 test.describe("native engine", () => {
   let server: ChildProcess | null = null;

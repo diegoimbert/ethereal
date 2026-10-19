@@ -9,6 +9,7 @@ import { useEngineEvent } from "@/features/transport-bar/engine";
 import { LaunchSettings } from "@/features/project/LaunchSettings";
 import { FileFilterSettings } from "@/features/browser/settings/FileFilterSettings";
 import { StorageSettings } from "@/features/storage";
+import { NewsSettings } from "@/features/news";
 import { AdvancedSettings } from "./AdvancedSettings";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { InputSettings } from "./InputSettings";
@@ -33,6 +34,7 @@ const TABS: ReadonlyArray<{ id: SettingsTab; label: MessageKey }> = [
   { id: "audio", label: "settings.tabs.audio" },
   { id: "input", label: "settings.tabs.input" },
   { id: "plugins", label: "settings.tabs.plugins" },
+  { id: "privacy", label: "settings.tabs.privacy" },
   { id: "advanced", label: "settings.tabs.advanced" },
 ];
 
@@ -49,6 +51,7 @@ const TABS: ReadonlyArray<{ id: SettingsTab; label: MessageKey }> = [
  *   modifier zooms, middle and side buttons). Kept on this device; needs no engine.
  * - Plugins (base-129): the folders scanned for plugins (system folders on/off, the user's
  *   folders with a format filter), Rescan and Full rescan.
+ * - Privacy: "check for news" (docs/NEWS.md). Kept on this device; needs no engine.
  * - Advanced: the engine server (remote engine), the engine log and the debug panels.
  * Mounted once by the app shell; open it with `openSettings(tab)` or `openAudioSettings()`.
  */
@@ -81,7 +84,7 @@ export function AudioSettingsDialog() {
         <div className="eth-settings">
           <Tabs label={t("settings.title")} value={tab} onChange={setTab} items={tabs} className="eth-settings__tabs" />
           <div className="eth-settings__panel" role="tabpanel" aria-label={tabs.find((x) => x.id === tab)?.label}>
-            {!transport && tab !== "general" && tab !== "appearance" && tab !== "input" && (
+            {!transport && tab !== "general" && tab !== "appearance" && tab !== "input" && tab !== "privacy" && (
               <p className="eth-audio-settings__note">{t("settings.no_engine")}</p>
             )}
             {tab === "general" && (
@@ -95,6 +98,11 @@ export function AudioSettingsDialog() {
             )}
             {tab === "appearance" && <AppearanceSettings />}
             {tab === "input" && <InputSettings />}
+            {tab === "privacy" && (
+              <div className="eth-settings__stack">
+                <NewsSettings />
+              </div>
+            )}
             {transport && tab === "audio" && <AudioSettingsBody transport={transport} reason={reason} />}
             {transport && tab === "plugins" && <PluginFoldersPanel transport={transport} />}
             {transport && tab === "advanced" && <AdvancedSettings transport={transport} />}

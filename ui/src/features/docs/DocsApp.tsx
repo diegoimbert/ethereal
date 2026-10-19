@@ -240,6 +240,14 @@ function DocsSearch({ docs, router, inputRef }: { docs: Docs; router: DocsRouter
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
+  // The results close a moment after the input loses focus (a click on one lands first); typing
+  // or focusing again within that moment keeps them open.
+  const closing = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const keepOpen = () => {
+    clearTimeout(closing.current);
+    setOpen(true);
+  };
+  useEffect(() => () => clearTimeout(closing.current), []);
   const results = useMemo(() => search(index, query), [index, query]);
   const terms = useMemo(() => queryTerms(query), [query]);
 
@@ -269,10 +277,12 @@ function DocsSearch({ docs, router, inputRef }: { docs: Docs; router: DocsRouter
         onChange={(e) => {
           setQuery(e.target.value);
           setActive(0);
-          setOpen(true);
+          keepOpen();
         }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onFocus={keepOpen}
+        onBlur={() => {
+          closing.current = setTimeout(() => setOpen(false), 150);
+        }}
         onKeyDown={(e) => {
           if (e.key === "ArrowDown") {
             e.preventDefault();

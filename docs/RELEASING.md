@@ -38,7 +38,9 @@ passes it to `tauri build` as the app version (bundle version, Info.plist, MSI),
 - If it exists, the release is `v<VERSION>+<shortsha>` and marked as a **prerelease**
   (so every push to `main` still produces downloadable builds).
 
-To cut a new release: bump `VERSION` on `main` (land it with a pull request).
+To cut a new release: bump `VERSION` on `main` (land it with a pull request). The same pull
+request moves the `Unreleased` summary in [`CHANGELOG.md`](../CHANGELOG.md) under the new
+version and updates `version` and `date-released` in [`CITATION.cff`](../CITATION.cff).
 
 ### Release notes
 
@@ -49,8 +51,8 @@ guide; GitHub's generated changelog follows. It is what the download page and th
 
 ### Before a release (required)
 
-CI runs most of these on every PR; run them locally too, especially the e2e and tours, which
-CI does not run:
+CI runs these on every PR (the e2e and tours too, except the `@frames` and `@pixels` specs,
+which only hold on the devbox); run them locally before a release anyway:
 
 - `just check-all` and the test suites (`check-all` starts with `just check-case-clashes`:
   tracked paths or TS module names that differ only in case break macOS/Windows builds).
@@ -95,6 +97,26 @@ bundled into each app (`tauri.conf.json` `bundle.licenseFile` / `files` and the
 - **Release overlay.** `scripts/release/tauri-config.mjs` writes a config merged over
   `tauri.conf.json` with `--config`: the version and signing settings. The base config stays release-agnostic.
 
+### Bundle identifier
+
+The desktop app's identifier is `ws.ethereal.daw` (`identifier` in `tauri.conf.json`,
+`ether_native::app_identity::DESKTOP_IDENTIFIER`; a test keeps the two equal). It is the
+reverse-DNS of ethereal.ws plus a third segment: Flathub requires at least three, and Tauri
+warns about an identifier that ends in `.app`. It names the app's data, log and WebView
+storage directories, so **it must not change again**.
+
+Releases up to v0.6.0 used `dev.ethereal.app`. On the first launch of a newer release,
+before anything opens them, `ether_native::app_identity::migrate_on_startup` moves those
+directories to the new names: the app data dir (settings, plugin database, caches,
+autosaves), the logs, and the WebView storage (macOS `~/Library/{Application Support,
+Caches,Logs,WebKit,HTTPStorages}`, Windows `%APPDATA%` and `%LOCALAPPDATA%`, Linux
+`$XDG_DATA_HOME`, `$XDG_CONFIG_HOME` and `$XDG_CACHE_HOME`). Nothing is deleted: when both
+names exist, entries missing from the new directory are moved, and entries present in both
+are left in the old directory, with a warning in the log. Projects are in
+`~/Documents/Ethereal/Projects`, which does not depend on the identifier. macOS ties privacy
+permissions (microphone, screen recording) to the identifier, so it asks for them again once.
+Say so in the release notes.
+
 ## Signing (optional)
 
 Without secrets, everything builds **unsigned** and the release notes say so. macOS builds
@@ -134,6 +156,10 @@ set-but-empty variable as configured.
 | `WINDOWS_CERTIFICATE_PASSWORD` | the `.pfx` password |
 | `WINDOWS_TIMESTAMP_URL` | optional, default `http://timestamp.digicert.com` |
 
+The default timestamp server is plain HTTP on purpose: an RFC 3161 timestamp is signed by the
+authority and verified against its certificate chain, so the transport adds nothing (DigiCert's
+authority does not answer over HTTPS).
+
 The workflow imports the `.pfx` into the runner's user certificate store and passes its
 thumbprint to Tauri (`bundle.windows.certificateThumbprint`, SHA-256, timestamped), which
 signs the executable, the MSI and the NSIS installer. Certificates that live only in an
@@ -154,8 +180,9 @@ the private build (see `ethereal-private`).
 When it is enabled (`full` in the private build), the app reads
 `https://github.com/diegoimbert/ethereal/releases/latest/download/latest.json`, so only the
 newest stable release is offered; prereleases (`v<VERSION>+<sha>`, partial releases) never
-are. Every download is verified against the minisign public key in
-`apps/desktop/src-tauri/tauri.conf.json` (`plugins.updater.pubkey`) before it is installed.
+are. Every download is verified against the minisign public key before it is installed:
+`plugins.updater.pubkey`, which the private overlay adds to the Tauri config (this
+repository's `apps/desktop/src-tauri/tauri.conf.json` has no updater section).
 
 ### How a release gets updater files
 

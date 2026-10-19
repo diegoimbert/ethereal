@@ -1327,6 +1327,36 @@ impl IPluginFactory2Trait for Factory {
 
 /// Crash or hang on demand, based on this module's own path (see the module docs).
 fn misbehave() {
+    let act = |path: &str| {
+        if path.contains("ether-crash") {
+            std::process::abort();
+        }
+        if path.contains("ether-hang") {
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+        }
+    };
+    #[cfg(windows)]
+    {
+        unsafe extern "system" {
+            fn GetModuleHandleExW(flags: u32, address: *const u16, module: *mut *mut c_void)
+            -> i32;
+            fn GetModuleFileNameW(module: *mut c_void, name: *mut u16, size: u32) -> u32;
+        }
+        // GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT
+        const FLAGS: u32 = 0x4 | 0x2;
+        let mut module = std::ptr::null_mut();
+        // SAFETY: an address inside this module; the handle is not reference-counted.
+        if unsafe { GetModuleHandleExW(FLAGS, GetPluginFactory as *const u16, &mut module) } == 0 {
+            return;
+        }
+        let mut name = [0u16; 2048];
+        // SAFETY: `name` holds `name.len()` UTF-16 units.
+        let n =
+            unsafe { GetModuleFileNameW(module, name.as_mut_ptr(), name.len() as u32) } as usize;
+        act(&String::from_utf16_lossy(&name[..n.min(name.len())]));
+    }
     #[cfg(unix)]
     {
         #[repr(C)]
@@ -1344,15 +1374,7 @@ fn misbehave() {
         if !found || info.fname.is_null() {
             return;
         }
-        let path = unsafe { CStr::from_ptr(info.fname) }.to_string_lossy();
-        if path.contains("ether-crash") {
-            std::process::abort();
-        }
-        if path.contains("ether-hang") {
-            loop {
-                std::thread::sleep(std::time::Duration::from_secs(1));
-            }
-        }
+        act(&unsafe { CStr::from_ptr(info.fname) }.to_string_lossy());
     }
 }
 

@@ -17,7 +17,7 @@
 import { lazy, memo, Suspense, useContext, useEffect, useRef } from "react";
 import { Settings } from "lucide-react";
 import { useT } from "@/i18n";
-import { ConfirmDialog, ContextMenuHost, IconButton, ReadOnlySurface, TitleTooltipHost } from "@/kit";
+import { ConfirmDialog, ContextMenuHost, IconButton, ReadOnlySurface, TitleTooltipHost, ToastStack } from "@/kit";
 import { dismissOnRelease, useEditorStore, useProjectStore, useReadOnly } from "@/state";
 import { size } from "@/theme";
 import type { ClipId } from "@/generated";
@@ -32,6 +32,7 @@ import { KeymapRoot } from "@/features/keymap";
 import { EngineLanguage } from "./EngineLanguage";
 import { MediaRefsRoot } from "@/features/media-refs";
 import { MidiLearnRoot } from "@/features/midi-learn";
+import { NotificationToastItems } from "@/features/notifications";
 import { ImportResolverRoot } from "@/features/import-resolver";
 import { ProjectMenu } from "@/features/project";
 import { RecordingControls, useKeepRecordingSetup } from "@/features/recording";
@@ -42,6 +43,7 @@ import { QuitRoot } from "@/features/quit";
 import { DesktopMenuRoot } from "@/features/desktop-menu";
 import { TourRoot } from "@/features/tutorials";
 import { DocsRoot } from "@/features/docs";
+import { NewsRoot } from "@/features/news";
 import { useDocumentTitle } from "@/features/document-title";
 import { VersionsRoot } from "@/features/versions";
 import { CommandPalette } from "./shell/CommandPalette";
@@ -309,6 +311,10 @@ export function App() {
   return (
     <PanelBoundary name="app" variant="app">
       <Shell />
+      {/* The app's notices (saved, exported, duplicated, warnings), over every shell. */}
+      <ToastStack>
+        <NotificationToastItems />
+      </ToastStack>
     </PanelBoundary>
   );
 }
@@ -454,6 +460,10 @@ function EditorShell() {
       {/* Guided tours from the welcome screen's "get started" (docs/TUTORIALS.md). */}
       <PanelBoundary name="tour" variant="overlay">
         <TourRoot />
+      </PanelBoundary>
+      {/* news: the maintainers' announcements, once after launch (docs/NEWS.md). */}
+      <PanelBoundary name="news" variant="overlay">
+        <NewsRoot />
       </PanelBoundary>
       {/* docs (#665): the user documentation over the app (desktop; the web opens /docs). */}
       <PanelBoundary name="documentation" variant="overlay">

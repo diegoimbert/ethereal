@@ -1,4 +1,7 @@
 [toolchain]
-channel = "stable"
+# Pinned so that CI (clippy, rustfmt) and the release binaries are reproducible. Bump it on
+# purpose, in its own pull request (fixing whatever new lints come with it): rustup installs
+# the new version on the next build everywhere.
+channel = "1.99.1"
 components = ["rustfmt", "clippy"]
 targets = ["wasm32-unknown-unknown"]
