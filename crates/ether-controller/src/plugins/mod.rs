@@ -49,6 +49,12 @@ pub(crate) const MAX_RESTARTS: usize = 3;
 pub(crate) const RESTART_WINDOW_MS: u64 = 60_000;
 
 impl PluginsState {
+    /// Mirror `device`'s params into the document again at the next tick (its instance
+    /// loaded another state in place).
+    pub(crate) fn remirror(&mut self, device: DeviceId) {
+        self.mirrored.remove(&device);
+    }
+
     /// Record a restart request of `device` at `now`: whether to honour it, and whether this
     /// is the first one refused (to warn once).
     pub(crate) fn allow_restart(&mut self, device: DeviceId, now: u64) -> (bool, bool) {

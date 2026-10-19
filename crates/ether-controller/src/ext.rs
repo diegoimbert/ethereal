@@ -12,14 +12,16 @@
 //! What an extension may use of the controller is the public API: the `pub` fields and
 //! methods of [`EtherController`] and the helpers in [`api`].
 
-use ether_core::protocol::model::ProjectId;
+use std::collections::BTreeSet;
+
+use ether_core::protocol::model::{Base64Bytes, DeviceId, ProjectId};
 use ether_core::protocol::{Command, ReplyValue};
 
 use crate::resolver::ImportHints;
 
 use crate::store::{Library, ProjectStore};
 use crate::tx::CmdResult;
-use crate::{EngineBridge, EtherController, HostServices, MessageSink};
+use crate::{BridgeError, EngineBridge, EtherController, HostServices, MessageSink};
 
 /// A controller extension. Every hook has a no-op default.
 pub trait ControllerExt<B, H, S, L>
@@ -136,6 +138,44 @@ where
     /// What an import knows about the project it just opened (the resolver uses them).
     pub fn set_import_hints(&mut self, hints: ImportHints) {
         self.resolver.set_import_hints(hints);
+    }
+
+    /// Load a new state into plugin `device`'s running instance: in place when the host can
+    /// (`Ok(true)`: its editor stays open, its params are mirrored into the document again),
+    /// else the instance is re-created from the document (`Ok(false)`; `Err`: the live load
+    /// failed, re-created too).
+    pub fn load_plugin_state(
+        &mut self,
+        device: DeviceId,
+        state: &Base64Bytes,
+    ) -> Result<bool, BridgeError> {
+        let loaded = self
+            .engine
+            .apply_plugin_state(&mut self.bridge, device, state);
+        if matches!(loaded, Ok(true)) {
+            self.plugins.remirror(device);
+        }
+        loaded
+    }
+
+    /// The open project's files still on their way (an extension writes them later): their
+    /// media are neither read nor reported missing until [`Self::reload_media_file`].
+    pub fn set_incoming_media(&mut self, files: BTreeSet<String>) {
+        if let Some(doc) = self.doc.as_ref() {
+            self.media.set_incoming(&doc.project, files);
+        }
+    }
+
+    /// No file of the open project is on its way any more.
+    pub fn clear_incoming_media(&mut self) {
+        self.media.clear_incoming();
+    }
+
+    /// The project file `file` was written or replaced: reload the media stored there.
+    pub fn reload_media_file(&mut self, file: &str) {
+        if let Some(doc) = self.doc.as_ref() {
+            self.media.reload_file(&mut self.bridge, &doc.project, file);
+        }
     }
 }
 

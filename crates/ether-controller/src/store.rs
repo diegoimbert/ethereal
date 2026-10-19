@@ -43,6 +43,10 @@ pub enum StoreError {
 /// store's writer thread when it has one).
 pub type RenderDocument = Box<dyn FnOnce() -> Result<String, StoreError> + Send>;
 
+/// A file written right after the document by [`ProjectStore::save_in_background_with`],
+/// built from the document's JSON: `(relative path, bytes)`, or nothing.
+pub type RenderSidecar = Box<dyn FnOnce(&str) -> Option<(String, Vec<u8>)> + Send>;
+
 /// `export` (#434): an export file being written piece by piece
 /// ([`ProjectStore::create_export`]). It is seekable because encoders fill their header in
 /// at the end. Dropped without [`ProjectStore::commit_export`] (cancel, failure), it leaves
@@ -84,6 +88,26 @@ pub trait ProjectStore {
         let _ = name;
         let json = render()?;
         self.save(id, &json)
+    }
+
+    /// [`Self::save_in_background`], then `sidecar`'s file (from the document's JSON) is
+    /// written right after the document, in the same job: a newer save replaces both, and
+    /// the sidecar never lands before its document (an extension's file that names the
+    /// document it goes with). Default: synchronous.
+    fn save_in_background_with(
+        &mut self,
+        id: ProjectId,
+        name: &str,
+        render: RenderDocument,
+        sidecar: RenderSidecar,
+    ) -> Result<ProjectSummary, StoreError> {
+        let _ = name;
+        let json = render()?;
+        let summary = self.save(id, &json)?;
+        if let Some((path, bytes)) = sidecar(&json) {
+            self.write(id, &path, &bytes)?;
+        }
+        Ok(summary)
     }
 
     /// Wait until every [`Self::save_in_background`] write is on disk (or failed).

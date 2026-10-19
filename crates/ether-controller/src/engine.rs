@@ -186,6 +186,38 @@ impl EngineState {
         self.request_recreate(device);
     }
 
+    /// A new state for plugin `device` (an extension's, e.g. a collaborator's preset): loaded
+    /// into the running instance in place when the host can (its editor stays open, no audio gap), else the instance is
+    /// re-created from the document at the next sync. `Ok(true)`: loaded live; `Ok(false)`:
+    /// re-created (or nothing runs); `Err`: the live load failed, re-created.
+    pub fn apply_plugin_state<B: EngineBridge + ?Sized>(
+        &mut self,
+        bridge: &mut B,
+        device: DeviceId,
+        state: &Base64Bytes,
+    ) -> Result<bool, BridgeError> {
+        if self.node(device).is_none() {
+            // No instance (missing plugin, frozen, failed or pending load): its next creation
+            // reads the document anyway.
+            return Ok(false);
+        }
+        match bridge.set_plugin_state(device, state) {
+            Ok(true) => {
+                // The save path must read it again.
+                self.created_plugins.push(device);
+                Ok(true)
+            }
+            Ok(false) => {
+                self.request_reload_from_doc(device);
+                Ok(false)
+            }
+            Err(e) => {
+                self.request_reload_from_doc(device);
+                Err(e)
+            }
+        }
+    }
+
     /// Forget every node (project switch): all are destroyed after the next publish.
     pub fn reset(&mut self) {
         for (_, n) in std::mem::take(&mut self.nodes) {
