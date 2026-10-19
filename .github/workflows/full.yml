@@ -139,6 +139,7 @@ jobs:
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+          drift-check: "true"
       # Self-hosted runners keep their own target dirs: no Actions cache there.
       - uses: ./.github/actions/chef-cache
         if: runner.environment == 'github-hosted'
