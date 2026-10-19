@@ -131,6 +131,11 @@ jobs:
         run: >-
           cargo nextest run --profile ci --workspace --all-features
           -E 'not (test(=appended_params_keep_the_default_sound) | test(=patches_from_before_render_as_before))'
+      - name: Sweep stale test binaries (self-hosted target dir)
+        if: ${{ !cancelled() && runner.environment != 'github-hosted' }}
+        continue-on-error: true
+        timeout-minutes: 5
+        run: node scripts/ci/sweep-test-binaries.mjs -- --workspace --all-features
       - name: doctests
         run: cargo test --workspace --all-features --doc
       - name: wasm32 check
@@ -177,13 +182,11 @@ jobs:
       - name: clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: test
-        # dropping_without_deactivate_is_safe deadlocks on these runners (#45).
         run: >-
           cargo nextest run --profile ci --all-features
           -p ether-au -p ether-clap -p ether-vst3 -p ether-plugin-host -p ether-plugin-scanner
           -p ether-sandbox -p ether-native -p ether-server -p ether-mcp
           -p ether-core -p ether-devices -p ether-media -p ether-stretch
-          -E 'not test(=dropping_without_deactivate_is_safe)'
 
   rust-windows:
     name: Rust (Windows)
@@ -340,10 +343,16 @@ jobs:
     # its retry is reported as flaky in the log (a bug to fix), without blocking the merge.
     # Left out: `@frames` (frame-time budgets) and `@pixels` (text rasterization against the
     # DOM), both calibrated on the devbox and not stable on shared runners.
+    #
+    # GitHub-hosted even when the pool is on: it builds nothing (the web build and the server
+    # come from `web-build`), so a warm cache gains it nothing, and its four ~10 min shards per
+    # run would hold the pool's few slots while the Rust and build jobs of `main` wait. The
+    # server binary may come from the pool (Debian 13, glibc 2.41): today it needs glibc 2.39,
+    # what ubuntu-latest (24.04) has; a "GLIBC_2.4x not found" here means it no longer fits.
     name: e2e (${{ matrix.shard }}/4)
     needs: [changes, web-build]
     if: needs.changes.outputs.full == 'true'
-    runs-on: ${{ fromJSON(needs.changes.outputs.linux) }}
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
       group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-e2e-${{ strategy.job-index }}

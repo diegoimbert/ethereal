@@ -72,3 +72,19 @@ The macOS Help menu shows only items the app handles. An extension adds its grou
 `app_menu::set_extra_help_items(groups)` before the menu is built, and labels them in the UI with
 `desktopMenu.labels`. Their actions reach the UI like the app's own.
 
+## The engine protocol (`crates/ether-protocol/src/ext.rs`)
+
+A command domain, event or reply value this repository doesn't declare is an extension's. On
+the wire it looks like the app's own (`{ "domain": "<name>", "command": … }`, `{ "type": … }`);
+the protocol keeps it as JSON in the `Ext` variant (`Command::Ext`, `Event::Ext`,
+`ReplyValue::Ext`), and the extension reads it with its own types (`ExtCommand::parse`,
+`ExtValue::parse`). Without an extension the engine replies `Unsupported`. The generated
+TypeScript types leave `Ext` out: an extension generates its own and joins them to the app's.
+
+In the controller (`crates/ether-controller`):
+
+- `set_ext_labels(f)`: the undo labels of an extension's commands (catalog messages).
+- `set_agent_selection(selection)`: the selection the agent tools read, for an extension that
+  learns it otherwise (the UI sends `Agent::SetSelection`).
+- `ETHER_EXTRA_LOCALES` (build time, see i18n above): the extension's undo labels, notices and
+  errors.

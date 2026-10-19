@@ -12,13 +12,13 @@ use crate::browser::{
 };
 use crate::capture::{CaptureCommand, CaptureEvent, CaptureResult, CaptureStatus};
 use crate::clips::ClipCommand;
-use crate::collab::{CollabCommand, CollabEvent};
 use crate::devices::FactoryIr;
 use crate::devices::{DeviceCommand, DeviceDescriptor};
 use crate::drum_rack::{DrumRackCommand, SliceCommand};
 use crate::engine::{AudioDeviceList, EngineCommand, EngineEvent, EngineStatus};
 use crate::export::{ByteChunk, ExportCommand, ExportEvent, ExportJobId};
 use crate::expression::ExpressionCommand;
+use crate::ext::{ExtCommand, ExtValue};
 use crate::external::{ExternalCommand, ExternalEvent, HardwarePorts};
 use crate::freeze::{FreezeCommand, FreezeEvent, RenderJobId};
 use crate::groove::GrooveCommand;
@@ -39,8 +39,6 @@ use crate::racks::{ModulationCommand, ModulatorDescriptor, RackCommand};
 use crate::recording::{InputList, RecordingCommand, RecordingEvent};
 use crate::resolver::{ReplaceReport, ResolveCommand, ResolveEvent, ResolveProposal};
 use crate::samples::{SamplesCommand, SamplesEvent, SamplesView};
-use crate::share::{ShareCommand, ShareEvent};
-use crate::social::{ChatCommand, PinnedNoteCommand};
 use crate::takes::TakeCommand;
 use crate::templates::{TemplateCommand, TemplateEvent, TemplateInfo};
 use crate::tempo::TempoCommand;
@@ -67,11 +65,14 @@ pub struct ClientMessage {
 /// Every command, grouped by domain (one Rust file per domain in this crate).
 ///
 /// JSON: `{ "domain": "Mixer", "command": { "type": "SetVolume", "track": "01H…", "volume": -6 } }`
-// `Collab(SetPresence)` carries a whole `PresenceState` (it grew with presence v2 and the
-// base-62 peer transport). Commands are short-lived, so the size gap doesn't matter.
+///
+/// A domain this enum doesn't declare (an extension's, docs/EXTENSIONS.md) arrives as
+/// [`Command::Ext`].
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+// Serialize/Deserialize: `crate::ext` (the `Ext` variant for the domains not listed here).
 #[serde(tag = "domain", content = "command")]
+#[serde(remote = "Self")]
 pub enum Command {
     Transport(TransportCommand),
     Project(ProjectCommand),
@@ -95,7 +96,6 @@ pub enum Command {
     Groove(GrooveCommand),
     DrumRack(DrumRackCommand),
     Slice(SliceCommand),
-    Collab(CollabCommand),
     // --- v0.2 (contracts-3; one domain per feature, CONTRACTS.md §12) ---
     Take(TakeCommand),
     Freeze(FreezeCommand),
@@ -106,11 +106,6 @@ pub enum Command {
     Rack(RackCommand),
     Modulation(ModulationCommand),
     MediaRef(MediaRefCommand),
-    // --- base-62 (`collab-social`, docs/COLLAB.md §12) ---
-    /// Session chat (not a document command: never an undo step).
-    Chat(ChatCommand),
-    /// Notes pinned on the arrangement (document command).
-    PinnedNote(PinnedNoteCommand),
     // --- v0.3 (contracts-4; one domain per feature, CONTRACTS.md §13) ---
     /// Clip expression lanes, note expressions, track MPE (`midi-expression`, `mpe`).
     Expression(ExpressionCommand),
@@ -128,9 +123,6 @@ pub enum Command {
     Version(VersionCommand),
     /// User keymap storage (`keymap`).
     Keymap(KeymapCommand),
-    // --- base-115 (sharing, docs/SHARING.md) ---
-    /// Share / join: P2P host hub, invite links (not a document command).
-    Share(ShareCommand),
     // --- agent-api (owner request; docs/MCP.md) ---
     /// LLM agent tools (in-app AI chat, MCP server). Not a document command itself: a tool
     /// call that edits is one undo step.
@@ -146,6 +138,11 @@ pub enum Command {
     /// The default sample pack: manifest, lazy downloads, the built-in kit (not a document
     /// command).
     Samples(SamplesCommand),
+    /// A command of an extension domain (`crate::ext`): any other `domain`. The engine
+    /// hands it to its extensions, else replies `Unsupported`.
+    #[serde(skip)]
+    #[ts(skip)]
+    Ext(ExtCommand),
 }
 
 /// App settings the engine takes from the UI (never an undo step).
@@ -196,7 +193,9 @@ pub enum ReplyResult {
 
 /// Typed payloads of replies. Most commands reply `Unit`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+// Serialize/Deserialize: `crate::ext` (the `Ext` variant for the types not listed here).
 #[serde(tag = "type")]
+#[serde(remote = "Self")]
 pub enum ReplyValue {
     Unit,
     Project {
@@ -381,15 +380,6 @@ pub enum ReplyValue {
     Bundle {
         download: crate::export::ExportDownload,
     },
-    /// `Project::StaticSnapshot`.
-    StaticSnapshot {
-        manifest: Box<crate::static_share::StaticManifest>,
-    },
-    /// `Project::StaticView`: `view.json` and `peaks.bin`.
-    StaticView {
-        doc: crate::export::ExportDownload,
-        peaks: crate::export::ExportDownload,
-    },
     /// project-export: `Project::ExportTo` finished (report, and the file or a download).
     ProjectExported {
         result: crate::project_export::ProjectExportResult,
@@ -403,6 +393,10 @@ pub enum ReplyValue {
     PluginReplaced {
         report: ReplaceReport,
     },
+    /// A reply value of an extension (`crate::ext`): any other `type`.
+    #[serde(skip)]
+    #[ts(skip)]
+    Ext(ExtValue),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -446,7 +440,9 @@ pub enum ErrorCode {
 
 /// Pushed engine → UI events (low rate).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+// Serialize/Deserialize: `crate::ext` (the `Ext` variant for the types not listed here).
 #[serde(tag = "type")]
+#[serde(remote = "Self")]
 pub enum Event {
     /// A whole new document (new/open/reconnect). Replaces the UI mirror.
     ProjectLoaded {
@@ -481,9 +477,6 @@ pub enum Event {
     },
     MidiMap {
         event: MidiMapEvent,
-    },
-    Collab {
-        event: CollabEvent,
     },
     // --- v0.2 ---
     Freeze {
@@ -528,11 +521,6 @@ pub enum Event {
     Keymap {
         event: KeymapEvent,
     },
-    // --- base-115 ---
-    /// Sharing state, notices and the web UI peer endpoint (docs/SHARING.md).
-    Share {
-        event: ShareEvent,
-    },
     /// `Project::Import` job progress and result (`import-dawproject`).
     Import {
         event: ImportEvent,
@@ -551,6 +539,10 @@ pub enum Event {
         #[ts(optional)]
         key: Option<crate::model::text::TextKey>,
     },
+    /// An event of an extension (`crate::ext`): any other `type`.
+    #[serde(skip)]
+    #[ts(skip)]
+    Ext(ExtValue),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]

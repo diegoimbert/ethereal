@@ -214,8 +214,7 @@ impl<F: Fs> WebStore<F> {
             id,
             name: name_of(&bytes),
             modified_ms,
-            // Reading `share.json` is part of the private sharing overlay.
-            share: None,
+            ext: None,
         })
     }
 
@@ -1158,13 +1157,13 @@ mod tests {
         s.create(pid(1)).unwrap();
         s.save(pid(1), &doc("Song")).unwrap();
         s.write(pid(1), SHARE_FILE, b"{}").unwrap();
-        assert!(s.list().unwrap()[0].share.is_none());
+        assert!(s.list().unwrap()[0].ext.is_none());
 
         s.write(pid(1), "media/a.wav", b"A").unwrap();
         s.duplicate(pid(1), pid(2)).unwrap();
         assert!(s.read(pid(2), SHARE_FILE).is_err());
         assert_eq!(s.read(pid(2), "media/a.wav").unwrap(), b"A");
-        assert!(s.list().unwrap()[0].share.is_none());
+        assert!(s.list().unwrap()[0].ext.is_none());
     }
 
     #[test]
