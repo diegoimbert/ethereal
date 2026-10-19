@@ -1,5 +1,5 @@
-//! Tempo map editing and metronome settings (roadmap v2, owned by the `tempo-metronome`
-//! node; see `docs/ROADMAP.md` and `ether_protocol::tempo`).
+//! Tempo map editing and metronome settings (roadmap v2; see CONTRACTS.md
+//! §11.3 and `ether_protocol::tempo`).
 //!
 //! `TempoCommand` is a document command (dispatched from `doc::apply`), so every command is
 //! one undo step (a drag sends `EditTempoPoint`s under one gesture). The click itself is

@@ -21,7 +21,7 @@
 //! so a crossfade is simply `A`'s fade-out overlapping `B`'s fade-in (use the same curve
 //! on both, e.g. `EqualPower`, for a symmetric crossfade). Overlaps are not a model
 //! invariant (documents may contain them); larger overlaps just sum. `ClipCommand::
-//! SetCrossfade` (`crossfades` node) sizes or removes one around a fixed boundary.
+//! SetCrossfade` (`crossfades`) sizes or removes one around a fixed boundary.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

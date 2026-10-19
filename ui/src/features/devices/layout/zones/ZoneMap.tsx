@@ -137,6 +137,7 @@ export function ZoneMapWidget({ size, label }: ZoneMapWidgetProps) {
         className={clsx("eth-zones", over !== null && "eth-zones--over")}
         data-testid="zone-map"
         tabIndex={0}
+        role="group"
         aria-label={t("devices.zones.map")}
         onKeyDown={onKeyDown}
         onDragOver={onDragOver}

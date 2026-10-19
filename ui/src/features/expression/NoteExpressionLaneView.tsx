@@ -1,6 +1,6 @@
 /**
  * Per-note expression lane (`NoteExpressionKind`; `midi-expression` edits `Pressure`, the
- * `mpe` node adds `Pitch` / `Timbre` with the same component): each note's curve is drawn
+ * `mpe` adds `Pitch` / `Timbre` with the same component): each note's curve is drawn
  * over the note's span (times are beats from the note start).
  *
  * - Drag: pencil over the selected notes (all shown notes when none is selected). Every

@@ -1,5 +1,4 @@
-//! v0.3 devices owned by the `fx-space` node (contracts-4 froze the param table; see
-//! docs/ROADMAP.md "v0.3" and the device agent guide in its "v0.2" section).
+//! v0.3 space devices (contracts-4 froze the param table; see docs/DEVICES.md).
 //!
 //! # Convolution Reverb (`BuiltinDeviceType::ConvolutionReverb`)
 //!
@@ -7,7 +6,7 @@
 //! preferred, else report the partition latency with `Node::latency`) of the input with the
 //! impulse response of `BuiltinDevice::ConvolutionReverb { ir }`:
 //! - `IrSource::Factory { id }`: one of [`FACTORY_IRS`] (shipped with the device; generated
-//!   or embedded, the `fx-space` node decides; ids are append-only);
+//!   or embedded, the device decides; ids are append-only);
 //! - `IrSource::Media { media }`: project media (imported or referenced in place) resolved
 //!   through the `SampleResolver` like the sampler's sample; the whole IR is read and
 //!   transformed (FFT partitions) in `create` / `Node::set_data`, never on the audio thread.

@@ -1,4 +1,4 @@
-//! Takes and comping (v0.2, `comping` node). Document commands, all undoable. Data model and
+//! Takes and comping (v0.2, `comping`). Document commands, all undoable. Data model and
 //! playback rules: `ether_model::take`; CONTRACTS.md §12.2.
 //!
 //! Take clips are ordinary clips (`Clip::lane`): edit them with `ClipCommand`/`NoteCommand` by

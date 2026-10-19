@@ -1,5 +1,4 @@
-//! Native audio/MIDI input capture (owned by the `recording` wave-3 node; see
-//! `docs/WAVE3.md`).
+//! Native audio/MIDI input capture.
 //!
 //! ```text
 //!  cpal input callback ──ring (interleaved f32, all channels)──▶ InputFeed (output callback) ──▶ Engine::process(inputs)
@@ -128,7 +127,7 @@ pub struct RecordingShared {
     writer: OnceLock<writer::WriterHandle>,
     /// Connected MIDI ports. Never held while taking `inner` or `midi_in`.
     midi: Mutex<midi::MidiInputs>,
-    /// Port-tagged input for the controller (MIDI learn / mappings; `midi-learn` node).
+    /// Port-tagged input for the controller (MIDI learn / mappings; `midi-learn`).
     control: midi::ControlQueue,
     /// Live recording view (`live-record`): writer thread → controller thread.
     live: live::LiveShared,

@@ -10,10 +10,14 @@ shown to users.
   has an id (`<area>/<slug>`). An item that no longer applies keeps its entry with
   `"removed": "<why>"`.
 - `pending.txt`: inventory items and pages not written yet. It's empty once the docs are complete.
-- `coverage.json`: which page and heading covers each item (generated).
+- `coverage.json`: which page and heading covers each item (generated). Its percentage
+  measures the inventory only: pages with no `covers` lines (the FAQ, the glossary, the
+  example songs, mixing, MIDI files…) aren't counted, and a feature
+  missing from the inventory isn't either.
 - `content-fr/`: the French translation, page by page (docs/LOCALIZATION.md "Docs"). When you
   change an English page, change its French page the same way: a heading you add, remove or
-  rename there (or a `covers` line) makes the translation stale, which the tests catch.
+  rename there (or a `covers` line) makes the translation stale, which the tests catch. So
+  does a paragraph, list item, table row or link that one has and the other hasn't.
 
 Checks (`ui/src/features/docs/*.test.ts`): every live inventory item is covered by a page
 heading or is pending; links, anchors, shortcuts and images resolve; titles and headings are

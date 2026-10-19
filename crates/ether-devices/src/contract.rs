@@ -1,8 +1,8 @@
-//! Shared v0.2 device scaffolding (contracts-3; changes via BCR): param-table builders,
+//! Shared v0.2 device scaffolding (contracts-3; a shared contract, change it on purpose): param-table builders,
 //! the placeholder node every v0.2 device starts as, factory-preset registration and layout
 //! builders. Device nodes use these from their own modules.
 //!
-//! See the "Device agent guide" in `docs/ROADMAP.md` (v0.2) for the rules: RT safety
+//! See `docs/DEVICES.md` for the rules: RT safety
 //! (`assert_no_alloc` tests), append-only param ids, descriptor ↔ mock parity
 //! (`tests/v02_descriptors.rs` + `ui/src/transport/mock/devices/*.json`), factory presets
 //! under `crates/ether-devices/presets/<device-key>/`, declarative layouts only.

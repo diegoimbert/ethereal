@@ -1,4 +1,4 @@
-//! Audio Unit hosting (native; real only on macOS). Owned by the `au` node; see
+//! Audio Unit hosting (native; real only on macOS); see
 //! `docs/PLUGIN-FORMATS.md`.
 //!
 //! [`AuFormat`] is the [`PluginFormatHost`] for AUs. AUs are found through the system

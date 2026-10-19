@@ -22,7 +22,6 @@
 //! outlives a crash of either process.
 //!
 //! Platforms: macOS and Linux. Elsewhere (Windows) [`spawn`] returns an error for now.
-//! Owned by the `sandbox` node.
 #![cfg(not(target_arch = "wasm32"))]
 
 use std::path::{Path, PathBuf};

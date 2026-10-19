@@ -1,4 +1,4 @@
-//! Built-in `Limiter` device (roadmap v2, owned by the `devices-2` node).
+//! Built-in `Limiter` device (roadmap v2, `devices-2`).
 //!
 //! Stereo-linked lookahead brickwall limiter. The audio is delayed by a fixed
 //! [`LOOKAHEAD_MS`] lookahead, reported through [`Node::latency`] so the engine's PDC

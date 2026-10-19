@@ -1,4 +1,4 @@
-//! Remote engine over WebSocket (roadmap v2, `remote-engine` node): the UI in a browser
+//! Remote engine over WebSocket (roadmap v2, `remote-engine`): the UI in a browser
 //! talks to a headless engine (`ether-server`) or a desktop app on another machine.
 //!
 //! # Connection

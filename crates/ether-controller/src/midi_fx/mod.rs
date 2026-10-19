@@ -1,4 +1,4 @@
-//! MIDI effects: chain ordering and scale data (v0.2, owned by the `midi-fx` node;
+//! MIDI effects: chain ordering and scale data (v0.2, `midi-fx`;
 //! CONTRACTS.md §12.4.4).
 //!
 //! - [`check_chain_order`]: called by `doc/devices.rs` after `Device::{Insert, Move}`: MIDI

@@ -1,4 +1,4 @@
-//! Takes and comping (v0.2, owned by the `comping` node; model `ether_model::take`,
+//! Takes and comping (v0.2, `comping`; model `ether_model::take`,
 //! protocol `ether_protocol::takes`, CONTRACTS.md §12.2).
 //!
 //! - [`take_command`]: every `TakeCommand` (document commands, dispatched from

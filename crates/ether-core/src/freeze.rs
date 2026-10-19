@@ -1,4 +1,4 @@
-//! Frozen-track playback (v0.2, owned by the `freeze-bounce` node; CONTRACTS.md §12.3).
+//! Frozen-track playback (v0.2, `freeze-bounce`; CONTRACTS.md §12.3).
 //!
 //! A frozen track's desc carries [`FrozenDesc`] (`TrackDesc::frozen`); the controller then
 //! compiles it **without clips and without device chain** (its nodes are not instantiated).

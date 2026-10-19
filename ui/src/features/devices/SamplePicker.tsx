@@ -137,6 +137,7 @@ export function SamplePicker({ onPick }: { onPick(payload: BrowserDragPayload): 
           const tgt = target(item);
           return (
             <li key={item.id}>
+              {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus -- the search field above keeps the focus: its arrows and Enter pick the active row */}
               <div
                 className={clsx("eth-devlib__row", activeId === item.id && "eth-devlib__row--active")}
                 data-key={item.id}

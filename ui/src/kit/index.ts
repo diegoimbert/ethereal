@@ -13,6 +13,7 @@ if (import.meta.env.MODE !== "test") initMotionLevel();
 
 export { Button, type ButtonProps } from "./Button";
 export { ConfirmDialog } from "./confirm";
+export { DismissibleError, type DismissibleErrorProps } from "./DismissibleError";
 export { useConfirm, type ConfirmRequest } from "./confirmStore";
 export { ContextMenuHost } from "./ContextMenu";
 export { TitleTooltipHost } from "./TitleTooltips";

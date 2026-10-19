@@ -1,4 +1,4 @@
-//! Groove (roadmap v2, `groove` node): quantize strength + swing, humanize, project swing.
+//! Groove (roadmap v2, `groove`): quantize strength + swing, humanize, project swing.
 
 mod common;
 

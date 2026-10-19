@@ -1,4 +1,4 @@
-//! Controller-side plugin logic (owned by the `plugins` wave-3 node; see `docs/WAVE3.md`).
+//! Controller-side plugin logic.
 //!
 //! - Inserting a plugin (`DeviceCommand::Insert { device: DeviceSpec::Plugin }`), the
 //!   sandbox toggle (`PluginCommand::SetSandboxed`: the live state is captured into

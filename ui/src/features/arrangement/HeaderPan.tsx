@@ -24,6 +24,7 @@ export function HeaderPan({ track }: { track: Track }) {
   };
   return (
     // Not a header press (drag / selection) nor a click on it.
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- only keeps its events from reaching the track header around it
     <span className="eth-arr-pan" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
       <Knob
         size="sm"
