@@ -10,7 +10,10 @@ fn main() {
     let dist = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../ui/dist");
     // Re-run when the page goes away (`git clean`, a fresh checkout of a kept workspace): a cached
     // run of this script would not recreate the placeholder.
-    println!("cargo:rerun-if-changed={}", dist.join("index.html").display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        dist.join("index.html").display()
+    );
     if !dist.join("index.html").exists() {
         std::fs::create_dir_all(&dist).expect("create ui/dist placeholder dir");
         std::fs::write(
