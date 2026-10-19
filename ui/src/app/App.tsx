@@ -63,6 +63,7 @@ import { TransportContext } from "@/transport";
 import { useTransportSwitch } from "@/transport/createDefaultTransport";
 import { PanelBoundary } from "./PanelBoundary";
 import { ExtensionRoots, useExtensionInit } from "./ExtensionRoots";
+import { useAgentSelectionSync } from "@/features/ai-chat/selectionSync";
 import "./App.css";
 
 /** Sizes in px, from the design tokens (`size.*` in ui/src/theme/tokens.ts). */
@@ -333,6 +334,8 @@ function Shell() {
   useDocumentTitle();
   // Extensions (`@/ext` "app.init").
   useExtensionInit();
+  // The selection the agent tools read (AI chat, MCP).
+  useAgentSelectionSync(connection?.transport ?? null, connection?.connection.status === "connected");
   // A read-only view (`state/viewer.ts`, an extension's): in the touch layout on phones and tablets.
   if (useReadOnly())
     return mobile ? (

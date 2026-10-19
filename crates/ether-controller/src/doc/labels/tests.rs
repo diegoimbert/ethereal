@@ -188,11 +188,10 @@ fn starts_lowercase(label: &str) -> bool {
 }
 
 fn every_command() -> Vec<Command> {
-    let domain_err = serde_json::from_value::<Command>(json!({ "domain": PROBE, "command": null }))
-        .unwrap_err()
-        .to_string();
-    let domains = variants(&domain_err);
-    assert!(domains.len() > 40, "domains from {domain_err}");
+    // An undeclared domain is an extension's (`Command::Ext`), so ask the protocol for the
+    // declared ones.
+    let domains = ether_core::protocol::ext::command_domains().to_vec();
+    assert!(domains.len() > 40, "domains: {domains:?}");
     let mut out = Vec::new();
     for domain in domains {
         let err = serde_json::from_value::<Command>(
