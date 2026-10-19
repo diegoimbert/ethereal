@@ -149,6 +149,11 @@ jobs:
         run: >-
           node scripts/ci/private-step.mjs test -- cargo nextest run --profile ci --workspace --all-features
           -E 'not (test(=appended_params_keep_the_default_sound) | test(=patches_from_before_render_as_before))'
+      - name: Sweep stale test binaries (self-hosted target dir)
+        if: ${{ !cancelled() && runner.environment != 'github-hosted' }}
+        continue-on-error: true
+        timeout-minutes: 5
+        run: node scripts/ci/private-step.mjs sweep -- node scripts/ci/sweep-test-binaries.mjs -- --workspace --all-features
       - name: wasm32 check
         run: node scripts/ci/private-step.mjs wasm32 -- cargo check --target wasm32-unknown-unknown -p ether-protocol -p ether-model -p ether-core -p ether-devices -p ether-media -p ether-controller -p ether-stretch -p ether-wasm --all-features
       - uses: ./.github/actions/full-logs
