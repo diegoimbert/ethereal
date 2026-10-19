@@ -482,7 +482,7 @@ Components: 590 (Rust crates, npm packages and vendored source).
 | `tungstenite` | 0.27.0 | MIT OR Apache-2.0 | https://github.com/snapview/tungstenite-rs |
 | `typeid` | 1.0.3 | MIT OR Apache-2.0 | https://github.com/dtolnay/typeid |
 | `typenum` | 1.20.1 | MIT OR Apache-2.0 | https://github.com/paholg/typenum |
-| `ulid` | 1.2.1 | MIT | https://github.com/dylanhart/ulid-rs |
+| `ulid` | 3.0.0 | MIT | https://github.com/dylanhart/ulid-rs |
 | `ulid` | 3.0.2 | MIT | https://github.com/ulid/javascript#readme |
 | `unic-char-property` | 0.9.0 | MIT/Apache-2.0 | https://github.com/open-i18n/rust-unic/ |
 | `unic-char-range` | 0.9.0 | MIT/Apache-2.0 | https://github.com/open-i18n/rust-unic/ |
