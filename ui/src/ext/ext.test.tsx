@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useReducer } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Clip } from "@/generated";
+import type { Clip, Command } from "@/generated";
 import { buildCommands } from "@/app/shell/commands";
 import { ExtensionRoots } from "@/app/ExtensionRoots";
 import { PanelBoundary } from "@/app/PanelBoundary";
@@ -16,7 +16,6 @@ import { EngineErrorScreen } from "@/features/startup";
 import { TransportBar } from "@/features/transport-bar";
 import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
 import { useShellStore } from "@/state/shell";
-import { cmd } from "@/transport";
 import { MockTransport } from "@/transport/mock/MockTransport";
 import { contribute, contributions, emit, resetExtensionsForTests } from "./index";
 
@@ -219,10 +218,12 @@ describe("views", () => {
 
 describe("the mock engine", () => {
   it("answers an extension's domain, and leaves the rest unsupported", async () => {
-    contribute("mock.domain", { domain: "Chat", handle: () => ({ type: "Unit" }) });
+    contribute("mock.domain", { domain: "Jam", handle: () => ({ type: "Unit" }) });
     const mock = new MockTransport({ timers: "manual" });
     await mock.connect();
-    await expect(mock.send(cmd("Chat", { type: "Send", text: "hi" } as never))).resolves.toEqual({ type: "Unit" });
+    // An extension's domain is not one of the app's types: the extension's own types send it.
+    const jam = { domain: "Jam", command: { type: "Start" } } as unknown as Command;
+    await expect(mock.send(jam)).resolves.toEqual({ type: "Unit" });
     mock.dispose();
   });
 });

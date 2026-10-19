@@ -115,8 +115,6 @@ pub(crate) struct EngineState {
     pub refused: Option<String>,
     /// Why the last switch to "my engine" failed (kept until the next switch).
     pub switch_error: Option<String>,
-    /// Last emitted `CollabEvent::Engine`.
-    pub emitted_status: Option<ether_core::protocol::collab::LocalEngineStatus>,
 }
 
 /// Devices built with media that just became available to the engine (samplers, multisamplers,

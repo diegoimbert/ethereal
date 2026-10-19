@@ -138,13 +138,6 @@ where
                 *include_media,
                 hide_devices.unwrap_or(false),
             ),
-            // Static (read-only) shares are part of the private collaboration overlay.
-            ProjectCommand::StaticSnapshot { .. } => {
-                Err(unsupported("static shares are not available in this build"))
-            }
-            ProjectCommand::StaticView { .. } => {
-                Err(unsupported("static shares are not available in this build"))
-            }
             ProjectCommand::ImportBundle {
                 new_id,
                 source,

@@ -28,6 +28,7 @@ use crate::tx::{CmdResult, Tx, invalid, not_found, unsupported};
 
 pub(crate) use clips::clip_start;
 pub(crate) use labels::{UndoLabel, label_of, undo};
+pub use labels::{ExtLabels, set_ext_labels};
 pub(crate) use misc::{MAX_BPM, MIN_BPM};
 pub(crate) use reverse::reverse_envelopes;
 
@@ -709,8 +710,7 @@ pub(crate) fn is_document_command(command: &Command, current: Option<ProjectId>)
         | Command::Marker(_)
         | Command::Groove(_)
         | Command::DrumRack(_)
-        | Command::Slice(_)
-        | Command::PinnedNote(_) => true,
+        | Command::Slice(_) => true,
         Command::MidiMap(c) => !matches!(c, M::Learn { .. } | M::List),
         // v0.2 (contracts-3).
         Command::Take(_) | Command::Rack(_) => true,
@@ -755,8 +755,6 @@ pub(crate) fn apply(ctx: &mut DocCtx, command: &Command) -> CmdResult<ReplyValue
         Command::Take(c) => crate::comping::take_command(ctx, c),
         Command::Rack(c) => crate::racks::rack_command(ctx, c),
         Command::Modulation(c) => crate::racks::modulation_command(ctx, c),
-        // base-62 pinned notes are part of the private collaboration overlay.
-        Command::PinnedNote(_) => Err(unsupported("pinned notes are not available in this build")),
         // v0.3 (contracts-4).
         Command::Expression(c) => crate::expression::expression_command(ctx, c),
         Command::External(ether_core::protocol::external::ExternalCommand::SetRouting {
