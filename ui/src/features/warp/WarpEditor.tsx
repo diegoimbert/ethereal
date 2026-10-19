@@ -245,6 +245,8 @@ function WarpClipEditor({ clip, content }: { clip: Clip; content: AudioContent }
         className="eth-warp__view"
         ref={boxRef}
         tabIndex={0}
+        role="group"
+        aria-label={t("warp.view")}
         style={{ height: HEIGHT }}
         data-testid="warp-view"
         data-px-per-beat={pxPerBeat}
@@ -378,6 +380,7 @@ function Waveform({
   /** Clip gain (dB): the cached peaks are scaled by it at draw time, like the arrangement. */
   gainDb: number;
 }) {
+  const t = useT();
   const transport = useTransport();
   const peaks = useMemo(() => new PeakCache(transport), [transport]);
   const ref = useRef<HTMLCanvasElement>(null);
@@ -432,5 +435,16 @@ function Waveform({
     canvas.dataset.clipped = String(marks.length);
   }, [media, width, span, toSeconds, playedFrom, playedTo, gainDb, peaks, tick, waveColor, waveDim, over]);
 
-  return <canvas ref={ref} className="eth-warp__canvas" style={{ width, height: HEIGHT - RULER, top: RULER }} data-testid="warp-waveform" data-gain={gainDb} />;
+  // A picture of the audio (the warp markers over it are titled and counted in the toolbar).
+  return (
+    <canvas
+      ref={ref}
+      className="eth-warp__canvas"
+      style={{ width, height: HEIGHT - RULER, top: RULER }}
+      data-testid="warp-waveform"
+      data-gain={gainDb}
+      role="img"
+      aria-label={t("warp.waveform")}
+    />
+  );
 }

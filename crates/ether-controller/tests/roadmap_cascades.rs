@@ -4,8 +4,8 @@
 //! Device/track duplication copies pads; moving a rack across tracks and moving a pad
 //! device with `Device::Move` are rejected.
 //!
-//! The document is built with model ops and opened from the store, since the drum-rack and
-//! sidechain commands are not implemented yet.
+//! The documents are built with model ops and opened from the store: the tests set up exact
+//! structures (pads, chains, sidechains, mappings) without going through the commands.
 
 mod common;
 

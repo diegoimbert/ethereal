@@ -68,6 +68,8 @@ If a plugin is installed in several formats (for example as CLAP and VST3), the 
 
 Click the window button in a plugin's header to open the plugin's own interface. It opens in a separate window that stays above Ethereal's main window. Click the button again to close it. The plugin's card in Ethereal also lists its parameters, with the plugin's own value text (like "250 ms" or "-6 dB").
 
+On Windows and Linux, a CLAP plugin's window opens only if the plugin can open a window of its own. Many CLAP plugins can only draw into a window the host makes, which Ethereal does only on macOS for now: their window doesn't open, but their parameters stay on their card. VST3 windows open on every system.
+
 ### plugin windows on linux
 
 On Linux, plugin windows need an X display. On a Wayland desktop that means XWayland.
@@ -85,6 +87,9 @@ While a plugin window has the focus:
 By default, plugins run inside Ethereal. For a plugin you don't trust, right-click its header and choose **run sandboxed (crash-safe, +1 block latency)**. The plugin then runs in its own process. If it crashes, Ethereal keeps playing: the device shows **crashed · bypassed** and the track plays without it. Click **⟳** to reload the plugin from its last saved state.
 
 Sandboxing adds one audio block of latency. To switch back, right-click the header and choose **run in-process (no sandbox)**.
+
+> [!note]
+> Sandboxing works on macOS and Linux. On Windows, plugins always run inside Ethereal: choosing to run a plugin sandboxed does nothing there.
 
 ## opening a project without plugins
 

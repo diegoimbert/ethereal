@@ -20,10 +20,9 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-/// Default endpoint: the Worker's workers.dev URL (`telemetry.ethereal.ws` once the ethereal.ws
-/// zone is on the Cloudflare account). `ETHER_TELEMETRY_URL` overrides it; an
+/// Default endpoint (the official telemetry service). `ETHER_TELEMETRY_URL` overrides it; an
 /// empty value disables telemetry.
-pub const DEFAULT_TELEMETRY_URL: &str = "https://ethereal-telemetry.diegoimbert.workers.dev";
+pub const DEFAULT_TELEMETRY_URL: &str = "https://telemetry.ethereal.ws";
 /// At most this many events per [`TelemetryBatch`].
 pub const MAX_EVENTS_PER_BATCH: usize = 100;
 /// Largest `/v1/events` body.
