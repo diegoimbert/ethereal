@@ -70,7 +70,7 @@ export function ZoneInspector({ zone: z, index, onChange, onRemove }: ZoneInspec
         })}
         {num(t("devices.zones.root"), z.root_key, (v) => set({ root_key: v }), { min: 0, max: KEYS - 1, unit: noteName(z.root_key) })}
         {num(t("devices.zones.tune"), z.tune_cents, (v) => set({ tune_cents: v }), { min: -100, max: 100, unit: "ct" })}
-        {num(t("devices.zones.gain"), z.gain, (v) => set({ gain: v }), { min: -70, max: 24, step: 0.1, precision: 1, unit: "dB" })}
+        {num(t("devices.zones.gain"), z.gain, (v) => set({ gain: v }), { min: -70, max: 24, step: 0.1, precision: 1, unit: "db" })}
         {num(t("devices.zones.pan"), z.pan, (v) => set({ pan: v }), { min: -1, max: 1, step: 0.01, precision: 2 })}
         {num(t("devices.zones.round_robin"), z.round_robin, (v) => set({ round_robin: v }), { min: 0, max: 255 })}
         {num(t("devices.zones.start"), z.start, (v) => set({ start: v }), seconds)}

@@ -15,7 +15,7 @@
         "retro"
       ],
       "author": "ethereal",
-      "description": "8 bits at 22 kHz: the grainy sound of early consoles."
+      "description": "8 bits at 22 khz: the grainy sound of early consoles."
     },
     "params": {
       "0": 8.0,

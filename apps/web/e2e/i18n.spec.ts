@@ -103,9 +103,9 @@ test("undo labels from the engine show in French", async ({ page }) => {
   await expect(page.locator("html")).toHaveAttribute("lang", "fr");
   // The arrangement's own text is French too (its add-track menu).
   await page.getByRole("button", { name: "ajouter une piste", exact: true }).click();
-  await page.getByRole("menuitem", { name: "créer une piste MIDI", exact: true }).click();
+  await page.getByRole("menuitem", { name: "créer une piste midi", exact: true }).click();
   // The engine sends `undo.track.create` {kind: midi}; the UI formats it in French.
-  await expect(page.getByRole("button", { name: "annuler", exact: true })).toHaveAttribute("title", "annuler ajouter une piste MIDI");
+  await expect(page.getByRole("button", { name: "annuler", exact: true })).toHaveAttribute("title", "annuler ajouter une piste midi");
   // The shell is French too: the top bar, the rail, and the palette finds commands by their French names.
   await expect(page.getByRole("button", { name: "réglages", exact: true })).toBeVisible();
   await expect(page.getByRole("toolbar", { name: "transport", exact: true }).getByRole("button", { name: "lecture", exact: true })).toBeVisible();

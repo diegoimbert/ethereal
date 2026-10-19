@@ -3,11 +3,12 @@
 // renderer. Clip gain and warp markers need no layer: the waveform pipeline scales peaks by
 // the clip gain (full-scale marks included) and maps them through the warp markers, as the
 // DOM did; arrangement clips show no warp marker overlay.
+import { contributions } from "@/ext";
 import { useMediaRefs } from "@/features/media-refs";
 import type { EngineTransport } from "@/transport";
 import { CLIP_RADIUS } from "../../laneBodyGeometry";
 import type { ArrangerRenderer } from "../renderer";
-import { clipBadgesLayer, titleBadgesWidth } from "./clipBadges";
+import { clipBadgesLayer, titleBadgesWidth, extensionBadgesChanged } from "./clipBadges";
 import { clipFadesLayer } from "./clipFades";
 import { fadePipeline } from "./fadePipeline";
 
@@ -29,6 +30,13 @@ export function mountClipEditLayers(renderer: ArrangerRenderer, transport: Engin
     useMediaRefs.subscribe((s, prev) => {
       if (s.missing !== prev.missing) renderer.invalidateTitles();
     }),
+    // An extension's badges changed (`@/ext` "clips.badge").
+    ...contributions("clips.badge").map((p) =>
+      p.subscribe(() => {
+        extensionBadgesChanged();
+        renderer.invalidateTitles();
+      }),
+    ),
   );
   return () => offs.forEach((off) => off());
 }

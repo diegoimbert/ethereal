@@ -6,10 +6,12 @@
  * shows its devices in the inspector's sectioned chain (`ChainSections`: MIDI effects, the
  * instrument, audio effects; the sections a rack of this type can hold). Drop a device card on
  * a chain's row to move it there. A rack on a chain draws its own chains the same way, one level
- * in (up to `MAX_RACK_DEPTH` levels: the deepest chains offer no racks).
+ * in (up to `MAX_RACK_DEPTH` levels: the deepest chains offer no racks). Drag a chain's row to
+ * reorder it or onto another rack's chains (cmd/ctrl: a copy); its context menu copies, cuts,
+ * pastes and duplicates it (`chainClipboard.ts`).
  */
 import clsx from "clsx";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { AppWindow, ChevronRight, Headphones, Plus, SlidersHorizontal, Volume2, VolumeX, X } from "lucide-react";
 import type { BuiltinDeviceType, Device, DeviceCategory, DeviceId, RackChain, RackChainId, Zone } from "@/generated";
 import { useBuiltinTypes } from "@/features/devices/descriptors";
@@ -27,6 +29,7 @@ import { DEVICE_DRAG_TYPE } from "@/features/devices/chainUtils";
 import { chainSoloCommand } from "@/domain/soloCommands";
 import { additiveClick } from "@/domain/soloPlan";
 import { useGestureSender, useSend } from "@/features/devices/gesture";
+import { firstMatch, shortcutLabel } from "@/features/keymap";
 import { useT, type MessageKey } from "@/i18n";
 import { IconButton, Knob, NumberField, openContextMenu, Popover } from "@/kit";
 import { duration } from "@/theme/tokens";
@@ -34,6 +37,21 @@ import { MOTION } from "@/timeline/motion";
 import { defaultChainName, isDefaultChainName, useProjectStore } from "@/state";
 import { cmd, newId, nextGestureId, useTransport } from "@/transport";
 import { fitsChain, MAX_RACK_DEPTH, rackLevel, rackTypeOf } from "./model";
+import {
+  CHAIN_DRAG_TYPE,
+  autoscroll,
+  canPlaceChain,
+  dropIndex,
+  duplicateChain,
+  endChainDrag,
+  pasteAfter,
+  pasteChain,
+  placeChain,
+  startChainDrag,
+  useChainClipboard,
+  useChainClipboardKeys,
+  useChainDrag,
+} from "./chainClipboard";
 import "./racks.css";
 
 const byOrder = <T extends { order: string; id: string }>(a: T, b: T) => (a.order < b.order ? -1 : a.order > b.order ? 1 : a.id < b.id ? -1 : 1);
@@ -70,8 +88,52 @@ export function RackPanel({ rack }: RackPanelProps) {
       return next;
     });
   const level = useProjectStore((s) => (s.project ? rackLevel(s.project, rack.id) : 1));
+  const transport = useTransport();
+  useChainClipboardKeys(transport);
+  const types = useBuiltinTypes();
+  const plugins = usePluginStore((s) => s.plugins);
+  const over = useChainDrag((s) => (s.over?.rack === rack.id ? s.over.index : null));
   const rackType = rackTypeOf(rack);
   if (!rackType) return null;
+
+  /**
+   * A dragged chain over this list (the innermost one: a nested rack's list keeps it): the drop
+   * line between rows, or the not-allowed cursor where the chain can't go. `null`: no chain drag.
+   */
+  const dropAt = (e: DragEvent): { before: RackChainId | null; copy: boolean } | null => {
+    const id = useChainDrag.getState().dragging;
+    if (!id || !e.dataTransfer.types.includes(CHAIN_DRAG_TYPE)) return null;
+    e.stopPropagation();
+    const project = useProjectStore.getState().project;
+    if (!project || !canPlaceChain(project, id, rack.id, (d) => deviceCategory(d, types, plugins))) {
+      e.dataTransfer.dropEffect = "none";
+      useChainDrag.getState().setOver(null);
+      return null;
+    }
+    e.preventDefault();
+    const copy = e.ctrlKey || e.metaKey;
+    e.dataTransfer.dropEffect = copy ? "copy" : "move";
+    const rows = Array.from(e.currentTarget.querySelectorAll(":scope > .eth-rack__chain > .eth-rack__row"), (r) => r.getBoundingClientRect());
+    const index = dropIndex(rows, e.clientY);
+    // In its own rack, right before or after itself is where it already is: no line.
+    const same = !copy && (chains[index]?.id === id || chains[index - 1]?.id === id);
+    useChainDrag.getState().setOver(same ? null : { rack: rack.id, index });
+    return { before: chains[index]?.id ?? null, copy };
+  };
+  const onListDragOver = (e: DragEvent<HTMLDivElement>) => {
+    if (dropAt(e)) autoscroll(e.currentTarget, e.clientY);
+  };
+  const onListDrop = (e: DragEvent<HTMLDivElement>) => {
+    const id = useChainDrag.getState().dragging;
+    const at = dropAt(e);
+    endChainDrag();
+    if (!id || !at) return;
+    void placeChain(transport, id, rack.id, at.before, at.copy).then((placed) => placed && useChainClipboard.getState().select(placed));
+  };
+  const onListDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return;
+    if (useChainDrag.getState().over?.rack === rack.id) useChainDrag.getState().setOver(null);
+  };
 
   // An effect rack's "+ Add chain": a new, empty chain, opened to add its effects.
   const addChain = () => {
@@ -87,11 +149,39 @@ export function RackPanel({ rack }: RackPanelProps) {
       data-level={level}
       aria-label={t("racks.chains.label", { name: rack.name })}
     >
-      <div className="eth-rack__chains" role="list" aria-label={t("racks.chains.list")}>
-        {chains.map((c) => (
-          <ChainItem key={c.id} chain={c} rackType={rackType} nestRacks={level < MAX_RACK_DEPTH} expanded={open.has(c.id)} onToggle={() => toggle(c.id)} />
+      <div
+        className="eth-rack__chains"
+        role="list"
+        aria-label={t("racks.chains.list")}
+        onDragOver={onListDragOver}
+        onDragLeave={onListDragLeave}
+        onDrop={onListDrop}
+        // Paste a copied chain at the end (a row's own menu pastes after it).
+        onContextMenu={(e) => {
+          if ((e.target as HTMLElement).closest(".eth-rack__chains") !== e.currentTarget || (e.target as HTMLElement).closest(".eth-rack__chain")) return;
+          openContextMenu(e, [
+            {
+              label: t("racks.chains.paste"),
+              shortcut: shortcutLabel("edit.paste"),
+              disabled: !useChainClipboard.getState().copied,
+              onSelect: () => void pasteChain(transport, rack.id, null),
+            },
+          ]);
+        }}
+      >
+        {chains.map((c, i) => (
+          <ChainItem
+            key={c.id}
+            chain={c}
+            rackType={rackType}
+            nestRacks={level < MAX_RACK_DEPTH}
+            expanded={open.has(c.id)}
+            onToggle={() => toggle(c.id)}
+            dropBefore={over === i}
+          />
         ))}
-        {chains.length === 0 && <div className="eth-rack__empty">{t("racks.chains.empty")}</div>}
+        {over === chains.length && chains.length > 0 && <div className="eth-rack__insert eth-rack__insert--end" aria-hidden data-testid="chain-insert" />}
+        {chains.length === 0 && <div className={clsx("eth-rack__empty", over === 0 && "eth-rack__empty--drop")}>{t("racks.chains.empty")}</div>}
         {/* The same dashed card as the sections' "+ Add audio effect". An instrument rack adds an
             instrument (a pick makes a collapsed chain with it); an effect rack an empty chain. */}
         {rackType === "InstrumentRack" ? (
@@ -113,15 +203,24 @@ function ChainItem({
   nestRacks,
   expanded,
   onToggle,
+  dropBefore,
 }: {
   chain: RackChain;
   rackType: BuiltinDeviceType;
   nestRacks: boolean;
   expanded: boolean;
   onToggle(): void;
+  /** A dragged chain would land right before this one: the drop line above its row. */
+  dropBefore: boolean;
 }) {
   const t = useT();
   const send = useSend();
+  const transport = useTransport();
+  const selected = useChainClipboard((s) => s.selected === c.id);
+  const cut = useChainClipboard((s) => s.copied?.id === c.id && s.copied.cut);
+  const dragging = useChainDrag((s) => s.dragging === c.id);
+  /** Where the press that may start a drag began: the row's controls and fields don't drag it. */
+  const pressed = useRef<EventTarget | null>(null);
   const sender = useGestureSender();
   const [drop, setDrop] = useState(false);
   const mix = (m: { volume?: number; pan?: number; mute?: boolean; solo?: boolean }) =>
@@ -166,16 +265,51 @@ function ChainItem({
   const shownName = fallback && isDefaultChainName(c.name) ? fallback : c.name;
 
   return (
-    <div role="listitem" className={clsx("eth-rack__chain", expanded && "eth-rack__chain--open")} aria-label={c.name}>
+    <div role="listitem" className={clsx("eth-rack__chain", expanded && "eth-rack__chain--open", dragging && "eth-rack__chain--dragging")} aria-label={c.name}>
+      {dropBefore && <div className="eth-rack__insert" aria-hidden data-testid="chain-insert" />}
       <div
-        className={clsx("eth-rack__row", c.mute && "eth-rack__row--muted", drop && "eth-rack__row--drop")}
+        className={clsx(
+          "eth-rack__row",
+          c.mute && "eth-rack__row--muted",
+          drop && "eth-rack__row--drop",
+          selected && "eth-rack__row--selected",
+          cut && "eth-rack__row--cut",
+        )}
         role="button"
         tabIndex={0}
+        data-chain={c.id}
         aria-expanded={expanded}
         aria-label={t("racks.chain.label", { name: c.name })}
+        title={t("racks.chain.drag_hint")}
         onClick={onToggle}
+        onPointerDown={(e) => {
+          pressed.current = e.target;
+          if (e.button === 0 || e.button === 2) useChainClipboard.getState().select(c.id);
+        }}
+        draggable={!renaming}
+        onDragStart={(e) => {
+          // A fader, knob, button or the name field under the press: their own drag, not the row's.
+          const from = pressed.current instanceof Element ? pressed.current : null;
+          if (from?.closest(".eth-rack__controls, .eth-rack__window, input")) {
+            e.preventDefault();
+            return;
+          }
+          e.stopPropagation();
+          e.dataTransfer.setData(CHAIN_DRAG_TYPE, c.id);
+          e.dataTransfer.effectAllowed = "copyMove";
+          startChainDrag(c.id);
+        }}
+        onDragEnd={endChainDrag}
         onKeyDown={(e) => {
-          if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+          if (e.target !== e.currentTarget) return;
+          // ⌘D duplicates (⌘C / ⌘X / ⌘V come as the document's copy / cut / paste events).
+          if (firstMatch(["edit.duplicate"], e) === "edit.duplicate") {
+            e.preventDefault();
+            e.stopPropagation();
+            void duplicateChain(transport, c.id);
+            return;
+          }
+          if (e.key !== "Enter" && e.key !== " ") return;
           e.preventDefault();
           onToggle();
         }}
@@ -194,6 +328,16 @@ function ChainItem({
         }}
         onContextMenu={(e) =>
           openContextMenu(e, [
+            { label: t("racks.chain.copy"), shortcut: shortcutLabel("edit.copy"), onSelect: () => useChainClipboard.getState().copy(c.id) },
+            { label: t("racks.chain.cut"), shortcut: shortcutLabel("edit.cut"), onSelect: () => useChainClipboard.getState().copy(c.id, true) },
+            {
+              label: t("racks.chain.paste_after"),
+              shortcut: shortcutLabel("edit.paste"),
+              disabled: !useChainClipboard.getState().copied,
+              onSelect: () => void pasteAfter(transport, c.id),
+            },
+            { label: t("racks.chain.duplicate"), shortcut: shortcutLabel("edit.duplicate"), onSelect: () => void duplicateChain(transport, c.id) },
+            "separator",
             { label: t("racks.chain.rename"), onSelect: rename },
             { label: c.solo ? t("racks.chain.unsolo") : t("racks.chain.solo"), onSelect: () => soloChain(false) },
             "separator",
@@ -501,6 +645,7 @@ function ChainDevices({ chain, rackType, nestRacks }: { chain: RackChain; rackTy
           void send(cmd("Rack", { type: "InsertDevice", id: newId(), chain: chain.id, device: deviceSpec(p), before: insertBefore(category) }));
         }}
         onMove={(id, before) => void send(cmd("Rack", { type: "MoveDevice", id, chain: chain.id, before }))}
+        pasteChain={{ type: "Chain", chain: chain.id }}
       />
     </div>
   );

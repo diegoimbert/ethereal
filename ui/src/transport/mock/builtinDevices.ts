@@ -46,6 +46,19 @@ export function newBuiltinDevice(type: BuiltinDeviceType): BuiltinDevice {
   if (type === "ExternalInstrument" || type === "ExternalAudioEffect") {
     return { type, routing: { midi_out: null, midi_channel: 1, audio_send: null, audio_return: null } };
   }
+  // The classic pump (Rust `LfoCurve::default`).
+  if (type === "VolumeLfo") {
+    return {
+      type,
+      curve: {
+        points: [
+          { x: 0, y: 1, curve: { type: "Linear" } },
+          { x: 0.02, y: 0, curve: { type: "Curve", tension: -0.45 } },
+          { x: 0.6, y: 1, curve: { type: "Linear" } },
+        ],
+      },
+    };
+  }
   return { type } as BuiltinDevice;
 }
 

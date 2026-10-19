@@ -6,7 +6,9 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use ether_core::config::PrepareConfig;
-use ether_core::plugin::{PluginController, PluginError, PluginNode, PluginNotification};
+use ether_core::plugin::{
+    NativeWindow, PluginController, PluginError, PluginNode, PluginNotification,
+};
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, DeviceTypeRef, ParamInfo};
 use ether_core::protocol::model::ParamId;
 use vst3::Steinberg::Vst::BusDirections_::{kInput, kOutput};
@@ -803,6 +805,10 @@ impl PluginController for Vst3Plugin {
 
     fn close_editor(&mut self) {
         self.close_editor_inner();
+    }
+
+    fn editor_window(&self) -> Option<NativeWindow> {
+        Some(self.editor.as_ref()?.window.native_window())
     }
 
     fn poll(&mut self, out: &mut Vec<PluginNotification>) {

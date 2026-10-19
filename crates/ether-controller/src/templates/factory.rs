@@ -74,7 +74,8 @@ impl Builder {
             id,
             track,
             order,
-            name: desc.name.clone(),
+            // lowercase like a device the user adds ("eq", "compressor")
+            name: crate::text::device_default_name(&desc.name),
             enabled: true,
             kind: DeviceKind::Builtin {
                 device: BuiltinDevice::new(ty),
@@ -92,7 +93,7 @@ impl Builder {
             name: name.into(),
             meta: PresetMeta {
                 tags: tags.iter().map(|t| t.to_string()).collect(),
-                author: Some("Ethereal".into()),
+                author: Some("ethereal".into()),
                 description: Some(description.into()),
             },
             body: TemplateBody::Tracks {
@@ -105,49 +106,49 @@ impl Builder {
 
 fn vocal_chain() -> Template {
     let mut b = Builder::new(0xE7_01);
-    let t = b.track(TrackKind::Audio, "Vocal", 0xe8919d, None);
+    let t = b.track(TrackKind::Audio, "vocal", 0xe8919d, None);
     b.device(t, BuiltinDeviceType::Eq);
     b.device(t, BuiltinDeviceType::Compressor);
     b.device(t, BuiltinDeviceType::Reverb);
     b.finish(
-        "Vocal Chain",
+        "vocal chain",
         &["vocal"],
-        "Audio track with EQ, compressor and reverb.",
+        "audio track with eq, compressor and reverb.",
     )
 }
 
 fn synth_keys() -> Template {
     let mut b = Builder::new(0xE7_02);
-    let t = b.track(TrackKind::Midi, "Keys", 0x8fa8e6, None);
+    let t = b.track(TrackKind::Midi, "keys", 0x8fa8e6, None);
     b.device(t, BuiltinDeviceType::PolySynth);
     b.device(t, BuiltinDeviceType::Chorus);
     b.device(t, BuiltinDeviceType::Delay);
     b.finish(
-        "Synth Keys",
+        "synth keys",
         &["keys", "synth"],
-        "MIDI track with a poly synth, chorus and delay.",
+        "midi track with a poly synth, chorus and delay.",
     )
 }
 
 fn drum_bus() -> Template {
     let mut b = Builder::new(0xE7_03);
-    let g = b.track(TrackKind::Group, "Drums", 0xe6c07e, None);
+    let g = b.track(TrackKind::Group, "drums", 0xe6c07e, None);
     b.device(g, BuiltinDeviceType::Compressor);
     b.device(g, BuiltinDeviceType::Saturator);
-    let kit = b.track(TrackKind::Midi, "Kit", 0xe6c07e, Some(g));
+    let kit = b.track(TrackKind::Midi, "kit", 0xe6c07e, Some(g));
     b.device(kit, BuiltinDeviceType::DrumRack);
     b.finish(
-        "Drum Bus",
+        "drum bus",
         &["drums"],
-        "Drum group with bus compression and saturation, and a drum rack inside.",
+        "drum group with bus compression and saturation, and a drum rack inside.",
     )
 }
 
 fn reverb_return() -> Template {
     let mut b = Builder::new(0xE7_04);
-    let t = b.track(TrackKind::Return, "Reverb", 0x7cc6c0, None);
+    let t = b.track(TrackKind::Return, "reverb", 0x7cc6c0, None);
     b.device(t, BuiltinDeviceType::Reverb);
-    b.finish("Reverb Return", &["return"], "Return track with a reverb.")
+    b.finish("reverb return", &["return"], "return track with a reverb.")
 }
 
 /// Every factory template: `(slug, template)`, in listing order: the track templates, then

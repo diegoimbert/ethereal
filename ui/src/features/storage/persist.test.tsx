@@ -86,7 +86,7 @@ describe("persistent storage (#622)", () => {
     render(<StorageSettings />);
     await flush();
     expect(screen.getByRole("status")).toHaveTextContent("storage: may be cleared by the browser when space runs low");
-    expect(screen.getByText(/using 5 MB of 2 GB/)).toBeInTheDocument();
+    expect(screen.getByText(/using 5 mb of 2 gb/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "request again" }));
     await flush();
     expect(a.persist).toHaveBeenCalledOnce();

@@ -17,7 +17,9 @@ function cached<T extends object>(kind: string, opts: object, make: (loc: string
 }
 
 export function formatNumber(value: number, opts: Intl.NumberFormatOptions = {}): string {
-  return cached("n", opts, (loc) => new Intl.NumberFormat(loc, opts)).format(value);
+  const s = cached("n", opts, (loc) => new Intl.NumberFormat(loc, opts)).format(value);
+  // units are lowercase like all the app's text: "1.2 mb", "340 kb" ("1,2 mo" in French)
+  return opts.style === "unit" ? s.toLowerCase() : s;
 }
 
 /**
@@ -77,12 +79,17 @@ export function parseNumber(text: string, locale: string = intlLocale(getLocale(
   return Number.isFinite(n) ? n : null;
 }
 
+/** "oct 15, 2026" ("15 oct. 2026"): lowercase like all the app's text (month names, am / pm). */
 export function formatDate(date: Date | number, opts: Intl.DateTimeFormatOptions = { dateStyle: "medium" }): string {
-  return cached("d", opts, (loc) => new Intl.DateTimeFormat(loc, opts)).format(date);
+  return cached("d", opts, (loc) => new Intl.DateTimeFormat(loc, opts))
+    .format(date)
+    .toLowerCase();
 }
 
 export function formatDateTime(date: Date | number, opts: Intl.DateTimeFormatOptions = { dateStyle: "medium", timeStyle: "short" }): string {
-  return cached("d", opts, (loc) => new Intl.DateTimeFormat(loc, opts)).format(date);
+  return cached("d", opts, (loc) => new Intl.DateTimeFormat(loc, opts))
+    .format(date)
+    .toLowerCase();
 }
 
 /** "3 minutes ago" / "il y a 3 minutes", picking the unit from the distance to `now`. */

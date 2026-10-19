@@ -77,7 +77,7 @@ describe("analysis widgets", () => {
           title: null,
           span: 1,
           columns: 1,
-          items: [{ widget: { type: "Meter", index: 0, min_db: -24, max_db: 0 }, size: "Medium", colspan: 1, label: "GR" }],
+          items: [{ widget: { type: "Meter", index: 0, min_db: -24, max_db: 0 }, size: "Medium", colspan: 1, label: "gr" }],
         },
       ],
     });
@@ -92,6 +92,6 @@ describe("analysis widgets", () => {
     await tick(100);
     const tuner = screen.getByTestId("widget-tuner");
     expect(tuner.querySelector(".eth-tuner__note")?.textContent).toBe("A2");
-    expect(tuner.querySelector(".eth-tuner__readout")?.textContent).toMatch(/ct · 11\d\.\d Hz/);
+    expect(tuner.querySelector(".eth-tuner__readout")?.textContent).toMatch(/ct · 11\d\.\d hz/);
   });
 });

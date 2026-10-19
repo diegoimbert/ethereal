@@ -1,13 +1,15 @@
 /**
- * Clip title badges, after the loop icon: "REV" on reversed audio clips (clip-editing) and
- * "Missing" on clips whose sample can't be found (media-refs; the clip is also hatched and
- * outlined).
+ * Clip title badges, after the loop icon: the extensions' (`@/ext` "clips.badge", e.g.
+ * "loading", optionally with a soft hatch over the clip), "REV" on reversed audio clips
+ * (clip-editing) and "Missing" on clips whose sample can't be found (media-refs; the clip is
+ * also hatched and outlined).
  *
  * The scene lays the clip name out after them (`titleBadgesWidth`); this layer draws them.
  */
 
 import type { Clip, ClipId } from "@/generated";
 import { useMediaRefs } from "@/features/media-refs";
+import { contributions, type ClipBadgeProvider } from "@/ext";
 import { CLIP_INSET, CLIP_MIN_PX, CLIP_RADIUS, CLIP_TITLE } from "../../laneBodyGeometry";
 import type { GlyphAtlas, FontSpec } from "../glyphAtlas";
 import type { ArrangerLayer } from "../layers";
@@ -22,7 +24,21 @@ export const CLIP_BADGES_LAYER = "clip-badges";
 /** Beats standing for "no clip above covers this side". */
 const FAR = 1e7;
 
-export type BadgeKind = "reversed" | "missing";
+/** A badge: the app's two, or an extension's (its text). */
+export type BadgeKind = "reversed" | "missing" | (string & {});
+
+interface Badge {
+  kind: BadgeKind;
+  /** An extension's badge: its text, and a soft hatch over the clip. */
+  text?: string;
+  hatch?: boolean;
+}
+
+/** Bumped when an extension's badges may have changed (`index.ts`): the layer rebuilds. */
+let extVersion = 0;
+export function extensionBadgesChanged(): void {
+  extVersion++;
+}
 
 /** `.eth-clip-reversed .eth-badge`: `--eth-fs-xs` bold, `0 --eth-space-xs` padding, line height 1.1, pill. */
 const REV_FONT: FontSpec = { size: 10, weight: 700 };
@@ -44,16 +60,30 @@ const ALERT_PATHS = ["m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 
 const ALERT_STROKE = 2;
 
 /** The badges a clip's title shows, in order. */
-export function badgesOf(clip: Clip, missing: ReadonlySet<string> = useMediaRefs.getState().missing): BadgeKind[] {
-  if (clip.content.type !== "Audio") return [];
-  const out: BadgeKind[] = [];
-  if (clip.content.reversed) out.push("reversed");
-  if (missing.has(clip.content.media)) out.push("missing");
+export function badgesOf(
+  clip: Clip,
+  missing: ReadonlySet<string> = useMediaRefs.getState().missing,
+  providers: ReadonlyArray<ClipBadgeProvider> = contributions("clips.badge"),
+): BadgeKind[] {
+  return badgeList(clip, missing, providers).map((b) => b.kind);
+}
+
+function badgeList(clip: Clip, missing: ReadonlySet<string>, providers: ReadonlyArray<ClipBadgeProvider>): Badge[] {
+  const out: Badge[] = [];
+  let hidesMissing = false;
+  for (const p of providers) {
+    const b = p.badge(clip);
+    if (!b) continue;
+    out.push({ kind: b.id, text: b.text, hatch: b.hatch });
+    hidesMissing ||= !!b.hidesMissing;
+  }
+  if (clip.content.type !== "Audio") return out;
+  if (clip.content.reversed) out.push({ kind: "reversed" });
+  if (!hidesMissing && missing.has(clip.content.media)) out.push({ kind: "missing" });
   return out;
 }
 
-interface Laid {
-  kind: BadgeKind;
+interface Laid extends Badge {
   /** Px from the title's content start, its box width and height, and the room it takes. */
   x: number;
   width: number;
@@ -61,15 +91,18 @@ interface Laid {
   advance: number;
 }
 
-function layoutBadges(atlas: GlyphAtlas, kinds: ReadonlyArray<BadgeKind>): Laid[] {
+function layoutBadges(atlas: GlyphAtlas, badges: ReadonlyArray<Badge>): Laid[] {
   let x = 0;
-  return kinds.map((kind) => {
+  return badges.map((badge) => {
+    const { kind } = badge;
     const width =
       kind === "reversed"
         ? atlas.measure("REV", REV_FONT) + 2 * BADGE_PAD
-        : MISSING_ICON + MISSING_GAP + atlas.measure("Missing", MISSING_FONT) + 2 * BADGE_PAD;
+        : badge.text !== undefined
+          ? atlas.measure(badge.text, MISSING_FONT) + 2 * BADGE_PAD
+          : MISSING_ICON + MISSING_GAP + atlas.measure("Missing", MISSING_FONT) + 2 * BADGE_PAD;
     const advance = width + (kind === "reversed" ? REV_MARGIN : 0) + GAP;
-    const laid = { kind, x, width, height: kind === "reversed" ? REV_HEIGHT : MISSING_HEIGHT, advance };
+    const laid = { ...badge, x, width, height: kind === "reversed" ? REV_HEIGHT : MISSING_HEIGHT, advance };
     x += advance;
     return laid;
   });
@@ -77,9 +110,9 @@ function layoutBadges(atlas: GlyphAtlas, kinds: ReadonlyArray<BadgeKind>): Laid[
 
 /** The title room the clip's badges take before its name (px; 0 without badges). */
 export function titleBadgesWidth(atlas: GlyphAtlas, clip: Clip): number {
-  const kinds = badgesOf(clip);
-  if (kinds.length === 0) return 0;
-  return layoutBadges(atlas, kinds).reduce((w, b) => w + b.advance, 0);
+  const badges = badgeList(clip, useMediaRefs.getState().missing, contributions("clips.badge"));
+  if (badges.length === 0) return 0;
+  return layoutBadges(atlas, badges).reduce((w, b) => w + b.advance, 0);
 }
 
 /** Where the title's content starts (px from the clip's left): after the loop icon. */
@@ -102,19 +135,21 @@ export function clipBadgesLayer(pipeline: Pipeline): ClipBadgesLayer {
     id: CLIP_BADGES_LAYER,
     z: "over-clips",
     pipelines: [pipeline],
-    deps: (ctx) => [ctx.lane.staticVersion, ctx.lane.view, useMediaRefs.getState().missing],
+    deps: (ctx) => [ctx.lane.staticVersion, ctx.lane.view, useMediaRefs.getState().missing, extVersion],
     build({ lane, input, window }, out) {
       const colors = editColors(input.palette);
       const order = drawOrder(lane.items, input.selected);
       const spans = visibleSpans(order);
       const missing = useMediaRefs.getState().missing;
+      const providers = contributions("clips.badge");
       const frozen = lane.frozen;
       const view = { scrollBeats: 0, pxPerBeat: window.ppb };
       const m = out.atlas;
       order.forEach((it, k) => {
         const { clip, bounds } = it;
         if (it.ghost) return;
-        const kinds = badgesOf(clip, missing);
+        const badges = badgeList(clip, missing, providers);
+        const kinds = badges.map((b) => b.kind);
         if (kinds.length) drawn.set(clip.id, kinds);
         else drawn.delete(clip.id);
         if (kinds.length === 0) return;
@@ -123,24 +158,26 @@ export function clipBadgesLayer(pipeline: Pipeline): ClipBadgesLayer {
         const box: XSpec = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_MIN_PX };
         const clipBox = { x: box, y: { a0: CLIP_INSET, a1: -CLIP_INSET, f1: 1 }, radius: CLIP_RADIUS };
         const small = isSmall(it, view);
-        // Missing media: the hatch and the dashed outline over the whole clip.
-        if (kinds.includes("missing")) {
+        // Missing media: the hatch and the dashed outline over the whole clip. An extension's
+        // badge may ask for a soft hatch.
+        const isMissing = kinds.includes("missing");
+        if (isMissing || badges.some((b) => b.hatch)) {
           const w = out.custom(pipeline);
           for (const [v0, v1] of spans[k]!) {
             const vis: [number, number] = [Math.max(v0, -FAR), Math.min(v1, FAR)];
             const spec = { box: { b0: box.b0, b1: box.b1, minW: CLIP_MIN_PX }, f0: bounds.start, f1: bounds.start, vis, fx, alpha };
-            writeFade(w, { ...spec, mode: FadeMode.Hatch, fill: colors.hatch });
-            writeFade(w, { ...spec, mode: FadeMode.Outline, fill: colors.warn });
+            writeFade(w, { ...spec, mode: FadeMode.Hatch, fill: isMissing ? colors.hatch : colors.softHatch });
+            if (isMissing) writeFade(w, { ...spec, mode: FadeMode.Outline, fill: colors.warn });
           }
         }
         if (small) return;
         // Badges hidden under a clip above are skipped (they sit at the clip's start).
         if (!spans[k]!.some(([v0, v1]) => v0 <= bounds.start && v1 > bounds.start)) return;
         const left = badgesStart(clip);
-        for (const b of layoutBadges(m, kinds)) {
+        for (const b of layoutBadges(m, badges)) {
           const x = left + b.x;
           const top = CLIP_INSET + TITLE_PAD_TOP + (CLIP_TITLE - TITLE_PAD_TOP - b.height) / 2;
-          const fill = b.kind === "reversed" ? colors.accent : colors.warn;
+          const fill = b.kind === "reversed" ? colors.accent : b.text !== undefined ? colors.dim : colors.warn;
           writeRect(out.rects, {
             x: { b0: bounds.start, b1: bounds.start, p0: x, p1: x + b.width },
             y: { a0: top, a1: top + b.height },
@@ -171,7 +208,7 @@ export function clipBadgesLayer(pipeline: Pipeline): ClipBadgesLayer {
             });
             pen += MISSING_ICON + MISSING_GAP;
           }
-          const run = m.layout(b.kind === "reversed" ? "REV" : "Missing", font, Infinity, colors.badgeText);
+          const run = m.layout(b.kind === "reversed" ? "REV" : (b.text ?? "Missing"), font, Infinity, colors.badgeText);
           for (const { glyph, x: gx } of run.glyphs) {
             if (glyph.width === 0) continue;
             writeGlyph(out.text, {

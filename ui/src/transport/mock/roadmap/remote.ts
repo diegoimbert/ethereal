@@ -56,7 +56,7 @@ export function wavInfo(bytes: Uint8Array): { sample_rate: number; channels: num
   const tag = (at: number) => String.fromCharCode(...bytes.subarray(at, at + 4));
   if (bytes.length < 12 || tag(0) !== "RIFF" || tag(8) !== "WAVE") return null;
   let fmt: { channels: number; rate: number; align: number } | null = null;
-  for (let at = 12; at + 8 <= bytes.length; ) {
+  for (let at = 12; at + 8 <= bytes.length;) {
     const id = tag(at);
     const len = v.getUint32(at + 4, true);
     if (id === "fmt " && at + 24 <= bytes.length) {

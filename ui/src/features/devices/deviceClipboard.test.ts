@@ -4,7 +4,7 @@ import type { BuiltinDevice, Device, DeviceCategory, DeviceId, Project, TrackId,
 import { useNotices } from "@/features/notifications";
 import { useProjectStore } from "@/state";
 import { cmd, MockTransport, newId } from "@/transport";
-import { pasteDevice, useDeviceClipboard } from "./deviceClipboard";
+import { pasteDevice, pasteTarget, useDeviceClipboard } from "./deviceClipboard";
 
 let mock: MockTransport;
 const store = () => useProjectStore.getState();
@@ -79,5 +79,98 @@ describe("device paste (#582)", () => {
     expect(onB.map((d) => d.id)).toEqual([eq, copy!.id]);
     expect(Object.values(p.devices).filter((d) => d.track === a && d.chain == null)).toHaveLength(1);
     expect(useDeviceClipboard.getState().selected).toBe(copy!.id);
+  });
+});
+
+const onTrack = (track: TrackId) =>
+  Object.values(project().devices)
+    .filter((d) => d.track === track && d.chain == null && d.pad === null)
+    .sort((x, y) => (x.order < y.order ? -1 : 1));
+const typeOf = (d: Device) => (d.kind.type === "Builtin" ? d.kind.device.type : "plugin");
+
+describe("paste target: after the selection, else the chain's end", () => {
+  it("with a device: right after it", async () => {
+    const a = await track("Audio");
+    const eq = await insert(a, "Eq");
+    await insert(a, "Delay");
+    useDeviceClipboard.getState().copy(eq);
+    await pasteDevice(mock, eq, categoryOf);
+    expect(onTrack(a).map(typeOf)).toEqual(["Eq", "Eq", "Delay"]);
+  });
+
+  it("with no device: at the end of the chain, and again after the copy", async () => {
+    const a = await track("Audio");
+    const eq = await insert(a, "Eq");
+    await insert(a, "Delay");
+    useDeviceClipboard.getState().copy(eq);
+    await pasteDevice(mock, { type: "Track", track: a }, categoryOf);
+    const first = onTrack(a).at(-1)!;
+    expect(onTrack(a).map(typeOf)).toEqual(["Eq", "Delay", "Eq"]);
+    expect(useDeviceClipboard.getState().selected).toBe(first.id);
+    await pasteDevice(mock, { type: "Track", track: a }, categoryOf);
+    expect(onTrack(a).map(typeOf)).toEqual(["Eq", "Delay", "Eq", "Eq"]);
+  });
+
+  it("an empty chain takes the paste", async () => {
+    const a = await track("Audio");
+    const eq = await insert(a, "Eq");
+    const b = await track("Audio");
+    useDeviceClipboard.getState().copy(eq);
+    await pasteDevice(mock, { type: "Track", track: b }, categoryOf);
+    expect(onTrack(b).map(typeOf)).toEqual(["Eq"]);
+  });
+
+  it("an instrument at the chain's end still goes before the audio effects", async () => {
+    const m = await track("Midi");
+    const synth = await insert(m, "Synth");
+    const m2 = await track("Midi");
+    await insert(m2, "Eq");
+    useDeviceClipboard.getState().copy(synth);
+    await pasteDevice(mock, { type: "Track", track: m2 }, categoryOf);
+    expect(onTrack(m2).map(typeOf)).toEqual(["Synth", "Eq"]);
+  });
+
+  it("the end of a rack chain", async () => {
+    const a = await track("Audio");
+    const rack = await insert(a, "AudioEffectRack");
+    const chain = newId();
+    await mock.send(cmd("Rack", { type: "AddChain", id: chain, rack, name: null, before: null }));
+    await mock.send(cmd("Rack", { type: "InsertDevice", id: newId(), chain, device: { type: "Builtin", device: { type: "Delay" } }, before: null }));
+    const eq = await insert(a, "Eq");
+    useDeviceClipboard.getState().copy(eq);
+    await pasteDevice(mock, { type: "Chain", chain }, categoryOf);
+    const inChain = Object.values(project().devices)
+      .filter((d) => d.chain === chain)
+      .sort((x, y) => (x.order < y.order ? -1 : 1));
+    expect(inChain.map(typeOf)).toEqual(["Delay", "Eq"]);
+    expect(onTrack(a).map(typeOf)).toEqual(["AudioEffectRack", "Eq"]);
+  });
+});
+
+describe("pasteTarget: from the focus", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+  const focus = (sel: string) => document.querySelector<HTMLElement>(sel)!.focus();
+
+  it("a focused card, a focused chain (the innermost), nothing elsewhere or in a field", () => {
+    document.body.innerHTML = `
+      <div data-paste-chain='{"type":"Track","track":"t"}' tabindex="-1" id="chain">
+        <section class="eth-device" data-device="d1" tabindex="-1" id="card">
+          <div data-paste-chain='{"type":"Chain","chain":"c"}' tabindex="-1" id="inner"></div>
+          <input id="field" />
+        </section>
+      </div>
+      <button id="elsewhere">x</button>`;
+    focus("#card");
+    expect(pasteTarget()).toBe("d1");
+    focus("#chain");
+    expect(pasteTarget()).toEqual({ type: "Track", track: "t" });
+    focus("#inner");
+    expect(pasteTarget()).toEqual({ type: "Chain", chain: "c" });
+    focus("#field");
+    expect(pasteTarget()).toBeNull();
+    focus("#elsewhere");
+    expect(pasteTarget()).toBeNull();
   });
 });

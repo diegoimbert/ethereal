@@ -43,6 +43,22 @@
   padding: var(--eth-space-sm);
   border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
 }
+/* "plugins on Diego's computer" (docs/COLLAB.md §18). */
+.eth-devlib__remote {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  margin: 0;
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-devlib__remote svg {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+  flex: none;
+}
 .eth-devlib__list {
   flex: 1;
   min-height: 0;

@@ -9,7 +9,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { I18N_DIR, readCatalog, SOURCE_LOCALE, type Catalog } from "./check.ts";
-import { PROPER_NOUNS } from "./text.ts";
 
 export const ENGINE_TEXT_LIST = join(I18N_DIR, "engine-text.json");
 export const ENGINE_TEXT_FILE = join(I18N_DIR, "engineText.gen.ts");
@@ -36,9 +35,8 @@ const slug = (s: string) =>
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_|_$/g, "");
 
-const PROPER = new Set<string>(PROPER_NOUNS);
-/** Lowercase, acronyms and proper nouns aside (the lowercase rule). */
-const lower = (s: string) => s.replace(/[\p{L}\p{N}]+/gu, (w) => (PROPER.has(w) ? w : w.toLowerCase()));
+/** Lowercase, acronyms included (the lowercase rule, #524). */
+const lower = (s: string) => s.toLowerCase();
 
 /** One entry per string; numbered names ("Band 3", "Step 12") share one message with `{n}`. */
 export function engineEntries(list: readonly string[] = readEngineText()): EngineEntry[] {

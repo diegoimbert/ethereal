@@ -99,7 +99,7 @@ function factoryTemplate(
           id: id(),
           track: tid,
           order: chain,
-          name: desc.name,
+          name: desc.name.toLowerCase(),
           enabled: true,
           kind: { type: "Builtin", device: newBuiltinDevice(ty) },
           params,
@@ -109,21 +109,21 @@ function factoryTemplate(
       });
     }
   }
-  return [`factory/${slug}`, { name, meta: { tags, author: "Ethereal", description }, body: { type: "Tracks", entities }, modified_ms: 0 }];
+  return [`factory/${slug}`, { name, meta: { tags, author: "ethereal", description }, body: { type: "Tracks", entities }, modified_ms: 0 }];
 }
 
 const FACTORY: ReadonlyMap<string, Stored> = new Map([
-  factoryTemplate("vocal-chain", "Vocal Chain", ["vocal"], "Audio track with EQ, compressor and reverb.", [
-    ["Audio", "Vocal", 0xe8919d, ["Eq", "Compressor", "Reverb"], null],
+  factoryTemplate("vocal-chain", "vocal chain", ["vocal"], "audio track with eq, compressor and reverb.", [
+    ["Audio", "vocal", 0xe8919d, ["Eq", "Compressor", "Reverb"], null],
   ]),
-  factoryTemplate("synth-keys", "Synth Keys", ["keys", "synth"], "MIDI track with a poly synth, chorus and delay.", [
-    ["Midi", "Keys", 0x8fa8e6, ["PolySynth", "Chorus", "Delay"], null],
+  factoryTemplate("synth-keys", "synth keys", ["keys", "synth"], "midi track with a poly synth, chorus and delay.", [
+    ["Midi", "keys", 0x8fa8e6, ["PolySynth", "Chorus", "Delay"], null],
   ]),
-  factoryTemplate("drum-bus", "Drum Bus", ["drums"], "Drum group with bus compression and saturation, and a drum rack inside.", [
-    ["Group", "Drums", 0xe6c07e, ["Compressor", "Saturator"], null],
-    ["Midi", "Kit", 0xe6c07e, ["DrumRack"], 0],
+  factoryTemplate("drum-bus", "drum bus", ["drums"], "drum group with bus compression and saturation, and a drum rack inside.", [
+    ["Group", "drums", 0xe6c07e, ["Compressor", "Saturator"], null],
+    ["Midi", "kit", 0xe6c07e, ["DrumRack"], 0],
   ]),
-  factoryTemplate("reverb-return", "Reverb Return", ["return"], "Return track with a reverb.", [["Return", "Reverb", 0x7cc6c0, ["Reverb"], null]]),
+  factoryTemplate("reverb-return", "reverb return", ["return"], "return track with a reverb.", [["Return", "reverb", 0x7cc6c0, ["Reverb"], null]]),
 ]);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────────────
@@ -195,7 +195,7 @@ export function collectTracks(p: Project, tracks: ReadonlyArray<TrackId>): Entit
       out.push({ type: "Device", value: fixDevice(d) });
     }
   }
-  for (let progressed = true; progressed; ) {
+  for (let progressed = true; progressed;) {
     progressed = false;
     for (const pad of Object.values(p.drum_pads)) {
       if (devices.has(pad.rack) && !pads.has(pad.id)) {

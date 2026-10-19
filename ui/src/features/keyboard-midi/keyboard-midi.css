@@ -10,6 +10,7 @@
 }
 .eth-kbmidi__status {
   display: inline-flex;
+  cursor: pointer;
   align-items: center;
   gap: var(--eth-space-sm);
   height: var(--eth-size-control-md);
@@ -37,6 +38,11 @@
   margin-right: var(--eth-space-xs);
   letter-spacing: var(--eth-tracking-caps);
 }
+.eth-kbmidi__status:hover,
+.eth-kbmidi__status[aria-expanded="true"] {
+  border-color: var(--eth-color-border-strong);
+  color: var(--eth-color-text);
+}
 /* A held note lights the indicator. */
 .eth-kbmidi__status[data-playing] {
   border-color: var(--eth-color-accent);
@@ -44,4 +50,130 @@
 }
 .eth-kbmidi__status[data-playing] .eth-kbmidi__octave {
   color: var(--eth-color-accent);
+}
+
+/* The indicator's popover: octave (strip + stepper) and velocity (slider + C/V stops). */
+.eth-kbmidi-pop__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-lg);
+  width: calc(var(--eth-size-popover-min-width) * 2);
+  padding: var(--eth-space-md);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+}
+.eth-kbmidi-pop__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+}
+.eth-kbmidi-pop__row {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+}
+.eth-kbmidi-pop__label {
+  color: var(--eth-color-text-dim);
+}
+.eth-kbmidi-pop__value {
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--eth-fw-medium);
+}
+.eth-kbmidi-pop__row .eth-kbmidi-pop__value:last-child {
+  min-width: 3ch;
+  text-align: right;
+}
+.eth-kbmidi-pop__stepper {
+  display: inline-flex;
+  gap: var(--eth-space-xs);
+  margin-left: auto;
+}
+.eth-kbmidi-pop__step,
+.eth-kbmidi-pop__preset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--eth-size-control-md);
+  min-width: var(--eth-size-control-md);
+  padding: 0 var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.eth-kbmidi-pop__step:hover:not(:disabled),
+.eth-kbmidi-pop__preset:hover {
+  background: var(--eth-color-bg-hover);
+  color: var(--eth-color-text);
+}
+.eth-kbmidi-pop__step:disabled {
+  color: var(--eth-color-text-disabled);
+  cursor: default;
+}
+.eth-kbmidi-pop__preset[aria-pressed="true"] {
+  border-color: var(--eth-color-accent);
+  color: var(--eth-color-accent);
+}
+.eth-kbmidi-pop__strip {
+  position: relative;
+  display: flex;
+  height: calc(var(--eth-size-control-lg) * 1.5);
+  border: var(--eth-border-width) solid var(--eth-color-piano-white-key-border);
+  border-radius: var(--eth-radius-sm);
+  overflow: hidden;
+  cursor: pointer;
+}
+.eth-kbmidi-pop__white {
+  position: relative;
+  flex: 1;
+  border-right: var(--eth-border-width) solid var(--eth-color-piano-white-key-border);
+  background: var(--eth-color-piano-white-key);
+}
+.eth-kbmidi-pop__white:last-child {
+  border-right: 0;
+}
+.eth-kbmidi-pop__black {
+  position: absolute;
+  top: 0;
+  height: 60%;
+  transform: translateX(-50%);
+  border-radius: 0 0 var(--eth-radius-sm) var(--eth-radius-sm);
+  background: var(--eth-color-piano-black-key);
+}
+/* The keys the computer keyboard plays. */
+.eth-kbmidi-pop__white[data-played] {
+  background: color-mix(in srgb, var(--eth-color-accent) 35%, var(--eth-color-piano-white-key));
+}
+.eth-kbmidi-pop__black[data-played] {
+  background: color-mix(in srgb, var(--eth-color-accent) 55%, var(--eth-color-piano-black-key));
+}
+.eth-kbmidi-pop__white[data-root] {
+  box-shadow: inset 0 calc(var(--eth-space-xs) * -1) 0 var(--eth-color-accent);
+}
+.eth-kbmidi-pop__c {
+  position: absolute;
+  bottom: var(--eth-space-xs);
+  left: var(--eth-space-xs);
+  color: var(--eth-color-piano-key-label);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  pointer-events: none;
+  /* Above the next white keys (it is wider than its own). */
+  z-index: 1;
+}
+.eth-kbmidi-pop__slider {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--eth-color-accent);
+}
+.eth-kbmidi-pop__presets {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--eth-space-xs);
+}
+.eth-kbmidi-pop__preset {
+  flex: 1;
 }

@@ -1237,5 +1237,573 @@
       }
     ],
     "sidechain_inputs": 0
+  },
+  "Vibrato": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Vibrato",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 2,
+          "id": "lfo",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "amount": 4,
+                "rate": 1,
+                "shape": 0,
+                "type": "Lfo"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 2,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 3,
+                "type": "Choice"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "LFO"
+        },
+        {
+          "columns": 2,
+          "id": "phase",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 7,
+                "type": "Choice"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Phase"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 8,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 9,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
+    "midi_input": false,
+    "name": "Vibrato",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Vibrato",
+        "hidden": false,
+        "id": 0,
+        "labels": [
+          "Sine",
+          "Triangle",
+          "Square",
+          "Saw Up",
+          "Saw Down",
+          "Random",
+          "Drift"
+        ],
+        "max": 6.0,
+        "min": 0.0,
+        "name": "Shape",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 3.0,
+        "group": "Vibrato",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 20.0,
+        "min": 0.05,
+        "name": "Rate",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Vibrato",
+        "hidden": false,
+        "id": 2,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Sync",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 6.0,
+        "group": "Vibrato",
+        "hidden": false,
+        "id": 3,
+        "labels": [
+          "1/64",
+          "1/32T",
+          "1/32",
+          "1/16T",
+          "1/16",
+          "1/8T",
+          "1/8",
+          "1/4T",
+          "1/4",
+          "1/2",
+          "1 bar",
+          "2 bars",
+          "4 bars",
+          "8 bars"
+        ],
+        "max": 13.0,
+        "min": 0.0,
+        "name": "Sync Rate",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 30.0,
+        "group": "Vibrato",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 200.0,
+        "min": 0.0,
+        "name": "Depth",
+        "scale": {
+          "exponent": 2.0,
+          "type": "Power"
+        },
+        "unit": "Cents"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Vibrato",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 360.0,
+        "min": 0.0,
+        "name": "Phase",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Vibrato",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 180.0,
+        "min": 0.0,
+        "name": "Stereo Phase",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Vibrato",
+        "hidden": false,
+        "id": 7,
+        "labels": [
+          "Free",
+          "Transport"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Retrigger",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 8,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 9,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      }
+    ],
+    "sidechain_inputs": 0
+  },
+  "VolumeLfo": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "VolumeLfo",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 2,
+          "id": "lfo",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "depth": 3,
+                "phase": 4,
+                "rate": 0,
+                "sync": 1,
+                "sync_rate": 2,
+                "type": "LfoCurve"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 1,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 2,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "LFO"
+        },
+        {
+          "columns": 1,
+          "id": "phase",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Phase"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 7,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
+    "midi_input": false,
+    "name": "Volume LFO",
+    "params": [
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 20.0,
+        "min": 0.05,
+        "name": "Rate",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 1,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Sync",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 8.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 2,
+        "labels": [
+          "1/64",
+          "1/32T",
+          "1/32",
+          "1/16T",
+          "1/16",
+          "1/8T",
+          "1/8",
+          "1/4T",
+          "1/4",
+          "1/2",
+          "1 bar",
+          "2 bars",
+          "4 bars",
+          "8 bars"
+        ],
+        "max": 13.0,
+        "min": 0.0,
+        "name": "Sync Rate",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Depth",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 360.0,
+        "min": 0.0,
+        "name": "Phase",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "LFO",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 180.0,
+        "min": 0.0,
+        "name": "Stereo Phase",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 20.0,
+        "min": 0.0,
+        "name": "Smoothing",
+        "scale": {
+          "exponent": 2.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 7,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      }
+    ],
+    "sidechain_inputs": 0
   }
 }

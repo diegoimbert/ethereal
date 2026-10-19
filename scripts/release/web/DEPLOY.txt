@@ -6,9 +6,8 @@ URLs are absolute, e.g. /assets/...), over HTTPS (or http://localhost).
 
 Required: index.html for app routes
 ------------------------------------
-The app has its own paths: /p/<slug>/<id> (an open project, reloadable), /docs/... (the user
-documentation), /download (the download page), /s/<id> (a shared
-song) and /join/... (invite links). Serve index.html for any path that is not a file
+The app has its own paths: /p/<slug>/<id> (an open project, reloadable) and /docs/... (the
+user documentation). Serve index.html for any path that is not a file
 (Cloudflare Pages does so when the site has no 404.html; Netlify needs a `/*  /index.html
 200` line in a `_redirects` file; nginx: the try_files line below).
 

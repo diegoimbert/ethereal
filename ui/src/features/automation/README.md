@@ -10,6 +10,7 @@ envelopes in the clip editors. Import from `@/features/automation`.
 | `AutomationLanes.tsx` | the detail-view tab (prop-less, mounted by the app shell): selected track's lanes with their own ruler |
 | `curve.ts` | `curveFraction` / `evaluatePoints`: exact mirror of `ether_core::automation` |
 | `geometry.ts` | value ↔ y, time ↔ x, lane SVG path, point hit boxes (pure) |
+| `baseline.ts` | a target's current (document) value: the empty lane's dashed baseline and the first point's value |
 | `edit.ts` | protocol commands for add / move / delete / curve / bend (pure) |
 | `gesture.ts` | `LaneGesture`: one gesture id per drag, `Edit::EndGesture` on release |
 | `params.ts` | automatable targets of a track and their `ParamInfo` |
@@ -112,7 +113,8 @@ Gestures and modifiers (for UX review). `⌘` is Ctrl off macOS.
 | Lane (track lanes) | click empty space | select the track and the lane (focus), clear the other selections, place the insert marker at the click (snapped, `⌥`: free) and, when stopped, the playhead: like a click on the track's empty clip-lane space |
 | Lane | drag empty space | like the arranger (#621): marquee-select points (`⌘`: toggle them); a click places the insert marker (track lanes) |
 | Lane (track lanes) | `⇧`-drag empty space | select a time range in this lane (snapped, `⌥`: free); `⇧`-click extends the range (or the track's insert marker) to the click |
-| Lane | double-click empty space | add a point on the SECOND PRESS (not the release); hold and drag to place it like a moved point (grid, `⇧` increments); release commits. One undo step. Time on the grid (`⌥`: free), value on the param's steps (`⇧`: whole increments) |
+| Lane (track lanes), with a time section | `⇧`-drag the line inside the section (within 6 px of it) | move the section up/down; the lane outside it doesn't change: each edge becomes a jump (two points at the same time, outer one kept, inner one moving), added once the pointer moved 3 px, reusing points already there (`sectionMovePlan` in `range.ts`). The inside moves like a vertical multi-point drag (stepped params by steps, the group clamped to the range, `⌥`: precision). A `⇧`-click there changes nothing. The section is the lane's own or the track row's. One undo step |
+| Lane | double-click empty space | add a point on the SECOND PRESS (not the release) at the clicked time (on the grid, `⌥`: free) with the lane's value there, never the pointer's y, so adding a point never changes what plays (`splitPointAt` in `curve.ts`: the engine's evaluation, step/linear exact, a curve split keeps its left half exactly and fits the right half's tension, within ~2 % at extreme tensions; an empty lane: the target's current value). Moving more than 3 px (touch: 8 px) while held drags it exactly like a grabbed point (same code: grid, steps, `⇧`/`⌥`/`⌘`, a point landing on a neighbour's time keeps its side), relative to where it was added; a release before that changes nothing. One undo step |
 | Lane | click / `⇧`-click / `⌘`-click a point | select / add / toggle |
 | Lane | drag a point | move the selection: time on the grid; stepped params (semitones, enums, toggles) by whole steps, 8 px per step |
 | Lane, dragging | `⇧` held | continuous params: whole increments of the displayed value (1 dB, 1 %, 1 st, 1 ct, 0.01 pan, 0.1 ratio; Hz/ms on two significant digits: 1 Hz below 100 Hz, 10 Hz to 1 kHz, 100 Hz above), so points land on round values. Stepped params always snap |

@@ -113,7 +113,7 @@ export function noteName(key: number): string {
 export function describeControl(c: MidiControl): string {
   switch (c.type) {
     case "Cc":
-      return `CC ${c.number}`; // i18n-ignore
+      return `cc ${c.number}`; // i18n-ignore
     case "Note":
       return tr("midi_learn.control.note", { note: noteName(c.key) });
     case "PitchBend":

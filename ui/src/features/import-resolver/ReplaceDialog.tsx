@@ -1,15 +1,17 @@
-import { ArrowDown, Plug } from "lucide-react";
-import { useMemo } from "react";
-import type { PluginFormat, ReplaceReport } from "@/generated";
+import { ArrowDown, Blocks, Plug } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import type { DeviceCategory, DeviceDescriptor, PluginFormat, ReplaceReport } from "@/generated";
 import { DevicePicker } from "@/features/devices/DevicePicker";
+import { fetchBuiltinTypes } from "@/features/devices/descriptors";
+import type { LibraryDevicePayload } from "@/features/devices/libraryDevice";
 import { Button, Dialog, Toggle } from "@/kit";
 import { useProjectStore } from "@/state";
 import type { EngineTransport } from "@/transport";
 import { Trans, useT } from "@/i18n";
 import { isMissingPlugin } from "./catalog";
-import { applyReplace, chooseReplacement, closeReplace, pluginChoiceKey, setRetain, useReplace } from "./replace";
+import { acceptReplacement, applyReplace, choiceOf, chooseReplacement, closeReplace, isRackDevice, setRetain, useReplace } from "./replace";
 
-const FORMAT_LABEL: Record<PluginFormat, string> = { Clap: "CLAP", Vst3: "VST3", Vst2: "VST2", Au: "AU" };
+const FORMAT_LABEL: Record<PluginFormat, string> = { Clap: "clap", Vst3: "vst3", Vst2: "vst2", Au: "au" };
 
 function Summary({ report, retain }: { report: ReplaceReport; retain: boolean }) {
   const t = useT();
@@ -56,22 +58,49 @@ function Summary({ report, retain }: { report: ReplaceReport; retain: boolean })
 }
 
 /**
- * "Replace plugin…": swap any plugin device's plugin for an installed one, optionally
- * retaining its automation, mappings and parameter values (one undo step). The device keeps
- * its place, sidechain source and on/off state.
+ * "Replace device…": swap any device but a rack for a factory device or an installed plugin
+ * of the same role (instrument, audio effect, MIDI effect), optionally retaining its
+ * automation, mappings and parameter values (one undo step). The device keeps its place and
+ * on/off state, and its sidechain source when the new device has a sidechain input.
  */
 export function ReplaceDialog({ transport }: { transport: EngineTransport }) {
   const t = useT();
   const s = useReplace();
   const device = useProjectStore((st) => (s.device ? st.project?.devices[s.device] : undefined));
+  const [builtins, setBuiltins] = useState<DeviceDescriptor[]>([]);
+  useEffect(() => {
+    if (!s.open) return;
+    let alive = true;
+    fetchBuiltinTypes(transport).then(
+      (l) => alive && setBuiltins(l),
+      () => alive && setBuiltins([]),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [transport, s.open]);
   const plugin = device?.kind.type === "Plugin" ? device.kind.plugin : null;
-  const installed = useMemo(() => s.installed ?? [], [s.installed]);
-  const others = useMemo(() => installed.filter((p) => !plugin || pluginChoiceKey(p) !== `${plugin.format}:${plugin.plugin_id}`), [installed, plugin]);
-  // Same kind (instrument / effect) as the plugin being replaced; any when it isn't installed.
-  const kind = plugin ? installed.find((p) => p.format === plugin.format && p.id === plugin.plugin_id)?.category : undefined;
-  const picked = installed.find((p) => pluginChoiceKey(p) === s.choice);
-  const open = s.open && !!plugin;
+  // Same role as the device being replaced; any for a plugin that isn't installed (the
+  // engine still refuses another role when it knows the plugin's).
+  const role = useMemo<DeviceCategory | undefined>(() => {
+    if (!device) return undefined;
+    if (device.kind.type === "Plugin") {
+      const { format, plugin_id } = device.kind.plugin;
+      return s.installed?.find((p) => p.format === format && p.id === plugin_id)?.category;
+    }
+    if (device.kind.type === "Missing") return device.kind.missing.role;
+    const type = device.kind.device.type;
+    return builtins.find((d) => d.device_type.type === "Builtin" && d.device_type.device === type)?.category;
+  }, [device, s.installed, builtins]);
+  const accept = useMemo(() => (device ? (p: LibraryDevicePayload) => acceptReplacement(device, p) : undefined), [device]);
+  const open = s.open && !!device && !(device.kind.type === "Builtin" && isRackDevice(device.kind.device.type));
   const missing = device ? isMissingPlugin(device, s.installed) : false;
+  const meta = plugin
+    ? [plugin.vendor, FORMAT_LABEL[plugin.format], plugin.version].filter(Boolean).join(" · ")
+    : device?.kind.type === "Missing"
+      ? device.kind.missing.origin
+      : t("devices.library.source_factory");
+  const picked = s.choice;
   return (
     <Dialog
       open={open}
@@ -100,37 +129,42 @@ export function ReplaceDialog({ transport }: { transport: EngineTransport }) {
         </>
       }
     >
-      {plugin && device && (
-        <div className="eth-resolver eth-replace" data-testid="replace-plugin">
+      {device && (
+        <div className="eth-resolver eth-replace" data-testid="replace-device">
           <div className="eth-replace__plugin">
-            <Plug className="eth-resolver__icon" aria-hidden />
+            {plugin ? <Plug className="eth-resolver__icon" aria-hidden /> : <Blocks className="eth-resolver__icon" aria-hidden />}
             <div className="eth-resolver__info">
-              <span className="eth-resolver__name eth-user-text">{plugin.name || plugin.plugin_id}</span>
+              <span className="eth-resolver__name eth-user-text">{plugin ? plugin.name || plugin.plugin_id : device.name}</span>
               <span className="eth-resolver__meta">
-                <span className="eth-user-text">{[plugin.vendor, FORMAT_LABEL[plugin.format], plugin.version].filter(Boolean).join(" · ")}</span>
+                <span className="eth-user-text">{meta}</span>
                 {missing ? ` · ${t("resolver.replace.not_installed")}` : ""}
               </span>
             </div>
           </div>
           <ArrowDown className="eth-resolver__icon eth-replace__arrow" aria-hidden />
-          {s.installed === null ? (
+          {s.loading ? (
             <p className="eth-resolver__hint" role="status">
               {t("resolver.replace.loading")}
             </p>
-          ) : others.length === 0 ? (
-            <p className="eth-resolver__hint">{t("resolver.replace.none_installed")}</p>
           ) : (
             <DevicePicker
               aria-label={t("resolver.replace.replacement")}
               placeholder={!picked}
-              pluginsOnly
-              plugins={others}
-              categories={kind ? [kind] : undefined}
+              plugins={s.installed ?? undefined}
+              categories={role ? [role] : undefined}
+              accept={accept}
               onBeforeSettings={closeReplace}
-              onPick={(p) => p.device.type === "Plugin" && void chooseReplacement(`${p.device.format}:${p.device.plugin_id}`, transport)}
+              onPick={(p) => {
+                const c = choiceOf(p, s.installed);
+                if (c) void chooseReplacement(c, transport);
+              }}
             >
               {picked ? (
-                <span className="eth-user-text">{`${picked.name} · ${FORMAT_LABEL[picked.format]}${picked.version ? ` ${picked.version}` : ""}`}</span>
+                <span className="eth-user-text">
+                  {picked.plugin
+                    ? `${picked.name} · ${FORMAT_LABEL[picked.plugin.format]}${picked.plugin.version ? ` ${picked.plugin.version}` : ""}`
+                    : picked.name}
+                </span>
               ) : (
                 t("resolver.replace.choose")
               )}

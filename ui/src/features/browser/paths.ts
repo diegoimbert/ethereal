@@ -38,10 +38,10 @@ export function sourceOf(location: BrowseLocation, entry: Pick<DirectoryEntry, "
   return { type: "Location", location, path: entry.path };
 }
 
-/** `"1.2 MB"` */
+/** `"1.2 mb"` */
 export function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const units = ["KB", "MB", "GB", "TB"];
+  if (bytes < 1024) return `${bytes} b`;
+  const units = ["kb", "mb", "gb", "tb"];
   let v = bytes / 1024;
   let i = 0;
   while (v >= 1024 && i < units.length - 1) {

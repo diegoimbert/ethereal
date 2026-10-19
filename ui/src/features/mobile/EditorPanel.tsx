@@ -8,7 +8,7 @@
  */
 import { useEffect } from "react";
 import { BarChart3, X } from "lucide-react";
-import { Button, IconButton } from "@/kit";
+import { Button, IconButton, ReadOnlySurface } from "@/kit";
 import { useClip, useEditedClipId } from "@/state";
 import { DrawerTabs, EditorDrawer } from "@/app/shell/EditorDrawer";
 import { useBackToClose } from "./backToClose";
@@ -46,7 +46,10 @@ export function EditorPanel() {
         />
       </header>
       <div className="eth-meditor__body">
-        <EditorDrawer />
+        {/* A read-only view shows the notes and automation, editing nothing. */}
+        <ReadOnlySurface>
+          <EditorDrawer />
+        </ReadOnlySurface>
       </div>
     </section>
   );

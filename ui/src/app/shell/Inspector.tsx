@@ -42,7 +42,8 @@ import "./inspector.css";
 import { ProjectSwingFields } from "@/features/groove";
 
 const PALETTE: ReadonlyArray<number> = TRACK_COLORS.map((c) => parseInt(c.slice(1), 16));
-const css = (color: number) => `#${(color & 0xffffff).toString(16).padStart(6, "0")}`;
+/** A track/clip color as CSS; an unknown one (`null`) is the fallback token. */
+const css = (color: number | null | undefined) => (color == null ? "var(--eth-track-fallback)" : `#${(color & 0xffffff).toString(16).padStart(6, "0")}`);
 const batch = (label: string, commands: Command[]): Command | null =>
   commands.length === 0 ? null : commands.length === 1 ? commands[0]! : cmd("Edit", { type: "Batch", label, commands });
 
@@ -138,8 +139,11 @@ function NameField({
   );
 }
 
-/** Color swatches; `inherit` adds a "follow the track color" swatch (value null). */
-function Swatches({ value, onPick, inherit, label }: { value: number | null; onPick(color: number | null): void; inherit?: number; label: string }) {
+/**
+ * Color swatches; `inherit` adds a "follow the track color" swatch (value null), showing that
+ * color (`null`: unknown, several tracks).
+ */
+function Swatches({ value, onPick, inherit, label }: { value: number | null; onPick(color: number | null): void; inherit?: number | null; label: string }) {
   const t = useT();
   return (
     <div className="eth-inspector__swatches" role="radiogroup" aria-label={label}>
@@ -172,8 +176,8 @@ function Swatches({ value, onPick, inherit, label }: { value: number | null; onP
 }
 
 /** The current color as one swatch; clicking it opens the palette in a popover. */
-function ColorPicker({ value, onPick, inherit, label }: { value: number | null; onPick(color: number | null): void; inherit?: number; label: string }) {
-  const shown = value === null || value < 0 ? (inherit ?? 0x888888) : value;
+function ColorPicker({ value, onPick, inherit, label }: { value: number | null; onPick(color: number | null): void; inherit?: number | null; label: string }) {
+  const shown = value === null || value < 0 ? inherit : value;
   return (
     <Popover
       aria-label={label}
@@ -247,7 +251,7 @@ function ManyClipsInspector({ clips }: { clips: ReadonlyArray<Clip> }) {
           <ColorPicker
             label={t("shell.inspector.clip_color")}
             value={clips.every((c) => c.color === clips[0]!.color) ? clips[0]!.color : -1}
-            inherit={0x888888}
+            inherit={null}
             onPick={(color) => {
               const b = batch(
                 "set clip color",
@@ -309,7 +313,7 @@ function ManyAudioClipsSection({ clips }: { clips: ReadonlyArray<Clip> }) {
           max={24}
           step={0.5}
           precision={1}
-          unit="dB"
+          unit="db"
           onChange={(v) => sendCmd(setAllGain(audio, v))}
           onNudge={(d) => sendCmd(offsetGain(audio, bases.current?.gain ?? gainBases(audio), d))}
         />
@@ -384,7 +388,7 @@ function ClipInspector({ clip }: { clip: Clip }) {
   return (
     <>
       <Section className="eth-inspector__head">
-        <span className="eth-inspector__kind" style={{ ["--swatch" as string]: css(clip.color ?? track?.color ?? 0x888888) }}>
+        <span className="eth-inspector__kind" style={{ ["--swatch" as string]: css(clip.color ?? track?.color) }}>
           {audio ? <Waves aria-hidden /> : <Music aria-hidden />}
         </span>
         <NameField
@@ -401,7 +405,7 @@ function ClipInspector({ clip }: { clip: Clip }) {
         <ColorPicker
           label={t("shell.inspector.clip_color")}
           value={clip.color}
-          inherit={track?.color ?? 0x888888}
+          inherit={track?.color ?? null}
           onPick={(color) => void send(cmd("Clip", { type: "SetColor", id: clip.id, color }))}
         />
       </Section>
@@ -418,7 +422,7 @@ function ClipInspector({ clip }: { clip: Clip }) {
               max={24}
               step={0.5}
               precision={1}
-              unit="dB"
+              unit="db"
               onChange={(gain) => void gesture.send(cmd("Clip", { type: "SetGain", id: clip.id, gain }))}
             />
           </Row>
@@ -583,7 +587,7 @@ function TrackInspector({ id }: { id: TrackId }) {
       </Section>
 
       {track.kind === "Midi" && (
-        <Section title="MPE">
+        <Section title="mpe">
           <MpeSettingsFields track={track} Row={Row} />
         </Section>
       )}

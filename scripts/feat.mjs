@@ -7,13 +7,13 @@
 //                  [--ee-title T] [--ee-body B | --ee-body-file F]
 //                                                   push EE x, then the pointer + OSS x; open/update
 //                                                   both PRs (title/body too, when given),
-//                                                   cross-linked; start the full build
+//                                                   cross-linked (no full build: see GATE_CHECKS)
 //   just feat update                                merge main into OSS x (and EE main into EE x)
 //   just feat status                                branches, pointers, PRs, checks, warnings
-//   just feat ship [x] [--admin] [--force] [--no-build] [--ignore-ee-checks] [--timeout <min>] [--takeover]
+//   just feat ship [x] [--admin] [--force] [--build] [--ignore-ee-checks] [--timeout <min>] [--takeover]
 //                  [--strict] [--log F]
-//                                                   bring both sides up to date and wait for every
-//                                                   check (no lock), then under a global lock:
+//                                                   bring both sides up to date and wait for the
+//                                                   gating checks (GATE_CHECKS; no lock), then under a global lock:
 //                                                   update again (re-wait only if main touched the
 //                                                   PR's files; always with --strict), merge EE,
 //                                                   point OSS x at EE main, merge OSS
@@ -113,7 +113,13 @@ const LOCK_STALE_MIN = 30; // no heartbeat for this long: the ship died
 const LOCK_BEAT_MIN = 3;
 const POINTER_CTX = "ee/pointer";
 const BUILD_CTX = "ee/build";
-const BUILD_WORKFLOW = "oss-pr.yml";
+// The checks that gate a merge (owner, 2026-10-19): pull requests build and test nothing; `main`
+// runs every build and test, and a red main is fixed forward. Anything else a PR reports (an
+// `ee/build` someone asked for, a check from an older workflow) is informational.
+const GATE_CHECKS = [/^cla$/i, /^What changed$/, /^Policy\b/, new RegExp(`^${POINTER_CTX}$`)];
+const gating = (name) => GATE_CHECKS.some((re) => re.test(name));
+// The full product (OSS + ee/): this repository's full.yml, on demand for a PR (`--build`).
+const BUILD_WORKFLOW = "full.yml";
 
 // ---------------------------------------------------------------------------------- GitHub
 
@@ -631,16 +637,19 @@ function cmdPush(args) {
     setBody(OSS, ossPr, withPair(ossText, eePr ? `Paired EE PR: ${eePr.url} (private). The \`ee\` pointer follows its branch; ship with \`just feat ship ${x}\`.` : "Leaves `ee` untouched."));
   if (ossPr) {
     // What the bot would do, done right away (and without it): pointer status + full build.
-    sync({ only: String(ossPr.number), build: !ossPr.isDraft, quiet: true, main: true });
+    // No full build: pull requests build nothing (GATE_CHECKS); `feat sync --build` still can.
+    sync({ only: String(ossPr.number), quiet: true, main: true });
   }
   triggerSync();
   log(`done: ${[eePr && `EE ${eePr.url}`, ossPr && `OSS ${ossPr.url}`, ossPushed && !ossPr && `OSS ${x} pushed`].filter(Boolean).join("  ")}`);
 }
 
-// Kick the EE-side sync workflow so pointers/statuses update now instead of on its schedule.
+// Kick the sync workflow so pointers/statuses update now instead of on its schedule. It is moving
+// from the EE repository to this one (ethereal-private#45): kick whichever exists (this repo's does
+// nothing until its ETHER_BOT_TOKEN secret is set).
 function triggerSync() {
-  const r = gh(EE, ["workflow", "run", "ee-sync.yml", "-R", EE, "--ref", "main"], { allowFail: true, full: true });
-  if (r.status !== 0) log("(could not trigger the EE sync workflow; it also runs on a schedule)");
+  const ok = [EE, OSS].filter((repo) => gh(repo, ["workflow", "run", "ee-sync.yml", "-R", repo, "--ref", "main"], { allowFail: true, full: true }).status === 0);
+  if (!ok.length) log("(could not trigger the sync workflow; it also runs on a schedule)");
 }
 
 // Merge origin/main into OSS x and EE main into EE x; a conflict on the gitlink resolves to
@@ -687,17 +696,18 @@ function headOf(repo, n, expect) {
   return p.headRefOid;
 }
 
-// Wait until every check of PR `n` (only the required ones with `required`) passes, on head
-// `sha`. Checks need a moment to register after a push: none at all counts as pending for a
-// while.
+// Wait until every gating check (GATE_CHECKS) of PR `n` (only the required ones with `required`)
+// passes, on head `sha`. Checks need a moment to register after a push: none at all counts as
+// pending for a while. EE pull requests have no gating check (EE CI runs on EE main only).
 async function waitChecks(repo, n, sha, { required = false, timeoutMin, label, lock }) {
+  if (repo === EE) return { ok: true };
   const start = Date.now();
   let told = "";
   for (;;) {
     lock?.beat();
     const head = headOf(repo, n, sha);
     if (head !== sha) return { ok: false, moved: true, why: `head moved to ${short(head)}` };
-    const cs = checksOf(repo, n, required);
+    const cs = checksOf(repo, n, required).filter((c) => gating(c.name));
     const bad = cs.filter((c) => c.bucket === "fail" || c.bucket === "cancel").map((c) => c.name);
     // Cancelled runs (superseded, or cancelled by hand) say nothing about the code: re-run
     // them once, then wait for the result.
@@ -738,23 +748,17 @@ function rerunCancelled(repo, sha) {
   return any;
 }
 
-// Re-run the failed jobs of the latest EE CI run of `sha` (once per ship round).
-function rerunEeCi(sha) {
-  const r = gh(EE, ["run", "list", "-R", EE, "-w", "ee-ci.yml", "--commit", sha, "-L", "5", "--json", "databaseId,status,conclusion,attempt"], { allowFail: true, full: true });
-  const run = r.status === 0 ? JSON.parse(r.stdout || "[]")[0] : null;
-  if (!run || run.status !== "completed" || run.conclusion === "success" || run.attempt > 2) return false;
-  log(`re-running the failed EE CI jobs (run ${run.databaseId}) against the current OSS branch`);
-  return gh(EE, ["run", "rerun", String(run.databaseId), "-R", EE, "--failed"], { allowFail: true, full: true }).status === 0;
-}
-
-// The run of oss-pr.yml that builds `sha` (its run-name carries the sha).
+// The full.yml dispatch that builds `sha` (its run name, "Full product: <ref> + ee ...", carries it).
 function buildRun(sha, after = 0) {
-  const out = gh(EE, ["run", "list", "-R", EE, "-w", BUILD_WORKFLOW, "-L", "40", "--json", "databaseId,displayTitle,status,conclusion,url,createdAt"], { allowFail: true, full: true });
+  const out = gh(OSS, ["run", "list", "-R", OSS, "-w", BUILD_WORKFLOW, "-e", "workflow_dispatch", "-L", "40", "--json", "databaseId,displayTitle,status,conclusion,url,createdAt"], { allowFail: true, full: true });
   if (out.status !== 0) return null;
   return JSON.parse(out.stdout || "[]").find((r) => r.displayTitle.includes(sha) && Date.parse(r.createdAt) >= after) ?? null;
 }
+// Dispatch full.yml on PR `n`'s branch at `sha` (Linux only: `all=false`). A fork's PR has no branch
+// here, so this fails: build it by hand after reading it (full.yml's header).
 function startBuild(n, sha) {
-  const r = gh(EE, ["workflow", "run", BUILD_WORKFLOW, "-R", EE, "--ref", "main", "-f", `pr=${n}`, "-f", `sha=${sha}`], { allowFail: true, full: true });
+  const branch = JSON.parse(gh(OSS, ["pr", "view", String(n), "-R", OSS, "--json", "headRefName"])).headRefName;
+  const r = gh(OSS, ["workflow", "run", BUILD_WORKFLOW, "-R", OSS, "--ref", branch, "-f", `ref=${sha}`, "-f", "all=false"], { allowFail: true, full: true });
   if (r.status !== 0) {
     log(`  could not start the full build: ${r.stderr.trim()}`);
     return false;
@@ -808,6 +812,28 @@ async function awaitBuild(n, sha, { timeoutMin, lock }) {
     told = true;
     await sleep(20000);
   }
+}
+
+// Squash-merge PR `n` of `repo` (checked out at `cwd`) with `gh pr merge`; when GitHub refuses
+// because the PR changes `.github/workflows` and the token lacks the `workflow` scope, push the
+// same squash commit over SSH instead (the PR head's tree on top of `main`, which the head must
+// already contain), then close the PR. Returns gh's result shape ({ status, stderr }).
+function squashMerge(repo, cwd, n, head, extra = []) {
+  const r = gh(repo, ["pr", "merge", String(n), "-R", repo, "--squash", "--match-head-commit", head, ...extra], { allowFail: true, full: true });
+  if (r.status === 0 || !/workflow/i.test(r.stderr ?? "")) return r;
+  log(`  GitHub refuses the API merge of ${repo}#${n} (it changes workflows, the token has no \`workflow\` scope): squash push over SSH`);
+  const url = `git@github.com:${repo}.git`;
+  const fetched = gitOk(cwd, "fetch", "-q", url, `+refs/heads/${MAIN}:refs/feat-ssh/${MAIN}`, `+refs/pull/${n}/head:refs/feat-ssh/pr`);
+  const main = fetched && gitTry(cwd, "rev-parse", `refs/feat-ssh/${MAIN}`);
+  if (!main || gitTry(cwd, "rev-parse", "refs/feat-ssh/pr") !== head) return { status: 1, stderr: `could not fetch ${repo} main and PR #${n} at ${short(head)} over SSH` };
+  if (!gitOk(cwd, "merge-base", "--is-ancestor", main, head)) return { status: 1, stderr: `PR #${n} does not contain ${repo} main (${short(main)}): update it first` };
+  const title = JSON.parse(gh(repo, ["pr", "view", String(n), "-R", repo, "--json", "title"])).title;
+  const sha = gitIn(cwd, "commit-tree", `${head}^{tree}`, "-p", main, "-m", `${title} (#${n})`);
+  for (const ref of [`refs/feat-ssh/${MAIN}`, "refs/feat-ssh/pr"]) gitOk(cwd, "update-ref", "-d", ref);
+  if (!gitOk(cwd, "push", "-q", url, `${sha}:refs/heads/${MAIN}`)) return { status: 1, stderr: `SSH push of the squash commit to ${repo} main failed (main moved?)` };
+  gh(repo, ["pr", "close", String(n), "-R", repo, "--comment", `Merged as ${sha} (squash pushed over SSH: the change touches workflows).`], { allowFail: true });
+  log(`  ${repo} main is now ${short(sha)} (squash of #${n})`);
+  return { status: 0, stderr: "" };
 }
 
 async function prField(repo, n, field) {
@@ -937,7 +963,9 @@ async function cmdShip(args) {
   const admin = argFlag(args, "--admin");
   const force = argFlag(args, "--force");
   const takeover = argFlag(args, "--takeover");
-  const noBuild = argFlag(args, "--no-build");
+  // The full build (`ee/build`) no longer gates a ship (GATE_CHECKS); `--build` waits for it
+  // anyway. `--no-build` is the default and still accepted.
+  const noBuild = !argFlag(args, "--build");
   // EE PR checks known red for a reason outside the PR (e.g. an EE change that merged ahead of
   // its OSS side): reported, not gating. The OSS checks still gate.
   const ignoreEeChecks = argFlag(args, "--ignore-ee-checks");
@@ -988,19 +1016,13 @@ async function cmdShip(args) {
     const { eePr, ossPr, eeHead, ossHead } = s;
     if (eePr) {
       ticket.at(`checks of EE #${eePr.number}`);
-      let c = await waitChecks(EE, eePr.number, eeHead, { timeoutMin, label: `EE #${eePr.number}`, lock: ticket });
-      // EE CI builds against whatever OSS x was when it ran; OSS x may have moved since.
-      if (!c.ok && !c.moved && ossPr && rerunEeCi(eeHead)) {
-        await sleep(20000);
-        c = await waitChecks(EE, eePr.number, eeHead, { timeoutMin, label: `EE #${eePr.number} (re-run)`, lock: ticket });
-      }
+      const c = await waitChecks(EE, eePr.number, eeHead, { timeoutMin, label: `EE #${eePr.number}`, lock: ticket });
       if (c.moved) return { moved: true };
       if (!c.ok && ignoreEeChecks) log(`! EE PR #${eePr.number} checks ${c.why} (--ignore-ee-checks)`);
       else gate(c, `EE PR #${eePr.number} checks`);
     }
     if (ossPr) {
-      if (noBuild) log(`! not waiting for ee/build (--no-build)`);
-      else {
+      if (!noBuild) {
         ticket.at(`ee/build of OSS #${ossPr.number}`);
         gate(await awaitBuild(ossPr.number, ossHead, { timeoutMin, lock: ticket }), `OSS PR #${ossPr.number}`);
       }
@@ -1075,7 +1097,8 @@ async function cmdShip(args) {
     let sameTree = true;
     if (eePr) {
       log(`merging EE PR #${eePr.number} ...`);
-      gh(EE, ["pr", "merge", String(eePr.number), "-R", EE, "--squash", "--match-head-commit", eeHead]);
+      const m = squashMerge(EE, EE_DIR, eePr.number, eeHead);
+      if (m.status !== 0) die(`merging EE PR #${eePr.number} failed: ${m.stderr.trim()}`);
       keepLock = !!ossPr; // EE is merged: if OSS fails now, keep main's pointer on hold
       try {
         api(EE, `git/refs/heads/${x}`, { method: "DELETE" });
@@ -1114,7 +1137,7 @@ async function cmdShip(args) {
         }
       }
       if (!admin) gate(await waitChecks(OSS, ossPr.number, head, { required: true, timeoutMin, label: `required OSS #${ossPr.number}`, lock }), `OSS PR #${ossPr.number} required checks`);
-      const r = gh(OSS, ["pr", "merge", String(ossPr.number), "-R", OSS, "--squash", "--match-head-commit", head, ...(admin ? ["--admin"] : [])], { allowFail: true, full: true });
+      const r = squashMerge(OSS, ROOT, ossPr.number, head, admin ? ["--admin"] : []);
       if (r.status === 0) break;
       const state = await prField(OSS, ossPr.number, "mergeStateStatus");
       if (attempt >= 4) die(`merging OSS PR #${ossPr.number} failed (${state}): ${r.stderr.trim()}`);
@@ -1277,7 +1300,7 @@ function cmdSync(args) {
   const dry = argFlag(args, "--dry-run");
   const ci = argFlag(args, "--ci");
   const only = argVal(args, "--pr") ?? null;
-  sync({ dry, ci, only, build: ci || argFlag(args, "--build") });
+  sync({ dry, ci, only, build: argFlag(args, "--build") });
 }
 function cmdCheck(args) {
   const n = args[0] ?? die("usage: feat check <oss-pr-number>");

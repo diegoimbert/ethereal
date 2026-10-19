@@ -1,0 +1,34 @@
+/* The Volume LFO curve editor (tokens only; the plot, line, fill and handles are the shared `eth-plot` ones). */
+
+.eth-lfo-curve.eth-plot {
+  height: calc(var(--eth-size-row-height-lg) * 5);
+}
+.eth-lfo-curve--dragging {
+  cursor: grabbing;
+}
+.eth-lfo-curve .eth-plot__grid line {
+  opacity: var(--eth-opacity-muted);
+}
+.eth-lfo-curve .eth-plot__grid line.eth-lfo-curve__beat {
+  opacity: 1;
+}
+/* The gain the device plays when depth < 100 %. */
+.eth-lfo-curve__gain {
+  fill: none;
+  stroke: var(--eth-color-text-dim);
+  stroke-width: var(--eth-border-width);
+  stroke-dasharray: var(--eth-space-xs) var(--eth-space-xs);
+}
+.eth-lfo-curve__point {
+  cursor: grab;
+  outline: none;
+}
+.eth-lfo-curve__point:focus-visible {
+  stroke: var(--eth-color-focus);
+  stroke-width: calc(var(--eth-border-width-strong) * 2);
+}
+.eth-lfo-curve__playhead {
+  stroke: var(--eth-color-playhead-playing);
+  stroke-width: var(--eth-border-width-strong);
+  pointer-events: none;
+}

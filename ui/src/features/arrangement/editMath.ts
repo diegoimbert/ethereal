@@ -40,6 +40,12 @@ export interface DragInput {
   rows: ReadonlyArray<Row>;
   /** Snap a timeline position (identity when snapping is off/bypassed). */
   snap: (beats: Beats) => Beats;
+  /**
+   * Snap a move's delta for an item that started at `origin` (relative snapping: an
+   * off-grid clip keeps its offset within the grid, `snapDelta`). Without it, a move snaps
+   * the anchor's start through `snap` (absolute).
+   */
+  snapMove?: (origin: Beats, delta: Beats) => Beats;
   /** Media length in content beats for audio clips (limits unlooped resizes), else null. */
   sourceLength?: (clip: Clip) => Beats | null;
 }
@@ -53,7 +59,7 @@ export function dragPreview(input: DragInput, mode: DragMode, deltaBeats: Beats,
 
   if (mode === "move") {
     const a = startOf(anchor);
-    let d = snap(a + deltaBeats) - a;
+    let d = input.snapMove ? input.snapMove(a, deltaBeats) : snap(a + deltaBeats) - a;
     const minStart = Math.min(...clips.map(startOf));
     if (minStart + d < 0) d = -minStart;
     const tracks = retarget(input, rowDelta);

@@ -31,6 +31,10 @@ export interface FloatingPaneProps {
   label: string;
   /** Header content (title, tabs); the pin and close buttons are added after it. */
   header?: ReactNode;
+  /** Extra header buttons, before the pin button (e.g. the drawer's fullscreen toggle). */
+  actions?: ReactNode;
+  /** Bottom only: fills the workspace (App.css `.eth-float--fullscreen`); no resize edge meanwhile. */
+  fullscreen?: boolean;
   children: ReactNode;
   className?: string;
 }
@@ -85,7 +89,14 @@ export function FloatingPane(p: FloatingPaneProps) {
     <>
       {barEl}
       <section
-        className={clsx("eth-float", `eth-float--${p.side}`, p.pinned && "eth-float--pinned", closing && "eth-float--closing", p.className)}
+        className={clsx(
+          "eth-float",
+          `eth-float--${p.side}`,
+          p.pinned && "eth-float--pinned",
+          p.fullscreen && "eth-float--fullscreen",
+          closing && "eth-float--closing",
+          p.className,
+        )}
         aria-label={p.label}
         data-pane={p.side}
         data-tour={p.tour}
@@ -95,6 +106,7 @@ export function FloatingPane(p: FloatingPaneProps) {
       >
         <header className="eth-float__header">
           <div className="eth-float__title">{p.header}</div>
+          {p.actions}
           <IconButton
             size="sm"
             tone="ghost"
@@ -112,7 +124,7 @@ export function FloatingPane(p: FloatingPaneProps) {
           )}
         </header>
         <div className="eth-float__body">{p.children}</div>
-        <ResizeEdge {...p} />
+        {!p.fullscreen && <ResizeEdge {...p} />}
       </section>
     </>
   );

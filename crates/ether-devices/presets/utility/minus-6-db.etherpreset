@@ -3,7 +3,7 @@
   "version": 1,
   "app_version": "0.2.0",
   "preset": {
-    "name": "minus 6 dB",
+    "name": "minus 6 db",
     "device": {
       "type": "Builtin",
       "device": "Utility"

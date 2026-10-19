@@ -5,14 +5,16 @@
  * The fader and knob drag relative to where they were (never jumping); moving the finger
  * sideways while dragging slows them down (fine mode). Double-tap resets. The desktop has no
  * mixer view (the track headers took it over), so this is the mobile UI's own, built from the
- * same commands as the headers.
+ * same commands as the headers. In a read-only view (`state/viewer.ts`) the fader and pan are
+ * disabled (kit controls), there is no arm, and Mute / Solo work where the view says they do
+ * (as the headers', `listenBlockedReason`).
  */
 import { Circle, Headphones, Volume2, VolumeX } from "lucide-react";
 import type { Track } from "@/generated";
 import { Fader, Meter } from "@/kit";
 import { formatDb } from "@/domain/paramScale";
 import { trackSoloCommand } from "@/domain/soloCommands";
-import { useProjectStore, useTrackMeter, useTracksOrdered } from "@/state";
+import { listenBlockedReason, useProjectStore, useTrackMeter, useTracksOrdered, useViewer } from "@/state";
 import { cmd } from "@/transport";
 import { useGestureSender } from "@/features/devices/gesture";
 import { sendEdit } from "@/features/arrangement/context";
@@ -55,7 +57,9 @@ function Strip({ track }: { track: Track }) {
   const meter = useTrackMeter(track.id);
   const armed = useProjectStore((s) => s.armedTracks.includes(track.id));
   const db = track.mixer.volume;
-  const canArm = track.kind === "Audio" || track.kind === "Midi";
+  const viewer = useViewer();
+  const listenBlocked = listenBlockedReason(viewer, track.id);
+  const canArm = viewer === null && (track.kind === "Audio" || track.kind === "Midi");
   const send = (c: Parameters<typeof sendEdit>[1]) => transport && void sendEdit(transport, c);
   return (
     <div
@@ -92,6 +96,8 @@ function Strip({ track }: { track: Track }) {
           className="eth-mstrip__toggle eth-mstrip__mute"
           aria-pressed={track.mixer.mute}
           aria-label={t("mobile.track.mute_name", { name })}
+          disabled={listenBlocked !== null}
+          title={listenBlocked ?? undefined}
           onClick={() => send(cmd("Mixer", { type: "SetMute", track: track.id, mute: !track.mixer.mute }))}
         >
           {track.mixer.mute ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
@@ -102,6 +108,8 @@ function Strip({ track }: { track: Track }) {
             className="eth-mstrip__toggle eth-mstrip__solo"
             aria-pressed={track.mixer.solo}
             aria-label={t("mobile.track.solo_name", { name })}
+            disabled={listenBlocked !== null}
+            title={listenBlocked ?? undefined}
             onClick={() => send(trackSoloCommand(Object.values(useProjectStore.getState().project?.tracks ?? {}), track.id, false))}
           >
             <Headphones aria-hidden />

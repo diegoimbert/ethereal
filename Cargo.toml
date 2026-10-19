@@ -26,7 +26,7 @@ members = [
 [workspace.package]
 version = "0.0.1"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.90"
 repository = "https://github.com/diegoimbert/ethereal"
 authors = ["Ethereal contributors"]
 license = "AGPL-3.0-or-later"
@@ -55,7 +55,7 @@ ether-server = { path = "crates/ether-server" }
 serde = { version = "1.0.219", features = ["derive", "rc"] }
 # float_roundtrip: exact f64 parse (beats, bpm, automation values must survive save/load and the wire).
 serde_json = { version = "1.0.140", features = ["float_roundtrip"] }
-ulid = { version = "1.2", default-features = false }
+ulid = { version = "3.0", default-features = false }
 # ProjectId is a UUIDv7. No `v7` feature here: it pulls in `getrandom` (breaks the wasm
 # check); the model builds v7 UUIDs from injected time + entropy (`IdGen::next_project_id`).
 # Native-only crates may add `features = ["v7"]` to use `Uuid::now_v7()`.
@@ -71,7 +71,7 @@ tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 # --- real-time plumbing ---
-rtrb = "0.3"
+rtrb = "0.4"
 assert_no_alloc = "1.1"
 crossbeam-channel = "0.5"
 
@@ -79,7 +79,7 @@ crossbeam-channel = "0.5"
 cpal = "0.16"
 midir = "0.10"
 symphonia = { version = "0.5", default-features = false, features = ["wav", "pcm", "aiff", "flac", "mp3", "ogg", "vorbis", "isomp4", "aac", "alac"] }
-rubato = "0.16"
+rubato = "5.0"
 # #717: Standard MIDI File import/export (no rayon: wasm-safe).
 midly = { version = "0.5", default-features = false, features = ["std"] }
 realfft = "3.5"
@@ -89,7 +89,7 @@ rustfft = "6.4"
 clack-host = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d" }
 clack-extensions = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d", features = ["clack-host", "audio-ports", "gui", "latency", "log", "note-ports", "params", "remote-controls", "state", "timer", "tail"] }
 clack-plugin = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d" }
-libloading = "0.8"
+libloading = "0.9"
 
 # --- plugins: VST3 + AU (formats-base; used by ether-vst3 / ether-au). All permissive. ---
 # VST3 COM bindings, host and plugin side, pre-generated from the (MIT-licensed, since 3.8)
@@ -114,7 +114,7 @@ wasm-bindgen = "0.2.100"
 js-sys = "0.3.77"
 web-sys = { version = "0.3.77", features = ["console", "MessagePort", "Worker", "AudioWorkletGlobalScope"] }
 console_error_panic_hook = "0.1"
-getrandom = "0.3"
+getrandom = "0.4"
 
 # --- desktop app ---
 tauri = { version = "2", features = [] }
@@ -135,18 +135,23 @@ tauri-plugin-http = { version = "2", default-features = false }
 
 # --- engine server, export ---
 # remote-engine: WebSocket server (sync, no async runtime).
-tungstenite = "0.27"
+tungstenite = "0.30"
 # remote-engine: SIGTERM/SIGINT save the project and close clients.
-signal-hook = "0.3"
+signal-hook = "0.4"
 # export: WAV/FLAC/MP3 writing.
 hound = "3.5"
-flacenc = "0.4"
+flacenc = "0.5"
 # Pure-Rust MP3 encoder (no C, builds for wasm32): MP3 exports.
 rusty_mp3 = "1.0"
 
 # --- agent-api: MCP server (official Rust SDK; stdio transport) and its async runtime. ---
 tokio = { version = "1", default-features = false, features = ["rt", "net", "time", "sync"] }
 rmcp = { version = "3.5", default-features = false, features = ["server", "transport-io"] }
+
+# --- the default sample pack: the files' sha256 and the manifest's Ed25519 signature check (pure
+# Rust, so the web engine verifies too; ring needs a C toolchain for wasm32). ---
+sha2 = "0.11"
+ed25519-dalek = { version = "2.2", default-features = false, features = ["std"] }
 
 # --- tooling / tests ---
 proptest = "1"

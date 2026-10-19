@@ -161,8 +161,7 @@ impl MemoryStore {
             id,
             name,
             modified_ms: p.modified_ms as f64,
-            // Reading `share.json` is part of the private sharing overlay.
-            share: None,
+            ext: None,
         }
     }
 }
@@ -402,11 +401,31 @@ pub struct MemoryLibrary {
     imported: BTreeMap<String, BTreeMap<String, Vec<u8>>>,
     /// Imported folders added as roots (`add_folder`): root id → path.
     added: BTreeMap<String, String>,
+    /// #519: the sample pack cache (`Library::sample_cache_*`), by relative path; `None` =
+    /// the host has none ([`MemoryLibrary::without_sample_cache`]).
+    samples: Option<BTreeMap<String, Vec<u8>>>,
 }
 
 impl MemoryLibrary {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            samples: Some(BTreeMap::new()),
+            ..Self::default()
+        }
+    }
+
+    /// #519: a host without a sample cache (the built-in kit only).
+    pub fn without_sample_cache(mut self) -> Self {
+        self.samples = None;
+        self
+    }
+
+    /// #519: the sample cache's files (for assertions).
+    pub fn sample_cache(&self) -> Vec<String> {
+        self.samples
+            .as_ref()
+            .map(|s| s.keys().cloned().collect())
+            .unwrap_or_default()
     }
 
     /// Add a root `id` named `name`.
@@ -484,7 +503,43 @@ impl MemoryLibrary {
     }
 }
 
+impl MemoryLibrary {
+    fn cache(&mut self) -> Result<&mut BTreeMap<String, Vec<u8>>, StoreError> {
+        self.samples
+            .as_mut()
+            .ok_or_else(|| StoreError::Unsupported("no sample cache".into()))
+    }
+}
+
 impl Library for MemoryLibrary {
+    fn sample_cache_read(&mut self, rel: &str) -> Result<Vec<u8>, StoreError> {
+        self.cache()?
+            .get(rel)
+            .cloned()
+            .ok_or_else(|| StoreError::NotFound(rel.to_string()))
+    }
+
+    fn sample_cache_write(&mut self, rel: &str, bytes: &[u8]) -> Result<(), StoreError> {
+        self.cache()?.insert(rel.to_string(), bytes.to_vec());
+        Ok(())
+    }
+
+    fn sample_cache_remove(&mut self, rel: &str) -> Result<(), StoreError> {
+        self.cache()?.remove(rel);
+        Ok(())
+    }
+
+    fn sample_cache_list(&mut self, dir: &str) -> Result<Vec<String>, StoreError> {
+        let prefix = format!("{}/", dir.trim_end_matches('/'));
+        Ok(self
+            .cache()?
+            .keys()
+            .filter_map(|k| k.strip_prefix(&prefix))
+            .filter(|rest| !rest.contains('/'))
+            .map(str::to_string)
+            .collect())
+    }
+
     fn roots(&self) -> Vec<BrowseRoot> {
         self.roots
             .iter()

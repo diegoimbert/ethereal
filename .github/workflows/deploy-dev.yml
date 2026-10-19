@@ -1,0 +1,160 @@
+# Deploy the full product's web app to https://dev.ethereal.ws at most every 15 minutes (when
+# `main` moved): the web build only (no desktop platforms), to the Cloudflare Pages project
+# `ethereal-dev` (production branch `dev`; same STATIC_SHARE / ROOMS bindings as the release
+# project `etherealws`, so the dev site shares the production share storage and signaling). The
+# app's version reads `<VERSION>-dev.<short sha>`. Releases (ethereal.ws) stay in release.yml.
+# `wrangler pages deploy` never attaches custom domains, so a last step makes sure dev.ethereal.ws
+# is attached to the project and has its DNS record (idempotent; it only warns if the token lacks
+# the rights).
+#
+# The full product: main with the private `ee/` repository overlaid at the commit main points
+# `ee` at (.github/actions/ee-overlay); as in full.yml, the build's output goes only to the
+# encrypted logs (`just full-logs <run-id>`) and no cache is saved.
+#
+# Throttled: a schedule every 15 minutes (on main) instead of every push; a run whose commit is
+# already Pages' latest dev deployment stops right away. `workflow_dispatch` deploys now.
+# Secrets: CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID in the `dev` environment (main only);
+# without them nothing runs. Runner: repository variable DEPLOY_DEV_RUNNER (JSON), GitHub-hosted
+# by default.
+name: Deploy dev
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Deploy even if this commit is already deployed"
+        type: boolean
+        default: false
+
+# One deploy at a time; a newer run waits instead of cancelling a build in progress.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: "0"
+  NODE_VERSION: "24"
+  PAGES_PROJECT: ethereal-dev
+  WRANGLER_VERSION: "4.142.0"
+
+jobs:
+  deploy:
+    name: Build + deploy dev.ethereal.ws
+    if: github.ref == 'refs/heads/main'
+    runs-on: ${{ fromJSON(vars.DEPLOY_DEV_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 60
+    environment:
+      name: dev
+      url: https://dev.ethereal.ws
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Skip if already deployed
+        id: skip
+        env:
+          FORCE: ${{ inputs.force || false }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set in the dev environment: no deploy"
+            echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # The commit of Pages' latest production (`dev` branch) deployment: no runner state.
+          deployed="$(curl -sS "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PAGES_PROJECT/deployments?env=production&per_page=1" \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result[0].deployment_trigger.metadata.commit_hash // empty' || true)"
+          if [ "$FORCE" != true ] && [ "$deployed" = "$GITHUB_SHA" ]; then
+            echo "dev $GITHUB_SHA is already deployed; nothing to do" >> "$GITHUB_STEP_SUMMARY"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.skip.outputs.skip != 'true'
+        with:
+          persist-credentials: false
+      - name: ee pointer
+        if: steps.skip.outputs.skip != 'true'
+        id: ee
+        run: echo "sha=$(git ls-tree HEAD ee | awk '$2 == "commit" { print $3 }')" >> "$GITHUB_OUTPUT"
+      - uses: ./.github/actions/ee-overlay
+        if: steps.skip.outputs.skip != 'true'
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
+          ee-ref: ${{ steps.ee.outputs.sha }}
+      - name: Dev version
+        if: steps.skip.outputs.skip != 'true'
+        id: version
+        run: echo "version=$(tr -d '[:space:]' < VERSION)-dev.${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - name: Build + Pages site
+        if: steps.skip.outputs.skip != 'true'
+        uses: ./.github/actions/web-build
+        with:
+          out: ${{ runner.temp }}/pages
+          node-version: ${{ env.NODE_VERSION }}
+          version: ${{ steps.version.outputs.version }}
+      - name: Deploy
+        if: steps.skip.outputs.skip != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # From `pages/`, so wrangler also bundles `pages/functions` (/signal, /static).
+          cd "$RUNNER_TEMP/pages"
+          # `--branch dev` is the Cloudflare Pages deployment branch (the `ethereal-dev`
+          # project's production branch), not a git branch.
+          npx --yes "wrangler@$WRANGLER_VERSION" pages deploy site \
+            --project-name "$PAGES_PROJECT" --branch dev \
+            --commit-hash "$GITHUB_SHA" --commit-message "$VERSION" --commit-dirty=true
+          echo "Deployed $VERSION to https://dev.ethereal.ws" >> "$GITHUB_STEP_SUMMARY"
+      - name: Ensure custom domain dev.ethereal.ws
+        if: steps.skip.outputs.skip != 'true'
+        # Idempotent: attach the domain to the Pages project and create the proxied CNAME
+        # dev -> ethereal-dev.pages.dev when missing. Never fails the deploy: a token without
+        # the rights only gets a warning with the manual steps.
+        continue-on-error: true
+        env:
+          DOMAIN: dev.ethereal.ws
+          ZONE_NAME: ethereal.ws
+        run: |
+          api() { # api METHOD PATH [JSON] -> response body (the token never reaches the log)
+            curl -sS -X "$1" "https://api.cloudflare.com/client/v4$2" \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" \
+              ${3:+--data "$3"}
+          }
+          manual="Dashboard: Workers & Pages -> $PAGES_PROJECT -> Custom domains -> Set up a custom domain -> $DOMAIN"
+          check() { # check RESPONSE WHAT PERMISSION -> warn and return 1 on failure
+            if [ "$(jq -r '.success' <<<"$1")" != true ]; then
+              echo "::warning::$2 failed ($(jq -c '[.errors[]? | {code, message}]' <<<"$1")); the CLOUDFLARE_API_TOKEN probably lacks '$3'. $manual"
+              return 1
+            fi
+          }
+          pages="/accounts/$CLOUDFLARE_ACCOUNT_ID/pages/projects/$PAGES_PROJECT/domains"
+          r=$(api GET "$pages"); check "$r" "Listing Pages domains" "Account / Cloudflare Pages / Edit" || exit 0
+          if ! jq -e --arg d "$DOMAIN" '.result[] | select(.name == $d)' <<<"$r" >/dev/null; then
+            r=$(api POST "$pages" "{\"name\":\"$DOMAIN\"}")
+            check "$r" "Attaching $DOMAIN" "Account / Cloudflare Pages / Edit" || exit 0
+            echo "Attached $DOMAIN to $PAGES_PROJECT"
+          fi
+          r=$(api GET "/zones?name=$ZONE_NAME"); check "$r" "Looking up zone $ZONE_NAME" "Zone / Zone / Read" || exit 0
+          zone=$(jq -r '.result[0].id // empty' <<<"$r")
+          if [ -z "$zone" ]; then
+            echo "::warning::Zone $ZONE_NAME not visible to the token (needs 'Zone / Zone / Read' + 'Zone / DNS / Edit' on $ZONE_NAME). Add a proxied CNAME dev -> $PAGES_PROJECT.pages.dev, or: $manual"
+          else
+            r=$(api GET "/zones/$zone/dns_records?name=$DOMAIN"); check "$r" "Listing DNS records" "Zone / DNS / Read" || exit 0
+            if [ "$(jq '.result | length' <<<"$r")" = 0 ]; then
+              r=$(api POST "/zones/$zone/dns_records" \
+                "{\"type\":\"CNAME\",\"name\":\"$DOMAIN\",\"content\":\"$PAGES_PROJECT.pages.dev\",\"proxied\":true}")
+              check "$r" "Creating CNAME $DOMAIN" "Zone / DNS / Edit" || exit 0
+              echo "Created proxied CNAME $DOMAIN -> $PAGES_PROJECT.pages.dev"
+            fi
+          fi
+          r=$(api GET "$pages/$DOMAIN")
+          jq '.result | {name, status}' <<<"$r"
+          echo "Custom domain $DOMAIN: $(jq -r '.result.status' <<<"$r")" >> "$GITHUB_STEP_SUMMARY"
+      - uses: ./.github/actions/full-logs
+        if: always() && steps.skip.outputs.skip != 'true'
+        with:
+          name: full-logs-deploy-dev

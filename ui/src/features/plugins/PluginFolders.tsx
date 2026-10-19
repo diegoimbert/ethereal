@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useContributions } from "@/ext";
 import { FolderPlus, X } from "lucide-react";
 import type { PluginCommand, PluginFolders, PluginFormat } from "@/generated";
 import { hasFolderPicker } from "@/features/media-refs/sources";
@@ -33,6 +34,7 @@ export function PluginFoldersPanel({ transport }: { transport: EngineTransport }
     return (
       <div className="eth-plugin-folders">
         <p className="eth-plugin-folders__note">{t("plugins.folders.desktop_only")}</p>
+        <PluginActions place="folders-web" className="eth-plugin-folders__scan" />
       </div>
     );
   }
@@ -205,6 +207,7 @@ function FoldersBody({ transport }: { transport: EngineTransport }) {
         <Button size="sm" variant="ghost" onClick={() => rescan(true)} disabled={scan !== null} title={t("plugins.folders.full_rescan_hint")}>
           {t("plugins.folders.full_rescan")}
         </Button>
+        <PluginActions place="folders" />
         {failures > 0 && (
           <Button size="sm" variant="ghost" onClick={() => setShowFailed(true)} title={t("plugins.folders.failed_hint")}>
             {t("plugins.folders.failed", { count: failures })}
@@ -223,4 +226,12 @@ function FoldersBody({ transport }: { transport: EngineTransport }) {
       <FailedPluginsDialog transport={transport} open={showFailed} onClose={() => setShowFailed(false)} />
     </div>
   );
+}
+
+/** The extensions' plugin actions ("explore plugins"; `@/ext` "plugins.actions"), if any. */
+function PluginActions({ place, className }: { place: "folders" | "folders-web"; className?: string }) {
+  const actions = useContributions("plugins.actions");
+  if (actions.length === 0) return null;
+  const all = actions.map((Action, i) => <Action key={i} place={place} />);
+  return className ? <div className={className}>{all}</div> : <>{all}</>;
 }

@@ -30,10 +30,10 @@
     color var(--eth-duration-fast) var(--eth-ease-out),
     box-shadow var(--eth-duration-fast) var(--eth-ease-out);
 }
-.eth-button:hover:not(:disabled) {
+.eth-button:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--_bg-hover);
 }
-.eth-button:active:not(:disabled) {
+.eth-button:active:not(:disabled, [aria-disabled="true"]) {
   box-shadow: var(--eth-shadow-inset);
 }
 /* Icons inside buttons: centered, sized by the button size. */
@@ -49,7 +49,8 @@
   width: var(--eth-size-icon-lg);
   height: var(--eth-size-icon-lg);
 }
-.eth-button:disabled {
+.eth-button:disabled,
+.eth-button[aria-disabled="true"] {
   opacity: var(--eth-opacity-disabled);
   cursor: default;
 }

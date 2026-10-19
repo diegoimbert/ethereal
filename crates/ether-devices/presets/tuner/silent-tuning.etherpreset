@@ -13,7 +13,7 @@
         "live"
       ],
       "author": "ethereal",
-      "description": "mutes the output while tuning (A4 = 440 Hz)."
+      "description": "mutes the output while tuning (A4 = 440 hz)."
     },
     "params": {
       "0": 440.0,

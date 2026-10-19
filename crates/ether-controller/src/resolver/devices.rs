@@ -18,6 +18,23 @@ const KEYWORDS: &[(&[&str], T, &str)] = &[
     (&["phaser"], T::Phaser, "phaser"),
     (&["flanger"], T::Flanger, "flanger"),
     (&["tremolo"], T::Tremolo, "tremolo"),
+    (
+        &["vibrato", "wow", "flutter", "wobble"],
+        T::Vibrato,
+        "vibrato",
+    ),
+    (
+        &[
+            "pump",
+            "pumper",
+            "duck",
+            "ducker",
+            "sidechain",
+            "trancegate",
+        ],
+        T::VolumeLfo,
+        "volume lfo",
+    ),
     (&["filter", "wah"], T::AutoFilter, "filter"),
     (
         &[
@@ -134,7 +151,7 @@ pub(crate) fn candidates(m: &MissingDevice) -> Vec<DeviceCandidate> {
     };
     for (keys, ty, what) in KEYWORDS {
         if ws.iter().any(|w| keys.contains(&w.as_str())) {
-            push(*ty, 0.6, format!("Same kind of device: {what}"));
+            push(*ty, 0.6, format!("same kind of device: {what}"));
         }
     }
     let fallback = match m.role {

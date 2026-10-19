@@ -1,14 +1,17 @@
 name: Full product
+# A dispatch names the commits it builds (`feat ship` finds an EE-only change's build by it).
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch'
+  && format('Full product: {0} + ee {1}', inputs.ref, inputs.ee_ref || 'pointer') || '' }}
 
 # The full product: this repository with the private `ee/` repository overlaid (docs/EE-WORKFLOW.md),
-# built and tested on GitHub-hosted runners. The `ee/build` job is the check `just feat ship`
-# waits for.
+# built and tested on every push to main and on demand. Pull requests run no builds or tests
+# (owner, 2026-10-19: only CLA, Policy, What changed and ee/pointer gate a merge); a PR's full
+# build is a dispatch: `gh workflow run full.yml --ref <branch> -f ref=<sha>` (a fork's PR only
+# after reading it: `-f ref=refs/pull/N/head`). Never `pull_request_target`.
 #
 # Safety, since this repository is public:
-#   - The private code is fetched with the ETHER_PRIVATE_TOKEN secret, which GitHub withholds from
-#     pull requests from forks: there, every job here is skipped (the OSS-only ci.yml still gates
-#     them). A maintainer builds a fork's pull request by hand after reading it:
-#     `gh workflow run full.yml -f ref=refs/pull/N/head`. Never `pull_request_target`.
+#   - The private code is fetched with the ETHER_PRIVATE_TOKEN secret (never on fork events).
 #   - No private code in the public log: every step that compiles or runs it goes through
 #     scripts/ci/private-step.mjs (its output goes to a file; the log shows the result and the
 #     names of what failed), and the files are uploaded encrypted with age to the private
@@ -17,10 +20,14 @@ name: Full product
 #     on main): the Rust jobs cache only third-party builds (cargo-chef, .github/actions/chef-cache,
 #     checked before every save), the web jobs restore ci.yml's OSS-only caches; only main saves.
 #
-# Runners: repository variables FULL_RUNNER / FULL_MACOS_RUNNER / FULL_WINDOWS_RUNNER (JSON, e.g.
-# '"ubuntu-latest"' or '["self-hosted","linux"]') pick them; GitHub-hosted by default.
+# Runners: repository variables FULL_RUNNER / FULL_E2E_RUNNER / FULL_MACOS_RUNNER / FULL_WINDOWS_RUNNER (JSON, e.g.
+# '"ubuntu-latest"' or '["self-hosted","devbox-pool"]') pick the build jobs' runners;
+# GitHub-hosted by default. The short jobs (Resolve, ee/build, main is red) stay GitHub-hosted, so
+# a busy pool never holds up the start of a run. On the devbox pool (docs/CI-RUNNERS.md) the job
+# ids name the cargo target dirs (`full-*`, apart from ci.yml's open-source ones), the
+# GitHub-hosted-only steps are skipped, and a hook empties the overlay from the workspace after
+# every job.
 on:
-  pull_request:
   push:
     branches: [main]
   workflow_dispatch:
@@ -40,8 +47,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: full-${{ github.event.pull_request.number || github.ref }}-${{ inputs.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: full-${{ github.ref }}-${{ inputs.ref }}
+  cancel-in-progress: false
 
 env:
   CARGO_TERM_COLOR: never
@@ -51,12 +58,16 @@ env:
   ETHER_AUDIO: "null"
   RUST_BACKTRACE: "1"
   NODE_VERSION: "24"
+  # The full product's engine messages: the private undo labels, notices and errors live in
+  # ee/'s catalogs, merged into the controller's tables at build time (docs/EXTENSIONS.md),
+  # as ee/'s justfile does locally. Without it the catalog tests fail on the private ids.
+  ETHER_EXTRA_LOCALES: ${{ github.workspace }}/ee/app/src/i18n/ee-locales
 
 jobs:
   resolve:
     # What to build, and whether this run may see the private code at all.
     name: Resolve
-    runs-on: ${{ fromJSON(vars.FULL_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       enabled: ${{ steps.r.outputs.enabled }}
@@ -68,7 +79,6 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ inputs.ref || '' }}
-          fetch-depth: 2
       - id: r
         env:
           HAS_TOKEN: ${{ secrets.ETHER_PRIVATE_TOKEN != '' }}
@@ -76,30 +86,21 @@ jobs:
           EVENT: ${{ github.event_name }}
           IN_EE_REF: ${{ inputs.ee_ref }}
           IN_ALL: ${{ inputs.all }}
-          BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           if [ "$HAS_TOKEN" != true ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "No access to the private repository (a fork's pull request?): the full product is not built here." >> "$GITHUB_STEP_SUMMARY"
+            echo "No access to the private repository: the full product is not built here." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           echo "::add-mask::$TOKEN"
           oss_ref="$(git rev-parse HEAD)"
-          # The pointer this commit records for ee/, and the base's (pull requests).
-          ptr() { git ls-tree "$1" ee | awk '$2 == "commit" { print $3 }'; }
-          head_ptr="$(ptr HEAD)"
-          base_ptr=""
-          if [ "$EVENT" = pull_request ]; then
-            git fetch -q --depth=1 origin "$BASE"
-            base_ptr="$(ptr FETCH_HEAD)"
-          fi
+          # The pointer this commit records for ee/.
+          head_ptr="$(git ls-tree HEAD ee | awk '$2 == "commit" { print $3 }')"
           auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
           echo "::add-mask::$auth"
           ee_main="$(git -c http.extraheader="$auth" ls-remote https://github.com/diegoimbert/ethereal-private refs/heads/main | cut -f1)"
           if [ -n "$IN_EE_REF" ]; then ee_ref="$IN_EE_REF"; why="requested"
-          elif [ "$EVENT" = pull_request ] && [ -n "$head_ptr" ] && [ "$head_ptr" != "$base_ptr" ]; then ee_ref="$head_ptr"; why="the pull request's ee pointer"
-          elif [ "$EVENT" = pull_request ]; then ee_ref="$ee_main"; why="EE main (the pull request leaves ee alone)"
           else ee_ref="${head_ptr:-$ee_main}"; why="this commit's ee pointer"
           fi
           all=false
@@ -112,7 +113,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "OSS \`$oss_ref\` + EE \`${ee_ref:0:12}\` ($why); macOS, Windows and e2e: $all" >> "$GITHUB_STEP_SUMMARY"
 
-  rust-linux:
+  full-rust-linux:
     name: Full Rust (Linux)
     needs: resolve
     if: needs.resolve.outputs.enabled == 'true'
@@ -138,7 +139,10 @@ jobs:
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+          drift-check: "true"
+      # Self-hosted runners keep their own target dirs: no Actions cache there.
       - uses: ./.github/actions/chef-cache
+        if: runner.environment == 'github-hosted'
         with:
           name: full-linux
           clippy: "true"
@@ -150,6 +154,11 @@ jobs:
         run: >-
           node scripts/ci/private-step.mjs test -- cargo nextest run --profile ci --workspace --all-features
           -E 'not (test(=appended_params_keep_the_default_sound) | test(=patches_from_before_render_as_before))'
+      - name: Sweep stale test binaries (self-hosted target dir)
+        if: ${{ !cancelled() && runner.environment != 'github-hosted' }}
+        continue-on-error: true
+        timeout-minutes: 5
+        run: node scripts/ci/private-step.mjs sweep -- node scripts/ci/sweep-test-binaries.mjs -- --workspace --all-features
       - name: wasm32 check
         run: node scripts/ci/private-step.mjs wasm32 -- cargo check --target wasm32-unknown-unknown -p ether-protocol -p ether-model -p ether-core -p ether-devices -p ether-media -p ether-controller -p ether-stretch -p ether-wasm --all-features
       - uses: ./.github/actions/full-logs
@@ -157,7 +166,7 @@ jobs:
         with:
           name: full-logs-rust-linux
 
-  web:
+  full-web:
     name: Full web (tsc, eslint, prettier, vitest, build)
     needs: resolve
     if: needs.resolve.outputs.enabled == 'true'
@@ -171,6 +180,7 @@ jobs:
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: runner.environment == 'github-hosted'
         with:
           key: web-build
           save-if: "false"
@@ -184,7 +194,7 @@ jobs:
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       # No setup-node cache: it would save the overlaid tree's package store.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -207,13 +217,17 @@ jobs:
         with:
           name: full-logs-web
 
-  e2e:
+  full-e2e:
     # The Playwright suite on the full build (pushes to main and manual runs: the per-PR e2e is
-    # ci.yml's, on the open-source build).
+    # ci.yml's, on the open-source build). It runs ee/app's config: the OSS specs and the EE ones
+    # (an EE `<name>.full.spec.ts` replaces the OSS `<name>.spec.ts`) against the full UI;
+    # apps/web's config would test the open-source UI and leave the EE specs out.
     name: Full e2e (${{ matrix.shard }}/4)
     needs: resolve
     if: needs.resolve.outputs.enabled == 'true' && needs.resolve.outputs.all == 'true'
-    runs-on: ${{ fromJSON(vars.FULL_RUNNER || '"ubuntu-latest"') }}
+    # Its own variable (FULL_E2E_RUNNER): four shards per run would hold the pool's few slots;
+    # GitHub-hosted by default.
+    runs-on: ${{ fromJSON(vars.FULL_E2E_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -233,6 +247,7 @@ jobs:
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: runner.environment == 'github-hosted'
         with:
           key: web-build
           save-if: "false"
@@ -246,21 +261,22 @@ jobs:
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
-      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
       - name: install
-        run: node scripts/ci/private-step.mjs install -- "pnpm install --frozen-lockfile && cd apps/web && npx playwright install --with-deps chromium-headless-shell"
+        # ee/'s own workspace too: its services (the signaling adapter the share specs start).
+        run: node scripts/ci/private-step.mjs install -- "pnpm install --frozen-lockfile && pnpm --dir ee install --frozen-lockfile && cd apps/web && npx playwright install ${{ runner.environment == 'github-hosted' && '--with-deps' || '' }} chromium-headless-shell"
       - name: Playwright
         env:
           ETHEREAL_TOURS: "1"
           ETHER_E2E_PREBUILD: "1"
           SHARD: ${{ matrix.shard }}
         run: >-
-          node scripts/ci/private-step.mjs e2e -- "cd apps/web && node scripts/build-wasm.mjs &&
-          npx playwright test --workers=2 --shard=$SHARD/4 --grep-invert '@frames|@pixels' --retries=1 --reporter=list"
+          node scripts/ci/private-step.mjs e2e -- "cd ee/app && npm run test:e2e --
+          --workers=2 --shard=$SHARD/4 --grep-invert '@frames|@pixels' --retries=1 --reporter=list"
       - uses: ./.github/actions/full-logs
         if: always()
         with:
@@ -286,9 +302,12 @@ jobs:
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+      # Self-hosted runners keep their own target dirs: no Actions cache there.
       - uses: ./.github/actions/chef-cache
+        if: runner.environment == 'github-hosted'
         with:
           name: full-macos
+          exclude: ether-desktop
       - name: test
         # ether-desktop's tests run on Linux (its macOS test build cannot link); #45 is the AU
         # deadlock ci.yml also leaves out.
@@ -325,9 +344,12 @@ jobs:
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+      # Self-hosted runners keep their own target dirs: no Actions cache there.
       - uses: ./.github/actions/chef-cache
+        if: runner.environment == 'github-hosted'
         with:
           name: full-windows
+          exclude: ether-desktop
       - name: test
         run: node scripts/ci/private-step.mjs test -- cargo nextest run --profile ci --workspace --all-features --exclude ether-desktop
       - uses: ./.github/actions/full-logs
@@ -336,12 +358,12 @@ jobs:
           name: full-logs-rust-windows
 
   ee-build:
-    # The check `just feat ship` waits for: green when every full-product job passed (or the run
-    # could not see the private code: a fork's pull request).
+    # The aggregate check: green when every full-product job passed or was skipped (macOS,
+    # Windows and e2e on a dispatch without `all`).
     name: ee/build
-    needs: [resolve, rust-linux, web, e2e, rust-macos, rust-windows]
+    needs: [resolve, full-rust-linux, full-web, full-e2e, rust-macos, rust-windows]
     if: always()
-    runs-on: ${{ fromJSON(vars.FULL_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - env:
@@ -350,3 +372,32 @@ jobs:
           echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
           bad="$(echo "$RESULTS" | jq -r '[to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | .key] | join(", ")')"
           if [ -n "$bad" ]; then echo "::error::full product: $bad"; exit 1; fi
+
+  main-red:
+    # Like ci.yml's: a failed push to main comments on the one open `ci-main` issue (or opens it).
+    # Only the run link and the names of the failed jobs: the logs are private.
+    name: main is red
+    needs: [ee-build]
+    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_ID: ${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          body="The full product failed on \`main\` at $SHA: $RUN (logs: \`just full-logs $RUN_ID\`)"
+          open=$(gh issue list --label ci-main --state open --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "$body"
+          else
+            gh label create ci-main --color B60205 --description "CI is red on main" 2>/dev/null || true
+            gh issue create --title "CI is red on main" --label ci-main --body "$body
+
+          Pull requests run no builds or tests; \`main\` is where a break shows up first. Fix forward, then close this issue."
+          fi

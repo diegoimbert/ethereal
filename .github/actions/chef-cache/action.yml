@@ -5,8 +5,9 @@
 #
 # Run after the overlay, before the build. On a hit the target dir is restored; on a miss the
 # dependencies are cooked here (the build would compile them anyway), and `main` saves them.
-# The key is a hash (recipe, toolchain, profile, cook flags, OS); the recipe and the crate names
-# are never printed.
+# The key is <build settings hash>-<recipe hash> (toolchain, profile, cook flags, OS; then the
+# recipe), with the settings prefix as the restore fallback; the recipe and the crate names are
+# never printed.
 name: Chef cache
 description: Restore (or cook and, on main, save) the third-party build of the overlaid workspace
 
@@ -20,6 +21,12 @@ inputs:
   clippy:
     description: Also cook for clippy (check-mode dependency builds)
     default: "false"
+  exclude:
+    description: >-
+      Workspace packages the build leaves out (`cargo ... --workspace --exclude X`; space-separated,
+      public names only). Cook then builds the other members' dependencies with the same feature
+      unification as the build, so cargo reuses them; the member list is never printed.
+    default: ""
 
 runs:
   using: composite
@@ -34,27 +41,41 @@ runs:
         NAME: ${{ inputs.name }}
         COOK: ${{ inputs.cook-args }}
         CLIPPY: ${{ inputs.clippy }}
+        EXCLUDE: ${{ inputs.exclude }}
       run: |
         set -euo pipefail
         recipe="$RUNNER_TEMP/chef-recipe.json"
         node scripts/ci/private-step.mjs chef-prepare -- cargo chef prepare --recipe-path "$recipe"
         sum() { if command -v sha256sum > /dev/null; then sha256sum; else shasum -a 256; fi; }
-        hash="$( { cat "$recipe" rust-toolchain.toml; rustc -vV; env | grep -E '^CARGO_(PROFILE|INCREMENTAL|BUILD)' | sort; echo "$COOK $CLIPPY $RUNNER_OS $RUNNER_ARCH"; } | sum | cut -c1-32 )"
-        echo "key=chef-v1-$NAME-$RUNNER_OS-$hash" >> "$GITHUB_OUTPUT"
+        # <build settings>-<recipe>: a recipe change (any manifest edit) falls back to the newest
+        # cache with the same settings; cook then only builds what changed.
+        build="$( { cat rust-toolchain.toml; rustc -vV; env | grep -E '^CARGO_(PROFILE|INCREMENTAL|BUILD)' | sort; echo "$COOK $CLIPPY $EXCLUDE $RUNNER_OS $RUNNER_ARCH"; } | sum | cut -c1-16 )"
+        deps="$(sum < "$recipe" | cut -c1-32)"
+        echo "prefix=chef-v2-$NAME-$RUNNER_OS-$build-" >> "$GITHUB_OUTPUT"
+        echo "key=chef-v2-$NAME-$RUNNER_OS-$build-$deps" >> "$GITHUB_OUTPUT"
     - id: restore
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: target
         key: ${{ steps.key.outputs.key }}
+        restore-keys: ${{ steps.key.outputs.prefix }}
     - name: Cook the dependencies (cache miss)
       if: steps.restore.outputs.cache-hit != 'true'
       shell: bash
       env:
         COOK: ${{ inputs.cook-args }}
         CLIPPY: ${{ inputs.clippy }}
+        EXCLUDE: ${{ inputs.exclude }}
       run: |
         set -euo pipefail
         recipe="$RUNNER_TEMP/chef-recipe.json"
+        # With `exclude`: `-p` for every other workspace member (the names stay in this process).
+        pkgs=()
+        if [ -n "$EXCLUDE" ]; then
+          while IFS= read -r p; do pkgs+=(-p "$p"); done < <(cargo metadata --no-deps --format-version 1 2> /dev/null \
+            | EXCLUDE="$EXCLUDE" node -e 'const m = JSON.parse(require("fs").readFileSync(0, "utf8")); const ex = new Set(process.env.EXCLUDE.split(/\s+/)); for (const p of m.packages) if (!ex.has(p.name)) console.log(p.name);')
+          [ ${#pkgs[@]} -gt 0 ] || { echo "::error::no workspace members left to cook"; exit 1; }
+        fi
         # Cook writes a skeleton of the workspace (stub sources) where it runs: never in the
         # checkout. Same toolchain and cargo config; the target dir is the checkout's.
         ws="$GITHUB_WORKSPACE"
@@ -65,10 +86,10 @@ runs:
         export CARGO_TARGET_DIR="$ws/target"
         step() { node "$ws/scripts/ci/private-step.mjs" "$@"; }
         # shellcheck disable=SC2086
-        (cd "$chef" && step chef-cook -- cargo chef cook --recipe-path "$recipe" $COOK)
+        (cd "$chef" && step chef-cook -- cargo chef cook --recipe-path "$recipe" $COOK ${pkgs[@]+"${pkgs[@]}"})
         if [ "$CLIPPY" = true ]; then
           # shellcheck disable=SC2086
-          (cd "$chef" && step chef-cook-clippy -- cargo chef cook --recipe-path "$recipe" --clippy $COOK)
+          (cd "$chef" && step chef-cook-clippy -- cargo chef cook --recipe-path "$recipe" --clippy $COOK ${pkgs[@]+"${pkgs[@]}"})
         fi
         node scripts/ci/chef-strip.mjs target
     - name: Only third-party artifacts left?

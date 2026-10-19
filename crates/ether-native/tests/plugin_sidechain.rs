@@ -143,7 +143,12 @@ impl Rig {
         let mut library = MemoryLibrary::new();
         library.add_root("lib", "Library");
         library.add_file("lib", "impulse.wav", impulse_wav());
-        let ctl = EtherController::new(bridge, NativeServices, MemoryStore::new(), library);
+        let ctl = EtherController::new(
+            bridge,
+            NativeServices::default(),
+            MemoryStore::new(),
+            library,
+        );
         Self {
             ctl,
             engine: parts.engine,

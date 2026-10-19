@@ -4,8 +4,7 @@
 mod common;
 
 use common::*;
-use ether_core::protocol::agent::AgentCommand;
-use ether_core::protocol::collab::{CollabCommand, PresenceState};
+use ether_core::protocol::agent::{AgentCommand, AgentSelection};
 use ether_core::protocol::model::*;
 use ether_core::protocol::project::EditCommand;
 use ether_core::protocol::*;
@@ -72,7 +71,7 @@ fn one_step(h: &mut Harness, name: &str, input: Value) -> Value {
             .undo_label
             .as_deref()
             .unwrap_or("")
-            .starts_with("AI: "),
+            .starts_with("ai: "),
         "{name}: labelled undo step: {:?}",
         ps.last().unwrap().history
     );
@@ -680,10 +679,10 @@ fn song_transport_and_history() {
     let t = midi_track(&mut h);
     let id: TrackId = t.parse().unwrap();
     let v = ok_call(&mut h, "undo", json!({}));
-    assert_eq!(v["undone"], "AI: add MIDI track");
+    assert_eq!(v["undone"], "ai: add midi track");
     assert!(!h.project().tracks.contains_key(&id));
     let v = ok_call(&mut h, "redo", json!({}));
-    assert_eq!(v["redone"], "AI: add MIDI track");
+    assert_eq!(v["redone"], "ai: add midi track");
     assert!(h.project().tracks.contains_key(&id));
     let r = call(&mut h, "redo", json!({}));
     assert!(
@@ -707,10 +706,10 @@ fn overview_and_track_reads() {
         "add_notes",
         json!({ "clip_id": c, "notes": [{ "pitch": 60, "start_beats": 0, "duration_beats": 1 }] }),
     );
-    h.ok(Command::Collab(CollabCommand::SetPresence {
-        presence: PresenceState {
-            selected_tracks: vec![t.parse().unwrap()],
-            ..PresenceState::default()
+    h.ok(Command::Agent(AgentCommand::SetSelection {
+        selection: AgentSelection {
+            tracks: vec![t.parse().unwrap()],
+            ..AgentSelection::default()
         },
     }));
     let o = ok_call(&mut h, "get_project_overview", json!({}));

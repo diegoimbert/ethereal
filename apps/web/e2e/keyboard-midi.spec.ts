@@ -49,7 +49,7 @@ test("keyboard-midi: the computer keyboard plays the armed track's instrument", 
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
   await expect.poll(async () => (await state(page)).armed).toEqual([midi.id]);
   const status = page.getByTestId("keyboard-midi-status");
-  await expect(status).toHaveAccessibleName("octave C3, velocity 100");
+  await expect(status).toHaveAccessibleName("octave c3, velocity 100");
   // Keys go to the page, not to the toggle button.
   await page.locator("body").focus();
   await expect.poll(() => peakOf(page, midi.id)).toBeLessThan(0.001);
@@ -66,10 +66,26 @@ test("keyboard-midi: the computer keyboard plays the armed track's instrument", 
   // Octave (Z/X) and velocity (C/V) controls.
   await page.keyboard.press("KeyX");
   await page.keyboard.press("KeyV");
-  await expect(status).toHaveAccessibleName("octave C4, velocity 120");
+  await expect(status).toHaveAccessibleName("octave c4, velocity 120");
   await page.keyboard.press("KeyZ");
   await page.keyboard.press("KeyC");
-  await expect(status).toHaveAccessibleName("octave C3, velocity 100");
+  await expect(status).toHaveAccessibleName("octave c3, velocity 100");
+
+  // The indicator opens a popover setting both with the mouse, in sync with the keys.
+  await status.click();
+  const pop = page.getByRole("dialog", { name: "computer keyboard octave and velocity" });
+  await expect(pop).toBeVisible();
+  await pop.getByRole("button", { name: "octave up" }).click();
+  await pop.getByRole("button", { name: "60", exact: true }).click();
+  await expect(status).toHaveAccessibleName("octave c4, velocity 60");
+  await page.keyboard.press("KeyZ");
+  await expect(pop.getByTestId("keyboard-midi-range")).toHaveText("c3–e4");
+  if (shots) await page.screenshot({ path: `${shots}/keyboard-midi-popover.png` });
+  await pop.getByRole("slider", { name: "velocity" }).fill("100");
+  await expect(status).toHaveAccessibleName("octave c3, velocity 100");
+  await page.keyboard.press("Escape");
+  await expect(pop).toBeHidden();
+  await page.locator("body").focus();
 
   // A blur while a key is held releases the note (no stuck note).
   await page.keyboard.down("KeyD");

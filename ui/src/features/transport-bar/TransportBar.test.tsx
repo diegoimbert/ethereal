@@ -138,7 +138,7 @@ describe("TransportBar", () => {
   it("shows CPU load and engine status", async () => {
     const { mock } = await renderWithMock(<TransportBar />);
     await waitFor(() => expect(screen.getByTestId("engine-status")).toHaveAttribute("data-level", "ok"));
-    expect(screen.getByTestId("engine-status").getAttribute("title")).toMatch(/48000 Hz/);
+    expect(screen.getByTestId("engine-status").getAttribute("title")).toMatch(/48000 hz/);
     fireEvent.click(screen.getByRole("button", { name: "play" }));
     await waitFor(() => expect(store().transport?.playing).toBe(true));
     act(() => mock.tick(200));

@@ -127,7 +127,7 @@ describe("expression lanes under the piano roll", () => {
     fireEvent.change(field, { target: { value: "20" } });
     fireEvent.keyDown(field, { key: "Enter" });
     await flush();
-    expect(screen.getByTestId("expression-lane").getAttribute("data-kind")).toBe("CC 20");
+    expect(screen.getByTestId("expression-lane").getAttribute("data-kind")).toBe("cc 20");
     await stroke(screen.getByTestId("expression-lane"), [0, H / 2], [PX, H / 2]);
     expect(lanes()[0]!.kind).toEqual({ type: "Cc", controller: 20 });
   });

@@ -66,6 +66,29 @@
   border-style: dashed;
   border-color: var(--eth-color-accent);
 }
+/* Chain moves (chainClipboard.ts): the drop line between rows, the dragged / cut / selected row. */
+.eth-rack__insert {
+  height: var(--eth-border-width-strong);
+  margin: calc(var(--eth-space-sm) / -2 - var(--eth-border-width-strong) / 2) 0;
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-accent);
+  pointer-events: none;
+}
+.eth-rack__chain > .eth-rack__insert {
+  margin-top: 0;
+  margin-bottom: calc(var(--eth-space-sm) / 2);
+  transform: translateY(calc(var(--eth-space-sm) / -2 - var(--eth-border-width-strong)));
+}
+.eth-rack__empty--drop {
+  outline: var(--eth-border-width-strong) dashed var(--eth-color-accent);
+}
+.eth-rack__chain--dragging > .eth-rack__row,
+.eth-rack__row--cut {
+  opacity: 0.5;
+}
+.eth-rack__row--selected {
+  border-color: var(--eth-color-border-strong);
+}
 .eth-rack__chevron {
   flex: none;
   width: var(--eth-size-icon-sm);

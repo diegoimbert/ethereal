@@ -272,7 +272,7 @@ export function TunerWidget({ size, label }: TypedProps<"Tuner">) {
         </span>
         <span className="eth-tuner__readout">
           {has
-            ? `${shown > 0 ? "+" : ""}${shown} ct · ${frame.hz!.toFixed(1)} Hz` // i18n-ignore (units)
+            ? `${shown > 0 ? "+" : ""}${shown} ct · ${frame.hz!.toFixed(1)} hz` // i18n-ignore (units)
             : t("devices.widget.no_pitch")}
         </span>
       </div>
@@ -291,7 +291,7 @@ export function MeterWidget({ widget: w, size, label }: TypedProps<"Meter">) {
   const fromTop = Math.abs(w.max_db) < Math.abs(w.min_db) && w.max_db <= 0 && hi === 0;
   const f = v === undefined ? 0 : clamp01((v - lo) / (hi - lo || 1));
   const fill = v === undefined ? 0 : fromTop ? 1 - f : f;
-  const text = v === undefined ? "–" : `${v.toFixed(1)} dB`;
+  const text = v === undefined ? "–" : `${v.toFixed(1)} db`;
   return (
     <div className={clsx("eth-widget", "eth-widget--meter", `eth-widget--${size.toLowerCase()}`)} data-widget="Meter">
       <div
@@ -342,7 +342,7 @@ export function RackChainsWidget({ size, label }: TypedProps<"RackChains">) {
         {list.map((c) => (
           <li key={c.id} className={clsx("eth-rack-chains__row", c.mute && "eth-rack-chains__row--muted")}>
             <span className="eth-rack-chains__name eth-user-text">{c.name}</span>
-            <span className="eth-rack-chains__meta">{`${c.volume.toFixed(1)} dB`}</span>
+            <span className="eth-rack-chains__meta">{`${c.volume.toFixed(1)} db`}</span>
           </li>
         ))}
         {list.length === 0 && <li className="eth-rack-chains__empty">{t("devices.widget.no_chains")}</li>}

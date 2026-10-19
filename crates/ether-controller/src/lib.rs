@@ -43,6 +43,7 @@ mod drum_rack;
 mod engine;
 mod export;
 mod expression;
+pub mod ext;
 mod external;
 mod file_import;
 mod freeze;
@@ -50,9 +51,8 @@ mod fx_space;
 mod groove;
 mod groups;
 mod handlers;
-// The other-DAW parsers (DAWproject / REAPER / Ableton / FL Studio) live in the private
-// collaboration overlay; without them `Project::Import` replies `Unsupported`
-// (`import/disabled.rs`).
+// `Project::Import` / `CancelImport` without an extension that imports other DAWs' projects:
+// `Unsupported` (`import/disabled.rs`).
 #[path = "import/disabled.rs"]
 mod import;
 mod keymap;
@@ -70,17 +70,18 @@ mod patch_compat;
 mod plugins;
 mod presets;
 mod project;
-// Export to other DAWs (DAWproject / Ableton / FL Studio) is private (the overlay):
-// without it `Project::ExportTo` replies `Unsupported` (`project_export/disabled.rs`).
+// `Project::ExportTo` without an extension that exports to other DAWs: `Unsupported`
+// (`project_export/disabled.rs`).
 #[path = "project_export/disabled.rs"]
 mod project_export;
 mod racks;
 mod recording;
 mod resolver;
+// #519: the default sample pack (docs/SAMPLES.md).
+pub mod sample_pack;
 mod saving;
 mod sidechain;
 pub mod store;
-pub mod streaming;
 mod templates;
 mod tempo;
 pub mod text;
@@ -93,17 +94,17 @@ mod warp;
 
 use std::collections::BTreeMap;
 
-use ether_core::protocol::collab::{IceServer, StreamSignal};
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::{
     Base64Bytes, BuiltinDevice, DeviceId, GestureId, History, IdGen, MediaId, MediaRef, ParamId,
-    PluginInstance, Project, SiteId, TrackId,
+    PluginInstance, Project, TrackId,
 };
 use ether_core::protocol::transport::TransportState;
 use ether_core::protocol::{ClientMessage, Reply, ReplyResult, ServerMessage};
 use ether_core::{EngineOutputs, NodeKey, ParamChange, RenderGraphDesc, TransportControl};
 
 pub use compile::{CompileContext, compile_graph_with};
+pub use doc::{ExtLabels, set_ext_labels};
 pub use engine::LATENCY_REPUBLISH_MS;
 pub use media::hash::content_hash;
 pub use patch_compat::{LegacyClient, PatchCompat};
@@ -310,6 +311,19 @@ pub trait EngineBridge {
         Ok(None)
     }
 
+    /// Load `state` into the running instance of plugin `device` in place (an extension's,
+    /// e.g. a collaborator's preset), so its editor stays open and its audio keeps playing.
+    /// `Ok(true)`: loaded; `Ok(false)`: no running instance, or the host cannot load states
+    /// live (the default). The caller then re-creates the instance from the document.
+    fn set_plugin_state(
+        &mut self,
+        device: DeviceId,
+        state: &Base64Bytes,
+    ) -> Result<bool, BridgeError> {
+        let _ = (device, state);
+        Ok(false)
+    }
+
     /// Hardware inputs for `RecordingCommand::ListInputs` (native). Default: unsupported (web).
     fn list_inputs(&mut self) -> Result<ether_core::protocol::recording::InputList, BridgeError> {
         Err(BridgeError::Unsupported(
@@ -392,68 +406,6 @@ pub trait EngineBridge {
     fn node_latency(&self, key: NodeKey) -> Option<u32> {
         let _ = key;
         None
-    }
-
-    // ─── base-53: "listen on <peer>" native sender (`stream-host`; docs/COLLAB.md §9) ───
-
-    /// What this host can do for streaming. Default: nothing (the web build streams from
-    /// the UI instead, `CollabCommand::SetHosting { ui_sender: true }`).
-    fn stream_capabilities(&self) -> streaming::StreamCapabilities {
-        streaming::StreamCapabilities::default()
-    }
-
-    /// Start copying the engine's stream tap (master + metronome/count-in, never the
-    /// preview voice: `EngineHandle::set_stream_tap`) into the sender's ring. Called
-    /// when the first listener arrives; idempotent.
-    fn start_stream_capture(&mut self) -> Result<(), BridgeError> {
-        Err(BridgeError::Unsupported(
-            "streaming is not available on this host".into(),
-        ))
-    }
-
-    /// Stop the capture (after the last listener left). Idempotent.
-    fn stop_stream_capture(&mut self) -> Result<(), BridgeError> {
-        Ok(())
-    }
-
-    /// Open a peer connection to `listener` for `stream` using `ice` servers: the sender
-    /// creates the offer and reports it (and its ICE candidates) through `poll_stream`.
-    fn stream_open(
-        &mut self,
-        listener: SiteId,
-        stream: u32,
-        ice: &[IceServer],
-    ) -> Result<(), BridgeError> {
-        let _ = (listener, stream, ice);
-        Err(BridgeError::Unsupported(
-            "streaming is not available on this host".into(),
-        ))
-    }
-
-    /// A signal from `listener` (its answer, trickle ICE, or `Bye`) for `stream`.
-    fn stream_signal(
-        &mut self,
-        listener: SiteId,
-        stream: u32,
-        signal: &StreamSignal,
-    ) -> Result<(), BridgeError> {
-        let _ = (listener, stream, signal);
-        Err(BridgeError::Unsupported(
-            "streaming is not available on this host".into(),
-        ))
-    }
-
-    /// Close the peer connection for `stream` (no `Bye` is sent by the bridge: the
-    /// controller does that). Unknown streams are ignored.
-    fn stream_close(&mut self, listener: SiteId, stream: u32) -> Result<(), BridgeError> {
-        let _ = (listener, stream);
-        Ok(())
-    }
-
-    /// Drain what the sender produced since the last call (signals, clock anchors, link
-    /// states). Called from every controller tick.
-    fn poll_stream(&mut self, out: &mut Vec<streaming::StreamOutput>) {
-        let _ = out;
     }
 
     // ─── base-53: plugin GUI mirrors (`plugin-mirror`; docs/COLLAB.md §9.6) ───
@@ -575,6 +527,44 @@ pub trait HostServices {
     fn now_ms(&self) -> u64;
     /// Entropy for the `IdGen` seed.
     fn random_seed(&mut self) -> u64;
+
+    /// #519 (the sample pack, docs/SAMPLES.md): start an HTTP GET of `url` as request `id`
+    /// (controller-chosen), reading at most `max_bytes` of body. The answer comes back from
+    /// [`Self::poll_http`]. Never blocks. Default: unsupported (no network: the built-in kit
+    /// only).
+    fn http_get(&mut self, id: u64, url: &str, max_bytes: u64) -> Result<(), String> {
+        let _ = (id, url, max_bytes);
+        Err("downloads are not available in this build".into())
+    }
+
+    /// #519: the host's sample pack manifest URL, overriding `DEFAULT_SAMPLES_URL` when the
+    /// UI doesn't name one (natively `ETHER_SAMPLES_URL`; `""` = no remote pack).
+    fn samples_url(&self) -> Option<String> {
+        None
+    }
+
+    /// Drain the HTTP answers that arrived since the last call (called from every tick while
+    /// requests are in flight), plus their progress.
+    fn poll_http(&mut self, out: &mut Vec<HttpEvent>) {
+        let _ = out;
+    }
+}
+
+/// An answer (or progress) of a [`HostServices::http_get`] request.
+#[derive(Clone, Debug, PartialEq)]
+pub enum HttpEvent {
+    /// Body bytes received so far (and the total, when the server said).
+    Progress {
+        id: u64,
+        received: u64,
+        total: Option<u64>,
+    },
+    /// The request finished: the HTTP status and the body (any status), or a transport error
+    /// (offline, DNS, TLS, the body was over `max_bytes`).
+    Done {
+        id: u64,
+        result: Result<(u16, Vec<u8>), String>,
+    },
 }
 
 /// Tunables (defaults suit a 30-60 Hz tick).
@@ -700,8 +690,12 @@ where
     plugin_states: saving::PluginStates,
     /// v0.3: the history panel (`undo_history` module; runtime).
     undo_history: undo_history::UndoHistoryState,
+    /// The extensions (`ext` module): features built outside this repository.
+    extensions: ext::Extensions<B, H, S, L>,
     /// `import-resolver`: media search job and the last import's hints (`resolver`).
     resolver: resolver::ResolverState,
+    /// #519: the default sample pack (`sample_pack` module; runtime).
+    samples: sample_pack::SamplesState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -759,7 +753,9 @@ where
             versions: Default::default(),
             plugin_states: Default::default(),
             undo_history: Default::default(),
+            extensions: Default::default(),
             resolver: Default::default(),
+            samples: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,
@@ -884,8 +880,8 @@ where
         self.engine.check_latencies(&self.bridge, now_ms);
         // v0.3 `external-instrument`: latency measurements and hardware port changes.
         self.external_tick(now_ms, out);
-        // `import-dawproject`: one step of a running project import.
-        self.import_tick(now_ms, out);
+        // Extensions' background work (e.g. a project import from another DAW).
+        self.ext_tick(now_ms, out);
         let mut tap = agent::ExportTap::new(out);
         self.tick_impl(now_ms, &mut tap);
         self.agent_absorb(tap);

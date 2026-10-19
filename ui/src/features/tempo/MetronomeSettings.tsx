@@ -53,7 +53,7 @@ export function MetronomeSettings() {
             min={MIN_METRONOME_DB}
             max={MAX_METRONOME_DB}
             precision={1}
-            unit="dB"
+            unit="db"
             onChange={(volume) => void sendEdit(transport, metronomeSettingsCommand({ volume }))}
           />
         </label>

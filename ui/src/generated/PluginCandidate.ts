@@ -12,7 +12,7 @@ export type PluginCandidate = { format: PluginFormat, id: string, name: string, 
  */
 confidence: number, 
 /**
- * Plain-language reason ("Same plugin family and vendor: Kontakt 7 → Kontakt").
+ * Plain-language reason ("same plugin family and vendor: Kontakt 7 → Kontakt").
  */
 reason: string, 
 /**

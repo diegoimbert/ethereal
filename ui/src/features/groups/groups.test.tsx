@@ -175,7 +175,7 @@ describe("arrangement: Cmd+G", () => {
     await renderApp("arrangement");
     fireEvent.contextMenu(screen.getByRole("group", { name: "Keys track" }));
     await act(async () => {
-      fireEvent.click(screen.getByRole("menuitem", { name: "new VCA for track" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "new vca for track" }));
     });
     await flush();
     const vca = Object.values(project().tracks).find((t) => t.kind === "Vca")!;
@@ -184,7 +184,7 @@ describe("arrangement: Cmd+G", () => {
     // Another track joins from its menu.
     fireEvent.contextMenu(screen.getByRole("group", { name: "Bass track" }));
     await act(async () => {
-      fireEvent.click(screen.getByRole("menuitem", { name: `assign to VCA “${vca.name}”` }));
+      fireEvent.click(screen.getByRole("menuitem", { name: `assign to vca “${vca.name}”` }));
     });
     await flush();
     expect(byName("Bass").vca).toBe(vca.id);
@@ -222,7 +222,7 @@ describe("inspector: routing", () => {
       await m.send(cmd("Track", { type: "Create", id: vca, kind: "Vca", name: "Band", color: null, parent: null, before: null }));
     });
     await flush();
-    pickOption(screen.getByRole("combobox", { name: "Keys VCA" }), "VCA Band");
+    pickOption(screen.getByRole("combobox", { name: "Keys vca" }), "vca Band");
     await flush();
     expect(byName("Keys").vca).toBe(vca);
     expect(screen.getByTestId("vca-summary").textContent).toContain("Keys");

@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import type { Track } from "@/generated";
+import type { Command, Track } from "@/generated";
 import { useGestureSender } from "@/features/devices/gesture";
 import { paramToPlain } from "@/domain/paramScale";
 import { useLiveAutomation } from "@/features/automation/live";
@@ -8,21 +8,26 @@ import { midiTarget } from "@/features/midi-learn/targets";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
 import { useT } from "@/i18n";
+import { batchStep, keyedStep } from "./editMath";
 import { groupVolumes, type VolumeSnapshot } from "./groupVolume";
 import { useArrangementUi } from "./uiStore";
 import { VolumeFader } from "./VolumeFader";
+
+const SET_VOLUME = keyedStep("undo.mixer.set_volume", "set volume");
 
 /**
  * Compact horizontal volume fader in a track header (the mixer view is gone). Drag left /
  * right (Shift: fine) as one undo step; arrows step it; double-click resets to 0 dB. The
  * dB value shows while hovering or dragging. When this track is part of a multi-track
  * selection, dragging or stepping moves every selected track by the same dB amount (their
- * balance is kept, see `groupVolumes`).
+ * balance is kept, see `groupVolumes`), as one `Edit::Batch` per move, coalesced to one per
+ * animation frame during a drag (#911: one command per track per move lagged with many).
  */
 export function HeaderVolume({ track }: { track: Track }) {
   const t = useT();
   const sender = useGestureSender();
-  const base = track.mixer.volume;
+  // From the store, not `track`: the row doesn't re-render for a volume change (#911).
+  const base = useProjectStore((s) => s.project?.tracks[track.id]?.mixer.volume ?? track.mixer.volume);
   // Volume automation: the fader follows what the engine plays.
   const live = useLiveAutomation({ type: "TrackVolume", track: track.id });
   const db = live === null ? base : paramToPlain(VOLUME_INFO, live);
@@ -43,9 +48,12 @@ export function HeaderVolume({ track }: { track: Track }) {
       return;
     }
     const tracks = useProjectStore.getState().project?.tracks;
+    const commands: Command[] = [];
     for (const [id, volume] of groupVolumes(snapshot, track.id, v)) {
-      if (tracks?.[id] && tracks[id].mixer.volume !== volume) void sender.send(cmd("Mixer", { type: "SetVolume", track: id, volume }));
+      if (tracks?.[id] && tracks[id].mixer.volume !== volume) commands.push(cmd("Mixer", { type: "SetVolume", track: id, volume }));
     }
+    // A newer batch replaces a pending one: a track it leaves out is already at its level.
+    if (commands.length) void sender.send(batchStep(SET_VOLUME, commands), { coalesce: `group-volume:${track.id}` });
   };
 
   return (

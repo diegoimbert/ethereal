@@ -117,7 +117,7 @@ describe("resolver with the mock engine", () => {
     expect(s.focus).toBe(`m:${id}`);
     expect(s.plugins).toHaveLength(1);
     const m = s.media.find((x) => x.missing.media === id)!;
-    expect(m.candidates[0]).toMatchObject({ display: "Library/Drums/Kick.wav", confidence: 1, reason: "Same content" });
+    expect(m.candidates[0]).toMatchObject({ display: "Library/Drums/Kick.wav", confidence: 1, reason: "same content" });
     expect(m.apply).toBe(true);
     const dialog = await screen.findByRole("dialog", { name: "resolve “Kick.wav”" });
     fireEvent.click(within(dialog).getByRole("button", { name: /show all 2 missing items/ }));
@@ -207,7 +207,7 @@ describe("AI suggestions", () => {
     );
     expect(ok.suggestions).toEqual([{ item: "p1", candidate: "c1", confidence: 0.7, reason: "successor", params: [{ from: 1, to: 9 }] }]);
     expect(ok.rejected).toEqual([]);
-    expect(() => parseAiResponse("Sure! Here is the JSON: {}", payload)).toThrow(AiResponseError);
+    expect(() => parseAiResponse("Sure! Here is the json: {}", payload)).toThrow(AiResponseError);
     expect(() => parseAiResponse('{"matches":[],"extra":1}', payload)).toThrow(AiResponseError);
     expect(() => parseAiResponse("[]", payload)).toThrow(AiResponseError);
     const bad = parseAiResponse(
@@ -258,7 +258,7 @@ describe("AI suggestions", () => {
     expect(res.calls).toBe(1);
     const c = res.suggestions.get("Vst3:0123")!;
     expect(c).toMatchObject({ name: "New Synth", rule: "Ai", confidence: 0.6, plan: { type: "Auto" } });
-    expect(c.reason).toBe("AI suggestion (Anthropic): same vendor, newer synth");
+    expect(c.reason).toBe("ai suggestion (Anthropic): same vendor, newer synth");
   });
 
   it("needs consent once and never applies a suggestion by itself", async () => {
@@ -271,12 +271,12 @@ describe("AI suggestions", () => {
       })),
     );
     // No provider configured: no AI.
-    expect(screen.queryByRole("button", { name: "ask AI" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "ask ai" })).toBeNull();
     act(() => useAiSettings.getState().setApiKey("sk-ant-api03-abcdefghijklmnopqrstuvwxyz0123"));
     const f = fake('{"matches":[{"item":"p1","candidate":"c1","confidence":0.75,"reason":"newer version"}]}');
     const send = vi.spyOn(t, "send");
     // Asking first shows what will be sent; nothing is sent before consent.
-    fireEvent.click(await screen.findByRole("button", { name: "ask AI" }));
+    fireEvent.click(await screen.findByRole("button", { name: "ask ai" }));
     expect(useResolver.getState().ai.status).toBe("consent");
     fireEvent.click(screen.getByRole("button", { name: "show what will be sent" }));
     expect(screen.getByTestId("resolver-ai-payload")).toHaveTextContent('"name": "Mock Mega 1"');
@@ -288,8 +288,8 @@ describe("AI suggestions", () => {
     expect(item.candidates[0]).toMatchObject({ rule: "Ai", name: "Mock Mega" });
     expect(item.choice).toBe(0);
     expect(item.apply).toBe(false);
-    expect(screen.getByText("AI suggestion")).toBeTruthy();
-    expect(screen.getByText("1 AI call")).toBeTruthy();
+    expect(screen.getByText("ai suggestion")).toBeTruthy();
+    expect(screen.getByText("1 ai call")).toBeTruthy();
     // Nothing was applied: no Resolve::Apply went out, and "Apply" has nothing to send.
     expect(send.mock.calls.some(([c]) => c.domain === "Resolve" && c.command.type === "Apply")).toBe(false);
     expect(await act(() => applyResolution(t))).toBe(false);

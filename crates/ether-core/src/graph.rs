@@ -975,22 +975,19 @@ pub fn compile_with(
             .iter()
             .zip(&chain_info[i])
             .map(|(e, info)| {
-                ChainRt::new(
+                // The bypass path skips the planned main-signal delay too (it runs on the
+                // input before it).
+                let main = planned.main_delay(e.node);
+                Ok(ChainRt::new(
                     e.node,
                     e.enabled,
                     info.channels,
                     has_sc(e.node),
-                    config.max_events_per_block,
-                )
+                    check(info.latency.saturating_add(main))?,
+                    config,
+                ))
             })
-            .collect();
-        let bypass: u32 = t
-            .chain
-            .iter()
-            .zip(&chain_info[i])
-            .filter(|(e, _)| !e.enabled)
-            .map(|(_, info)| info.latency)
-            .sum();
+            .collect::<Result<Vec<_>, CompileError>>()?;
         let mut sends = Vec::with_capacity(t.sends.len());
         for (k, s) in t.sends.iter().enumerate() {
             let target = find(s.to)?;
@@ -1014,7 +1011,6 @@ pub fn compile_with(
             to_hardware: t.output.is_none() && t.kind == TrackKind::Master,
             chain,
             sends,
-            bypass_delay: DelayLine::new(check(bypass)?),
             output_delay,
             volume: Smoother::new(t.volume.max(0.0), MIX_RAMP_MS, sr),
             pan: Smoother::new(t.pan.clamp(-1.0, 1.0), MIX_RAMP_MS, sr),

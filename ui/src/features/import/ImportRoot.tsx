@@ -1,4 +1,5 @@
 import { isEtherFileName } from "@/features/project/actions";
+import { contributions } from "@/ext";
 import "./import.css";
 import clsx from "clsx";
 import { X } from "lucide-react";
@@ -93,8 +94,10 @@ function useImportCommands(transport: EngineTransport) {
   useEffect(() => {
     if (!isPathDropHost(transport)) return;
     return transport.onPathDrop((all) => {
-      // An Ethereal project file is opened, not imported as audio.
-      const paths = all.filter((p) => !isEtherFileName(p));
+      // An Ethereal project file is opened, not imported as audio, and so are the project
+      // files an extension imports (`@/ext` "import.isProjectFile").
+      const projectFile = (p: string) => isEtherFileName(p) || contributions("import.isProjectFile").some((is) => is(p));
+      const paths = all.filter((p) => !projectFile(p));
       if (paths.length === 0) return;
       if (deliverPathDrop(paths)) return;
       // Nowhere in particular: MIDI files become new MIDI tracks at the start (#717), audio

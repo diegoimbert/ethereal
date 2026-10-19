@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { surfaceMenuEntries } from "@/ext/surfaces";
 import { useStore } from "zustand";
 import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { AudioLines, ChevronDown, Circle, CornerDownRight, Folder, Headphones, Piano, Speaker, SlidersVertical, Spline, Volume2, VolumeX } from "lucide-react";
@@ -29,6 +30,7 @@ import { cancelDraw, scheduleDraw } from "./drawQueue";
 import { HeaderPan } from "./HeaderPan";
 import { InstrumentPick } from "./InstrumentPick";
 import { HeaderVolume } from "./HeaderVolume";
+import { sameTrackExceptVolume } from "./trackEquality";
 import { useTrackDisplayName } from "./trackDisplayName";
 import { onTrackHeaderPointerDown } from "./trackDrag";
 import { mainHeight, TRACK_HEIGHT_STEP, type Row } from "./layout";
@@ -47,7 +49,9 @@ export const TrackRow = memo(
 );
 
 function sameRowExceptY(a: Row, b: Row): boolean {
-  return a.track === b.track && a.depth === b.depth && a.laneHeight === b.laneHeight && a.height === b.height && a.takesHeight === b.takesHeight;
+  return (
+    sameTrackExceptVolume(a.track, b.track) && a.depth === b.depth && a.laneHeight === b.laneHeight && a.height === b.height && a.takesHeight === b.takesHeight
+  );
 }
 
 function RealTrackRow({ row }: { row: Row }) {
@@ -559,6 +563,7 @@ function TrackLane({ track }: { track: Track }) {
             disabled: !hasClipboard(),
             onSelect: () => void pasteClips(ctx.transport, at, track.id),
           },
+          ...surfaceMenuEntries({ kind: "arranger" }, e),
         ]);
       }}
     >

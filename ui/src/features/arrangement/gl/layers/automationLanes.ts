@@ -41,6 +41,11 @@ export interface GlAutomationLane {
   disabled: boolean;
   /** View beats of lane time 0. */
   offset: number;
+  /**
+   * An empty lane's baseline: the target's current value (normalized), drawn grayed and
+   * dashed across the lane; `null` (or absent) when the lane has points.
+   */
+  baseline?: number | null;
 }
 
 /** Where a lane is in its row (px from the row top): its top, and the visible part. */
@@ -99,6 +104,22 @@ const LINE_RADIUS = 0.75;
 const POINT_STROKE = 1.5;
 /** Opacity of a disabled lane's envelope and points. */
 const DISABLED_OPACITY = 0.35;
+/** The empty-lane baseline's dashes and gaps (px; `.eth-auto-lane__baseline`: dasharray 4 4). */
+const BASELINE_DASH = 4;
+
+/**
+ * The dashes `[beatA, beatB, ...]` of a baseline across `[from, to]` beats (pure): `dash` px
+ * on, `dash` px off at `ppb`, anchored at beat 0 so rebuilds on pan keep them in place.
+ */
+export function baselineDashes(from: number, to: number, ppb: number, dash = BASELINE_DASH): number[] {
+  const out: number[] = [];
+  if (!(ppb > 0) || !(to > from)) return out;
+  const len = dash / ppb;
+  const period = 2 * len;
+  for (let k = Math.floor(from / period); k * period < to; k++) out.push(k * period, k * period + len);
+  return out;
+}
+
 /** Curves are sampled every this many px at the build zoom (as `lanePath`). */
 const SAMPLE_PX = 2;
 
@@ -202,6 +223,15 @@ export function buildAutomationLane(
   const op = lane.disabled ? DISABLED_OPACITY : 1;
   const line = over(c.accent, op, c.bgInset);
   const w = out.custom(shape);
+  if (lane.baseline != null && lane.points.length === 0) {
+    // Flat-looking caps: a capsule reaches its radius past its ends, so the dash is inset.
+    const by = y(lane.baseline);
+    const color = over(c.textDim, op, c.bgInset);
+    const dashes = baselineDashes(win.from, win.to, win.ppb);
+    for (let i = 0; i < dashes.length; i += 2) {
+      writeSegment(w, { beat: dashes[i]!, px: LINE_RADIUS, y: by }, { beat: dashes[i + 1]!, px: -LINE_RADIUS, y: by }, LINE_RADIUS, color, clip);
+    }
+  }
   const segs = envelope(lane.points, lane.offset, y, win.from, win.to, win.ppb);
   for (let i = 0; i < segs.length; i += 4) {
     writeSegment(w, { beat: segs[i]!, y: segs[i + 1]! }, { beat: segs[i + 2]!, y: segs[i + 3]! }, LINE_RADIUS, line, clip);

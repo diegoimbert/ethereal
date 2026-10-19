@@ -132,7 +132,7 @@ export function midiImportCommand(project: Project, file: MidiFileContents, targ
       }),
     );
   });
-  return { command: asOneStep("import MIDI file", commands)!, clips, tracks: created };
+  return { command: asOneStep("import midi file", commands)!, clips, tracks: created };
 }
 
 function message(e: unknown): string {

@@ -33,7 +33,7 @@
         {
           "id": "first-run/get-started-guided-tours-and-soon-items",
           "title": "get started: guided tours and \"soon\" items",
-          "what": "The welcome screen's \"get started\" list starts a guided tour of the real UI. Starting one makes a project for it, and finishing or leaving it brings you back to the welcome screen. Done tours show a check mark and ask \"do it again?\". \"Make your first track\" is greyed out with \"soon\" for now.",
+          "what": "The welcome screen's \"get started\" list starts a guided tour of the real UI. Starting one makes a project for it, and finishing or leaving it brings you back to the welcome screen. Done tours show a check mark and ask \"do it again?\". On the mobile shell the guides are greyed out with \"soon\".",
           "priority": "should",
           "audience": "beginner",
           "platform": "all"

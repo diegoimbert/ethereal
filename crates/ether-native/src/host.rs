@@ -163,11 +163,22 @@ pub fn ether_controller_with(patch_compat: PatchCompat) -> ControllerFactory {
             patch_compat,
             ..native_controller_config(bridge.sample_rate())
         };
-        Box::new(EtherController::with_config(
-            bridge, services, store, library, config,
-        ))
+        let mut ctl = EtherController::with_config(bridge, services, store, library, config);
+        if let Some(setup) = CONTROLLER_SETUP.get() {
+            setup(&mut ctl);
+        }
+        Box::new(ctl)
     })
 }
+
+/// Set up every native controller this process creates (its extensions,
+/// `EtherController::add_extension`; docs/EXTENSIONS.md). Call once, before the host starts.
+pub fn set_controller_setup(setup: fn(&mut NativeController)) {
+    let _ = CONTROLLER_SETUP.set(setup);
+}
+
+static CONTROLLER_SETUP: std::sync::OnceLock<fn(&mut NativeController)> =
+    std::sync::OnceLock::new();
 
 #[derive(Clone, Debug)]
 pub struct HostConfig {
@@ -478,7 +489,8 @@ impl NativeHost {
         let plugin_db = config.data_dir.join("plugin-db");
         let catalog = PluginCatalog::open(&plugin_db);
         let plugin_folders = PluginFolderSettings::open(&plugin_db);
-        let store = DiskStore::new(config.projects_root.clone(), config.library_roots.clone());
+        let store = DiskStore::new(config.projects_root.clone(), config.library_roots.clone())
+            .with_sample_cache(Some(config.data_dir.join("samples")));
         let mut bridge = NativeBridge::new(
             parts.handle,
             prepare,
@@ -529,7 +541,7 @@ impl NativeHost {
             .name("ether-controller".into())
             .spawn(move || {
                 let controller = match std::panic::catch_unwind(AssertUnwindSafe(|| {
-                    factory(bridge, NativeServices, store.clone(), store)
+                    factory(bridge, NativeServices::default(), store.clone(), store)
                 })) {
                     Ok(c) => c,
                     Err(p) => {
@@ -1553,7 +1565,7 @@ fn folder_err(id: u32, e: FolderError) -> ServerMessage {
 impl NativeServices {
     fn now_ms_static() -> u64 {
         use ether_controller::HostServices;
-        NativeServices.now_ms()
+        NativeServices::default().now_ms()
     }
 }
 

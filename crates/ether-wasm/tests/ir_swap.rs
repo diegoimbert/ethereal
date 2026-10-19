@@ -4,7 +4,44 @@
 //! audio the Worker asks the controller for again.
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+/// The calling thread's CPU time (Linux and macOS; wall time elsewhere). The comparisons below
+/// are about the work a quantum does: on a busy machine (a shared CI runner) a preemption in the
+/// middle of a quantum adds wall time but no work, and made them flaky.
+fn clock() -> Duration {
+    #[cfg(all(
+        any(target_os = "linux", target_os = "macos"),
+        target_pointer_width = "64"
+    ))]
+    {
+        #[repr(C)]
+        struct Timespec {
+            sec: i64,
+            nsec: i64,
+        }
+        unsafe extern "C" {
+            fn clock_gettime(clock: i32, ts: *mut Timespec) -> i32;
+        }
+        #[cfg(target_os = "linux")]
+        const CLOCK_THREAD_CPUTIME_ID: i32 = 3;
+        #[cfg(target_os = "macos")]
+        const CLOCK_THREAD_CPUTIME_ID: i32 = 16;
+        let mut ts = Timespec { sec: 0, nsec: 0 };
+        // SAFETY: `ts` is a valid, writable `struct timespec` (two 64-bit fields here).
+        let rc = unsafe { clock_gettime(CLOCK_THREAD_CPUTIME_ID, &mut ts) };
+        assert_eq!(rc, 0, "clock_gettime(CLOCK_THREAD_CPUTIME_ID)");
+        Duration::new(ts.sec as u64, ts.nsec as u32)
+    }
+    #[cfg(not(all(
+        any(target_os = "linux", target_os = "macos"),
+        target_pointer_width = "64"
+    )))]
+    {
+        static START: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+        START.get_or_init(std::time::Instant::now).elapsed()
+    }
+}
 
 use ether_controller::EngineBridge;
 use ether_core::AudioSource;
@@ -139,9 +176,9 @@ impl Rig {
         let mut worst = Duration::ZERO;
         for _ in 0..quanta {
             self.shared.borrow_mut().control.flush();
-            let t = Instant::now();
+            let t = clock();
             self.host.render(RENDER_QUANTUM);
-            worst = worst.max(t.elapsed());
+            worst = worst.max(clock() - t);
         }
         worst
     }
@@ -157,9 +194,9 @@ impl Rig {
 fn direct_build(id: &str) -> Duration {
     (0..3)
         .map(|_| {
-            let t = Instant::now();
+            let t = clock();
             let data = fx_space::ir_swap(&reverb(Some(id)), &NoSamples, 48_000.0);
-            let e = t.elapsed();
+            let e = clock() - t;
             drop(data);
             e
         })
@@ -343,9 +380,9 @@ fn direct_media_build(audio: &Arc<DecodedAudio>) -> Duration {
     let samples = OneMedia(Arc::new(InMemorySource::new(audio.clone())));
     (0..3)
         .map(|_| {
-            let t = Instant::now();
+            let t = clock();
             let data = fx_space::ir_swap(&media_reverb(IR_MEDIA), &samples, 48_000.0);
-            let e = t.elapsed();
+            let e = clock() - t;
             assert!(data.is_some());
             drop(data);
             e

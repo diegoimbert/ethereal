@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::model::{
-    BuiltinDevice, BuiltinDeviceType, DeviceId, IrSource, MediaId, ParamId, PluginFormat,
+    BuiltinDevice, BuiltinDeviceType, DeviceId, IrSource, LfoCurve, MediaId, ParamId, PluginFormat,
     SampleZone, Seconds, SidechainTap, TrackId,
 };
 
@@ -97,6 +97,13 @@ pub enum DeviceCommand {
     },
     /// v0.3 (`fx-space`): replies `FactoryIrs` (the IRs shipped with the convolution reverb).
     ListFactoryIrs,
+    /// `fx-modulation`: replace a Volume LFO's drawn cycle (`ether_model::lfo_curve`;
+    /// sanitized: sorted, clamped, at most 64 points). One undo step (send with a gesture id
+    /// while dragging); the live node swaps it in place (`EngineBridge::update_builtin`).
+    SetLfoCurve {
+        device: DeviceId,
+        curve: LfoCurve,
+    },
 }
 
 /// A factory impulse response (v0.3, `fx-space`).
