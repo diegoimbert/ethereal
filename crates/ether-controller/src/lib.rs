@@ -546,24 +546,6 @@ pub trait EngineBridge {
     fn poll_hw_latency(&mut self) -> Option<ether_core::hw_io::HwLatencyResult> {
         None
     }
-
-    /// Dedicated remote engines (docs/COLLAB.md §16): start a second, independent engine
-    /// with its own plugin instances, transport and graph, **not connected to the audio
-    /// device** (it runs paced, headless), whose stream tap feeds a native sender like
-    /// this engine's. Used through the ordinary [`EngineBridge`] calls; dropping it stops it
-    /// and releases its plugins. Default: unsupported (web, and hosts with no native
-    /// plugins).
-    fn spawn_engine(&mut self) -> Result<Box<dyn EngineBridge + Send>, BridgeError> {
-        Err(BridgeError::Unsupported(
-            "running another engine needs the desktop app".into(),
-        ))
-    }
-
-    /// Whether [`EngineBridge::spawn_engine`] can work here (advertised in presence as
-    /// `can_run_engine`).
-    fn can_spawn_engine(&self) -> bool {
-        false
-    }
 }
 
 /// Host services the controller needs besides the engine.
@@ -653,27 +635,27 @@ impl Default for ControllerConfig {
 
 /// The open project and its edit state.
 pub struct OpenDoc {
-    project: Project,
-    history: History,
-    dirty: bool,
+    pub project: Project,
+    pub history: History,
+    pub dirty: bool,
     /// Last document edit (for autosave).
-    last_edit_ms: u64,
+    pub last_edit_ms: u64,
 }
 
 /// Runtime transport state (not in the document).
 #[derive(Clone, Debug, Default)]
 pub struct TransportRt {
-    playing: bool,
-    recording: bool,
-    position: ether_core::protocol::model::Beats,
-    seconds: f64,
-    start_position: ether_core::protocol::model::Beats,
-    last_frame: Option<ether_core::protocol::transport::PlayheadUpdate>,
+    pub playing: bool,
+    pub recording: bool,
+    pub position: ether_core::protocol::model::Beats,
+    pub seconds: f64,
+    pub start_position: ether_core::protocol::model::Beats,
+    pub last_frame: Option<ether_core::protocol::transport::PlayheadUpdate>,
     /// Engine play flag at the last poll (its transitions are adopted).
-    last_engine_playing: Option<bool>,
+    pub last_engine_playing: Option<bool>,
     /// Recent `TapTempo` times (ms).
-    taps: Vec<u64>,
-    tap_gesture: Option<GestureId>,
+    pub taps: Vec<u64>,
+    pub tap_gesture: Option<GestureId>,
 }
 
 /// The standard controller implementation. `X`: an extension's own state (`ext` module),

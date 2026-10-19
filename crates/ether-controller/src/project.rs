@@ -164,6 +164,9 @@ where
                     project: Box::new(without_plugin_states(project)),
                 })
             }
+            // A project command of an extension's protocol that no extension answered.
+            #[allow(unreachable_patterns)]
+            _ => Err(crate::tx::unsupported("not available in this build")),
         }
     }
 

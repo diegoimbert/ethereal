@@ -132,7 +132,7 @@ pub enum RenderUpdate {
     },
 }
 
-fn freeze_event(out: &mut dyn MessageSink, e: FreezeEvent) {
+pub fn freeze_event(out: &mut dyn MessageSink, e: FreezeEvent) {
     event(out, Event::Freeze { event: e });
 }
 
