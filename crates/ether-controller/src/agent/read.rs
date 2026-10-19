@@ -229,7 +229,7 @@ impl AgentState {
     }
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

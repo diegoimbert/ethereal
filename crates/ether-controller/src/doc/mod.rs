@@ -27,8 +27,9 @@ use ether_core::protocol::project::ProjectCommand;
 use crate::tx::{CmdResult, Tx, invalid, not_found, unsupported};
 
 pub(crate) use clips::clip_start;
+pub use labels::UndoLabel;
 pub use labels::{ExtLabels, set_ext_labels};
-pub(crate) use labels::{UndoLabel, label_of, undo};
+pub(crate) use labels::{label_of, undo};
 pub(crate) use misc::{MAX_BPM, MIN_BPM};
 pub(crate) use reverse::reverse_envelopes;
 

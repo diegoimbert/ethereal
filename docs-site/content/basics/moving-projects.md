@@ -13,8 +13,6 @@ covers:
 
 Your projects are stored on the computer, or in the browser, where you made them (see [where your projects live](/docs/welcome/where-your-projects-live)). To work on a song somewhere else, between the web and the desktop app, or just to keep a backup, you export it as a **.ether** file and import that file on the other side.
 
-To send a song to someone so they can listen to it or edit it with you, [sharing](/docs/sharing/overview) is usually easier.
-
 ## moving a project
 
 1. On the first computer, open the project and choose **export project…** in the project menu (☰). See [exporting a project](#exporting-a-project) below.
@@ -59,10 +57,10 @@ The dialog also has **collect all and save** (see [above](#samples-from-your-dis
 
 You can also open the dialog with **relink missing samples…** in the command palette, or right-click a clip whose sample is missing and choose **relink sample…**.
 
-For missing plugins and devices too (for example after importing a project from another DAW), see [projects from other DAWs](/docs/import-export/other-daws).
+For missing plugins and devices too, see [missing plugins and samples](/docs/sounds-and-plugins/missing-plugins-and-samples).
 
 ## where next
 
 - [Versions and backups](/docs/basics/versions-and-backups)
 - [Where your projects live](/docs/welcome/where-your-projects-live)
-- [Sharing overview](/docs/sharing/overview)
+- [Missing plugins and samples](/docs/sounds-and-plugins/missing-plugins-and-samples)

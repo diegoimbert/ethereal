@@ -29,3 +29,6 @@ It writes:
 | `assets/brand/preview/` | the contact sheets. |
 
 The desktop icons ship with the next release. There is no tray or menu-bar icon.
+
+How the name and logo may be used outside this repository is in
+[TRADEMARK.md](../../TRADEMARK.md).

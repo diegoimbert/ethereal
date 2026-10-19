@@ -9,7 +9,6 @@ covers:
   - first-run/closing-the-welcome-screen-drops-you-into-a-draft-project #new-projects-start-as-drafts
   - first-run/untouched-draft-projects-are-thrown-away #new-projects-start-as-drafts
   - first-run/get-started-guided-tours-and-soon-items #guided-tours
-  - first-run/starting-a-tour-or-a-new-project-during-a-jam-asks-you-to-le #switching-projects-during-a-live-session
   - first-run/reopen-last-project-on-launch-off-by-default #reopening-your-last-project
   - first-run/project-links-in-the-address-bar-web #project-links-in-the-address-bar
   - first-run/project-templates-and-the-default-template #templates
@@ -23,7 +22,6 @@ covers:
   - projects-storage/cmd-w-closes-the-top-floating-window-not-the-app #quitting-the-desktop-app
   - projects-storage/deleting-a-project-is-permanent #deleting-a-project
   - projects-storage/files-from-newer-or-pre-release-versions-are-refused #projects-from-a-newer-version
-  - projects-storage/local-copy-projects-after-a-jam #local-copy-projects
 ---
 
 A project is one song: its tracks, clips, devices and settings. This page explains how to make and find projects, and how they're saved. To know where projects are stored (and why that matters on the web), read [where your projects live](/docs/welcome/where-your-projects-live) first.
@@ -33,8 +31,6 @@ A project is one song: its tracks, clips, devices and settings. This page explai
 When Ethereal starts, it shows the welcome screen. It's also your list of projects (the **open project** screen). It has:
 
 - the Ethereal logo and the version you're running;
-- **join a jam…** to join someone's live session from their invite link (see [joining a session](/docs/sharing/joining));
-- **import from another DAW…** to open an Ableton Live, FL Studio, REAPER or DAWproject file (see [projects from other DAWs](/docs/import-export/other-daws));
 - **new project**;
 - a **get started** list of guided tours;
 - your **recent projects**.
@@ -51,7 +47,7 @@ A new project is a **draft** until you change something in it (an edit, an undo 
 
 ### guided tours
 
-The **get started** list on the welcome screen starts guided tours of the real app: making your first track, jamming with friends, recording audio, bringing in a project from another DAW. Starting one makes a project for it and walks you through the steps. When you finish or leave the tour, you come back to the welcome screen.
+The **get started** list on the welcome screen starts guided tours of the real app, such as making your first track or recording audio. Starting one makes a project for it and walks you through the steps. When you finish or leave the tour, you come back to the welcome screen.
 
 A tour you've finished shows a check mark. Clicking it again asks whether you want to **do it again**. On a phone the guides are marked **soon**: the tours run in the desktop app and the web version.
 
@@ -67,21 +63,21 @@ The welcome screen lists your projects, newest first. The project that's open ri
 
 - **Type** in the search box to filter the list by name. [[key:Enter]] opens the first match.
 - **Click** a project to open it.
-- **Right-click** a project, or use its **⋯** button, for more: **open**, **open without plugins** (see [safe mode](/docs/advanced/safe-mode)), **rename**, **duplicate**, **export…**, sharing actions for shared projects, and **delete…**.
+- **Right-click** a project, or use its **⋯** button, for more: **open**, **open without plugins** (see [safe mode](/docs/advanced/safe-mode)), **rename**, **duplicate**, **export…** and **delete…**.
 
 ## the project menu
 
 The **☰** button at the top left opens the project menu:
 
-- **new project**, **open project…** and **join a jam…**;
+- **new project** and **open project…**;
 - **save as template…**;
 - **project scale** (see [the project scale](/docs/basics/tempo-and-time-signature#the-project-scale));
-- **import project…** and **import from another DAW ▸**;
-- **export project…**, **export to another DAW ▸** and **export audio…**;
+- **import project…**;
+- **export project…** and **export audio…**;
 - **versions…** and **save snapshot…** (see [versions and backups](/docs/basics/versions-and-backups));
-- **resolve missing devices and samples…**, only while something the project uses is missing (see [projects from other DAWs](/docs/import-export/other-daws));
+- **resolve missing devices and samples…**, only while something the project uses is missing (see [missing plugins and samples](/docs/sounds-and-plugins/missing-plugins-and-samples));
 - **delete project…**;
-- **news…**, and in the desktop app **check for updates…**.
+- **news…**.
 
 To rename the project, click its name next to the ☰ button, type the new name and press [[key:Enter]].
 
@@ -134,19 +130,11 @@ Quitting ([[key:Mod+Q]], or closing the main window) asks **quit Ethereal?** and
 
 If you delete the project that's open, Ethereal first switches to your most recent other project, or to a new draft if there's none.
 
-## switching projects during a live session
-
-If you're in a [live session](/docs/sharing/live-sessions), opening, creating, importing or deleting a project, or starting a guided tour, first asks whether you want to **leave the session**. The confirm button says what happens next: **leave & open**, **leave & create** and so on. Your copy of the shared project stays in your projects, and you can join the session again later.
-
-### local copy projects
-
-When joining a live session replaces a project you already had (for example, you join again a session you were part of), your earlier version is kept as a separate project with a **local copy** badge. See [live sessions](/docs/sharing/live-sessions).
-
 ## project links in the address bar [[web]]
 
 In the browser, the address of an open project looks like `/p/my-song/<id>`. Reloading the page reopens that project, and the browser's back and forward buttons switch between the projects you opened.
 
-The link only works in the browser that holds the project. Opened anywhere else, it shows the project list with **this project isn't saved in this browser**. To share a song, use [sharing](/docs/sharing/overview) instead.
+The link only works in the browser that holds the project. Opened anywhere else, it shows the project list with **this project isn't saved in this browser**. To take a song to another browser or computer, [export it](/docs/basics/moving-projects) instead.
 
 ## projects from a newer version
 

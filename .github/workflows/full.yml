@@ -58,6 +58,10 @@ env:
   ETHER_AUDIO: "null"
   RUST_BACKTRACE: "1"
   NODE_VERSION: "24"
+  # The full product's engine messages: the private undo labels, notices and errors live in
+  # ee/'s catalogs, merged into the controller's tables at build time (docs/EXTENSIONS.md),
+  # as ee/'s justfile does locally. Without it the catalog tests fail on the private ids.
+  ETHER_EXTRA_LOCALES: ${{ github.workspace }}/ee/app/src/i18n/ee-locales
 
 jobs:
   resolve:
@@ -135,6 +139,7 @@ jobs:
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+          drift-check: "true"
       # Self-hosted runners keep their own target dirs: no Actions cache there.
       - uses: ./.github/actions/chef-cache
         if: runner.environment == 'github-hosted'

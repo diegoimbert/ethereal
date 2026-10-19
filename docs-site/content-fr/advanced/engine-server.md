@@ -54,16 +54,15 @@ Quand une connexion est refusée, les réglages en donnent la raison :
 
 ## la latence quand le moteur est ailleurs {#latency-when-the-engine-is-elsewhere}
 
-Quand vous écoutez un moteur sur un autre ordinateur (un serveur de moteur, ou l’hôte d’une session qui joue pour vous : voir [écouter sur l’ordinateur d’un ami](/docs/sharing/listening-together)), chaque lecture ou arrêt fait un aller-retour sur le réseau, plus le temps d’encoder et de mettre en tampon l’audio. Cela représente quelques dizaines de millisecondes sur un réseau local, et davantage sur Internet. C’est suffisant pour la lecture et le mixage, pas pour jouer d’un instrument en direct.
+Quand vous écoutez un moteur sur un autre ordinateur (un serveur de moteur), chaque lecture ou arrêt fait un aller-retour sur le réseau, plus le temps d’encoder et de mettre en tampon l’audio. Cela représente quelques dizaines de millisecondes sur un réseau local, et davantage sur Internet. C’est suffisant pour la lecture et le mixage, pas pour jouer d’un instrument en direct.
 
 Le MIDI en direct, le [clavier MIDI de l’ordinateur](/docs/making-music/computer-midi-keyboard) et l’enregistrement passent toujours par votre propre moteur, pas par le moteur distant.
 
 ## quand votre propre moteur est éteint [[desktop]] {#when-your-own-engine-is-off}
 
-Quand votre propre moteur est éteint (vous n’avez choisi aucun moteur, ou vous écoutez par celui de quelqu’un d’autre), l’application de bureau ferme votre périphérique audio pour que d’autres applications puissent l’utiliser. L’état du moteur dans la barre de transport indique alors **fermé**, et les réglages audio le signalent aussi. Le périphérique se rouvre dès que votre moteur est rallumé.
+Quand votre propre moteur est éteint (par exemple pendant que vous utilisez un serveur de moteur), l’application de bureau ferme votre périphérique audio pour que d’autres applications puissent l’utiliser. L’état du moteur dans la barre de transport indique alors **fermé**, et les réglages audio le signalent aussi. Le périphérique se rouvre dès que votre moteur est rallumé.
 
 ## et ensuite {#where-next}
 
 - [agents ia (mcp)](/docs/advanced/mcp) : `ether-mcp` peut aussi piloter un serveur de moteur.
-- [écouter sur l’ordinateur d’un ami](/docs/sharing/listening-together)
 - [configuration audio et midi](/docs/making-music/audio-and-midi-setup)

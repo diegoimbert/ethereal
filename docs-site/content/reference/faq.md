@@ -6,13 +6,13 @@ platform: all
 audience: everyone
 ---
 
-Quick answers, each with a link to the page that says more. Can't find your question? Search the docs, or [report an issue](/docs/reference/reporting-issues) and ask.
+Quick answers, each with a link to the page that says more. Can't find your question? Search the docs, or [report an issue](https://github.com/diegoimbert/ethereal/issues) and ask.
 
 ## the basics
 
 ### should i use the desktop app or the web version?
 
-Both make music with the same built-in instruments and effects. The desktop app (macOS, Windows and Linux) adds plugins (CLAP, VST3, AU), recording, hardware MIDI and MIDI learn, and keeps your projects as files on your computer. The web version needs nothing installed, which makes it a good way to try Ethereal or to join a friend's session. See [what is Ethereal](/docs/welcome/what-is-ethereal).
+Both make music with the same built-in instruments and effects. The desktop app (macOS, Windows and Linux) adds plugins (CLAP, VST3, AU), recording, hardware MIDI and MIDI learn, and keeps your projects as files on your computer. The web version needs nothing installed, which makes it a good way to try Ethereal. See [what is Ethereal](/docs/welcome/what-is-ethereal).
 
 ### where are my projects?
 
@@ -32,7 +32,7 @@ A touch version for phones and tablets is in beta. See [Ethereal on your phone](
 
 ### does it work offline?
 
-The desktop app makes music without an internet connection. Sharing, joining sessions, news, update checks, issue reports and the AI assistant need one.
+The desktop app makes music without an internet connection. News and the AI assistant need one.
 
 ## making music
 
@@ -54,31 +54,9 @@ On [keyboard shortcuts](/docs/reference/keyboard-shortcuts). Every command is al
 
 ## files and other apps
 
-### can i open my ableton live or fl studio projects?
-
-Yes, in beta: Ableton Live sets (`.als`), FL Studio projects (`.flp`), DAWproject files and REAPER projects open as a new Ethereal project. A report lists what couldn't be brought over, and helps you replace missing plugins and samples. See [projects from other DAWs](/docs/import-export/other-daws).
-
-### can i send my project to another daw?
-
-Yes: export to DAWproject, Ableton Live Set (`.als`) or FL Studio project (`.flp`). See [exporting to other DAWs](/docs/import-export/exporting-to-other-daws).
-
 ### which audio formats can i export?
 
 WAV, FLAC and MP3, as one mix or as stems. See [exporting audio](/docs/import-export/exporting-audio).
-
-## sharing
-
-### how do i make music with a friend?
-
-Press **share** and send them a link. They can join from the desktop app or straight from their browser, without an account. Everyone plays the music on their own computer. See [sharing your music](/docs/sharing/overview).
-
-### if i undo in a session, do i undo my friend's work?
-
-No. Undo only undoes your own changes. See [undo and history](/docs/basics/undo-and-history).
-
-### is my shared project private?
-
-A live session travels encrypted between your computers, and the people in it can see each other's IP address. Anyone with a link can use it, so share links only with people you trust, and reset a link you've sent too widely. See [live sessions](/docs/sharing/live-sessions) and [privacy and telemetry](/docs/reference/privacy-and-telemetry).
 
 ## differences from ableton live
 
@@ -92,9 +70,7 @@ Ethereal will feel familiar if you know Live, with a few differences worth knowi
 - **The computer MIDI keyboard is on [[action:midi.computerKeyboard]]**, like in Live.
 - **No separate mixer view.** Volume, pan, mute and solo are on the track headers, and sends are in the inspector. See [mixing](/docs/making-music/mixing).
 - **Two warp modes**: repitch and complex. See [audio clips](/docs/making-music/audio-clips).
-- **Plugins can run sandboxed**, in their own process, so a crashing plugin doesn't take the app down. See [plugins](/docs/sounds-and-plugins/plugins).
-- **Live sessions are built in.** Share a link and work on the same project together. See [sharing your music](/docs/sharing/overview).
-- **Projects from Live open in Ethereal**, and Ethereal can export `.als` files, in beta. See [projects from other DAWs](/docs/import-export/other-daws).
+- **Plugins can run sandboxed** (on macOS and Linux), in their own process, so a crashing plugin doesn't take the app down. See [plugins](/docs/sounds-and-plugins/plugins).
 
 ## where next
 

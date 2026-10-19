@@ -259,7 +259,7 @@ fn content_end(p: &Project, track: TrackId) -> f64 {
         .fold(0.0, f64::max)
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

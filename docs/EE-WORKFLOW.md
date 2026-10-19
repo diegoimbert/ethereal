@@ -81,6 +81,28 @@ change is the same with only `ee/` commits (only an EE PR is opened).
 Keep `ee/` on a branch while you edit it. A plain `git submodule update` checks it out
 detached at the pointer; `just feat ee` puts it back on `x`.
 
+## Worktrees (agents and parallel work)
+
+One feature = one OSS worktree. Its `ee/` is that worktree's own checkout of the private repo
+(a submodule clone kept under `.git/worktrees/<name>/modules/ee`), so a paired feature needs no
+second worktree and no separate clone of the private repo.
+
+1. **Get a worktree.** If your tool already gave you one, use it. Otherwise:
+   `git -C <your OSS checkout> worktree add .claude/worktrees/<x> origin/main && cd .claude/worktrees/<x>`
+   (`.claude/` is excluded from git, so tools don't sweep it up).
+2. **Start or resume the pair** inside it: `just feat start <x> [--ee]`. It branches `x` off
+   `origin/main`, or resumes `origin/x` and EE `x` if they exist (someone else's pair). `--ee` (or
+   an existing EE `x`) initialises `ee/`, its nested submodules (libvpx), and puts `ee/` on branch
+   `x`. Check with `just feat status`. If `ee/` is detached, run `just feat ee`.
+3. **Commit on both sides**: OSS changes at the root, EE changes with `git -C ee commit`.
+4. **Build the full product** with `just full-*`. It uses `target/full-tree` inside this worktree;
+   nothing outside it.
+5. **Scratch files** go under the worktree (e.g. `.scratch/`, git-ignored) or in uniquely named
+   paths (prefix them with `<x>-`), never at fixed shared paths.
+6. **After the merge**: delete the build output (`rm -rf <worktree>/target`), then
+   `git worktree remove --force <worktree>` (`--force` because of the submodule) and
+   `git branch -D <x>`.
+
 ## Automation
 
 All CI runs in this repository, on GitHub-hosted runners; the private repository has none.

@@ -19,3 +19,6 @@ secrets/*.tmp
 *.proptest-regressions
 .plugin-work/
 
+
+# per-worktree scratch files (docs/EE-WORKFLOW.md "Worktrees")
+.scratch/

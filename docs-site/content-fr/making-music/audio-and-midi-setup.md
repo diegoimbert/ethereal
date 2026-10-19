@@ -88,7 +88,7 @@ Vos réglages enregistrés ne changent pas : le repli est temporaire. Choisir u
 
 ### périphérique fermé {#device-closed}
 
-Quand votre session joue à travers le moteur d’un autre ordinateur (**jouer avec** dans une [session en direct](/docs/sharing/live-sessions)), la ligne d’état indique « périphérique fermé : aucun moteur local ne joue ». C’est normal : votre périphérique audio est libéré tant que vous ne l’utilisez pas. Il se rouvre avec les mêmes réglages quand vous revenez.
+Quand cette fenêtre joue à travers le moteur d’un autre ordinateur (un [serveur de moteur](/docs/advanced/engine-server)), la ligne d’état indique « périphérique fermé : aucun moteur local ne joue ». C’est normal : votre périphérique audio est libéré tant que vous ne l’utilisez pas. Il se rouvre avec les mêmes réglages quand vous revenez.
 
 ### le moteur ne répond pas {#the-engine-is-not-responding}
 
@@ -96,9 +96,9 @@ Si le moteur audio se bloque, par exemple pendant qu’un plug-in est occupé à
 
 ### le journal du moteur [[desktop]] {#the-engine-log}
 
-Dans **réglages › avancé**, **ouvrir le journal du moteur** ouvre une fenêtre de terminal qui suit le journal du moteur en direct : avertissements, problèmes de plug-ins et raisons pour lesquelles le moteur a cessé de répondre. C’est utile quand vous [signalez un problème](/docs/reference/reporting-issues).
+Dans **réglages › avancé**, **ouvrir le journal du moteur** ouvre une fenêtre de terminal qui suit le journal du moteur en direct : avertissements, problèmes de plug-ins et raisons pour lesquelles le moteur a cessé de répondre. C’est utile quand vous [signalez un problème](https://github.com/diegoimbert/ethereal/issues).
 
 ## et ensuite {#where-next}
 
 - [Enregistrement](/docs/making-music/recording) : armer une piste et enregistrer.
-- [Dépannage](/docs/reference/troubleshooting) : d’autres solutions pour l’audio, les plug-ins et le partage.
+- [Dépannage](/docs/reference/troubleshooting) : d’autres solutions pour l’audio et les plug-ins.

@@ -87,7 +87,7 @@ fn velocity(a: &Args) -> f32 {
     (a.f64("velocity").unwrap_or(100.0).clamp(1.0, 127.0) / 127.0) as f32
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

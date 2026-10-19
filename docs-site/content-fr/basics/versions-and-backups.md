@@ -36,7 +36,7 @@ Seules les 10 versions **avant restauration** non nommées les plus récentes so
 
 ## ce que contient une version {#what-a-version-contains}
 
-Une version contient le projet lui-même : les pistes, clips, notes, appareils, l’automation et les réglages. Elle ne contient **pas** vos fichiers audio, les informations de partage ni les fichiers exportés.
+Une version contient le projet lui-même : les pistes, clips, notes, appareils, l’automation et les réglages. Elle ne contient **pas** vos fichiers audio ni les fichiers exportés.
 
 > [!warning]
 > Si vous supprimez ou remplacez un fichier audio, restaurer une version plus ancienne ne le fera pas revenir. Les clips qui l’utilisaient apparaissent comme manquants.

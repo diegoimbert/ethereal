@@ -1,7 +1,7 @@
 ---
 title: dépannage
 order: 30
-summary: Que vérifier quand il n’y a pas de son, que l’audio craque, que le moteur se bloque, qu’un plug-in se comporte mal, qu’une connexion à une session échoue ou que vos projets web sont menacés.
+summary: Que vérifier quand il n’y a pas de son, que l’audio craque, que le moteur se bloque, qu’un plug-in se comporte mal ou que vos projets web sont menacés.
 platform: all
 audience: everyone
 covers:
@@ -9,7 +9,7 @@ covers:
   - app-shell/engine-log-desktop #the-engine-log
 ---
 
-Trouvez votre problème dans les titres ci-dessous. Chaque partie explique ce qui se passe en général et quoi essayer. Si rien ici ne vous aide, [signalez un problème](/docs/reference/reporting-issues) : cela prend une minute et nous indique votre configuration.
+Trouvez votre problème dans les titres ci-dessous. Chaque partie explique ce qui se passe en général et quoi essayer. Si rien ici ne vous aide, [signalez un problème](https://github.com/diegoimbert/ethereal/issues) en précisant votre configuration.
 
 ## pas de son {#no-sound}
 
@@ -26,7 +26,7 @@ Si vous débranchez votre interface audio ou éteignez votre casque Bluetooth pe
 
 ### « périphérique fermé » [[desktop]] {#device-closed}
 
-Si l’onglet audio indique **périphérique fermé : aucun moteur local ne joue**, votre session joue à travers le moteur d’un autre ordinateur (**jouer avec**, voir [écouter sur l’ordinateur d’un ami](/docs/sharing/listening-together)) ou d’un [serveur de moteur](/docs/advanced/engine-server). Votre périphérique audio se rouvre, avec les mêmes réglages, quand vous revenez à votre propre moteur.
+Si l’onglet audio indique **périphérique fermé : aucun moteur local ne joue**, cette fenêtre joue à travers un [serveur de moteur](/docs/advanced/engine-server). Votre périphérique audio se rouvre, avec les mêmes réglages, quand vous revenez à votre propre moteur.
 
 ## craquements et coupures {#crackles-and-dropouts}
 
@@ -46,23 +46,23 @@ Quand le moteur (la partie qui produit le son) se bloque, un avertissement indiq
 Un blocage d’une ou deux secondes pendant l’ouverture d’un gros plug-in est normal. Si cela arrive souvent, ou ne s’arrête jamais :
 
 - Consultez le [journal du moteur](#the-engine-log) [[desktop]] : il dit pourquoi le moteur s’est bloqué.
-- Si un plug-in en est la cause, essayez de l’exécuter isolé, ou ouvrez le projet en [mode sans échec](/docs/advanced/safe-mode) (voir [les plug-ins plantent ou ne se chargent pas](#plugins-crash-or-fail-to-load)).
-- [Signalez un problème](/docs/reference/reporting-issues) avec **joindre les diagnostics** activé.
+- Si un plug-in en est la cause, essayez de l’exécuter isolé (macOS et Linux), ou ouvrez le projet en [mode sans échec](/docs/advanced/safe-mode) (voir [les plug-ins plantent ou ne se chargent pas](#plugins-crash-or-fail-to-load)).
+- [Signalez un problème](https://github.com/diegoimbert/ethereal/issues) avec ce que dit le journal du moteur.
 
 ### le moteur audio n’a pas démarré {#the-audio-engine-didnt-start}
 
-Si Ethereal ne parvient pas du tout à démarrer son moteur, il affiche **le moteur audio n’a pas démarré** avec la raison. Vos projets sont en sécurité : rien n’a été ouvert. Utilisez **réessayer** ou **recharger**, et **signaler un problème** si cela se reproduit. [[web]] Si la page indique **une nouvelle version d’ethereal est disponible**, rechargez la page pour l’obtenir.
+Si Ethereal ne parvient pas du tout à démarrer son moteur, il affiche **le moteur audio n’a pas démarré** avec la raison. Vos projets sont en sécurité : rien n’a été ouvert. Utilisez **réessayer** ou **recharger**, et [signalez un problème](https://github.com/diegoimbert/ethereal/issues) si cela se reproduit. [[web]] Si la page indique **une nouvelle version d’ethereal est disponible**, rechargez la page pour l’obtenir.
 
 ## le journal du moteur [[desktop]] {#the-engine-log}
 
-**Réglages › avancé › journal du moteur › ouvrir le journal du moteur** ouvre une fenêtre de terminal qui suit le journal du moteur pendant qu’il tourne. Il montre les avertissements, les problèmes de plug-ins et pourquoi le moteur a cessé de répondre, le cas échéant. Il est utile quand vous signalez un problème : [envoyer les diagnostics](/docs/reference/reporting-issues) en joint la fin pour vous.
+**Réglages › avancé › journal du moteur › ouvrir le journal du moteur** ouvre une fenêtre de terminal qui suit le journal du moteur pendant qu’il tourne. Il montre les avertissements, les problèmes de plug-ins et pourquoi le moteur a cessé de répondre, le cas échéant. Quand vous signalez un problème, copiez-en la fin dans votre signalement.
 
 ## les plug-ins plantent ou ne se chargent pas [[desktop]] {#plugins-crash-or-fail-to-load}
 
 Les plug-ins sont réservés au bureau. La version web n’a que les appareils intégrés.
 
 - **Un plug-in n’apparaît pas** : ouvrez **réglages › plug-ins**, vérifiez que son dossier est analysé et que les bons formats sont activés, puis **réanalyser**. **Plug-ins en échec (…)…** liste les plug-ins qui n’ont pas pu se charger, avec la raison ; faites un clic droit sur l’un d’eux pour réessayer avec un délai plus long. Voir [plug-ins](/docs/sounds-and-plugins/plugins).
-- **Un plug-in plante** : faites un clic droit sur son en-tête et choisissez **exécuter isolé (protégé des plantages, +1 bloc de latence)**. Il tourne alors dans son propre processus : s’il plante, l’appareil indique qu’il a planté et est contourné, avec un bouton de rechargement, et le reste d’Ethereal continue de tourner.
+- **Un plug-in plante** : sur macOS et Linux, faites un clic droit sur son en-tête et choisissez **exécuter isolé (protégé des plantages, +1 bloc de latence)**. Il tourne alors dans son propre processus : s’il plante, l’appareil indique qu’il a planté et est contourné, avec un bouton de rechargement, et le reste d’Ethereal continue de tourner.
 - **Un projet plante dès son ouverture** : ouvrez-le sans plug-ins. Faites un clic droit sur le projet dans la liste des projets récents (ou utilisez la fenêtre de récupération après plantage) et choisissez **ouvrir sans plug-ins**. Chargez ensuite les plug-ins un par un pour trouver le coupable. Voir [mode sans échec](/docs/advanced/safe-mode).
 - **Un plug-in manque** sur cet ordinateur : l’appareil garde son état enregistré et est contourné, donc la piste joue sans effet jusqu’à ce que vous installiez le plug-in et relanciez l’analyse.
 
@@ -81,27 +81,6 @@ L’enregistrement demande l’application de bureau. Voir [enregistrement](/doc
 - Tant que le clavier MIDI de l’ordinateur est activé, les raccourcis à une lettre jouent des notes à la place. Appuyez sur [[action:midi.computerKeyboard]] pour le désactiver.
 - Pour contrôler des boutons depuis votre contrôleur, voir [apprentissage MIDI](/docs/advanced/midi-learn).
 
-## partage et connexion à une session {#sharing-and-joining}
-
-Quand la connexion échoue, l’écran pour rejoindre en donne la raison :
-
-| Message | Que faire |
-|---|---|
-| Le lien d’invitation est endommagé. | Copiez de nouveau le lien en entier. |
-| Ce lien d’invitation a été réinitialisé ou n’est plus valide. | Demandez un nouveau lien à l’hôte. |
-| La session est pleine. | 16 personnes sont en ligne : réessayez plus tard. |
-| Ce projet a atteint sa limite de 64 membres. | Demandez à l’hôte de retirer quelqu’un de la liste des participants. |
-| Mettez à jour Ethereal pour rejoindre ce projet. | Tous les membres d’une session doivent utiliser la même version : mettez à jour, puis rejoignez de nouveau. |
-| Impossible de joindre l’ordinateur de l’hôte (réseau). | Réessayez. Certains réseaux bloquent les connexions directes : l’hôte peut activer un serveur relais. |
-| Impossible de joindre le service de partage. | Vérifiez votre connexion internet et réessayez. |
-| Ce projet est trop volumineux pour être rejoint. | Le projet dépasse la taille qu’une session peut transférer. |
-
-- L’hôte doit être en ligne, avec Ethereal ouvert, pour que vous puissiez rejoindre. Si l’hôte se déconnecte pendant une session, vous continuez à travailler sur une copie hors ligne et vos modifications se synchronisent à son retour.
-- Une connexion perdue se rétablit d’elle-même.
-- Les plug-ins ne voyagent jamais : si vous n’avez pas un plug-in qu’utilise l’hôte, cet appareil est contourné de votre côté.
-
-Voir [rejoindre une session](/docs/sharing/joining) et [sessions en direct](/docs/sharing/live-sessions).
-
 ## vos projets web et le stockage [[web]] {#your-web-projects-and-storage}
 
 La version web garde vos projets dans le stockage de ce navigateur, sur cet ordinateur uniquement. Effacer les données du site, utiliser une fenêtre de navigation privée, ou le navigateur qui libère de l’espace peut les supprimer.
@@ -119,6 +98,6 @@ Un seul onglet du navigateur à la fois peut travailler sur vos projets. Un deux
 
 ## et ensuite {#where-next}
 
-- [Signaler un problème](/docs/reference/reporting-issues) quand rien ici n’a réglé le problème.
+- [Signaler un problème](https://github.com/diegoimbert/ethereal/issues) quand rien ici n’a réglé le problème.
 - [Configuration audio et MIDI](/docs/making-music/audio-and-midi-setup) pour le détail des réglages audio.
 - [FAQ](/docs/reference/faq).

@@ -43,7 +43,7 @@ Si le projet est vide (aucun clip), la capture devine aussi le tempo à partir d
 - Chaque lecture ou arrêt commence une nouvelle prise de capture. La capture n’utilise que la dernière prise qui contient des notes, pas quelque chose d’il y a plusieurs cycles lecture/arrêt.
 - Après une capture, la mémoire tampon est vidée, et le bouton s’estompe jusqu’à ce que vous jouiez à nouveau.
 - Elle contient jusqu’à 10 minutes de jeu.
-- Elle est effacée quand vous changez de projet. Elle n’est jamais sauvegardée, et elle n’est pas partagée dans une [session en direct](/docs/sharing/live-sessions).
+- Elle est effacée quand vous changez de projet. Elle n’est jamais sauvegardée.
 
 Le pitch bend, la molette de modulation et les autres contrôleurs que vous avez joués sont aussi capturés, sous forme de [couloirs d’expression](/docs/making-music/expression-and-mpe) sur le clip.
 
