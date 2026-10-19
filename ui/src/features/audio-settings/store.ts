@@ -26,6 +26,8 @@ export interface AudioSettingsState {
   /** Why devices can't be listed here (e.g. the browser), if so. */
   unavailable: string | null;
   loading: boolean;
+  /** List every device the driver offers (ALSA lists each PCM; by default only the sound server and the hardware). */
+  allDevices: boolean;
   /** Open on the Audio tab. */
   openSettings(reason?: "input"): void;
   openTab(tab: SettingsTab): void;
@@ -43,6 +45,7 @@ export const useAudioSettings = create<AudioSettingsState>()((set) => ({
   status: null,
   unavailable: null,
   loading: false,
+  allDevices: false,
   openSettings: (reason) => set({ open: true, tab: "audio", reason: reason ?? null }),
   openTab: (tab) => set({ open: true, tab, reason: null }),
   close: () => set({ open: false, reason: null }),
@@ -82,8 +85,9 @@ export async function promptForInputIfNone(transport: EngineTransport): Promise<
  */
 export async function loadAudioDevices(transport: EngineTransport): Promise<void> {
   useAudioSettings.setState({ loading: true });
+  const all = useAudioSettings.getState().allDevices;
   const [devices, status] = await Promise.allSettled([
-    transport.send(cmd("Engine", { type: "ListAudioDevices" })),
+    transport.send(cmd("Engine", { type: "ListAudioDevices", ...(all ? { all } : {}) })),
     transport.send(cmd("Engine", { type: "GetStatus" })),
   ]);
   const patch: Partial<AudioSettingsState> = { loading: false };

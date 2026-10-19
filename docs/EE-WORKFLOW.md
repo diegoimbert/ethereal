@@ -113,10 +113,12 @@ All CI runs in this repository, on GitHub-hosted runners; the private repository
   product) runs on `main`; a red `main` opens a `ci-main` issue and is fixed forward in a
   follow-up PR.
 - **Full build** (`.github/workflows/full.yml`): the full product (this repo + `ee/` overlaid)
-  on every push to `main` (Linux, macOS, Windows, web, e2e) and on demand; its aggregate job is
-  **`ee/build`**. Pull requests run no builds or tests (owner, 2026-10-19): only CLA, Policy,
-  What changed and `ee/pointer` gate a merge, so run the relevant tests locally, and fix `main`
-  forward if it goes red. A PR's full build on demand:
+  on every push to `main` (Linux, web, e2e) and on demand; its aggregate job is **`ee/build`**.
+  Its macOS and Windows tests are `.github/workflows/full-platforms.yml` (same rules, own run
+  queue, outside `ee/build`; on demand:
+  `gh workflow run full-platforms.yml --ref <branch> -f ref=<sha>`). Pull requests run no builds
+  or tests (owner, 2026-10-19): only CLA, Policy, What changed and `ee/pointer` gate a merge,
+  so run the relevant tests locally, and fix `main` forward if it goes red. A PR's full build on demand:
   `gh workflow run full.yml --ref <branch> -f ref=<sha> -f all=false` (it uses the commit's `ee`
   pointer; a fork's PR only after reading it: `-f ref=refs/pull/N/head`).
   - The private code never shows in the public log: each step's output goes to a file
@@ -129,8 +131,9 @@ All CI runs in this repository, on GitHub-hosted runners; the private repository
     the workspace crates are removed and checked for before the save; key = toolchain, profile,
     flags, OS, then the recipe, with a fallback to the newest cache of the same settings; only
     `main` saves).
-  - Runners: repository variables `FULL_RUNNER`, `FULL_MACOS_RUNNER`, `FULL_WINDOWS_RUNNER`,
-    `SYNC_RUNNER` (JSON labels), GitHub-hosted by default.
+  - Runners: repository variables `FULL_RUNNER`, `FULL_E2E_RUNNER`, `FULL_MACOS_RUNNER` and
+    `FULL_WINDOWS_RUNNER` (full-platforms.yml), `SYNC_RUNNER` (JSON labels), GitHub-hosted by
+    default.
 - **Sync** (`.github/workflows/ee-sync.yml`, every 10 minutes and on demand, plus `feat push`/
   `ship`): moves OSS `main` to EE `main` (unless a ship holds the lock), keeps each open OSS
   PR's pointer on its EE branch tip (or EE `main` once that merged), merges `main` into a PR

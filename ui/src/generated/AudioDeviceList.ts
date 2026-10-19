@@ -8,4 +8,8 @@ export type AudioDeviceList = { backends: Array<string>, hosts: Array<string>, o
  * the device buffer (WASAPI shared mode: one Windows period per callback), so the
  * settings show the running size instead of offering a choice.
  */
-buffer_size_settable: boolean, };
+buffer_size_settable: boolean, 
+/**
+ * Devices left out of `outputs` and `inputs` (listed with `all`).
+ */
+hidden_devices: number, };

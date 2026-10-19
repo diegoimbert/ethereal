@@ -1,7 +1,9 @@
-// Main status (.github/workflows/main-status.yml): after a run of CI, CI (Windows) or Full product on `main`
-// finishes, report the latest *finished* push run of each (a skipped run, reported as cancelled,
+// Main status (.github/workflows/main-status.yml): after a run of CI, CI (Windows), Full product or
+// Full product (macOS, Windows) on `main` finishes, report the latest *finished* push run of each (a skipped run, reported as cancelled,
 // says nothing about `main`) on the one open `ci-main` issue:
 //   - a red run that the issue doesn't mention yet: a comment (the issue is opened if none is);
+//   - a workflow the issue last reported red that is green again, while others are still red: a
+//     comment, so the issue says which ones are left;
 //   - every workflow green: a last comment, and the issue is closed.
 // Only run links, commits and job names: the full product's logs are private.
 //
@@ -13,6 +15,7 @@ export const WORKFLOWS = [
   { file: "ci.yml", name: "CI" },
   { file: "ci-windows.yml", name: "CI (Windows)" },
   { file: "full.yml", name: "Full product", logs: (id) => `logs: \`just full-logs ${id}\`` },
+  { file: "full-platforms.yml", name: "Full product (macOS, Windows)", logs: (id) => `logs: \`just full-logs ${id}\`` },
 ];
 const VERDICTS = new Set(["success", "failure", "timed_out", "startup_failure"]);
 
@@ -41,6 +44,14 @@ export function plan(latest, issue) {
     const logs = l.logs ? ` (${l.logs(l.run.id)})` : "";
     return `${l.name} failed on \`main\` at ${l.run.head_sha}: ${l.run.html_url}${logs}${jobs}\n\nLatest finished runs on \`main\`:\n${summary}`;
   });
+  // Green again: the issue's last word on the workflow is a failure (its comments are in order).
+  const text = issue?.text ?? "";
+  const recovered = latest.filter(
+    (l) => l.run?.conclusion === "success" && text.lastIndexOf(`${l.name} failed on`) > text.lastIndexOf(`${l.name} is green again`),
+  );
+  for (const l of recovered) {
+    comments.push(`${l.name} is green again on \`main\` at ${l.run.head_sha}: ${l.run.html_url}\n\nStill red: ${red.map((r) => r.name).join(", ")}\n\nLatest finished runs on \`main\`:\n${summary}`);
+  }
   return { comments, open: !issue && comments.length > 0, close: false };
 }
 
