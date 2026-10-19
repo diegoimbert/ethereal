@@ -182,4 +182,16 @@ describe("a stale translation", () => {
     expect(staleTranslations({ [page]: behind, "welcome/first-beat.md": fr["welcome/first-beat.md"]! })).toEqual([page]);
     expect(staleTranslations({ "welcome/gone.md": "---\ntitle: x\norder: 1\nsummary: x\n---\n" })).toEqual(["welcome/gone.md"]);
   });
+
+  it("is caught when it drops a link or a paragraph the English page has", () => {
+    const page = "basics/the-screen.md";
+    const src = fr[page]!;
+    const link = /\[([^\]]+)\]\(\/docs\/making-music\/clips#double-clicking-a-clip\)/;
+    expect(src).toMatch(link);
+    expect(staleTranslations({ [page]: src.replace(link, "$1") })).toEqual([page]);
+    const para = src.indexOf("\n\n", src.indexOf("\n## ")) + 2;
+    const dropped = src.slice(0, para) + src.slice(src.indexOf("\n\n", para) + 2);
+    expect(staleTranslations({ [page]: dropped })).toEqual([page]);
+    expect(staleTranslations({ [page]: src })).toEqual([]);
+  });
 });

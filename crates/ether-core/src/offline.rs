@@ -1,4 +1,4 @@
-//! Offline rendering (roadmap v2, used by the `export` node; see `docs/ROADMAP.md`).
+//! Offline rendering (roadmap v2, used by the export; see CONTRACTS.md §11.1).
 //!
 //! An [`OfflineRenderer`] is a private engine that renders as fast as the caller pulls,
 //! with no device and no threads: the caller adds nodes and sources through

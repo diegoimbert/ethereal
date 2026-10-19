@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { getLocale, useLocale, type Locale } from "@/i18n";
 import { docsExtensions, onDocsExtended } from "./extensions";
+import type { Block, Inline } from "./markdown";
 import { buildDocs, type Docs, type DocPage } from "./model";
 
 const ROOT = "../../../../docs-site/content/";
@@ -44,9 +45,42 @@ export function getDocs(locale: Locale = getLocale()): Docs {
   return docs;
 }
 
-/** The shape a translation keeps from its English page: headings (their ids are link targets) and coverage. */
+/**
+ * The shape a translation keeps from its English page: headings (their ids are link targets),
+ * coverage, the block structure (a paragraph, list item, table row or callout added or dropped)
+ * and the links in each block.
+ */
 function shape(page: DocPage): string {
-  return JSON.stringify([page.headings.map((h) => h.id), page.covers]);
+  return JSON.stringify([page.headings.map((h) => h.id), page.covers, page.blocks.map(blockShape)]);
+}
+
+function blockShape(b: Block): unknown {
+  switch (b.t) {
+    case "heading":
+      return `h:${b.id}`;
+    case "p":
+      return ["p", linksOf(b.c)];
+    case "list":
+      return [b.ordered ? "ol" : "ul", b.items.map((item) => item.map(blockShape))];
+    case "callout":
+      return [b.kind, b.blocks.map(blockShape)];
+    case "table":
+      return ["table", b.rows.length, [b.head, ...b.rows].map((row) => row.map(linksOf))];
+    case "image":
+      return `img:${b.src}`;
+    default:
+      return b.t;
+  }
+}
+
+/** The link targets in `nodes`, in order. */
+function linksOf(nodes: ReadonlyArray<Inline>): string[] {
+  const out: string[] = [];
+  for (const n of nodes) {
+    if (n.t === "link") out.push(n.href, ...linksOf(n.c));
+    else if (n.t === "strong" || n.t === "em") out.push(...linksOf(n.c));
+  }
+  return out;
 }
 
 /**

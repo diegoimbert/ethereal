@@ -1,5 +1,4 @@
-//! Takes and comping (v0.2, owned by the `comping` node; see `docs/ROADMAP.md` "v0.2" and
-//! CONTRACTS.md §12.2).
+//! Takes and comping (v0.2; see CONTRACTS.md §12.2).
 //!
 //! # Model
 //! - A [`TakeLane`] belongs to one audio or MIDI track (`TakeLane::track`). Lanes are ordered

@@ -202,6 +202,7 @@ function ChainItem({
         }
       >
         <ChevronRight className="eth-rack__chevron" aria-hidden />
+        {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- only keeps its events from reaching the chain header around it */}
         <span className="eth-rack__window" onClick={stop} onDoubleClick={stop} onKeyDown={stop}>
           {instrument ? (
             <InstrumentWindowButton device={instrument} />
@@ -238,6 +239,7 @@ function ChainItem({
           </span>
         )}
         {/* The track header's controls (same buttons, fader and knob). */}
+        {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- only keeps its events from reaching the chain header around it */}
         <span className="eth-rack__controls" onClick={stop} onKeyDown={stop} onDoubleClick={stop}>
           <button
             type="button"

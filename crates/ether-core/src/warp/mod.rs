@@ -1,4 +1,4 @@
-//! Warped audio-clip playback (owned by the `warp` wave-3 node; see `docs/WAVE3.md`).
+//! Warped audio-clip playback.
 //!
 //! # Modes
 //! - **Repitch** (and unwarped clips): [`crate::sched::render_audio`] resamples the source

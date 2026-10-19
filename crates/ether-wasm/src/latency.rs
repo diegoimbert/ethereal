@@ -1,4 +1,4 @@
-//! Node latency report from the worklet (v0.3, owned by the `web-latency` node;
+//! Node latency report from the worklet (v0.3, `web-latency`;
 //! CONTRACTS.md §13.13).
 //!
 //! Natively `EngineBridge::node_latency` reads `EngineHandle::node_latency`, so the

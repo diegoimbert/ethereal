@@ -1,4 +1,4 @@
-//! Convolution reverb IRs (v0.3, owned by the `fx-space` node; device
+//! Convolution reverb IRs (v0.3, `fx-space`; device
 //! `ether_devices::fx_space`, model `ether_model::IrSource`; CONTRACTS.md §13.6).
 //!
 //! - [`set_ir`]: `Device::SetIr` (document command from `doc/devices.rs`): validates the

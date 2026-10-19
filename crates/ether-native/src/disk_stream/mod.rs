@@ -1,4 +1,4 @@
-//! Disk streaming of long media (v0.3, owned by the `audio-streaming` node; CONTRACTS.md
+//! Disk streaming of long media (v0.3, `audio-streaming`; CONTRACTS.md
 //! §13.1). (Unrelated to the private overlay's "listen on peer" sender.)
 //!
 //! `NativeBridge::stream_media` (shared touch in `bridge.rs`) opens the media file (the

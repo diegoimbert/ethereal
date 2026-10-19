@@ -154,6 +154,7 @@ export function VelocityLane({ notes, vp, widthPx, height = VELOCITY_LANE_HEIGHT
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
     >
+      {/* Pixels only: the notes' velocities are in the piano roll's NoteSummary, as text. */}
       <canvas ref={canvasRef} className="eth-pr-velocity__canvas" data-testid="piano-roll-velocity-canvas" aria-hidden />
     </div>
   );

@@ -170,8 +170,8 @@ anchor), so `overflow: hidden/auto` panels never clip them.
 ## Rules for feature code
 
 1. **Use kit components** for buttons, knobs, faders, meters, panels, tabs, toggles, inputs,
-   menus, dialogs and tooltips. If the kit lacks something, ask for it (BCR to
-   `design-system`) instead of styling a one-off.
+   menus, dialogs and tooltips. If the kit lacks something, add it to the
+   kit (`ui/src/kit`) instead of styling a one-off.
 2. **Only tokens in CSS**: `var(--eth-color-*)`, `var(--eth-space-*)`, `var(--eth-fs-*)`,
    `var(--eth-radius-*)`, `var(--eth-size-*)`… No hex/rgb colors, no px font sizes, and
    prefer size/space tokens over px lengths. Layout-specific dimensions that are not reusable

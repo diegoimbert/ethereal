@@ -1,6 +1,6 @@
 //! Sample-accurate automation: arrangement lanes and clip envelopes applied per sample
 //! (CONTRACTS.md §12.7; the v0.1 per-block runtime was extracted from `engine.rs` by
-//! contracts-3, then replaced by the `sample-accurate-automation` node).
+//! contracts-3, then replaced by `sample-accurate-automation`).
 //!
 //! Everything is placed on the engine's sample clock, never on sub-block boundaries, so an
 //! offline render is the same for every block size:

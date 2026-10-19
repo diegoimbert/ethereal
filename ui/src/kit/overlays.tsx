@@ -246,6 +246,7 @@ export function MenuList({ items, close, label }: { items: ReadonlyArray<MenuEnt
   const ref = useRef<HTMLDivElement>(null);
   useFocusFirstItem(ref);
   return (
+    // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- a menu: focus is on its items (roving, menuKeyDown)
     <div ref={ref} className="eth-menu" role="menu" aria-label={label} onKeyDown={(e) => menuKeyDown(e, ref.current)}>
       {items.map((it) =>
         "separator" in it ? <div key={it.id} className="eth-menu__separator" role="separator" /> : <MenuItemButton key={it.id} it={it} close={close} />,

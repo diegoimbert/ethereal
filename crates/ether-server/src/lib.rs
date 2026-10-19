@@ -1,5 +1,5 @@
-//! `ether-server`: a headless Ethereal engine reachable over WebSocket (roadmap v2, owned by
-//! the `remote-engine` node; see `docs/ROADMAP.md`).
+//! `ether-server`: a headless Ethereal engine reachable over WebSocket (roadmap v2; see
+//! CONTRACTS.md §11.5).
 //!
 //! It runs the same native host as the desktop app (`ether-native`: controller, audio
 //! backend, disk store, plugins) without a window, and serves the UI protocol described in

@@ -42,7 +42,7 @@ The browser limits what a web page can do with your computer, so some features n
 
 ## the open on desktop band
 
-On a computer, the web version shows a band at the top: **ethereal works best in the desktop app**, with **open on desktop**. That button opens the desktop app if it's installed.
+On a computer, the web version shows a band at the top: **ethereal works best in the desktop app**, with **open on desktop**. That button opens the desktop app if it's installed. Next to it, **discord** opens the Ethereal community's Discord in a new tab (the welcome screen has the same link, as a Discord icon).
 
 Opening the desktop app doesn't move your web projects to it: the two keep separate projects (see [moving projects](/docs/basics/moving-projects)). The **×** hides the band until you reload the page.
 

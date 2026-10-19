@@ -1,4 +1,4 @@
-//! User keymap storage (v0.3, owned by the `keymap` node; protocol `ether_protocol::keymap`,
+//! User keymap storage (v0.3, `keymap`; protocol `ether_protocol::keymap`,
 //! CONTRACTS.md §13.12).
 //!
 //! [`EtherController::keymap_command`]: `Keymap::{Get, Set, Reset}` (from `handlers.rs`):

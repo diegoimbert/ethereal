@@ -64,7 +64,7 @@ Le navigateur, l’inspecteur et le tiroir flottent par-dessus l’arrangement 
 
 - Un navigateur **non épinglé** se ferme dès que vous cliquez dans l’arrangement. Un tiroir non épinglé se ferme quand vous cliquez n’importe où en dehors, sauf sur des clips (cliquer sur un autre clip fait passer le tiroir sur ce clip).
 - Le bouton **épingler** dans l’en-tête d’un panneau le garde ouvert, à côté de l’arrangement au lieu de par-dessus. Cliquez de nouveau pour laisser le panneau flotter.
-- Le **×** de l’inspecteur le réduit à une petite barre le long du bord. Cliquez sur la barre pour le déplier. Il reste replié jusqu’à ce que vous le dépliiez, et suit quand même la sélection.
+- Le **×** de l’inspecteur et du tiroir le réduit à une petite barre le long du bord. Cliquez sur la barre pour le déplier. Il reste replié jusqu’à ce que vous le dépliiez (l’inspecteur suit quand même la sélection). Un double-clic sur un clip déplie les deux : voir [double-cliquer sur un clip](/docs/making-music/clips#double-clicking-a-clip).
 - Faites glisser le bord intérieur d’un panneau pour le redimensionner.
 
 La palette de commandes propose aussi **épingler le navigateur**, **épingler l’inspecteur** et **épingler le tiroir d’édition** (et leurs versions **désépingler**).

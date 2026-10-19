@@ -1,5 +1,4 @@
-//! Multicore processing contract (roadmap v2, owned by the `multicore` node; see
-//! `docs/ROADMAP.md` and CONTRACTS.md §11.7).
+//! Multicore processing contract (roadmap v2; see CONTRACTS.md §11.7).
 //!
 //! `ether-core` never creates threads. A host that wants parallel processing gives the
 //! engine a [`ParallelExecutor`] backed by its own real-time worker threads
