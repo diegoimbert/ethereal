@@ -225,7 +225,7 @@ impl IdGen {
         let candidate = if ms == self.last.timestamp_ms() && !self.last.is_nil() {
             self.last
                 .increment()
-                .unwrap_or_else(|| Ulid::from_parts(ms + 1, 0))
+                .unwrap_or_else(|_| Ulid::from_parts(ms + 1, 0))
         } else {
             let random =
                 ((self.next_u64() as u128) << 64 | self.next_u64() as u128) & ((1u128 << 80) - 1);
