@@ -68,7 +68,7 @@ pub(crate) fn plugin_states_set_by(
     out
 }
 
-pub(crate) fn store_err(e: StoreError) -> CommandError {
+pub fn store_err(e: StoreError) -> CommandError {
     let code = match &e {
         StoreError::NotFound(_) => ErrorCode::NotFound,
         StoreError::AlreadyExists(_) | StoreError::InvalidPath(_) => ErrorCode::InvalidArgument,
@@ -106,13 +106,13 @@ pub(crate) fn wire_changes(
     }
 }
 
-pub(crate) fn event(out: &mut dyn MessageSink, e: Event) {
+pub fn event(out: &mut dyn MessageSink, e: Event) {
     out.send(ServerMessage::Event(e));
 }
 
 /// A toast. `message` is a catalog message (`TextKey`, shown in the user's language) or, for
 /// text from deeper layers, plain English.
-pub(crate) fn notify(
+pub fn notify(
     out: &mut dyn MessageSink,
     level: NotificationLevel,
     message: impl Into<crate::text::Msg>,
@@ -214,6 +214,10 @@ where
     ) -> CmdResult<ReplyValue> {
         let current = self.doc.as_ref().map(|d| d.project.id);
         let command = &msg.command;
+        // Extensions first (`ext` module): their domains, and app commands they take over.
+        if let Some(r) = self.ext_command(command, now, out) {
+            return r;
+        }
         // base-53: while listening on a peer, transport commands go to the host and
         // recording is refused (loop changes are document commands: intercept first).
         if let Some(r) = self.collab_transport_intercept(command, out) {

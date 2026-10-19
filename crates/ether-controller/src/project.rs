@@ -42,7 +42,7 @@ pub(crate) fn version_err(e: &FileError) -> Option<CommandError> {
 
 /// A document coming from outside the store (a bundle, an export source): version errors
 /// as [`version_err`], anything else `InvalidArgument`.
-pub(crate) fn import_err(e: FileError) -> CommandError {
+pub fn import_err(e: FileError) -> CommandError {
     version_err(&e).unwrap_or_else(|| {
         crate::tx::keyed_err(
             ErrorCode::InvalidArgument,
@@ -168,7 +168,7 @@ where
     }
 
     /// Stored projects, newest first (the open project shows its current name).
-    pub(crate) fn list_projects(&mut self) -> CmdResult<Vec<ProjectSummary>> {
+    pub fn list_projects(&mut self) -> CmdResult<Vec<ProjectSummary>> {
         let mut list = self.store.list().map_err(store_err)?;
         if let Some(doc) = &self.doc {
             for s in &mut list {
@@ -180,7 +180,8 @@ where
         Ok(list)
     }
 
-    pub(crate) fn emit_list_changed(&mut self, out: &mut dyn MessageSink) {
+    /// Tell the UI the stored projects changed (`Event::ProjectList`).
+    pub fn emit_list_changed(&mut self, out: &mut dyn MessageSink) {
         if let Ok(projects) = self.list_projects() {
             event(
                 out,
@@ -356,7 +357,7 @@ where
     /// wait for the background autosaves, then save every unsaved change with every
     /// plugin's live state, synchronously. An error means the project is NOT safely on
     /// disk: the caller must not drop the document.
-    pub(crate) fn autosave_before_switch(&mut self, out: &mut dyn MessageSink) -> CmdResult<()> {
+    pub fn autosave_before_switch(&mut self, out: &mut dyn MessageSink) -> CmdResult<()> {
         if self.transport.recording || self.recording.is_active() {
             let now = self.host.now_ms();
             self.finish_recording(now, out);
@@ -742,7 +743,7 @@ where
 
     /// Make `project` the open document: reset history, runtime state, engine nodes and
     /// media, then announce it.
-    pub(crate) fn load_project(&mut self, project: Project, now: u64, out: &mut dyn MessageSink) {
+    pub fn load_project(&mut self, project: Project, now: u64, out: &mut dyn MessageSink) {
         self.load_project_with(project, now, false, out);
     }
 
@@ -815,7 +816,7 @@ where
 
 /// A project name as a file name: path separators and control/reserved characters become
 /// `_`; never empty.
-pub(crate) fn bundle_file_name(name: &str) -> String {
+pub fn bundle_file_name(name: &str) -> String {
     let cleaned: String = name
         .trim()
         .chars()

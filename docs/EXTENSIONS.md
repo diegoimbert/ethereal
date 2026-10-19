@@ -88,3 +88,21 @@ In the controller (`crates/ether-controller`):
   learns it otherwise (the UI sends `Agent::SetSelection`).
 - `ETHER_EXTRA_LOCALES` (build time, see i18n above): the extension's undo labels, notices and
   errors.
+
+## The controller (`crates/ether-controller/src/ext.rs`)
+
+An extension implements `ControllerExt` and is added with `EtherController::add_extension`.
+It keeps its own state and gets the controller with every hook:
+
+- `command`: every command, before the app handles it. Returning `Some` answers it: an
+  extension's own domain (`Command::Ext`), or an app command the app leaves to extensions
+  (`Project::Import`, `CancelImport` and `ExportTo` reply `Unsupported` without one).
+- `tick`: every controller tick (background jobs).
+
+It may use the controller's public API: its `pub` fields (bridge, host, store, library) and
+methods (`Controller::project`, `list_projects`, `load_project`, `take_upload`, `add_download`, ...),
+and the helpers of `ether_controller::ext::api`.
+
+The hosts add a process's extensions to every controller they create:
+`ether_native::host::set_controller_setup(f)` (desktop app, engine server) and
+`ether_wasm::web::set_controller_setup(f)` (web), called once at startup.

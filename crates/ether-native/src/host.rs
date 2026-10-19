@@ -163,11 +163,22 @@ pub fn ether_controller_with(patch_compat: PatchCompat) -> ControllerFactory {
             patch_compat,
             ..native_controller_config(bridge.sample_rate())
         };
-        Box::new(EtherController::with_config(
-            bridge, services, store, library, config,
-        ))
+        let mut ctl = EtherController::with_config(bridge, services, store, library, config);
+        if let Some(setup) = CONTROLLER_SETUP.get() {
+            setup(&mut ctl);
+        }
+        Box::new(ctl)
     })
 }
+
+/// Set up every native controller this process creates (its extensions,
+/// `EtherController::add_extension`; docs/EXTENSIONS.md). Call once, before the host starts.
+pub fn set_controller_setup(setup: fn(&mut NativeController)) {
+    let _ = CONTROLLER_SETUP.set(setup);
+}
+
+static CONTROLLER_SETUP: std::sync::OnceLock<fn(&mut NativeController)> =
+    std::sync::OnceLock::new();
 
 #[derive(Clone, Debug)]
 pub struct HostConfig {
