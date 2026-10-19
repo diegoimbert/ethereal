@@ -25,9 +25,8 @@ updates:
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-  # Tauri's Rust crates and its JS packages move together, in their own group. A bump that
-  # changes a license text fails the "Notices fresh" check: run `just notices` on the branch
-  # and push.
+  # Tauri's Rust crates and its JS packages move together, in their own group. The "Dependabot
+  # notices" workflow regenerates THIRD-PARTY-NOTICES.md on each bump's branch.
   - package-ecosystem: cargo
     directory: "/"
     schedule:

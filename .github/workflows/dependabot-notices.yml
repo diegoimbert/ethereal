@@ -1,0 +1,108 @@
+name: Dependabot notices
+
+# A Dependabot bump changes Cargo.lock or pnpm-lock.yaml, and with them THIRD-PARTY-NOTICES.md,
+# which Dependabot does not regenerate: the Policy check ("Notices fresh") would fail on every
+# bump. This regenerates the file on the pull request's branch and commits it.
+#
+# Two jobs, so that pull-request code never runs with a write token: `generate` checks out the
+# branch and runs the generator with a read-only token, no secrets, no caches and no install
+# scripts; `commit` only copies the generated file into the branch and pushes it.
+#
+# A push with the workflow's token starts no new workflow run, so `commit` dispatches CI on the
+# branch (the pull-request checks only: `full=false`) and reports the `CLA` status for the new
+# head itself (the CLA bot skips bots too).
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions: {}
+
+concurrency:
+  group: dependabot-notices-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  generate:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    outputs:
+      stale: ${{ steps.gen.outputs.stale }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-bundle-licenses@4.2.0
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      # The generator reads the license files from node_modules; no package script runs.
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - id: gen
+        name: Regenerate THIRD-PARTY-NOTICES.md
+        run: |
+          node scripts/gen-notices.mjs
+          if [ -n "$(git status --porcelain -- THIRD-PARTY-NOTICES.md)" ]; then
+            echo "stale=true" >> "$GITHUB_OUTPUT"
+            git diff --stat -- THIRD-PARTY-NOTICES.md
+          else
+            echo "stale=false" >> "$GITHUB_OUTPUT"
+            echo "THIRD-PARTY-NOTICES.md is up to date"
+          fi
+      - if: steps.gen.outputs.stale == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: notices
+          path: THIRD-PARTY-NOTICES.md
+          retention-days: 1
+
+  commit:
+    needs: generate
+    if: needs.generate.outputs.stale == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write  # push the regenerated file to the Dependabot branch
+      actions: write   # dispatch CI on the new head
+      statuses: write  # the CLA status on the new head
+    steps:
+      # Only the branch's files are checked out; nothing from it runs here.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: notices
+          path: ${{ runner.temp }}/notices
+      - name: Commit and push
+        id: push
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          # The branch moved on since the event (Dependabot rebased): that push runs this again.
+          [ "$(git rev-parse HEAD)" = "$HEAD_SHA" ] || { echo "branch moved; skipping"; exit 0; }
+          cp "$RUNNER_TEMP/notices/THIRD-PARTY-NOTICES.md" THIRD-PARTY-NOTICES.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -qm "notices: regenerate for the bump" -- THIRD-PARTY-NOTICES.md
+          git push -q origin "HEAD:refs/heads/$BRANCH"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: CLA status and CI on the new head
+        if: steps.push.outputs.sha != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ steps.push.outputs.sha }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          gh api -X POST "repos/$GH_REPO/statuses/$SHA" -f state=success -f context=CLA -f description="No CLA required" >/dev/null
+          gh workflow run ci.yml --ref "$BRANCH" -f full=false

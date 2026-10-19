@@ -27,6 +27,11 @@ on:
     # A pointer bump of the private submodule changes nothing this workflow builds.
     paths-ignore: [ee]
   workflow_dispatch:
+    inputs:
+      full:
+        description: "Builds and tests on every platform (false: the pull-request checks only)"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -66,9 +71,13 @@ jobs:
           EVENT: ${{ github.event_name }}
           POOL: ${{ vars.CI_POOL }}
           ACTOR: ${{ github.actor }}
+          # Manual runs: the `full` input (the Dependabot notices workflow dispatches the cheap
+          # checks only).
+          FULL_INPUT: ${{ inputs.full }}
         run: |
           full=true
           [ "$EVENT" = pull_request ] && full=false
+          [ "$EVENT" = workflow_dispatch ] && [ "$FULL_INPUT" = false ] && full=false
           linux='"ubuntu-latest"'
           case "$ACTOR" in *'[bot]') ;; *)
             if [ "$POOL" = devbox ] && [ "$EVENT" != pull_request ]; then linux='["self-hosted","devbox-pool"]'; fi ;;
