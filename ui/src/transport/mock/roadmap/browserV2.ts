@@ -390,15 +390,13 @@ export class MockBrowser {
     const count = (pred: (i: LibraryItem) => boolean) => this.items.filter(pred).length;
     return [
       { id: LIBRARY_ID, name: LIBRARY_NAME, kind: "Library", path: null, items: count((i) => i.root === LIBRARY_ID) },
-      ...MOCK_PACKS.map(
-        (p): BrowserRoot => ({
-          id: `${LIBRARY_ID}/${p}`,
-          name: p,
-          kind: "Pack",
-          path: null,
-          items: count((i) => i.root === LIBRARY_ID && i.path.startsWith(`${p}/`)),
-        }),
-      ),
+      ...MOCK_PACKS.map((p): BrowserRoot => ({
+        id: `${LIBRARY_ID}/${p}`,
+        name: p,
+        kind: "Pack",
+        path: null,
+        items: count((i) => i.root === LIBRARY_ID && i.path.startsWith(`${p}/`)),
+      })),
       { id: USER_ROOT, name: "User Library", kind: "Library", path: null, items: count((i) => i.root === USER_ROOT) },
       ...this.folders.map((f): BrowserRoot => ({ ...f, items: count((i) => i.root === f.id) })),
       { id: FACTORY_ROOT, name: "Factory Presets", kind: "Factory", path: null, items: count((i) => i.root === FACTORY_ROOT) },
