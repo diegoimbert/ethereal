@@ -40,7 +40,7 @@ const EPS: f64 = Beats::EPSILON;
 /// One piece of a track's comp: `[start, end)` of take clip `clip`, played from content
 /// position `offset`.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct CompPiece {
+pub struct CompPiece {
     pub region: CompRegionId,
     /// Index of the piece within its region (timeline order).
     pub index: u32,
@@ -63,7 +63,7 @@ fn halves(map: &TempoMap, t: f64, seconds: f64) -> (f64, f64) {
 }
 
 /// The clip pieces `track`'s comp plays, in timeline order (see the module docs).
-pub(crate) fn comp_pieces(p: &Project, track: TrackId) -> Vec<CompPiece> {
+pub fn comp_pieces(p: &Project, track: TrackId) -> Vec<CompPiece> {
     let Some(t) = p.tracks.get(&track) else {
         return Vec::new();
     };
@@ -157,7 +157,7 @@ pub(crate) fn comp_pieces(p: &Project, track: TrackId) -> Vec<CompPiece> {
 }
 
 /// `clip` reshaped to `piece` (same id: notes, warp markers and envelopes stay attached).
-pub(crate) fn piece_clip(clip: &Clip, piece: &CompPiece) -> Clip {
+pub fn piece_clip(clip: &Clip, piece: &CompPiece) -> Clip {
     let mut c = clip.clone();
     c.start = Beats(piece.start);
     c.length = Beats(piece.end - piece.start);
@@ -182,12 +182,12 @@ pub(crate) fn piece_clip(clip: &Clip, piece: &CompPiece) -> Clip {
 
 /// Engine id of a comp piece: unique and stable across recompiles (warp stretchers are
 /// keyed by clip id).
-pub(crate) fn piece_id(piece: &CompPiece) -> ClipId {
+pub fn piece_id(piece: &CompPiece) -> ClipId {
     derive_id(piece.region, piece.index)
 }
 
 /// Clip descs of `track`'s comp (see the module docs), sorted by start.
-pub(crate) fn comp_clips(
+pub fn comp_clips(
     p: &Project,
     g: &crate::compile::Groups,
     ctx: &CompileContext,
@@ -209,7 +209,7 @@ pub(crate) fn comp_clips(
 /// instead of its comp (main-lane clips keep playing). Entries whose lane or track is gone
 /// are dropped. Clip envelopes on device params don't follow while auditioning (no device
 /// nodes here); volume/pan/send envelopes do.
-pub(crate) fn apply_audition(
+pub fn apply_audition(
     desc: &mut RenderGraphDesc,
     project: Option<&Project>,
     audition: &mut BTreeMap<TrackId, TakeLaneId>,
@@ -265,7 +265,7 @@ fn check_range(start: Beats, end: Beats) -> CmdResult<()> {
 }
 
 /// Default name of a new lane of `track`: "Take N", N one past the highest existing number.
-pub(crate) fn next_take_name(p: &Project, track: TrackId) -> String {
+pub fn next_take_name(p: &Project, track: TrackId) -> String {
     let lanes = p.lanes_of(track);
     let n = lanes
         .iter()
@@ -284,7 +284,7 @@ pub(crate) fn next_take_name(p: &Project, track: TrackId) -> String {
 }
 
 /// Create a lane (idempotent on `id`).
-pub(crate) fn create_lane(
+pub fn create_lane(
     ctx: &mut DocCtx,
     id: TakeLaneId,
     track: TrackId,
@@ -364,7 +364,7 @@ fn set_range(ctx: &mut DocCtx, id: CompRegionId, start: f64, end: f64) -> CmdRes
 }
 
 /// `Take::SetComp`: `[start, end)` of `track` plays from `lane` (idempotent on `id`).
-pub(crate) fn set_comp(
+pub fn set_comp(
     ctx: &mut DocCtx,
     id: CompRegionId,
     split_id: CompRegionId,
@@ -396,7 +396,7 @@ pub(crate) fn set_comp(
 
 /// Move the parts of `track`'s main-lane clips inside `[start, end)` onto `lane` (clips
 /// crossing an edge are split; the outside parts stay). Returns whether anything moved.
-pub(crate) fn move_main_range_to_lane(
+pub fn move_main_range_to_lane(
     ctx: &mut DocCtx,
     track: TrackId,
     start: f64,
@@ -468,7 +468,7 @@ pub(crate) fn move_main_range_to_lane(
 
 /// `true` if `[start, end)` of `track` has main-lane clips or comp regions: a recording
 /// there becomes takes.
-pub(crate) fn range_is_used(p: &Project, track: TrackId, start: f64, end: f64) -> bool {
+pub fn range_is_used(p: &Project, track: TrackId, start: f64, end: f64) -> bool {
     let hits = |s: f64, e: f64| e > start + EPS && s < end - EPS;
     p.arrangement_clips_of(track)
         .iter()
@@ -478,7 +478,7 @@ pub(crate) fn range_is_used(p: &Project, track: TrackId, start: f64, end: f64) -
 
 /// Before recording takes over `[start, end)` of `track`: main-lane material there moves
 /// onto a new lane (the first take), selected over the range.
-pub(crate) fn begin_takes(ctx: &mut DocCtx, track: TrackId, start: f64, end: f64) -> CmdResult<()> {
+pub fn begin_takes(ctx: &mut DocCtx, track: TrackId, start: f64, end: f64) -> CmdResult<()> {
     let used = ctx
         .p()
         .arrangement_clips_of(track)
@@ -504,7 +504,7 @@ pub(crate) fn begin_takes(ctx: &mut DocCtx, track: TrackId, start: f64, end: f64
 
 /// A recorded pass (`clip`, just created on the main lane): onto a new lane of its track,
 /// selected over the clip's range.
-pub(crate) fn add_take(ctx: &mut DocCtx, clip: ClipId) -> CmdResult<()> {
+pub fn add_take(ctx: &mut DocCtx, clip: ClipId) -> CmdResult<()> {
     let c = ctx.clip(clip)?;
     let lane: TakeLaneId = ctx.new_id();
     create_lane(ctx, lane, c.track, None, None)?;
@@ -655,7 +655,7 @@ fn remove_lane(ctx: &mut DocCtx, id: TakeLaneId) -> CmdResult<()> {
     ctx.tx.remove(EntityKey::TakeLane(id))
 }
 
-pub(crate) fn take_command(ctx: &mut DocCtx, command: &TakeCommand) -> CmdResult<()> {
+pub fn take_command(ctx: &mut DocCtx, command: &TakeCommand) -> CmdResult<()> {
     match command {
         TakeCommand::CreateLane {
             id,

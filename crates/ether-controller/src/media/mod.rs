@@ -28,8 +28,8 @@ use ether_core::protocol::model::{MediaId, MediaLocation, MediaRef, Project, Pro
 use ether_media::{DecodedAudio, MAX_PAD_FRAMES, MediaError, PeakMipmap};
 
 pub use decode::IncrementalDecoder;
-pub(crate) use decode::is_chained_ogg;
-pub(crate) use resample::{IncrementalResampler, StreamResampler};
+pub use decode::is_chained_ogg;
+pub use resample::{IncrementalResampler, StreamResampler};
 
 use crate::EngineBridge;
 use crate::media_refs::RefsState;
@@ -38,7 +38,7 @@ use crate::store::{Library, ProjectStore, StoreError};
 /// The audio bytes of `m` on this site (see the module docs for the resolution order). An
 /// external file whose content no longer matches `m.hash` is not used (it may be another
 /// take saved over the original); `NotFound` = missing.
-pub(crate) fn read_media_bytes<S: ProjectStore, L: Library>(
+pub fn read_media_bytes<S: ProjectStore, L: Library>(
     store: &mut S,
     library: &mut L,
     project: ProjectId,
@@ -49,7 +49,7 @@ pub(crate) fn read_media_bytes<S: ProjectStore, L: Library>(
 
 /// [`read_media_bytes`], plus the external path the bytes came from (`None` = the project
 /// copy at `MediaRef::file`).
-pub(crate) fn resolve_media_bytes<S: ProjectStore, L: Library>(
+pub fn resolve_media_bytes<S: ProjectStore, L: Library>(
     store: &mut S,
     library: &mut L,
     project: ProjectId,
@@ -71,7 +71,7 @@ pub(crate) fn resolve_media_bytes<S: ProjectStore, L: Library>(
     store.read(project, &m.file).map(|b| (b, None))
 }
 
-pub(crate) fn peaks_cache_path(hash: &str) -> String {
+pub fn peaks_cache_path(hash: &str) -> String {
     format!("{CACHE_DIR}/{hash}.peaks")
 }
 
@@ -80,7 +80,7 @@ pub fn extension_of(path: &str) -> Option<&str> {
     name.rfind('.').filter(|i| *i > 0).map(|i| &name[i + 1..])
 }
 
-pub(crate) fn chained_ogg_warning(name: &str) -> crate::text::Msg {
+pub fn chained_ogg_warning(name: &str) -> crate::text::Msg {
     crate::text::msg("notice.media.chained_ogg")
         .arg("name", name)
         .into()
@@ -123,7 +123,7 @@ struct Job {
 }
 
 #[derive(Default)]
-pub(crate) struct MediaState {
+pub struct MediaState {
     peaks: BTreeMap<MediaId, PeakMipmap>,
     /// Media loaded into the engine, with the content hash they were loaded with.
     loaded: BTreeMap<MediaId, Option<String>>,
@@ -146,8 +146,8 @@ pub(crate) struct MediaState {
     /// `audio-streaming`: media the host streams from disk (vs decoded into memory).
     streamed: BTreeSet<MediaId>,
     /// `audio-streaming`: engine underruns not reported yet, and the last report (ms).
-    pub(crate) underruns_pending: u32,
-    pub(crate) underruns_at: u64,
+    pub underruns_pending: u32,
+    pub underruns_at: u64,
     /// "No engine" (docs/COLLAB.md §15): nothing is decoded or handed to the engine.
     engine_off: bool,
     /// Project files still on their way (an extension fills them in later). Their media are
@@ -158,7 +158,7 @@ pub(crate) struct MediaState {
 /// Decoded audio sized to the document's frame count (headers and decoders can disagree
 /// by a few frames; the document is the reference, padded by at most `MAX_PAD_FRAMES`: it
 /// comes from a project file or a peer and may claim far more than the file holds).
-pub(crate) fn fit_frames(mut audio: DecodedAudio, frames: u64) -> DecodedAudio {
+pub fn fit_frames(mut audio: DecodedAudio, frames: u64) -> DecodedAudio {
     let frames = frames.min((audio.frames() as u64).saturating_add(MAX_PAD_FRAMES)) as usize;
     for ch in &mut audio.channels {
         ch.resize(frames, 0.0);

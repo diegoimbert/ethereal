@@ -239,7 +239,7 @@ impl IncrementalDecoder {
 
 /// `true` if `bytes` is an Ogg file with more than one logical stream in sequence (a
 /// chained Ogg): a beginning-of-stream page after an end-of-stream page.
-pub(crate) fn is_chained_ogg(bytes: &[u8]) -> bool {
+pub fn is_chained_ogg(bytes: &[u8]) -> bool {
     if !bytes.starts_with(b"OggS") {
         return false;
     }

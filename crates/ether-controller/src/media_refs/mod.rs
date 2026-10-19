@@ -47,7 +47,7 @@ const MAX_FOLDERS: u32 = 50_000;
 
 /// Runtime state (lives in `MediaState::refs`; reset with the project).
 #[derive(Default)]
-pub(crate) struct RefsState {
+pub struct RefsState {
     search: Option<Box<Search>>,
 }
 
@@ -264,7 +264,7 @@ where
     S: ProjectStore,
     L: Library,
 {
-    pub(crate) fn media_ref_command(
+    pub fn media_ref_command(
         &mut self,
         command: &MediaRefCommand,
         now: u64,
@@ -342,7 +342,7 @@ where
     }
 
     /// Called every tick: steps a running search.
-    pub(crate) fn media_refs_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn media_refs_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         let Some(search) = self.media.refs.search.as_mut() else {
             return;
         };

@@ -33,8 +33,8 @@
 
 mod commands;
 mod compile;
-pub(crate) mod copy;
-pub(crate) mod record;
+pub mod copy;
+pub mod record;
 
-pub(crate) use commands::expression_command;
-pub(crate) use compile::track_expression;
+pub use commands::expression_command;
+pub use compile::track_expression;

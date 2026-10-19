@@ -15,11 +15,11 @@ use ether_core::protocol::model::*;
 use crate::recording::{NoteSpecDraft, RecordedMidi};
 
 /// Thinning window (seconds).
-pub(crate) const THIN_SECONDS: f64 = 0.005;
+pub const THIN_SECONDS: f64 = 0.005;
 
 /// Expression recorded in one pass, times relative to the clip start.
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct RecordedExpression {
+pub struct RecordedExpression {
     /// Sorted by kind.
     pub lanes: Vec<(ExpressionKind, Vec<ExpressionPoint>)>,
     /// `(index in the pass's notes, curve)`.
@@ -43,7 +43,7 @@ impl RecordedExpression {
 /// The expression of `events` (absolute positions, already limited to the kept range) in a
 /// clip starting at `start` whose recorded notes are `notes` (relative to `start`, from
 /// `notes_from_midi`). `gap`: the thinning window in beats.
-pub(crate) fn recorded_expression(
+pub fn recorded_expression(
     events: &[RecordedMidi],
     start: f64,
     notes: &[NoteSpecDraft],
@@ -119,7 +119,7 @@ fn bend_value(raw: i32) -> f32 {
 
 /// Thin a time-sorted `Step` curve to at most one point per `gap` beats (+ the final value),
 /// dropping repeats. See the module docs.
-pub(crate) fn thin(points: &[ExpressionPoint], gap: f64) -> Vec<ExpressionPoint> {
+pub fn thin(points: &[ExpressionPoint], gap: f64) -> Vec<ExpressionPoint> {
     let mut out: Vec<ExpressionPoint> = Vec::with_capacity(points.len().min(1024));
     let mut i = 0;
     while i < points.len() {

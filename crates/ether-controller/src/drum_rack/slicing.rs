@@ -7,14 +7,14 @@ use ether_core::protocol::model::MediaId;
 use ether_media::{BASE_SAMPLES_PER_PEAK, PeakMipmap};
 
 /// At most this many slices (one per MIDI key).
-pub(crate) const MAX_SLICES: usize = 128;
+pub const MAX_SLICES: usize = 128;
 /// Onsets closer than this (seconds) to the previous one are ignored.
 const MIN_GAP: f64 = 0.05;
 /// Length of the "background" window an onset must stand out from (seconds).
 const WINDOW: f64 = 0.05;
 
 /// Amplitude envelope (max |sample| over channels) per `BASE_SAMPLES_PER_PEAK` frames.
-pub(crate) fn envelope(peaks: &PeakMipmap, media: MediaId) -> Vec<f32> {
+pub fn envelope(peaks: &PeakMipmap, media: MediaId) -> Vec<f32> {
     let data = peaks.query(&PeakRequest {
         media,
         samples_per_peak: BASE_SAMPLES_PER_PEAK,
@@ -38,7 +38,7 @@ pub(crate) fn envelope(peaks: &PeakMipmap, media: MediaId) -> Vec<f32> {
 /// more slices): a bin is an onset when it exceeds both an absolute floor (relative to the
 /// loudest bin) and `ratio` × the mean of the preceding [`WINDOW`], at least [`MIN_GAP`]
 /// after the previous onset.
-pub(crate) fn transients(
+pub fn transients(
     env: &[f32],
     frames_per_bin: u32,
     sample_rate: u32,
@@ -81,7 +81,7 @@ pub(crate) fn transients(
 }
 
 /// Markers every `step` seconds over `length` seconds (at most [`MAX_SLICES`]).
-pub(crate) fn every(step: f64, length: f64) -> Vec<f64> {
+pub fn every(step: f64, length: f64) -> Vec<f64> {
     let mut out = Vec::new();
     if !(step > 0.0 && step.is_finite() && length > 0.0) {
         return vec![0.0];

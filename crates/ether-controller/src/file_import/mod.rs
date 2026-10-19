@@ -48,12 +48,12 @@ fn file_name(path: &str) -> &str {
 /// Validate a path handed over by the UI for `MediaSource::Path` (see the module docs):
 /// the file name to display and decode with.
 #[cfg(test)]
-pub(crate) fn check_path(path: &str) -> CmdResult<&str> {
+pub fn check_path(path: &str) -> CmdResult<&str> {
     check_path_of(path, FileKind::Audio)
 }
 
 /// [`check_path`] for a file of `kind` (audio, or a MIDI file for `Media::ReadMidiFile`).
-pub(crate) fn check_path_of(path: &str, kind: FileKind) -> CmdResult<&str> {
+pub fn check_path_of(path: &str, kind: FileKind) -> CmdResult<&str> {
     if path.is_empty() || path.contains('\0') {
         return Err(invalid("path must name a file"));
     }
@@ -74,12 +74,12 @@ pub(crate) fn check_path_of(path: &str, kind: FileKind) -> CmdResult<&str> {
 }
 
 /// Bytes and display name of an OS file of the engine machine (see the module docs).
-pub(crate) fn read_path<L: Library>(library: &mut L, path: &str) -> CmdResult<(Vec<u8>, String)> {
+pub fn read_path<L: Library>(library: &mut L, path: &str) -> CmdResult<(Vec<u8>, String)> {
     read_path_of(library, path, FileKind::Audio)
 }
 
 /// [`read_path`] for a file of `kind`.
-pub(crate) fn read_path_of<L: Library>(
+pub fn read_path_of<L: Library>(
     library: &mut L,
     path: &str,
     kind: FileKind,
@@ -99,7 +99,7 @@ pub(crate) fn read_path_of<L: Library>(
 /// for an external reference, the referenced file (read with `read_external`). The private
 /// overlay's collab push uses it; in the OSS build only the tests below do.
 #[allow(dead_code)]
-pub(crate) fn media_bytes<S: ProjectStore, L: Library>(
+pub fn media_bytes<S: ProjectStore, L: Library>(
     store: &mut S,
     library: &mut L,
     pid: ProjectId,

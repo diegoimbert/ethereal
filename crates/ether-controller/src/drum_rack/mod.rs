@@ -29,7 +29,7 @@ use crate::doc::{DocCtx, builtin_descriptor, default_device_name, order_before};
 use crate::tx::{CmdResult, invalid, not_found};
 use crate::{MAX_VOLUME_DB, SILENCE_DB};
 
-pub(crate) use slicing::MAX_SLICES;
+pub use slicing::MAX_SLICES;
 
 const NOTE_NAMES: [&str; 12] = [
     "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
@@ -149,7 +149,7 @@ fn builtin_params(device: &BuiltinDevice, params: &[(ParamId, f64)]) -> BTreeMap
     out
 }
 
-pub(crate) fn rack_command(ctx: &mut DocCtx, c: &DrumRackCommand) -> CmdResult<()> {
+pub fn rack_command(ctx: &mut DocCtx, c: &DrumRackCommand) -> CmdResult<()> {
     match c {
         DrumRackCommand::AddPad {
             id,
@@ -368,7 +368,7 @@ pub(crate) fn rack_command(ctx: &mut DocCtx, c: &DrumRackCommand) -> CmdResult<(
 /// Insert device `id` of `kind` into the chain of `pad_id` before `before` (None = end):
 /// built-ins get their default params, plugins are instantiated (named after the
 /// instance). Drum racks never go on pads; chain racks only within the nesting depth.
-pub(crate) fn insert_pad_device(
+pub fn insert_pad_device(
     ctx: &mut DocCtx,
     id: DeviceId,
     pad_id: DrumPadId,
@@ -505,7 +505,7 @@ fn auto_markers(ctx: &DocCtx, m: &MediaRef, secs: f64, mode: AutoSlice) -> CmdRe
     })
 }
 
-pub(crate) fn slice_command(ctx: &mut DocCtx, c: &SliceCommand) -> CmdResult<()> {
+pub fn slice_command(ctx: &mut DocCtx, c: &SliceCommand) -> CmdResult<()> {
     match c {
         SliceCommand::ToDrumRack { device, rack, pads } => {
             return to_drum_rack(ctx, *device, *rack, pads);
@@ -830,7 +830,7 @@ fn sample_to_pads(
 /// Pad chains of the drum racks of `track`: on its chain, then the ones nested in rack chains
 /// (by id; the engine runs their pads at their rack-chain entry). Racks and pad devices
 /// without an engine node are skipped.
-pub(crate) fn racks_desc(p: &Project, track: TrackId, ctx: &CompileContext) -> Vec<RackDesc> {
+pub fn racks_desc(p: &Project, track: TrackId, ctx: &CompileContext) -> Vec<RackDesc> {
     let mut nested: Vec<&Device> = p
         .devices
         .values()
@@ -872,7 +872,7 @@ pub(crate) fn racks_desc(p: &Project, track: TrackId, ctx: &CompileContext) -> V
 }
 
 /// Pad solo: in every rack with a soloed pad, the other pads compile as muted.
-pub(crate) fn apply_solo(desc: &mut RenderGraphDesc, solo: &BTreeSet<DrumPadId>) {
+pub fn apply_solo(desc: &mut RenderGraphDesc, solo: &BTreeSet<DrumPadId>) {
     if solo.is_empty() {
         return;
     }
@@ -887,7 +887,7 @@ pub(crate) fn apply_solo(desc: &mut RenderGraphDesc, solo: &BTreeSet<DrumPadId>)
 
 /// Whether a built-in node built from `old` can take `new` in place
 /// (`EngineBridge::update_builtin`): only a sampler's slices changed.
-pub(crate) fn updatable_in_place(old: &BuiltinDevice, new: &BuiltinDevice) -> bool {
+pub fn updatable_in_place(old: &BuiltinDevice, new: &BuiltinDevice) -> bool {
     matches!(
         (old, new),
         (

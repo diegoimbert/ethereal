@@ -7,7 +7,7 @@ use crate::doc::DocCtx;
 use crate::tx::{CmdResult, invalid, not_found};
 
 /// Apply one `ExpressionCommand`.
-pub(crate) fn expression_command(ctx: &mut DocCtx, c: &ExpressionCommand) -> CmdResult<()> {
+pub fn expression_command(ctx: &mut DocCtx, c: &ExpressionCommand) -> CmdResult<()> {
     match c {
         ExpressionCommand::SetTrackMpe { track, mpe } => {
             crate::mpe::set_track_mpe(ctx, *track, *mpe)
@@ -115,7 +115,7 @@ fn set_lane_points(
 }
 
 /// `old` with the points of `[start, end)` replaced by `points` (which must lie inside).
-pub(crate) fn replace_range(
+pub fn replace_range(
     old: &[ExpressionPoint],
     start: Beats,
     end: Beats,

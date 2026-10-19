@@ -16,12 +16,12 @@ const MIN_GAIN_DB: f32 = -144.0;
 const MAX_GAIN_DB: f32 = 24.0;
 
 /// Timeline start of a clip (the one place that reads clip positions).
-pub(crate) fn clip_start(c: &Clip) -> Beats {
+pub fn clip_start(c: &Clip) -> Beats {
     c.start
 }
 
 /// Validate a timeline start requested by a command.
-pub(crate) fn check_start(start: Beats) -> CmdResult<Beats> {
+pub fn check_start(start: Beats) -> CmdResult<Beats> {
     if !(start.0.is_finite() && start.0 >= 0.0) {
         return Err(invalid("clip start must be >= 0"));
     }
@@ -29,7 +29,7 @@ pub(crate) fn check_start(start: Beats) -> CmdResult<Beats> {
 }
 
 /// The op field that moves a clip to `start`.
-pub(crate) fn start_change(start: Beats) -> ClipChange {
+pub fn start_change(start: Beats) -> ClipChange {
     ClipChange::Start(start)
 }
 

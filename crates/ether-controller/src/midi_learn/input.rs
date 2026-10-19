@@ -5,7 +5,7 @@ use ether_core::protocol::model::{MidiControl, MidiMapping, MidiSource, Relative
 
 /// One decoded channel voice message that a mapping can listen to.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Decoded {
+pub struct Decoded {
     pub channel: u8,
     pub control: MidiControl,
     /// Control position 0..=1 (CC value / 127, velocity / 127 with note-off = 0, 14-bit
@@ -19,7 +19,7 @@ pub(crate) struct Decoded {
 
 /// Decode a short message. `None` for messages mappings ignore (aftertouch, program
 /// change, system messages).
-pub(crate) fn decode(data: [u8; 3]) -> Option<Decoded> {
+pub fn decode(data: [u8; 3]) -> Option<Decoded> {
     let [status, d1, d2] = data;
     let channel = status & 0x0f;
     let (d1, d2) = (d1 & 0x7f, d2 & 0x7f);
@@ -57,19 +57,19 @@ pub(crate) fn decode(data: [u8; 3]) -> Option<Decoded> {
 }
 
 /// Whether `source` listens to a message from `port`/`channel`/`control`.
-pub(crate) fn matches(source: &MidiSource, port: &str, d: &Decoded) -> bool {
+pub fn matches(source: &MidiSource, port: &str, d: &Decoded) -> bool {
     source.control == d.control
         && source.port.as_deref().is_none_or(|p| p == port)
         && source.channel.is_none_or(|c| c == d.channel)
 }
 
 /// Specificity of a matching source: concrete port and channel beat wildcards.
-pub(crate) fn specificity(source: &MidiSource) -> u8 {
+pub fn specificity(source: &MidiSource) -> u8 {
     u8::from(source.port.is_some()) * 2 + u8::from(source.channel.is_some())
 }
 
 /// Sort key of a source (`List` order): port (wildcard first), channel, control.
-pub(crate) fn source_key(s: &MidiSource) -> (Option<String>, Option<u8>, u8, u8) {
+pub fn source_key(s: &MidiSource) -> (Option<String>, Option<u8>, u8, u8) {
     let (kind, n) = match s.control {
         MidiControl::Cc { number } => (0, number),
         MidiControl::Note { key } => (1, key),
@@ -79,7 +79,7 @@ pub(crate) fn source_key(s: &MidiSource) -> (Option<String>, Option<u8>, u8, u8)
 }
 
 /// Signed increment of an endless-encoder CC value.
-pub(crate) fn relative_steps(raw: u8, encoding: RelativeEncoding) -> i32 {
+pub fn relative_steps(raw: u8, encoding: RelativeEncoding) -> i32 {
     let raw = i32::from(raw & 0x7f);
     match encoding {
         RelativeEncoding::TwosComplement => {
@@ -102,24 +102,24 @@ pub(crate) fn relative_steps(raw: u8, encoding: RelativeEncoding) -> i32 {
 }
 
 /// Position `value` (0..=1) in the mapping's output range (`min > max` inverts).
-pub(crate) fn scaled(m: &MidiMapping, value: f64) -> f64 {
+pub fn scaled(m: &MidiMapping, value: f64) -> f64 {
     m.min + value.clamp(0.0, 1.0) * (m.max - m.min)
 }
 
 /// "On" side of the threshold: the scaled value is above the midpoint of `min..max`. With
 /// `min == max` a control is never on.
-pub(crate) fn is_on(m: &MidiMapping, value: f64) -> bool {
+pub fn is_on(m: &MidiMapping, value: f64) -> bool {
     scaled(m, value) > (m.min + m.max) / 2.0
 }
 
 /// One relative step moves `1/127` of the mapping range.
-pub(crate) fn relative_target(m: &MidiMapping, current: f64, steps: i32) -> f64 {
+pub fn relative_target(m: &MidiMapping, current: f64, steps: i32) -> f64 {
     let (lo, hi) = (m.min.min(m.max), m.min.max(m.max));
     (current + f64::from(steps) * (m.max - m.min) / 127.0).clamp(lo, hi)
 }
 
 /// Toggle: flip to whichever end of the range the current value is farther from.
-pub(crate) fn toggled(m: &MidiMapping, current: f64) -> f64 {
+pub fn toggled(m: &MidiMapping, current: f64) -> f64 {
     if (current - m.max).abs() < (current - m.min).abs() {
         m.min
     } else {

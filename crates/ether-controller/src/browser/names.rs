@@ -8,7 +8,7 @@ const EXPLICIT_BPM: std::ops::RangeInclusive<f64> = 40.0..=300.0;
 const BARE_BPM: std::ops::RangeInclusive<f64> = 60.0..=200.0;
 
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct NameInfo {
+pub struct NameInfo {
     pub bpm: Option<f64>,
     /// `"A minor"`, `"C# major"`, `"Eb minor"`.
     pub key: Option<String>,
@@ -16,7 +16,7 @@ pub(crate) struct NameInfo {
 
 /// Parse `stem` (file name without extension); `path` is the item's relative path (for the
 /// "loop" context).
-pub(crate) fn parse(stem: &str, path: &str) -> NameInfo {
+pub fn parse(stem: &str, path: &str) -> NameInfo {
     let tokens: Vec<&str> = stem
         .split(|c: char| !(c.is_ascii_alphanumeric() || c == '#'))
         .filter(|t| !t.is_empty())

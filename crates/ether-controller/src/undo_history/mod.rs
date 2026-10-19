@@ -25,13 +25,13 @@ use crate::tx::{CmdResult, invalid, not_found};
 use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 
 /// Minimum time between two `HistoryEvent::Changed`.
-pub(crate) const CHANGED_INTERVAL_MS: u64 = 100;
+pub const CHANGED_INTERVAL_MS: u64 = 100;
 /// Longest checkpoint name kept (characters).
-pub(crate) const MAX_CHECKPOINT_CHARS: usize = 120;
+pub const MAX_CHECKPOINT_CHARS: usize = 120;
 
 /// Runtime state of the history panel.
 #[derive(Debug, Default)]
-pub(crate) struct UndoHistoryState {
+pub struct UndoHistoryState {
     /// A client listed the history: changes are pushed from then on.
     listening: bool,
     /// The list as the clients last saw it (reply or event).
@@ -45,7 +45,7 @@ pub(crate) struct UndoHistoryState {
 type HistoryKey = Option<(ProjectId, u64)>;
 
 /// The protocol view of `history`.
-pub(crate) fn history_list(history: &History) -> HistoryList {
+pub fn history_list(history: &History) -> HistoryList {
     HistoryList {
         steps: history
             .steps()
@@ -95,7 +95,7 @@ where
         ReplyValue::History { history }
     }
 
-    pub(crate) fn history_command(
+    pub fn history_command(
         &mut self,
         command: &HistoryCommand,
         now: u64,
@@ -179,7 +179,7 @@ where
     }
 
     /// Called every tick.
-    pub(crate) fn history_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn history_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         let key = self.history_key();
         let st = &self.undo_history;
         if !st.listening

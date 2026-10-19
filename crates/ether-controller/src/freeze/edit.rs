@@ -21,7 +21,7 @@ const RAMP_STEP: f64 = 0.25;
 
 /// Content beats (relative to the clip start) of the markers that pin a render starting at
 /// song beat `start` and lasting `length` beats to the tempo map.
-pub(crate) fn marker_beats(p: &Project, start: Beats, length: f64) -> Vec<f64> {
+pub fn marker_beats(p: &Project, start: Beats, length: f64) -> Vec<f64> {
     let map = p.tempo_map();
     let end = start.0 + length;
     let mut beats = vec![0.0];
@@ -52,7 +52,7 @@ pub(crate) fn marker_beats(p: &Project, start: Beats, length: f64) -> Vec<f64> {
 /// Create audio clip `id` of `media` (a render whose frame 0 sounds at song beat `start`) on
 /// `track`, making room for it (overlapped clips are trimmed or removed), and warp it to the
 /// tempo map (markers `derive_id(id, i)`, rate 1) so it plays exactly the render.
-pub(crate) fn place_render(
+pub fn place_render(
     ctx: &mut DocCtx,
     id: ClipId,
     track: TrackId,
@@ -136,7 +136,7 @@ fn live_track(ctx: &DocCtx, id: TrackId) -> CmdResult<Track> {
 }
 
 /// `Freeze` done: the media and the freeze (one undo step).
-pub(crate) fn finish_freeze(
+pub fn finish_freeze(
     ctx: &mut DocCtx,
     track: TrackId,
     up_to: Option<DeviceId>,
@@ -246,7 +246,7 @@ fn move_live_tail(ctx: &mut DocCtx, from: TrackId, to: TrackId) -> CmdResult<()>
 }
 
 /// `Flatten`: make the freeze permanent (see `FreezeCommand::Flatten`).
-pub(crate) fn flatten(
+pub fn flatten(
     ctx: &mut DocCtx,
     track: TrackId,
     clip: ClipId,
@@ -397,7 +397,7 @@ fn flatten_group(
 }
 
 /// `Bounce` done.
-pub(crate) fn finish_bounce(
+pub fn finish_bounce(
     ctx: &mut DocCtx,
     track: TrackId,
     start: Beats,
@@ -438,7 +438,7 @@ pub(crate) fn finish_bounce(
 
 /// A note as it sounds in song time.
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct PlayedNote {
+pub struct PlayedNote {
     pub start: f64,
     pub duration: f64,
     pub pitch: u8,
@@ -489,7 +489,7 @@ fn played_clips(p: &Project, track: TrackId, start: f64, end: f64) -> Vec<&Clip>
 /// Notes of the unmuted main-lane MIDI clips of `track` sounding from `[start, end)`
 /// (clip offset and loop applied; notes cut at the clip/loop end and at `end`), sorted by
 /// (start, pitch).
-pub(crate) fn played_notes(p: &Project, track: TrackId, start: f64, end: f64) -> Vec<PlayedNote> {
+pub fn played_notes(p: &Project, track: TrackId, start: f64, end: f64) -> Vec<PlayedNote> {
     let mut out = Vec::new();
     for c in played_clips(p, track, start, end) {
         let notes = p.notes_of(c.id);
@@ -524,7 +524,7 @@ pub(crate) fn played_notes(p: &Project, track: TrackId, start: f64, end: f64) ->
 
 /// Consolidate the MIDI clips of `track` over `[start, end)` into clip `clip` (notes
 /// `derive_id(seed_notes, next..)`). Tracks without clips in the range are left alone.
-pub(crate) fn consolidate_midi(
+pub fn consolidate_midi(
     ctx: &mut DocCtx,
     track: TrackId,
     start: Beats,

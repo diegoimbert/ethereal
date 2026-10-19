@@ -39,7 +39,7 @@ fn doc_value(d: &Device, info: &ParamInfo) -> f64 {
 }
 
 /// Normalized → plain mapping of a param (stepped: labels or a plain step).
-pub(crate) fn param_mapping(info: &ParamInfo) -> ParamMapping {
+pub fn param_mapping(info: &ParamInfo) -> ParamMapping {
     let steps = match (&info.labels, info.step) {
         (Some(l), _) if l.len() > 1 => Some(l.len() as u32),
         (_, Some(s)) if s > 0.0 => {
@@ -57,11 +57,7 @@ pub(crate) fn param_mapping(info: &ParamInfo) -> ParamMapping {
 }
 
 /// `TrackDesc::chain_racks` of `track`.
-pub(crate) fn chain_racks_desc(
-    p: &Project,
-    track: TrackId,
-    ctx: &CompileContext,
-) -> Vec<ChainRackDesc> {
+pub fn chain_racks_desc(p: &Project, track: TrackId, ctx: &CompileContext) -> Vec<ChainRackDesc> {
     // Track-chain racks, racks on drum pads and the racks nested in their chains (the
     // engine runs a rack's chains at its chain / pad / rack-chain entry).
     let mut racks: Vec<&Device> = p
@@ -117,7 +113,7 @@ pub(crate) fn chain_racks_desc(
 }
 
 /// `TrackDesc::modulation` of `track`.
-pub(crate) fn modulation_desc(p: &Project, track: TrackId, ctx: &CompileContext) -> ModulationDesc {
+pub fn modulation_desc(p: &Project, track: TrackId, ctx: &CompileContext) -> ModulationDesc {
     let mut out = ModulationDesc::default();
     if p.modulators.is_empty() && p.mod_mappings.is_empty() {
         return out;

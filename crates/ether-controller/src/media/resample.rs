@@ -58,7 +58,7 @@ impl Running {
     }
 }
 
-pub(crate) struct IncrementalResampler {
+pub struct IncrementalResampler {
     source: Arc<DecodedAudio>,
     target_rate: u32,
     expected: usize,
@@ -167,7 +167,7 @@ impl IncrementalResampler {
 /// #434): the same chunks with the same zero padding go through the same resampler, so the
 /// output is identical, but only about one chunk of input is held at a time. The signal's
 /// length must be known up front (it sets the alignment and the output length).
-pub(crate) struct StreamResampler {
+pub struct StreamResampler {
     /// `None` for an empty signal.
     running: Option<Running>,
     frames: usize,

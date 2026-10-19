@@ -32,7 +32,7 @@ const PARAM_EPSILON: f64 = 1e-9;
 
 /// Plugin runtime bookkeeping held by the controller.
 #[derive(Debug, Default)]
-pub(crate) struct PluginsState {
+pub struct PluginsState {
     /// Engine node whose params were last mirrored into the document, per plugin device.
     mirrored: BTreeMap<DeviceId, NodeKey>,
     /// The open "plugin edit" undo step of gesture-less GUI edits (audit #6).
@@ -45,19 +45,19 @@ pub(crate) struct PluginsState {
 /// further requests are ignored until the window passes. Re-creating loads the plugin again
 /// on the main thread (seconds for big ones), so a plugin asking again on every load would
 /// otherwise freeze the engine in a loop.
-pub(crate) const MAX_RESTARTS: usize = 3;
-pub(crate) const RESTART_WINDOW_MS: u64 = 60_000;
+pub const MAX_RESTARTS: usize = 3;
+pub const RESTART_WINDOW_MS: u64 = 60_000;
 
 impl PluginsState {
     /// Mirror `device`'s params into the document again at the next tick (its instance
     /// loaded another state in place).
-    pub(crate) fn remirror(&mut self, device: DeviceId) {
+    pub fn remirror(&mut self, device: DeviceId) {
         self.mirrored.remove(&device);
     }
 
     /// Record a restart request of `device` at `now`: whether to honour it, and whether this
     /// is the first one refused (to warn once).
-    pub(crate) fn allow_restart(&mut self, device: DeviceId, now: u64) -> (bool, bool) {
+    pub fn allow_restart(&mut self, device: DeviceId, now: u64) -> (bool, bool) {
         let recent = self.restarts.entry(device).or_default();
         recent.retain(|&t| now.saturating_sub(t) < RESTART_WINDOW_MS);
         let allowed = recent.len() < MAX_RESTARTS;
@@ -69,7 +69,7 @@ impl PluginsState {
 
 /// Whether a modulation mapping targets `device`'s `param` (its live value is the
 /// modulated one, not the document's base).
-pub(crate) fn is_modulated(
+pub fn is_modulated(
     project: &Project,
     device: DeviceId,
     param: ether_core::protocol::model::ParamId,
@@ -118,7 +118,7 @@ where
     L: Library,
 {
     /// Tick work for plugins: mirror the params of freshly instantiated plugin nodes.
-    pub(crate) fn plugins_tick(&mut self, _now: u64, out: &mut dyn MessageSink) {
+    pub fn plugins_tick(&mut self, _now: u64, out: &mut dyn MessageSink) {
         let Some(doc) = self.doc.as_mut() else {
             self.plugins.mirrored.clear();
             return;

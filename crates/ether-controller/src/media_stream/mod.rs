@@ -75,7 +75,7 @@ where
 {
     /// Called every tick after the engine outputs were polled: report new underruns while
     /// media are streamed.
-    pub(crate) fn stream_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn stream_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         let media = &mut self.media;
         if !media.any_streamed() {
             media.underruns_pending = 0;

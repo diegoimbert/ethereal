@@ -19,7 +19,7 @@ const FILES: &str = "files";
 const PINS: &str = "pins.json";
 const SOURCES: &str = "sources.json";
 
-pub(crate) struct Cache {
+pub struct Cache {
     dir: String,
 }
 
@@ -37,7 +37,7 @@ fn write_set<L: Library>(library: &mut L, rel: &str, set: &BTreeSet<String>) -> 
 }
 
 /// The sha256s of the files present (any source).
-pub(crate) fn present<L: Library>(library: &mut L) -> BTreeSet<String> {
+pub fn present<L: Library>(library: &mut L) -> BTreeSet<String> {
     library
         .sample_cache_list(FILES)
         .unwrap_or_default()
@@ -47,7 +47,7 @@ pub(crate) fn present<L: Library>(library: &mut L) -> BTreeSet<String> {
 }
 
 /// A cached file by its sha256 (whatever its extension), checked; a damaged one is deleted.
-pub(crate) fn read_hash<L: Library>(library: &mut L, sha256: &str) -> Result<Vec<u8>, StoreError> {
+pub fn read_hash<L: Library>(library: &mut L, sha256: &str) -> Result<Vec<u8>, StoreError> {
     let not_found = || StoreError::NotFound(sha256.to_string());
     let name = library
         .sample_cache_list(FILES)
@@ -66,13 +66,13 @@ pub(crate) fn read_hash<L: Library>(library: &mut L, sha256: &str) -> Result<Vec
 
 /// Keep `sha256` across pack updates (a project references it). Returns whether it was new.
 #[allow(dead_code)] // projects pin the samples they reference (#519, project references)
-pub(crate) fn pin<L: Library>(library: &mut L, sha256: &str) -> bool {
+pub fn pin<L: Library>(library: &mut L, sha256: &str) -> bool {
     let mut pins = read_set(library, PINS);
     pins.insert(sha256.to_string()) && write_set(library, PINS, &pins)
 }
 
 impl Cache {
-    pub(crate) fn for_url(url: &str) -> Self {
+    pub fn for_url(url: &str) -> Self {
         Self {
             dir: manifest::sha256_hex(url.as_bytes())[..16].to_string(),
         }
@@ -83,7 +83,7 @@ impl Cache {
     }
 
     /// The cached manifest, if it's there and still verifies with `keys`.
-    pub(crate) fn load_manifest<L: Library>(
+    pub fn load_manifest<L: Library>(
         &self,
         library: &mut L,
         keys: &[[u8; 32]],
@@ -98,7 +98,7 @@ impl Cache {
         }
     }
 
-    pub(crate) fn store_manifest<L: Library>(
+    pub fn store_manifest<L: Library>(
         &self,
         library: &mut L,
         envelope: &[u8],
@@ -112,15 +112,11 @@ impl Cache {
     }
 
     /// A cached file's bytes, checked against its sha256.
-    pub(crate) fn read<L: Library>(
-        &self,
-        library: &mut L,
-        f: &PackFile,
-    ) -> Result<Vec<u8>, StoreError> {
+    pub fn read<L: Library>(&self, library: &mut L, f: &PackFile) -> Result<Vec<u8>, StoreError> {
         read_hash(library, &f.sha256)
     }
 
-    pub(crate) fn write<L: Library>(
+    pub fn write<L: Library>(
         &self,
         library: &mut L,
         f: &PackFile,
@@ -132,7 +128,7 @@ impl Cache {
 
     /// After an update to `m`: delete the files no cached manifest lists any more, unless
     /// pinned. Returns how many were deleted.
-    pub(crate) fn collect_garbage<L: Library>(&self, library: &mut L, m: &Manifest) -> usize {
+    pub fn collect_garbage<L: Library>(&self, library: &mut L, m: &Manifest) -> usize {
         let mut keep: BTreeSet<String> = m.files.iter().map(|f| f.sha256.clone()).collect();
         keep.extend(read_set(library, PINS));
         for other in read_set(library, SOURCES) {

@@ -28,7 +28,7 @@ const MIN_NOTE_BEATS: f64 = 1e-4;
 
 /// A note placed in the new clip (clip-relative beats).
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Placed {
+pub struct Placed {
     pub start: f64,
     pub duration: f64,
     pub pitch: u8,
@@ -129,7 +129,7 @@ fn pieces(clip: &Clip) -> Vec<(f64, f64, f64)> {
 /// Map detected notes (source seconds of `media_seconds` of media) into clip-relative
 /// beats, sorted by (start, pitch). Pitched modes follow the clip's transpose; drum keys are
 /// classes (the kit's pads), not pitches, so they stay put.
-pub(crate) fn place(
+pub fn place(
     p: &Project,
     clip: &Clip,
     a: &AudioContent,
@@ -176,7 +176,7 @@ pub(crate) fn place(
 }
 
 /// What the finished job writes.
-pub(crate) struct Result<'a> {
+pub struct Result<'a> {
     pub clip: ClipId,
     pub mode: AudioToMidiMode,
     pub track: TrackId,
@@ -200,7 +200,7 @@ fn next_sibling(p: &Project, t: &Track) -> Option<TrackId> {
 /// The finished job's edit: a MIDI track right below the source track, a clip at the
 /// source clip's position and length holding the notes, an optional default instrument.
 /// Returns the number of notes written.
-pub(crate) fn apply(ctx: &mut DocCtx, r: &Result<'_>) -> CmdResult<u32> {
+pub fn apply(ctx: &mut DocCtx, r: &Result<'_>) -> CmdResult<u32> {
     let clip = ctx
         .p()
         .clips

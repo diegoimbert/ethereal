@@ -56,11 +56,11 @@ use crate::tx::{CmdResult, internal, invalid, invalid_state, not_found};
 use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 
 use files::{Location, file_stem, info, locate, normalize_meta, user_id, user_path};
-pub(crate) use insert::Prepared;
+pub use insert::Prepared;
 
 /// A [`crate::doc::DocHost`] with no engine: templates and examples build a document from
 /// commands only (ids), so plugin instantiation and live plugin state are never needed.
-pub(crate) struct NullHost;
+pub struct NullHost;
 
 impl crate::doc::DocHost for NullHost {
     fn descriptor(
@@ -95,7 +95,7 @@ thread_local! {
 
 /// Makes loaded templates visible to [`insert`] for the duration of one command's
 /// dispatch. Restores the previous set on drop.
-pub(crate) struct TemplateScope(BTreeMap<TemplateId, Rc<Prepared>>);
+pub struct TemplateScope(BTreeMap<TemplateId, Rc<Prepared>>);
 
 impl TemplateScope {
     fn enter(prepared: BTreeMap<TemplateId, Rc<Prepared>>) -> Self {
@@ -111,7 +111,7 @@ impl Drop for TemplateScope {
 }
 
 /// `Template::Insert` (document command, from `doc::apply`).
-pub(crate) fn insert(
+pub fn insert(
     ctx: &mut DocCtx,
     template: &TemplateId,
     seed: TrackId,
@@ -157,7 +157,7 @@ where
     L: Library,
 {
     /// Runtime `Template` commands (`Insert` goes through `doc::apply`).
-    pub(crate) fn template_command(
+    pub fn template_command(
         &mut self,
         command: &TemplateCommand,
         now: u64,
@@ -728,7 +728,7 @@ where
 
     /// `dispatch` hook: a lone `Template::Insert` loads its template, imports its samples
     /// and inserts it, all in one gesture (one undo step). `None` for any other command.
-    pub(crate) fn template_insert_command(
+    pub fn template_insert_command(
         &mut self,
         msg: &ClientMessage,
         now: u64,
@@ -775,7 +775,7 @@ where
 
     /// `dispatch` hook: the templates an `Edit::Batch` inserts, loaded for its duration
     /// (`None` for anything else).
-    pub(crate) fn template_scope(
+    pub fn template_scope(
         &mut self,
         command: &Command,
         gesture: Option<GestureId>,

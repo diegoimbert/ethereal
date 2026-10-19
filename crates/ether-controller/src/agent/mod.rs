@@ -22,8 +22,8 @@ mod plugins;
 mod query;
 mod read;
 mod resolve;
-pub(crate) mod schema;
-pub(crate) mod tools;
+pub mod schema;
+pub mod tools;
 
 use ether_core::protocol::agent::{AgentCommand, AgentSelection, AgentToolSpec};
 use ether_core::protocol::export::{ExportEvent, ExportResult};
@@ -44,7 +44,7 @@ const EXPORTS_KEPT: usize = 8;
 
 /// Why a tool call failed (becomes an `is_error` result).
 #[derive(Debug)]
-pub(crate) enum ToolError {
+pub enum ToolError {
     Input(InputError),
     Command(CommandError),
     /// A name matched several entities equally (nothing was changed): the candidates, for
@@ -93,7 +93,7 @@ impl ToolError {
     }
 }
 
-pub(crate) type ToolResult = Result<Value, ToolError>;
+pub type ToolResult = Result<Value, ToolError>;
 
 #[derive(Clone, Debug, PartialEq)]
 enum ExportStatus {
@@ -105,7 +105,7 @@ enum ExportStatus {
 
 /// Agent runtime state (not in the document).
 #[derive(Default)]
-pub(crate) struct AgentState {
+pub struct AgentState {
     /// The last selection the UI sent.
     selection: Option<AgentSelection>,
     /// Recent export jobs, oldest first.
@@ -147,7 +147,7 @@ impl AgentState {
 
 /// Forwards every message and keeps a copy of the export events (for
 /// `get_export_status`). Wraps the sink of `handle`/`tick`.
-pub(crate) struct ExportTap<'a> {
+pub struct ExportTap<'a> {
     inner: &'a mut dyn MessageSink,
     exports: Vec<ExportEvent>,
 }
@@ -196,13 +196,13 @@ where
     }
 
     /// Keep the export events a `handle`/`tick` emitted.
-    pub(crate) fn agent_absorb(&mut self, tap: ExportTap<'_>) {
+    pub fn agent_absorb(&mut self, tap: ExportTap<'_>) {
         if !tap.exports.is_empty() {
             self.agent.absorb(tap.exports);
         }
     }
 
-    pub(crate) fn agent_command(
+    pub fn agent_command(
         &mut self,
         c: &AgentCommand,
         now: u64,
@@ -457,7 +457,7 @@ where
 
 /// Undo label of a tool edit ("AI: add notes", `undo.agent.edit` around the edit's own
 /// label; `action` in the lowercase label style of `doc::label_of`).
-pub(crate) fn label(action: impl Into<crate::doc::UndoLabel>) -> crate::doc::UndoLabel {
+pub fn label(action: impl Into<crate::doc::UndoLabel>) -> crate::doc::UndoLabel {
     use ether_core::protocol::model::text::{TextArg, TextKey};
     let inner: crate::doc::UndoLabel = action.into();
     let edit: TextArg = match inner.key {

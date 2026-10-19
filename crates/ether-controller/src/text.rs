@@ -81,7 +81,7 @@ impl From<Msg> for TextArg {
 
 /// An error's text as an argument of another message ("autosave failed: {error}"): its
 /// message when it has one, else its English.
-pub(crate) fn error_arg(e: &ether_core::protocol::CommandError) -> TextArg {
+pub fn error_arg(e: &ether_core::protocol::CommandError) -> TextArg {
     match &e.key {
         Some(k) => TextArg::Key(Box::new(k.clone())),
         None => TextArg::Str(e.message.clone()),
@@ -92,7 +92,7 @@ pub(crate) fn error_arg(e: &ether_core::protocol::CommandError) -> TextArg {
 /// B": a descriptor's) as an argument: its catalog message (`engine.cutoff`, `engine.macro_n`
 /// with `{n}`; the keys `ui/src/i18n/tooling/engineText.ts` gives), so the UI shows it in the
 /// user's language, else the text in lowercase.
-pub(crate) fn engine_arg(text: &str) -> TextArg {
+pub fn engine_arg(text: &str) -> TextArg {
     let key = engine_key(text);
     if exists(&key.id) {
         TextArg::Key(Box::new(key))
@@ -182,7 +182,7 @@ fn names_language() -> String {
 }
 
 /// A default name: `key` (a `name.*` message) in the names language, else in English.
-pub(crate) fn default_name(key: &TextKey) -> String {
+pub fn default_name(key: &TextKey) -> String {
     default_name_in(&names_language(), key)
 }
 
@@ -198,7 +198,7 @@ fn default_name_in(lang: &str, key: &TextKey) -> String {
 
 /// A new built-in device's name: its descriptor's name ("Reverb") in the names language
 /// (« réverbération »); in English, lowercase as it always was ("reverb", "eq").
-pub(crate) fn device_default_name(descriptor_name: &str) -> String {
+pub fn device_default_name(descriptor_name: &str) -> String {
     device_default_name_in(&names_language(), descriptor_name)
 }
 
@@ -213,7 +213,7 @@ fn device_default_name_in(lang: &str, descriptor_name: &str) -> String {
 }
 
 /// Is `id` a message of the catalog?
-pub(crate) fn exists(id: &str) -> bool {
+pub fn exists(id: &str) -> bool {
     messages().contains_key(id)
 }
 
@@ -227,7 +227,7 @@ pub fn english(key: &TextKey) -> String {
 
 /// The message whose English text is exactly `text`, for a message without arguments
 /// ("capture midi" → `undo.capture.capture`).
-pub(crate) fn key_of_english(text: &str) -> Option<TextKey> {
+pub fn key_of_english(text: &str) -> Option<TextKey> {
     plain().get(text).map(|id| TextKey::new(*id))
 }
 

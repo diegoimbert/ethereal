@@ -21,18 +21,18 @@ use crate::export::offline::{Capture, MediaLoader, NodeSetup, UNIT_FRAMES, tempo
 use crate::store::{Library, ProjectStore};
 
 /// Silence threshold of a freeze tail (-90 dBFS).
-pub(crate) const TAIL_SILENCE: f32 = 3.162_277_7e-5;
+pub const TAIL_SILENCE: f32 = 3.162_277_7e-5;
 /// A freeze tail grows by this much while the last chunk is not silent...
-pub(crate) const TAIL_CHUNK_SECONDS: f64 = 0.5;
+pub const TAIL_CHUNK_SECONDS: f64 = 0.5;
 /// ...up to this long.
-pub(crate) const MAX_TAIL_SECONDS: f64 = 30.0;
+pub const MAX_TAIL_SECONDS: f64 = 30.0;
 /// Silence kept after a trimmed tail, so a clip of the render (flatten) ends on silence: the
 /// engine's anti-click ramp at clip edges (64 samples) then never touches the audio.
-pub(crate) const TAIL_PAD_FRAMES: usize = 256;
+pub const TAIL_PAD_FRAMES: usize = 256;
 
 /// What one pass renders.
 #[derive(Clone, Debug)]
-pub(crate) struct PassSpec {
+pub struct PassSpec {
     pub track: TrackId,
     /// First beat of the render (also the song time of media frame 0).
     pub start: Beats,
@@ -55,7 +55,7 @@ pub(crate) struct PassSpec {
 
 /// A finished pass: the media written to the project store.
 #[derive(Clone, Debug)]
-pub(crate) struct Rendered {
+pub struct Rendered {
     pub media: MediaRef,
 }
 
@@ -71,12 +71,12 @@ enum Stage {
     },
 }
 
-pub(crate) enum Step {
+pub enum Step {
     Working,
     Done,
 }
 
-pub(crate) struct RenderJob {
+pub struct RenderJob {
     pub id: String,
     pub project_id: ProjectId,
     project: Box<Project>,
@@ -93,7 +93,7 @@ pub(crate) struct RenderJob {
 /// Tracks a pass needs besides `target`: the sources of its devices' sidechains
 /// (transitively, with the tracks feeding them), so sidechains route like live playback.
 /// Frozen tracks play their render (their devices are not needed).
-pub(crate) fn needed_tracks(p: &Project, target: TrackId, chain: bool) -> BTreeSet<TrackId> {
+pub fn needed_tracks(p: &Project, target: TrackId, chain: bool) -> BTreeSet<TrackId> {
     let mut set = BTreeSet::from([target]);
     if !chain {
         return set;
@@ -165,7 +165,7 @@ fn pass_devices(p: &Project, spec: &PassSpec, needed: &BTreeSet<TrackId>) -> Vec
 
 /// The devices of `track` after `up_to` on its chain, with everything nested in them (the
 /// live tail of a partial freeze).
-pub(crate) fn live_tail(p: &Project, track: TrackId, up_to: DeviceId) -> BTreeSet<DeviceId> {
+pub fn live_tail(p: &Project, track: TrackId, up_to: DeviceId) -> BTreeSet<DeviceId> {
     let chain = p.devices_of(track);
     let Some(i) = chain.iter().position(|d| d.id == up_to) else {
         return BTreeSet::new();
@@ -217,7 +217,7 @@ fn mixer_target(a: &AutomationDesc) -> bool {
 /// clips only without `chain`), **pre-fader** (unity volume, centre pan, unmuted, no sends,
 /// no mixer automation), straight into a neutral master (no devices, unity). Needed tracks
 /// (sidechain sources) keep playing but reach no output; every other source is silent.
-pub(crate) fn isolate(
+pub fn isolate(
     desc: &mut RenderGraphDesc,
     target: TrackId,
     needed: &BTreeSet<TrackId>,
@@ -285,7 +285,7 @@ fn peak_from(channels: &[Vec<f32>], from: usize) -> f32 {
 
 /// Drop trailing frames below the tail threshold, keeping at least `keep` frames (and at
 /// least one frame).
-pub(crate) fn trim_tail(channels: &mut [Vec<f32>], keep: usize) {
+pub fn trim_tail(channels: &mut [Vec<f32>], keep: usize) {
     let len = channels.first().map_or(0, Vec::len);
     let mut end = len;
     while end > keep.max(1) && channels.iter().all(|c| c[end - 1].abs() < TAIL_SILENCE) {

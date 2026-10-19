@@ -59,7 +59,7 @@ use edit::{EPS, Ids};
 
 /// Time-edit runtime state: the time clipboard.
 #[derive(Default)]
-pub(crate) struct TimeEditState {
+pub struct TimeEditState {
     clipboard: Option<TimeClipboard>,
 }
 
@@ -244,7 +244,7 @@ where
     S: ProjectStore,
     L: Library,
 {
-    pub(crate) fn time_edit_command(
+    pub fn time_edit_command(
         &mut self,
         command: &TimeEditCommand,
         gesture: Option<GestureId>,

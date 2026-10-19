@@ -23,7 +23,7 @@ use crate::tx::{CmdResult, internal, invalid};
 
 /// A loaded track template, ready to insert.
 #[derive(Clone, Debug)]
-pub(crate) struct Prepared {
+pub struct Prepared {
     pub entities: Vec<Entity>,
     /// Template media id → project media id (imported or matched by hash).
     pub media: BTreeMap<MediaId, MediaId>,
@@ -79,7 +79,7 @@ fn rewrite(v: &mut serde_json::Value, map: &BTreeMap<String, String>) {
 }
 
 /// The template's entities with their new ids and remapped references (no placement yet).
-pub(crate) fn remap(prepared: &Prepared, seed: TrackId) -> CmdResult<Vec<Entity>> {
+pub fn remap(prepared: &Prepared, seed: TrackId) -> CmdResult<Vec<Entity>> {
     let mut map: BTreeMap<String, String> = BTreeMap::new();
     for (i, e) in prepared.entities.iter().enumerate() {
         let i = u32::try_from(i).map_err(|_| invalid("template too large"))?;
@@ -147,7 +147,7 @@ fn clear_missing_media(kind: &mut BuiltinDevice, media: &BTreeMap<MediaId, Media
 }
 
 /// `Template::Insert` with an already loaded template.
-pub(crate) fn insert(
+pub fn insert(
     ctx: &mut DocCtx,
     prepared: &Prepared,
     seed: TrackId,

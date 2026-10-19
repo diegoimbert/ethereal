@@ -128,7 +128,7 @@ pub struct RecordedTakes {
 
 /// Recording runtime state of the controller.
 #[derive(Debug, Default)]
-pub(crate) struct RecordingState {
+pub struct RecordingState {
     punch: bool,
     session: Option<Active>,
     sessions: u32,
@@ -136,7 +136,7 @@ pub(crate) struct RecordingState {
 
 impl RecordingState {
     /// A recording session is open (its takes not committed yet).
-    pub(crate) fn is_active(&self) -> bool {
+    pub fn is_active(&self) -> bool {
         self.session.is_some()
     }
 }
@@ -199,7 +199,7 @@ const MIN_LENGTH: f64 = 1.0 / 64.0;
 
 /// Notes from recorded MIDI (note on/off pairs; notes still held end at `end`). Positions
 /// are relative to `start`.
-pub(crate) fn notes_from_midi(events: &[RecordedMidi], start: f64, end: f64) -> Vec<NoteSpecDraft> {
+pub fn notes_from_midi(events: &[RecordedMidi], start: f64, end: f64) -> Vec<NoteSpecDraft> {
     let mut held: Vec<(u8, u8, f64, f32)> = Vec::new();
     let mut notes = Vec::new();
     for e in events {
@@ -396,7 +396,7 @@ fn midi_passes(
 
 /// A recorded note before it gets an id.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct NoteSpecDraft {
+pub struct NoteSpecDraft {
     pub pitch: u8,
     pub velocity: f32,
     pub start: f64,
@@ -462,7 +462,7 @@ where
     L: Library,
 {
     /// `Command::Recording` other than the document commands (monitor, input, count-in).
-    pub(crate) fn recording_command(
+    pub fn recording_command(
         &mut self,
         c: &RecordingCommand,
         now: u64,
@@ -557,7 +557,7 @@ where
     }
 
     /// `Transport::Stop`: stop (or return to the start position) and finish a recording.
-    pub(crate) fn transport_stop(&mut self, now: u64, out: &mut dyn MessageSink) -> CmdResult<()> {
+    pub fn transport_stop(&mut self, now: u64, out: &mut dyn MessageSink) -> CmdResult<()> {
         self.stop()?;
         self.finish_recording(now, out);
         Ok(())
@@ -698,7 +698,7 @@ where
 
     /// Tick while recording (`live-record`): poll the host's live peaks/notes and emit
     /// `RecordingEvent::Progress`, throttled to [`PROGRESS_INTERVAL_MS`].
-    pub(crate) fn recording_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn recording_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         let Some(active) = self.recording.session.as_mut() else {
             return;
         };
@@ -708,7 +708,7 @@ where
     }
 
     /// Disable recording and commit what was captured (no-op when not recording).
-    pub(crate) fn finish_recording(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn finish_recording(&mut self, now: u64, out: &mut dyn MessageSink) {
         if self.engine.count_in_end.take().is_some() {
             self.engine.graph_dirty = true;
         }

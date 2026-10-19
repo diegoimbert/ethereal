@@ -7,7 +7,7 @@
 //!
 //! Every command is one document transaction, so one undo step.
 
-pub(crate) mod transpose;
+pub mod transpose;
 
 use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::markers::MarkerCommand;
@@ -37,7 +37,7 @@ fn check_curve(c: &FadeCurve) -> CmdResult<()> {
 /// `true` if `a` and `b` (same track) overlap as a crossfade: the earlier one ends inside
 /// the later one and the overlap is covered by both the earlier clip's fade-out and the
 /// later clip's fade-in (`ether_model::clip` docs). Audio clips only.
-pub(crate) fn is_crossfade(a: &Clip, b: &Clip) -> bool {
+pub fn is_crossfade(a: &Clip, b: &Clip) -> bool {
     let (first, second) = if clip_start(a).0 <= clip_start(b).0 {
         (a, b)
     } else {
@@ -125,7 +125,7 @@ fn head_room(p: &Project, c: &Clip, want: f64) -> f64 {
 }
 
 /// `ClipCommand::{SetFadeCurves, SetReversed, Crossfade, SetCrossfade}`.
-pub(crate) fn clip_command(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
+pub fn clip_command(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
     match c {
         ClipCommand::SetFadeCurves {
             id,
@@ -387,7 +387,7 @@ fn set_marker(ctx: &mut DocCtx, id: MarkerId, change: MarkerChange) -> CmdResult
     ctx.tx.update(EntityUpdate::Marker { id, change })
 }
 
-pub(crate) fn marker_command(ctx: &mut DocCtx, c: &MarkerCommand) -> CmdResult<()> {
+pub fn marker_command(ctx: &mut DocCtx, c: &MarkerCommand) -> CmdResult<()> {
     match c {
         MarkerCommand::Add {
             id,

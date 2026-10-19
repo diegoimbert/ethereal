@@ -36,12 +36,12 @@ pub enum SaveKind {
 
 /// Plugin state changes are saved on their own at most this often (the oldest unsaved
 /// change is at least this old)...
-pub(crate) const STATE_SAVE_INTERVAL_MS: u64 = 30_000;
+pub const STATE_SAVE_INTERVAL_MS: u64 = 30_000;
 /// ...once no plugin reported a change for this long...
-pub(crate) const STATE_SAVE_IDLE_MS: u64 = 2_000;
+pub const STATE_SAVE_IDLE_MS: u64 = 2_000;
 /// ...or anyway once the oldest unsaved change is this old (a plugin that reports changes
 /// non-stop would otherwise never be saved by the timer).
-pub(crate) const STATE_SAVE_MAX_DELAY_MS: u64 = 120_000;
+pub const STATE_SAVE_MAX_DELAY_MS: u64 = 120_000;
 
 #[derive(Clone, Debug, PartialEq)]
 struct Entry {
@@ -54,7 +54,7 @@ struct Entry {
 /// Per-device cache of plugin states and the unsaved `StateDirty` bookkeeping (runtime
 /// state of the open project; reset when another one loads).
 #[derive(Debug, Default)]
-pub(crate) struct PluginStates {
+pub struct PluginStates {
     read: BTreeMap<DeviceId, Entry>,
     /// Must be read again before the next save: reported `StateDirty`, or its instance
     /// was re-created.
@@ -63,20 +63,20 @@ pub(crate) struct PluginStates {
     unsaved: Option<(u64, u64)>,
     /// A background write failed: the next routine save writes synchronously, so a
     /// persisting error is reported in its reply instead of re-queueing writes.
-    pub(crate) write_failed: bool,
+    pub write_failed: bool,
     /// The plugins the last `read_plugin_states` could not read (their last known state
     /// was used), with the error.
-    pub(crate) read_failures: Vec<(DeviceId, String)>,
+    pub read_failures: Vec<(DeviceId, String)>,
 }
 
 impl PluginStates {
     /// Another project is open.
-    pub(crate) fn reset(&mut self) {
+    pub fn reset(&mut self) {
         *self = Self::default();
     }
 
     /// The plugin reported `StateDirty` at `now`.
-    pub(crate) fn state_changed(&mut self, device: DeviceId, now: u64) {
+    pub fn state_changed(&mut self, device: DeviceId, now: u64) {
         self.stale.insert(device);
         let first = self.unsaved.map_or(now, |(first, _)| first);
         self.unsaved = Some((first, now));
@@ -84,16 +84,16 @@ impl PluginStates {
 
     /// The device's instance was (re)created, or its state may differ from the cache for
     /// another reason: read it again before the next save.
-    pub(crate) fn invalidate(&mut self, device: DeviceId) {
+    pub fn invalidate(&mut self, device: DeviceId) {
         self.stale.insert(device);
     }
 
-    pub(crate) fn needs_read(&self, device: DeviceId, kind: SaveKind) -> bool {
+    pub fn needs_read(&self, device: DeviceId, kind: SaveKind) -> bool {
         kind == SaveKind::Full || self.stale.contains(&device) || !self.read.contains_key(&device)
     }
 
     /// A state was read from the live instance.
-    pub(crate) fn record(&mut self, device: DeviceId, state: Option<Base64Bytes>) {
+    pub fn record(&mut self, device: DeviceId, state: Option<Base64Bytes>) {
         self.stale.remove(&device);
         let written = self
             .read
@@ -102,29 +102,29 @@ impl PluginStates {
         self.read.insert(device, Entry { state, written });
     }
 
-    pub(crate) fn cached(&self, device: DeviceId) -> Option<&Base64Bytes> {
+    pub fn cached(&self, device: DeviceId) -> Option<&Base64Bytes> {
         self.read.get(&device)?.state.as_ref()
     }
 
     /// Forget devices that are gone.
-    pub(crate) fn retain(&mut self, keep: impl Fn(DeviceId) -> bool) {
+    pub fn retain(&mut self, keep: impl Fn(DeviceId) -> bool) {
         self.read.retain(|d, _| keep(*d));
         self.stale.retain(|d| keep(*d));
     }
 
     /// Some state read since the last save differs from what that save wrote (or was
     /// never written).
-    pub(crate) fn has_unwritten(&self) -> bool {
+    pub fn has_unwritten(&self) -> bool {
         self.read.values().any(|e| !e.written)
     }
 
     /// A plugin reported a state change that no save has written yet.
-    pub(crate) fn has_unsaved(&self) -> bool {
+    pub fn has_unsaved(&self) -> bool {
         self.unsaved.is_some()
     }
 
     /// The open project was saved with the cached states.
-    pub(crate) fn saved(&mut self) {
+    pub fn saved(&mut self) {
         for e in self.read.values_mut() {
             e.written = true;
         }
@@ -132,19 +132,19 @@ impl PluginStates {
     }
 
     /// Nothing to write after all (the re-read states are the saved ones).
-    pub(crate) fn nothing_unsaved(&mut self) {
+    pub fn nothing_unsaved(&mut self) {
         self.unsaved = None;
     }
 
     /// The timer's save failed: try again after another interval.
-    pub(crate) fn postpone(&mut self, now: u64) {
+    pub fn postpone(&mut self, now: u64) {
         if let Some((_, last)) = self.unsaved {
             self.unsaved = Some((now, last));
         }
     }
 
     /// Unsaved plugin state changes are due to be saved on their own.
-    pub(crate) fn save_due(&self, now: u64) -> bool {
+    pub fn save_due(&self, now: u64) -> bool {
         self.unsaved.is_some_and(|(first, last)| {
             let age = now.saturating_sub(first);
             age >= STATE_SAVE_INTERVAL_MS

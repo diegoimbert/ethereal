@@ -10,7 +10,7 @@ use crate::expression::compile::evaluate_points;
 use crate::tx::CmdResult;
 
 /// Copy note `from`'s expressions onto note `to` (`id(k)` = the id of the k-th copy).
-pub(crate) fn copy_note_expressions(
+pub fn copy_note_expressions(
     ctx: &mut DocCtx,
     from: NoteId,
     to: NoteId,
@@ -34,7 +34,7 @@ pub(crate) fn copy_note_expressions(
 }
 
 /// Copy clip `from`'s lanes onto MIDI clip `to` (same content times).
-pub(crate) fn copy_lanes(
+pub fn copy_lanes(
     ctx: &mut DocCtx,
     from: ClipId,
     to: ClipId,
@@ -60,7 +60,7 @@ pub(crate) fn copy_lanes(
 /// A stretch of a clip's content laid out somewhere else: content `[c0, c1)` lands at
 /// `at` (in the destination's time).
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Piece {
+pub struct Piece {
     pub clip: ClipId,
     pub at: f64,
     pub c0: f64,
@@ -72,10 +72,7 @@ pub(crate) struct Piece {
 /// `c0`, its inner points and its value at the end (so a later piece or the end of the
 /// curve jumps exactly there); pieces of later clips overwrite overlaps. Curves are capped
 /// at [`MAX_EXPRESSION_POINTS`] (the rest is dropped).
-pub(crate) fn unroll_lanes(
-    p: &Project,
-    pieces: &[Piece],
-) -> Vec<(ExpressionKind, Vec<ExpressionPoint>)> {
+pub fn unroll_lanes(p: &Project, pieces: &[Piece]) -> Vec<(ExpressionKind, Vec<ExpressionPoint>)> {
     let mut out: Vec<(ExpressionKind, Vec<ExpressionPoint>)> = Vec::new();
     for piece in pieces {
         if piece.c1 <= piece.c0 {

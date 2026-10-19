@@ -41,7 +41,7 @@ fn next_start(p: &Project, c: &Clip) -> Option<f64> {
         .min_by(f64::total_cmp)
 }
 
-pub(crate) fn set_transpose(ctx: &mut DocCtx, id: ClipId, semitones: f32) -> CmdResult<()> {
+pub fn set_transpose(ctx: &mut DocCtx, id: ClipId, semitones: f32) -> CmdResult<()> {
     let cl = ctx.clip(id)?;
     let ClipContent::Audio(a) = &cl.content else {
         return Err(invalid(format!("clip {id} is not an audio clip")));

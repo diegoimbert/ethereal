@@ -234,7 +234,7 @@ fn check_structure(p: &Project, command: &Command) -> CmdResult<()> {
 }
 
 /// Reject document commands that edit a frozen track's content (see the module docs).
-pub(crate) fn check_editable(p: &Project, command: &Command) -> CmdResult<()> {
+pub fn check_editable(p: &Project, command: &Command) -> CmdResult<()> {
     if !p.tracks.values().any(|t| t.freeze.is_some()) {
         return Ok(());
     }

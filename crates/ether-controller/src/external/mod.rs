@@ -43,7 +43,7 @@ pub const PORTS_POLL_MS: u64 = 2_000;
 
 /// Runtime state (site-local, never saved).
 #[derive(Debug, Default)]
-pub(crate) struct ExternalState {
+pub struct ExternalState {
     /// Running measurements: device, its node, start (wall ms).
     pending: Vec<(DeviceId, NodeKey, u64)>,
     /// The last listed ports (`None` until listed, or on hosts without hardware I/O).
@@ -73,11 +73,7 @@ fn latency_param(ty: BuiltinDeviceType) -> ParamId {
 }
 
 /// `External::SetRouting`.
-pub(crate) fn set_routing(
-    ctx: &mut DocCtx,
-    device: DeviceId,
-    routing: &ExternalRouting,
-) -> CmdResult<()> {
+pub fn set_routing(ctx: &mut DocCtx, device: DeviceId, routing: &ExternalRouting) -> CmdResult<()> {
     let d = ctx.device(device)?;
     let Some((ty, _)) = external_of(&d) else {
         return Err(invalid(format!(
@@ -112,7 +108,7 @@ pub(crate) fn set_routing(
 
 /// Compile hook: the hardware I/O of the external devices on `track`'s own chain, in chain
 /// order (devices without a live node are skipped).
-pub(crate) fn hw_io_descs(
+pub fn hw_io_descs(
     project: &Project,
     track: TrackId,
     nodes: &dyn Fn(DeviceId) -> Option<NodeKey>,
@@ -140,7 +136,7 @@ pub(crate) fn hw_io_descs(
 /// sampler slices): only the routing of an external device changed. The node holds no
 /// routing (it is compiled into `TrackDesc::hw_io`), so the bridge accepts it as a no-op
 /// and the node keeps its state (no dropout on a routing edit).
-pub(crate) fn updatable_in_place(old: &BuiltinDevice, new: &BuiltinDevice) -> bool {
+pub fn updatable_in_place(old: &BuiltinDevice, new: &BuiltinDevice) -> bool {
     matches!(
         (old, new),
         (
@@ -161,7 +157,7 @@ where
     L: Library,
 {
     /// Runtime `External` commands (`SetRouting` goes through `doc::apply`).
-    pub(crate) fn external_command(
+    pub fn external_command(
         &mut self,
         command: &ExternalCommand,
         now: u64,
@@ -228,7 +224,7 @@ where
     }
 
     /// Called every tick (`lib.rs`): measurement results and port changes.
-    pub(crate) fn external_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn external_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         while let Some(r) = self.bridge.poll_hw_latency() {
             let Some(i) = self.external.pending.iter().position(|p| p.1 == r.node) else {
                 continue;

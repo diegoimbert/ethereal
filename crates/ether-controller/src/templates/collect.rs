@@ -30,7 +30,7 @@ fn flat_order(p: &Project) -> Vec<TrackId> {
 }
 
 /// The entities of a track template made of `tracks` (see the module docs).
-pub(crate) fn collect_tracks(p: &Project, tracks: &[TrackId]) -> CmdResult<Vec<Entity>> {
+pub fn collect_tracks(p: &Project, tracks: &[TrackId]) -> CmdResult<Vec<Entity>> {
     if tracks.is_empty() {
         return Err(invalid("a track template needs at least one track"));
     }

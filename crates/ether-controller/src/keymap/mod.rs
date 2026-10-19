@@ -22,14 +22,14 @@ use crate::tx::{CmdResult, invalid};
 use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 
 /// The keymap file inside the user library root.
-pub(crate) const KEYMAP_FILE: &str = "Settings/keymap.json";
+pub const KEYMAP_FILE: &str = "Settings/keymap.json";
 
 /// Longest action id accepted (ids are short dotted names like `"transport.play"`).
 pub const MAX_ACTION_ID_LEN: usize = 128;
 
 /// Runtime keymap state: the session copy for hosts without a writable user library.
 #[derive(Debug, Default)]
-pub(crate) struct KeymapState {
+pub struct KeymapState {
     session: Option<Keymap>,
 }
 
@@ -40,7 +40,7 @@ where
     S: ProjectStore,
     L: Library,
 {
-    pub(crate) fn keymap_command(
+    pub fn keymap_command(
         &mut self,
         command: &KeymapCommand,
         out: &mut dyn MessageSink,

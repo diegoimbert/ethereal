@@ -57,7 +57,7 @@ struct Upload {
 
 /// Uploads in progress (metadata only; the bytes are in the store).
 #[derive(Debug, Default)]
-pub(crate) struct UploadState {
+pub struct UploadState {
     uploads: BTreeMap<String, Upload>,
 }
 
@@ -69,7 +69,7 @@ where
     L: Library,
 {
     /// `BeginUpload` / `UploadChunk` / `CancelUpload`.
-    pub(crate) fn upload_command(
+    pub fn upload_command(
         &mut self,
         c: &MediaCommand,
         out: &mut dyn MessageSink,
@@ -210,7 +210,7 @@ where
 /// function so `import` can call it while it borrows the document). The upload is consumed
 /// (its staging dropped) whether or not the import then succeeds. `NotFound` for unknown
 /// ids, `InvalidState` while incomplete.
-pub(crate) fn take_upload<S: ProjectStore>(
+pub fn take_upload<S: ProjectStore>(
     state: &mut UploadState,
     store: &mut S,
     upload: &str,

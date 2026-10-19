@@ -18,7 +18,7 @@ where
     L: Library,
 {
     /// `Project::Import`: `Unsupported` in this build.
-    pub(crate) fn import_command(
+    pub fn import_command(
         &mut self,
         _new_id: ProjectId,
         _source: &BundleSource,
@@ -32,7 +32,7 @@ where
     }
 
     /// `Project::CancelImport`: nothing runs.
-    pub(crate) fn cancel_import(
+    pub fn cancel_import(
         &mut self,
         _id: ProjectId,
         _out: &mut dyn MessageSink,

@@ -16,7 +16,7 @@ use ether_core::protocol::model::{
 use crate::doc::DocCtx;
 use crate::tx::{CmdResult, invalid, not_found};
 
-pub(crate) fn set_zones(ctx: &mut DocCtx, device: DeviceId, zones: &[SampleZone]) -> CmdResult<()> {
+pub fn set_zones(ctx: &mut DocCtx, device: DeviceId, zones: &[SampleZone]) -> CmdResult<()> {
     let d = ctx.device(device)?;
     if !matches!(
         d.kind,
@@ -46,12 +46,12 @@ pub(crate) fn set_zones(ctx: &mut DocCtx, device: DeviceId, zones: &[SampleZone]
 
 /// Whether a live node built from `old` takes `new` in place (`engine.rs`, next to the
 /// sampler slices): only the zones of a multisampler changed.
-pub(crate) fn updatable_in_place(old: &BuiltinDevice, new: &BuiltinDevice) -> bool {
+pub fn updatable_in_place(old: &BuiltinDevice, new: &BuiltinDevice) -> bool {
     ether_devices::multisampler::updatable_in_place(old, new)
 }
 
 /// Whether `kind` is a multisampler with a zone on one of `media` (rebuilt on media load).
-pub(crate) fn uses_media(kind: &DeviceKind, media: &[MediaId]) -> bool {
+pub fn uses_media(kind: &DeviceKind, media: &[MediaId]) -> bool {
     matches!(kind, DeviceKind::Builtin {
         device: BuiltinDevice::MultiSampler { zones }
     } if zones.iter().any(|z| z.media.is_some_and(|m| media.contains(&m))))

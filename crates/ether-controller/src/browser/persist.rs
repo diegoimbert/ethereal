@@ -12,13 +12,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde_json::{Value, json};
 
 /// Path inside the user library root.
-pub(crate) const INDEX_PATH: &str = ".ethereal/index.json";
+pub const INDEX_PATH: &str = ".ethereal/index.json";
 /// The scan cache, next to it.
-pub(crate) const ITEMS_PATH: &str = ".ethereal/items.json";
-pub(crate) const VERSION: u64 = 1;
+pub const ITEMS_PATH: &str = ".ethereal/items.json";
+pub const VERSION: u64 = 1;
 
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct IndexFile {
+pub struct IndexFile {
     pub folders: Vec<UserFolder>,
     pub favourites: BTreeSet<String>,
     pub tags: BTreeMap<String, Vec<String>>,
@@ -28,7 +28,7 @@ pub(crate) struct IndexFile {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub(crate) struct UserFolder {
+pub struct UserFolder {
     pub id: String,
     pub path: String,
     /// `base-136`: the user's name for it (`RenameFolder`; `None` = the folder's own name).
@@ -37,7 +37,7 @@ pub(crate) struct UserFolder {
 
 /// A scanned audio/MIDI file (`id` = `<root>/<path>`).
 #[derive(Clone, Debug, Default, PartialEq)]
-pub(crate) struct StoredItem {
+pub struct StoredItem {
     pub root: String,
     pub path: String,
     pub midi: bool,
@@ -60,7 +60,7 @@ fn f(v: &Value, k: &str) -> Option<f64> {
 
 /// Parse the index (`items`: the scan cache, if readable); anything unreadable or of
 /// another version is `None` (the cache alone is dropped when it is unreadable).
-pub(crate) fn parse(bytes: &[u8], items: Option<&[u8]>) -> Option<IndexFile> {
+pub fn parse(bytes: &[u8], items: Option<&[u8]>) -> Option<IndexFile> {
     let v: Value = serde_json::from_slice(bytes).ok()?;
     if v.get("version")?.as_u64()? != VERSION {
         return None;
@@ -153,7 +153,7 @@ pub(crate) fn parse(bytes: &[u8], items: Option<&[u8]>) -> Option<IndexFile> {
 }
 
 /// `index.json` (everything but the items).
-pub(crate) fn serialize(file: &IndexFile) -> Vec<u8> {
+pub fn serialize(file: &IndexFile) -> Vec<u8> {
     let v = json!({
         "version": VERSION,
         "folders": file.folders.iter().map(|f| match &f.name {
@@ -168,7 +168,7 @@ pub(crate) fn serialize(file: &IndexFile) -> Vec<u8> {
 }
 
 /// `items.json`, written by hand (no `Value` tree: 50k items serialize in a few ms).
-pub(crate) fn serialize_items(items: &[StoredItem]) -> Vec<u8> {
+pub fn serialize_items(items: &[StoredItem]) -> Vec<u8> {
     use std::fmt::Write;
     let mut out = String::with_capacity(items.len() * 96 + 32);
     let _ = write!(out, "{{\"version\":{VERSION},\"items\":[");

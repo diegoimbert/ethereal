@@ -30,67 +30,112 @@
 //!   hosts call [`EtherController::set_engine_sample_rate`] when the device changes.
 
 pub mod agent;
-mod analysis;
-mod audio_to_midi;
-mod browser;
+#[doc(hidden)]
+pub mod analysis;
+#[doc(hidden)]
+pub mod audio_to_midi;
+#[doc(hidden)]
+pub mod browser;
 pub mod bundle;
-mod capture;
-mod clip_editing;
+#[doc(hidden)]
+pub mod capture;
+#[doc(hidden)]
+pub mod clip_editing;
 pub mod compile;
-mod comping;
-mod doc;
-mod drum_rack;
-mod engine;
-mod export;
-mod expression;
+#[doc(hidden)]
+pub mod comping;
+#[doc(hidden)]
+pub mod doc;
+#[doc(hidden)]
+pub mod drum_rack;
+#[doc(hidden)]
+pub mod engine;
+#[doc(hidden)]
+pub mod export;
+#[doc(hidden)]
+pub mod expression;
 pub mod ext;
-mod external;
-mod file_import;
-mod freeze;
-mod fx_space;
-mod groove;
-mod groups;
-mod handlers;
+#[doc(hidden)]
+pub mod external;
+#[doc(hidden)]
+pub mod file_import;
+#[doc(hidden)]
+pub mod freeze;
+#[doc(hidden)]
+pub mod fx_space;
+#[doc(hidden)]
+pub mod groove;
+#[doc(hidden)]
+pub mod groups;
+#[doc(hidden)]
+pub mod handlers;
 // `Project::Import` / `CancelImport` without an extension that imports other DAWs' projects:
 // `Unsupported` (`import/disabled.rs`).
 #[path = "import/disabled.rs"]
-mod import;
-mod keymap;
-mod media;
-mod media_preview;
-mod media_refs;
+#[doc(hidden)]
+pub mod import;
+#[doc(hidden)]
+pub mod keymap;
+#[doc(hidden)]
+pub mod media;
+#[doc(hidden)]
+pub mod media_preview;
+#[doc(hidden)]
+pub mod media_refs;
 pub mod media_stream;
 pub mod memory;
-mod midi_file;
-mod midi_fx;
-mod midi_learn;
-mod mpe;
-mod multisampler;
-mod patch_compat;
-mod plugins;
-mod presets;
-mod project;
+#[doc(hidden)]
+pub mod midi_file;
+#[doc(hidden)]
+pub mod midi_fx;
+#[doc(hidden)]
+pub mod midi_learn;
+#[doc(hidden)]
+pub mod mpe;
+#[doc(hidden)]
+pub mod multisampler;
+#[doc(hidden)]
+pub mod patch_compat;
+#[doc(hidden)]
+pub mod plugins;
+#[doc(hidden)]
+pub mod presets;
+#[doc(hidden)]
+pub mod project;
 // `Project::ExportTo` without an extension that exports to other DAWs: `Unsupported`
 // (`project_export/disabled.rs`).
 #[path = "project_export/disabled.rs"]
-mod project_export;
-mod racks;
-mod recording;
-mod resolver;
+#[doc(hidden)]
+pub mod project_export;
+#[doc(hidden)]
+pub mod racks;
+#[doc(hidden)]
+pub mod recording;
+#[doc(hidden)]
+pub mod resolver;
 // #519: the default sample pack (docs/SAMPLES.md).
 pub mod sample_pack;
-mod saving;
-mod sidechain;
+#[doc(hidden)]
+pub mod saving;
+#[doc(hidden)]
+pub mod sidechain;
 pub mod store;
-mod templates;
-mod tempo;
+#[doc(hidden)]
+pub mod templates;
+#[doc(hidden)]
+pub mod tempo;
 pub mod text;
-mod time_edit;
-mod tx;
-mod undo_history;
-mod upload;
+#[doc(hidden)]
+pub mod time_edit;
+#[doc(hidden)]
+pub mod tx;
+#[doc(hidden)]
+pub mod undo_history;
+#[doc(hidden)]
+pub mod upload;
 pub mod versions;
-mod warp;
+#[doc(hidden)]
+pub mod warp;
 
 use std::collections::BTreeMap;
 
@@ -607,7 +652,7 @@ impl Default for ControllerConfig {
 }
 
 /// The open project and its edit state.
-struct OpenDoc {
+pub struct OpenDoc {
     project: Project,
     history: History,
     dirty: bool,
@@ -617,7 +662,7 @@ struct OpenDoc {
 
 /// Runtime transport state (not in the document).
 #[derive(Clone, Debug, Default)]
-struct TransportRt {
+pub struct TransportRt {
     playing: bool,
     recording: bool,
     position: ether_core::protocol::model::Beats,
@@ -644,62 +689,62 @@ where
     pub host: H,
     pub store: S,
     pub library: L,
-    config: ControllerConfig,
-    ids: IdGen,
-    doc: Option<OpenDoc>,
+    pub config: ControllerConfig,
+    pub ids: IdGen,
+    pub doc: Option<OpenDoc>,
     /// Monotonic patch revision (across projects).
-    revision: u64,
-    engine: engine::EngineState,
-    media: media::MediaState,
-    transport: TransportRt,
+    pub revision: u64,
+    pub engine: engine::EngineState,
+    pub media: media::MediaState,
+    pub transport: TransportRt,
     /// Record-armed tracks (runtime state, not undoable).
-    armed: std::collections::BTreeSet<ether_core::protocol::model::TrackId>,
+    pub armed: std::collections::BTreeSet<ether_core::protocol::model::TrackId>,
     /// Punch flag and the active record session.
-    recording: recording::RecordingState,
+    pub recording: recording::RecordingState,
     /// Open plugin-GUI gestures → internal gesture ids.
-    plugin_gestures: BTreeMap<(DeviceId, ParamId), GestureId>,
+    pub plugin_gestures: BTreeMap<(DeviceId, ParamId), GestureId>,
     /// Plugin runtime bookkeeping (param mirroring after load; `plugins` module).
-    plugins: plugins::PluginsState,
+    pub plugins: plugins::PluginsState,
     /// Offline export job and finished downloads (`export` module).
-    export: export::ExportState,
+    pub export: export::ExportState,
     /// MIDI learn runtime state (learn mode, mapping gestures; `midi_learn` module).
-    midi_learn: midi_learn::MidiLearnState,
+    pub midi_learn: midi_learn::MidiLearnState,
     /// Browser preview runtime state (current preview id, decode, cache; `media_preview`).
-    preview: media_preview::PreviewState,
+    pub preview: media_preview::PreviewState,
     /// v0.2: the library index (`browser` module).
-    browser: browser::BrowserState,
+    pub browser: browser::BrowserState,
     /// Uploads from the UI machine in progress (`upload` module, remote-engine).
-    uploads: upload::UploadState,
+    pub uploads: upload::UploadState,
     /// v0.2: watched devices for the analysis channel (`analysis` module).
-    analysis: analysis::AnalysisState,
+    pub analysis: analysis::AnalysisState,
     /// v0.2: the time clipboard (`time_edit` module; runtime state, not undoable).
-    time_edit: time_edit::TimeEditState,
+    pub time_edit: time_edit::TimeEditState,
     /// v0.3: the MIDI capture buffer (`capture` module; runtime, site-local).
-    capture: capture::CaptureState,
+    pub capture: capture::CaptureState,
     /// v0.3: the running audio-to-MIDI job (`audio_to_midi` module).
-    audio_to_midi: audio_to_midi::AudioToMidiState,
+    pub audio_to_midi: audio_to_midi::AudioToMidiState,
     /// v0.3: external devices' measurements and ports (`external` module; runtime).
-    external: external::ExternalState,
+    pub external: external::ExternalState,
     /// v0.3: the session keymap for hosts without a writable user library (`keymap` module).
-    keymap: keymap::KeymapState,
+    pub keymap: keymap::KeymapState,
     /// `agent-api`: agent tool runtime state (shared selection, export jobs).
-    agent: agent::AgentState,
+    pub agent: agent::AgentState,
     /// v0.3: rolling versions and the crash-recovery session marker (`versions` module).
-    versions: versions::VersionsState,
+    pub versions: versions::VersionsState,
     /// Plugin states for saving: last read per device, `StateDirty` not saved yet
     /// (`saving` module).
-    plugin_states: saving::PluginStates,
+    pub plugin_states: saving::PluginStates,
     /// v0.3: the history panel (`undo_history` module; runtime).
-    undo_history: undo_history::UndoHistoryState,
+    pub undo_history: undo_history::UndoHistoryState,
     /// The extensions (`ext` module): features built outside this repository.
-    extensions: ext::Extensions<B, H, S, L, X>,
+    pub extensions: ext::Extensions<B, H, S, L, X>,
     /// `import-resolver`: media search job and the last import's hints (`resolver`).
-    resolver: resolver::ResolverState,
+    pub resolver: resolver::ResolverState,
     /// #519: the default sample pack (`sample_pack` module; runtime).
-    samples: sample_pack::SamplesState,
-    next_gesture: u32,
-    last_transport: Option<TransportState>,
-    outputs: EngineOutputs,
+    pub samples: sample_pack::SamplesState,
+    pub next_gesture: u32,
+    pub last_transport: Option<TransportState>,
+    pub outputs: EngineOutputs,
     /// An extension's own state (`ext` module; `()` without one).
     pub ext: X,
     _private: (),

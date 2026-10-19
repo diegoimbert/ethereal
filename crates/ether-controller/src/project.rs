@@ -29,7 +29,7 @@ fn file_err(e: FileError) -> CommandError {
 /// An `.ether` document this app cannot read because of its format version (made by a
 /// newer Ethereal, or by a pre-release build): `Unsupported`, with the message as the user
 /// should read it.
-pub(crate) fn version_err(e: &FileError) -> Option<CommandError> {
+pub fn version_err(e: &FileError) -> Option<CommandError> {
     let key = match e {
         FileError::TooNew { found, supported } => crate::text::msg("error.project.too_new")
             .arg("found", i64::from(*found))
@@ -69,7 +69,7 @@ where
     S: ProjectStore,
     L: Library,
 {
-    pub(crate) fn project_command(
+    pub fn project_command(
         &mut self,
         c: &ProjectCommand,
         now: u64,
@@ -197,7 +197,7 @@ where
     /// ones for a routine one (`crate::saving`). A failed read keeps what was there (the
     /// document's state if nothing was ever read) and is listed in
     /// `PluginStates::read_failures` until the next read.
-    pub(crate) fn read_plugin_states(&mut self, project: &Project, kind: SaveKind) {
+    pub fn read_plugin_states(&mut self, project: &Project, kind: SaveKind) {
         for id in self.engine.take_created_plugins() {
             self.plugin_states.invalidate(id);
         }
@@ -215,7 +215,7 @@ where
     }
 
     /// A copy of `project` with the cached plugin states (see [`Self::read_plugin_states`]).
-    pub(crate) fn with_plugin_states(&self, project: &Project) -> Project {
+    pub fn with_plugin_states(&self, project: &Project) -> Project {
         let mut copy = project.clone();
         for d in copy.devices.values_mut() {
             if let DeviceKind::Plugin { plugin } = &mut d.kind
@@ -229,33 +229,29 @@ where
 
     /// Serialize a project, with every plugin's live state read from the engine (copies,
     /// exports, versions).
-    pub(crate) fn serialize(&mut self, project: &Project) -> CmdResult<String> {
+    pub fn serialize(&mut self, project: &Project) -> CmdResult<String> {
         self.serialize_with(project, SaveKind::Full)
     }
 
     /// [`Self::serialize`], reading plugin states as `kind` says.
-    pub(crate) fn serialize_with(
-        &mut self,
-        project: &Project,
-        kind: SaveKind,
-    ) -> CmdResult<String> {
+    pub fn serialize_with(&mut self, project: &Project, kind: SaveKind) -> CmdResult<String> {
         self.read_plugin_states(project, kind);
         file::save(&self.with_plugin_states(project), &self.config.app_version).map_err(file_err)
     }
 
     /// A plugin of the open project reported a state change no save has written yet.
-    pub(crate) fn has_unsaved_plugin_states(&self) -> bool {
+    pub fn has_unsaved_plugin_states(&self) -> bool {
         self.doc.is_some() && self.plugin_states.has_unsaved()
     }
 
     /// Unsaved work: document edits or plugin state changes.
-    pub(crate) fn has_unsaved_work(&self) -> bool {
+    pub fn has_unsaved_work(&self) -> bool {
         self.doc.as_ref().is_some_and(|d| d.dirty) || self.has_unsaved_plugin_states()
     }
 
     /// Save the open project to the store with every plugin's live state (explicit Save,
     /// before switching projects or quitting).
-    pub(crate) fn save_current(&mut self, out: &mut dyn MessageSink) -> CmdResult<ProjectSummary> {
+    pub fn save_current(&mut self, out: &mut dyn MessageSink) -> CmdResult<ProjectSummary> {
         self.save_current_with(SaveKind::Full, out)
     }
 
@@ -270,7 +266,7 @@ where
     /// again). The project list isn't re-read either (that reads every stored project):
     /// `Saved` carries the new summary. [`SaveKind::Full`] reads every plugin and is on
     /// disk when this returns.
-    pub(crate) fn save_current_with(
+    pub fn save_current_with(
         &mut self,
         kind: SaveKind,
         out: &mut dyn MessageSink,
@@ -323,7 +319,7 @@ where
     /// A background save failed (`ProjectStore::take_save_error`, polled by the tick):
     /// report it, and make the project dirty again so the next autosave (synchronous now,
     /// so a persisting error shows in its reply) writes it.
-    pub(crate) fn background_save_failed(
+    pub fn background_save_failed(
         &mut self,
         id: ProjectId,
         e: StoreError,
@@ -347,7 +343,7 @@ where
     /// Wait for the background autosaves (`ProjectStore::save_in_background`) and report
     /// those that failed: a failure for the open project makes it dirty again, so the
     /// caller's save writes it (#561: the routine save already said `Saved`).
-    pub(crate) fn settle_background_saves(&mut self, out: &mut dyn MessageSink) {
+    pub fn settle_background_saves(&mut self, out: &mut dyn MessageSink) {
         self.store.flush_saves();
         while let Some((id, e)) = self.store.take_save_error() {
             let now = self.doc.as_ref().map_or(0, |d| d.last_edit_ms);
@@ -386,7 +382,7 @@ where
     /// `Project::Create`; `init` fills the new document (and may write files to the new
     /// project folder) before it is saved and opened (v0.3 `templates`: `NewProject`). Its
     /// id and name are set afterwards; if `init` fails the folder is removed again.
-    pub(crate) fn create_with(
+    pub fn create_with(
         &mut self,
         id: ProjectId,
         name: &str,
@@ -424,7 +420,7 @@ where
         })
     }
 
-    pub(crate) fn open(
+    pub fn open(
         &mut self,
         id: ProjectId,
         now: u64,
@@ -459,7 +455,7 @@ where
     }
 
     /// `Event::Project { SafeMode }` with the current placeholders.
-    pub(crate) fn emit_safe_mode(&self, out: &mut dyn MessageSink) {
+    pub fn emit_safe_mode(&self, out: &mut dyn MessageSink) {
         event(
             out,
             Event::Project {

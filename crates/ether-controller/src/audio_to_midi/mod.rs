@@ -18,7 +18,7 @@
 //!   `Done` follows its patch. A read/decode error or a refused edit emits `Failed`; the
 //!   job is `Cancelled` when its clip (or the project) goes away.
 
-pub(crate) mod kit;
+pub mod kit;
 mod place;
 
 use std::sync::Arc;
@@ -84,7 +84,7 @@ impl Job {
 
 /// The running conversion job, if any.
 #[derive(Default)]
-pub(crate) struct AudioToMidiState {
+pub struct AudioToMidiState {
     running: Option<Box<Job>>,
     last_progress: Option<f32>,
 }
@@ -150,7 +150,7 @@ where
     S: ProjectStore,
     L: Library,
 {
-    pub(crate) fn audio_to_midi_command(
+    pub fn audio_to_midi_command(
         &mut self,
         command: &AudioToMidiCommand,
         now: u64,
@@ -246,7 +246,7 @@ where
     }
 
     /// Called every tick: advance the running job (see the module docs).
-    pub(crate) fn audio_to_midi_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+    pub fn audio_to_midi_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         let Some(mut job) = self.audio_to_midi.running.take() else {
             return;
         };
