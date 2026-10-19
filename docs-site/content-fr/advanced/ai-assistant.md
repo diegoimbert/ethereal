@@ -43,7 +43,7 @@ Vous utilisez votre propre clé, et le fournisseur vous facture ce que vous cons
 - [[desktop]] Dans les données de l’application Ethereal, sur cet ordinateur.
 - [[web]] Dans le stockage local de ce navigateur. Toute personne qui utilise le même profil de navigateur peut la lire.
 
-Dans les deux cas, la clé n’est jamais envoyée qu’au fournisseur que vous avez choisi. Elle n’est envoyée ni au moteur, ni aux participants d’une session en direct, ni aux serveurs d’Ethereal.
+Dans les deux cas, la clé n’est jamais envoyée qu’au fournisseur que vous avez choisi. Elle n’est envoyée ni au moteur ni aux serveurs d’Ethereal.
 
 ## ce qui est envoyé au fournisseur {#what-is-sent-to-the-provider}
 
@@ -56,7 +56,7 @@ La première fois que vous utilisez un fournisseur, le panneau indique ce qu’i
 
 ## chaque modification de l’ia est une étape d’annulation {#every-ai-edit-is-one-undo-step}
 
-Chaque changement de l’IA est appliqué immédiatement comme une étape d’annulation, nommée **IA : …** dans l’historique (par exemple **IA : ajouter des notes**). Appuyez sur [[action:edit.undo]] pour annuler la dernière, ou revenez en arrière dans le panneau **historique**. Dans une session en direct, les modifications de l’IA arrivent chez tout le monde et comptent comme les vôtres : votre annulation les annule, celle des autres non.
+Chaque changement de l’IA est appliqué immédiatement comme une étape d’annulation, nommée **IA : …** dans l’historique (par exemple **IA : ajouter des notes**). Appuyez sur [[action:edit.undo]] pour annuler la dernière, ou revenez en arrière dans le panneau **historique**.
 
 ## appels d’outils, arrêt et limite de tours {#tool-calls-stop-and-the-round-limit}
 
@@ -67,7 +67,7 @@ Chaque action de l’IA apparaît comme une ligne dans le chat. Dépliez-la pour
 
 ## la conversation enregistrée et le changement de fournisseur {#the-saved-conversation-and-switching-provider}
 
-La conversation appartient au projet. Elle est gardée sur cet ordinateur (pas dans le fichier du projet, donc elle ne voyage pas avec le projet et n’atteint pas les participants d’une session en direct) et revient quand vous rouvrez le projet ou rechargez l’application, et l’IA reprend là où elle s’était arrêtée. Chaque projet a sa propre conversation.
+La conversation appartient au projet. Elle est gardée sur cet ordinateur (pas dans le fichier du projet, donc elle ne voyage pas avec le projet) et revient quand vous rouvrez le projet ou rechargez l’application, et l’IA reprend là où elle s’était arrêtée. Chaque projet a sa propre conversation.
 
 **effacer le chat** (le bouton gomme) vide la conversation et oublie celle qui était enregistrée. Une conversation très longue ne garde que sa partie la plus récente.
 
@@ -100,4 +100,3 @@ Pour laisser une application d’IA extérieure à Ethereal modifier votre proje
 
 - [agents ia (mcp)](/docs/advanced/mcp) : connectez Claude Code ou Claude Desktop à l’application de bureau.
 - [annuler et historique](/docs/basics/undo-and-history) : revenez en arrière sur les modifications de l’IA.
-- [confidentialité et télémétrie](/docs/reference/privacy-and-telemetry) : ce qu’Ethereal envoie lui-même.

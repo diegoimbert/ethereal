@@ -40,4 +40,3 @@ Sur le bureau, une fenêtre d’enregistrement vous demande où placer le fichie
 
 - [Le piano roll](/docs/making-music/piano-roll) : modifiez les notes importées.
 - [Importer de l’audio](/docs/import-export/importing-audio) : importez des fichiers audio de la même façon.
-- [Les projets d’autres DAW](/docs/import-export/other-daws) : importez un morceau entier, avec son mix.

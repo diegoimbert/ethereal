@@ -121,7 +121,7 @@ Par défaut, le navigateur ne liste que les fichiers qu’Ethereal peut utiliser
 
 Les règles sont des expressions régulières appliquées aux noms de fichiers, sans tenir compte de la casse. Par exemple, `\.wav$` correspond aux fichiers WAV. Une règle invalide est signalée pendant la saisie, et rien n’est enregistré tant que toutes les règles ne sont pas valides. La ligne sous les listes indique combien de fichiers de votre bibliothèque les règles afficheraient. **rétablir les réglages par défaut** remet les règles d’origine.
 
-Les projets de DAW (`.als`, `.flp`, `.rpp`, `.dawproject`) ne s’ouvrent pas depuis le navigateur. Utilisez plutôt [l’import depuis un autre DAW](/docs/import-export/other-daws).
+Les projets de DAW (`.als`, `.flp`, `.rpp`, `.dawproject`) ne s’ouvrent pas depuis le navigateur.
 
 ## et ensuite {#where-next}
 

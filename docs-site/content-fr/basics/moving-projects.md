@@ -13,8 +13,6 @@ covers:
 
 Vos projets sont stockés sur l’ordinateur, ou dans le navigateur, où vous les avez créés (voir [où vivent vos projets](/docs/welcome/where-your-projects-live)). Pour travailler sur un morceau ailleurs, entre la version web et l’application de bureau, ou simplement pour en garder une sauvegarde, vous l’exportez dans un fichier **.ether** et vous importez ce fichier de l’autre côté.
 
-Pour envoyer un morceau à quelqu’un afin qu’il l’écoute ou le modifie avec vous, le [partage](/docs/sharing/overview) est généralement plus simple.
-
 ## déplacer un projet {#moving-a-project}
 
 1. Sur le premier ordinateur, ouvrez le projet et choisissez **exporter le projet…** dans le menu du projet (☰). Voir [exporter un projet](#exporting-a-project) plus bas.
@@ -59,10 +57,10 @@ La fenêtre propose aussi **tout rassembler et enregistrer** (voir [plus haut](#
 
 Vous pouvez aussi ouvrir la fenêtre avec **relier les échantillons manquants…** dans la palette de commandes, ou faire un clic droit sur un clip dont l’échantillon manque et choisir **relier l’échantillon…**.
 
-Pour les plug-ins et appareils manquants aussi (par exemple après l’import d’un projet d’un autre DAW), voir [projets d’autres DAW](/docs/import-export/other-daws).
+Pour les plug-ins et appareils manquants aussi, voir [plug-ins et échantillons manquants](/docs/sounds-and-plugins/missing-plugins-and-samples).
 
 ## et ensuite {#where-next}
 
 - [Versions et sauvegardes](/docs/basics/versions-and-backups)
 - [Où vivent vos projets](/docs/welcome/where-your-projects-live)
-- [Vue d’ensemble du partage](/docs/sharing/overview)
+- [Plug-ins et échantillons manquants](/docs/sounds-and-plugins/missing-plugins-and-samples)

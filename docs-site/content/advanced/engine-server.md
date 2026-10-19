@@ -54,16 +54,15 @@ When a connection is refused, the settings say why:
 
 ## latency when the engine is elsewhere
 
-When you hear an engine on another computer (an engine server, or a session's host playing for you: see [listening on a friend's computer](/docs/sharing/listening-together)), every play or stop makes a round trip over the network, plus the time to encode and buffer the audio. That's tens of milliseconds on a local network and more over the internet. It is fine for playback and mixing, not for playing an instrument live.
+When you hear an engine on another computer (an engine server), every play or stop makes a round trip over the network, plus the time to encode and buffer the audio. That's tens of milliseconds on a local network and more over the internet. It is fine for playback and mixing, not for playing an instrument live.
 
 Live MIDI, the [computer midi keyboard](/docs/making-music/computer-midi-keyboard) and recording still go to your own engine, not to the remote one.
 
 ## when your own engine is off [[desktop]]
 
-When your own engine is turned off (you chose no engine, or you play through someone else's), the desktop app closes your audio device so other apps can use it. The transport bar's engine status then reads **closed**, and the audio settings say so too. The device opens again as soon as your engine is back on.
+When your own engine is turned off (for example while you use an engine server), the desktop app closes your audio device so other apps can use it. The transport bar's engine status then reads **closed**, and the audio settings say so too. The device opens again as soon as your engine is back on.
 
 ## where next
 
 - [ai agents (mcp)](/docs/advanced/mcp): `ether-mcp` can drive an engine server too.
-- [listening on a friend's computer](/docs/sharing/listening-together)
 - [audio and midi setup](/docs/making-music/audio-and-midi-setup)

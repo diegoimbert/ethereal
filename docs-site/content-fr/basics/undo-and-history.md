@@ -9,7 +9,6 @@ covers:
   - app-shell/history-panel-jump-to-any-step #the-history-panel
   - app-shell/checkpoints-in-the-undo-history #checkpoints
   - app-shell/undo-history-isn-t-saved #the-history-isnt-saved
-  - app-shell/undo-in-a-jam-only-undoes-your-own-edits #undo-in-a-live-session
 ---
 
 Toute modification de votre morceau peut être annulée. Cette page explique ce que couvre l’annulation, comment revenir plusieurs étapes en arrière d’un coup, et ses limites. Pour revenir plus loin que la session en cours, voir [versions et sauvegardes](/docs/basics/versions-and-backups).
@@ -49,12 +48,7 @@ Seules les 500 étapes les plus récentes sont conservées. Au-delà, les plus a
 
 Pour garder plus longtemps un état de votre morceau, enregistrez un [instantané](/docs/basics/versions-and-backups#snapshots).
 
-## annuler dans une session en direct {#undo-in-a-live-session}
-
-Dans une [session en direct](/docs/sharing/live-sessions), l’annulation et le panneau d’historique ne concernent que **vos propres** modifications. Annuler revient sur ce que vous avez fait et garde ce que les autres ont changé depuis. Le panneau l’indique en haut pendant que vous êtes dans une session.
-
 ## et ensuite {#where-next}
 
 - [Versions et sauvegardes](/docs/basics/versions-and-backups)
 - [La palette de commandes et les réglages](/docs/basics/command-palette-and-settings)
-- [Les sessions en direct](/docs/sharing/live-sessions)

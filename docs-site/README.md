@@ -18,6 +18,9 @@ shown to users.
   change an English page, change its French page the same way: a heading you add, remove or
   rename there (or a `covers` line) makes the translation stale, which the tests catch. So
   does a paragraph, list item, table row or link that one has and the other hasn't.
+- A build on top of this repo can add pages of its own (for its own features) with
+  `extendDocs` (`ui/src/features/docs/extensions.ts`): same format, its own sections or the
+  existing ones.
 
 Checks (`ui/src/features/docs/*.test.ts`): every live inventory item is covered by a page
 heading or is pending; links, anchors, shortcuts and images resolve; titles and headings are
@@ -30,7 +33,7 @@ ETHER_DOCS_UPDATE=1 pnpm --filter @ethereal/ui exec vitest run src/features/docs
 
 ## Files
 - Pages: `docs-site/content/<section>/<page>.md`. The URL is `/docs/<section>/<page>`. The file name is the slug: lowercase with hyphens.
-- Sections (dirs, made by the shell PR, not by you): welcome, basics, making-music, sounds-and-plugins, sharing, import-export, advanced, mobile, reference.
+- Sections (dirs, made by the shell PR, not by you): welcome, basics, making-music, sounds-and-plugins, import-export, advanced, mobile, reference.
 - Images (only where a screenshot really helps; under 200 KB): `docs-site/content/<section>/images/<name>.png|webp`.
 
 ## Front-matter (required)
@@ -75,6 +78,6 @@ covers:
 - Beginners first: put the must/beginner items early on the page. Advanced details go lower or under `### details`-style subheadings.
 - Platform differences: use the badges and say plainly what doesn't work where (web vs desktop vs mobile).
 - Use callouts for warnings that can lose work (e.g. "web projects live only in this browser"; "delete is permanent"; "flatten can't be undone").
-- Describe what the app does NOW on origin/dev. Verify every item against the code: the inventory's `refs` (in /home/diegoimbert/orca/projects/ethereal/.orchestra/explain/inventory.json) are hints from a few hours ago, and features change constantly. Read the actual components/handlers, labels and tests. Never document something you haven't confirmed in code.
+- Describe what the app does now on `main`. Verify every item against the code: features change, and an inventory entry can be out of date. Read the actual components/handlers, labels and tests. Never document something you haven't confirmed in code.
 - If an item no longer applies (feature removed or changed), don't cover it. Report it as removed with a reason (see the workflow below). If the app's behaviour looks like a bug or a bad UX that should be fixed rather than documented, document current behaviour neutrally if users will meet it, and list it in your report under "needs owner input".
 - Don't invent features, settings or limits. Don't promise future work, except to say "in development" where the app itself says beta/soon.

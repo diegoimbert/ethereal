@@ -1,7 +1,7 @@
 ---
 title: troubleshooting
 order: 30
-summary: What to check when there's no sound, the audio crackles, the engine stalls, a plugin misbehaves, joining fails or your web projects are at risk.
+summary: What to check when there's no sound, the audio crackles, the engine stalls, a plugin misbehaves or your web projects are at risk.
 platform: all
 audience: everyone
 covers:
@@ -9,7 +9,7 @@ covers:
   - app-shell/engine-log-desktop #the-engine-log
 ---
 
-Find your problem in the headings below. Each part says what's usually going on and what to try. If nothing here helps, [report an issue](/docs/reference/reporting-issues): it takes a minute and tells us what your setup is.
+Find your problem in the headings below. Each part says what's usually going on and what to try. If nothing here helps, [report an issue](https://github.com/diegoimbert/ethereal/issues) and say what your setup is.
 
 ## no sound
 
@@ -26,7 +26,7 @@ If you unplug your audio interface or switch off Bluetooth headphones while Ethe
 
 ### "device closed" [[desktop]]
 
-If the audio tab says **device closed: no local engine plays**, your session is playing through another computer's engine (**play with**, see [listening on a friend's computer](/docs/sharing/listening-together)) or an [engine server](/docs/advanced/engine-server). Your audio device opens again, with the same settings, when you switch back to your own engine.
+If the audio tab says **device closed: no local engine plays**, this window is playing through an [engine server](/docs/advanced/engine-server). Your audio device opens again, with the same settings, when you switch back to your own engine.
 
 ## crackles and dropouts
 
@@ -46,23 +46,23 @@ When the engine (the part that makes the sound) stalls, a warning says **the eng
 A stall of a second or two while a big plugin opens is normal. If it happens often, or never ends:
 
 - Check the [engine log](#the-engine-log) [[desktop]]: it says why the engine stalled.
-- If a plugin is the cause, try running it sandboxed, or open the project in [safe mode](/docs/advanced/safe-mode) (see [plugins crash or fail to load](#plugins-crash-or-fail-to-load)).
-- [Report an issue](/docs/reference/reporting-issues) with **attach diagnostics** on.
+- If a plugin is the cause, try running it sandboxed (macOS and Linux), or open the project in [safe mode](/docs/advanced/safe-mode) (see [plugins crash or fail to load](#plugins-crash-or-fail-to-load)).
+- [Report an issue](https://github.com/diegoimbert/ethereal/issues) with what the engine log says.
 
 ### the audio engine didn't start
 
-If Ethereal can't start its engine at all, it shows **the audio engine didn't start** with the reason. Your projects are safe: nothing was opened. Use **retry** or **reload**, and **report an issue** if it keeps happening. [[web]] If the page says **a new version of ethereal is out**, reload the page to get it.
+If Ethereal can't start its engine at all, it shows **the audio engine didn't start** with the reason. Your projects are safe: nothing was opened. Use **retry** or **reload**, and [report an issue](https://github.com/diegoimbert/ethereal/issues) if it keeps happening. [[web]] If the page says **a new version of ethereal is out**, reload the page to get it.
 
 ## the engine log [[desktop]]
 
-**Settings › advanced › engine log › open engine log** opens a terminal window that follows the engine's log as it runs. It shows warnings, plugin problems and why the engine stopped responding, if it did. It's useful when you report a problem: [send diagnostics](/docs/reference/reporting-issues) attaches the end of it for you.
+**Settings › advanced › engine log › open engine log** opens a terminal window that follows the engine's log as it runs. It shows warnings, plugin problems and why the engine stopped responding, if it did. Copy the end of it into your report when you report a problem.
 
 ## plugins crash or fail to load [[desktop]]
 
 Plugins are desktop only. The web version has built-in devices only.
 
 - **A plugin doesn't show up**: open **settings › plugins**, check that its folder is scanned and that the right formats are on, then **rescan**. **failed plugins (…)…** lists the plugins that couldn't load, with the reason; right-click one to retry it with a longer timeout. See [plugins](/docs/sounds-and-plugins/plugins).
-- **A plugin crashes**: right-click its header and choose **run sandboxed (crash-safe, +1 block latency)**. It then runs in its own process: if it crashes, the device shows that it crashed and is bypassed, with a reload button, and the rest of Ethereal keeps running.
+- **A plugin crashes**: on macOS and Linux, right-click its header and choose **run sandboxed (crash-safe, +1 block latency)**. It then runs in its own process: if it crashes, the device shows that it crashed and is bypassed, with a reload button, and the rest of Ethereal keeps running.
 - **A project crashes as soon as it opens**: open it without plugins. Right-click the project in the recent projects list (or use the crash recovery dialog) and choose **open without plugins**. Then load the plugins one by one to find the culprit. See [safe mode](/docs/advanced/safe-mode).
 - **A plugin is missing** on this computer: the device keeps its saved state and is bypassed, so the track plays dry until you install the plugin and rescan.
 
@@ -81,27 +81,6 @@ Recording needs the desktop app. See [recording](/docs/making-music/recording).
 - While the computer MIDI keyboard is on, letter shortcuts play notes instead. Press [[action:midi.computerKeyboard]] to turn it off.
 - To control knobs from your controller, see [MIDI learn](/docs/advanced/midi-learn).
 
-## sharing and joining
-
-When joining fails, the join screen says why:
-
-| What it says | What to do |
-|---|---|
-| The invite link is damaged. | Copy the whole link again. |
-| This invite link was reset or is no longer valid. | Ask the host for a new link. |
-| The session is full. | 16 people are online: try again later. |
-| This project has reached its limit of 64 members. | Ask the host to remove someone from the people list. |
-| Update Ethereal to join this project. | Everyone in a session must run the same version: update, then join again. |
-| Couldn't reach the host's computer (network). | Try again. Some networks block direct connections: the host can turn on a relay server. |
-| Can't reach the sharing service. | Check your internet connection and try again. |
-| This project is too large to join. | The project is over the size a session can send. |
-
-- The host must be online, with Ethereal open, for you to join. If the host goes offline during a session, you keep working on an offline copy and your changes sync when they're back.
-- A dropped connection reconnects on its own.
-- Plugins never travel: if you don't have a plugin the host uses, that device is bypassed on your side.
-
-See [joining a session](/docs/sharing/joining) and [live sessions](/docs/sharing/live-sessions).
-
 ## your web projects and storage [[web]]
 
 The web version keeps your projects in this browser's storage, on this computer only. Clearing the site's data, using a private window, or the browser freeing up space can delete them.
@@ -119,6 +98,6 @@ Only one browser tab can work on your projects at a time. A second tab shows **e
 
 ## where next
 
-- [Reporting issues](/docs/reference/reporting-issues) when something here didn't fix it.
+- [Report an issue](https://github.com/diegoimbert/ethereal/issues) when something here didn't fix it.
 - [Audio and MIDI setup](/docs/making-music/audio-and-midi-setup) for the audio settings in detail.
 - [FAQ](/docs/reference/faq).

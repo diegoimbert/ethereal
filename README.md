@@ -12,6 +12,10 @@ runs as WebAssembly.
 Ethereal is in active development. Installers for macOS (arm64 and x64), Windows and Linux,
 plus the web build, are on the [Releases page](https://github.com/diegoimbert/ethereal/releases).
 Report bugs and request features in the [issue tracker](https://github.com/diegoimbert/ethereal/issues).
+The official installers and ethereal.ws are built from this repository plus a proprietary part
+(see [docs/EE-WORKFLOW.md](docs/EE-WORKFLOW.md)), so they have a few features a build from
+this repository doesn't: live sharing and share links, importing and exporting projects of
+other DAWs, in-app updates, issue reports and crash reports.
 
 What works today:
 
@@ -130,7 +134,7 @@ never hardcode ports or paths.
   (`scripts/dev-env.mjs` is the single source of truth).
 - **Ports.** No fixed ports. The base port is `20000 + fnv1a(instance) % 10000`, or
   `ETHER_DEV_PORT` when set. Offsets: `+0` UI/web dev server (and the Tauri `devUrl`),
-  `+1` vite preview, `+2` Playwright web server, `+3` reserved (collab server), `+4` remote engine server (`ether-server`). Vite runs
+  `+1` vite preview, `+2` Playwright web server, `+3` reserved, `+4` remote engine server (`ether-server`). Vite runs
   with `strictPort`, so a collision fails loudly instead of silently moving. If two
   instance names ever hash to the same port, set `ETHER_DEV_PORT` for one of them. Other
   servers use the same scheme, or port 0.

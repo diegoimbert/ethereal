@@ -25,7 +25,7 @@ Les commandes lancées récemment apparaissent en premier. Quand une commande a 
 
 La palette ne s’ouvre pas pendant que vous tapez dans un champ de texte : le raccourci ne gêne jamais votre saisie.
 
-La palette liste des commandes pour les pistes, le transport, l’édition, le projet, les panneaux, les modèles, les appareils (**ajouter …** insère un appareil sur la piste sélectionnée), le partage, l’apparence et l’aide.
+La palette liste des commandes pour les pistes, le transport, l’édition, le projet, les panneaux, les modèles, les appareils (**ajouter …** insère un appareil sur la piste sélectionnée), l’apparence et l’aide.
 
 ## commandes propres à la palette {#commands-only-in-the-palette}
 
@@ -49,16 +49,14 @@ La **roue dentée** à l’extrémité droite de la barre du haut ouvre les rég
 
 | onglet | contenu |
 |---|---|
-| **général** | **démarrage** (rouvrir le dernier projet au lancement, voir [projets et enregistrement](/docs/basics/projects#reopening-your-last-project)) ; dans le navigateur, **stockage** (si le navigateur garde vos projets en sécurité, voir [où vivent vos projets](/docs/welcome/where-your-projects-live)) ; **fichiers de la bibliothèque** (les fichiers que liste le navigateur) ; **mises à jour** et **à propos**. |
+| **général** | **démarrage** (rouvrir le dernier projet au lancement, voir [projets et enregistrement](/docs/basics/projects#reopening-your-last-project)) ; dans le navigateur, **stockage** (si le navigateur garde vos projets en sécurité, voir [où vivent vos projets](/docs/welcome/where-your-projects-live)) ; **fichiers de la bibliothèque** (les fichiers que liste le navigateur). |
 | **apparence** | le thème (clair ou sombre), le zoom de l’interface, les animations, les taches de couleur et le halo, et la transparence. |
 | **audio** | le pilote, les périphériques de sortie et d’entrée, la fréquence d’échantillonnage et la taille du buffer, et un contrôle de l’entrée. Dans le navigateur, c’est le système qui choisit les périphériques. Voir [configuration audio et MIDI](/docs/making-music/audio-and-midi-setup). |
 | **souris** | la molette et les boutons de la souris : sensibilité du zoom et du défilement, modificateur qui zoome, sens inversés, bouton du milieu et boutons précédent et suivant. Voir [zoom et défilement](/docs/basics/playing-and-navigating#zoom-and-scroll). **modifier les raccourcis clavier…** ouvre l’éditeur de raccourcis (aussi **raccourcis clavier…** dans la palette). |
 | **plug-ins** | [[desktop]] les dossiers analysés à la recherche de plug-ins, et la nouvelle analyse. Voir [les plug-ins](/docs/sounds-and-plugins/plugins). |
-| **partage** | vos préférences de partage, comme la reprise du partage à l’ouverture d’un projet partagé. Voir [les sessions en direct](/docs/sharing/live-sessions). |
-| **confidentialité** | les rapports de plantage et les statistiques d’utilisation, ce qui est envoyé, et les nouveautés. Voir [confidentialité et télémétrie](/docs/reference/privacy-and-telemetry). |
-| **avancé** | les serveurs de partage, le stockage statique des partages, le serveur de moteur (une fois activé), la session relais, le journal du moteur (application de bureau) et les panneaux de débogage. Voir [la référence des réglages](/docs/advanced/settings). |
+| **avancé** | le serveur de moteur (une fois activé), le journal du moteur (application de bureau) et les panneaux de débogage. Voir [la référence des réglages](/docs/advanced/settings). |
 
-Les réglages d’apparence, de souris et de confidentialité sont gardés sur cet ordinateur (ou dans ce navigateur). Les autres réglages demandent que le moteur audio tourne.
+Les réglages d’apparence et de souris sont gardés sur cet ordinateur (ou dans ce navigateur). Les autres réglages demandent que le moteur audio tourne.
 
 ## et ensuite {#where-next}
 

@@ -88,7 +88,7 @@ Your saved settings don't change: the fallback is temporary. Choosing a device i
 
 ### device closed
 
-When your session plays through another computer's engine (**play with** in a [live session](/docs/sharing/live-sessions)), the status line says "device closed: no local engine plays". This is expected: your audio device is free while you don't use it. It opens again with the same settings when you switch back.
+When this window plays through an engine on another computer (an [engine server](/docs/advanced/engine-server)), the status line says "device closed: no local engine plays". This is expected: your audio device is free while you don't use it. It opens again with the same settings when you switch back.
 
 ### the engine is not responding
 
@@ -96,9 +96,9 @@ If the audio engine stalls, for example while a plugin is busy opening its edito
 
 ### the engine log [[desktop]]
 
-In **settings › advanced**, **open engine log** opens a terminal window that follows the engine's log as it runs: warnings, plugin problems and why the engine stopped responding. It is useful when you [report an issue](/docs/reference/reporting-issues).
+In **settings › advanced**, **open engine log** opens a terminal window that follows the engine's log as it runs: warnings, plugin problems and why the engine stopped responding. It is useful when you [report an issue](https://github.com/diegoimbert/ethereal/issues).
 
 ## where next
 
 - [Recording](/docs/making-music/recording): arm a track and record.
-- [Troubleshooting](/docs/reference/troubleshooting): more fixes for audio, plugins and sharing.
+- [Troubleshooting](/docs/reference/troubleshooting): more fixes for audio and plugins.
