@@ -4,6 +4,7 @@ import type { ProjectSummary } from "@/generated";
 import { errorMessage, useOptionalConnection, type EngineCommands } from "@/features/transport-bar/engine";
 import { Badge, Button, Dialog, IconButton, openContextMenu, TextInput, type ContextMenuEntry } from "@/kit";
 import { useRecoveryShown } from "@/features/versions/store";
+import { DiscordLink } from "@/features/community";
 import { newProjectCommand, ProjectTemplatePicker, type ProjectTemplateChoice } from "@/features/templates";
 import { useProjectStore } from "@/state";
 import { cmd, newProjectId, type EngineTransport } from "@/transport";
@@ -275,6 +276,7 @@ function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(
           </span>
         )}
         <span className="eth-welcome__actions">
+          <DiscordLink variant="icon" />
           <Button
             size="sm"
             tone="accent"

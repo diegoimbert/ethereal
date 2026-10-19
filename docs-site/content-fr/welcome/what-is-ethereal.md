@@ -45,7 +45,7 @@ Le navigateur limite ce qu’une page web peut faire de votre ordinateur, alors 
 
 ## le bandeau ouvrir dans l’application {#the-open-on-desktop-band}
 
-Sur un ordinateur, la version web affiche un bandeau en haut : **ethereal fonctionne mieux dans l’application de bureau**, avec **ouvrir dans l’application**. Ce bouton ouvre l’application de bureau si elle est installée. S’il ne se passe rien, le bandeau propose **télécharger Ethereal** à la place.
+Sur un ordinateur, la version web affiche un bandeau en haut : **ethereal fonctionne mieux dans l’application de bureau**, avec **ouvrir dans l’application**. Ce bouton ouvre l’application de bureau si elle est installée. S’il ne se passe rien, le bandeau propose **télécharger Ethereal** à la place. À côté, **discord** ouvre le Discord de la communauté Ethereal dans un nouvel onglet (l’écran d’accueil a le même lien, sous forme d’icône Discord).
 
 Ouvrir l’application de bureau ne déplace pas vos projets web : les deux gardent des projets séparés (voir [déplacer des projets](/docs/basics/moving-projects)). Le **×** masque le bandeau jusqu’au prochain rechargement de la page.
 

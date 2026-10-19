@@ -181,6 +181,11 @@ fmt:
     cargo fmt --all
     pnpm format
 
+# The full-product CI's logs of one run, decrypted (.github/workflows/full.yml; needs `age` and
+# an identity among ee/.sops.yaml's recipients): `just full-logs <run-id> [out-dir]`.
+full-logs run *out:
+    node scripts/ci/full-logs.mjs {{run}} {{out}}
+
 # Paired OSS + EE branches and PRs through the `ee/` submodule (docs/EE-WORKFLOW.md):
 # `just feat start x [--ee]`, `just feat push`, `just feat status`, `just feat ship x`, ...
 [positional-arguments]
