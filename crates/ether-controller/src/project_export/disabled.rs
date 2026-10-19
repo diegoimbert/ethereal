@@ -9,7 +9,7 @@ use crate::store::{Library, ProjectStore};
 use crate::tx::CmdResult;
 use crate::{EngineBridge, EtherController, HostServices};
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

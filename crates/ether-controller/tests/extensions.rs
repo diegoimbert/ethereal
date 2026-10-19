@@ -90,3 +90,79 @@ fn an_extension_answers_its_domain_and_the_commands_it_takes_over() {
     h.tick();
     assert_eq!(ticks.get(), before + 1);
 }
+
+/// Watches commits and refuses edits / saves when told to.
+#[derive(Default)]
+struct Guard {
+    refuse_edits: bool,
+    refuse_saves: bool,
+    seen: std::rc::Rc<std::cell::RefCell<Vec<String>>>,
+}
+
+impl ControllerExt<FakeBridge, FakeHost, MemoryStore, MemoryLibrary> for Guard {
+    fn before_command(&mut self, _ctl: &mut Ctl, command: &Command) {
+        if let Command::Track(_) = command {
+            self.seen.borrow_mut().push("track command".into());
+        }
+    }
+
+    fn refuse_edit(
+        &self,
+        _ctl: &Ctl,
+        _ops: &[ether_core::protocol::model::Op],
+    ) -> Option<ether_core::protocol::CommandError> {
+        self.refuse_edits
+            .then(|| api::invalid_state("still arriving"))
+    }
+
+    fn save_refused(&self, _ctl: &Ctl) -> Option<ether_core::protocol::CommandError> {
+        self.refuse_saves.then(|| api::invalid_state("not now"))
+    }
+
+    fn committed(
+        &mut self,
+        _ctl: &mut Ctl,
+        label: &ether_controller::ext::UndoLabel,
+        ops: &[ether_core::protocol::model::Op],
+        _inverse: &[ether_core::protocol::model::Op],
+    ) {
+        self.seen
+            .borrow_mut()
+            .push(format!("{} ({} ops)", label.text, ops.len()));
+    }
+}
+
+fn create_track(h: &mut Harness) -> Vec<ether_core::protocol::ServerMessage> {
+    let id = h.id();
+    h.send(Command::Track(
+        ether_core::protocol::tracks::TrackCommand::Create {
+            id,
+            kind: ether_core::protocol::model::TrackKind::Midi,
+            name: None,
+            color: None,
+            parent: None,
+            before: None,
+        },
+    ))
+}
+
+#[test]
+fn extensions_see_commits_and_may_refuse_edits_and_saves() {
+    let mut h = Harness::with_project();
+    let guard = Guard::default();
+    let seen = guard.seen.clone();
+    h.ctl.add_extension(guard);
+    ok(&create_track(&mut h));
+    assert_eq!(seen.borrow()[0], "track command");
+    assert!(seen.borrow()[1].contains("ops)"), "{:?}", seen.borrow());
+
+    let mut h = Harness::with_project();
+    h.ctl.add_extension(Guard {
+        refuse_edits: true,
+        refuse_saves: true,
+        ..Default::default()
+    });
+    assert_eq!(code(&create_track(&mut h)), ErrorCode::InvalidState);
+    let out = h.send(Command::Project(ProjectCommand::Save { autosave: false }));
+    assert_eq!(code(&out), ErrorCode::InvalidState);
+}

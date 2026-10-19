@@ -104,7 +104,7 @@ pub(crate) fn decode(frame: &AnalysisFrame) -> Option<AnalysisData> {
     })
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

@@ -99,6 +99,15 @@ It keeps its own state and gets the controller with every hook:
   extension's own domain (`Command::Ext`), or an app command the app leaves to extensions
   (`Project::Import`, `CancelImport` and `ExportTo` reply `Unsupported` without one).
 - `tick`: every controller tick (background jobs).
+- The app's seams: `before_command`, `refuse_edit`, `committed` and `applied` (document edits),
+  `undo_redo` and `session_active` (an extension that keeps a shared history), `view_only`,
+  `transport_state` / `transport_changed`, `save_refused` / `before_save`, `plugin_notes` /
+  `plugin_reloaded`, `project_loaded`, `engine_changed` / `engine_status`. Each defaults to
+  the app's single-user behavior.
+
+An extension that needs state of its own inside the controller gives it as the controller's
+fifth type parameter: `EtherController<B, H, S, L, X>` (`X = ()` by default) built with
+`with_state(..., x)`, readable as `ctl.ext`.
 
 It may use the controller's public API: its `pub` fields (bridge, host, store, library) and
 methods (`Controller::project`, `list_projects`, `load_project`, `take_upload`, `add_download`, ...),

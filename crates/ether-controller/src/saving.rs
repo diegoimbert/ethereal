@@ -22,7 +22,7 @@ use ether_core::protocol::model::{Base64Bytes, DeviceId};
 
 /// Why a save happens, which decides how plugin states are read.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum SaveKind {
+pub enum SaveKind {
     /// Autosaves (the UI's timer after edits, the controller's timers, rolling versions):
     /// re-read only the plugins that reported a change since they were last read, use the
     /// cache for the others; the file may be written in the background.

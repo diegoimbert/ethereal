@@ -182,7 +182,7 @@ pub fn tool_specs() -> Vec<AgentToolSpec> {
         .collect()
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,
@@ -247,7 +247,7 @@ where
             )));
         };
         // #583: a listen link is view only; editing tools would only change the local copy.
-        if self.share_view_only() && !tools::allowed_view_only(def.name) {
+        if self.ext_view_only() && !tools::allowed_view_only(def.name) {
             return Err(ToolError::Command(crate::tx::keyed_err(
                 ether_core::protocol::ErrorCode::InvalidState,
                 crate::text::msg("error.share.view_only"),
@@ -430,7 +430,7 @@ where
             return;
         };
         // Collab undo is per site and replicated: the step stays there.
-        if !self.collab_active()
+        if !self.session_active()
             && let Some(doc) = self.doc.as_mut()
         {
             doc.history.discard_redo();
