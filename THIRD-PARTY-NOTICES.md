@@ -47,6 +47,7 @@ Components: 596 (Rust crates, npm packages and vendored source).
 | `bitflags` | 1.3.2 | MIT/Apache-2.0 | https://github.com/bitflags/bitflags |
 | `bitflags` | 2.13.2 | MIT OR Apache-2.0 | https://github.com/bitflags/bitflags |
 | `block-buffer` | 0.10.4 | MIT OR Apache-2.0 | https://github.com/RustCrypto/utils |
+| `block-buffer` | 0.12.1 | MIT OR Apache-2.0 | https://github.com/RustCrypto/utils |
 | `block2` | 0.6.2 | MIT | https://github.com/madsmtm/objc2 |
 | `brotli` | 9.0.0 | BSD-3-Clause AND MIT | https://github.com/dropbox/rust-brotli |
 | `brotli-decompressor` | 6.0.1 | BSD-3-Clause/MIT | https://github.com/dropbox/rust-brotli-decompressor |
@@ -74,6 +75,7 @@ Components: 596 (Rust crates, npm packages and vendored source).
 | `com-scrape-types` | 0.1.1 | MIT OR Apache-2.0 | https://github.com/coupler-rs/vst3-rs |
 | `combine` | 4.6.8 | MIT | https://github.com/Marwes/combine |
 | `console_error_panic_hook` | 0.1.7 | Apache-2.0/MIT | https://github.com/rustwasm/console_error_panic_hook |
+| `const-oid` | 0.10.2 | Apache-2.0 OR MIT | https://github.com/RustCrypto/formats |
 | `const-oid` | 0.9.6 | Apache-2.0 OR MIT | https://github.com/RustCrypto/formats/tree/master/const-oid |
 | `cookie` | 0.18.2 | MIT OR Apache-2.0 | https://github.com/SergioBenitez/cookie-rs |
 | `core_detect` | 1.0.0 | MIT/Apache-2.0 | https://github.com/thomcc/core_detect |
@@ -94,6 +96,7 @@ Components: 596 (Rust crates, npm packages and vendored source).
 | `crossbeam-channel` | 0.5.17 | MIT OR Apache-2.0 | https://github.com/crossbeam-rs/crossbeam |
 | `crossbeam-utils` | 0.8.23 | MIT OR Apache-2.0 | https://github.com/crossbeam-rs/crossbeam |
 | `crypto-common` | 0.1.7 | MIT OR Apache-2.0 | https://github.com/RustCrypto/traits |
+| `crypto-common` | 0.2.2 | MIT OR Apache-2.0 | https://github.com/RustCrypto/traits |
 | `cssparser` | 0.37.0 | MPL-2.0 | https://github.com/servo/rust-cssparser |
 | `cssparser-macros` | 0.7.1 | MPL-2.0 | https://github.com/servo/rust-cssparser |
 | `ctor` | 1.0.13 | Apache-2.0 OR MIT | https://github.com/mmastrac/linktime |
@@ -114,6 +117,7 @@ Components: 596 (Rust crates, npm packages and vendored source).
 | `derive_more` | 2.1.1 | MIT | https://github.com/JelteF/derive_more |
 | `derive_more-impl` | 2.1.1 | MIT | https://github.com/JelteF/derive_more |
 | `digest` | 0.10.7 | MIT OR Apache-2.0 | https://github.com/RustCrypto/traits |
+| `digest` | 0.11.3 | MIT OR Apache-2.0 | https://github.com/RustCrypto/traits |
 | `dirs` | 7.0.0 | MIT OR Apache-2.0 | https://codeberg.org/dirs/dirs-rs |
 | `dirs-sys` | 0.5.0 | MIT OR Apache-2.0 | https://github.com/dirs-dev/dirs-sys-rs |
 | `dispatch2` | 0.3.1 | Zlib OR Apache-2.0 OR MIT | https://github.com/madsmtm/objc2 |
@@ -191,6 +195,7 @@ Components: 596 (Rust crates, npm packages and vendored source).
 | `http-body` | 1.1.0 | MIT | https://github.com/hyperium/http-body |
 | `http-body-util` | 0.1.5 | MIT | https://github.com/hyperium/http-body |
 | `httparse` | 1.10.1 | MIT OR Apache-2.0 | https://github.com/seanmonstar/httparse |
+| `hybrid-array` | 0.4.15 | MIT OR Apache-2.0 | https://github.com/RustCrypto/hybrid-array |
 | `hyper` | 1.11.1 | MIT | https://github.com/hyperium/hyper |
 | `hyper-rustls` | 0.27.10 | Apache-2.0 OR ISC OR MIT | https://github.com/rustls/hyper-rustls |
 | `hyper-util` | 0.1.21 | MIT | https://github.com/hyperium/hyper-util |
@@ -332,12 +337,9 @@ Components: 596 (Rust crates, npm packages and vendored source).
 | `r-efi` | 6.0.0 | MIT OR Apache-2.0 OR LGPL-2.1-or-later | https://github.com/r-efi/r-efi |
 | `rand` | 0.10.3 | MIT OR Apache-2.0 | https://github.com/rust-random/rand |
 | `rand` | 0.8.8 | MIT OR Apache-2.0 | https://github.com/rust-random/rand |
-| `rand` | 0.9.5 | MIT OR Apache-2.0 | https://github.com/rust-random/rand |
 | `rand_chacha` | 0.3.1 | MIT OR Apache-2.0 | https://github.com/rust-random/rand |
-| `rand_chacha` | 0.9.0 | MIT OR Apache-2.0 | https://github.com/rust-random/rand |
 | `rand_core` | 0.10.1 | MIT OR Apache-2.0 | https://github.com/rust-random/rand_core |
 | `rand_core` | 0.6.4 | MIT OR Apache-2.0 | https://github.com/rust-random/rand |
-| `rand_core` | 0.9.5 | MIT OR Apache-2.0 | https://github.com/rust-random/rand |
 | `rand_pcg` | 0.10.2 | MIT OR Apache-2.0 | https://github.com/rust-random/rngs |
 | `raw-window-handle` | 0.6.2 | MIT OR Apache-2.0 OR Zlib | https://github.com/rust-windowing/raw-window-handle |
 | `react` | 19.3.1 | MIT | https://react.dev/ |
@@ -392,7 +394,7 @@ Components: 596 (Rust crates, npm packages and vendored source).
 | `serialize-to-javascript` | 0.1.2 | MIT OR Apache-2.0 | https://github.com/chippers/serialize-to-javascript |
 | `serialize-to-javascript-impl` | 0.1.2 | MIT OR Apache-2.0 | https://github.com/chippers/serialize-to-javascript |
 | `servo_arc` | 0.4.3 | MIT OR Apache-2.0 | https://github.com/servo/stylo |
-| `sha1` | 0.10.7 | MIT OR Apache-2.0 | https://github.com/RustCrypto/hashes |
+| `sha1` | 0.11.0 | MIT OR Apache-2.0 | https://github.com/RustCrypto/hashes |
 | `sha2` | 0.10.9 | MIT OR Apache-2.0 | https://github.com/RustCrypto/hashes |
 | `sharded-slab` | 0.1.7 | MIT | https://github.com/hawkw/sharded-slab |
 | `shared_memory` | 0.12.4 | MIT OR Apache-2.0 | https://github.com/elast0ny/shared_memory-rs |
@@ -488,7 +490,7 @@ Components: 596 (Rust crates, npm packages and vendored source).
 | `ts-algebra` | 2.0.0 | MIT | https://github.com/ThomasAribart/ts-algebra#readme |
 | `ts-rs` | 12.0.1 | MIT | https://github.com/Aleph-Alpha/ts-rs |
 | `ts-rs-macros` | 12.0.1 | MIT | https://github.com/Aleph-Alpha/ts-rs |
-| `tungstenite` | 0.27.0 | MIT OR Apache-2.0 | https://github.com/snapview/tungstenite-rs |
+| `tungstenite` | 0.30.0 | MIT OR Apache-2.0 | https://github.com/snapview/tungstenite-rs |
 | `typeid` | 1.0.3 | MIT OR Apache-2.0 | https://github.com/dtolnay/typeid |
 | `typenum` | 1.20.1 | MIT OR Apache-2.0 | https://github.com/paholg/typenum |
 | `ulid` | 3.0.0 | MIT | https://github.com/dylanhart/ulid-rs |
@@ -498,7 +500,6 @@ Components: 596 (Rust crates, npm packages and vendored source).
 | `untrusted` | 0.9.0 | ISC | https://github.com/briansmith/untrusted |
 | `url` | 2.5.8 | MIT OR Apache-2.0 | https://github.com/servo/rust-url |
 | `urlpattern` | 0.6.0 | MIT | https://github.com/denoland/rust-urlpattern |
-| `utf-8` | 0.7.6 | MIT OR Apache-2.0 | https://github.com/SimonSapin/rust-utf8 |
 | `utf8_iter` | 1.0.4 | Apache-2.0 OR MIT | https://github.com/hsivonen/utf8_iter |
 | `uuid` | 1.26.1 | Apache-2.0 OR MIT | https://github.com/uuid-rs/uuid |
 | `valuable` | 0.1.1 | MIT | https://github.com/tokio-rs/valuable |
@@ -563,7 +564,6 @@ Components: 596 (Rust crates, npm packages and vendored source).
 | `windows-collections` | 0.3.2 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | `windows-core` | 0.54.0 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | `windows-core` | 0.56.0 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
-| `windows-core` | 0.61.2 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | `windows-core` | 0.62.2 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | `windows-future` | 0.3.2 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | `windows-implement` | 0.56.0 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
@@ -4057,7 +4057,7 @@ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 
 ### Apache-2.0
 
-<sub>Applies to 34 component(s): anyhow, dtoa, dyn-clone, erased-serde, itoa, libc, mach2, num_enum, num_enum_derive, pastey, proc-macro2, quote, +22 more.</sub>
+<sub>Applies to 33 component(s): anyhow, dtoa, dyn-clone, erased-serde, itoa, libc, mach2, num_enum, num_enum_derive, pastey, proc-macro2, quote, +21 more.</sub>
 
 Apache License
                         Version 2.0, January 2004
@@ -4857,7 +4857,7 @@ limitations under the License.
 
 ### Apache-2.0
 
-<sub>Applies to 14 component(s): base64ct, block-buffer, chacha20, const-oid, cpufeatures, crypto-common, der, digest, md-5, pkcs8, sha1, sha2, +2 more.</sub>
+<sub>Applies to 15 component(s): base64ct, block-buffer, chacha20, const-oid, cpufeatures, crypto-common, der, digest, hybrid-array, md-5, pkcs8, sha1, +3 more.</sub>
 
 Apache License
                         Version 2.0, January 2004
@@ -7536,7 +7536,7 @@ limitations under the License.
 
 ### Apache-2.0
 
-<sub>Applies to 2 component(s): rand, rand_chacha.</sub>
+<sub>Applies to 1 component(s): rand.</sub>
 
 Apache License
                         Version 2.0, January 2004
@@ -10387,7 +10387,7 @@ not reproduced here.
 
 ### MIT — Copyright (c) 2006-2009 Graydon Hoare
 
-<sub>Applies to 3 component(s): md-5, sha1, sha2.</sub>
+<sub>Applies to 2 component(s): md-5, sha2.</sub>
 
 Copyright (c) 2006-2009 Graydon Hoare
 Copyright (c) 2009-2013 Mozilla Foundation
@@ -11562,6 +11562,39 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
+### MIT — Copyright (c) 2016-2026 The RustCrypto Project Developers
+
+<sub>Applies to 1 component(s): sha1.</sub>
+
+Copyright (c) 2016-2026 The RustCrypto Project Developers
+Copyright (c) 2016 Artyom Pavlov
+Copyright (c) 2009-2013 Mozilla Foundation
+Copyright (c) 2006-2009 Graydon Hoare
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
 ### MIT — Copyright (c) 2017 Alexey Galakhov
 
 <sub>Applies to 1 component(s): tungstenite.</sub>
@@ -11987,6 +12020,37 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
+### MIT — Copyright (c) 2017-2025 RustCrypto Developers
+
+<sub>Applies to 1 component(s): digest.</sub>
+
+Copyright (c) 2017-2025 RustCrypto Developers
+Copyright (c) 2017 Artyom Pavlov
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
 ### MIT — Copyright (c) 2018 Carl Lerche
 
 <sub>Applies to 1 component(s): bytes.</sub>
@@ -12289,6 +12353,36 @@ DEALINGS IN THE SOFTWARE.
 
 Copyright (c) 2018-2025 The rust-random Project Developers
 Copyright (c) 2014 The Rust Project Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+### MIT — Copyright (c) 2018-2025 The RustCrypto Project Developers
+
+<sub>Applies to 1 component(s): block-buffer.</sub>
+
+Copyright (c) 2018-2025 The RustCrypto Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -12869,7 +12963,7 @@ DEALINGS IN THE SOFTWARE.
 
 ### MIT — Copyright (c) 2020-2026 The RustCrypto Project Developers
 
-<sub>Applies to 1 component(s): cpufeatures.</sub>
+<sub>Applies to 2 component(s): const-oid, cpufeatures.</sub>
 
 Copyright (c) 2020-2026 The RustCrypto Project Developers
 
@@ -13017,11 +13111,71 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
+### MIT — Copyright (c) 2021-2026 RustCrypto Developers
+
+<sub>Applies to 1 component(s): crypto-common.</sub>
+
+Copyright (c) 2021-2026 RustCrypto Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
 ### MIT — Copyright (c) 2022 The transpose Developers
 
 <sub>Applies to 1 component(s): transpose.</sub>
 
 Copyright (c) 2022 The transpose Developers
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the "Software"), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+### MIT — Copyright (c) 2022-2026 The RustCrypto Project Developers
+
+<sub>Applies to 1 component(s): hybrid-array.</sub>
+
+Copyright (c) 2022-2026 The RustCrypto Project Developers
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
@@ -14948,7 +15102,7 @@ SOFTWARE.
 
 ### MIT
 
-<sub>Applies to 54 component(s): adler2, anyhow, atomic-waker, camino, cargo_metadata, cargo-platform, clap-sys, com-scrape-types, curve25519-dalek-derive, displaydoc, dtoa, dyn-clone, +42 more.</sub>
+<sub>Applies to 53 component(s): adler2, anyhow, atomic-waker, camino, cargo_metadata, cargo-platform, clap-sys, com-scrape-types, curve25519-dalek-derive, displaydoc, dtoa, dyn-clone, +41 more.</sub>
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated
