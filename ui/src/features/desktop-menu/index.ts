@@ -4,6 +4,7 @@
 // row would. Undo / redo / select all in a text field go back to AppKit (the field's own
 // editing). The keyed items' equivalents follow the keymap (`menuShortcuts`). The web build
 // has no bridge and mounts nothing.
+import { contributions } from "@/ext";
 import { useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -32,7 +33,10 @@ export interface MenuBridge {
   setLabels?(labels: MenuLabels): Promise<void>;
 }
 
-/** The app items' labels, by action id (the shell's `FILE_ITEMS`, `EDIT_*`, `HELP_ITEMS`). */
+/**
+ * The app items' labels, by action id (the shell's `FILE_ITEMS`, `EDIT_*`, `HELP_ITEMS`). Items
+ * an extension adds to the shell's menus are labelled by it (`@/ext` "desktopMenu.labels").
+ */
 const ACTION_LABELS: Record<string, MessageKey> = {
   "project:new": "menu.action.project_new",
   "project:open": "menu.action.project_open",
@@ -46,9 +50,6 @@ const ACTION_LABELS: Record<string, MessageKey> = {
   "edit.selectAll": "menu.action.edit_select_all",
   "keymap:open": "menu.action.keymap_open",
   "app:news": "menu.action.app_news",
-  "app:report-issue": "menu.action.app_report_issue",
-  "app:send-diagnostics": "menu.action.app_send_diagnostics",
-  "app:check-updates": "menu.action.app_check_updates",
 };
 
 /** The menu bar's text (`MenuLabels` in app_menu.rs). */
@@ -75,7 +76,10 @@ export function menuLabels() {
     minimize: t("menu.window.minimize"),
     zoom: t("menu.window.zoom"),
     help: t("menu.help"),
-    actions: Object.fromEntries(Object.entries(ACTION_LABELS).map(([action, key]) => [action, t(key)])),
+    actions: {
+      ...Object.fromEntries(Object.entries(ACTION_LABELS).map(([action, key]) => [action, t(key)])),
+      ...Object.assign({}, ...contributions("desktopMenu.labels").map((labels) => labels())),
+    } as Record<string, string>,
   };
 }
 

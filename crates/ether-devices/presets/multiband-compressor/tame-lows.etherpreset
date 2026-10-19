@@ -14,7 +14,7 @@
         "low-end"
       ],
       "author": "ethereal",
-      "description": "only the lows are compressed (4:1 below 150 Hz): steadies a boomy bass or kick; mid and high bands pass untouched."
+      "description": "only the lows are compressed (4:1 below 150 hz): steadies a boomy bass or kick; mid and high bands pass untouched."
     },
     "params": {
       "0": 150.0,

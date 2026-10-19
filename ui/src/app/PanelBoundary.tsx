@@ -15,6 +15,7 @@ import { Component, useContext, type ErrorInfo, type ReactNode } from "react";
 import { useT, type MessageKey } from "@/i18n";
 import { Button } from "@/kit";
 import { TransportContext } from "@/transport";
+import { emit, useContributions } from "@/ext";
 import { isChunkLoadError, saveAndReload } from "./crashRecovery";
 import "./PanelBoundary.css";
 
@@ -57,11 +58,14 @@ const PANEL_NAMES = {
   workspace: "shell.panel.workspace",
 } satisfies Record<string, MessageKey>;
 
-export type PanelName = keyof typeof PANEL_NAMES;
+/** A region's id: the app's (`PANEL_NAMES`), or an extension's own (shown with `label`). */
+export type PanelName = keyof typeof PANEL_NAMES | (string & {});
 
 export interface PanelBoundaryProps {
   /** What crashed: a stable id (logs, telemetry, `data-panel`), shown through `PANEL_NAMES`. */
   name: PanelName;
+  /** Its name in a sentence when `name` isn't one of the app's (an extension's region). */
+  label?: () => string;
   /** "panel" (default): in place of the region; "overlay": a floating card (dialog roots);
    * "app": the whole window. */
   variant?: "panel" | "overlay" | "app";
@@ -83,6 +87,7 @@ export class PanelBoundary extends Component<PanelBoundaryProps, State> {
 
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error(`[ethereal] ${this.props.name} crashed:`, error, info.componentStack);
+    emit("app.crash", { panel: this.props.name, error, componentStack: info.componentStack ?? null });
   }
 
   private readonly retry = () => this.setState((s) => ({ error: null, generation: s.generation + 1 }));
@@ -90,7 +95,7 @@ export class PanelBoundary extends Component<PanelBoundaryProps, State> {
   override render(): ReactNode {
     const { error, generation } = this.state;
     if (!error) return <Generation key={generation}>{this.props.children}</Generation>;
-    return <CrashCard name={this.props.name} variant={this.props.variant ?? "panel"} error={error} onRetry={this.retry} />;
+    return <CrashCard name={this.props.name} label={this.props.label} variant={this.props.variant ?? "panel"} error={error} onRetry={this.retry} />;
   }
 }
 
@@ -98,9 +103,22 @@ function Generation({ children }: { children: ReactNode }) {
   return children;
 }
 
-function CrashCard({ name, variant, error, onRetry }: { name: PanelName; variant: "panel" | "overlay" | "app"; error: Error; onRetry: () => void }) {
+function CrashCard({
+  name,
+  label,
+  variant,
+  error,
+  onRetry,
+}: {
+  name: PanelName;
+  label: (() => string) | undefined;
+  variant: "panel" | "overlay" | "app";
+  error: Error;
+  onRetry: () => void;
+}) {
   const t = useT();
-  const shown = Object.hasOwn(PANEL_NAMES, name) ? t(PANEL_NAMES[name]) : t("shell.crash.panel_other", { name });
+  const actions = useContributions("app.crashActions");
+  const shown = Object.hasOwn(PANEL_NAMES, name) ? t(PANEL_NAMES[name as keyof typeof PANEL_NAMES]) : label ? label() : t("shell.crash.panel_other", { name });
   const transport = useContext(TransportContext)?.transport ?? null;
   const chunk = isChunkLoadError(error);
   const app = variant === "app";
@@ -116,6 +134,10 @@ function CrashCard({ name, variant, error, onRetry }: { name: PanelName; variant
               {t("shell.crash.reload_panel")}
             </Button>
           )}
+          {/* Extensions' actions ("report an issue"). */}
+          {actions.map((Action, i) => (
+            <Action key={i} fullWindow={app} />
+          ))}
           <Button size="sm" tone={app || chunk ? "accent" : "ghost"} onClick={() => void saveAndReload(transport)}>
             {t("shell.crash.reload")}
           </Button>

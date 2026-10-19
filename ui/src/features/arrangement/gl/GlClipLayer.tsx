@@ -11,6 +11,7 @@
  * DOM overlays in the lanes that take the pointer themselves keep it.
  */
 
+import { contributions } from "@/ext";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Clip, ClipId } from "@/generated";
 import { openContextMenu } from "@/kit";
@@ -52,6 +53,9 @@ export interface GlClipLayerProps {
    */
   backend: BackendKind;
 }
+
+/** How often the extensions watching the clips in view are told about them. */
+const VISIBLE_CLIPS_MS = 250;
 
 export function GlClipLayer({ ctx, scrollRef, backend }: GlClipLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -293,6 +297,18 @@ export function GlClipLayer({ ctx, scrollRef, backend }: GlClipLayerProps) {
         content.removeEventListener("contextmenu", onContextMenu, true);
         content.style.cursor = "";
       });
+    }
+
+    // Extensions that follow what the arranger shows (`@/ext` "arrangement.visibleClips"):
+    // the clips in view, the edited one first, four times a second.
+    const watchers = contributions("arrangement.visibleClips");
+    if (watchers.length > 0) {
+      const timer = window.setInterval(() => {
+        const edited = useEditorStore.getState().clip;
+        const ids = [...(edited ? [edited] : []), ...r.visibleClipIds()].filter((id, i, all) => all.indexOf(id) === i);
+        for (const watch of watchers) watch(ids, ctx.transport);
+      }, VISIBLE_CLIPS_MS);
+      offs.push(() => window.clearInterval(timer));
     }
 
     return () => {

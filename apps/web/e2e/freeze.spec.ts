@@ -156,10 +156,15 @@ test("freeze, unfreeze, flatten, bounce and consolidate from the arrangement", a
   await expect.poll(async () => Object.values((await doc(page)).tracks).some((t) => t.name === `${flat.name} Bounce`), { timeout: 60_000 }).toBe(true);
   expect((await doc(page)).tracks[flat.id]!.mixer.mute).toBe(true);
 
-  // --- Consolidate the bass clip (MIDI: instant) ------------------------------------------
+  // --- Consolidate the bass clip (MIDI: instant) with Ctrl/Cmd+J (#870) -------------------
   const bassNow = (await doc(page)).clips[bassClip.id]!;
+  // The clip menu's entry shows the chord.
   await clipMenu(page, bassClip.id);
-  await page.getByRole("menuitem", { name: "consolidate" }).click();
+  await expect(page.getByRole("menuitem", { name: "consolidate" })).toContainText(/Ctrl\+J|⌘J/);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menuitem", { name: "consolidate" })).toHaveCount(0);
+  await selectClip(page, bassClip.id);
+  await page.keyboard.press("ControlOrMeta+j");
   await expect.poll(async () => (await doc(page)).clips[bassClip.id]).toBeUndefined();
   const after = await doc(page);
   const consolidated = Object.values(after.clips).find((c) => c.track === bass.id && c.start === bassClip.start)!;

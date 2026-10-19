@@ -36,7 +36,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crossbeam_channel::{RecvTimeoutError, Sender, bounded, unbounded};
-use ether_core::plugin::{PluginController, PluginError, PluginNode, PluginNotification};
+use ether_core::plugin::{
+    NativeWindow, PluginController, PluginError, PluginNode, PluginNotification,
+};
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::{DeviceId, ParamId, PluginFormat, PluginInstance};
 use ether_core::protocol::plugins::{PluginDescriptor, ScanFailure};
@@ -306,7 +308,11 @@ fn with_live<R>(
 const POLL_WAIT: Duration = Duration::from_millis(2);
 
 /// Main thread: poll every live controller and the GUI mirrors.
-fn poll_main(health: &Health, queued: &AtomicBool) -> Vec<(DeviceId, PluginNotification)> {
+fn poll_main(
+    health: &Health,
+    queued: &AtomicBool,
+    windows: &EditorWindows,
+) -> Vec<(DeviceId, PluginNotification)> {
     queued.store(false, Ordering::SeqCst);
     let live: Vec<(u64, DeviceId)> = with_registry(|reg| {
         reg.instances
@@ -317,10 +323,16 @@ fn poll_main(health: &Health, queued: &AtomicBool) -> Vec<(DeviceId, PluginNotif
     });
     let mut all = Vec::new();
     let mut buf = Vec::new();
+    let mut polled = HashMap::new();
     for (token, device) in live {
         health.set_main_device(Some(device));
         let started = Instant::now();
-        if with_instance(token, |c| c.poll(&mut buf)).is_ok() {
+        let window = with_instance(token, |c| {
+            c.poll(&mut buf);
+            c.editor_window()
+        });
+        if let Ok(window) = window {
+            polled.insert(device, window);
             if buf.iter().any(|n| {
                 matches!(
                     n,
@@ -338,6 +350,7 @@ fn poll_main(health: &Health, queued: &AtomicBool) -> Vec<(DeviceId, PluginNotif
         log_slow(health, Work::PollPlugins, Some(device), started.elapsed());
     }
     health.set_main_device(None);
+    windows.refresh(polled);
     all.extend(with_registry(|reg| std::mem::take(&mut reg.notes)));
     crate::plugin_mirror::poll_main(&mut all);
     all
@@ -358,6 +371,41 @@ fn log_slow(health: &Health, work: Work, device: Option<DeviceId>, took: Duratio
     }
 }
 
+/// The open editors' native windows by device ([`PluginHost::editor_window_for`]): set
+/// when an editor opens, refreshed by every poll (a floating editor's window may be found
+/// a few polls late), dropped when it closes or its device goes. Live instances only: a
+/// listening site's GUI mirrors (`plugin_mirror`) aren't streamed.
+#[derive(Clone, Default)]
+struct EditorWindows(Arc<Mutex<HashMap<DeviceId, NativeWindow>>>);
+
+impl EditorWindows {
+    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<DeviceId, NativeWindow>> {
+        self.0.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn get(&self, device: DeviceId) -> Option<NativeWindow> {
+        self.lock().get(&device).copied()
+    }
+
+    fn set(&self, device: DeviceId, window: Option<NativeWindow>) {
+        let mut map = self.lock();
+        match window {
+            Some(w) => map.insert(device, w),
+            None => map.remove(&device),
+        };
+    }
+
+    /// After a poll: every polled device's current window. Devices that weren't polled
+    /// (checked out by a running call) keep theirs; the others' entries go (their instance
+    /// is gone: destroyed or retired).
+    fn refresh(&self, polled: HashMap<DeviceId, Option<NativeWindow>>) {
+        let live: Vec<DeviceId> = with_registry(|reg| reg.live.keys().copied().collect());
+        let mut map = self.lock();
+        map.retain(|d, _| !polled.contains_key(d) && live.contains(d));
+        map.extend(polled.into_iter().filter_map(|(d, w)| Some((d, w?))));
+    }
+}
+
 /// The notifications of a poll queued on the main thread.
 type PollResult = crossbeam_channel::Receiver<Vec<(DeviceId, PluginNotification)>>;
 
@@ -375,6 +423,7 @@ pub struct PluginHost {
     poll_pending: Arc<Mutex<Option<PollResult>>>,
     /// Notifications wait in the registry for the next poll ([`Self::has_queued_notes`]).
     notes_queued: Arc<AtomicBool>,
+    editor_windows: EditorWindows,
 }
 
 impl std::fmt::Debug for PluginHost {
@@ -410,6 +459,7 @@ impl PluginHost {
             health: Arc::default(),
             poll_pending: Arc::default(),
             notes_queued: Arc::default(),
+            editor_windows: EditorWindows::default(),
         }
     }
 
@@ -498,6 +548,7 @@ impl PluginHost {
         let host = self.clone();
         let health = self.health.clone();
         let queued = self.notes_queued.clone();
+        let windows = self.editor_windows.clone();
         if let Some(name) = source.path.file_stem().and_then(|n| n.to_str()) {
             health.name_device(device, name);
         }
@@ -561,20 +612,24 @@ impl PluginHost {
                 (token, old)
             });
             drop(old);
+            windows.set(device, None);
             if reopen {
                 let reopened = with_instance(token, |c| {
                     if c.has_editor() {
-                        c.open_editor()
+                        c.open_editor().map(|()| c.editor_window())
                     } else {
                         Err(PluginError::NoEditor)
                     }
                 });
                 match reopened {
-                    Ok(Ok(())) => with_registry(|reg| {
-                        if let Some(h) = reg.instances.get_mut(&token) {
-                            h.editor_open = true;
-                        }
-                    }),
+                    Ok(Ok(window)) => {
+                        windows.set(device, window);
+                        with_registry(|reg| {
+                            if let Some(h) = reg.instances.get_mut(&token) {
+                                h.editor_open = true;
+                            }
+                        })
+                    }
                     _ => queue_note(&queued, device, PluginNotification::EditorClosed),
                 }
             }
@@ -601,6 +656,7 @@ impl PluginHost {
     /// The device was destroyed: drop its controller now if its node is already back,
     /// otherwise when the node returns from the engine.
     pub fn destroy(&self, device: DeviceId) {
+        self.editor_windows.set(device, None);
         let queued = self.notes_queued.clone();
         let _ = self.call_as(Work::UnloadPlugin, Some(device), move || {
             if close_live_editor(device) {
@@ -642,19 +698,18 @@ impl PluginHost {
     /// Open the device's editor: its live instance, else its GUI mirror
     /// ([`crate::plugin_mirror`]; a listening site's plugins).
     pub fn open_editor(&self, device: DeviceId) -> Result<(), PluginError> {
+        let windows = self.editor_windows.clone();
         self.call_as(Work::OpenEditor, Some(device), move || {
             match with_live(device, |c| {
                 if !c.has_editor() {
                     return Err(PluginError::NoEditor);
                 }
-                c.open_editor()
+                c.open_editor().map(|()| c.editor_window())
             }) {
-                Ok(r) => {
-                    if r.is_ok() {
-                        set_editor_open(device, true);
-                    }
-                    r
-                }
+                Ok(r) => r.map(|window| {
+                    windows.set(device, window);
+                    set_editor_open(device, true);
+                }),
                 // No live instance: a listening site's GUI mirror, else `NotFound` (never a
                 // silent success: the UI only shows the editor open on `Ok`).
                 Err(PluginError::NotFound(_)) => crate::plugin_mirror::open_editor_main(device),
@@ -664,6 +719,7 @@ impl PluginHost {
     }
 
     pub fn close_editor(&self, device: DeviceId) -> Result<(), PluginError> {
+        self.editor_windows.set(device, None);
         self.call_as(Work::CloseEditor, Some(device), move || {
             match with_live(device, |c| c.close_editor()) {
                 Ok(()) => set_editor_open(device, false),
@@ -678,6 +734,18 @@ impl PluginHost {
             match with_live(device, |c| c.save_state()) {
                 Ok(r) => r.map(Some),
                 Err(PluginError::NotFound(_)) => Ok(None),
+                Err(e) => Err(e),
+            }
+        })?
+    }
+
+    /// Load `state` into `device`'s running instance in place (collab: a peer's preset).
+    /// Its editor stays open and its node keeps processing. `Ok(false)`: no live instance.
+    pub fn load_state_live(&self, device: DeviceId, state: Vec<u8>) -> Result<bool, PluginError> {
+        self.call_as(Work::PluginCall, Some(device), move || {
+            match with_live(device, |c| c.load_state(&state)) {
+                Ok(r) => r.map(|()| true),
+                Err(PluginError::NotFound(_)) => Ok(false),
                 Err(e) => Err(e),
             }
         })?
@@ -737,9 +805,10 @@ impl PluginHost {
     pub fn poll(&self, out: &mut Vec<(DeviceId, PluginNotification)>) {
         let health = self.health.clone();
         let queued = self.notes_queued.clone();
-        if let Ok(notes) =
-            self.call_as(Work::PollPlugins, None, move || poll_main(&health, &queued))
-        {
+        let windows = self.editor_windows.clone();
+        if let Ok(notes) = self.call_as(Work::PollPlugins, None, move || {
+            poll_main(&health, &queued, &windows)
+        }) {
             out.extend(notes);
         }
     }
@@ -762,9 +831,10 @@ impl PluginHost {
                 let (tx, rx) = bounded(1);
                 let health = self.health.clone();
                 let queued = self.notes_queued.clone();
+                let windows = self.editor_windows.clone();
                 self.main.spawn(Box::new(move || {
                     let _running = health.main_call(Work::PollPlugins, None);
-                    let _ = tx.send(poll_main(&health, &queued));
+                    let _ = tx.send(poll_main(&health, &queued, &windows));
                 }));
                 rx
             }
@@ -775,6 +845,14 @@ impl PluginHost {
             Err(RecvTimeoutError::Timeout) => *pending = Some(rx),
             Err(RecvTimeoutError::Disconnected) => {}
         }
+    }
+
+    /// The native window of `device`'s open editor (for capturing it and injecting input
+    /// into it, #853), from any thread without waiting for the main thread: as of its
+    /// opening or the last poll. `None` without an open editor, or while a floating
+    /// editor's window isn't found (yet).
+    pub fn editor_window_for(&self, device: DeviceId) -> Option<NativeWindow> {
+        self.editor_windows.get(device)
     }
 
     /// Notifications are waiting for a poll although no plugin may be left to poll (an
@@ -1276,6 +1354,8 @@ pub(crate) mod fake {
         open: bool,
         user_closed: Arc<AtomicBool>,
         fail_open: bool,
+        notes: Arc<Mutex<Vec<PluginNotification>>>,
+        state: Vec<u8>,
     }
 
     impl PluginController for EditorPlugin {
@@ -1290,9 +1370,10 @@ pub(crate) mod fake {
         }
         fn deactivate(&mut self, _node: Box<dyn PluginNode>) {}
         fn save_state(&mut self) -> Result<Vec<u8>, PluginError> {
-            Ok(Vec::new())
+            Ok(self.state.clone())
         }
-        fn load_state(&mut self, _: &[u8]) -> Result<(), PluginError> {
+        fn load_state(&mut self, state: &[u8]) -> Result<(), PluginError> {
+            self.state = state.to_vec();
             Ok(())
         }
         fn has_editor(&self) -> bool {
@@ -1318,10 +1399,26 @@ pub(crate) mod fake {
             }
         }
         fn poll(&mut self, out: &mut Vec<PluginNotification>) {
+            if self.open {
+                out.append(&mut self.notes.lock().unwrap());
+            }
             if self.open && self.user_closed.swap(false, Ordering::SeqCst) {
                 self.open = false;
                 out.push(PluginNotification::EditorClosed);
             }
+        }
+        /// An X11 window numbered after the instance while open.
+        fn editor_window(&self) -> Option<NativeWindow> {
+            self.open.then(|| window(self.instance))
+        }
+    }
+
+    pub fn window(instance: u32) -> NativeWindow {
+        NativeWindow {
+            pid: 1,
+            handle: ether_core::plugin::WindowHandle::X11 {
+                window: u64::from(instance),
+            },
         }
     }
 
@@ -1336,14 +1433,23 @@ pub(crate) mod fake {
         pub user_closed: Arc<AtomicBool>,
         /// Instances made from now on fail to open their editor.
         pub fail_open: Arc<AtomicBool>,
+        /// Reported by the next poll of an instance whose editor is open (GUI edits).
+        #[allow(dead_code)]
+        pub notes: Arc<Mutex<Vec<PluginNotification>>>,
     }
 
     pub fn editor_plugins() -> (Instantiate, EditorProbe) {
         let log = Arc::new(Mutex::new(Vec::new()));
         let user_closed = Arc::new(AtomicBool::new(false));
         let fail_open = Arc::new(AtomicBool::new(false));
+        let notes = Arc::new(Mutex::new(Vec::new()));
         let next = Arc::new(std::sync::atomic::AtomicU32::new(1));
-        let (l, u, f) = (log.clone(), user_closed.clone(), fail_open.clone());
+        let (l, u, f, n) = (
+            log.clone(),
+            user_closed.clone(),
+            fail_open.clone(),
+            notes.clone(),
+        );
         let make: Instantiate = Arc::new(move |_, _, _| {
             Ok(Box::new(EditorPlugin {
                 instance: next.fetch_add(1, Ordering::SeqCst),
@@ -1351,6 +1457,8 @@ pub(crate) mod fake {
                 open: false,
                 user_closed: u.clone(),
                 fail_open: f.load(Ordering::SeqCst),
+                notes: n.clone(),
+                state: Vec::new(),
             }) as Box<dyn PluginController>)
         });
         (
@@ -1359,6 +1467,7 @@ pub(crate) mod fake {
                 log,
                 user_closed,
                 fail_open,
+                notes,
             },
         )
     }
@@ -2044,6 +2153,39 @@ mod tests {
         let mut notes = Vec::new();
         host.poll(&mut notes);
         assert_eq!(notes, vec![(d, PluginNotification::EditorClosed)]);
+    }
+
+    /// The open editor's native window is looked up by device: as of its opening, then
+    /// each poll; gone once it closes (by hand or by the user), moved to a replacement
+    /// instance, gone with its device.
+    #[test]
+    fn editor_windows_follow_open_editors() {
+        let host = PluginHost::new(Arc::new(DedicatedThread::new()));
+        let (make, probe) = fake::editor_plugins();
+        let d = device(46);
+        let (old_node, _) = host
+            .instantiate(make.clone(), d, src("e"), None, PREPARE)
+            .unwrap();
+        assert_eq!(host.editor_window_for(d), None);
+        host.open_editor(d).unwrap();
+        assert_eq!(host.editor_window_for(d), Some(fake::window(1)));
+        host.close_editor(d).unwrap();
+        assert_eq!(host.editor_window_for(d), None);
+        host.open_editor(d).unwrap();
+        probe.user_closed.store(true, Ordering::SeqCst);
+        host.poll(&mut Vec::new());
+        assert_eq!(host.editor_window_for(d), None);
+
+        host.open_editor(d).unwrap();
+        let (_new_node, _) = host.instantiate(make, d, src("e"), None, PREPARE).unwrap();
+        assert_eq!(host.editor_window_for(d), Some(fake::window(2)));
+        drop(old_node);
+        host.poll(&mut Vec::new());
+        assert_eq!(host.editor_window_for(d), Some(fake::window(2)));
+        host.destroy(d);
+        assert_eq!(host.editor_window_for(d), None);
+        host.poll(&mut Vec::new());
+        assert_eq!(host.editor_window_for(d), None);
     }
 
     /// A device destroyed with its editor open (removed, undo of its insert, project

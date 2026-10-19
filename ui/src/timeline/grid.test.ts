@@ -132,6 +132,34 @@ describe("snapToGrid", () => {
     expect(snapDelta(0.3, 1.1, step, m44)).toBeCloseTo(0.7);
     expect(snapDelta(0.3, 1.1, step, m44, true)).toBeCloseTo(1);
   });
+
+  it("snapDelta relative: an off-grid item keeps its offset within the grid", () => {
+    const beat = { kind: "beats", beats: 1 } as const;
+    // At 4.34 on a 1-beat grid: 5.34, 3.34, ... never 4 or 5.
+    expect(4.34 + snapDelta(4.34, 0.8, beat, m44, true)).toBeCloseTo(5.34);
+    expect(4.34 + snapDelta(4.34, -1.2, beat, m44, true)).toBeCloseTo(3.34);
+    expect(4.34 + snapDelta(4.34, 0.4, beat, m44, true)).toBeCloseTo(4.34);
+    expect(4.34 + snapDelta(4.34, 2.6, beat, m44, true)).toBeCloseTo(7.34);
+    // Bars: 2 bars = 8 beats in 4/4.
+    expect(snapDelta(1.5, 5, { kind: "bars", bars: 2 }, m44, true)).toBeCloseTo(8);
+  });
+
+  it("snapDelta relative: an on-grid item snaps as before", () => {
+    const beat = { kind: "beats", beats: 1 } as const;
+    expect(snapDelta(4, 1.3, beat, m44, true)).toBeCloseTo(snapDelta(4, 1.3, beat, m44));
+    expect(4 + snapDelta(4, 1.3, beat, m44, true)).toBeCloseTo(5);
+    // 7/8 on a 1-beat grid: the bar end (3.5) stays a target for an on-grid item.
+    const m78 = new TempoMap([{ id: "t", time: 0, bpm: 120, curve: "Step" }], [{ id: "s", time: 0, signature: { numerator: 7, denominator: 8 } }]);
+    expect(3 + snapDelta(3, 0.4, beat, m78, true)).toBeCloseTo(3.5);
+  });
+
+  it("snapDelta relative: triplet steps and grid off", () => {
+    const triplet = { kind: "beats", beats: 1 / 3 } as const;
+    expect(0.1 + snapDelta(0.1, 0.6, triplet, m44, true)).toBeCloseTo(0.1 + 2 / 3);
+    expect(snapDelta(0.1, 0.6, null, m44, true)).toBe(0.6);
+    // Odd step (0.3 beats) from an off-grid origin.
+    expect(snapDelta(0.05, 0.7, { kind: "beats", beats: 0.3 }, m44, true)).toBeCloseTo(0.6);
+  });
 });
 
 describe("formatGridStep", () => {

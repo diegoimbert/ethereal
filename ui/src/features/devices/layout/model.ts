@@ -48,6 +48,8 @@ export function boundParams(w: Widget): ParamId[] {
       return some([w.drive, w.compand, w.in_low, w.in_high, w.out_low, w.out_high, w.mode, w.random]);
     case "FmAlgorithm":
       return [w.algorithm];
+    case "LfoCurve":
+      return [w.sync, w.sync_rate, w.rate, w.phase, w.depth];
     case "Macros":
       // The 8 macro knobs of a rack are params 0..8 (CONTRACTS.md §12.6).
       return [0, 1, 2, 3, 4, 5, 6, 7];

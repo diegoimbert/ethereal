@@ -1,4 +1,5 @@
 import type { Device } from "@/generated";
+import { contributions } from "@/ext";
 import { setPluginWindow } from "@/features/plugins";
 import { isInstalled } from "@/features/plugins/filter";
 import { usePluginEvents, usePluginStore, useScannedPlugins } from "@/features/plugins/pluginStore";
@@ -15,6 +16,17 @@ export interface DeviceWindowControl {
   toggle(): void;
   /** Opens it, or brings it to the front when it is already open (never closes it). */
   show(): void;
+  /** The button's tooltip instead of the app's (an extension's window, `@/ext` "devices.window"). */
+  title?: string;
+  /** Unavailable, but `aria-disabled` rather than `disabled` (the tooltip still says why). */
+  softDisabled?: boolean;
+  /** Extra `data-*` attributes of the button (tests). */
+  data?: Record<string, string>;
+}
+
+/** Whether this engine connection has a plugin host (the browser's engines don't). */
+export function hasPluginHost(kind: EngineTransport["kind"]): boolean {
+  return kind !== "wasm" && kind !== "mock";
 }
 
 /**
@@ -41,6 +53,15 @@ export function useDeviceWindow(device: Device): DeviceWindowControl {
   const held = useProjectStore((s) => s.safeMode.includes(device.id));
   const windowOpen = useDeviceWindows((s) => s.open.includes(device.id));
   const missing = plugin !== null && scanned !== null && !isInstalled(scanned, plugin);
+  // A window the app can't open itself (a plugin not installed here, or no plugin host at all):
+  // an extension may (`@/ext` "devices.window"; hooks, called in order).
+  const noPluginHost = !hasPluginHost(transport.kind);
+  const missingHere = plugin !== null && (noPluginHost || missing);
+  const ext = contributions("devices.window")
+    // eslint-disable-next-line react-hooks/rules-of-hooks -- hooks, fixed once the app runs
+    .map((useWindow) => useWindow(device, { missing: missingHere, noPluginHost }))
+    .find((c) => c !== null);
+  if (ext) return ext;
   const open = plugin ? editorOpen : windowOpen;
   return {
     open,

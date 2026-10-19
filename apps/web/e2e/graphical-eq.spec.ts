@@ -87,6 +87,30 @@ test("dragging an EQ band edits frequency and gain in one undo step; the menu se
   await expect.poll(() => param(page, id, pid(3, ON), 1)).toBe(0);
 });
 
+test("the reset button puts the whole EQ back to its defaults in one undo step", async ({ page }) => {
+  test.setTimeout(60_000);
+  const { card, plot, id } = await openEq(page);
+  const reset = card.getByRole("button", { name: "reset eq" });
+  await expect(reset).toBeDisabled();
+  await dragBand(page, plot, 3, 60, -40);
+  await expect.poll(() => param(page, id, pid(3, FREQ), 1000)).toBeGreaterThan(1200);
+  await dragBand(page, plot, 5, -40, 30);
+  await expect.poll(() => param(page, id, pid(5, GAIN), 0)).toBeLessThan(-1);
+  const edited = { ...(await device(page, id)).params };
+
+  await reset.click();
+  await expect.poll(() => param(page, id, pid(3, FREQ), 1000)).toBe(1000);
+  expect(await param(page, id, pid(3, GAIN), 0)).toBe(0);
+  expect(await param(page, id, pid(5, FREQ), 6000)).toBe(6000);
+  expect(await param(page, id, pid(5, GAIN), 0)).toBe(0);
+  await expect(reset).toBeDisabled();
+
+  // One undo brings both bands back.
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(() => param(page, id, pid(3, FREQ), 1000)).toBe(edited[pid(3, FREQ)]);
+  expect(await param(page, id, pid(5, GAIN), 0)).toBe(edited[pid(5, GAIN)]);
+});
+
 /** A pink-ish mix spectrum (dBFS) at `hz`, with a little movement over `t`. */
 function mixDb(hz: number, t: number): number {
   const tilt = -22 - 4.5 * Math.log2(hz / 100);

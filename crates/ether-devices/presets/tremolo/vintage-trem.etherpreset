@@ -15,7 +15,7 @@
         "guitar"
       ],
       "author": "ethereal",
-      "description": "amp-style sine tremolo at 5 Hz."
+      "description": "amp-style sine tremolo at 5 hz."
     },
     "params": {
       "0": 0.0,

@@ -9,7 +9,9 @@ use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use ether_core::config::PrepareConfig;
-use ether_core::plugin::{PluginController, PluginError, PluginNode, PluginNotification};
+use ether_core::plugin::{
+    NativeWindow, PluginController, PluginError, PluginNode, PluginNotification, WindowHandle,
+};
 use ether_core::protocol::devices::{DeviceDescriptor, ParamInfo};
 use ether_core::protocol::model::{ParamId, PluginFormat};
 
@@ -82,6 +84,8 @@ pub struct SandboxedPlugin {
     crash_reported: bool,
     /// `editor_keys::capture_generation` last sent to the helper (0: none sent).
     key_capture_sent: u64,
+    /// The helper's editor window, as last reported (`OpenEditor`, then every poll).
+    editor_window: Option<NativeWindow>,
 }
 
 impl std::fmt::Debug for SandboxedPlugin {
@@ -167,6 +171,7 @@ impl SandboxedPlugin {
             active: false,
             crash_reported: false,
             key_capture_sent: 0,
+            editor_window: None,
             options,
         };
         match plugin.receive(plugin.options.startup_timeout)? {
@@ -435,20 +440,46 @@ impl PluginController for SandboxedPlugin {
             return Err(PluginError::NoEditor);
         }
         self.sync_key_capture();
-        self.expect_ok(Request::OpenEditor)
+        match self.request(Request::OpenEditor)? {
+            Response::EditorOpened { window } => self.editor_window = window.map(foreign),
+            Response::Ok => {}
+            other => return Err(unexpected(other)),
+        }
+        Ok(())
     }
 
     fn close_editor(&mut self) {
+        self.editor_window = None;
         if self.has_editor && !self.is_crashed() {
             let _ = self.expect_ok(Request::CloseEditor);
         }
     }
 
+    fn editor_window(&self) -> Option<NativeWindow> {
+        // A dead helper's window is gone (`is_crashed` itself needs `&mut`).
+        if self.shared.crashed.load(Ordering::Acquire) {
+            return None;
+        }
+        self.editor_window
+    }
+
     fn poll(&mut self, out: &mut Vec<PluginNotification>) {
         if !self.is_crashed() {
             self.sync_key_capture();
-            match self.request(Request::Poll) {
-                Ok(Response::Notifications(list)) => {
+            let list = match self.request(Request::Poll) {
+                Ok(Response::Polled {
+                    notifications,
+                    editor_window,
+                }) => {
+                    self.editor_window = editor_window.map(foreign);
+                    Ok(notifications)
+                }
+                Ok(Response::Notifications(list)) => Ok(list),
+                Ok(other) => Err(Some(other)),
+                Err(_) => Err(None), // crash reported below
+            };
+            match list {
+                Ok(list) => {
                     let mut rescan = false;
                     for n in list {
                         match n {
@@ -471,8 +502,8 @@ impl PluginController for SandboxedPlugin {
                         self.params();
                     }
                 }
-                Ok(other) => tracing::warn!("sandbox poll: {:?}", unexpected(other)),
-                Err(_) => {} // crash reported below
+                Err(Some(other)) => tracing::warn!("sandbox poll: {:?}", unexpected(other)),
+                Err(None) => {}
             }
         }
         if self.is_crashed() && !self.crash_reported {
@@ -481,6 +512,15 @@ impl PluginController for SandboxedPlugin {
             out.push(PluginNotification::Crashed { message });
         }
     }
+}
+
+/// A window reported by the helper, as seen from this process: the `NSWindow*` is the
+/// helper's (meaningless here), the rest is valid across processes.
+fn foreign(mut window: NativeWindow) -> NativeWindow {
+    if let WindowHandle::AppKit { ns_window, .. } = &mut window.handle {
+        *ns_window = 0;
+    }
+    window
 }
 
 impl Drop for SandboxedPlugin {
@@ -515,6 +555,29 @@ impl Drop for SandboxedPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn foreign_windows_drop_the_ns_window_pointer() {
+        let appkit = NativeWindow {
+            pid: 9,
+            handle: WindowHandle::AppKit {
+                window_number: 3,
+                ns_window: 0xdead,
+            },
+        };
+        assert_eq!(
+            foreign(appkit).handle,
+            WindowHandle::AppKit {
+                window_number: 3,
+                ns_window: 0
+            }
+        );
+        let x11 = NativeWindow {
+            pid: 9,
+            handle: WindowHandle::X11 { window: 5 },
+        };
+        assert_eq!(foreign(x11), x11);
+    }
 
     /// The production budget is unchanged: no explicit budget by default, which means a
     /// quarter of a max-size block.

@@ -25,13 +25,13 @@ export const MAX_PITCH_RANGE = 96;
 /** `ether_model::expression::check_mpe`: an error message, or `null` when valid. */
 export function checkMpe(m: MpeSettings): string | null {
   if (!(Number.isInteger(m.member_channels) && m.member_channels >= 1 && m.member_channels <= MAX_MEMBER_CHANNELS)) {
-    return "MPE member channels must be 1..=15";
+    return "mpe member channels must be 1..=15";
   }
   if (!(Number.isFinite(m.note_pitch_range) && m.note_pitch_range >= 1 && m.note_pitch_range <= MAX_PITCH_RANGE)) {
-    return "MPE note pitch range must be 1..=96 semitones";
+    return "mpe note pitch range must be 1..=96 semitones";
   }
   if (!(Number.isFinite(m.master_pitch_range) && m.master_pitch_range >= 0 && m.master_pitch_range <= MAX_PITCH_RANGE)) {
-    return "MPE master pitch range must be 0..=96 semitones";
+    return "mpe master pitch range must be 0..=96 semitones";
   }
   return null;
 }

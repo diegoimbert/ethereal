@@ -95,7 +95,7 @@ export async function ungroupSelected(transport: EngineTransport, selected: Iter
 /** Assign `ids` to `vca` (`null` = unassign), one undo step. */
 export function assignVca(transport: EngineTransport, ids: TrackId[], vca: TrackId | null): Promise<boolean> {
   const commands = ids.map((id) => cmd("Track", { type: "SetVca", id, vca }));
-  const label = vca ? keyedStep("undo.track.assign_vca", "assign to VCA") : keyedStep("undo.track.unassign_vca", "remove from VCA");
+  const label = vca ? keyedStep("undo.track.assign_vca", "assign to vca") : keyedStep("undo.track.unassign_vca", "remove from vca");
   const command = commands.length === 1 ? commands[0]! : batchStep(label, commands);
   return sendGroupsEdit(transport, commands.length ? command : null);
 }
@@ -110,7 +110,7 @@ export async function newVcaFor(transport: EngineTransport, ids: TrackId[]): Pro
     cmd("Track", { type: "Create", id: vca, kind: "Vca", name: null, color: first?.color ?? null, parent: null, before: null }),
     ...ids.map((id) => cmd("Track", { type: "SetVca", id, vca })),
   ];
-  const ok = await sendGroupsEdit(transport, batchStep(countedStep("undo.vca.create", ids.length, "new VCA for track", "new VCA for tracks"), commands));
+  const ok = await sendGroupsEdit(transport, batchStep(countedStep("undo.vca.create", ids.length, "new vca for track", "new vca for tracks"), commands));
   return ok ? vca : null;
 }
 

@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import type { Clip } from "@/generated";
 import type { LaneItem } from "../laneItems";
-import { boxX, cursorFor, hitLane } from "./hitTest";
+import { boxX, cursorFor, EDGE_HANDLE_MIN_PX, EDGE_HANDLE_PX, handleWidth, hitLane, MIN_RESIZE_PX } from "./hitTest";
 import { clipColors, mix, parseColor, type Palette } from "./palette";
 import { InstanceWriter, RECT_STRIDE, RectFlag, writeRect } from "./pipelines";
 import { cullRange, type CullIndex } from "./scene";
@@ -76,6 +76,15 @@ describe("hitLane", () => {
     expect(hitLane([s], none, "t", 230, 50, H, view)).toBeNull();
   });
 
+  it("small clips keep their edge handles from 10 px", () => {
+    const s = item(clip("s", 10, 1)); // 200..220 px
+    expect(hitLane([s], none, "t", 201, 50, H, view)).toEqual({ clip: "s", track: "t", part: "resize-start" });
+    expect(hitLane([s], none, "t", 219, 50, H, view)).toEqual({ clip: "s", track: "t", part: "resize-end" });
+    // The slop past the edges moves.
+    expect(hitLane([s], none, "t", 221, 50, H, view)?.part).toBe("small");
+    expect(hitLane([s], none, "t", 198, 50, H, view)?.part).toBe("small");
+  });
+
   it("boxes are at least 8 px wide", () => {
     expect(boxX(item(clip("z", 0, 0.01)), view)).toEqual([0, 8]);
   });
@@ -84,6 +93,66 @@ describe("hitLane", () => {
     expect(cursorFor("header")).toBe("grab");
     expect(cursorFor("resize-end")).toBe("ew-resize");
     expect(cursorFor("body")).toBe("");
+  });
+});
+
+describe("edge handles by clip width", () => {
+  const none = new Set<string>();
+  /** The part at each px across a clip at x 0, `w` px wide at `pxPerBeat`. */
+  const parts = (w: number, pxPerBeat = w) => {
+    const v = { scrollBeats: 0, pxPerBeat };
+    const c = item(clip("c", 0, w / pxPerBeat));
+    return Array.from({ length: Math.ceil(w) }, (_, x) => hitLane([c], none, "t", x + 0.5, 30, H, v)?.part);
+  };
+  const count = (ps: ReturnType<typeof parts>, part: string) => ps.filter((p) => p === part).length;
+
+  it("widths: 25% of the box, clamped to 3..6 px, none under 10 px", () => {
+    expect(MIN_RESIZE_PX).toBe(10);
+    expect(handleWidth(0, 6)).toBe(0);
+    expect(handleWidth(0, 9.9)).toBe(0);
+    expect(handleWidth(0, 10)).toBe(EDGE_HANDLE_MIN_PX);
+    expect(handleWidth(0, 12)).toBe(3);
+    expect(handleWidth(0, 20)).toBe(5);
+    expect(handleWidth(0, 40)).toBe(EDGE_HANDLE_PX);
+    expect(handleWidth(0, 200)).toBe(6);
+  });
+
+  it.each([
+    // [width px, handle px, grab zone px]
+    [12, 3, 6],
+    [20, 5, 10],
+    [24, 6, 12],
+    [40, 6, 28],
+    [200, 6, 188],
+  ])("a %d px clip has %d px handles and a %d px grab zone", (w, hw, mid) => {
+    const ps = parts(w);
+    expect(ps[0]).toBe("resize-start");
+    expect(ps[w - 1]).toBe("resize-end");
+    expect(count(ps, "resize-start")).toBe(hw);
+    expect(count(ps, "resize-end")).toBe(hw);
+    expect(ps.length - 2 * hw).toBe(mid);
+    // The rest moves: a small clip's whole height, else the body below the title band.
+    expect(ps.slice(hw, w - hw).every((p) => p === (w < 48 ? "small" : "body"))).toBe(true);
+  });
+
+  it("a 6 px clip only moves (no handles)", () => {
+    expect(parts(6).every((p) => p === "small")).toBe(true);
+  });
+
+  it("depends on the clip's width on screen, at any zoom", () => {
+    expect(count(parts(6, 6), "resize-end")).toBe(0);
+    expect(count(parts(24, 24), "resize-end")).toBe(6);
+    expect(count(parts(200, 200), "resize-end")).toBe(6);
+    // 4 beats at 3 px/beat (12 px) and half a beat at 80 px/beat (40 px).
+    expect(count(parts(12, 3), "resize-start")).toBe(3);
+    expect(count(parts(40, 80), "resize-start")).toBe(6);
+  });
+
+  it("cursors follow the hit test", () => {
+    const ps = parts(20);
+    expect(cursorFor(ps[0]!)).toBe("ew-resize");
+    expect(cursorFor(ps[10]!)).toBe("");
+    expect(cursorFor(ps[19]!)).toBe("ew-resize");
   });
 });
 

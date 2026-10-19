@@ -28,6 +28,15 @@ and minor pentatonic are available.
 hit testing, marquee selection, drag targets, and viewport anchoring. Scale
 highlighting and row filtering are editor-local visual preferences.
 
+# Clips extended to the left
+
+Dragging a MIDI clip's left edge past its content start gives it a negative `offset` (a
+leading gap, `ether_model::clip`). The piano roll and the beat editor show the whole clip:
+their axis starts at `contentFloor(clip)` = `min(0, offset)` (`clipTime.ts`; `RollSpace.floor`),
+and notes can be drawn, moved, resized, pasted and stretched there, down to the clip start
+(notes may have negative content starts, they play like any other). Bar 1 stays at content 0,
+so the extended part is bar 0, -1, ... on the editor's ruler.
+
 # Multi-clip editing
 
 Select several MIDI clips in the arrangement (shift/cmd-click, or the clip menu's

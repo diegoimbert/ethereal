@@ -1,4 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { emit } from "@/ext";
 import type { Event, ExportDownload, ExportResult } from "@/generated";
 import { Button, Dialog, NumberField, Select, TextInput, Toggle } from "@/kit";
 import { useProjectStore } from "@/state";
@@ -165,11 +166,13 @@ function ExportPanel({ transport }: { transport: EngineTransport }) {
         break;
       case "Done":
         jobRef.current = null;
+        emit("app.event", { type: "export", format: form.container.toLowerCase(), outcome: "ok" });
         setStatus({ state: "done", result: ev.result });
         if (ev.result.type === "Download") for (const d of ev.result.downloads) void download(d);
         break;
       case "Failed":
         jobRef.current = null;
+        emit("app.event", { type: "export", format: form.container.toLowerCase(), outcome: "failed" });
         setStatus({ state: "failed", message: ev.message });
         break;
       case "Cancelled":

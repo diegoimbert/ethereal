@@ -368,6 +368,13 @@ pub(crate) fn rack_command(ctx: &mut DocCtx, command: &RackCommand) -> CmdResult
             let order = order_before(&chain_siblings(ctx.p(), c.rack, Some(c.id)), *before)?;
             set_chain(ctx, c.id, RackChainChange::Order(order))
         }
+        RackCommand::CopyChain {
+            id,
+            new_id,
+            rack,
+            before,
+            cut,
+        } => copy_chain_command(ctx, *id, *new_id, *rack, *before, *cut),
         RackCommand::SetChainMix {
             id,
             volume,
@@ -799,49 +806,227 @@ fn copy_chains(
     dst: DeviceId,
     devices: &mut BTreeMap<DeviceId, DeviceId>,
 ) -> CmdResult<()> {
-    let track = ctx.device(dst)?.track;
     let chains: Vec<RackChain> = ctx.p().chains_of(src).into_iter().cloned().collect();
     for c in chains {
-        let mut nc = c.clone();
-        nc.id = ctx.new_id();
-        nc.rack = dst;
-        let new_chain = nc.id;
-        ctx.tx.insert(Entity::RackChain(nc))?;
-        let chain_devices: Vec<Device> = ctx
-            .p()
-            .chain_devices_of(c.id)
-            .into_iter()
-            .cloned()
-            .collect();
-        for d in chain_devices {
-            let mut nd = d.clone();
-            nd.id = ctx.new_id();
-            nd.track = track;
-            nd.chain = Some(new_chain);
-            if let DeviceKind::Plugin { plugin } = &mut nd.kind
-                && let Some(state) = ctx.host.plugin_state(d.id)
-            {
-                plugin.state = Some(state);
-            }
-            let copy = nd.id;
-            devices.insert(d.id, copy);
-            ctx.tx.insert(Entity::Device(nd))?;
-            // A nested rack: its chains too (depth bounded by the model).
-            if is_chain_rack(&d) {
-                copy_chains(ctx, d.id, copy, devices)?;
-            }
-            // A nested drum rack: its pads with their chains, and the chains of the racks
-            // on them.
-            if d.kind.is_drum_rack() {
-                let mut pad_devices = BTreeMap::new();
-                ctx.copy_rack_pads(d.id, copy, track, &mut pad_devices)?;
-                for (&src, &dst) in &pad_devices {
-                    devices.insert(src, dst);
-                    if ctx.p().devices.get(&src).is_some_and(is_chain_rack) {
-                        copy_chains(ctx, src, dst, devices)?;
-                    }
+        let id = ctx.new_id();
+        copy_chain(ctx, &c, id, dst, c.order.clone(), devices)?;
+    }
+    Ok(())
+}
+
+/// Copy chain `c` (its settings and devices: nested racks with their chains, nested drum
+/// racks with their pads) as `id` onto rack `dst` with `order`. `devices` receives old → new
+/// device ids. A copied device's sidechain that can't hold at its new place (its own
+/// track's post-fader on another track, or a chain tap of its own track) is cut, with a
+/// notice.
+fn copy_chain(
+    ctx: &mut DocCtx,
+    c: &RackChain,
+    id: RackChainId,
+    dst: DeviceId,
+    order: OrderKey,
+    devices: &mut BTreeMap<DeviceId, DeviceId>,
+) -> CmdResult<()> {
+    let track = ctx.device(dst)?.track;
+    let mut nc = c.clone();
+    nc.id = id;
+    nc.rack = dst;
+    nc.order = order;
+    ctx.tx.insert(Entity::RackChain(nc))?;
+    let chain_devices: Vec<Device> = ctx
+        .p()
+        .chain_devices_of(c.id)
+        .into_iter()
+        .cloned()
+        .collect();
+    for d in chain_devices {
+        let mut nd = d.clone();
+        nd.id = ctx.new_id();
+        nd.track = track;
+        nd.chain = Some(id);
+        if let DeviceKind::Plugin { plugin } = &mut nd.kind
+            && let Some(state) = ctx.host.plugin_state(d.id)
+        {
+            plugin.state = Some(state);
+        }
+        if nd.sidechain == Some(track)
+            && (d.track != track || nd.sidechain_tap.is_some_and(|t| t.chain.is_some()))
+        {
+            nd.sidechain = None;
+            nd.sidechain_tap = None;
+            ctx.warnings.push(
+                crate::text::msg("notice.device.sidechain_removed")
+                    .arg("device", d.name.as_str())
+                    .into(),
+            );
+        }
+        let copy = nd.id;
+        devices.insert(d.id, copy);
+        ctx.tx.insert(Entity::Device(nd))?;
+        // A nested rack: its chains too (depth bounded by the model).
+        if is_chain_rack(&d) {
+            copy_chains(ctx, d.id, copy, devices)?;
+        }
+        // A nested drum rack: its pads with their chains, and the chains of the racks
+        // on them.
+        if d.kind.is_drum_rack() {
+            let mut pad_devices = BTreeMap::new();
+            ctx.copy_rack_pads(d.id, copy, track, &mut pad_devices)?;
+            for (&src, &dst) in &pad_devices {
+                devices.insert(src, dst);
+                if ctx.p().devices.get(&src).is_some_and(is_chain_rack) {
+                    copy_chains(ctx, src, dst, devices)?;
                 }
             }
+        }
+    }
+    Ok(())
+}
+
+/// `Rack::CopyChain`: chain `id` copied as `new_id` onto `rack_id` (any rack, any track)
+/// before `before`; `cut` then removes the source (a move between racks, one undo step).
+///
+/// - Content rules: every device of the chain must fit the target rack (`check_chain_fit`),
+///   racks in it must nest there (`check_nestable`: depth, drum racks, never inside itself).
+/// - Modulation: mappings between copied devices follow the copies (a macro of a rack in the
+///   chain keeps driving its copy). A mapping from outside the chain is kept when its source
+///   (a rack's macro, a track-chain rack's modulator) still surrounds the new place (the
+///   target rack or a rack enclosing it); others are dropped, with a notice. So a duplicate in
+///   the same rack keeps its macro mappings; a chain moved to another rack loses the old
+///   rack's (macros are not remapped: macro N of another rack means something else).
+/// - A cut on the same track carries the automation of its devices (track lanes and clip
+///   envelopes, retargeted to the new devices); to another track it is dropped, like a device
+///   envelope that can't follow its device.
+fn copy_chain_command(
+    ctx: &mut DocCtx,
+    id: RackChainId,
+    new_id: RackChainId,
+    rack_id: DeviceId,
+    before: Option<RackChainId>,
+    cut: bool,
+) -> CmdResult<()> {
+    if ctx.p().rack_chains.contains_key(&new_id) {
+        return Ok(());
+    }
+    let c = chain(ctx, id)?;
+    let r = rack(ctx, rack_id)?;
+    let ty = rack_type(&r).expect("checked");
+    let top: Vec<Device> = ctx
+        .p()
+        .chain_devices_of(c.id)
+        .into_iter()
+        .cloned()
+        .collect();
+    for d in &top {
+        check_nestable(ctx, &d.kind, Some(d.id), r.id)?;
+        let category = ctx.host.descriptor(d.id, &d.kind).map(|x| x.category);
+        check_chain_fit(ty, category)?;
+    }
+    if before.is_some_and(|b| ctx.p().rack_chains.get(&b).is_none_or(|b| b.rack != r.id)) {
+        return Err(invalid("`before` must be a chain of the target rack"));
+    }
+    let order = order_before(&chain_siblings(ctx.p(), r.id, None), before)?;
+    let mut ids = BTreeMap::new();
+    copy_chain(ctx, &c, new_id, r.id, order, &mut ids)?;
+    copy_modulation(ctx, &ids)?;
+    // Mappings from outside the chain whose source still surrounds the new place.
+    let p = ctx.p();
+    let mut around = vec![r.id];
+    around.extend(p.enclosing_racks(r.id).unwrap_or_default());
+    let outside: Vec<ModMapping> = p
+        .mod_mappings
+        .values()
+        .filter(|m| {
+            ids.contains_key(&m.device)
+                && match m.source {
+                    ModSource::Macro { rack, .. } => !ids.contains_key(&rack),
+                    ModSource::Modulator { modulator } => p
+                        .modulators
+                        .get(&modulator)
+                        .is_none_or(|x| !ids.contains_key(&x.device)),
+                }
+        })
+        .cloned()
+        .collect();
+    let mut dropped = false;
+    for m in outside {
+        let host = match m.source {
+            ModSource::Macro { rack, .. } => Some(rack),
+            ModSource::Modulator { modulator } => {
+                ctx.p().modulators.get(&modulator).map(|x| x.device)
+            }
+        };
+        if host.is_some_and(|h| around.contains(&h)) {
+            let mid = ctx.new_id();
+            ctx.tx.insert(Entity::ModMapping(ModMapping {
+                id: mid,
+                device: ids[&m.device],
+                ..m
+            }))?;
+        } else {
+            dropped = true;
+        }
+    }
+    if dropped {
+        ctx.warnings.push(
+            crate::text::msg("notice.rack.chain_modulation_removed")
+                .arg("chain", c.name.as_str())
+                .into(),
+        );
+    }
+    if !cut {
+        return Ok(());
+    }
+    let from_track = ctx.device(c.rack)?.track;
+    if from_track == r.track {
+        carry_automation(ctx, &ids)?;
+    }
+    ctx.delete_rack_chain(c.id)
+}
+
+/// Copies the automation lanes (with their points) of the devices in `ids` (old → new) onto
+/// the new devices, for a chain moved within its track.
+fn carry_automation(ctx: &mut DocCtx, ids: &BTreeMap<DeviceId, DeviceId>) -> CmdResult<()> {
+    let mut lanes: Vec<AutomationLane> = ctx
+        .p()
+        .automation_lanes
+        .values()
+        .filter(|l| l.target.device().is_some_and(|d| ids.contains_key(&d)))
+        .cloned()
+        .collect();
+    lanes.sort_by_key(|l| l.id);
+    for l in lanes {
+        let target = match l.target {
+            AutomationTarget::DeviceParam { device, param } => AutomationTarget::DeviceParam {
+                device: ids[&device],
+                param,
+            },
+            AutomationTarget::DeviceEnabled { device } => AutomationTarget::DeviceEnabled {
+                device: ids[&device],
+            },
+            other => other,
+        };
+        let lane = ctx.new_id();
+        let mut points: Vec<AutomationPoint> = ctx
+            .p()
+            .automation_points
+            .values()
+            .filter(|p| p.lane == l.id)
+            .cloned()
+            .collect();
+        points.sort_by_key(|p| p.id);
+        ctx.tx.insert(Entity::AutomationLane(AutomationLane {
+            id: lane,
+            target,
+            ..l
+        }))?;
+        for pt in points {
+            let pid = ctx.new_id();
+            ctx.tx.insert(Entity::AutomationPoint(AutomationPoint {
+                id: pid,
+                lane,
+                ..pt
+            }))?;
         }
     }
     Ok(())
@@ -944,10 +1129,12 @@ pub(crate) fn modulation_command(ctx: &mut DocCtx, command: &ModulationCommand) 
                     .iter()
                     .filter(|m| m.kind == *kind)
                     .count();
+                // lowercase like a device's default name ("lfo", "lfo 2"), in the names' language
+                let base = crate::text::device_default_name(&desc.name);
                 if same == 0 {
-                    desc.name.clone()
+                    base
                 } else {
-                    format!("{} {}", desc.name, same + 1)
+                    format!("{base} {}", same + 1)
                 }
             });
             ctx.tx.insert(Entity::Modulator(Modulator {

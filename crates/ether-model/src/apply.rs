@@ -1081,7 +1081,10 @@ impl Project {
                 }
                 check_unit("velocity", f64::from(n.velocity))?;
                 check_unit("release velocity", f64::from(n.release_velocity))?;
-                check_beats_nonneg("note start", n.start)?;
+                // Negative: in a left-extended clip's leading gap (`crate::clip`).
+                if !finite(n.start.0) {
+                    return Err(invalid("note start must be finite"));
+                }
                 if !(finite(n.duration.0) && n.duration.0 > 0.0) {
                     return Err(invalid("note duration must be > 0"));
                 }
@@ -1103,6 +1106,7 @@ impl Project {
                     match device {
                         BuiltinDevice::Sampler { slices, .. } => check_slices(slices)?,
                         BuiltinDevice::MultiSampler { zones } => check_sample_zones(zones)?,
+                        BuiltinDevice::VolumeLfo { curve } => curve.check().map_err(invalid)?,
                         BuiltinDevice::ConvolutionReverb {
                             ir: Some(IrSource::Factory { id }),
                         } if id.is_empty() || id.len() > 64 => {

@@ -90,8 +90,8 @@ test("save a track as a template and insert it (one undo step), across a reload"
     .getByRole("listbox", { name: "commands" })
     .getByRole("option", { name: /insert track template/ })
     .click();
-  await insert.getByRole("button", { name: /^Reverb Return/ }).click();
-  await expect.poll(async () => Object.values((await project(page)).tracks).some((t) => t.kind === "Return" && t.name === "Reverb")).toBe(true);
+  await insert.getByRole("button", { name: /^reverb return/ }).click();
+  await expect.poll(async () => Object.values((await project(page)).tracks).some((t) => t.kind === "Return" && t.name === "reverb")).toBe(true);
 });
 
 test("new project from a project template and the default", async ({ page }) => {
@@ -153,10 +153,10 @@ for (const theme of ["dark", "light"]) {
     await trackMenu(page, lead.name, "insert track template…");
     const insert = page.getByRole("dialog", { name: "insert track template" });
     await expect(insert.getByRole("button", { name: /^Night Lead/ })).toBeVisible();
-    await insert.getByRole("button", { name: /^Vocal Chain/ }).hover();
+    await insert.getByRole("button", { name: /^vocal chain/ }).hover();
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${shots}/templates-insert-${theme}.png` });
-    await insert.getByRole("button", { name: /^Drum Bus/ }).click();
+    await insert.getByRole("button", { name: /^drum bus/ }).click();
     await expect(insert).toBeHidden();
     await page.waitForTimeout(300);
     await page.screenshot({ path: `${shots}/templates-inserted-${theme}.png` });

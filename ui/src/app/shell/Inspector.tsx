@@ -313,7 +313,7 @@ function ManyAudioClipsSection({ clips }: { clips: ReadonlyArray<Clip> }) {
           max={24}
           step={0.5}
           precision={1}
-          unit="dB"
+          unit="db"
           onChange={(v) => sendCmd(setAllGain(audio, v))}
           onNudge={(d) => sendCmd(offsetGain(audio, bases.current?.gain ?? gainBases(audio), d))}
         />
@@ -422,7 +422,7 @@ function ClipInspector({ clip }: { clip: Clip }) {
               max={24}
               step={0.5}
               precision={1}
-              unit="dB"
+              unit="db"
               onChange={(gain) => void gesture.send(cmd("Clip", { type: "SetGain", id: clip.id, gain }))}
             />
           </Row>
@@ -587,7 +587,7 @@ function TrackInspector({ id }: { id: TrackId }) {
       </Section>
 
       {track.kind === "Midi" && (
-        <Section title="MPE">
+        <Section title="mpe">
           <MpeSettingsFields track={track} Row={Row} />
         </Section>
       )}

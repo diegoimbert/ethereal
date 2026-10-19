@@ -77,7 +77,7 @@ type GridStep = { kind: "beats"; beats: number } | { kind: "bars"; bars: number 
 const step = resolveGrid(setting, vp.pxPerBeat, tempo.signatureAt(vp.scrollBeats)); // null = off
 gridLines(tempo, visibleRange(vp, width), step)   // [{ beats, level: "bar" | "beat" | "sub", bar? }]
 snapToGrid(beats, step, tempo, "nearest" | "floor" | "ceil")
-snapDelta(origin, delta, step, tempo, relative?)  // drags: absolute or keep off-grid offset
+snapDelta(origin, delta, step, tempo, relative?)  // drags: absolute, or relative (moves: off-grid keeps its offset)
 formatGridStep(step)                              // "1/16", "1/8T", "1 Bar", "4 Bars", "Off"
 ```
 

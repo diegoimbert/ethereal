@@ -27,9 +27,9 @@ describe("computer keyboard layout", () => {
 
   it("names octaves like Ableton (C3 = 60) and stays within MIDI", () => {
     expect(octaveBase(3)).toBe(60);
-    expect(noteName(60)).toBe("C3");
-    expect(noteName(0)).toBe("C-2");
-    expect(noteName(61)).toBe("C#3");
+    expect(noteName(60)).toBe("c3");
+    expect(noteName(0)).toBe("c-2");
+    expect(noteName(61)).toBe("c#3");
     expect(noteFor("KeyA", MIN_OCTAVE)).toBe(0);
     // Top octave: C8 = 120 up to G8 = 127 play, notes above 127 don't.
     expect(noteFor("KeyG", MAX_OCTAVE)).toBe(127);

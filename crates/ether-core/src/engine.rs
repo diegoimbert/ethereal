@@ -1485,10 +1485,25 @@ impl JobCtx<'_> {
             entry.events.sort();
             *overflow |= entry.events.overflowed();
             let key = entry.key;
+            // The bypass path keeps the input (`ChainRt::blend`), before anything writes it.
+            entry.push_dry(a, n);
             // Sidechain PDC: delay the main signal before this entry if planned.
             rt_sidechain.align_main(key, a, n);
+            // Off = MIDI thru (v0.2 `midi-fx`): its notes reach the next device (its own
+            // params don't). One still fading out runs without events.
+            if !entry.is_enabled() {
+                if let Some(next) = tail.first_mut() {
+                    for e in entry.events.as_slice() {
+                        if !matches!(e.kind, EventKind::Param { .. }) {
+                            next.events.push(*e);
+                        }
+                    }
+                }
+                entry.events.clear();
+            }
+            let runs = entry.runs();
             // Drum rack: pad chains feed the rack node's input (`crate::drum_rack`).
-            if entry.is_enabled() && !racks.is_empty() && racks.is_rack(key) {
+            if runs && !racks.is_empty() && racks.is_rack(key) {
                 *overflow |= racks.run_pads(
                     key,
                     nodes,
@@ -1506,7 +1521,7 @@ impl JobCtx<'_> {
                 );
             }
             // Rack chains (`crate::rack_chains`, v0.2): chains feed the rack node's input.
-            if entry.is_enabled() && !chain_racks.is_empty() && chain_racks.is_rack(key) {
+            if runs && !chain_racks.is_empty() && chain_racks.is_rack(key) {
                 *overflow |= chain_racks.run(
                     key,
                     nodes,
@@ -1534,16 +1549,8 @@ impl JobCtx<'_> {
                 node.reset();
                 node_rt.asleep = false;
             }
-            if !entry.is_enabled() {
-                // Bypassed = MIDI thru (v0.2 `midi-fx`): its notes reach the next device
-                // (its own params don't).
-                if let Some(next) = tail.first_mut() {
-                    for e in entry.events.as_slice() {
-                        if !matches!(e.kind, EventKind::Param { .. }) {
-                            next.events.push(*e);
-                        }
-                    }
-                }
+            if !runs {
+                entry.bypass(a, n);
                 sc_points.write(ScPoint::After(key), a, n);
                 continue;
             }
@@ -1621,14 +1628,22 @@ impl JobCtx<'_> {
             if !chain_racks.is_empty() {
                 chain_racks.finish(key, out_events);
             }
+            // A device fading out sends no MIDI (it is thru already).
+            if !entry.is_enabled() {
+                out_events.clear();
+            }
             match n_out {
                 0 => {}
                 1 => {
                     let [bl, br] = &mut *b;
                     br[..n].copy_from_slice(&bl[..n]);
+                    entry.blend(b, n);
                     std::mem::swap(a, b);
                 }
-                _ => std::mem::swap(a, b),
+                _ => {
+                    entry.blend(b, n);
+                    std::mem::swap(a, b);
+                }
             }
             sc_points.write(ScPoint::After(key), a, n);
             // Note/MIDI output feeds the next device.
@@ -1639,10 +1654,6 @@ impl JobCtx<'_> {
             }
         }
         track.awake = awake;
-        {
-            let [al, ar] = &mut *a;
-            track.bypass_delay.process(&mut al[..n], &mut ar[..n]);
-        }
         taps.write(InputTap::PostFx, a, n);
         sc_points.write(ScPoint::Track(InputTap::PostFx), a, n);
 

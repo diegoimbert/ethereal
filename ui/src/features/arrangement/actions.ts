@@ -16,6 +16,7 @@ import { arrangementTracks } from "./layout";
 import { selectedClips, sendEdit } from "./context";
 import { useArrangementUi } from "./uiStore";
 import { reverseClipsCommand } from "@/features/clip-editing/clipEditing";
+import { consolidateIfAllowed } from "@/features/freeze";
 import { exportMidiClips, midiClipsOfTracks } from "@/features/midi-file/exportMidi";
 import { asOneStep, deleteCommand, duplicateCommand, splitCommand, toggleLoopCommand } from "./editMath";
 import { getTrackClipboard } from "./clipboard";
@@ -33,7 +34,7 @@ export { deleteSelectedTracks } from "./trackEdit";
 
 export type NewTrackKind = "Midi" | "Audio" | "Return";
 
-const ADD_LABELS: Record<NewTrackKind, string> = { Midi: "add MIDI track", Audio: "add audio track", Return: "add return track" };
+const ADD_LABELS: Record<NewTrackKind, string> = { Midi: "add midi track", Audio: "add audio track", Return: "add return track" };
 /** The undo label's message (`undo.track.create`, docs/LOCALIZATION.md "Text from the engine"). */
 const ADD_KINDS: Record<NewTrackKind, string> = { Midi: "midi", Audio: "audio", Return: "return" };
 
@@ -87,6 +88,33 @@ export function selectTrackEntity(track: TrackId, mode: SelectMode = "replace"):
   }
   const focus = useArrangementUi.getState().trackFocus;
   if (focus) useSelectionStore.getState().selectTrack(focus);
+}
+
+/**
+ * The tracks Mod+A selects when a track is the edit target: the arrangement's rows in
+ * display order, as a shift-click from the first row to the last would (groups and their
+ * shown children, returns; children of folded groups stay out, like in a shift-range),
+ * minus the master track.
+ */
+export function allSelectableTracks(project: Project, folded: ReadonlySet<TrackId>): TrackId[] {
+  return arrangementTracks(tracksOrdered(project), folded)
+    .filter((t) => t.kind !== "Master")
+    .map((t) => t.id);
+}
+
+/** Select every track (`allSelectableTracks`) as the arrangement's entity; clips are cleared. */
+export function selectAllTracks(): void {
+  const project = useProjectStore.getState().project;
+  if (!project) return;
+  const ui = useArrangementUi.getState();
+  const all = allSelectableTracks(project, ui.folded);
+  if (all.length === 0) return;
+  itemSelection.getState().clear("clip");
+  itemSelection.getState().clear("automationPoint");
+  // The focus (shift-click anchor, inspector) stays on the track it was on.
+  const focus = ui.trackFocus && all.includes(ui.trackFocus) ? ui.trackFocus : all[0]!;
+  ui.setTrackSelection(all, focus);
+  useSelectionStore.getState().selectTrack(focus);
 }
 
 /**
@@ -181,7 +209,7 @@ itemSelection.subscribe((s, prev) => {
   if (s.selected.clip !== prev.selected.clip && s.selected.clip.size > 0) clipSelectedAt = ++selectionSeq;
 });
 
-export type ClipAction = "split" | "duplicate" | "delete" | "loop" | "select-all" | "deselect" | "copy" | "cut" | "paste" | "reverse";
+export type ClipAction = "split" | "duplicate" | "delete" | "loop" | "select-all" | "deselect" | "copy" | "cut" | "paste" | "reverse" | "consolidate";
 
 export function runClipAction(transport: EngineTransport, action: ClipAction): Promise<void> {
   const clips = selectedClips();
@@ -218,7 +246,16 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
       // notes, lanes and envelopes are mirrored in time.
       return sendEdit(transport, reverseClipsCommand(clips));
     }
+    case "consolidate":
+      // #870: Mod+J, like the clip menu's "consolidate" (frozen / rendering tracks: nothing).
+      consolidateIfAllowed(transport, clips);
+      return Promise.resolve();
     case "select-all": {
+      // A track selected (header or empty lane clicked): every track; else every clip.
+      if (onTracks) {
+        selectAllTracks();
+        return Promise.resolve();
+      }
       const project = useProjectStore.getState().project;
       const all = project
         ? Object.values(project.clips)
@@ -268,6 +305,7 @@ const CLIP_KEY_ACTIONS: Record<string, ClipAction> = {
   "edit.paste": "paste",
   "clip.toggleLoop": "loop",
   "clip.reverse": "reverse",
+  "clip.consolidate": "consolidate",
 };
 
 /**

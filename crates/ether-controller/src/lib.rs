@@ -77,6 +77,8 @@ mod project_export;
 mod racks;
 mod recording;
 mod resolver;
+// #519: the default sample pack (docs/SAMPLES.md).
+pub mod sample_pack;
 mod saving;
 mod sidechain;
 pub mod store;
@@ -575,6 +577,44 @@ pub trait HostServices {
     fn now_ms(&self) -> u64;
     /// Entropy for the `IdGen` seed.
     fn random_seed(&mut self) -> u64;
+
+    /// #519 (the sample pack, docs/SAMPLES.md): start an HTTP GET of `url` as request `id`
+    /// (controller-chosen), reading at most `max_bytes` of body. The answer comes back from
+    /// [`Self::poll_http`]. Never blocks. Default: unsupported (no network: the built-in kit
+    /// only).
+    fn http_get(&mut self, id: u64, url: &str, max_bytes: u64) -> Result<(), String> {
+        let _ = (id, url, max_bytes);
+        Err("downloads are not available in this build".into())
+    }
+
+    /// #519: the host's sample pack manifest URL, overriding `DEFAULT_SAMPLES_URL` when the
+    /// UI doesn't name one (natively `ETHER_SAMPLES_URL`; `""` = no remote pack).
+    fn samples_url(&self) -> Option<String> {
+        None
+    }
+
+    /// Drain the HTTP answers that arrived since the last call (called from every tick while
+    /// requests are in flight), plus their progress.
+    fn poll_http(&mut self, out: &mut Vec<HttpEvent>) {
+        let _ = out;
+    }
+}
+
+/// An answer (or progress) of a [`HostServices::http_get`] request.
+#[derive(Clone, Debug, PartialEq)]
+pub enum HttpEvent {
+    /// Body bytes received so far (and the total, when the server said).
+    Progress {
+        id: u64,
+        received: u64,
+        total: Option<u64>,
+    },
+    /// The request finished: the HTTP status and the body (any status), or a transport error
+    /// (offline, DNS, TLS, the body was over `max_bytes`).
+    Done {
+        id: u64,
+        result: Result<(u16, Vec<u8>), String>,
+    },
 }
 
 /// Tunables (defaults suit a 30-60 Hz tick).
@@ -702,6 +742,8 @@ where
     undo_history: undo_history::UndoHistoryState,
     /// `import-resolver`: media search job and the last import's hints (`resolver`).
     resolver: resolver::ResolverState,
+    /// #519: the default sample pack (`sample_pack` module; runtime).
+    samples: sample_pack::SamplesState,
     next_gesture: u32,
     last_transport: Option<TransportState>,
     outputs: EngineOutputs,
@@ -760,6 +802,7 @@ where
             plugin_states: Default::default(),
             undo_history: Default::default(),
             resolver: Default::default(),
+            samples: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,

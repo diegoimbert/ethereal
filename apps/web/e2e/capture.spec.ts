@@ -30,7 +30,7 @@ test("Capture MIDI: button and palette entry on the web", async ({ page }) => {
   const palette = page.getByRole("dialog", { name: "command palette" });
   await expect(palette).toBeVisible();
   await page.keyboard.type("capture midi");
-  await expect(palette.getByRole("option", { name: /capture MIDI/ })).toBeVisible();
+  await expect(palette.getByRole("option", { name: /capture midi/ })).toBeVisible();
   await page.keyboard.press("Enter");
   await expect(palette).toBeHidden();
   // Nothing was played: no clip, no error, the button stays off.

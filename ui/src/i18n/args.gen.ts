@@ -182,6 +182,8 @@ export interface MessageArgs {
   "devices.layout.fewer_label": { name: string | number };
   "devices.layout.more": { count: string | number };
   "devices.layout.more_label": { name: string | number };
+  "devices.lfo_curve.label": { count: number };
+  "devices.lfo_curve.point": { n: string | number; x: string | number; y: string | number };
   "devices.library.add": { name: string | number };
   "devices.library.empty": { kind: string };
   "devices.library.empty_formats": { kind: string };
@@ -189,6 +191,7 @@ export interface MessageArgs {
   "devices.library.favourite": { name: string | number };
   "devices.library.hide_format": { format: string | number };
   "devices.library.list": { kind: string };
+  "devices.library.remote_plugins": { host: string | number };
   "devices.library.search": { kind: string };
   "devices.library.show_format": { format: string | number };
   "devices.library.unfavourite": { name: string | number };
@@ -302,6 +305,7 @@ export interface MessageArgs {
   "freeze.status.queued": { what: string | number };
   "freeze.status.unfreeze": { name: string | number };
   "freeze.status.what": { kind: string; name: string | number };
+  "freeze.status.what_on": { host: string | number; kind: string; name: string | number };
   "groove.humanize.apply": { count: number };
   "groove.quantize.apply": { count: number };
   "groups.input.from": { name: string | number };
@@ -332,11 +336,14 @@ export interface MessageArgs {
   "import_audio.phase.uploading": { name: string | number };
   "import_audio.reject.extension": { ext: string | number };
   "import_audio.reject.too_large": { limit: string | number; size: string | number };
+  "keyboard_midi.octave_down_title": { key: string | number };
+  "keyboard_midi.octave_up_title": { key: string | number };
   "keyboard_midi.plays_on": { track: string | number };
   "keyboard_midi.status": { low: string | number; velocity: string | number };
   "keyboard_midi.title_off_key": { shortcut: string | number };
   "keyboard_midi.title_on": { keys: string | number; low: string | number; octave: string | number; vel: string | number };
   "keyboard_midi.title_on_key": { keys: string | number; low: string | number; octave: string | number; shortcut: string | number; vel: string | number };
+  "keyboard_midi.velocity_presets": { keys: string | number };
   "kit.select.search_named": { name: string | number };
   "media_refs.collecting": { done: string | number; total: string | number };
   "media_refs.notice.missing": { count: number };
@@ -440,6 +447,7 @@ export interface MessageArgs {
   "notice.presets.mapping_skipped": { error: string | number };
   "notice.presets.sample_unavailable": { error: string | number; path: string | number; preset: string | number };
   "notice.project.autosave_failed": { error: string | number };
+  "notice.rack.chain_modulation_removed": { chain: string | number };
   "notice.rack.outside_modulation_removed": { device: string | number };
   "notice.recording.commit_failed": { error: string | number };
   "notice.recording.failed": { error: string | number };
@@ -514,6 +522,8 @@ export interface MessageArgs {
   "racks.chain.volume": { name: string | number };
   "racks.chain.zones": { name: string | number };
   "racks.chains.label": { name: string | number };
+  "racks.clipboard.drop_failed": { error: string | number; name: string | number };
+  "racks.clipboard.paste_failed": { error: string | number; name: string | number };
   "racks.zones.high": { name: string | number; zone: string | number };
   "racks.zones.low": { name: string | number; zone: string | number };
   "recording.arm_track": { name: string | number };
@@ -593,6 +603,7 @@ export interface MessageArgs {
   "shell.crash.crashed": { name: string | number };
   "shell.crash.load_failed": { name: string | number };
   "shell.crash.panel_other": { name: string | number };
+  "shell.desktop_band.no_app": { link: Tag };
   "shell.engine_health.recovered": { secs: string | number };
   "shell.engine_health.recovered_reason": { reason: string | number; secs: string | number };
   "shell.engine_health.stalled_reason": { reason: string | number };
@@ -621,6 +632,7 @@ export interface MessageArgs {
   "shell.pane.close": { pane: string | number };
   "shell.pane.collapse": { pane: string | number };
   "shell.pane.expand": { pane: string | number };
+  "shell.pane.fullscreen_key": { key: string | number };
   "shell.pane.pin": { pane: string | number };
   "shell.pane.resize": { pane: string | number };
   "shell.pane.unpin": { pane: string | number };

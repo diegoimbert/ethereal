@@ -116,5 +116,13 @@ export function wantsMobileUi(device: DeviceInfo = currentDevice(), search: stri
   return !forcedDesktop(search) && isMobileDevice(device);
 }
 
-/** The download page (`/download`, `/download/`): standalone, phones included. */
-export const isDownloadPage = (pathname: string): boolean => /^\/download\/?$/.test(pathname);
+/**
+ * Turn the mobile UI on for this page when it wants it (`wantsMobileUi`), before the first
+ * render. Also lets its audio play as music (the ringer switch on silent). Whether it did.
+ */
+export function applyMobileUi(enable: () => void, device: DeviceInfo = currentDevice(), search: string = location.search, nav: Navigator = navigator): boolean {
+  if (!wantsMobileUi(device, search)) return false;
+  enable();
+  preferPlaybackAudioSession(nav);
+  return true;
+}

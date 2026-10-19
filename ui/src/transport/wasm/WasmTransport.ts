@@ -66,6 +66,16 @@ export class WasmTransport implements EngineTransport {
     this.endpoint = opts.endpoint;
   }
 
+  /**
+   * A method an extension added to the engine endpoint (`@/ext` "web.engine" `methods`), bound;
+   * `null` without one, or once the transport is disposed or failed.
+   */
+  endpointMethod<F extends (...args: never[]) => unknown>(name: string): F | null {
+    if (this.disposed || this.fatal) return null;
+    const f = (this.endpoint as unknown as Record<string, unknown> | undefined)?.[name];
+    return typeof f === "function" ? (f.bind(this.endpoint) as F) : null;
+  }
+
   /** The engine failed (a fatal Worker error): this session is not ending cleanly. */
   get failed(): boolean {
     return this.fatal !== null;

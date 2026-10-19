@@ -88,6 +88,9 @@
     "https://github.com/microsoft/windows-rs": {
       "MIT": "upstream/microsoft__windows-rs/license-mit",
       "Apache-2.0": "upstream/microsoft__windows-rs/license-apache-2.0"
+    },
+    "https://github.com/mit-plv/fiat-crypto": {
+      "BSD-1-Clause": "upstream/mit-plv__fiat-crypto/LICENSE-BSD-1"
     }
   },
   "crates": {

@@ -269,7 +269,7 @@ export function McpSection() {
     <section className="eth-ai__section" aria-label={t("ai_chat.mcp.title")} data-testid="ai-mcp">
       <h3 className="eth-ai__heading">{t("ai_chat.mcp.title")}</h3>
       <Toggle checked={enabled} disabled={busy || status === null} onChange={toggle} label={t("ai_chat.mcp.allow")} />
-      <p className="eth-ai__hint">{t("ai_chat.mcp.hint", { apps: "Claude Code, Claude Desktop" /* eth-allow-case: product names */ })}</p>
+      <p className="eth-ai__hint">{t("ai_chat.mcp.hint", { apps: "claude code, claude desktop" })}</p>
       {enabled && status && (
         <>
           <p className="eth-ai__hint" data-testid="ai-mcp-status">

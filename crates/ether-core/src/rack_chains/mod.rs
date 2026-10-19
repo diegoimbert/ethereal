@@ -301,13 +301,13 @@ impl ChainRacksRt {
                     .chains
                     .iter()
                     .map(|c| {
-                        // Latency this chain actually adds (bypassed entries are skipped).
+                        // Latency this chain adds (bypassed entries delay their input
+                        // by theirs).
                         let lat: u32 = c
                             .chain
                             .iter()
-                            .filter(|e| e.enabled)
                             .map(|e| entry_latency(racks, drums, e.node, node_info, 1))
-                            .sum();
+                            .fold(0, u32::saturating_add);
                         let gains = chain_gains(c.volume, c.pan, c.mute);
                         let mut st = ChainState {
                             id: c.id,
@@ -320,7 +320,8 @@ impl ChainRacksRt {
                                         e.enabled,
                                         node_info(e.node).map_or((2, 2), |i| i.channels),
                                         has_sc(e.node),
-                                        config.max_events_per_block,
+                                        entry_latency(racks, drums, e.node, node_info, 1) as usize,
+                                        config,
                                     )
                                 })
                                 .collect(),
@@ -381,7 +382,7 @@ impl ChainRacksRt {
                 match o.chains.iter_mut().find(|oc| oc.id == chain.id) {
                     Some(oc) => {
                         release_on_midi_fx_change(&mut chain.entries, &oc.entries);
-                        inherit_switches(&mut chain.entries, &oc.entries);
+                        inherit_switches(&mut chain.entries, &mut oc.entries);
                         chain.delay.inherit(&mut oc.delay);
                         for (g, (og, t)) in chain.gain.iter_mut().zip(oc.gain.iter().zip(target)) {
                             *g = *og;
@@ -419,7 +420,7 @@ impl ChainRacksRt {
             .flat_map(|r| r.chains.iter_mut())
             .flat_map(|c| c.entries.iter_mut())
         {
-            e.auto_enabled = None;
+            e.clear_auto();
         }
     }
 
@@ -640,12 +641,25 @@ impl ChainRacksRt {
                 overflow |= entry.switch_notes(next);
                 entry.events.sort();
                 overflow |= entry.events.overflowed();
+                // The bypass path keeps the input (`ChainRt::blend`).
+                entry.push_dry(&chain.a, n);
                 // Sidechain PDC: delay the main signal before this entry if planned.
-                if entry.is_enabled() {
-                    sc.taps.align_main(entry.key, &mut chain.a, n);
+                sc.taps.align_main(entry.key, &mut chain.a, n);
+                // Off: a MIDI effect passes its notes on; one fading out runs without events.
+                chain.out_events.clear();
+                if !entry.is_enabled() {
+                    if midi {
+                        for e in entry.events.as_slice() {
+                            if !matches!(e.kind, EventKind::Param { .. }) {
+                                chain.out_events.push(*e);
+                            }
+                        }
+                    }
+                    entry.events.clear();
                 }
+                let runs = entry.runs();
                 // A nested rack: its chains feed its node's input first.
-                let nested = entry.is_enabled() && self.is_rack(entry.key);
+                let nested = runs && self.is_rack(entry.key);
                 if nested {
                     overflow |= self.run_nested(
                         entry.key,
@@ -663,7 +677,7 @@ impl ChainRacksRt {
                 }
                 // A drum rack on the chain (instrument racks): its pads feed its node's input
                 // first, like at a track-chain entry (`crate::drum_rack`).
-                if entry.is_enabled()
+                if runs
                     && let Some(d) = drums.as_deref_mut()
                     && d.is_rack(entry.key)
                 {
@@ -687,16 +701,8 @@ impl ChainRacksRt {
                 if reset {
                     node.reset();
                 }
-                chain.out_events.clear();
-                if !entry.is_enabled() {
-                    // A bypassed MIDI effect passes its notes on.
-                    if midi {
-                        for e in entry.events.as_slice() {
-                            if !matches!(e.kind, EventKind::Param { .. }) {
-                                chain.out_events.push(*e);
-                            }
-                        }
-                    }
+                if !runs {
+                    entry.bypass(&mut chain.a, n);
                 } else {
                     let (n_in, n_out) = (
                         (entry.channels.0 as usize).min(2),
@@ -732,14 +738,22 @@ impl ChainRacksRt {
                     if nested {
                         self.finish(entry.key, &mut chain.out_events);
                     }
+                    // Fading out: its own MIDI goes nowhere (a MIDI chain's notes went thru).
+                    if !entry.is_enabled() && !midi {
+                        chain.out_events.clear();
+                    }
                     match n_out {
                         0 => {}
                         1 => {
                             let [bl, br] = &mut chain.b;
                             br[..n].copy_from_slice(&bl[..n]);
+                            entry.blend(&mut chain.b, n);
                             std::mem::swap(&mut chain.a, &mut chain.b);
                         }
-                        _ => std::mem::swap(&mut chain.a, &mut chain.b),
+                        _ => {
+                            entry.blend(&mut chain.b, n);
+                            std::mem::swap(&mut chain.a, &mut chain.b);
+                        }
                     }
                 }
                 sc.points.write(ScPoint::After(entry.key), &chain.a, n);

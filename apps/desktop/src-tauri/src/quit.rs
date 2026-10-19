@@ -186,7 +186,7 @@ pub mod menu {
         let config = app.config();
         let about = AboutMetadata {
             name: Some(pkg.name.clone()),
-            version: Some(pkg.version.to_string()),
+            version: Some(crate::APP_VERSION.to_string()),
             copyright: config.bundle.copyright.clone(),
             authors: config.bundle.publisher.clone().map(|p| vec![p]),
             ..Default::default()
@@ -205,7 +205,7 @@ pub mod menu {
         let undo = app_menu::macos::item(app, *undo, &l)?;
         let redo = app_menu::macos::item(app, *redo, &l)?;
         let select_all = app_menu::macos::item(app, app_menu::EDIT_SELECT_ALL, &l)?;
-        let help: Vec<&[app_menu::ItemSpec]> = vec![app_menu::HELP_ITEMS];
+        let help = app_menu::help_groups();
         let help = app_menu::macos::grouped(app, &help, &l)?;
         let help: Vec<&dyn IsMenuItem<R>> = help.iter().map(|b| b.as_ref()).collect();
         Menu::with_items(

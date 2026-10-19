@@ -41,36 +41,36 @@ const PROXY_HELP = () => t("ai_chat.provider.proxy_help", { example: "OpenRouter
 export const PROVIDERS: Record<ProviderId, ProviderPreset> = {
   anthropic: {
     id: "anthropic",
-    label: "Anthropic (Claude)", // i18n-ignore: a brand
+    label: "anthropic (claude)", // i18n-ignore: a brand
     kind: "anthropic",
     group: "cloud",
     baseUrl: "https://api.anthropic.com",
     models: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-4-5-20251001"],
     keyRequired: true,
     keyHint: "sk-ant-…",
-    keyHelp: { site: "console.anthropic.com → API keys" },
+    keyHelp: { site: "console.anthropic.com → API keys" }, // eth-allow-case: the site's own page names
   },
   openai: {
     id: "openai",
-    label: "OpenAI", // i18n-ignore: a brand
+    label: "openai", // i18n-ignore: a brand
     kind: "openai",
     group: "cloud",
     baseUrl: "https://api.openai.com/v1",
     models: ["gpt-5", "gpt-5-mini", "gpt-4.1", "gpt-4.1-mini"],
     keyRequired: true,
     keyHint: "sk-…",
-    keyHelp: { site: "platform.openai.com → API keys" },
+    keyHelp: { site: "platform.openai.com → API keys" }, // eth-allow-case: the site's own page names
   },
   deepseek: {
     id: "deepseek",
-    label: "DeepSeek", // i18n-ignore: a brand
+    label: "deepseek", // i18n-ignore: a brand
     kind: "openai",
     group: "cloud",
     baseUrl: "https://api.deepseek.com",
     models: ["deepseek-chat", "deepseek-reasoner"],
     keyRequired: true,
     keyHint: "sk-…",
-    keyHelp: { site: "platform.deepseek.com → API keys" },
+    keyHelp: { site: "platform.deepseek.com → API keys" }, // eth-allow-case: the site's own page names
     corsHelp: PROXY_HELP,
     // The default is 8K without thinking (64K with), and thinking counts against it; the
     // ceiling is 384K. A model with a lower ceiling refuses it: the adapter then retries with
@@ -79,7 +79,7 @@ export const PROVIDERS: Record<ProviderId, ProviderPreset> = {
   },
   gemini: {
     id: "gemini",
-    label: "Google Gemini", // i18n-ignore: a brand
+    label: "google gemini", // i18n-ignore: a brand
     kind: "openai",
     group: "cloud",
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
@@ -91,31 +91,31 @@ export const PROVIDERS: Record<ProviderId, ProviderPreset> = {
   },
   mistral: {
     id: "mistral",
-    label: "Mistral", // i18n-ignore: a brand
+    label: "mistral", // i18n-ignore: a brand
     kind: "openai",
     group: "cloud",
     baseUrl: "https://api.mistral.ai/v1",
     models: ["mistral-large-latest", "mistral-medium-latest", "mistral-small-latest"],
     keyRequired: true,
     keyHint: "",
-    keyHelp: { site: "console.mistral.ai → API keys" },
+    keyHelp: { site: "console.mistral.ai → API keys" }, // eth-allow-case: the site's own page names
     corsHelp: PROXY_HELP,
   },
   groq: {
     id: "groq",
-    label: "Groq", // i18n-ignore: a brand
+    label: "groq", // i18n-ignore: a brand
     kind: "openai",
     group: "cloud",
     baseUrl: "https://api.groq.com/openai/v1",
     models: ["openai/gpt-oss-120b", "llama-3.3-70b-versatile", "moonshotai/kimi-k2-instruct"],
     keyRequired: true,
     keyHint: "gsk_…",
-    keyHelp: { site: "console.groq.com → API keys" },
+    keyHelp: { site: "console.groq.com → API keys" }, // eth-allow-case: the site's own page names
     corsHelp: PROXY_HELP,
   },
   openrouter: {
     id: "openrouter",
-    label: "OpenRouter", // i18n-ignore: a brand
+    label: "openrouter", // i18n-ignore: a brand
     kind: "openai",
     group: "cloud",
     baseUrl: "https://openrouter.ai/api/v1",
@@ -127,7 +127,7 @@ export const PROVIDERS: Record<ProviderId, ProviderPreset> = {
   },
   together: {
     id: "together",
-    label: "Together AI", // i18n-ignore: a brand; eth-allow-case: a brand
+    label: "together ai", // i18n-ignore: a brand
     kind: "openai",
     group: "cloud",
     baseUrl: "https://api.together.xyz/v1",
@@ -139,27 +139,27 @@ export const PROVIDERS: Record<ProviderId, ProviderPreset> = {
   },
   ollama: {
     id: "ollama",
-    label: "Ollama (local)", // i18n-ignore: a brand
+    label: "ollama (local)", // i18n-ignore: a brand
     kind: "openai",
     group: "local",
     baseUrl: "http://localhost:11434/v1",
     models: ["qwen3", "llama3.1", "mistral-nemo"],
     keyRequired: false,
     keyHint: "",
-    keyHelp: { text: () => t("ai_chat.provider.ollama_key_help", { name: "Ollama", command: "ollama pull qwen3" }) },
-    corsHelp: () => t("ai_chat.provider.ollama_cors_help", { name: "Ollama", variable: "OLLAMA_ORIGINS" }),
+    keyHelp: { text: () => t("ai_chat.provider.ollama_key_help", { name: "ollama", command: "ollama pull qwen3" }) },
+    corsHelp: () => t("ai_chat.provider.ollama_cors_help", { name: "ollama", variable: "OLLAMA_ORIGINS" }),
   },
   lmstudio: {
     id: "lmstudio",
-    label: "LM Studio (local)", // i18n-ignore: a brand
+    label: "lm studio (local)", // i18n-ignore: a brand
     kind: "openai",
     group: "local",
     baseUrl: "http://localhost:1234/v1",
     models: ["qwen/qwen3-8b", "openai/gpt-oss-20b"],
     keyRequired: false,
     keyHint: "",
-    keyHelp: { text: () => t("ai_chat.provider.lmstudio_key_help", { name: "LM Studio", path: "Developer → Start server" }) }, // eth-allow-case: LM Studio's own menu names
-    corsHelp: () => t("ai_chat.provider.lmstudio_cors_help", { name: "LM Studio", setting: "Enable CORS" }),
+    keyHelp: { text: () => t("ai_chat.provider.lmstudio_key_help", { name: "lm studio", path: "Developer → Start server" }) }, // eth-allow-case: LM Studio's own menu names
+    corsHelp: () => t("ai_chat.provider.lmstudio_cors_help", { name: "lm studio", setting: "Enable CORS" }), // eth-allow-case: LM Studio's own setting name
   },
   custom: {
     id: "custom",

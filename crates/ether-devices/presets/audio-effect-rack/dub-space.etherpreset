@@ -15,7 +15,7 @@
         "space"
       ],
       "author": "ethereal",
-      "description": "dry signal plus a filtered echo chain into a big room. macro 1 is the echo feedback, macro 2 the echo tone; a slow LFO drifts the filter."
+      "description": "dry signal plus a filtered echo chain into a big room. macro 1 is the echo feedback, macro 2 the echo tone; a slow lfo drifts the filter."
     },
     "params": {
       "0": 0.2,

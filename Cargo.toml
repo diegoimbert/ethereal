@@ -148,6 +148,11 @@ rusty_mp3 = "1.0"
 tokio = { version = "1", default-features = false, features = ["rt", "net", "time", "sync"] }
 rmcp = { version = "3.5", default-features = false, features = ["server", "transport-io"] }
 
+# --- the default sample pack: the files' sha256 and the manifest's Ed25519 signature check (pure
+# Rust, so the web engine verifies too; ring needs a C toolchain for wasm32). ---
+sha2 = "0.10"
+ed25519-dalek = { version = "2.2", default-features = false, features = ["std"] }
+
 # --- tooling / tests ---
 proptest = "1"
 

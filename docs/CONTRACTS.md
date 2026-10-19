@@ -968,7 +968,7 @@ Small/Medium/Large, `colspan`, `label`). Widget catalog (append-only: a new widg
 widgets `Knob`, `Slider`, `Toggle`, `Choice`, `Number`; typed widgets `Envelope`,
 `FilterCurve`, `TransferCurve`, `Oscillator`, `Lfo`, `StepEditor`, `XyPad`, `Crossover`;
 data widgets `SampleWaveform`, `ZoneMap`, `Spectrum`, `Tuner`, `Meter`, `RackChains`,
-`Macros`, and `EqCurve` (§12.15, the EQ only for now). Appended by `devices-pass-effects`: `DynamicsCurve` (compressor / gate / limiter transfer curve with a live detector-level dot from `Levels`), `DelayTaps` (delay echoes), `ReverbDecay` (reverb decay envelope) and `VelocityCurve` (MIDI velocity mapping). Appended by `fm-synth`: `FmAlgorithm` (an FM synth's algorithm picker: one routing diagram per choice of its `algorithm` param, from `FmRouting` modulator / carrier bit masks). **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
+`Macros`, and `EqCurve` (§12.15, the EQ only for now). Appended by `devices-pass-effects`: `DynamicsCurve` (compressor / gate / limiter transfer curve with a live detector-level dot from `Levels`), `DelayTaps` (delay echoes), `ReverbDecay` (reverb decay envelope) and `VelocityCurve` (MIDI velocity mapping). Appended by `fm-synth`: `FmAlgorithm` (an FM synth's algorithm picker: one routing diagram per choice of its `algorithm` param, from `FmRouting` modulator / carrier bit masks). Appended by `fx-modulation`: `LfoCurve` (the Volume LFO's curve editor: the kind's `LfoCurve` on a grid of the cycle's sixteenths, edited with `Device::SetLfoCurve`, with a playhead; binds sync, sync rate, rate, phase and depth). **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
 tokens only) renders every built-in; devices without a layout (plugins, v0.1 devices until
 they add one) get the generic layout grouped by `ParamInfo::group`. Devices write
 specs and widget data only, never bespoke panels. `ModulatorDescriptor::layout` uses the same
@@ -1301,7 +1301,14 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   `MidiEffectRack`: `ConvolutionReverb { ir: Option<IrSource> }`, `ExternalInstrument {
   routing }`, `ExternalAudioEffect { routing }` (`ExternalRouting`). `BuiltinDevice::media()`
   lists a `Media` IR. After them (`fm-synth`): `FmSynth`, the four-operator FM instrument
-  (`ether_devices::fm_synth`, no kind data).
+  (`ether_devices::fm_synth`, no kind data), then `Vibrato`, the pitch-wobble audio effect
+  (`ether_devices::fx_modulation::vibrato`, no kind data; it reports its centre delay as
+  latency), then `VolumeLfo { curve: LfoCurve }`, the drawn volume LFO (`fx-modulation`,
+  `ether_model::lfo_curve`: 1..=64 `LfoPoint { x, y, curve: CurveShape }` sorted by `x`,
+  one wrapping cycle; `curve` omitted in JSON = the default pump). `Device::SetLfoCurve
+  { device, curve }` replaces it (sanitized; one `DeviceChange::Kind`, one undo step); live
+  nodes take it through `EngineBridge::update_builtin` → `Node::set_data`. Its presets
+  carry the curve in `Preset::kind`.
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.
@@ -1661,8 +1668,13 @@ instead of a `Media::Preview` of the whole file.
     mappings moved by normalized parameter name (`replace::match_by_name`, shared with
     `Replace`; values through each range) and the rest listed in a warning notification; an
     instrument can't replace a device on an audio track, nor a rack or drum rack any device.
-    `Replace` also takes a missing device (to a plugin).
-    Items that fail are skipped with a warning notification; nothing valid = error.
+    `Replace { device, plugin? | builtin?, retain, preview? }` (one undo step "Replace Device")
+    takes any device but a rack (built-in, plugin or missing) to a built-in or plugin of the
+    same role (audio effect, instrument, MIDI effect: checked when both are known); racks and
+    drum racks are never replaced nor replacements. The same plugin (or another version) or
+    built-in type keeps its state and parameter ids; the sidechain source goes (reported) when
+    the new device has no sidechain input.
+    `Apply` items that fail are skipped with a warning notification; nothing valid = error.
 - Missing devices (model, additive): `DeviceKind::Missing { missing: MissingDevice {
   description, source_id, origin, role: MissingRole (Instrument | AudioEffect | NoteEffect),
   params: Vec<MissingParam { id, name, min, max }> } }`. The import maps a source device with

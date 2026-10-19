@@ -54,7 +54,7 @@ export function TemplateList({ templates, selected, onPick, onMenu, leading, lab
         title={tpl.meta.description ?? undefined}
         onClick={() => onPick(tpl)}
       >
-        {/* Factory templates' names, tags and descriptions are the engine's (English) content. */}
+        {/* Factory templates' names, tags and descriptions are the engine's content: lowercase like all the app's text, in English (not translated yet). */}
         <span className={tpl.factory ? "eth-templates__name" : "eth-templates__name eth-user-text"} data-i18n-exempt={tpl.factory || undefined}>
           {tpl.name}
         </span>

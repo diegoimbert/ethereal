@@ -23,7 +23,7 @@ export function FreezeHeaderStatus({ track, transport }: { track: Track; transpo
   if (job) {
     const pct = job.progress === null ? null : Math.round(job.progress * 100);
     const kind = job.kind.toLowerCase();
-    const what = t("freeze.status.what", { kind, name: track.name });
+    const what = job.host ? t("freeze.status.what_on", { kind, name: track.name, host: job.host }) : t("freeze.status.what", { kind, name: track.name });
     return (
       <>
         <button

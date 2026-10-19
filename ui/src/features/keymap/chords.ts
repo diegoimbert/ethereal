@@ -204,6 +204,7 @@ export function parseShortcutHint(hint: string): string | null {
     mod: "Mod",
     ctrl: "Mod",
     control: "Mod",
+    // eth-allow-case: modifier ids, not text
     alt: "Alt",
     option: "Alt",
     opt: "Alt",

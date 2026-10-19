@@ -4,4 +4,9 @@ export type FreezeEvent = { "type": "Progress", job: string,
 /**
  * 0..=1.
  */
-progress: number, } | { "type": "Done", job: string, } | { "type": "Failed", job: string, message: string, } | { "type": "Cancelled", job: string, };
+progress: number, 
+/**
+ * The name of the computer that renders it, when it isn't this one (an extension's
+ * remote render). `None`: this one.
+ */
+host?: string, } | { "type": "Done", job: string, } | { "type": "Failed", job: string, message: string, } | { "type": "Cancelled", job: string, };

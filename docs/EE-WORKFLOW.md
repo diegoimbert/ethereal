@@ -57,7 +57,7 @@ Rules:
 | `sync [--dry-run] [--pr N] [--build]` | The reconcile the private-side bot runs (needs write access to both repos). |
 | `check <pr>` | Dry-run the pointer guard for one OSS PR. |
 | `hooks` | Install a pre-push hook that refuses OSS commits pointing at unpushed EE commits. |
-| `tree <dir>` | A throwaway full-product tree (copy of this checkout + the EE overlay) to build locally. |
+| `tree <dir>` | A throwaway full-product tree (copy of this checkout, `ee/` included, + the EE Rust overlay) to build locally. The full UI needs no tree: it is `ee/app`, a package over `ui/` through the extension points (docs/EXTENSIONS.md). |
 
 Typical paired feature:
 

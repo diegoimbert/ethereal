@@ -21,7 +21,7 @@ const VOLUME: { scale: ParamScale; min: number; max: number } = {
 };
 
 function formatDb(db: number): string {
-  return db <= -144 ? "-inf dB" : `${db.toFixed(1)} dB`;
+  return db <= -144 ? "-inf db" : `${db.toFixed(1)} db`;
 }
 
 /** Whole semitones (the param's step), rounded away from `from` so any nudge moves it. */
@@ -195,6 +195,7 @@ function PadChain({ pad }: { pad: DrumPad }) {
           void send(cmd("DrumRack", { type: "InsertDevice", id: newId(), pad: pad.id, device: deviceSpec(p), before: insertBefore(category) }))
         }
         onMove={(id, before) => void send(cmd("DrumRack", { type: "MoveDevice", id, pad: pad.id, before }))}
+        pasteChain={{ type: "Pad", pad: pad.id }}
         // The pad is its devices: removing the last one deletes the pad (one undo step).
         onRemove={(d) => void send(chain.length <= 1 ? cmd("DrumRack", { type: "RemovePad", id: pad.id }) : cmd("Device", { type: "Remove", id: d.id }))}
       />

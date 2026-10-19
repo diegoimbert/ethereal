@@ -233,6 +233,18 @@ pub enum Widget {
         algorithm: ParamId,
         algorithms: Vec<FmRouting>,
     },
+    // --- fx-modulation ---
+    /// Editor of a Volume LFO's drawn cycle (`BuiltinDevice::VolumeLfo::curve`, written with
+    /// `Device::SetLfoCurve`): breakpoints on a grid of the cycle's divisions and a playhead.
+    /// `sync` / `sync_rate` / `rate` set the grid and the playhead's speed, `phase` its
+    /// offset; `depth` scales the drawn gain.
+    LfoCurve {
+        sync: ParamId,
+        sync_rate: ParamId,
+        rate: ParamId,
+        phase: ParamId,
+        depth: ParamId,
+    },
 }
 
 /// Operator routing of one algorithm of a [`Widget::FmAlgorithm`]. Operators are numbered

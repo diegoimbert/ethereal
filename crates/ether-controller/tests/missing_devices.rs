@@ -319,7 +319,8 @@ fn a_plugin_can_replace_a_missing_device() {
     };
     let report = match s.h.ok(Command::Resolve(ResolveCommand::Replace {
         device: s.device,
-        plugin: to,
+        plugin: Some(to),
+        builtin: None,
         retain: true,
         preview: false,
     })) {

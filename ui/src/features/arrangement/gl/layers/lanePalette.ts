@@ -15,10 +15,12 @@ export interface LanePalette {
   borderLight: Rgba;
   selection: Rgba;
   text: Rgba;
+  /** `--eth-color-text-dim`: an empty automation lane's dashed baseline. */
+  textDim: Rgba;
   focus: Rgba;
 }
 
-type Key = Extract<ColorKey, "accent" | "bgInset" | "border" | "borderLight" | "selection" | "text" | "focus">;
+type Key = Extract<ColorKey, "accent" | "bgInset" | "border" | "borderLight" | "selection" | "text" | "textDim" | "focus">;
 
 const cache = new WeakMap<Palette, LanePalette>();
 
@@ -34,6 +36,7 @@ export function lanePalette(p: Palette): LanePalette {
     borderLight: color("borderLight"),
     selection: color("selection"),
     text: color("text"),
+    textDim: color("textDim"),
     focus: color("focus"),
   };
   cache.set(p, c);

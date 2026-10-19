@@ -2,10 +2,21 @@
  * Runtime plugin state that is not in the document: the scanned plugin list, scan
  * progress, crashed instances and open editor windows. Fed by `Event::Plugin` (see
  * `usePluginEvents`) and by the replies of plugin commands.
+ *
+ * While another computer's engine plays the project, `plugins` is **that computer's** list
+ * (`setRemote`, set by whatever connects to it, e.g. an extension): everything that offers or
+ * checks plugins reads it.
  */
 import { useContext, useEffect } from "react";
 import { create } from "zustand";
 import type { DeviceId, Event, PluginDescriptor, PluginEvent, ScanFailure } from "@/generated";
+
+/** The plugins of the computer whose engine plays the project, when it is not this one. */
+export interface RemotePluginCatalog {
+  /** That computer's name (shown: "plugins on <name>'s computer"). */
+  name: string;
+  plugins: PluginDescriptor[];
+}
 import { useProjectStore } from "@/state";
 import { TransportContext, type EngineTransport } from "@/transport";
 import { isInstalled } from "./filter";
@@ -17,8 +28,14 @@ export interface ScanState {
 }
 
 export interface PluginRuntimeState {
-  /** Scanned plugins (`Plugin::List`), `null` until loaded. */
+  /** The plugins to offer: the engine host's while `remote` is set, else `local`. */
   plugins: PluginDescriptor[] | null;
+  /** This computer's scanned plugins (`Plugin::List`), `null` until loaded. */
+  local: PluginDescriptor[] | null;
+  /** The plugins of the computer whose engine plays the project, when not this one's. */
+  remote: RemotePluginCatalog | null;
+  /** Bumped per plugin device whose descriptor arrived from the engine host (fetch again). */
+  descriptorEpochs: Record<DeviceId, number>;
   /** Rescan in progress. */
   scan: ScanState | null;
   /** Targets that failed to load: the last scan's (or, before one, the engine's
@@ -35,6 +52,10 @@ export interface PluginRuntimeState {
   found: Record<DeviceId, true>;
   /** Set the scanned list; plugin devices of the open project it newly has go to `found`. */
   setPlugins(plugins: PluginDescriptor[]): void;
+  /** The engine host's list, or (`null`) back to this computer's. */
+  setRemote(remote: RemotePluginCatalog | null): void;
+  /** The engine host reported new descriptors for these plugin devices (fetch them again). */
+  descriptorsChanged(devices: DeviceId[]): void;
   setScan(scan: ScanState | null): void;
   setFailed(failed: ScanFailure[]): void;
   setRetrying(failure: ScanFailure, busy: boolean): void;
@@ -50,6 +71,9 @@ export interface PluginRuntimeState {
 
 const initial = {
   plugins: null,
+  local: null,
+  remote: null,
+  descriptorEpochs: {},
   scan: null,
   failed: [],
   retrying: {},
@@ -72,7 +96,15 @@ function without<T>(map: Record<DeviceId, T>, device: DeviceId): Record<DeviceId
 
 export const usePluginStore = create<PluginRuntimeState>((set) => ({
   ...initial,
-  setPlugins: (plugins) => set((s) => ({ plugins, found: foundDevices(s.plugins, plugins, s.found) })),
+  // `found` is about this computer's plugin host: only the local scan counts.
+  setPlugins: (local) => set((s) => ({ local, plugins: s.remote ? s.remote.plugins : local, found: foundDevices(s.local, local, s.found) })),
+  setRemote: (remote) => set((s) => ({ remote, plugins: remote ? remote.plugins : s.local })),
+  descriptorsChanged: (devices) =>
+    set((s) => {
+      const descriptorEpochs = { ...s.descriptorEpochs };
+      for (const d of devices) descriptorEpochs[d] = (descriptorEpochs[d] ?? 0) + 1;
+      return { descriptorEpochs };
+    }),
   setScan: (scan) => set({ scan }),
   setFailed: (failed) => set({ failed }),
   setRetrying: (f, busy) =>
@@ -135,11 +167,11 @@ const subscriptions = new WeakMap<EngineTransport, { count: number; unsubscribe:
 function onEvent(e: Event, transport: EngineTransport) {
   if (e.type === "Plugin") usePluginStore.getState().apply(e.event);
   // Device headers show missing plugins against the list: keep it current after a rescan.
-  if (e.type === "Plugin" && e.event.type === "ScanFinished" && usePluginStore.getState().plugins !== null) {
+  if (e.type === "Plugin" && e.event.type === "ScanFinished" && usePluginStore.getState().local !== null) {
     refreshPluginList(transport);
   }
   // A new project has other devices: forget per-device runtime state.
-  if (e.type === "ProjectLoaded") usePluginStore.setState({ crashed: {}, editors: {}, found: {} });
+  if (e.type === "ProjectLoaded") usePluginStore.setState({ crashed: {}, editors: {}, found: {}, descriptorEpochs: {} });
 }
 
 /**
@@ -184,17 +216,19 @@ function refreshPluginList(transport: EngineTransport): void {
 }
 
 /**
- * The scanned plugin list (`null` until known). Fetches it once if nobody has yet (desktop
- * only; never when `enabled` is false), so device headers can tell a missing plugin
- * without the browser being open.
+ * This computer's scanned plugin list (`null` until known), never the engine host's: what
+ * is installed *here* (a plugin missing here opens its host's window, streamed; the local
+ * reload / missing controls are about this plugin host). Fetches it once if nobody has yet
+ * (desktop only; never when `enabled` is false), so device headers can tell a missing
+ * plugin without the browser being open.
  */
 export function useScannedPlugins(enabled: boolean): PluginDescriptor[] | null {
   const transport = useOptionalTransport();
-  const plugins = usePluginStore((s) => s.plugins);
+  const local = usePluginStore((s) => s.local);
   useEffect(() => {
-    if (enabled && plugins === null && transport) refreshPluginList(transport);
-  }, [enabled, plugins, transport]);
-  return plugins;
+    if (enabled && local === null && transport) refreshPluginList(transport);
+  }, [enabled, local, transport]);
+  return local;
 }
 
 /** The transport, or `null` outside a `TransportProvider` (e.g. the bare app shell). */

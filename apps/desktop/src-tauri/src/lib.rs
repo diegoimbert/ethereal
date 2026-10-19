@@ -37,6 +37,10 @@ mod main_queue;
 pub mod path_drop;
 pub mod quit;
 
+/// The app's version: the release's `ETHER_RELEASE_VERSION`, else the repo `VERSION` file
+/// (`build.rs`), never `tauri.conf.json`'s placeholder.
+pub const APP_VERSION: &str = env!("ETHER_APP_VERSION");
+
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -145,7 +149,7 @@ pub struct EngineInfo {
 fn info(paths: &AppPaths, host: &NativeHost) -> EngineInfo {
     let a = host.audio_info();
     EngineInfo {
-        version: env!("CARGO_PKG_VERSION"),
+        version: APP_VERSION,
         instance: paths.instance.clone(),
         data_dir: paths.data_dir.display().to_string(),
         projects_root: paths.projects_root.display().to_string(),

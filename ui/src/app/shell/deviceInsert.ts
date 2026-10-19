@@ -1,4 +1,5 @@
 import type { Command, DeviceDescriptor, DeviceId, Project, Track } from "@/generated";
+import { emit } from "@/ext";
 import { useArrangementUi } from "@/features/arrangement/state";
 import { canInsert, chainInsertBefore } from "@/features/devices/chainUtils";
 import { builtinDevice } from "@/features/devices/descriptors";
@@ -24,6 +25,7 @@ export function deviceTargetTrack(project: Project): Track | undefined {
 export async function insertDeviceCommand(transport: EngineTransport, project: Project, track: Track, d: DeviceDescriptor): Promise<Command | null> {
   if (!canInsert(d, track) || d.device_type.type !== "Builtin") return null;
   const device = builtinDevice(d.device_type.device);
+  emit("app.event", { type: "device_inserted", category: d.category, source: "builtin" });
   const devices = devicesOfTrack(project, track.id);
   const insert = (before: DeviceId | null): Command =>
     cmd("Device", { type: "Insert", id: newId(), track: track.id, device: { type: "Builtin", device }, before });

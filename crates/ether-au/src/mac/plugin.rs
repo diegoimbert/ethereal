@@ -6,7 +6,9 @@ use std::sync::{Arc, Mutex};
 
 use block2::RcBlock;
 use ether_core::config::PrepareConfig;
-use ether_core::plugin::{PluginController, PluginError, PluginNode, PluginNotification};
+use ether_core::plugin::{
+    NativeWindow, PluginController, PluginError, PluginNode, PluginNotification,
+};
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, DeviceTypeRef, ParamInfo};
 use ether_core::protocol::model::ParamId;
 use objc2::rc::Retained;
@@ -540,6 +542,10 @@ impl PluginController for AuPlugin {
         if let Some(w) = self.editor.take() {
             w.close();
         }
+    }
+
+    fn editor_window(&self) -> Option<NativeWindow> {
+        Some(self.editor.as_ref()?.native_window())
     }
 
     fn poll(&mut self, out: &mut Vec<PluginNotification>) {

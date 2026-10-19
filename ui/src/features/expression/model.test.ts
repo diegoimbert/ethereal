@@ -77,8 +77,8 @@ describe("expression model", () => {
   });
 
   it("labels and MIDI-facing values", () => {
-    expect(kindLabel({ type: "Cc", controller: 1 })).toBe("CC 1 mod wheel");
-    expect(kindLabel({ type: "Cc", controller: 20 })).toBe("CC 20");
+    expect(kindLabel({ type: "Cc", controller: 1 })).toBe("cc 1 mod wheel");
+    expect(kindLabel({ type: "Cc", controller: 20 })).toBe("cc 20");
     expect(kindLabel({ type: "PitchBend" })).toBe("pitch bend");
     expect(formatValue({ type: "PitchBend" }, -1)).toBe("-8191");
     expect(formatValue({ type: "Cc", controller: 7 }, 0.5)).toBe("64");

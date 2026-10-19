@@ -25,9 +25,11 @@ export function DeviceWindowButton({ device, control, className }: DeviceWindowB
       className={clsx("eth-device__window-toggle", className)}
       active={control.open}
       data-viewer-allow
-      disabled={!control.available}
+      disabled={!control.available && !control.softDisabled}
+      aria-disabled={control.softDisabled && !control.open ? true : undefined}
       label={t("devices.window.open", { name: device.name })}
-      title={control.open ? t("devices.window.close_hint") : plugin ? t("devices.window.open_plugin") : t("devices.window.open_device")}
+      title={control.open ? t("devices.window.close_hint") : (control.title ?? (plugin ? t("devices.window.open_plugin") : t("devices.window.open_device")))}
+      {...Object.fromEntries(Object.entries(control.data ?? {}).map(([k, v]) => [`data-${k}`, v]))}
       icon={<AppWindow />}
       onClick={control.toggle}
     />

@@ -8,6 +8,7 @@ import { pickOption } from "@/kit/testing";
 import { DEFAULT_KEY_HEIGHT as KEY_H } from "./geometry";
 import { PianoRoll } from "./index";
 import { heldPreview, stopPreview, usePreviewSetting } from "./notePreview";
+import { resetLastVelocity } from "./lastVelocity";
 
 // Same jsdom geometry as PianoRoll.test.tsx: 40 px/beat, the grid at (0, 0).
 const PX = 40;
@@ -34,6 +35,7 @@ afterEach(() => {
   store().reset();
   useEditorStore.getState().close();
   itemSelection.getState().clear();
+  resetLastVelocity();
 });
 
 async function flush() {

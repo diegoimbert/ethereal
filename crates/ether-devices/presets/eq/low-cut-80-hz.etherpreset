@@ -3,7 +3,7 @@
   "version": 1,
   "app_version": "0.2.0",
   "preset": {
-    "name": "low cut 80 Hz",
+    "name": "low cut 80 hz",
     "device": {
       "type": "Builtin",
       "device": "Eq"
@@ -13,7 +13,7 @@
         "cleanup"
       ],
       "author": "ethereal",
-      "description": "removes rumble below 80 Hz."
+      "description": "removes rumble below 80 hz."
     },
     "params": {
       "0": 1.0,

@@ -21,6 +21,8 @@ export interface RenderJob {
   tracks: TrackId[];
   /** 0..=1, `null` while queued. */
   progress: number | null;
+  /** The computer that renders it, when it isn't this one (an extension's remote render). */
+  host?: string;
 }
 
 interface FreezeUiState {
@@ -86,7 +88,7 @@ function listen(transport: EngineTransport): void {
     if (!job) return;
     switch (ev.type) {
       case "Progress":
-        setJob(ev.job, { progress: ev.progress });
+        setJob(ev.job, ev.host ? { progress: ev.progress, host: ev.host } : { progress: ev.progress });
         return;
       case "Failed":
         fail(job.tracks, ev.message);
