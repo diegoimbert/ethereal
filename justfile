@@ -24,6 +24,26 @@ dev-port:
 install:
     pnpm install --frozen-lockfile
 
+# The full app (this checkout + ee/, which needs access to the private repository;
+# scripts/full.mjs, docs/EE-WORKFLOW.md "Building the full app"): the desktop app (dev), its
+# release bundle, the engine server, the web app. Extra args go to the underlying command.
+#
+# The full desktop app, dev build (every feature).
+full-desktop *args:
+    node scripts/full.mjs desktop {{args}}
+
+# The full desktop app's release bundle.
+full-build *args:
+    node scripts/full.mjs build {{args}}
+
+# The full engine server (every feature).
+full-server *args:
+    node scripts/full.mjs server {{args}}
+
+# The full web app (dev server).
+full-web *args:
+    node scripts/full.mjs web {{args}}
+
 # Standalone UI against MockTransport (no Rust needed).
 dev-ui:
     {{env}}; echo "UI on http://localhost:$ETHER_DEV_PORT"; pnpm --filter @ethereal/ui dev
