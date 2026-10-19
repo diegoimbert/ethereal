@@ -1,15 +1,17 @@
-# Build the web app (wasm engine + UI) and assemble the Cloudflare Pages site (the deployed
-# folder `<out>/site`: dist + the COOP/COEP `_headers`).
+# Build the web app (wasm engine + UI) of the full product and assemble the Cloudflare Pages site
+# (the deployed folder `<out>/site`: dist + the COOP/COEP `_headers`).
 # Shared by release.yml (the `web` job) and deploy-dev.yml so the two builds never drift.
+#
+# Runs after .github/actions/ee-overlay: the install and build go through
+# scripts/ci/private-step.mjs (their output is private; .github/actions/full-logs uploads it
+# encrypted), and the Rust cache is restore-only (ci.yml's open-source `web-build` cache): this
+# public repository's cache never holds private build output.
 name: Web build
 description: Build apps/web and assemble the Cloudflare Pages site
 
 inputs:
   out:
     description: Where to assemble the Pages site (`site/` + `functions/`)
-    required: true
-  cache-key:
-    description: Swatinem/rust-cache key
     required: true
   node-version:
     description: Node.js version
@@ -24,13 +26,11 @@ runs:
     - name: Toolchain (from rust-toolchain.toml)
       shell: bash
       run: rustup show active-toolchain || rustup toolchain install
-    # GitHub-hosted only: the self-hosted devbox runner keeps its target dir and uses the
-    # shared sccache, so uploading GBs of cache to GitHub would only slow it down.
     - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
       if: runner.environment == 'github-hosted'
       with:
-        key: ${{ inputs.cache-key }}
-        cache-on-failure: true
+        key: web-build
+        save-if: "false"
     - name: wasm-bindgen version (from Cargo.lock)
       id: wb
       shell: bash
@@ -39,17 +39,19 @@ runs:
       with:
         tool: wasm-bindgen@${{ steps.wb.outputs.version }}
     - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
-    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+    # No package-manager cache: it would save the overlaid tree's store.
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: ${{ inputs.node-version }}
-        cache: pnpm
-    - shell: bash
-      run: pnpm install --frozen-lockfile
+        package-manager-cache: false
+    - name: install
+      shell: bash
+      run: node scripts/ci/private-step.mjs web-install -- pnpm install --frozen-lockfile
     - name: Build (wasm engine + UI)
       shell: bash
       env:
         VITE_ETHER_VERSION: ${{ inputs.version }}
-      run: pnpm --filter @ethereal/web build
+      run: node scripts/ci/private-step.mjs web-build -- pnpm --filter @ethereal/web build
     - name: Site for Cloudflare Pages (dist + COOP/COEP _headers)
       shell: bash
       env:
