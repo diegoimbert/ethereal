@@ -1009,6 +1009,7 @@
   "devices.window.close_hint": "fermer la fenêtre",
   "devices.window.open_plugin": "ouvrir la fenêtre du plug-in",
   "devices.window.open_device": "ouvrir la fenêtre de l’appareil",
+  "devices.window.no_plugin_host": "les plug-ins ne tournent pas dans le navigateur",
   "devices.insert.vca": "{track} est une piste vca : elle n’accepte aucun appareil",
   "devices.insert.instrument_needs_midi": "{name} est un instrument : sélectionnez une piste midi",
   "devices.insert.midi_effect_needs_midi": "{name} est un effet midi : sélectionnez une piste midi",
