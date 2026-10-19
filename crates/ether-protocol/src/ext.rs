@@ -28,7 +28,9 @@ impl ExtCommand {
     /// The command as its extension's own type (an adjacently tagged enum over `domain` /
     /// `command`, like [`Command`]).
     pub fn parse<T: serde::de::DeserializeOwned>(&self) -> Result<T, serde_json::Error> {
-        serde_json::from_value(serde_json::json!({ "domain": self.domain, "command": self.command }))
+        serde_json::from_value(
+            serde_json::json!({ "domain": self.domain, "command": self.command }),
+        )
     }
 
     /// An extension's command (an enum tagged like [`Command`]).
@@ -67,7 +69,11 @@ fn declared(error: &str) -> Vec<String> {
     let Some((_, list)) = error.split_once("expected") else {
         return Vec::new();
     };
-    list.split('`').skip(1).step_by(2).map(str::to_owned).collect()
+    list.split('`')
+        .skip(1)
+        .step_by(2)
+        .map(str::to_owned)
+        .collect()
 }
 
 /// The domains [`Command`] declares (its `domain` tags).
@@ -75,7 +81,11 @@ pub fn command_domains() -> &'static [String] {
     static NAMES: OnceLock<Vec<String>> = OnceLock::new();
     NAMES.get_or_init(|| {
         let probe = serde_json::json!({ "domain": PROBE, "command": null });
-        declared(&Command::deserialize(probe).expect_err("a probe domain").to_string())
+        declared(
+            &Command::deserialize(probe)
+                .expect_err("a probe domain")
+                .to_string(),
+        )
     })
 }
 
@@ -84,7 +94,11 @@ pub fn event_types() -> &'static [String] {
     static NAMES: OnceLock<Vec<String>> = OnceLock::new();
     NAMES.get_or_init(|| {
         let probe = serde_json::json!({ "type": PROBE });
-        declared(&Event::deserialize(probe).expect_err("a probe type").to_string())
+        declared(
+            &Event::deserialize(probe)
+                .expect_err("a probe type")
+                .to_string(),
+        )
     })
 }
 
@@ -93,7 +107,11 @@ pub fn reply_types() -> &'static [String] {
     static NAMES: OnceLock<Vec<String>> = OnceLock::new();
     NAMES.get_or_init(|| {
         let probe = serde_json::json!({ "type": PROBE });
-        declared(&ReplyValue::deserialize(probe).expect_err("a probe type").to_string())
+        declared(
+            &ReplyValue::deserialize(probe)
+                .expect_err("a probe type")
+                .to_string(),
+        )
     })
 }
 
@@ -118,7 +136,9 @@ impl<'de> Deserialize<'de> for Command {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let value = Value::deserialize(d)?;
         if is_ext(&value, "domain", command_domains()) {
-            return ExtCommand::deserialize(value).map(Command::Ext).map_err(D::Error::custom);
+            return ExtCommand::deserialize(value)
+                .map(Command::Ext)
+                .map_err(D::Error::custom);
         }
         Command::deserialize(value).map_err(D::Error::custom)
     }

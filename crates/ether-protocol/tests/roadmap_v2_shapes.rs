@@ -168,5 +168,8 @@ fn remote_shapes() {
     );
 
     // SiteId is a decimal string (u64 does not fit a JS number).
-    assert_eq!(serde_json::to_value(SiteId(u64::MAX)).unwrap(), "18446744073709551615");
+    assert_eq!(
+        serde_json::to_value(SiteId(u64::MAX)).unwrap(),
+        "18446744073709551615"
+    );
 }
