@@ -11,10 +11,10 @@ name: CI
 # Dependabot (.github/dependabot.yml) proposes the bumps. The Rust toolchain is pinned in
 # rust-toolchain.toml, tools installed by taiki-e/install-action are pinned to exact versions.
 #
-# What runs when: pull requests run Linux and the cheap checks only (Rust on Linux, web, policy,
-# and the e2e suite when the UI, an app or the engine changed). `main` and manual runs add the
-# cross-platform jobs: Rust on macOS and Windows and the desktop packages. A failure there is
-# fixed forward: the `main is red` job opens (or comments on) an issue labelled `ci-main`.
+# What runs when: pull requests run the cheap checks only (`What changed` and `Policy`; the CLA
+# check and `ee/pointer` come from elsewhere). Builds and tests run on `main` and manual runs,
+# every platform. A failure there is fixed forward: the `main is red` job opens (or comments on)
+# an issue labelled `ci-main`, and the fix lands as a follow-up pull request.
 #
 # Caches: the repository has 10 GB of Actions cache. Only `main` saves Rust caches (pull
 # requests restore them), so pull requests cannot evict `main`'s and every job starts warm.
@@ -48,42 +48,29 @@ env:
 
 jobs:
   changes:
-    # A pull request that touches no Rust, packaging or CI file (UI, web, docs, a submodule
-    # pointer) skips the Rust job, and one that touches neither the UI, an app nor the engine
-    # skips the web build and e2e. `main` and manual runs run everything, cross-platform too.
+    # Decides what this run builds. Pull requests: nothing (the build and test jobs report as
+    # skipped). `main` and manual runs: everything, on every platform.
     name: What changed
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      rust: ${{ steps.diff.outputs.rust }}
-      e2e: ${{ steps.diff.outputs.e2e }}
-      full: ${{ steps.diff.outputs.full }}
+      full: ${{ steps.what.outputs.full }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - id: diff
+      - id: what
         env:
           EVENT: ${{ github.event_name }}
-          BASE: ${{ github.event.pull_request.base.sha }}
         run: |
-          rust=true e2e=true full=true
-          if [ "$EVENT" = pull_request ]; then
-            full=false
-            git fetch --no-tags --depth=1 origin "$BASE"
-            git diff --name-only FETCH_HEAD HEAD > "$RUNNER_TEMP/changed.txt"
-            grep -qE '^(crates/|apps/desktop/|ui/src/generated/|third-party/|\.cargo/|\.config/|\.github/|scripts/(build-sandbox-helper\.mjs|release/)|Cargo\.(toml|lock)$|rust-toolchain\.toml$|deny\.toml$|package\.json$|pnpm-lock\.yaml$)' "$RUNNER_TEMP/changed.txt" || rust=false
-            grep -qE '^(ui/|apps/|crates/|third-party/|\.github/workflows/ci\.yml$|Cargo\.(toml|lock)$|rust-toolchain\.toml$|package\.json$|pnpm-lock\.yaml$)' "$RUNNER_TEMP/changed.txt" || e2e=false
-          fi
-          { echo "rust=$rust"; echo "e2e=$e2e"; echo "full=$full"; } >> "$GITHUB_OUTPUT"
-          echo "Rust (Linux): $rust. Web build + e2e: $e2e. macOS, Windows, packages: $full"
+          full=true
+          [ "$EVENT" = pull_request ] && full=false
+          echo "full=$full" >> "$GITHUB_OUTPUT"
+          echo "Builds and tests: $full"
 
   # --- Rust ---------------------------------------------------------------------------------
 
   rust-linux:
     name: Rust (Linux)
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -199,6 +186,8 @@ jobs:
 
   web:
     name: Web (tsc, eslint, prettier, vitest)
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -230,7 +219,7 @@ jobs:
     # Content-Security-Policy (any violation fails, e2e/global-teardown.ts).
     name: Web build (wasm, dist, server) + CSP
     needs: changes
-    if: needs.changes.outputs.e2e == 'true'
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -311,7 +300,7 @@ jobs:
     # DOM), both calibrated on the devbox and not stable on shared runners.
     name: e2e (${{ matrix.shard }}/4)
     needs: [changes, web-build]
-    if: needs.changes.outputs.e2e == 'true'
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
