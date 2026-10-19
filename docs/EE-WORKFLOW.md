@@ -70,8 +70,13 @@ All CI runs in this repository, on GitHub-hosted runners; the private repository
     (`scripts/ci/private-step.mjs`), the log shows the result and the names of what failed, and
     the files are uploaded **encrypted with age** to the recipients in `ee/.sops.yaml`.
     `just full-logs <run-id>` downloads and decrypts them.
-  - These jobs restore the OSS-only caches of `ci.yml` and never save a cache (a fork's PR can
-    restore caches made on `main`).
+  - No private build output in the Actions cache (a fork's PR can restore caches made on
+    `main`): the web jobs restore `ci.yml`'s OSS-only caches; the Rust jobs cache only the
+    third-party dependencies, built by cargo-chef (`.github/actions/chef-cache`: cook's stubs of
+    the workspace crates are removed and checked for before the save; key = recipe, toolchain,
+    profile, OS; only `main` saves).
+  - Runners: repository variables `FULL_RUNNER`, `FULL_MACOS_RUNNER`, `FULL_WINDOWS_RUNNER`,
+    `SYNC_RUNNER` (JSON labels), GitHub-hosted by default.
 - **Sync** (`.github/workflows/ee-sync.yml`, every 10 minutes and on demand, plus `feat push`/
   `ship`): moves OSS `main` to EE `main` (unless a ship holds the lock), keeps each open OSS
   PR's pointer on its EE branch tip (or EE `main` once that merged), merges `main` into a PR
