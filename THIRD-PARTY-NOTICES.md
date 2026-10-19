@@ -19,10 +19,10 @@ Components: 590 (Rust crates, npm packages and vendored source).
 | `@formatjs/icu-messageformat-parser` | 3.5.21 | MIT | https://github.com/formatjs/formatjs#readme |
 | `@formatjs/icu-skeleton-parser` | 2.1.12 | MIT | https://github.com/formatjs/formatjs#readme |
 | `@stablelib/base64` | 1.0.1 | MIT | https://github.com/StableLib/stablelib/tree/master/packages/base64 |
-| `@tauri-apps/api` | 2.11.1 | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri#readme |
-| `@tauri-apps/plugin-dialog` | 2.7.3 | MIT OR Apache-2.0 | https://github.com/tauri-apps/plugins-workspace#readme |
-| `@tauri-apps/plugin-fs` | 2.5.2 | MIT OR Apache-2.0 | https://github.com/tauri-apps/plugins-workspace#readme |
-| `@tauri-apps/plugin-http` | 2.6.1 | MIT OR Apache-2.0 | https://github.com/tauri-apps/plugins-workspace#readme |
+| `@tauri-apps/api` | 2.12.4 | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri#readme |
+| `@tauri-apps/plugin-dialog` | 2.8.3 | MIT OR Apache-2.0 | https://github.com/tauri-apps/plugins-workspace#readme |
+| `@tauri-apps/plugin-fs` | 2.7.1 | MIT OR Apache-2.0 | https://github.com/tauri-apps/plugins-workspace#readme |
+| `@tauri-apps/plugin-http` | 2.8.3 | MIT OR Apache-2.0 | https://github.com/tauri-apps/plugins-workspace#readme |
 | `adler2` | 2.0.1 | 0BSD OR MIT OR Apache-2.0 | https://github.com/oyvindln/adler2 |
 | `aho-corasick` | 1.1.5 | Unlicense OR MIT | https://github.com/BurntSushi/aho-corasick |
 | `alloc-no-stdlib` | 2.0.4 | BSD-3-Clause | https://github.com/dropbox/rust-alloc-no-stdlib |
@@ -9322,6 +9322,27 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+SPDXVersion: SPDX-2.1
+DataLicense: CC0-1.0
+PackageName: tauri
+DataFormat: SPDXRef-1
+PackageSupplier: Organization: The Tauri Programme in the Commons Conservancy
+PackageHomePage: https://tauri.app
+PackageLicenseDeclared: Apache-2.0
+PackageLicenseDeclared: MIT
+PackageCopyrightText: 2019-2025, The Tauri Programme in the Commons Conservancy
+PackageSummary: <text>Tauri is a rust project that enables developers to make secure
+and small desktop applications using a web frontend.
+                </text>
+PackageComment: <text>The package includes the following libraries; see
+Relationship information.
+                </text>
+Created: 2019-05-20T09:00:00Z
+PackageDownloadLocation: git://github.com/tauri-apps/tauri
+PackageDownloadLocation: git+https://github.com/tauri-apps/tauri.git
+PackageDownloadLocation: git+ssh://github.com/tauri-apps/tauri.git
+Creator: Person: Daniel Thompson-Yvetot
 
 ### Apache-2.0 WITH LLVM-exception
 
