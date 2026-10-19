@@ -31,3 +31,17 @@ test("all green closes the issue, and does nothing without one", () => {
   assert.deepEqual([p.open, p.close, p.comments.length], [false, true, 1]);
   assert.deepEqual(plan(latest, null), { comments: [], open: false, close: false });
 });
+
+test("a workflow green again while another is still red gets one comment", () => {
+  const latest = [{ name: "CI", run: run(8, "success"), failed: [] }, { name: "Full product", run: run(6, "failure"), failed: [] }];
+  const text = "CI failed on `main` at 5: https://x/runs/5\nFull product failed on `main` at 6: https://x/runs/6";
+  const p = plan(latest, { number: 98, text });
+  assert.deepEqual([p.open, p.close, p.comments.length], [false, false, 1]);
+  assert.match(p.comments[0], /^CI is green again on `main`.*runs\/8\n\nStill red: Full product\n/);
+  // Said once: the next report finds its own comment after the failure.
+  assert.equal(plan(latest, { number: 98, text: `${text}\n${p.comments[0]}` }).comments.length, 0);
+  // A workflow whose name starts with another's is told apart.
+  const both = [{ name: "Full product", run: run(9, "success"), failed: [] }, { name: "Full product (macOS, Windows)", run: run(7, "failure"), failed: [] }];
+  const t2 = "Full product (macOS, Windows) failed on `main` at 7: https://x/runs/7";
+  assert.equal(plan(both, { number: 98, text: t2 }).comments.length, 0);
+});
