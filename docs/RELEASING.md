@@ -38,7 +38,9 @@ passes it to `tauri build` as the app version (bundle version, Info.plist, MSI),
 - If it exists, the release is `v<VERSION>+<shortsha>` and marked as a **prerelease**
   (so every push to `main` still produces downloadable builds).
 
-To cut a new release: bump `VERSION` on `main` (land it with a pull request).
+To cut a new release: bump `VERSION` on `main` (land it with a pull request). The same pull
+request moves the `Unreleased` summary in [`CHANGELOG.md`](../CHANGELOG.md) under the new
+version and updates `version` and `date-released` in [`CITATION.cff`](../CITATION.cff).
 
 ### Release notes
 
