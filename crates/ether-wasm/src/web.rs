@@ -247,6 +247,18 @@ impl HostServices for WebHost {
     }
 }
 
+/// The web build's controller.
+pub type WebController =
+    EtherController<WebBridge<SabMemory>, WebHost, WebStore<JsFs>, WebLibrary<JsFs>>;
+
+/// Set up every web controller (its extensions, `EtherController::add_extension`;
+/// docs/EXTENSIONS.md). Call once, before the UI creates the controller.
+pub fn set_controller_setup(setup: fn(&mut WebController)) {
+    let _ = CONTROLLER_SETUP.set(setup);
+}
+
+static CONTROLLER_SETUP: std::sync::OnceLock<fn(&mut WebController)> = std::sync::OnceLock::new();
+
 /// Controller side (Web Worker).
 #[wasm_bindgen]
 pub struct WasmController {
@@ -283,7 +295,7 @@ impl WasmController {
             .map(|e| format!("Demo samples could not be written: {e}"));
         let host = WebHost::new(seed);
         let http = host.http.clone();
-        let controller: Box<dyn Controller> = Box::new(EtherController::with_config(
+        let mut ctl: WebController = EtherController::with_config(
             bridge,
             host,
             WebStore::new(fs.clone()),
@@ -292,7 +304,11 @@ impl WasmController {
                 engine_sample_rate: sample_rate,
                 ..ControllerConfig::default()
             },
-        ));
+        );
+        if let Some(setup) = CONTROLLER_SETUP.get() {
+            setup(&mut ctl);
+        }
+        let controller: Box<dyn Controller> = Box::new(ctl);
         Ok(WasmController {
             controller,
             shared,

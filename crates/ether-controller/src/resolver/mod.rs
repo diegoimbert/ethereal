@@ -44,9 +44,10 @@ use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 
 use self::media::{Expected, Folder, MediaSearch};
 
-/// What an import knows about the project it just opened.
+/// What an import knows about the project it just opened (an extension's importer sets
+/// them: `EtherController::set_import_hints`).
 #[derive(Clone, Debug, Default)]
-pub(crate) struct ImportHints {
+pub struct ImportHints {
     pub project: Option<ProjectId>,
     /// Folder of the source project file (desktop path imports).
     pub dir: Option<String>,
@@ -65,9 +66,7 @@ pub(crate) struct ResolverState {
 }
 
 impl ResolverState {
-    /// The import opened `hints.project`. Only the private DAW-import overlay sets these, so
-    /// this is unused in the OSS build.
-    #[allow(dead_code)]
+    /// The import opened `hints.project`.
     pub(crate) fn set_import_hints(&mut self, hints: ImportHints) {
         self.search = None;
         self.hints = hints;
