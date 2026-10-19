@@ -245,6 +245,19 @@ html[data-eth-mobile] textarea {
 .eth-mshell[data-layout="tablet"] .eth-mdock__status {
   flex: 1 1 auto;
 }
+/* A read-only view (MobileViewerShell): no top bar (the viewer's band is above the
+   shell), the lanes then the dock in every orientation. */
+.eth-mshell--read-only,
+.eth-mshell--read-only[data-layout="phone-landscape"] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "main"
+    "dock";
+}
+.eth-mshell--read-only[data-layout="phone-landscape"] .eth-mshell__dock {
+  padding-left: calc(var(--eth-space-sm) + env(safe-area-inset-left));
+}
 /* The project's name would crowd the landscape bar: the menu button alone. */
 .eth-mshell[data-layout="phone-landscape"] .eth-project__name {
   display: none;
@@ -694,7 +707,8 @@ html[data-eth-mobile="phone-landscape"] .eth-sheet {
   min-height: 0;
   overflow: hidden;
 }
-.eth-meditor__body > .eth-drawer {
+.eth-meditor__body > .eth-drawer,
+.eth-meditor__body > .eth-read-only-surface > .eth-drawer {
   height: 100%;
 }
 /* Phones: the piano roll's velocity / expression lanes only when shown (the head's toggle). */
@@ -821,6 +835,11 @@ html[data-eth-mobile="phone-landscape"] .eth-sheet {
 }
 .eth-mstrip__toggle:active {
   background: var(--eth-color-bg-active);
+}
+/* A read-only view: Mute / Solo of a track without a stem. */
+.eth-mstrip__toggle:disabled {
+  opacity: var(--eth-opacity-disabled);
+  background: transparent;
 }
 .eth-mstrip__toggle svg {
   width: var(--eth-size-icon-lg);

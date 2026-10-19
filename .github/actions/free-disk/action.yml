@@ -1,4 +1,4 @@
-# Room for the Rust build on a GitHub-hosted runner: the images ship ~30 GB of SDKs this repo
+# Room for the Rust build on a GitHub-hosted runner (a self-hosted one is left alone): the images ship ~30 GB of SDKs this repo
 # never uses (Android, .NET, Haskell, CodeQL, Swift, docker images). Linux removes them; every
 # OS prints the free space before and after, so a full disk is easy to spot in the log.
 name: Free runner disk
@@ -8,7 +8,7 @@ runs:
   using: composite
   steps:
     - name: Free disk (Linux)
-      if: runner.os == 'Linux'
+      if: runner.os == 'Linux' && runner.environment == 'github-hosted'
       shell: bash
       run: |
         df -h / | tail -1

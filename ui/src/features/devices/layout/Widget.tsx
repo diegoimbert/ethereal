@@ -1,6 +1,6 @@
 /**
  * The widget dispatcher: one case per catalog entry (`ether_protocol::layout::Widget`,
- * append-only; a new widget = a BCR + a case here).
+ * append-only; a new widget = a protocol change + a case here).
  */
 
 import type { Widget, WidgetSize } from "@/generated";
@@ -8,6 +8,7 @@ import { useLayoutContext, useParam } from "./context";
 import { HardwareRoutingWidget } from "@/features/external";
 import { EqCurveWidget } from "./eq";
 import { IrWidget } from "./ir";
+import { LfoCurveWidget } from "./lfoCurve";
 import { MacrosWidget, MeterWidget, RackChainsWidget, SampleWaveformWidget, SpectrumWidget, TunerWidget } from "./widgets/data";
 import { ZoneMapWidget } from "./zones";
 import { DelayTapsWidget, DynamicsCurveWidget, ReverbDecayWidget, VelocityCurveWidget } from "./widgets/effects";
@@ -114,5 +115,8 @@ export function WidgetView({ widget, size, label }: WidgetViewProps) {
     // fm-synth.
     case "FmAlgorithm":
       return <FmAlgorithmWidget widget={widget} size={size} label={label} />;
+    // fx-modulation.
+    case "LfoCurve":
+      return <LfoCurveWidget widget={widget} size={size} label={label} />;
   }
 }

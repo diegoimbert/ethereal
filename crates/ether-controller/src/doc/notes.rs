@@ -40,6 +40,18 @@ fn check_beats(what: &str, b: Beats, strictly_positive: bool) -> CmdResult<()> {
     Ok(())
 }
 
+/// Earliest start a note of `clip` may have: content 0, or the clip's start when its left
+/// edge was extended past the content start (a negative offset, a leading gap): notes can
+/// be drawn there and play (`ether_model::clip`).
+fn start_floor(clip: &Clip) -> f64 {
+    clip.offset.0.min(0.0)
+}
+
+/// Clip of note `n`'s start floor (0 when the clip is gone).
+fn note_floor(ctx: &DocCtx, n: &Note) -> f64 {
+    ctx.p().clips.get(&n.clip).map_or(0.0, start_floor)
+}
+
 fn velocity(v: f32) -> CmdResult<f32> {
     if !v.is_finite() {
         return Err(invalid("velocity must be finite"));
@@ -59,7 +71,9 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &NoteCommand) -> CmdResult<()> {
                     continue;
                 }
                 check_pitch(n.pitch)?;
-                check_beats("start", n.start, false)?;
+                if !(n.start.0.is_finite() && n.start.0 >= start_floor(&cl) - Beats::EPSILON) {
+                    return Err(invalid(format!("invalid note start {}", n.start.0)));
+                }
                 check_beats("duration", n.duration, true)?;
                 ctx.tx.insert(Entity::Note(Note {
                     id: n.id,
@@ -97,7 +111,8 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &NoteCommand) -> CmdResult<()> {
                     if !s.0.is_finite() {
                         return Err(invalid("note start must be finite"));
                     }
-                    set(ctx, n.id, NoteChange::Start(Beats(s.0.max(0.0))))?;
+                    let floor = note_floor(ctx, &n);
+                    set(ctx, n.id, NoteChange::Start(Beats(s.0.max(floor))))?;
                 }
                 if let Some(d) = e.duration {
                     check_beats("duration", d, true)?;
@@ -117,7 +132,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &NoteCommand) -> CmdResult<()> {
             ends,
             swing,
         } => {
-            ctx.clip(*clip)?;
+            let floor = start_floor(&ctx.clip(*clip)?);
             if !(grid.0.is_finite() && grid.0 > 0.0) {
                 return Err(invalid("grid must be > 0"));
             }
@@ -140,7 +155,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &NoteCommand) -> CmdResult<()> {
                 .cloned()
                 .collect();
             for n in targets {
-                let start = snap(n.start.0).max(0.0);
+                let start = snap(n.start.0).max(floor.min(n.start.0));
                 let end = if *ends {
                     snap(n.start.0 + n.duration.0)
                 } else {
@@ -173,7 +188,8 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &NoteCommand) -> CmdResult<()> {
                 }
                 let mut n = note(ctx, cp.from)?;
                 n.id = cp.new_id;
-                n.start = Beats((n.start.0 + offset.0).max(0.0));
+                let floor = note_floor(ctx, &n);
+                n.start = Beats((n.start.0 + offset.0).max(floor));
                 n.pitch = (n.pitch as i16 + *transpose as i16).clamp(0, 127) as u8;
                 ctx.tx.insert(Entity::Note(n))?;
                 // v0.3 (`midi-expression`): the copy keeps the note's expressions.

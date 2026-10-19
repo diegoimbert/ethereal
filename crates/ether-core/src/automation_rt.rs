@@ -1,6 +1,6 @@
 //! Sample-accurate automation: arrangement lanes and clip envelopes applied per sample
 //! (CONTRACTS.md §12.7; the v0.1 per-block runtime was extracted from `engine.rs` by
-//! contracts-3, then replaced by the `sample-accurate-automation` node).
+//! contracts-3, then replaced by `sample-accurate-automation`).
 //!
 //! Everything is placed on the engine's sample clock, never on sub-block boundaries, so an
 //! offline render is the same for every block size:
@@ -284,7 +284,7 @@ pub(crate) fn apply_automation(
     *window = (now.start, now.end);
     // Device on/off overrides are re-evaluated below (none where nothing drives them).
     for e in chain.iter_mut() {
-        e.auto_enabled = None;
+        e.clear_auto();
     }
     racks.clear_auto_enabled();
     chain_racks.clear_auto_enabled();
@@ -377,22 +377,38 @@ struct NodeParams<'s, 'a, 't, 'm> {
 }
 
 impl NodeParams<'_, '_, '_, '_> {
-    /// Device on/off: the value at the sub-block start (block-accurate) overrides the
-    /// device's switch for this sub-block, wherever the device is.
+    /// Device on/off: the value at the sub-block start overrides the device's switch for
+    /// this sub-block, wherever the device is (MIDI thru and note releases follow it). While
+    /// playing, the first breakpoint inside the sub-block where the value crosses 0.5 is
+    /// where the audio switches (`ChainRt::auto_switch_at`: sample-accurate crossfade).
     fn switch(&mut self, target: ResolvedTarget, lane: Option<&AutomationDesc>) {
         let ResolvedTarget::NodeEnabled { node } = target else {
             return;
         };
-        let Some((v, _)) = self.src.value(target, lane, self.timing.b0) else {
+        let timing = self.timing;
+        let Some((v, _)) = self.src.value(target, lane, timing.b0) else {
             return;
         };
-        let on = Some(v >= 0.5);
-        if let Some(e) = self.chain.iter_mut().find(|c| c.key == node) {
-            e.auto_enabled = on;
-        } else if let Some(e) = self.racks.entry_mut(node) {
-            e.auto_enabled = on;
-        } else if let Some(e) = self.chain_racks.entry_mut(node) {
-            e.auto_enabled = on;
+        let on = v >= 0.5;
+        let mut at = None;
+        if self.playing {
+            let mut knots = Knots::new();
+            self.src.breakpoints(target, lane, timing, &mut knots);
+            at = knots.as_slice().iter().find_map(|&(o, min_beat)| {
+                let t = timing.beat_at(o as f64).max(min_beat);
+                let (v, _) = self.src.value(target, lane, t)?;
+                (o > 0 && (v >= 0.5) != on).then_some(o)
+            });
+        }
+        let entry = match self.chain.iter_mut().find(|c| c.key == node) {
+            Some(e) => Some(e),
+            None => match self.racks.entry_mut(node) {
+                Some(e) => Some(e),
+                None => self.chain_racks.entry_mut(node),
+            },
+        };
+        if let Some(e) = entry {
+            e.set_auto(on, at);
         }
     }
 

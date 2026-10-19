@@ -87,7 +87,7 @@ fn velocity(a: &Args) -> f32 {
     (a.f64("velocity").unwrap_or(100.0).clamp(1.0, 127.0) / 127.0) as f32
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,
@@ -352,7 +352,7 @@ where
         if !notes.is_empty() {
             commands.push(Command::Note(NoteCommand::Add { clip: id, notes }));
         }
-        self.agent_batch(label("add MIDI clip"), &commands, now, out)?;
+        self.agent_batch(label("add midi clip"), &commands, now, out)?;
         let c = self.clip_of(id)?;
         Ok(json!({
             "clip_id": id.to_string(),

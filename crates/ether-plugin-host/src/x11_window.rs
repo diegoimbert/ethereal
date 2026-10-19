@@ -27,7 +27,7 @@ use x11_dl::xlib::{self, Xlib};
 use crate::editor_owner::{self, OwnerWindow};
 
 /// Xlib, loaded once (`None`: libX11 is not installed).
-fn xlib() -> Option<&'static Xlib> {
+pub(crate) fn xlib() -> Option<&'static Xlib> {
     static XLIB: OnceLock<Option<Xlib>> = OnceLock::new();
     XLIB.get_or_init(|| match Xlib::open() {
         Ok(x) => Some(x),
@@ -37,6 +37,64 @@ fn xlib() -> Option<&'static Xlib> {
         }
     })
     .as_ref()
+}
+
+/// An Xlib error handler (`XSetErrorHandler`'s type).
+type ErrorHandler = unsafe extern "C" fn(*mut xlib::Display, *mut xlib::XErrorEvent) -> c_int;
+
+/// The handler that was installed before ours (Xlib's default, which exits the process, or
+/// one an in-process plugin installed): errors outside [`trapped`] still go there.
+static CHAINED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+thread_local! {
+    /// `Some(first error code, 0: none)` while this thread runs [`trapped`].
+    static TRAP: Cell<Option<u8>> = const { Cell::new(None) };
+}
+
+/// The one process-wide handler: records the error for the thread that is trapping (an Xlib
+/// connection's errors are delivered on the thread that uses it), else chains.
+unsafe extern "C" fn on_error(d: *mut xlib::Display, e: *mut xlib::XErrorEvent) -> c_int {
+    let trapping = TRAP.with(|t| match t.get() {
+        Some(0) => {
+            // SAFETY: Xlib passes a valid event for the duration of the call.
+            t.set(Some(unsafe { (*e).error_code }.max(1)));
+            true
+        }
+        Some(_) => true,
+        None => false,
+    });
+    if trapping {
+        return 0;
+    }
+    match CHAINED.load(std::sync::atomic::Ordering::Relaxed) {
+        0 => 0,
+        // SAFETY: a handler pointer stored by `trapped` from `XSetErrorHandler`.
+        f => unsafe { std::mem::transmute::<usize, ErrorHandler>(f)(d, e) },
+    }
+}
+
+/// Run `f` (Xlib calls on `display`) and a round trip, with X errors recorded instead of
+/// fatal (Xlib's default handler exits the process on a `BadWindow`); the first error's
+/// code (0: none). One handler is installed process-wide and never removed (setting and
+/// restoring it per call raced between threads: capture, injection, window lookup); the
+/// trap state is per thread. Nested calls are fine. Used by every X11 caller in this crate.
+pub(crate) fn trapped<T>(x: &Xlib, display: *mut xlib::Display, f: impl FnOnce() -> T) -> (T, u8) {
+    // SAFETY: installing a valid handler; reinstalled when something replaced it (a plugin
+    // in the same process), whose handler is then chained.
+    unsafe {
+        let previous = (x.XSetErrorHandler)(Some(on_error));
+        if let Some(p) = previous
+            && p as usize != on_error as ErrorHandler as usize
+        {
+            CHAINED.store(p as usize, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+    let outer = TRAP.with(|t| t.replace(Some(0)));
+    let value = f();
+    // SAFETY: the caller's connection: delivers `f`'s errors now, on this thread.
+    unsafe { (x.XSync)(display, 0) };
+    let code = TRAP.with(|t| t.replace(outer)).unwrap_or(0);
+    (value, code)
 }
 
 /// Whether editor windows can be made: libX11 loads and the X display (`DISPLAY`) opens.
@@ -239,23 +297,18 @@ impl X11Window {
     #[doc(hidden)]
     pub fn query(window: u64) -> Option<(u32, u32, bool)> {
         let x = xlib()?;
-        /// A destroyed window is a `BadWindow` error, which Xlib's default handler turns
-        /// into a process exit: ignored while querying.
-        unsafe extern "C" fn ignore(_: *mut xlib::Display, _: *mut xlib::XErrorEvent) -> c_int {
-            0
-        }
-        // SAFETY: a short-lived connection; plain C out-structs; the previous error handler
-        // is restored after the synchronous query.
+        // SAFETY: a short-lived connection; plain C out-structs; a destroyed window's
+        // `BadWindow` is trapped.
         unsafe {
             let display = (x.XOpenDisplay)(std::ptr::null());
             if display.is_null() {
                 return None;
             }
-            let previous = (x.XSetErrorHandler)(Some(ignore));
             let mut attrs: xlib::XWindowAttributes = std::mem::zeroed();
-            let ok = (x.XGetWindowAttributes)(display, window as c_ulong, &mut attrs) != 0;
-            (x.XSync)(display, 0);
-            (x.XSetErrorHandler)(previous);
+            let (ok, code) = trapped(x, display, || {
+                (x.XGetWindowAttributes)(display, window as c_ulong, &mut attrs) != 0
+            });
+            let ok = ok && code == 0;
             (x.XCloseDisplay)(display);
             ok.then_some((
                 attrs.width as u32,

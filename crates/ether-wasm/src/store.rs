@@ -14,6 +14,7 @@
 //! library/                            the web sample library root
 //! user-library/                       the writable user library (v0.2: `Presets/`, ...)
 //! imported/<folder>/                  folders imported from the user's computer (base-136)
+//! samples/                            the sample pack cache (#519, docs/SAMPLES.md)
 //! ```
 
 use std::collections::BTreeMap;
@@ -38,6 +39,8 @@ pub const USER_LIBRARY_ID: &str = "user";
 /// `base-136`: OPFS folder of the folders imported from the user's computer, one sub-folder
 /// each (`Library::create_import_folder`; their engine-side path is `imported/<folder>`).
 pub const IMPORTED_ROOT: &str = "imported";
+/// #519: OPFS folder of the sample pack cache (`Library::sample_cache_*`).
+pub const SAMPLES_ROOT: &str = "samples";
 pub const PROJECT_FILE: &str = "project.ether";
 pub const MEDIA_DIR: &str = "media";
 pub const CACHE_DIR: &str = "cache";
@@ -211,8 +214,7 @@ impl<F: Fs> WebStore<F> {
             id,
             name: name_of(&bytes),
             modified_ms,
-            // Reading `share.json` is part of the private sharing overlay.
-            share: None,
+            ext: None,
         })
     }
 
@@ -562,6 +564,37 @@ impl<F: Fs> WebLibrary<F> {
 }
 
 impl<F: Fs> Library for WebLibrary<F> {
+    // #519: the sample pack cache, OPFS `samples/`.
+    fn sample_cache_read(&mut self, rel: &str) -> Result<Vec<u8>, StoreError> {
+        self.fs.read(&join(SAMPLES_ROOT, relative(rel)?))
+    }
+
+    fn sample_cache_write(&mut self, rel: &str, bytes: &[u8]) -> Result<(), StoreError> {
+        let path = join(SAMPLES_ROOT, relative(rel)?);
+        let tmp = format!("{path}.part");
+        self.fs.write(&tmp, bytes)?;
+        self.fs.rename(&tmp, &path)
+    }
+
+    fn sample_cache_remove(&mut self, rel: &str) -> Result<(), StoreError> {
+        match self.fs.remove(&join(SAMPLES_ROOT, relative(rel)?)) {
+            Err(StoreError::NotFound(_)) => Ok(()),
+            r => r,
+        }
+    }
+
+    fn sample_cache_list(&mut self, dir: &str) -> Result<Vec<String>, StoreError> {
+        match self.fs.list(&join(SAMPLES_ROOT, relative(dir)?)) {
+            Ok(entries) => Ok(entries
+                .into_iter()
+                .filter(|e| !e.is_dir && !e.name.starts_with('.') && !e.name.ends_with(".part"))
+                .map(|e| e.name)
+                .collect()),
+            Err(StoreError::NotFound(_)) => Ok(Vec::new()),
+            Err(e) => Err(e),
+        }
+    }
+
     fn roots(&self) -> Vec<BrowseRoot> {
         let mut roots = vec![BrowseRoot {
             location: BrowseLocation::Library {
@@ -1124,13 +1157,13 @@ mod tests {
         s.create(pid(1)).unwrap();
         s.save(pid(1), &doc("Song")).unwrap();
         s.write(pid(1), SHARE_FILE, b"{}").unwrap();
-        assert!(s.list().unwrap()[0].share.is_none());
+        assert!(s.list().unwrap()[0].ext.is_none());
 
         s.write(pid(1), "media/a.wav", b"A").unwrap();
         s.duplicate(pid(1), pid(2)).unwrap();
         assert!(s.read(pid(2), SHARE_FILE).is_err());
         assert_eq!(s.read(pid(2), "media/a.wav").unwrap(), b"A");
-        assert!(s.list().unwrap()[0].share.is_none());
+        assert!(s.list().unwrap()[0].ext.is_none());
     }
 
     #[test]
@@ -1275,5 +1308,24 @@ mod tests {
         fs.write("library/Demo Samples/Kick.wav", b"mine").unwrap();
         ensure_demo_samples(&mut fs).unwrap();
         assert_eq!(fs.read("library/Demo Samples/Kick.wav").unwrap(), b"mine");
+    }
+
+    #[test]
+    fn the_sample_cache_lives_in_opfs_samples() {
+        let fs = MemFs::new();
+        let mut lib = WebLibrary::new(fs.clone());
+        assert_eq!(
+            lib.sample_cache_list("abc/files").unwrap(),
+            Vec::<String>::new()
+        );
+        lib.sample_cache_write("abc/files/00.wav", b"one").unwrap();
+        lib.sample_cache_write("abc/manifest.json", b"{}").unwrap();
+        assert_eq!(fs.clone().read("samples/abc/files/00.wav").unwrap(), b"one");
+        assert_eq!(lib.sample_cache_list("abc/files").unwrap(), ["00.wav"]);
+        assert_eq!(lib.sample_cache_read("abc/manifest.json").unwrap(), b"{}");
+        lib.sample_cache_remove("abc/files/00.wav").unwrap();
+        lib.sample_cache_remove("abc/files/00.wav").unwrap();
+        assert!(lib.sample_cache_read("abc/files/00.wav").is_err());
+        assert!(lib.sample_cache_read("../projects/x").is_err());
     }
 }

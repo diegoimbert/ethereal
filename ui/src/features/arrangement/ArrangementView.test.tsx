@@ -17,6 +17,7 @@ import { resetTimeSelection, useTimeSelection } from "@/features/time-edits/stor
 import { AUTOMATION_BAR_HEIGHT, LANE_HEIGHT, resetAutomationUi } from "@/features/automation";
 import { HEADER_WIDTH, MAX_TRACK_HEIGHT, MIN_TRACK_HEIGHT, TRACK_HEIGHT } from "./layout";
 import { glRenderer } from "./gl/active";
+import { formatDb } from "@/domain/paramScale";
 import { arrangementView, resetArrangementUi, useArrangementUi } from "./uiStore";
 
 // Default zoom is 24 px/beat; tests use a fixed 1-beat grid.
@@ -153,6 +154,20 @@ describe("ArrangementView: tracks", () => {
     expect(document.querySelectorAll('[data-slot="automation"]')).toHaveLength(5);
   });
 
+  it("lists each track's clips as text for screen readers (the canvas draws them)", () => {
+    const summary = within(screen.getByRole("list", { name: "clips" }));
+    const clips = Object.values(project().clips).filter((c) => c.lane == null);
+    expect(clips.length).toBeGreaterThan(0);
+    for (const track of tracksOrdered(project())) {
+      const own = clips.filter((c) => c.track === track.id);
+      if (own.length === 0) continue;
+      const list = summary.getByRole("list", { name: `${track.name}: ${own.length === 1 ? "1 clip" : `${own.length} clips`}` });
+      expect(within(list).getAllByRole("listitem")).toHaveLength(own.length);
+    }
+    const first = clips[0]!;
+    expect(summary.getAllByRole("listitem").some((li) => li.textContent?.includes(first.name) && li.textContent.includes(" to "))).toBe(true);
+  });
+
   it("selects the track on header click", () => {
     fireEvent.click(screen.getByRole("group", { name: "Bass track" }));
     expect(useSelectionStore.getState().selectedTrack).toBe(trackByName("Bass").id);
@@ -196,7 +211,7 @@ describe("ArrangementView: tracks", () => {
   it("add track opens a menu of the kinds; dragging one between rows creates it at that spot (no draft row)", async () => {
     const names = () => tracksOrdered(project()).map((t) => t.name);
     fireEvent.click(screen.getByRole("button", { name: "add track" }));
-    const item = screen.getByRole("menuitem", { name: "create MIDI track" });
+    const item = screen.getByRole("menuitem", { name: "create midi track" });
     // jsdom has no layout: give the lanes a box so the pointer is "over" them.
     vi.spyOn(screen.getByTestId("arrangement-content"), "getBoundingClientRect").mockReturnValue(new DOMRect(0, 0, 1200, 800));
     await act(async () => {
@@ -233,7 +248,7 @@ describe("ArrangementView: tracks", () => {
   it("adds a MIDI track with the built-in synth and an audio track from the menu, each one undo step", async () => {
     const before = Object.keys(project().tracks).length;
     fireEvent.click(screen.getByRole("button", { name: "add track" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "create MIDI track" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "create midi track" }));
     await flush();
     const midi = Object.values(project().tracks)
       .filter((t) => t.kind === "Midi")
@@ -255,7 +270,7 @@ describe("ArrangementView: tracks", () => {
 
   it("clicking Add track > MIDI track opens the instrument picker for the new track, and a pick lands on it", async () => {
     fireEvent.click(screen.getByRole("button", { name: "add track" }));
-    const item = screen.getByRole("menuitem", { name: "create MIDI track" });
+    const item = screen.getByRole("menuitem", { name: "create midi track" });
     // A real click: press, release, click (the press must not close what the click opens).
     fireEvent.pointerDown(item, { button: 0, pointerId: 1, clientX: 10, clientY: 10 });
     fireEvent.pointerUp(window, { pointerId: 1, clientX: 10, clientY: 10 });
@@ -280,7 +295,7 @@ describe("ArrangementView: tracks", () => {
 
   it("Escape closes the instrument picker of a clicked-in MIDI track (the synth stays)", async () => {
     fireEvent.click(screen.getByRole("button", { name: "add track" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "create MIDI track" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "create midi track" }));
     await flush();
     const midi = Object.values(project().tracks)
       .filter((t) => t.kind === "Midi")
@@ -307,7 +322,7 @@ describe("ArrangementView: tracks", () => {
     // Empty space below the tracks: the menu offers both kinds and creates the track at once.
     fireEvent.contextMenu(screen.getByTestId("arrangement-content"), { clientX: 20, clientY: 100_000 });
     expect(screen.getByRole("menuitem", { name: "add audio track" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("menuitem", { name: "add MIDI track" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "add midi track" }));
     await flush();
     const midi = Object.values(project().tracks)
       .filter((t) => t.kind === "Midi")
@@ -973,7 +988,7 @@ describe("ArrangementView: clip editing", () => {
     await flush();
     const lowered = trackByName("Keys").mixer.volume;
     expect(lowered).toBeLessThan(before);
-    expect(fader.getAttribute("aria-valuetext")).toMatch(/dB/);
+    expect(fader.getAttribute("aria-valuetext")).toMatch(/db/);
     // The drag didn't select or move the track.
     expect(useArrangementUi.getState().trackFocus).toBeNull();
     await undo();
@@ -982,6 +997,46 @@ describe("ArrangementView: clip editing", () => {
     fireEvent.doubleClick(fader);
     await flush();
     expect(trackByName("Keys").mixer.volume).toBeCloseTo(0);
+  });
+
+  it("#911: a volume drag over 32 selected tracks sends one batch per frame, not one command per track", async () => {
+    await act(async () => {
+      for (let i = 0; i < 29; i++) {
+        await mock.send(cmd("Track", { type: "Create", id: newId(), kind: "Midi", name: `T${i}`, color: null, parent: null, before: null }));
+      }
+    });
+    await flush();
+    const ids = Object.keys(project().tracks);
+    expect(ids.length).toBeGreaterThanOrEqual(32);
+    act(() => useArrangementUi.getState().setTrackSelection(ids, ids[0]!));
+    const before = new Map(ids.map((id) => [id, project().tracks[id]!.mixer.volume]));
+    const keys = trackByName("Keys");
+    const fader = screen.getByRole("slider", { name: "Keys volume" });
+    Object.defineProperty(fader, "clientWidth", { configurable: true, value: 100 });
+    sent.length = 0;
+    const MOVES = 20;
+    await act(async () => {
+      fireEvent.pointerDown(fader, { button: 0, pointerId: 1, clientX: 80 });
+      for (let i = 1; i <= MOVES; i++) fireEvent.pointerMove(fader, { pointerId: 1, clientX: 80 - i });
+      fireEvent.pointerUp(fader, { pointerId: 1, clientX: 80 - MOVES });
+    });
+    await flush();
+    // No per-track commands: batches of the whole selection, at most one per move.
+    expect(sent.filter((c) => c.domain === "Mixer")).toHaveLength(0);
+    const batches = sent.filter((c) => c.domain === "Edit" && c.command.type === "Batch");
+    expect(batches.length).toBeGreaterThan(0);
+    expect(batches.length).toBeLessThanOrEqual(MOVES);
+    expect(sent.length).toBeLessThanOrEqual(batches.length + 1); // + EndGesture
+    // Every track moved by the same dB amount as the dragged one (their balance is kept).
+    const delta = project().tracks[keys.id]!.mixer.volume - before.get(keys.id)!;
+    expect(delta).toBeLessThan(0);
+    for (const id of ids) expect(project().tracks[id]!.mixer.volume - before.get(id)!).toBeCloseTo(delta);
+    // The other faders follow (their rows don't re-render for a volume change: the fader reads the store).
+    const bass = screen.getByRole("slider", { name: "Bass volume" });
+    expect(bass.getAttribute("aria-valuetext")).toBe(formatDb(trackByName("Bass").mixer.volume));
+    // One undo step for the whole drag.
+    await undo();
+    for (const id of ids) expect(project().tracks[id]!.mixer.volume).toBeCloseTo(before.get(id)!);
   });
 
   it("a header pan knob (right of the volume): a drag is one undo step; double-click centers it", async () => {
@@ -1589,6 +1644,53 @@ describe("ArrangementView: track multi-selection (base-151)", () => {
     expect(itemSelection.getState().selected.clip.size).toBe(1);
     expect(editTarget()).toBe("tracks");
   });
+
+  it("Mod+A with a track selected selects every track (not the master), no clips", async () => {
+    fireEvent.click(header("Keys"));
+    await key("a");
+    const expected = tracksOrdered(project())
+      .filter((t) => t.kind !== "Master")
+      .map((t) => t.id);
+    expect(new Set(useArrangementUi.getState().selectedTracks)).toEqual(new Set(expected));
+    expect(itemSelection.getState().selected.clip.size).toBe(0);
+    // The focus (shift-click anchor) stays on the clicked track.
+    expect(useArrangementUi.getState().trackFocus).toBe(trackByName("Keys").id);
+    // Follow-up edits act on them all, like a manual multi-selection: delete removes every
+    // track but the master.
+    await act(async () => {
+      fireEvent.keyDown(root(), { key: "Delete" });
+    });
+    await flush();
+    expect(tracksOrdered(project()).map((t) => t.kind)).toEqual(["Master"]);
+  });
+
+  it("Mod+A with a clip selected (or nothing) selects every clip, no tracks", async () => {
+    act(() => itemSelection.getState().select("clip", [clipByName("Chords").id]));
+    await key("a");
+    const arrangementClips = Object.values(project().clips).filter((c) => !c.lane);
+    expect(itemSelection.getState().selected.clip.size).toBe(arrangementClips.length);
+    expect(useArrangementUi.getState().selectedTracks.size).toBe(0);
+    act(() => itemSelection.getState().clear("clip"));
+    await key("a");
+    expect(itemSelection.getState().selected.clip.size).toBe(arrangementClips.length);
+  });
+
+  it("allSelectableTracks: the shown rows in display order, children of folded groups and the master left out", async () => {
+    const { allSelectableTracks } = await import("./actions");
+    const [keys, bass] = [trackByName("Keys"), trackByName("Bass")];
+    const group = newId();
+    await act(async () => {
+      await mock.send(cmd("Track", { type: "GroupSelected", ids: [keys.id, bass.id], group, name: "Grp" }));
+    });
+    const all = allSelectableTracks(project(), new Set());
+    expect(all).toContain(group);
+    expect(all).toContain(keys.id);
+    expect(all.some((id) => project().tracks[id]!.kind === "Master")).toBe(false);
+    const folded = allSelectableTracks(project(), new Set([group]));
+    expect(folded).toContain(group);
+    expect(folded).not.toContain(keys.id);
+    expect(folded).not.toContain(bass.id);
+  });
 });
 
 describe("ArrangementView: audio and drops", () => {
@@ -1772,8 +1874,8 @@ describe("ArrangementView: MIDI files (#717)", () => {
     const urls = vi.fn(() => "blob:x");
     vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: urls, revokeObjectURL: vi.fn() }));
     const chords = Object.values(project().clips).find((c) => c.name === "Chords")!;
-    const entry = clipMenu(mock, chords).find((e) => e !== "separator" && e.label === "export MIDI…");
-    if (!entry || entry === "separator") throw new Error("no export MIDI… on a MIDI clip");
+    const entry = clipMenu(mock, chords).find((e) => e !== "separator" && e.label === "export midi…");
+    if (!entry || entry === "separator") throw new Error("no export midi… on a midi clip");
     await act(async () => entry.onSelect());
     await flush();
     const first = sent.find((c) => c.domain === "Media" && c.command.type === "WriteMidiFile");
@@ -1784,9 +1886,9 @@ describe("ArrangementView: MIDI files (#717)", () => {
     });
     // An audio clip has none.
     const audio = Object.values(project().clips).find((c) => c.content.type === "Audio")!;
-    expect(clipMenu(mock, audio).some((e) => e !== "separator" && e.label === "export MIDI…")).toBe(false);
+    expect(clipMenu(mock, audio).some((e) => e !== "separator" && e.label === "export midi…")).toBe(false);
     fireEvent.contextMenu(screen.getByRole("group", { name: "Keys track" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "export MIDI…" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "export midi…" }));
     await flush();
     const writes = sent.filter((c) => c.domain === "Media" && c.command.type === "WriteMidiFile");
     expect(writes.length).toBeGreaterThan(0);
@@ -1799,7 +1901,7 @@ describe("ArrangementView: MIDI files (#717)", () => {
     expect(urls).toHaveBeenCalled();
     // An audio track has no MIDI clips: disabled.
     fireEvent.contextMenu(screen.getByRole("group", { name: "Drums track" }));
-    expect(screen.getByRole("menuitem", { name: "export MIDI…" })).toBeDisabled();
+    expect(screen.getByRole("menuitem", { name: "export midi…" })).toBeDisabled();
   });
 });
 

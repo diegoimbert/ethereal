@@ -21,6 +21,9 @@ export interface EditColors {
   badgeText: Rgba;
   /** Missing media: the clip's hatch (`color-mix(warn 22%, transparent)`). */
   hatch: Rgba;
+  /** An extension's badge (`text-dim`) and its soft hatch. */
+  dim: Rgba;
+  softHatch: Rgba;
 }
 
 const cache = new WeakMap<Palette, EditColors>();
@@ -34,6 +37,7 @@ export function editColors(p: Palette): EditColors {
   let c = cache.get(p);
   if (c) return c;
   const warn = token("warn");
+  const dim = token("textDim");
   c = {
     shade: token("backdrop"),
     line: token("text"),
@@ -45,6 +49,8 @@ export function editColors(p: Palette): EditColors {
     warn,
     badgeText: p.titleText,
     hatch: withAlpha(warn, 0.22),
+    dim,
+    softHatch: withAlpha(dim, 0.16),
   };
   cache.set(p, c);
   return c;

@@ -6,9 +6,11 @@
 //! `[offset, offset + length)` of its content; with looping enabled it plays from `offset`
 //! and then repeats `[loop.start, loop.end)` until `length` is reached.
 //!
-//! `offset` may be negative (base-142): content positions before 0 are empty (no notes,
-//! silence before the audio's first sample), so a negative offset is a *leading gap* of
-//! `-offset` beats before the content starts. Extending a clip's left edge past its content
+//! `offset` may be negative (base-142): content positions before 0 are empty (silence
+//! before the audio's first sample; no notes until some are put there), so a negative
+//! offset is a *leading gap* of `-offset` beats before the content starts. A MIDI clip's
+//! notes may start in that gap (down to `min(offset, 0)`): the piano roll shows and edits
+//! the whole clip, and such notes play like any other. Extending a clip's left edge past its content
 //! start produces one on unlooped clips; looped clips instead wrap the offset into the loop
 //! region (the loop's tail plays before the loop start). Repitch transposition scales
 //! around `max(offset, 0)`, so the content still starts right after the gap.
@@ -21,7 +23,7 @@
 //! so a crossfade is simply `A`'s fade-out overlapping `B`'s fade-in (use the same curve
 //! on both, e.g. `EqualPower`, for a symmetric crossfade). Overlaps are not a model
 //! invariant (documents may contain them); larger overlaps just sum. `ClipCommand::
-//! SetCrossfade` (`crossfades` node) sizes or removes one around a fixed boundary.
+//! SetCrossfade` (`crossfades`) sizes or removes one around a fixed boundary.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

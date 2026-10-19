@@ -105,8 +105,8 @@ fn modulators_get_default_params_and_numbered_names() {
     let a = add_modulator(&mut h, d, ModulatorKind::Lfo);
     let b = add_modulator(&mut h, d, ModulatorKind::Lfo);
     let p = h.project();
-    assert_eq!(p.modulators[&a].name, "LFO");
-    assert_eq!(p.modulators[&b].name, "LFO 2");
+    assert_eq!(p.modulators[&a].name, "lfo");
+    assert_eq!(p.modulators[&b].name, "lfo 2");
     let desc = ether_devices::modulators::descriptor(ModulatorKind::Lfo);
     assert_eq!(p.modulators[&a].params.len(), desc.params.len());
     assert_eq!(

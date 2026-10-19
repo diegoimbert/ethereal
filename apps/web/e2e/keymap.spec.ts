@@ -120,11 +120,11 @@ test("keymap: rebind, conflicts, persistence, Ableton-like preset, cheat sheet",
   await openEditor(page);
   await expect(row(page, "transport.metronome").locator("kbd")).toHaveText(["Alt+M"]);
 
-  // Ableton-like: adds Mod+L (loop) and F9 (record) on top of the defaults; Mod+J still
+  // Ableton-like: adds Mod+L (loop) and F9 (record) on top of the defaults; Mod+Alt+L still
   // toggles the editor drawer, and the user's own changes stay.
   await editor(page).getByRole("combobox", { name: "keymap preset" }).click();
   await page.getByRole("option", { name: "Ableton-like" }).click();
-  await expect(row(page, "view.editor").locator("kbd")).toHaveText(["Ctrl+J", "Alt+Ctrl+L"]);
+  await expect(row(page, "view.editor").locator("kbd")).toHaveText(["Alt+Ctrl+L"]);
   await expect(row(page, "transport.loop").locator("kbd")).toHaveText(["Ctrl+L"]);
   await expect(row(page, "transport.play").locator("kbd")).toHaveText(["P"]);
   await closeEditor(page);

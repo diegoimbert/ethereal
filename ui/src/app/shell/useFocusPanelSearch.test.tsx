@@ -9,6 +9,7 @@ function Pane() {
   return (
     <div ref={ref}>
       <input type="search" aria-label="Search" />
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events -- a test fixture */}
       <div role="button" tabIndex={0} onClick={(e) => e.currentTarget.focus()}>
         Kick.wav
       </div>

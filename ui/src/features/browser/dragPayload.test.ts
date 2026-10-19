@@ -120,9 +120,9 @@ describe("path helpers", () => {
   });
 
   it("formats sizes", () => {
-    expect(formatSize(512)).toBe("512 B");
-    expect(formatSize(1536)).toBe("1.5 KB");
-    expect(formatSize(1_300_000)).toBe("1.2 MB");
-    expect(formatSize(50 * 1024 * 1024)).toBe("50 MB");
+    expect(formatSize(512)).toBe("512 b");
+    expect(formatSize(1536)).toBe("1.5 kb");
+    expect(formatSize(1_300_000)).toBe("1.2 mb");
+    expect(formatSize(50 * 1024 * 1024)).toBe("50 mb");
   });
 });

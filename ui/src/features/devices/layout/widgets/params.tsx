@@ -205,8 +205,8 @@ export function ChoiceWidget({ binding: b, label }: ParamWidgetProps) {
 
 const UNIT_SUFFIX: Record<ParamUnit, string | undefined> = {
   None: undefined,
-  Decibels: "dB",
-  Hertz: "Hz",
+  Decibels: "db",
+  Hertz: "hz",
   Milliseconds: "ms",
   Seconds: "s",
   Percent: "%",

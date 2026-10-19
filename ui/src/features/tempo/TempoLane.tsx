@@ -327,10 +327,14 @@ export function TempoLane({ view, tempo, points, height, track = null }: TempoLa
     if (e.target !== e.currentTarget) return;
     const p = local(e);
     const time = snap(pxToBeats(p.x, view.getState()), e.altKey);
-    if (tempoTimeTaken(live.current.points, time)) return;
-    const bpm = clampBpm(Math.round(yToBpm(p.y, live.current.geom)));
+    const { points, tempo } = live.current;
+    if (tempoTimeTaken(points, time)) return;
+    // Like automation lanes: the tempo there (not the pointer's y), continuing the ramp or
+    // hold it splits (a linear ramp split in two is the same ramp), so the map doesn't change.
+    const bpm = clampBpm(tempo.bpmAt(time));
+    const curve = points.filter((q) => q.time <= time).at(-1)?.curve ?? "Step";
     const id = newId();
-    void sendEdit(transport, addTempoPointCommand(time, bpm, "Step", id)).then(() => sel().select("tempoPoint", [id], "replace"));
+    void sendEdit(transport, addTempoPointCommand(time, bpm, curve, id)).then(() => sel().select("tempoPoint", [id], "replace"));
   };
 
   // ---- Keyboard -----------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 //! External media references: missing media, relink, search, collect (v0.2, owned by the
-//! `media-references` node; model `ether_model::MediaLocation`, protocol
+//! `media-references`; model `ether_model::MediaLocation`, protocol
 //! `ether_protocol::media_refs`, CONTRACTS.md §12.9).
 //!
 //! - **Import in place** (`handlers.rs`): `MediaSource::Path` and library files the host can
@@ -257,7 +257,7 @@ fn check_format(m: &MediaRef, bytes: Vec<u8>, ext_of: &str) -> CmdResult<Vec<u8>
     Ok(bytes.to_vec())
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,
@@ -524,7 +524,7 @@ where
         let bytes = check_format(&m, bytes, &name)?;
         let hash = content_hash(&bytes);
         let changed = m.hash.as_deref() != Some(hash.as_str());
-        if changed && self.collab_active() {
+        if changed && self.session_active() {
             // Peers hold these bytes at `MediaRef::file` (and the relay caches them for late
             // joiners): stored media are never replaced, so the content can't change here.
             return Err(invalid_state(format!(
@@ -627,7 +627,7 @@ where
                     .arg("files", skipped.join(", ")),
             );
         }
-        self.collab_before_save(now, crate::saving::SaveKind::Full, out);
+        self.ext_before_save(now, crate::saving::SaveKind::Full, out);
         self.save_current(out)?;
         Ok(())
     }

@@ -159,7 +159,7 @@ impl AgentBridgeState {
                         Box::new(host),
                         self.runtime_file(),
                         self.instance.clone(),
-                        env!("CARGO_PKG_VERSION"),
+                        crate::APP_VERSION,
                     )
                     .map_err(|e| format!("could not start the agent bridge: {e}"))?,
                 );

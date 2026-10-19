@@ -6,11 +6,12 @@
  *   (`@/features/expression`): velocity, clip expression lanes (CC, pitch bend, channel
  *   pressure) and per-note pressure, picked from the lane bar.
  * - Draw: double-click empty space (keep holding and drag to set the length), or drag in
- *   draw mode (B). Move: drag a note body
- *   (vertical = pitch; Shift: no snapping). Resize: drag either edge. Delete: double-click
+ *   draw mode (B); a new note takes the velocity of the last clicked, drawn or
+ *   velocity-edited note (`lastVelocity.ts`). Move: drag a note body
+ *   (vertical = pitch; Alt pressed mid-move: no snapping). Resize: drag either edge. Delete: double-click
  *   a note, or Delete/Backspace. Velocity: Alt/Option-drag a note body vertically (the
  *   selection, or just that note, by the same amount; Shift: fine), or the velocity lane.
- *   Alt bypasses snapping on every other drag (draw, resize, marquee, ruler, stretch bar).
+ *   Alt bypasses snapping on every drag (move, draw, resize, marquee, ruler, stretch bar).
  *   Every drag is one undo gesture.
  * - Preview (headphones toggle, on by default, persisted): pressing a note or a key plays it
  *   on the clip's track instrument while held (`notePreview.ts`).
@@ -30,6 +31,7 @@
  *   lanes follow the focused clip).
  */
 
+import { contributions, useContributions } from "@/ext";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
 import type { Beats, Clip, ClipId, Command, MusicalScale, TrackScale } from "@/generated";
@@ -90,7 +92,6 @@ import {
   pasteAt,
   pasteCommand,
   rangeOfSection,
-  regionOf,
   sectionOf,
   type NoteClipboard,
   usePianoRollSection,
@@ -116,16 +117,20 @@ export function PianoRoll() {
   const rack = useClipDrumRack(clip);
   const pianoRollChosen = useBeatView((s) => (clip ? s.pianoRoll.has(clip.track) : false));
   const t = useT();
+  const pending = usePendingClip();
   if (!clip) return <Empty text={t("piano_roll.empty.no_clip")} />;
   if (clip.content.type !== "Midi") return <Empty text={t("piano_roll.empty.audio_clip")} />;
+  // An extension's clip whose notes aren't here yet (`@/ext` "clips.pending"): it waits.
+  const waiting = pending((clips ?? [clip]).find((c) => pending(c) !== null) ?? clip);
+  if (waiting !== null) return <Empty text={waiting} loading />;
   if (rack && !clips && !pianoRollChosen) return <BeatGrid key={clip.id} clip={clip} rack={rack} />;
   if (clips) return <PianoRollEditor key={`multi:${clips.map((c) => c.id).join(",")}`} clip={clip} clips={clips} />;
   return <PianoRollEditor key={clip.id} clip={clip} />;
 }
 
-function Empty({ text }: { text: string }) {
+function Empty({ text, loading }: { text: string; loading?: boolean }) {
   return (
-    <div className="eth-pr eth-pr--empty" data-testid="piano-roll-empty">
+    <div className="eth-pr eth-pr--empty" data-testid={loading ? "piano-roll-loading" : "piano-roll-empty"} aria-busy={loading || undefined}>
       {text}
     </div>
   );
@@ -321,16 +326,33 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
     previousRows.current = rows;
   }, [rows, keyH]);
 
-  // Fit the clip horizontally and center its notes vertically when it opens.
+  // The axis starts at the space's floor: before content 0 when the clip was extended to the
+  // left past its content start (a leading gap, shown and editable like the rest).
+  useEffect(() => {
+    view.getState().setLimits({ minScrollBeats: space.floor });
+  }, [view, space.floor]);
+
+  // An extension's follow mode (`@/ext` "pianoRoll.follow"): publish this view, apply a followed
+  // one (when it shows this clip).
+  const followLayout = useRef({ clip: clip.id, shift: space.focusShift, rows, keyH });
+  useLayoutEffect(() => {
+    followLayout.current = { clip: clip.id, shift: space.focusShift, rows, keyH };
+  });
+  const follows = contributions("pianoRoll.follow");
+  const headers = useContributions("pianoRoll.header");
+
+  // Fit the clip horizontally and center its notes vertically when it opens (not while its
+  // view follows someone's).
   const fitted = useRef(false);
   useEffect(() => {
     if (fitted.current || widthPx <= 0) return;
+    if (follows.some((f) => f.following(clip.id))) return;
     fitted.current = true;
     if (space.multi) {
       const start = Math.min(...space.bands.map((b) => b.start));
       view.getState().zoomToRange({ start, end: Math.max(...space.bands.map((b) => b.end), start + 4) }, 8);
     } else {
-      view.getState().zoomToRange({ start: 0, end: Math.max(contentEnd(clip), 4) }, 8);
+      view.getState().zoomToRange({ start: space.floor, end: Math.max(contentEnd(clip), space.floor + 4) }, 8);
     }
     const body = bodyRef.current;
     if (body) {
@@ -413,10 +435,10 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
     if (e.button !== 0) return;
     const box = e.currentTarget.getBoundingClientRect();
     const at = (ev: { clientX: number; altKey: boolean }) =>
-      snapToGrid(Math.max(0, pxToBeats(ev.clientX - box.left, view.getState())), ev.altKey ? null : sectionStep(step), tempo, "nearest");
+      snapToGrid(Math.max(space.floor, pxToBeats(ev.clientX - box.left, view.getState())), ev.altKey ? null : sectionStep(step), tempo, "nearest");
     const from = at(e);
     const update = (ev: PointerEvent) => {
-      const drawn = sectionOf(space.key, from, at(ev));
+      const drawn = sectionOf(space.key, from, at(ev), undefined, space.floor);
       const inside = drawn ? notesOver(shownNotes, drawn.start, drawn.end) : [];
       usePianoRollSection.getState().setSection(drawn);
       itemSelection.getState().select(
@@ -468,12 +490,14 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
         if (commands.length) command = cmd("Edit", { type: "Batch", label: "delete notes", key: { id: "undo.note.delete_section", args: {} }, commands }); // i18n-ignore
       } else if (selected.length) command = cmd("Note", { type: "Remove", ids: selected.map((n) => n.id) });
     } else if (action === "edit.selectAll") {
+      // Like a plain (no Shift) marquee over every shown note: the selection is replaced and
+      // no section is made (the old one goes), so edits act on the selected notes.
+      clearSection();
       itemSelection.getState().select(
         "note",
         shownNotes.map((n) => n.id),
         "replace",
       );
-      usePianoRollSection.getState().setSection(space.multi ? multiRegion(space) : regionOf(clip));
     } else if (action === "pianoRoll.quantize") {
       quantize();
     } else if (action === "clip.reverse") {
@@ -511,6 +535,8 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
       ref={rootRef}
       className="eth-pr"
       tabIndex={0}
+      role="group"
+      aria-label={t("piano_roll.label")}
       data-testid="piano-roll"
       onKeyDown={onKeyDown}
       data-keymap-scope="pianoRoll"
@@ -525,6 +551,12 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
             {t("piano_roll.clip_count", { count: space.clips.length })}
           </span>
         )}
+        {headers.map((Header, i) => (
+          <Header key={i} clip={clip.id} />
+        ))}
+        {follows.map(({ Follow }, i) => (
+          <Follow key={i} clip={clip.id} layout={followLayout} view={view} body={bodyRef} />
+        ))}
         <span className="eth-pr__grid-select">
           {t("piano_roll.grid")}
           <Select
@@ -702,11 +734,6 @@ function useClipColors(space: RollSpace): ReadonlyMap<ClipId, string> | undefine
   }, [space, tracks]);
 }
 
-/** ⌘A with several clips: from the first clip's start to the last clip's end. */
-function multiRegion(space: RollSpace) {
-  return sectionOf(space.key, Math.min(...space.bands.map((b) => b.start)), Math.max(...space.bands.map((b) => b.end)));
-}
-
 /**
  * The clips' bands under the ruler (multi-clip editing): each clip's name and region in its
  * color, its loop region, the focused clip highlighted. A click focuses the clip.
@@ -755,4 +782,13 @@ function ClipBands({ space, vp, colors }: { space: RollSpace; vp: { pxPerBeat: n
 function isTextEntry(target: Element | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
+}
+
+/**
+ * The extensions' pending clips (`@/ext` "clips.pending", hooks): for a clip, the editor's
+ * text while its content is on its way, or `null`.
+ */
+function usePendingClip(): (clip: Clip) => string | null {
+  const checks = contributions("clips.pending").map((p) => ({ pending: p.usePending(), text: p.text }));
+  return (clip) => checks.find((c) => c.pending(clip))?.text() ?? null;
 }

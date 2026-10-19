@@ -179,9 +179,9 @@ test("automation lanes animate open, snap stepped params, and copy/paste points 
   {
     const { pop, field } = await setValue();
     await expect(field).toHaveValue(/^-?\d+(\.\d+)?$/);
-    await expect(pop).toContainText("dB");
+    await expect(pop).toContainText("db");
     // The text is selected: typing replaces it.
-    await page.keyboard.type("-3 dB");
+    await page.keyboard.type("-3 db");
     await page.keyboard.press("Enter");
     await expect(pop).toBeHidden();
     await expect.poll(value).not.toBeCloseTo(vPoint.value, 6);

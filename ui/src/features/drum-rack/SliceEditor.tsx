@@ -72,6 +72,7 @@ export function SamplerModeSwitch({ sampler }: { sampler: Device }) {
 }
 
 function Waveform({ peaks, frames }: { peaks: PeakData | null; frames: number }) {
+  const t = useT();
   const ref = useRef<HTMLCanvasElement>(null);
   const [theme] = useTheme();
   useEffect(() => {
@@ -106,7 +107,8 @@ function Waveform({ peaks, frames }: { peaks: PeakData | null; frames: number })
       ctx.fillRect(x, y0, 1, Math.max(1, y1 - y0));
     }
   }, [peaks, frames, theme]);
-  return <canvas ref={ref} className="eth-slices__canvas" data-testid="slice-waveform" />;
+  // A picture of the sample (the slice markers over it are elements with their own labels).
+  return <canvas ref={ref} className="eth-slices__canvas" data-testid="slice-waveform" role="img" aria-label={t("drum_rack.slices.waveform")} />;
 }
 
 /**

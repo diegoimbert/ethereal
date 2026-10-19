@@ -37,7 +37,7 @@ pub enum MediaCommand {
         location: BrowseLocation,
         path: String,
     },
-    /// Audition a file (`media-preview` node): decoded engine-side and played by the
+    /// Audition a file (`media-preview`): decoded engine-side and played by the
     /// engine's preview voice straight to the hardware output (not through the tracks,
     /// independent of the transport). Replaces any playing preview. Replies `Unit` once the
     /// preview is queued; `MediaEvent::PreviewStarted` follows, then exactly one

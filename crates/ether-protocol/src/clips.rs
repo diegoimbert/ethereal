@@ -108,7 +108,7 @@ pub enum ClipCommand {
         length: Beats,
         curve: FadeCurve,
     },
-    /// `crossfades` node: set the crossfade between `first` and `second` (same track,
+    /// `crossfades`: set the crossfade between `first` and `second` (same track,
     /// `first` ending at or after `second` starts) to `length` beats centred on `at` (a
     /// position strictly inside both clips' combined span; the fade-handle gestures keep the
     /// boundary they started from, so dragging never drifts it). Same extension rules as

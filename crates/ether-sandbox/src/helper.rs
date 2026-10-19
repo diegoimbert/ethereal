@@ -255,7 +255,12 @@ fn handle(
             Err(e) => Response::Err(e.into()),
         },
         Request::LoadState(s) => result(wire::decode_state(&s).and_then(|s| plugin.load_state(&s))),
-        Request::OpenEditor => result(plugin.open_editor()),
+        Request::OpenEditor => match plugin.open_editor() {
+            Ok(()) => Response::EditorOpened {
+                window: plugin.editor_window(),
+            },
+            Err(e) => Response::Err(e.into()),
+        },
         Request::CloseEditor => {
             plugin.close_editor();
             Response::Ok
@@ -266,7 +271,10 @@ fn handle(
         }
         Request::Poll => {
             plugin.poll(notifications);
-            Response::Notifications(notifications.drain(..).map(Into::into).collect())
+            Response::Polled {
+                notifications: notifications.drain(..).map(Into::into).collect(),
+                editor_window: plugin.editor_window(),
+            }
         }
     }
 }

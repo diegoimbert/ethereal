@@ -1,4 +1,4 @@
-//! Built-in `Eq` device (roadmap v2, owned by the `devices-2` node).
+//! Built-in `Eq` device (roadmap v2, `devices-2`).
 //!
 //! Eight-band parametric EQ. Every band has the same five params (on, type, frequency,
 //! gain, Q) and can be any of: low cut, low shelf, bell, notch, high shelf, high cut

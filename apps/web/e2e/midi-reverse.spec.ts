@@ -8,7 +8,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { Note, Project } from "@/generated";
 import { openClip, selectClip } from "./clips";
-import { createTrack, launch, pickOption } from "./ui";
+import { createTrack, launch, pianoRollNotes, pickOption } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -99,10 +99,16 @@ test("reverse a MIDI clip with R (arrangement), and selected notes with R (piano
   await expect.poll(() => notes(page, id)).toEqual(original);
 
   // --- Piano roll: select both notes, R mirrors them inside their span ---------------------
-  await openClip(page, id);
+  // The editor is still open on the clip (selecting it kept it there). No second double-click:
+  // on the open clip with both panels expanded it collapses them (App.tsx), which lands a
+  // moment later and took the piano roll away under ⌘A on a slow runner.
   await expect(page.getByTestId("piano-roll-grid")).toBeVisible();
+  await expect(page.getByRole("button", { name: "collapse the editor panel" })).toBeVisible();
   await page.getByTestId("piano-roll").focus();
   await page.keyboard.press("ControlOrMeta+a");
+  // ⌘A selects the notes only (a plain marquee's selection), no section over the clip.
+  await expect.poll(async () => (await pianoRollNotes(page.getByTestId("piano-roll-grid"))).filter((n) => n.selected).length).toBe(2);
+  await expect(page.getByTestId("piano-roll-section")).toHaveCount(0);
   await page.keyboard.press("r");
   const [s0, d0] = original[0]!;
   const [s1, d1] = original[1]!;

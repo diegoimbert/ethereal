@@ -12,6 +12,7 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { Track, TrackId, TrackKind } from "@/generated";
 import { setDragCursor } from "@/kit";
+import { setEditActivity as setActivity } from "@/ext/surfaces";
 import { cmd } from "@/transport";
 import { sendEdit, type ArrangementContextValue } from "./context";
 import { holdClipDrag } from "./dragGuard";
@@ -219,6 +220,7 @@ export function startTrackDrag(o: TrackDragOptions): void {
 export function onTrackHeaderPointerDown(e: ReactPointerEvent<HTMLElement>, track: Track, ctx: ArrangementContextValue): void {
   if (e.button !== 0 || !movable(track)) return;
   if ((e.target as HTMLElement).closest("button, [role='separator']")) return;
+  let started = false;
   startTrackDrag({
     ctx,
     id: track.id,
@@ -226,8 +228,17 @@ export function onTrackHeaderPointerDown(e: ReactPointerEvent<HTMLElement>, trac
     startX: e.clientX,
     startY: e.clientY,
     vertical: true,
+    onStart: () => {
+      started = true;
+      // What the user does, for the extensions (`@/ext` "edit.activity"), cleared at the end.
+      setActivity({ kind: "Dragging", target: { type: "Track", track: track.id } });
+    },
     onDrop: (target) => {
+      setActivity(null);
       void sendEdit(ctx.transport, cmd("Track", { type: "Move", id: track.id, parent: target.parent, before: target.before }));
+    },
+    onEnd: () => {
+      if (started) setActivity(null);
     },
   });
 }

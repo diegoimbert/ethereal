@@ -42,7 +42,7 @@ pub(crate) fn version_err(e: &FileError) -> Option<CommandError> {
 
 /// A document coming from outside the store (a bundle, an export source): version errors
 /// as [`version_err`], anything else `InvalidArgument`.
-pub(crate) fn import_err(e: FileError) -> CommandError {
+pub fn import_err(e: FileError) -> CommandError {
     version_err(&e).unwrap_or_else(|| {
         crate::tx::keyed_err(
             ErrorCode::InvalidArgument,
@@ -62,7 +62,7 @@ fn check_name(name: &str) -> CmdResult<String> {
     Ok(name.to_string())
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,
@@ -138,13 +138,6 @@ where
                 *include_media,
                 hide_devices.unwrap_or(false),
             ),
-            // Static (read-only) shares are part of the private collaboration overlay.
-            ProjectCommand::StaticSnapshot { .. } => {
-                Err(unsupported("static shares are not available in this build"))
-            }
-            ProjectCommand::StaticView { .. } => {
-                Err(unsupported("static shares are not available in this build"))
-            }
             ProjectCommand::ImportBundle {
                 new_id,
                 source,
@@ -175,7 +168,7 @@ where
     }
 
     /// Stored projects, newest first (the open project shows its current name).
-    pub(crate) fn list_projects(&mut self) -> CmdResult<Vec<ProjectSummary>> {
+    pub fn list_projects(&mut self) -> CmdResult<Vec<ProjectSummary>> {
         let mut list = self.store.list().map_err(store_err)?;
         if let Some(doc) = &self.doc {
             for s in &mut list {
@@ -187,7 +180,8 @@ where
         Ok(list)
     }
 
-    pub(crate) fn emit_list_changed(&mut self, out: &mut dyn MessageSink) {
+    /// Tell the UI the stored projects changed (`Event::ProjectList`).
+    pub fn emit_list_changed(&mut self, out: &mut dyn MessageSink) {
         if let Ok(projects) = self.list_projects() {
             event(
                 out,
@@ -281,6 +275,9 @@ where
         kind: SaveKind,
         out: &mut dyn MessageSink,
     ) -> CmdResult<ProjectSummary> {
+        if let Some(e) = self.save_refused() {
+            return Err(e);
+        }
         let doc = self.doc.take().ok_or_else(no_project)?;
         let (id, name) = (doc.project.id, doc.project.settings.name.clone());
         self.plugin_states
@@ -363,13 +360,14 @@ where
     /// wait for the background autosaves, then save every unsaved change with every
     /// plugin's live state, synchronously. An error means the project is NOT safely on
     /// disk: the caller must not drop the document.
-    pub(crate) fn autosave_before_switch(&mut self, out: &mut dyn MessageSink) -> CmdResult<()> {
+    pub fn autosave_before_switch(&mut self, out: &mut dyn MessageSink) -> CmdResult<()> {
         if self.transport.recording || self.recording.is_active() {
             let now = self.host.now_ms();
             self.finish_recording(now, out);
         }
         self.settle_background_saves(out);
-        if self.has_unsaved_work() {
+        // Work an extension holds back (`save_refused`) is dropped, never saved.
+        if self.has_unsaved_work() && self.save_refused().is_none() {
             self.save_current(out)?;
         }
         Ok(())
@@ -749,7 +747,7 @@ where
 
     /// Make `project` the open document: reset history, runtime state, engine nodes and
     /// media, then announce it.
-    pub(crate) fn load_project(&mut self, project: Project, now: u64, out: &mut dyn MessageSink) {
+    pub fn load_project(&mut self, project: Project, now: u64, out: &mut dyn MessageSink) {
         self.load_project_with(project, now, false, out);
     }
 
@@ -792,7 +790,7 @@ where
         );
         self.engine_emit_status(false, out);
         // After `ProjectLoaded`, which is always the first event of a load.
-        self.collab_engine_project_changed(out);
+        self.ext_engine_changed(out);
         self.emit_armed(out);
         event(
             out,
@@ -816,13 +814,13 @@ where
         // base-115: hosting/joined sessions of another project pause; this one resumes
         // sharing or reconnects (docs/SHARING.md §7).
         let pid = self.doc.as_ref().expect("just set").project.id;
-        self.share_project_loaded(pid, out);
+        self.ext_project_loaded(pid, out);
     }
 }
 
 /// A project name as a file name: path separators and control/reserved characters become
 /// `_`; never empty.
-pub(crate) fn bundle_file_name(name: &str) -> String {
+pub fn bundle_file_name(name: &str) -> String {
     let cleaned: String = name
         .trim()
         .chars()

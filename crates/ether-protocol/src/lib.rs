@@ -5,8 +5,8 @@
 //! - Document types (`Project`, entities, `Patch`) come from `ether-model` and are
 //!   re-exported as [`model`]; IDs as [`ids`].
 //!
-//! Commands are split per domain (one file each) so domain nodes rarely collide. The whole
-//! crate is a frozen contract: changes go through a BCR. TypeScript types are generated
+//! Commands are split per domain (one file each). The whole crate is the wire contract
+//! (docs/CONTRACTS.md): change it on purpose and keep old messages readable. TypeScript types are generated
 //! from here (`just gen-types` → `ui/src/generated/`), never hand-written.
 //!
 //! JSON conventions: field names are the Rust snake_case names; enums are tagged with
@@ -23,13 +23,13 @@ pub mod automation;
 pub mod browser;
 pub mod capture;
 pub mod clips;
-pub mod collab;
 pub mod devices;
 pub mod drum_rack;
 pub mod engine;
 pub mod eq_response;
 pub mod export;
 pub mod expression;
+pub mod ext;
 pub mod external;
 pub mod freeze;
 pub mod groove;
@@ -52,11 +52,8 @@ pub mod racks;
 pub mod recording;
 pub mod remote;
 pub mod resolver;
-pub mod share;
-pub mod social;
-pub mod static_share;
+pub mod samples;
 pub mod takes;
-pub mod telemetry;
 pub mod templates;
 pub mod tempo;
 pub mod time_edit;

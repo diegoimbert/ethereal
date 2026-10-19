@@ -14,6 +14,7 @@
  * project URL) or the arrangement. No rail, floating panes or device windows: panels arrive
  * as sheets in later steps of #522.
  */
+import { ExtensionRoots } from "@/app/ExtensionRoots";
 import "./mobile.css";
 import { memo, useEffect } from "react";
 import { Redo2, Settings, Undo2 } from "lucide-react";
@@ -32,6 +33,7 @@ import { ProjectMenu } from "@/features/project";
 import { ExportDialog } from "@/features/export";
 import { bindSelectionHistory } from "@/features/time-edits/selectionHistory";
 import { VersionsRoot } from "@/features/versions";
+import { NewsRoot } from "@/features/news";
 import { bindBackgroundStop } from "./background";
 import { useKeepRecordingSetup } from "@/features/recording";
 import { keepCenterOnRotation } from "./rotation";
@@ -49,15 +51,11 @@ import { TransportDock } from "./TransportDock";
 const Arrangement = memo(ArrangementView);
 const Markers = memo(MarkerLane);
 
-export function MobileShell() {
-  const t = useT();
+/** The layout and the touch arrangement's setup, shared by the editor and the viewer shells. */
+function useMobileLayout() {
   const layout = useFormFactor();
   const transport = useOptionalTransport();
   useEffect(() => (transport ? bindBackgroundStop(transport) : undefined), [transport]);
-  // #717: arms and punch come back when a project opens again.
-  useKeepRecordingSetup();
-  // Undo / redo bring back the time selections of their step (as on desktop).
-  useEffect(() => bindSelectionHistory(), []);
   // The view follows the playhead by default on touch screens (a pan detaches it).
   useEffect(() => arrangementView.getState().setFollowPlayhead(true), []);
   // Turning the device keeps the beat at the centre of the lanes there.
@@ -72,6 +70,16 @@ export function MobileShell() {
       defaultHeight: Math.max(s.defaultHeight, phone ? PHONE_TRACK_HEIGHT : TABLET_TRACK_HEIGHT),
     }));
   }, [phone]);
+  return layout;
+}
+
+export function MobileShell() {
+  const t = useT();
+  const layout = useMobileLayout();
+  // #717: arms and punch come back when a project opens again.
+  useKeepRecordingSetup();
+  // Undo / redo bring back the time selections of their step (as on desktop).
+  useEffect(() => bindSelectionHistory(), []);
 
   return (
     <div className="eth-shell eth-mshell" data-layout={layout} data-testid="mobile-shell">
@@ -86,6 +94,7 @@ export function MobileShell() {
         <div data-slot="export">
           <ExportDialog />
         </div>
+        <ExtensionRoots shell="mobile" slot="top-bar" />
         <IconButton
           size="lg"
           tone="ghost"
@@ -114,11 +123,36 @@ export function MobileShell() {
       <MediaRefsRoot />
       <ImportResolverRoot />
       <VersionsRoot />
+      <NewsRoot />
+      <ExtensionRoots shell="mobile" slot="overlay" />
       <ConfirmDialog />
       <TrackSheetRoot />
       <ClipSheetRoot />
       <DragBadge />
       <ContextMenuHost />
+      <TitleTooltipHost />
+    </div>
+  );
+}
+
+/** A read-only view on a touch screen (`state/viewer.ts`): the band of whatever shows it is its top. */
+export function MobileViewerShell() {
+  const layout = useMobileLayout();
+  return (
+    <div className="eth-shell eth-mshell eth-mshell--read-only" data-layout={layout} data-testid="mobile-shell" data-read-only>
+      <main className="eth-mshell__main" data-slot="main">
+        <div className="eth-mshell__stage">
+          <div data-slot="markers">
+            <Markers />
+          </div>
+          <Arrangement />
+          <MixerView />
+          <EditorPanel />
+        </div>
+      </main>
+      <footer className="eth-mshell__dock" data-slot="transport-bar">
+        <TransportDock />
+      </footer>
       <TitleTooltipHost />
     </div>
   );

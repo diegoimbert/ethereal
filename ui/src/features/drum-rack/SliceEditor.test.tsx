@@ -254,7 +254,12 @@ describe("slice to pads", () => {
     mock = await renderWithMock(<div />);
     const project = store().project!;
     const clip = Object.values(project.clips).find((c): c is Clip => c.content.type === "Audio")!;
-    expect(sliceClipEntries(mock, Object.values(project.clips).find((c) => c.content.type === "Midi")!)).toEqual([]);
+    expect(
+      sliceClipEntries(
+        mock,
+        Object.values(project.clips).find((c) => c.content.type === "Midi")!,
+      ),
+    ).toEqual([]);
     const [entry] = sliceClipEntries(mock, clip);
     expect(entry).toMatchObject({ label: "slice to drum rack" });
     const tracks = tracksOrdered(project).map((t) => t.id);

@@ -12,7 +12,7 @@
 //! - Read tools are compact JSON; long lists are paginated (`offset`/`limit`) or truncated
 //!   with a `note` that says how to get the rest.
 //!
-//! Runtime state ([`AgentState`]): the last selection the UI shared (`Collab::SetPresence`,
+//! Runtime state ([`AgentState`]): the last selection the UI shared (`Agent::SetSelection`,
 //! for `get_project_overview`) and the status of recent export jobs (observed from the
 //! controller's own `Event::Export`s through [`ExportTap`]).
 
@@ -25,8 +25,7 @@ mod resolve;
 pub(crate) mod schema;
 pub(crate) mod tools;
 
-use ether_core::protocol::agent::{AgentCommand, AgentToolSpec};
-use ether_core::protocol::collab::{CollabCommand, PresenceState};
+use ether_core::protocol::agent::{AgentCommand, AgentSelection, AgentToolSpec};
 use ether_core::protocol::export::{ExportEvent, ExportResult};
 use ether_core::protocol::model::GestureId;
 use ether_core::protocol::{
@@ -107,8 +106,8 @@ enum ExportStatus {
 /// Agent runtime state (not in the document).
 #[derive(Default)]
 pub(crate) struct AgentState {
-    /// The last presence the UI sent (its selection), even outside a collab session.
-    selection: Option<PresenceState>,
+    /// The last selection the UI sent.
+    selection: Option<AgentSelection>,
     /// Recent export jobs, oldest first.
     exports: Vec<(String, ExportStatus)>,
     /// Ids the agent's edits touched, most recent first (reference resolution).
@@ -183,18 +182,17 @@ pub fn tool_specs() -> Vec<AgentToolSpec> {
         .collect()
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,
     S: ProjectStore,
     L: Library,
 {
-    /// Record what the agent tools need from other commands (the UI's selection).
-    pub(crate) fn agent_observe(&mut self, command: &Command) {
-        if let Command::Collab(CollabCommand::SetPresence { presence }) = command {
-            self.agent.selection = Some(presence.clone());
-        }
+    /// The UI's selection, for the agent tools (`Agent::SetSelection`; an extension that
+    /// learns it otherwise, e.g. from a collaboration presence, sets it here too).
+    pub fn set_agent_selection(&mut self, selection: AgentSelection) {
+        self.agent.selection = Some(selection);
     }
 
     /// Keep the export events a `handle`/`tick` emitted.
@@ -227,6 +225,10 @@ where
                 };
                 Ok(ReplyValue::AgentToolResult { content, is_error })
             }
+            AgentCommand::SetSelection { selection } => {
+                self.set_agent_selection(selection.clone());
+                Ok(ReplyValue::Unit)
+            }
         }
     }
 
@@ -245,7 +247,7 @@ where
             )));
         };
         // #583: a listen link is view only; editing tools would only change the local copy.
-        if self.share_view_only() && !tools::allowed_view_only(def.name) {
+        if self.ext_view_only() && !tools::allowed_view_only(def.name) {
             return Err(ToolError::Command(crate::tx::keyed_err(
                 ether_core::protocol::ErrorCode::InvalidState,
                 crate::text::msg("error.share.view_only"),
@@ -428,7 +430,7 @@ where
             return;
         };
         // Collab undo is per site and replicated: the step stays there.
-        if !self.collab_active()
+        if !self.session_active()
             && let Some(doc) = self.doc.as_mut()
         {
             doc.history.discard_redo();

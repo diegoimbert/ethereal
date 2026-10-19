@@ -2,17 +2,21 @@
  * The project menu (the top bar's menu button, owner request), in groups: New project /
  * Open project…; Save as template…; the project scale; Import project… / Export project…
  * (a dialog: pack media or not) / Export audio…; Versions… / Save snapshot…;
- * Delete project… (confirmed in place).
+ * Delete project… (confirmed in place). Extensions add commands and submenus
+ * (`@/ext` "project.commands", "project.menu").
  */
 import clsx from "clsx";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { menuItems, menuKeyDown, useFocusFirstItem } from "@/kit";
+import { ChevronRight } from "lucide-react";
+import { contributions, useContributions, type ProjectMenuEntry } from "@/ext";
 import { type EngineCommands } from "@/features/transport-bar/engine";
 import { ProjectScale } from "@/features/scale/ProjectScale";
 import { useProjectStore } from "@/state";
 import { openResolver, resolveMissingLabel, useMissingCount } from "@/features/import-resolver";
 import { appProjectCommands, byId, deleteOpenProject, openProjectCommands } from "./projectCommands";
 import { docsCommands } from "@/features/docs/commands";
+import { newsCommands } from "@/features/news";
 import { Trans, useT } from "@/i18n";
 
 /** Which submenu of the project menu is open (one at a time), shared by its items. */
@@ -40,6 +44,80 @@ const isTopLevel = (el: HTMLElement) => !el.closest(".eth-project-menu__submenu"
 
 const Separator = () => <div className="eth-menu__separator" role="separator" />;
 
+/** Grace period for the pointer to cross from an item to its submenu. */
+const SUBMENU_CLOSE_MS = 150;
+
+/**
+ * A menu item that opens `children` as a submenu at its side: on hover, a click, Enter, Space
+ * or →. Inside it ↑/↓ move, ← or Escape close it back to its item. One submenu at a time.
+ */
+function SubMenu({ label, tour, children }: { label: string; tour?: string; children: ReactNode }) {
+  const sub = useContext(OpenSub);
+  const open = sub.open === label;
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const panel = useRef<HTMLDivElement>(null);
+  const item = useRef<HTMLButtonElement>(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const show = () => {
+    clearTimeout(timer.current);
+    sub.setOpen(label);
+  };
+  const hide = () => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      if (!panel.current?.contains(document.activeElement)) sub.setOpen(null);
+    }, SUBMENU_CLOSE_MS);
+  };
+  const openAndFocus = () => {
+    show();
+    requestAnimationFrame(() => menuItems(panel.current)[0]?.focus());
+  };
+  return (
+    <div className="eth-project-menu__sub" data-tour={tour} onMouseEnter={show} onMouseLeave={hide}>
+      <button
+        ref={item}
+        type="button"
+        role="menuitem"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={clsx("eth-menu__item", open && "eth-menu__item--open")}
+        onClick={(e) => {
+          // A keyboard click (Enter / Space) also moves focus into the submenu.
+          if (e.detail === 0) openAndFocus();
+          else sub.setOpen(open ? null : label);
+        }}
+        onKeyDown={(e) => {
+          if (e.key !== "ArrowRight") return;
+          e.preventDefault();
+          openAndFocus();
+        }}
+      >
+        <span className="eth-menu__label">{label}</span>
+        <ChevronRight className="eth-project-menu__chevron" aria-hidden />
+      </button>
+      {open && (
+        // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- a menu: focus is on its items (roving, menuKeyDown)
+        <div
+          ref={panel}
+          className="eth-menu eth-project-menu__submenu"
+          role="menu"
+          aria-label={label}
+          onKeyDown={(e) => {
+            if (menuKeyDown(e, panel.current)) return;
+            if (e.key !== "ArrowLeft" && e.key !== "Escape") return;
+            e.preventDefault();
+            e.stopPropagation();
+            sub.setOpen(null);
+            item.current?.focus();
+          }}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands; close(): void }) {
   const t = useT();
   const { transport, send } = commands;
@@ -50,6 +128,7 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
   const ref = useRef<HTMLDivElement>(null);
   const confirmRef = useRef<HTMLDivElement>(null);
   const missing = useMissingCount();
+  const entries = useContributions("project.menu");
   // Opens like the kit menus: the first item focused, then ↑/↓/Home/End.
   useFocusFirstItem(ref);
   // The delete confirmation replaces its item: keep the keyboard on it (its cancel).
@@ -66,7 +145,23 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
     ...appProjectCommands(transport),
     ...(project ? openProjectCommands(transport, { id: project.id, name: project.settings.name }) : []),
     ...docsCommands(),
+    ...newsCommands(),
+    // Extensions' palette commands the menu may name (`project.menu`).
+    ...contributions("palette.commands").flatMap((f) => f({ transport, project, devices: [] })),
   ]);
+  /** The extensions' entries of `section`. */
+  const extra = (section: ProjectMenuEntry["section"]) =>
+    entries
+      .filter((e) => e.section === section && (e.when?.() ?? true))
+      .map((e, i) =>
+        "command" in e.item ? (
+          item(e.item.command)
+        ) : (
+          <SubMenu key={`sub-${section}-${i}`} label={e.item.submenu} tour={e.item.tour}>
+            {e.item.commands.map((id) => item(id, { short: true }))}
+          </SubMenu>
+        ),
+      );
   /** The menu item of command `id` (the menu closes, then it runs). */
   const item = (id: string, opts: { short?: boolean; danger?: boolean; onClick?(): void } = {}) => {
     const c = cmds[id];
@@ -91,6 +186,7 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
 
   return (
     <OpenSub.Provider value={subContext}>
+      {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- a menu: focus is on its items (roving, menuKeyDown) */}
       <div
         ref={ref}
         className="eth-menu eth-project-menu"
@@ -101,6 +197,7 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
       >
         {item("project:new")}
         {item("project:open")}
+        {extra("start")}
         {project && (
           <>
             <Separator />
@@ -115,7 +212,9 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
             </div>
             <Separator />
             {item("project:import")}
+            {extra("import")}
             {item("project:export")}
+            {extra("export")}
             {item("project:export-audio")}
             <Separator />
             {item("project:versions")}
@@ -166,12 +265,15 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
         {item("app:docs")}
         {/* #518: the example beats, on the welcome screen. */}
         {item("app:examples")}
+        {/* news: past announcements (docs/NEWS.md). */}
+        {item("app:news")}
+        {extra("app")}
       </div>
     </OpenSub.Provider>
   );
 }
 
-/** What the menu needs of a command (`ProjectCommand`, the palette's docs entries). */
+/** What the menu needs of a command (`ProjectCommand`, the palette's docs and news entries). */
 interface MenuCommand {
   id: string;
   label: string;

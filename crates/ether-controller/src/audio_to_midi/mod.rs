@@ -1,4 +1,4 @@
-//! Audio to MIDI (v0.3, owned by the `audio-to-midi` node; protocol
+//! Audio to MIDI (v0.3, `audio-to-midi`; protocol
 //! `ether_protocol::audio_to_midi`, detection DSP in `ether_media::to_midi`; CONTRACTS.md
 //! §13.5).
 //!
@@ -18,7 +18,7 @@
 //!   `Done` follows its patch. A read/decode error or a refused edit emits `Failed`; the
 //!   job is `Cancelled` when its clip (or the project) goes away.
 
-mod kit;
+pub(crate) mod kit;
 mod place;
 
 use std::sync::Arc;
@@ -143,7 +143,7 @@ fn options_of(o: &AudioToMidiOptions) -> CmdResult<Options> {
     })
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,
@@ -442,7 +442,7 @@ where
                 out,
                 AudioToMidiEvent::Failed {
                     job: job.id.clone(),
-                    message: format!("Convert to MIDI: {}", e.message),
+                    message: format!("convert to midi: {}", e.message),
                 },
             ),
         }

@@ -372,18 +372,16 @@ export function rackSnapshot(p: Project, rack: DeviceId): PresetRack {
       ? Object.values(p.drum_pads)
           .filter((pad) => pad.rack === rack)
           .sort((a, b) => a.note - b.note || a.id.localeCompare(b.id))
-          .map(
-            (pad): PresetPad => ({
-              note: pad.note,
-              name: pad.name,
-              color: pad.color,
-              choke_group: pad.choke_group,
-              volume: pad.volume,
-              pan: pad.pan,
-              mute: pad.mute,
-              devices: padChainOf(p, pad.id).map(chainDevice),
-            }),
-          )
+          .map((pad): PresetPad => ({
+            note: pad.note,
+            name: pad.name,
+            color: pad.color,
+            choke_group: pad.choke_group,
+            volume: pad.volume,
+            pan: pad.pan,
+            mute: pad.mute,
+            devices: padChainOf(p, pad.id).map(chainDevice),
+          }))
       : [];
   const mods = modulatorsOf(p, rack);
   const mappings: PresetModMapping[] = [];

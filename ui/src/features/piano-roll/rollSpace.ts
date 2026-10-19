@@ -9,7 +9,7 @@ import { useShallow } from "zustand/react/shallow";
 import type { Beats, Clip, ClipId, Note, TrackId } from "@/generated";
 import { notesOfClip, tracksOrdered, useProjectStore } from "@/state";
 import { useSelectedItems } from "@/timeline";
-import { contentToSong, songToContent } from "./clipTime";
+import { contentFloor, contentToSong, songToContent } from "./clipTime";
 import { bandAt, bandLimits, clipBand, clipShift, contentAt, loopGhosts, MULTI_SECTION_KEY, songNotes, type ClipBand, type GhostNote } from "./multiClip";
 import type { MoveLimits } from "./noteEdits";
 
@@ -33,12 +33,16 @@ export interface RollSpace {
   toSong(beats: Beats): Beats;
   /** The clip and content position a note drawn or pasted at `beats` lands in (null: none). */
   place(beats: Beats, tracks?: ReadonlyArray<TrackId>): { clip: Clip; content: Beats } | null;
+  /** First editor beat of the axis: the clip's `contentFloor` (before content 0 when its left
+   *  edge was extended past the content start), song beat 0 for several clips. */
+  floor: Beats;
   /** Move limits of note starts (editor beats); undefined = from 0 on. */
   limits?: MoveLimits;
 }
 
 /** The space of a single clip: its content timeline (the piano roll as it always was). */
 export function singleClipSpace(clip: Clip): RollSpace {
+  const floor = contentFloor(clip);
   return {
     multi: false,
     key: clip.id,
@@ -49,7 +53,9 @@ export function singleClipSpace(clip: Clip): RollSpace {
     focusShift: 0,
     fromSong: (song) => songToContent(clip, song),
     toSong: (beats) => contentToSong(clip, beats),
-    place: (beats) => ({ clip, content: Math.max(0, beats) }),
+    place: (beats) => ({ clip, content: Math.max(floor, beats) }),
+    floor,
+    limits: () => [floor, Infinity],
   };
 }
 
@@ -64,6 +70,7 @@ export function multiClipSpace(focus: Clip, clips: ReadonlyArray<Clip>): RollSpa
     clips,
     bands,
     grow: null,
+    floor: 0,
     focusShift: clipShift(focus),
     fromSong: (song) => song,
     toSong: (beats) => beats,

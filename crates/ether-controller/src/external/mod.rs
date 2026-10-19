@@ -1,4 +1,4 @@
-//! External instrument / audio effect (v0.3, owned by the `external-instrument` node; device
+//! External instrument / audio effect (v0.3, `external-instrument`; device
 //! `ether_devices::external`, engine `ether_core::hw_io`; CONTRACTS.md §13.7).
 //!
 //! - [`set_routing`]: `External::SetRouting` (document command from `doc::apply`;
@@ -153,7 +153,7 @@ pub(crate) fn updatable_in_place(old: &BuiltinDevice, new: &BuiltinDevice) -> bo
     )
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

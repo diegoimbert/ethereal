@@ -1,4 +1,5 @@
 // Adding a device picked in the device library to a track's chain.
+import { emit } from "@/ext";
 import type { Command, DeviceCategory, DeviceId, DeviceSpec, Project, Track } from "@/generated";
 import { chainInsertBefore } from "@/features/devices/chainUtils";
 import { builtinDevice } from "./descriptors";
@@ -42,6 +43,7 @@ export async function libraryInsertCommand(
 ): Promise<Command | null> {
   if (!canHost(p.category, track)) return null;
   recordDeviceUse(p);
+  emit("app.event", { type: "device_inserted", category: p.category, source: p.device.type === "Builtin" ? "builtin" : p.device.format });
   const devices = devicesOfTrack(project, track.id);
   const device = deviceSpec(p);
   const insert = (at: DeviceId | null): Command => cmd("Device", { type: "Insert", id: newId(), track: track.id, device, before: at });

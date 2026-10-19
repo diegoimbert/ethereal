@@ -1,6 +1,5 @@
 [workspace]
 resolver = "3"
-# The member list is owned by `foundation` and frozen: nobody else edits it (ORCHESTRATION.md §4).
 members = [
     "crates/ether-protocol",
     "crates/ether-model",
@@ -27,16 +26,14 @@ members = [
 [workspace.package]
 version = "0.0.1"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.90"
 repository = "https://github.com/diegoimbert/ethereal"
 authors = ["Ethereal contributors"]
 license = "AGPL-3.0-or-later"
 publish = false
 
-# Every dependency any node is expected to need is pre-declared here (ORCHESTRATION.md §4).
-# Crates opt in with `foo.workspace = true` in their OWN Cargo.toml. A dependency missing
-# from this table goes through a BCR. Entries that no crate uses yet are not resolved or
-# downloaded, so pre-declaring them is free.
+# The versions of the dependencies this workspace's crates use. Crates opt in with
+# `foo.workspace = true` in their own Cargo.toml; add an entry here with its first user.
 [workspace.dependencies]
 # --- internal ---
 ether-protocol = { path = "crates/ether-protocol" }
@@ -58,36 +55,31 @@ ether-server = { path = "crates/ether-server" }
 serde = { version = "1.0.219", features = ["derive", "rc"] }
 # float_roundtrip: exact f64 parse (beats, bpm, automation values must survive save/load and the wire).
 serde_json = { version = "1.0.140", features = ["float_roundtrip"] }
-ulid = { version = "1.2", default-features = false }
+ulid = { version = "3.0", default-features = false }
 # ProjectId is a UUIDv7. No `v7` feature here: it pulls in `getrandom` (breaks the wasm
 # check); the model builds v7 UUIDs from injected time + entropy (`IdGen::next_project_id`).
 # Native-only crates may add `features = ["v7"]` to use `Uuid::now_v7()`.
 uuid = { version = "1.18", default-features = false, features = ["std", "serde"] }
 ts-rs = { version = "12", features = ["serde-compat"] }
 base64 = "0.22"
-toml = "0.9"
 
 # --- errors / logging ---
 thiserror = "2"
 # base-145: library file filters (small build: no perf/unicode tables beyond case + perl classes).
 regex = { version = "1.11", default-features = false, features = ["std", "unicode-case", "unicode-perl"] }
-anyhow = "1"
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 # --- real-time plumbing ---
-rtrb = "0.3"
-triple_buffer = "8"
-basedrop = "0.1"
+rtrb = "0.4"
 assert_no_alloc = "1.1"
 crossbeam-channel = "0.5"
-parking_lot = "0.12"
 
 # --- audio I/O, media, DSP ---
 cpal = "0.16"
 midir = "0.10"
 symphonia = { version = "0.5", default-features = false, features = ["wav", "pcm", "aiff", "flac", "mp3", "ogg", "vorbis", "isomp4", "aac", "alac"] }
-rubato = "0.16"
+rubato = "5.0"
 # #717: Standard MIDI File import/export (no rayon: wasm-safe).
 midly = { version = "0.5", default-features = false, features = ["std"] }
 realfft = "3.5"
@@ -97,7 +89,7 @@ rustfft = "6.4"
 clack-host = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d" }
 clack-extensions = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d", features = ["clack-host", "audio-ports", "gui", "latency", "log", "note-ports", "params", "remote-controls", "state", "timer", "tail"] }
 clack-plugin = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d" }
-libloading = "0.8"
+libloading = "0.9"
 
 # --- plugins: VST3 + AU (formats-base; used by ether-vst3 / ether-au). All permissive. ---
 # VST3 COM bindings, host and plugin side, pre-generated from the (MIT-licensed, since 3.8)
@@ -108,7 +100,6 @@ vst3 = "0.3"
 # app). Default features = every framework item;
 # implementers may trim them.
 objc2-audio-toolbox = "0.3"
-objc2-core-audio = "0.3"
 objc2-core-audio-types = "0.3"
 objc2-avf-audio = "0.3"
 objc2-core-foundation = "0.3"
@@ -117,16 +108,13 @@ block2 = "0.6"
 
 # --- out-of-process sandbox / IPC ---
 shared_memory = "0.12"
-raw_sync = "0.1"
-interprocess = "2"
 
 # --- wasm ---
 wasm-bindgen = "0.2.100"
 js-sys = "0.3.77"
 web-sys = { version = "0.3.77", features = ["console", "MessagePort", "Worker", "AudioWorkletGlobalScope"] }
-serde-wasm-bindgen = "0.6"
 console_error_panic_hook = "0.1"
-getrandom = "0.3"
+getrandom = "0.4"
 
 # --- desktop app ---
 tauri = { version = "2", features = [] }
@@ -144,79 +132,29 @@ tauri-build = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-http = { version = "2", default-features = false }
-# base-115 sharing (docs/SHARING.md §5): `ethereal://` deep links; a second launch hands the
-# link to the running instance.
-tauri-plugin-deep-link = "2"
-tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
-# auto-update: self-update from GitHub releases (minisign-verified).
-tauri-plugin-updater = "2"
-semver = "1"
 
-# --- roadmap v2 (contracts-2; versions are checked when a crate first uses them) ---
+# --- engine server, export ---
 # remote-engine: WebSocket server (sync, no async runtime).
-tungstenite = "0.27"
+tungstenite = "0.30"
 # remote-engine: SIGTERM/SIGINT save the project and close clients.
-signal-hook = "0.3"
+signal-hook = "0.4"
 # export: WAV/FLAC/MP3 writing.
 hound = "3.5"
-flacenc = "0.4"
-# Pure-Rust MP3 encoder (no C, builds for wasm32), for the lossy listening files of static
-# shares (docs/SHARING.md §14).
+flacenc = "0.5"
+# Pure-Rust MP3 encoder (no C, builds for wasm32): MP3 exports.
 rusty_mp3 = "1.0"
 
-# --- listen-on-peer (stream-host; docs/COLLAB.md §11) ---
-# Native WebRTC sender (sans-IO). `rust-crypto`: SRTP and DTLS ciphers in pure Rust, no system
-# OpenSSL; its DTLS stack (`dimpl`, default features) still builds the vendored aws-lc
-# (aws-lc-sys: cmake, and NASM on Windows).
-str0m = { version = "0.24", default-features = false, features = ["rust-crypto"] }
-# Opus encoder (libopus, BSD-3). `audiopus_sys/static` builds the vendored libopus
-# statically (never a system library). Licenses: MIT/Apache-2.0 (opus), ISC (audiopus_sys).
-opus = "0.4"
-audiopus_sys = { version = "0.2", features = ["static"] }
-# Relay STUN codec and optional TURN server (webrtc-rs).
-stun = "0.17"
-turn = "0.17"
+# --- agent-api: MCP server (official Rust SDK; stdio transport) and its async runtime. ---
 tokio = { version = "1", default-features = false, features = ["rt", "net", "time", "sync"] }
-# The `turn` crate's socket trait (`Conn`, via async-trait) for the relay's socket wrappers.
-webrtc-util = { version = "0.17", default-features = false, features = ["conn"] }
-async-trait = "0.1"
-# TURN REST credentials (HMAC-SHA1).
-hmac = "0.12"
-sha1 = "0.10"
-# base-115 sharing: link-key derivations and proofs (HMAC-SHA256), door hashes (docs/SHARING.md §4.2).
-sha2 = "0.10"
-# Sharing's WebSocket relay fallback (docs/SHARING.md §3.6): an ephemeral X25519 exchange,
-# HKDF-SHA256 and ChaCha20-Poly1305 end to end through the signaling service. Pure Rust (wasm
-# too), already in the tree through str0m's rust-crypto. Licenses: BSD-3-Clause (x25519-dalek),
-# MIT OR Apache-2.0 (hkdf, chacha20poly1305).
-x25519-dalek = { version = "2.0.1", default-features = false }
-hkdf = "0.12"
-chacha20poly1305 = { version = "0.10", default-features = false, features = ["alloc"] }
-# base-115 sharing (p2p-transport): `wss://` signaling sockets natively (docs/SHARING.md §6.1,
-# decision 6). rustls with the `ring` provider (already in the tree) and the Mozilla root
-# store. Licenses: rustls Apache-2.0 OR ISC OR MIT; webpki-roots CDLA-Permissive-2.0.
-rustls = { version = "0.23", default-features = false, features = ["std", "tls12", "ring"] }
-webpki-roots = "0.26"
-
-# --- agent-api: MCP server (official Rust SDK; stdio transport). ---
 rmcp = { version = "3.5", default-features = false, features = ["server", "transport-io"] }
 
-# --- import-dawproject: projects of other DAWs (crates/ether-import; docs/IMPORT.md) ---
-# DAWproject reader generated from the official XSD (github.com/bitwig/dawproject, MIT);
-# brings `zip` (deflate) and `quick-xml`. Pure Rust, wasm-safe.
-dawproject = "0.11"
-# The XML deserializer `dawproject` uses (same version), to read project.xml / metadata.xml
-# with our own size limits and without requiring metadata.xml.
-quick-xml = { version = "0.41", features = ["serialize"] }
-# REAPER `.rpp` chunk tokenizer (nom).
-rpp-parser = "0.1.1"
-# --- import-ableton: `.als` = gzip XML (reads it with the quick-xml above). ---
-flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+# --- the default sample pack: the files' sha256 and the manifest's Ed25519 signature check (pure
+# Rust, so the web engine verifies too; ring needs a C toolchain for wasm32). ---
+sha2 = "0.11"
+ed25519-dalek = { version = "2.2", default-features = false, features = ["std"] }
 
 # --- tooling / tests ---
-globset = "0.4"
 proptest = "1"
-insta = { version = "1", features = ["json"] }
 
 [profile.dev]
 # DSP code is unusably slow at opt-level 0; keep debuginfo but optimize a bit.

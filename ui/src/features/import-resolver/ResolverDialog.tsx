@@ -46,7 +46,7 @@ import {
   reasonText,
 } from "./store";
 
-const FORMAT_LABEL: Record<PluginFormat, string> = { Clap: "CLAP", Vst3: "VST3", Vst2: "VST2", Au: "AU" };
+const FORMAT_LABEL: Record<PluginFormat, string> = { Clap: "clap", Vst3: "vst3", Vst2: "vst2", Au: "au" };
 
 const RULE_LABEL: Record<MatchRule, MessageKey> = {
   SameId: "resolver.rule.same_id",

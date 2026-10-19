@@ -1,0 +1,12 @@
+# Every CI runner on this machine together (docs/CI-RUNNERS.md): the pool's jobs run in
+# ethereal-ci-pool.slice inside it, and any other runner unit can join with Slice=. Low CPU and IO
+# weight: the machine's interactive work goes first. Install in ~/.config/systemd/user/.
+[Unit]
+Description=Ethereal CI (16 CPUs, 32 GB soft / 40 GB hard, low priority)
+
+[Slice]
+CPUQuota=1600%
+CPUWeight=50
+IOWeight=50
+MemoryHigh=32G
+MemoryMax=40G

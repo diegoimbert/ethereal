@@ -74,6 +74,9 @@ pub struct DiskStore {
     pub user_library: Option<PathBuf>,
     /// Routine autosaves in flight (`save_in_background`), shared by the clones.
     writer: Arc<crate::save_writer::SaveWriter>,
+    /// #519: the sample pack cache (`Library::sample_cache_*`): `<app data>/samples` in the
+    /// hosts; `None` = no cache (the built-in kit only).
+    pub sample_cache: Option<PathBuf>,
 }
 
 fn io_err(e: std::io::Error) -> StoreError {
@@ -338,7 +341,24 @@ impl DiskStore {
             library_roots,
             user_library,
             writer: Arc::default(),
+            sample_cache: None,
         }
+    }
+
+    /// #519: keep the sample pack cache in `dir`.
+    pub fn with_sample_cache(mut self, dir: Option<PathBuf>) -> Self {
+        self.sample_cache = dir;
+        self
+    }
+
+    /// The sample cache folder, created if missing.
+    fn sample_dir(&self) -> Result<PathBuf, StoreError> {
+        let dir = self
+            .sample_cache
+            .as_ref()
+            .ok_or_else(|| StoreError::Unsupported("no sample cache".into()))?;
+        fs::create_dir_all(dir).map_err(io_err)?;
+        Ok(dir.clone())
     }
 
     /// Use `path` as the writable user library (`None`: read-only library).
@@ -421,8 +441,7 @@ impl DiskStore {
             id,
             name: name_from_ether(&json).unwrap_or_else(|| "Untitled".to_string()),
             modified_ms: modified_ms(&file),
-            // Reading `share.json` is part of the private sharing overlay.
-            share: None,
+            ext: None,
         })
     }
 
@@ -519,8 +538,7 @@ impl ProjectStore for DiskStore {
             id,
             name: name.to_string(),
             modified_ms,
-            // Reading `share.json` is part of the private sharing overlay.
-            share: None,
+            ext: None,
         })
     }
 
@@ -731,6 +749,43 @@ impl ProjectStore for DiskStore {
 }
 
 impl Library for DiskStore {
+    fn sample_cache_read(&mut self, rel: &str) -> Result<Vec<u8>, StoreError> {
+        let path = resolve_in(&self.sample_dir()?, rel)?;
+        fs::read(&path).map_err(|e| match e.kind() {
+            std::io::ErrorKind::NotFound => StoreError::NotFound(rel.to_string()),
+            _ => io_err(e),
+        })
+    }
+
+    fn sample_cache_write(&mut self, rel: &str, bytes: &[u8]) -> Result<(), StoreError> {
+        let path = resolve_in(&self.sample_dir()?, rel)?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).map_err(io_err)?;
+        }
+        atomic_write(&path, bytes)
+    }
+
+    fn sample_cache_remove(&mut self, rel: &str) -> Result<(), StoreError> {
+        let path = resolve_in(&self.sample_dir()?, rel)?;
+        match fs::remove_file(&path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(io_err(e)),
+            _ => Ok(()),
+        }
+    }
+
+    fn sample_cache_list(&mut self, dir: &str) -> Result<Vec<String>, StoreError> {
+        let path = resolve_in(&self.sample_dir()?, dir)?;
+        let Ok(entries) = fs::read_dir(&path) else {
+            return Ok(Vec::new());
+        };
+        Ok(entries
+            .flatten()
+            .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
+            .filter_map(|e| e.file_name().into_string().ok())
+            .filter(|n| !n.starts_with('.'))
+            .collect())
+    }
+
     fn roots(&self) -> Vec<BrowseRoot> {
         self.library_roots
             .iter()
@@ -1032,6 +1087,32 @@ mod tests {
                 path: lib,
             }],
         )
+    }
+
+    #[test]
+    fn the_sample_cache_lives_in_its_folder() {
+        let tmp = TempDir::new("store-sample-cache");
+        let mut s = store(&tmp);
+        assert!(
+            s.sample_cache_read("files/a.wav").is_err(),
+            "no cache configured"
+        );
+        let mut s = s.with_sample_cache(Some(tmp.path().join("samples")));
+        assert_eq!(s.sample_cache_list("files").unwrap(), Vec::<String>::new());
+        s.sample_cache_write("files/a.wav", b"one").unwrap();
+        s.sample_cache_write("abc/manifest.json", b"{}").unwrap();
+        assert_eq!(
+            fs::read(tmp.path().join("samples/files/a.wav")).unwrap(),
+            b"one"
+        );
+        assert_eq!(s.sample_cache_list("files").unwrap(), ["a.wav"]);
+        s.sample_cache_remove("files/a.wav").unwrap();
+        s.sample_cache_remove("files/a.wav").unwrap();
+        assert!(matches!(
+            s.sample_cache_read("files/a.wav"),
+            Err(StoreError::NotFound(_))
+        ));
+        assert!(s.sample_cache_read("../projects/x").is_err());
     }
 
     #[test]
@@ -1598,7 +1679,7 @@ mod tests {
         s.create(host).unwrap();
         s.save(host, &ether("Song")).unwrap();
         s.write(host, SHARE_FILE, b"{}").unwrap();
-        assert_eq!(ProjectStore::list(&mut s).unwrap()[0].share, None);
+        assert_eq!(ProjectStore::list(&mut s).unwrap()[0].ext, None);
 
         s.write(host, "media/a.wav", b"A").unwrap();
         s.duplicate(host, dup).unwrap();
@@ -1607,7 +1688,7 @@ mod tests {
             ProjectStore::read(&mut s, dup, "media/a.wav").unwrap(),
             b"A"
         );
-        assert_eq!(ProjectStore::list(&mut s).unwrap()[0].share, None);
+        assert_eq!(ProjectStore::list(&mut s).unwrap()[0].ext, None);
     }
 
     #[test]

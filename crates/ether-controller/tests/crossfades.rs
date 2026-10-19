@@ -1,4 +1,4 @@
-//! `crossfades` node: `ClipCommand::SetCrossfade` (explicit centre, length 0 removes it,
+//! `crossfades`: `ClipCommand::SetCrossfade` (explicit centre, length 0 removes it,
 //! `curve: None` keeps the curves), one undo step per gesture, and the engine graph.
 
 mod common;

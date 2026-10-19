@@ -16,8 +16,8 @@
 //!   [`patch`]: UI mirror updates, [`file`]: `.ether` format + migrations.
 //!
 //! Pure data + logic: no I/O, no threads, no clock, no randomness (native + wasm32).
-//! This crate's *types* are a frozen contract (changes via BCR); the logic (`todo!()`
-//! bodies) is implemented by the `model` node.
+//! This crate's *types* are a contract (docs/CONTRACTS.md): change them on purpose, keeping
+//! old `.ether` files readable.
 
 mod apply;
 pub mod automation;
@@ -33,6 +33,7 @@ pub mod file;
 pub mod history;
 pub mod ids;
 mod index;
+pub mod lfo_curve;
 pub mod marker;
 pub mod media;
 pub mod midi_map;
@@ -70,6 +71,7 @@ pub use expression::*;
 pub use external::*;
 pub use history::*;
 pub use ids::*;
+pub use lfo_curve::*;
 pub use marker::*;
 pub use media::*;
 pub use midi_map::*;

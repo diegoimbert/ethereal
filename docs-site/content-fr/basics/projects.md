@@ -9,7 +9,6 @@ covers:
   - first-run/closing-the-welcome-screen-drops-you-into-a-draft-project #new-projects-start-as-drafts
   - first-run/untouched-draft-projects-are-thrown-away #new-projects-start-as-drafts
   - first-run/get-started-guided-tours-and-soon-items #guided-tours
-  - first-run/starting-a-tour-or-a-new-project-during-a-jam-asks-you-to-le #switching-projects-during-a-live-session
   - first-run/reopen-last-project-on-launch-off-by-default #reopening-your-last-project
   - first-run/project-links-in-the-address-bar-web #project-links-in-the-address-bar
   - first-run/project-templates-and-the-default-template #templates
@@ -23,7 +22,6 @@ covers:
   - projects-storage/cmd-w-closes-the-top-floating-window-not-the-app #quitting-the-desktop-app
   - projects-storage/deleting-a-project-is-permanent #deleting-a-project
   - projects-storage/files-from-newer-or-pre-release-versions-are-refused #projects-from-a-newer-version
-  - projects-storage/local-copy-projects-after-a-jam #local-copy-projects
 ---
 
 Un projet, c’est un morceau : ses pistes, ses clips, ses appareils et ses réglages. Cette page explique comment créer et retrouver des projets, et comment ils sont enregistrés. Pour savoir où les projets sont stockés (et pourquoi c’est important sur le web), lisez d’abord [où vivent vos projets](/docs/welcome/where-your-projects-live).
@@ -33,8 +31,6 @@ Un projet, c’est un morceau : ses pistes, ses clips, ses appareils et ses ré
 Au démarrage, Ethereal affiche l’écran d’accueil. C’est aussi votre liste de projets (l’écran **ouvrir un projet**). Il contient :
 
 - le logo d’Ethereal et la version que vous utilisez ;
-- **rejoindre une session…** pour rejoindre la session en direct de quelqu’un à partir de son lien d’invitation (voir [rejoindre une session](/docs/sharing/joining)) ;
-- **importer depuis une autre DAW…** pour ouvrir un fichier Ableton Live, FL Studio, REAPER ou DAWproject (voir [projets d’autres DAW](/docs/import-export/other-daws)) ;
 - **nouveau projet** ;
 - une liste **pour commencer** de visites guidées ;
 - vos **projets récents**.
@@ -51,9 +47,9 @@ Un nouveau projet reste un **brouillon** tant que vous n’y changez rien (une m
 
 ### visites guidées {#guided-tours}
 
-La liste **pour commencer** de l’écran d’accueil lance des visites guidées de la vraie application : jouer avec des amis, enregistrer de l’audio, importer un projet d’une autre DAW. En lancer une crée un projet pour elle et vous guide pas à pas. Quand vous terminez ou quittez la visite, vous revenez à l’écran d’accueil.
+La liste **pour commencer** de l’écran d’accueil lance des visites guidées de la vraie application, comme faire votre premier morceau ou enregistrer de l’audio. En lancer une crée un projet pour elle et vous guide pas à pas. Quand vous terminez ou quittez la visite, vous revenez à l’écran d’accueil.
 
-Une visite terminée affiche une coche. Cliquer de nouveau dessus vous demande si vous voulez la **recommencer**. Les guides marqués **bientôt** ne sont pas encore disponibles.
+Une visite terminée affiche une coche. Cliquer de nouveau dessus vous demande si vous voulez la **recommencer**. Sur un téléphone, les guides sont marqués **bientôt** : les visites se font dans l’application de bureau et la version web.
 
 ### rouvrir votre dernier projet {#reopening-your-last-project}
 
@@ -67,21 +63,21 @@ L’écran d’accueil liste vos projets, du plus récent au plus ancien. Le pro
 
 - **Tapez** dans le champ de recherche pour filtrer la liste par nom. [[key:Enter]] ouvre le premier résultat.
 - **Cliquez** sur un projet pour l’ouvrir.
-- **Faites un clic droit** sur un projet, ou utilisez son bouton **⋯**, pour plus d’options : **ouvrir**, **ouvrir sans plug-ins** (voir [le mode sans échec](/docs/advanced/safe-mode)), **renommer**, **dupliquer**, **exporter…**, des actions de partage pour les projets partagés, et **supprimer…**.
+- **Faites un clic droit** sur un projet, ou utilisez son bouton **⋯**, pour plus d’options : **ouvrir**, **ouvrir sans plug-ins** (voir [le mode sans échec](/docs/advanced/safe-mode)), **renommer**, **dupliquer**, **exporter…** et **supprimer…**.
 
 ## le menu du projet {#the-project-menu}
 
 Le bouton **☰** en haut à gauche ouvre le menu du projet :
 
-- **nouveau projet**, **ouvrir un projet…** et **rejoindre une session…** ;
+- **nouveau projet** et **ouvrir un projet…** ;
 - **enregistrer comme modèle…** ;
 - **gamme du projet** (voir [la gamme du projet](/docs/basics/tempo-and-time-signature#the-project-scale)) ;
-- **importer un projet…** et **importer depuis une autre DAW ▸** ;
-- **exporter le projet…**, **exporter vers une autre DAW ▸** et **exporter l’audio…** ;
+- **importer un projet…** ;
+- **exporter le projet…** et **exporter l’audio…** ;
 - **versions…** et **enregistrer un instantané…** (voir [versions et sauvegardes](/docs/basics/versions-and-backups)) ;
-- **résoudre les appareils et échantillons manquants…**, seulement quand il manque quelque chose que le projet utilise (voir [projets d’autres DAW](/docs/import-export/other-daws)) ;
+- **résoudre les appareils et échantillons manquants…**, seulement quand il manque quelque chose que le projet utilise (voir [plug-ins et échantillons manquants](/docs/sounds-and-plugins/missing-plugins-and-samples)) ;
 - **supprimer le projet…** ;
-- **nouveautés…**, et dans l’application de bureau **rechercher des mises à jour…**.
+- **nouveautés…**.
 
 Pour renommer le projet, cliquez sur son nom à côté du bouton ☰, tapez le nouveau nom et appuyez sur [[key:Enter]].
 
@@ -134,19 +130,11 @@ Quitter ([[key:Mod+Q]], ou fermer la fenêtre principale) demande **quitter Ethe
 
 Si vous supprimez le projet ouvert, Ethereal passe d’abord à votre autre projet le plus récent, ou à un nouveau brouillon s’il n’y en a pas.
 
-## changer de projet pendant une session en direct {#switching-projects-during-a-live-session}
-
-Si vous êtes dans une [session en direct](/docs/sharing/live-sessions), ouvrir, créer, importer ou supprimer un projet, ou lancer une visite guidée, vous demande d’abord si vous voulez **quitter la session**. Le bouton de confirmation dit ce qui se passe ensuite : **quitter et ouvrir**, **quitter et créer**, etc. Votre copie du projet partagé reste dans vos projets, et vous pourrez rejoindre la session plus tard.
-
-### projets en copie locale {#local-copy-projects}
-
-Quand rejoindre une session en direct remplace un projet que vous aviez déjà (par exemple, vous rejoignez à nouveau une session à laquelle vous aviez participé), votre version précédente est gardée comme projet séparé avec un badge **copie locale**. Voir [les sessions en direct](/docs/sharing/live-sessions).
-
 ## liens de projet dans la barre d’adresse [[web]] {#project-links-in-the-address-bar}
 
 Dans le navigateur, l’adresse d’un projet ouvert ressemble à `/p/my-song/<id>`. Recharger la page rouvre ce projet, et les boutons précédent et suivant du navigateur passent d’un projet ouvert à l’autre.
 
-Le lien ne fonctionne que dans le navigateur qui contient le projet. Ouvert ailleurs, il affiche la liste des projets avec **ce projet n’est pas enregistré dans ce navigateur**. Pour partager un morceau, utilisez plutôt [le partage](/docs/sharing/overview).
+Le lien ne fonctionne que dans le navigateur qui contient le projet. Ouvert ailleurs, il affiche la liste des projets avec **ce projet n’est pas enregistré dans ce navigateur**. Pour emporter un morceau dans un autre navigateur ou sur un autre ordinateur, [exportez-le](/docs/basics/moving-projects) plutôt.
 
 ## projets d’une version plus récente {#projects-from-a-newer-version}
 

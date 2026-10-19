@@ -13,7 +13,15 @@ export {
   useDeviceFrozen,
   useFrozenAncestor,
 } from "./inert";
-export { freezeClipEntries, freezeDeviceEntries, freezeRangeEntries, freezeTrackEntries, withFreezeClipEntries, withFreezeTrackEntries } from "./menus";
+export {
+  consolidateIfAllowed,
+  freezeClipEntries,
+  freezeDeviceEntries,
+  freezeRangeEntries,
+  freezeTrackEntries,
+  withFreezeClipEntries,
+  withFreezeTrackEntries,
+} from "./menus";
 export {
   bounceClips,
   bounceRange,

@@ -13,7 +13,7 @@ covers:
 
 Cette page est une visite rapide de l’éditeur : la fenêtre dans laquelle vous travaillez une fois un projet ouvert. Vous n’avez rien à configurer avant. Si vous êtes sur un téléphone, voyez plutôt [la bêta mobile](/docs/mobile/mobile-beta) : sa disposition est différente.
 
-De haut en bas, l’éditeur comporte une **barre du haut**, l’**arrangement** au milieu, une fine **barre d’état** en bas, et trois panneaux qui glissent par-dessus l’arrangement : le **navigateur** à gauche, l’**inspecteur** à droite et le **tiroir d’édition** en bas.
+De haut en bas, l’éditeur comporte une **barre du haut**, l’**arrangement** au milieu, et trois panneaux qui glissent par-dessus l’arrangement : le **navigateur** à gauche, l’**inspecteur** à droite et le **tiroir d’édition** en bas.
 
 ## la barre du haut {#the-top-bar}
 
@@ -25,7 +25,7 @@ De gauche à droite :
 - **Le transport.** Lecture, arrêt, enregistrement, puis la position, le tempo et la signature rythmique, puis la boucle et le métronome. Voir [lire et se déplacer](/docs/basics/playing-and-navigating) et [tempo, signature rythmique et gamme](/docs/basics/tempo-and-time-signature).
 - **Annuler et rétablir**, avec le nom de l’étape que chacun annulerait ou rétablirait quand vous le survolez.
 - **Les indicateurs du moteur** : la charge cpu, une alerte disque et un voyant d’état. Ils sont décrits [plus bas](#cpu-disk-and-engine-status).
-- **Les réglages du métronome, les commandes d’enregistrement** (enregistrer les pistes armées, décompte, punch, entrées), **partager** et la roue dentée des **réglages**. Pendant un export audio dont la fenêtre est fermée, un bouton **export %** en montre la progression.
+- **Les réglages du métronome, les commandes d’enregistrement** (enregistrer les pistes armées, décompte, punch, entrées) et la roue dentée des **réglages**. Pendant un export audio dont la fenêtre est fermée, un bouton **export %** en montre la progression.
 
 ## l’arrangement {#the-arrangement}
 
@@ -42,7 +42,6 @@ L’étroite colonne d’icônes tout à gauche est le **rail**. Chaque icône o
 - **bibliothèque** : le navigateur, avec vos échantillons, presets et appareils. Voir [le navigateur](/docs/sounds-and-plugins/browser).
 - **assignation MIDI** : assigner des boutons matériels à des commandes (application de bureau).
 - **historique** : toutes vos modifications, pour revenir à n’importe laquelle. Voir [annulation et historique](/docs/basics/undo-and-history).
-- **discussion** : seulement pendant une session en direct.
 - **demander à l’IA** : l’assistant IA.
 - Le dernier bouton ouvre la [palette de commandes](/docs/basics/command-palette-and-settings).
 
@@ -65,14 +64,10 @@ Le navigateur, l’inspecteur et le tiroir flottent par-dessus l’arrangement 
 
 - Un navigateur **non épinglé** se ferme dès que vous cliquez dans l’arrangement. Un tiroir non épinglé se ferme quand vous cliquez n’importe où en dehors, sauf sur des clips (cliquer sur un autre clip fait passer le tiroir sur ce clip).
 - Le bouton **épingler** dans l’en-tête d’un panneau le garde ouvert, à côté de l’arrangement au lieu de par-dessus. Cliquez de nouveau pour laisser le panneau flotter.
-- Le **×** de l’inspecteur le réduit à une petite barre le long du bord. Cliquez sur la barre pour le déplier. Il reste replié jusqu’à ce que vous le dépliiez, et suit quand même la sélection.
+- Le **×** de l’inspecteur et du tiroir le réduit à une petite barre le long du bord. Cliquez sur la barre pour le déplier. Il reste replié jusqu’à ce que vous le dépliiez (l’inspecteur suit quand même la sélection). Un double-clic sur un clip déplie les deux : voir [double-cliquer sur un clip](/docs/making-music/clips#double-clicking-a-clip).
 - Faites glisser le bord intérieur d’un panneau pour le redimensionner.
 
 La palette de commandes propose aussi **épingler le navigateur**, **épingler l’inspecteur** et **épingler le tiroir d’édition** (et leurs versions **désépingler**).
-
-## la barre d’état {#the-status-bar}
-
-La fine barre en bas de la fenêtre a **signaler un problème** à son extrémité droite. Voir [signaler un problème](/docs/reference/reporting-issues).
 
 ## les messages en bas {#messages-at-the-bottom}
 

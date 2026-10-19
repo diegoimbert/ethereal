@@ -20,6 +20,7 @@
 
 use std::path::PathBuf;
 
+pub mod app_identity;
 pub mod audio;
 pub mod bridge;
 mod cpal_host;
@@ -34,6 +35,9 @@ pub mod plugins;
 pub mod recording;
 pub mod rt;
 pub mod sandbox;
+// The sample pack's downloads (feature `net`).
+#[cfg(feature = "net")]
+mod samples_http;
 mod save_writer;
 pub mod store;
 #[doc(hidden)]

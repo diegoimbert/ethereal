@@ -258,7 +258,7 @@ The runtime file is `<app data dir>/agent-bridge.json`:
 
 | Build | `<app data dir>` |
 |---|---|
-| release | `<data>/dev.ethereal.app/` |
+| release | `<data>/ws.ethereal.daw/` |
 | dev (`just dev-desktop`) | `<data>/ethereal-dev/<instance>/` |
 
 Here `<data>` is `~/Library/Application Support` on macOS, `$XDG_DATA_HOME` or

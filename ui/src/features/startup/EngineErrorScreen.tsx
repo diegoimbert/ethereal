@@ -2,6 +2,7 @@
 // load, a worker failed): shown in place of the editor, which would stay blank, with the
 // reason, "retry" and "reload". A part of the app that failed to load (a page left open
 // across a deploy) says a new version is out instead.
+import { useContributions } from "@/ext";
 import { RefreshCw, TriangleAlert } from "lucide-react";
 import { Button } from "@/kit";
 import { isChunkLoadError } from "@/app/crashRecovery";
@@ -22,6 +23,7 @@ function engineErrorText(error: unknown): string | null {
 }
 
 export function EngineErrorScreen({ error, onRetry, onReload = () => window.location.reload() }: EngineErrorScreenProps) {
+  const actions = useContributions("app.crashActions");
   const t = useT();
   if (isChunkLoadError(error)) {
     return (
@@ -51,6 +53,10 @@ export function EngineErrorScreen({ error, onRetry, onReload = () => window.loca
               {t("startup.retry")}
             </Button>
           )}
+          {/* Extensions' actions ("report an issue"; `@/ext` "app.crashActions"). */}
+          {actions.map((Action, i) => (
+            <Action key={i} fullWindow />
+          ))}
           <Button size="lg" tone={onRetry ? "ghost" : "accent"} onClick={onReload}>
             {t("startup.reload")}
           </Button>

@@ -1,5 +1,4 @@
-//! Sidechain routing in the engine (roadmap v2, owned by the `sidechain` node; see
-//! `docs/ROADMAP.md` and CONTRACTS.md §11.10). v0.4: sidechained entries at any depth (drum
+//! Sidechain routing in the engine (roadmap v2; see CONTRACTS.md §11.10). v0.4: sidechained entries at any depth (drum
 //! pads, rack chains, nested racks) and tap points other than the post-fader output.
 //!
 //! - **Consumers.** Any chain entry with `ChainEntry::sidechain` — on the track chain, a pad
@@ -11,7 +10,7 @@
 //!   not yet produced when the consumer runs is ignored, so the engine never reads a stale
 //!   or future signal; the model rejects those choices up front, `ether_model::SidechainTap`).
 //! - **Taps** ([`Points`], per source track, only for tapped points): `Track(PreFx)` before
-//!   the chain, `Track(PostFx)` after it (and its bypass delay), `Track(PostFader)` after the
+//!   the chain, `Track(PostFx)` after it, `Track(PostFader)` after the
 //!   fader and VCA (before the PDC output delay); `After(node)` = that entry's output (any
 //!   depth); `ChainIn/ChainOut/ChainMix` = a rack chain or pad's input, aligned output, and
 //!   output after its volume/pan/mute (and choke).
@@ -162,6 +161,13 @@ impl TrackPlan {
         self.points.iter().find(|(p, _)| *p == point).map(|e| e.1)
     }
 
+    /// The main-signal delay planned before entry `node` (0 if none).
+    pub(crate) fn main_delay(&self, node: NodeKey) -> u32 {
+        self.entries
+            .binary_search_by_key(&node, |e| e.node)
+            .map_or(0, |i| self.entries[i].main_delay)
+    }
+
     /// `node_info` with the planned main-signal delays added to the nodes' latency.
     pub(crate) fn extra_latency(&self, node: NodeKey) -> u32 {
         self.extra
@@ -215,18 +221,14 @@ impl Walk<'_> {
         main_delay
     }
 
-    /// Walks a pad / rack chain starting at latency `lat` (runtime order: bypassed entries
-    /// are skipped). Returns its full latency (bypassed entries included, like
-    /// `drum_rack::pad_latency` / `rack_chains::chain_latency`).
+    /// Walks a pad / rack chain starting at latency `lat`. Every entry counts, bypassed or
+    /// not (a bypassed entry delays its input by its latency, and automation may switch it
+    /// on), like `drum_rack::pad_latency` / `rack_chains::chain_latency`. Returns its latency.
     fn chain(&mut self, entries: &[crate::graph::ChainEntry], lat: u32, depth: usize) -> u32 {
         let mut pos = lat;
         let mut total = 0u32;
         for e in entries {
-            let main = if e.enabled {
-                self.consume(e.node, pos)
-            } else {
-                0
-            };
+            let main = self.consume(e.node, pos);
             if main > 0 {
                 self.plan.extra.push((e.node, main));
             }
@@ -236,9 +238,7 @@ impl Walk<'_> {
                 .saturating_add(main)
                 .saturating_add(nested);
             total = l.saturating_add(total);
-            if e.enabled {
-                pos = pos.saturating_add(l);
-            }
+            pos = pos.saturating_add(l);
             self.plan.points.push((ScPoint::After(e.node), pos));
         }
         total
@@ -454,8 +454,8 @@ impl Taps {
         }
     }
 
-    /// RT. Delay the main signal before entry `node` as planned (track chain entries:
-    /// every entry, bypassed or not; pad / rack chain entries: when they run).
+    /// RT. Delay the main signal before entry `node` as planned (every entry, bypassed or
+    /// not, so the delay line never holds stale audio when the entry switches on).
     #[inline]
     pub(crate) fn align_main(&mut self, node: NodeKey, main: &mut Stereo, n: usize) {
         if self.entries.is_empty() {

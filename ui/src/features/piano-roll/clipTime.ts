@@ -48,6 +48,16 @@ export function clipTempoMap(song: TempoMap, clip: Clip): TempoMap {
   return TempoMap.constant(song.bpmAt(at), song.signatureAt(at));
 }
 
+/**
+ * Earliest content position of the clip the editors show and edit: content 0, or the clip's
+ * start when its left edge was extended past the content start (a negative offset: a leading
+ * gap where notes can be drawn and play). Bar 1 stays at content 0, so that region is bar 0,
+ * -1, ... on the editor's ruler.
+ */
+export function contentFloor(clip: Clip): Beats {
+  return Math.min(0, clip.offset);
+}
+
 /** End of the content the clip can play (the last loop end or `offset + length`). */
 export function contentEnd(clip: Clip): Beats {
   return clip.looping.enabled ? Math.max(clip.looping.end, clip.offset) : clip.offset + clip.length;

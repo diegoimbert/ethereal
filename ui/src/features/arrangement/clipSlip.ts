@@ -12,6 +12,7 @@ import type { Beats, Clip } from "@/generated";
 import { notesOfClip, useProjectStore, useSelectionStore, warpMarkersOfClip } from "@/state";
 import { beatsPerBar, dragBeats, itemSelection, resolveGrid, TempoMap } from "@/timeline";
 import { setDragCursor } from "@/kit";
+import { setEditActivity as setActivity } from "@/ext/surfaces";
 import { isArrangementClip, startOf } from "./clipTime";
 import type { ClipPointerEvent } from "./clipDrag";
 import { sendEdit, type ArrangementContextValue } from "./context";
@@ -74,6 +75,10 @@ export function onClipSlipPointerDown(e: ClipPointerEvent, clip: Clip, ctx: Arra
   const move = (ev: PointerEvent) => {
     x = ev.clientX;
     if (!active && Math.abs(x - startX) < DRAG_THRESHOLD_PX) return;
+    if (!active) {
+      const target = clips.length > 1 ? ({ type: "Selection" } as const) : ({ type: "Clip", clip: clip.id } as const);
+      setActivity({ kind: "Resizing", target });
+    }
     active = true;
     update(ev);
   };
@@ -94,6 +99,7 @@ export function onClipSlipPointerDown(e: ClipPointerEvent, clip: Clip, ctx: Arra
   };
   const done = () => {
     setDragCursor(null);
+    if (active) setActivity(null);
     release();
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", up);

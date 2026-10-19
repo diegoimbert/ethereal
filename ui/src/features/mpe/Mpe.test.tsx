@@ -73,15 +73,15 @@ describe("MPE settings in the inspector", () => {
       </TransportProvider>,
     );
     await waitFor(() => expect(screen.getByTestId("mpe-settings")).toBeTruthy());
-    expect(screen.queryByRole("combobox", { name: "MPE zone" })).toBeNull();
-    fireEvent.click(screen.getByRole("switch", { name: "MPE" }));
+    expect(screen.queryByRole("combobox", { name: "mpe zone" })).toBeNull();
+    fireEvent.click(screen.getByRole("switch", { name: "mpe" }));
     await flush();
     expect(midiTrack().mpe).toEqual(DEFAULT_MPE);
     expect(screen.getByTestId("mpe-summary").textContent).toBe("master 1 · notes on 2–16");
-    pickOption(screen.getByRole("combobox", { name: "MPE zone" }), "upper (master 16)");
+    pickOption(screen.getByRole("combobox", { name: "mpe zone" }), "upper (master 16)");
     await flush();
     expect(midiTrack().mpe?.zone).toBe("Upper");
-    const channels = screen.getByLabelText("MPE member channels") as HTMLInputElement;
+    const channels = screen.getByLabelText("mpe member channels") as HTMLInputElement;
     fireEvent.change(channels, { target: { value: "4" } });
     fireEvent.keyDown(channels, { key: "Enter" });
     await flush();
@@ -89,7 +89,7 @@ describe("MPE settings in the inspector", () => {
     expect(screen.getByTestId("mpe-summary").textContent).toBe("master 16 · notes on 12–15");
     await send(cmd("Edit", { type: "Undo" }));
     expect(midiTrack().mpe?.member_channels).toBe(15);
-    fireEvent.click(screen.getByRole("switch", { name: "MPE" }));
+    fireEvent.click(screen.getByRole("switch", { name: "mpe" }));
     await flush();
     expect(midiTrack().mpe).toBeUndefined();
   });

@@ -1,0 +1,66 @@
+# The full product in this checkout: fetches the private `ee/` repository at `ee-ref` and lays
+# it over the tree (ee/overlay.mjs). Quiet by design: no private commit subject, file name or
+# output reaches the public log (the overlay's output goes to the encrypted full log).
+# Needs the `token` (read access to the private repository); callers run it only when the
+# secret is set (never on fork pull requests).
+name: EE overlay
+description: Fetch the private ee/ repository and overlay it on this checkout (quietly)
+
+inputs:
+  token:
+    description: Token with read access to the private repository
+    required: true
+  ee-ref:
+    description: Commit, branch or tag of the private repository
+    required: true
+  repository:
+    description: The private repository
+    default: diegoimbert/ethereal-private
+  drift-check:
+    description: >-
+      "true": before the overlay, warn about OSS files the overlay overrides that changed since
+      ee/ took them in (only their paths and the result are logged)
+    default: "false"
+
+outputs:
+  ee-sha:
+    description: The private commit that was overlaid
+    value: ${{ steps.fetch.outputs.sha }}
+
+runs:
+  using: composite
+  steps:
+    - id: fetch
+      name: Fetch ee/ (quiet)
+      shell: bash
+      env:
+        TOKEN: ${{ inputs.token }}
+        REF: ${{ inputs.ee-ref }}
+        REPO: ${{ inputs.repository }}
+      run: |
+        set -euo pipefail
+        [[ "$REF" =~ ^[A-Za-z0-9._/-]+$ ]] || { echo "::error::bad ee ref"; exit 1; }
+        echo "::add-mask::$TOKEN"
+        rm -rf ee && mkdir ee
+        git -C ee init -q
+        # The token only lives in this process's config, never in a file of the checkout.
+        auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$TOKEN" | base64 | tr -d '\n')"
+        echo "::add-mask::$auth"
+        git -C ee -c http.extraheader="$auth" fetch -q --depth=1 "https://github.com/$REPO" "$REF" 2>/dev/null \
+          || { echo "::error::cannot fetch the private repository at the requested ref"; exit 1; }
+        git -C ee -c advice.detachedHead=false checkout -q FETCH_HEAD
+        # Public nested submodules (e.g. libvpx).
+        git -C ee submodule update -q --init --depth 1 > /dev/null 2>&1
+        echo "sha=$(git -C ee rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+        echo "ee/ fetched at $(git -C ee rev-parse --short=12 HEAD)"
+    - name: Overlay drift (warning only)
+      if: inputs.drift-check == 'true'
+      shell: bash
+      run: |
+        # Prints OSS paths and a count, nothing of ee/'s content (`--names`).
+        if [ -f ee/overlay-owned.txt ]; then
+          node ee/overlay.mjs --owned check --names || echo "::warning::overlay drift: OSS files the full product overrides changed (listed above); port them into ee/"
+        fi
+    - name: Overlay (quiet)
+      shell: bash
+      run: node scripts/ci/private-step.mjs overlay -- node ee/overlay.mjs --oss .

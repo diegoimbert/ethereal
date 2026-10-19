@@ -1,4 +1,4 @@
-//! Browser v2: engine-side library index (v0.2, owned by the `browser-v2` node; protocol
+//! Browser v2: engine-side library index (v0.2, `browser-v2`; protocol
 //! `ether_protocol::browser`, CONTRACTS.md §12.8).
 //!
 //! [`EtherController::browser_command`] (dispatched from `handlers.rs`) and
@@ -403,7 +403,7 @@ fn list_folder<L: Library>(
     n
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

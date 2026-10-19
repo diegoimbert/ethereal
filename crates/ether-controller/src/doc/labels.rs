@@ -1,7 +1,7 @@
 //! Undo labels: the short, human name of what a command does ("move 3 clips", "set
 //! volume", "add reverb"), shown in the undo history panel and as "Undo …" in the UI.
 //!
-//! Style: lowercase (acronyms stay uppercase: MIDI, MPE, VCA, IR), a verb first, counts
+//! Style: lowercase (acronyms too: midi, mpe, vca, ir), a verb first, counts
 //! when a command acts on several things, and the device/parameter name when the project
 //! has it at hand. Every command variant is matched explicitly (no wildcard arm), so a new
 //! command doesn't compile until it has a label; `tests::every_command_has_a_human_label`
@@ -16,6 +16,7 @@ use ether_core::protocol::clips::ClipCommand as C;
 use ether_core::protocol::devices::{DeviceCommand as D, DeviceSpec};
 use ether_core::protocol::drum_rack::{DrumRackCommand as Dr, SliceCommand as Sl};
 use ether_core::protocol::expression::ExpressionCommand as Ex;
+use ether_core::protocol::ext::ExtCommand;
 use ether_core::protocol::external::ExternalCommand;
 use ether_core::protocol::freeze::FreezeCommand as F;
 use ether_core::protocol::groove::GrooveCommand;
@@ -35,7 +36,6 @@ use ether_core::protocol::project::{EditCommand as E, ProjectCommand as P};
 use ether_core::protocol::racks::{ModulationCommand as Mo, RackCommand as R};
 use ether_core::protocol::recording::RecordingCommand as Rec;
 use ether_core::protocol::resolver::ResolveCommand;
-use ether_core::protocol::social::{ChatCommand, PinnedNoteCommand as Pn};
 use ether_core::protocol::takes::TakeCommand as Tk;
 use ether_core::protocol::templates::TemplateCommand as Tpl;
 use ether_core::protocol::tempo::TempoCommand as Te;
@@ -47,7 +47,7 @@ use ether_core::protocol::warp::WarpCommand as W;
 /// An undo label: the English text (agents, logs, the fallback) and, when it is one of the
 /// catalog's, its message, which the UI shows in the user's language (docs/LOCALIZATION.md).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct UndoLabel {
+pub struct UndoLabel {
     pub text: String,
     pub key: Option<TextKey>,
 }
@@ -75,7 +75,7 @@ impl UndoLabel {
 }
 
 /// A label given as English text: keyed when the text is one of the catalog's messages
-/// without arguments (`"capture MIDI"`), else shown as is.
+/// without arguments (`"capture midi"`), else shown as is.
 impl From<&str> for UndoLabel {
     fn from(text: &str) -> Self {
         Self {
@@ -360,6 +360,7 @@ pub(crate) fn label_of(command: &Command, project: Option<&Project>) -> UndoLabe
                 "undo.device.remove_sidechain",
             ),
             D::SetZones { .. } => k("undo.device.set_zones"),
+            D::SetLfoCurve { .. } => k("undo.device.set_lfo_curve"),
             D::SetIr { ir, .. } => {
                 pick(ir.is_some(), "undo.device.load_ir", "undo.device.clear_ir")
             }
@@ -494,6 +495,7 @@ pub(crate) fn label_of(command: &Command, project: Option<&Project>) -> UndoLabe
             R::RenameChain { .. } => k("undo.rack.rename_chain"),
             R::SetChainColor { .. } => k("undo.rack.set_chain_color"),
             R::MoveChain { .. } => k("undo.rack.move_chain"),
+            R::CopyChain { cut, .. } => pick(*cut, "undo.rack.move_chain", "undo.rack.copy_chain"),
             R::SetChainMix { .. } => k("undo.rack.set_chain_mix"),
             R::SetChainZones { .. } => k("undo.rack.set_chain_zones"),
             R::InsertDevice { device, .. } => ka("undo.device.add", "device", spec_arg(device)),
@@ -520,14 +522,6 @@ pub(crate) fn label_of(command: &Command, project: Option<&Project>) -> UndoLabe
                 "undo.modulation.remove_sidechain",
             ),
             Mo::ListModulatorKinds => k("undo.modulation.list"),
-        },
-        Command::PinnedNote(c) => match c {
-            Pn::Add { .. } => k("undo.pinned_note.add"),
-            Pn::Edit {
-                resolved: Some(r), ..
-            } => pick(*r, "undo.pinned_note.resolve", "undo.pinned_note.reopen"),
-            Pn::Edit { .. } => k("undo.pinned_note.edit"),
-            Pn::Delete { ids } => kn("undo.pinned_note.delete", ids.len()),
         },
         Command::Expression(c) => match c {
             Ex::CreateLane { .. } => k("undo.expression.create_lane"),
@@ -571,7 +565,6 @@ pub(crate) fn label_of(command: &Command, project: Option<&Project>) -> UndoLabe
             P::Get => k("undo.project.get"),
             P::SetScale { .. } => k("undo.project.set_scale"),
             P::ExportBundle { .. } | P::ExportTo { .. } => k("undo.project.export"),
-            P::StaticSnapshot { .. } | P::StaticView { .. } => k("undo.project.share_snapshot"),
             P::ImportBundle { .. } | P::Import { .. } => k("undo.project.import"),
             P::CancelImport { .. } => k("undo.project.cancel_import"),
         },
@@ -651,23 +644,38 @@ pub(crate) fn label_of(command: &Command, project: Option<&Project>) -> UndoLabe
             ResolveCommand::Apply { .. } => k("undo.resolve.apply"),
             ResolveCommand::Replace { .. } => k("undo.resolve.replace"),
         },
-        Command::Chat(ChatCommand::Send { .. }) => k("undo.chat.send"),
         Command::Agent(c) => match c {
             AgentCommand::ListTools => k("undo.agent.list_tools"),
             AgentCommand::CallTool { .. } => k("undo.agent.call_tool"),
+            AgentCommand::SetSelection { .. } => k("undo.agent.set_selection"),
         },
         // Never document commands, never an undo step: one label per domain.
         Command::Engine(_) => k("undo.domain.engine"),
         Command::Export(_) => k("undo.domain.export"),
-        Command::Collab(_) => k("undo.domain.collab"),
         Command::Browser(_) => k("undo.domain.browser"),
         Command::Analysis(_) => k("undo.domain.analysis"),
         Command::History(_) => k("undo.domain.history"),
         Command::Version(_) => k("undo.domain.versions"),
         Command::Keymap(_) => k("undo.domain.keymap"),
         Command::Settings(_) => k("undo.domain.settings"),
-        Command::Share(_) => k("undo.domain.share"),
+        Command::Samples(_) => k("undo.domain.samples"),
+        // An extension's command: its own label (`set_ext_labels`), else a generic one.
+        Command::Ext(c) => match EXT_LABELS.get().and_then(|f| f(c, project)) {
+            Some(key) => UndoLabel::keyed(key),
+            None => k("undo.domain.ext"),
+        },
     }
+}
+
+/// The undo labels of an extension's commands: a catalog message (`None`: the generic
+/// label). The catalog is the app's merged with the extension's (docs/LOCALIZATION.md).
+pub type ExtLabels = fn(&ExtCommand, Option<&Project>) -> Option<TextKey>;
+
+static EXT_LABELS: std::sync::OnceLock<ExtLabels> = std::sync::OnceLock::new();
+
+/// Extension point: the undo labels of an extension's commands (set once, at start).
+pub fn set_ext_labels(labels: ExtLabels) {
+    let _ = EXT_LABELS.set(labels);
 }
 
 #[cfg(test)]

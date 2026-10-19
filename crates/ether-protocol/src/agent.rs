@@ -17,6 +17,9 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::model::Beats;
+use crate::model::ids::{ClipId, DeviceId, NoteId, TrackId};
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum AgentCommand {
@@ -24,6 +27,28 @@ pub enum AgentCommand {
     ListTools,
     /// Run tool `name` with `input` (a JSON object, as text). Replies `AgentToolResult`.
     CallTool { name: String, input: String },
+    /// What the user has selected in the UI: the tools read it ("this clip", ties between
+    /// candidates). Sent when the selection changes. Replies `Unit`.
+    SetSelection { selection: AgentSelection },
+}
+
+/// The UI's selection, as the agent tools see it.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
+pub struct AgentSelection {
+    /// The edit (insert) cursor on the timeline.
+    #[serde(default)]
+    pub cursor: Option<Beats>,
+    #[serde(default)]
+    pub tracks: Vec<TrackId>,
+    #[serde(default)]
+    pub clips: Vec<ClipId>,
+    #[serde(default)]
+    pub notes: Vec<NoteId>,
+    #[serde(default)]
+    pub devices: Vec<DeviceId>,
+    /// The clip open in the piano roll.
+    #[serde(default)]
+    pub editing_clip: Option<ClipId>,
 }
 
 /// One tool of the registry.

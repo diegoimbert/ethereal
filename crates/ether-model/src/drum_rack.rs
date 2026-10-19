@@ -1,5 +1,4 @@
-//! Drum racks and sampler slicing. Roadmap v2, owned by the `drum-rack` node (see
-//! `docs/ROADMAP.md`).
+//! Drum racks and sampler slicing (roadmap v2; see CONTRACTS.md §11.12).
 //!
 //! # Drum rack
 //! A drum rack is a built-in instrument device (`BuiltinDevice::DrumRack`) on a MIDI track's

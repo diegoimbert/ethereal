@@ -31,17 +31,6 @@ L’application de bureau accueille les plug-ins dans ces formats :
 
 La version web ne peut pas charger de plug-ins. Sa bibliothèque d’appareils ne liste que les appareils intégrés d’Ethereal, et son onglet **réglages › plug-ins** indique simplement que les plug-ins sont chargés par l’application de bureau. Si vous ouvrez dans le navigateur un projet qui utilise des plug-ins, ces appareils sont contournés et les pistes jouent sans eux.
 
-## découvrir des plug-ins : plug-ins gratuits {#explore-plugins-free-plugins}
-
-Pas encore de plug-ins ? **découvrir des plug-ins** liste des instruments et effets gratuits que vous pouvez ajouter à Ethereal. Ouvrez-le avec le bouton **découvrir des plug-ins** en bas de la bibliothèque d’appareils (la liste qui s’ouvre depuis le bouton **+** d’une chaîne), ou depuis **réglages › plug-ins**.
-
-Cherchez par nom, ou filtrez par catégorie : **synthé**, **effet**, **sampler**, **batterie** ou **utilitaire**. Chaque carte indique l’auteur du plug-in, ses formats, sa licence et la taille du téléchargement, avec des liens vers son site, son code source et sa licence. La liste a deux parties :
-
-- **open source** : dans l’application de bureau, cliquez sur **installer**. Ethereal télécharge le plug-in, vérifie que le fichier est bien celui que liste le catalogue signé, l’installe dans vos dossiers de plug-ins et relance l’analyse, pour qu’il apparaisse tout de suite dans la bibliothèque d’appareils. Les plug-ins installés affichent **installé** avec un bouton **désinstaller**, et **mettre à jour** quand une version plus récente existe. Vous pouvez annuler pendant le téléchargement. Un plug-in qui n’est pas disponible pour votre système indique pourquoi.
-- **gratuiciel** : **télécharger** ouvre la page de l’auteur dans votre navigateur. Installez-le comme l’auteur l’explique, puis **réanalyser** dans **réglages › plug-ins**.
-
-Sur le web [[web]], la liste est en lecture seule : les plug-ins ne tournent que dans l’application de bureau, et la fenêtre renvoie vers la page de téléchargement.
-
 ## où ethereal cherche les plug-ins {#where-ethereal-looks-for-plugins}
 
 Ouvrez les **réglages** et allez dans l’onglet **plug-ins**.
@@ -68,6 +57,8 @@ Si un plug-in est installé dans plusieurs formats (par exemple en CLAP et VST3)
 
 Cliquez sur le bouton de fenêtre dans l’en-tête d’un plug-in pour ouvrir l’interface propre au plug-in. Elle s’ouvre dans une fenêtre séparée qui reste au-dessus de la fenêtre principale d’Ethereal. Cliquez à nouveau sur le bouton pour la fermer. La carte du plug-in dans Ethereal liste aussi ses paramètres, avec le texte de valeur propre au plug-in (comme « 250 ms » ou « -6 dB »).
 
+Sur Windows et Linux, une fenêtre de plug-in CLAP ne s’ouvre que si le plug-in sait ouvrir sa propre fenêtre. Beaucoup de plug-ins CLAP ne savent que s’afficher dans une fenêtre créée par l’hôte, ce qu’Ethereal ne fait pour l’instant que sur macOS : leur fenêtre ne s’ouvre pas, mais leurs paramètres restent sur leur carte. Les fenêtres VST3 s’ouvrent sur tous les systèmes.
+
 ### fenêtres de plug-ins sous linux {#plugin-windows-on-linux}
 
 Sous Linux, les fenêtres des plug-ins ont besoin d’un affichage X. Sur un bureau Wayland, cela veut dire XWayland.
@@ -86,6 +77,9 @@ Par défaut, les plug-ins tournent à l’intérieur d’Ethereal. Pour un plug-
 
 L’isolation ajoute un bloc audio de latence. Pour revenir en arrière, faites un clic droit sur l’en-tête et choisissez **exécuter dans le processus (sans isolation)**.
 
+> [!note]
+> L’isolation fonctionne sur macOS et Linux. Sous Windows, les plug-ins tournent toujours à l’intérieur d’Ethereal : choisir d’exécuter un plug-in isolé n’y change rien.
+
 ## ouvrir un projet sans les plug-ins {#opening-a-project-without-plugins}
 
 Si un projet plante ou se bloque à cause d’un plug-in, ouvrez-le sans les plug-ins. Faites un clic droit sur le projet dans la liste des projets (ou cliquez sur son bouton **…**) et choisissez **ouvrir sans plug-ins**. La fenêtre de récupération après plantage propose le même bouton. Chaque plug-in est gardé comme un emplacement contourné avec ses réglages enregistrés, marqué **mode sans échec · contourné**, et la barre du haut indique **plug-ins désactivés (mode sans échec)**. Ensuite :
@@ -102,7 +96,7 @@ Si un projet utilise un plug-in qui n’est pas installé sur cet ordinateur, Et
 1. Installez le plug-in, puis **réanalyser** dans **réglages › plug-ins**.
 2. L’appareil affiche maintenant **trouvé · recharger**. Cliquez dessus pour charger le plug-in avec le son enregistré dans le projet.
 
-Pour utiliser un autre plug-in à la place, faites un clic droit sur le badge **manquant · contourné** ou sur l’en-tête de l’appareil et choisissez **résoudre…**. Faites un clic droit sur l’en-tête de n’importe quel plug-in et choisissez **remplacer le plug-in…** pour l’échanger contre un autre plug-in installé. Les valeurs et l’automation sont reportées sur les paramètres de même nom. Voir [plug-ins et échantillons manquants](/docs/import-export/other-daws#resolving-missing-items).
+Pour utiliser un autre plug-in à la place, faites un clic droit sur le badge **manquant · contourné** ou sur l’en-tête de l’appareil et choisissez **résoudre…**. Faites un clic droit sur l’en-tête de n’importe quel plug-in et choisissez **remplacer le plug-in…** pour l’échanger contre un autre plug-in installé. Les valeurs et l’automation sont reportées sur les paramètres de même nom. Voir [plug-ins et échantillons manquants](/docs/sounds-and-plugins/missing-plugins-and-samples).
 
 ## comment le son des plug-ins est enregistré {#how-plugin-sounds-are-saved}
 
@@ -116,4 +110,4 @@ Le menu de presets dans l’en-tête d’un appareil fonctionne aussi pour les p
 
 - [Appareils et presets](/docs/making-music/devices-and-presets) : ajoutez et organisez des appareils sur une piste.
 - [Le mode sans échec](/docs/advanced/safe-mode) : ouvrez un projet qui plante.
-- [Projets d’autres DAW](/docs/import-export/other-daws) : les plug-ins dans les projets importés.
+- [Plug-ins et échantillons manquants](/docs/sounds-and-plugins/missing-plugins-and-samples) : remplacez les plug-ins qu’utilise un projet et qui ne sont pas installés.

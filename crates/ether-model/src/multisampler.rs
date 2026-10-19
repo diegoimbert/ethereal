@@ -1,4 +1,4 @@
-//! Multisampler zones (v0.2, owned by the `multisampler` node; CONTRACTS.md §12.4).
+//! Multisampler zones (v0.2, `multisampler`; CONTRACTS.md §12.4).
 //!
 //! `BuiltinDevice::MultiSampler { zones }` keeps its zones in the device kind (like the
 //! sampler's slices): they reach the engine with the node (`ether_devices::create`) and live

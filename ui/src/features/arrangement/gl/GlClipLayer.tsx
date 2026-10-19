@@ -11,6 +11,7 @@
  * DOM overlays in the lanes that take the pointer themselves keep it.
  */
 
+import { contributions } from "@/ext";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Clip, ClipId } from "@/generated";
 import { openContextMenu } from "@/kit";
@@ -32,6 +33,7 @@ import { ArrangerRenderer } from "./renderer";
 import { reportWebglFailure, reportWebglLoss, WEBGL_RESTORE_TIMEOUT_MS, type BackendKind } from "./backendChoice";
 import type { Hover, SceneInput } from "./scene";
 import { setGlRenderer } from "./active";
+import { ClipSummary } from "./ClipSummary";
 import { mountOverlayLayers } from "./layers/overlays";
 import { size, space } from "@/theme";
 import { t as tr, useT } from "@/i18n";
@@ -51,6 +53,9 @@ export interface GlClipLayerProps {
    */
   backend: BackendKind;
 }
+
+/** How often the extensions watching the clips in view are told about them. */
+const VISIBLE_CLIPS_MS = 250;
 
 export function GlClipLayer({ ctx, scrollRef, backend }: GlClipLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -294,6 +299,18 @@ export function GlClipLayer({ ctx, scrollRef, backend }: GlClipLayerProps) {
       });
     }
 
+    // Extensions that follow what the arranger shows (`@/ext` "arrangement.visibleClips"):
+    // the clips in view, the edited one first, four times a second.
+    const watchers = contributions("arrangement.visibleClips");
+    if (watchers.length > 0) {
+      const timer = window.setInterval(() => {
+        const edited = useEditorStore.getState().clip;
+        const ids = [...(edited ? [edited] : []), ...r.visibleClipIds()].filter((id, i, all) => all.indexOf(id) === i);
+        for (const watch of watchers) watch(ids, ctx.transport);
+      }, VISIBLE_CLIPS_MS);
+      offs.push(() => window.clearInterval(timer));
+    }
+
     return () => {
       for (const off of offs) off();
       unmountLayers();
@@ -306,9 +323,11 @@ export function GlClipLayer({ ctx, scrollRef, backend }: GlClipLayerProps) {
 
   return (
     <div className="eth-arr-gl" style={{ left: headerWidth - bleedOf(backend, headerWidth) }} data-testid="arranger-gl" data-backend={backend}>
+      {/* Pixels only: the clips are in ClipSummary, as text. */}
       <canvas ref={canvasRef} className="eth-arr-gl__canvas" aria-hidden />
       {renderer && <RenameOverlay renderer={renderer} ctx={ctx} />}
       {renderer && <ClipStatusOverlay renderer={renderer} ctx={ctx} />}
+      {renderer && <ClipSummary />}
       {renderer && <SelectionAnnouncer />}
     </div>
   );

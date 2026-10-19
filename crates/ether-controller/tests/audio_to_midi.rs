@@ -261,7 +261,7 @@ fn converts_a_melody_into_a_midi_track_below_in_one_undo_step() {
     let p = h.project();
     let t = &p.tracks[&ids.track];
     assert_eq!(t.kind, TrackKind::Midi);
-    assert_eq!(t.name, format!("{} MIDI", p.clips[&clip].name));
+    assert_eq!(t.name, format!("{} midi", p.clips[&clip].name));
     assert_eq!(t.color, p.tracks[&src].color);
     assert!(p.tracks[&src].order < t.order && t.order < p.tracks[&other].order);
     let c = &p.clips[&ids.clip];

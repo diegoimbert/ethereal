@@ -88,10 +88,11 @@ test("several selected MIDI clips edit together in the piano roll; one undo per 
   await expect(page.getByTestId("piano-roll-clip-count")).toHaveText("2 clips");
   await expect.poll(async () => new Set((await pianoRollNotes(grid)).map((n) => n.id))).toEqual(new Set([...a0, ...b0].map((n) => n.id)));
 
-  // ⌘A selects every note of both clips.
+  // ⌘A selects every note of both clips, like a plain marquee over them: no section.
   await page.getByTestId("piano-roll-clip-band").first().click();
   await page.keyboard.press("ControlOrMeta+a");
   await expect.poll(async () => (await pianoRollNotes(grid)).filter((n) => n.selected).length).toBe(a0.length + b0.length);
+  await expect(page.getByTestId("piano-roll-section")).toHaveCount(0);
   await shot(page, "multi-clip-dark");
   if (process.env.E2E_SHOTS) {
     await page.evaluate(() => (document.documentElement.dataset.theme = "light"));

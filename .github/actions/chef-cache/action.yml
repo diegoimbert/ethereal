@@ -1,0 +1,104 @@
+# Third-party build cache for the full-product jobs (owner decision, ethereal-private#45): cargo-chef
+# builds only the dependencies of the overlaid workspace, and that target dir is what the Actions
+# cache holds. It never holds compiled private code: cook's stub builds of the workspace's own
+# crates are removed (scripts/ci/chef-strip.mjs) and a check refuses the save if any is left.
+#
+# Run after the overlay, before the build. On a hit the target dir is restored; on a miss the
+# dependencies are cooked here (the build would compile them anyway), and `main` saves them.
+# The key is <build settings hash>-<recipe hash> (toolchain, profile, cook flags, OS; then the
+# recipe), with the settings prefix as the restore fallback; the recipe and the crate names are
+# never printed.
+name: Chef cache
+description: Restore (or cook and, on main, save) the third-party build of the overlaid workspace
+
+inputs:
+  name:
+    description: Cache name (job, e.g. full-linux)
+    required: true
+  cook-args:
+    description: Extra `cargo chef cook` flags (features, targets); `--clippy` cooks a second time for clippy
+    default: --all-targets --all-features
+  clippy:
+    description: Also cook for clippy (check-mode dependency builds)
+    default: "false"
+  exclude:
+    description: >-
+      Workspace packages the build leaves out (`cargo ... --workspace --exclude X`; space-separated,
+      public names only). Cook then builds the other members' dependencies with the same feature
+      unification as the build, so cargo reuses them; the member list is never printed.
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+      with:
+        tool: cargo-chef@0.1.78
+    - id: key
+      name: Recipe (kept private) and cache key
+      shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+        COOK: ${{ inputs.cook-args }}
+        CLIPPY: ${{ inputs.clippy }}
+        EXCLUDE: ${{ inputs.exclude }}
+      run: |
+        set -euo pipefail
+        recipe="$RUNNER_TEMP/chef-recipe.json"
+        node scripts/ci/private-step.mjs chef-prepare -- cargo chef prepare --recipe-path "$recipe"
+        sum() { if command -v sha256sum > /dev/null; then sha256sum; else shasum -a 256; fi; }
+        # <build settings>-<recipe>: a recipe change (any manifest edit) falls back to the newest
+        # cache with the same settings; cook then only builds what changed.
+        build="$( { cat rust-toolchain.toml; rustc -vV; env | grep -E '^CARGO_(PROFILE|INCREMENTAL|BUILD)' | sort; echo "$COOK $CLIPPY $EXCLUDE $RUNNER_OS $RUNNER_ARCH"; } | sum | cut -c1-16 )"
+        deps="$(sum < "$recipe" | cut -c1-32)"
+        echo "prefix=chef-v2-$NAME-$RUNNER_OS-$build-" >> "$GITHUB_OUTPUT"
+        echo "key=chef-v2-$NAME-$RUNNER_OS-$build-$deps" >> "$GITHUB_OUTPUT"
+    - id: restore
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: target
+        key: ${{ steps.key.outputs.key }}
+        restore-keys: ${{ steps.key.outputs.prefix }}
+    - name: Cook the dependencies (cache miss)
+      if: steps.restore.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        COOK: ${{ inputs.cook-args }}
+        CLIPPY: ${{ inputs.clippy }}
+        EXCLUDE: ${{ inputs.exclude }}
+      run: |
+        set -euo pipefail
+        recipe="$RUNNER_TEMP/chef-recipe.json"
+        # With `exclude`: `-p` for every other workspace member (the names stay in this process).
+        pkgs=()
+        if [ -n "$EXCLUDE" ]; then
+          while IFS= read -r p; do pkgs+=(-p "$p"); done < <(cargo metadata --no-deps --format-version 1 2> /dev/null \
+            | EXCLUDE="$EXCLUDE" node -e 'const m = JSON.parse(require("fs").readFileSync(0, "utf8")); const ex = new Set(process.env.EXCLUDE.split(/\s+/)); for (const p of m.packages) if (!ex.has(p.name)) console.log(p.name);')
+          [ ${#pkgs[@]} -gt 0 ] || { echo "::error::no workspace members left to cook"; exit 1; }
+        fi
+        # Cook writes a skeleton of the workspace (stub sources) where it runs: never in the
+        # checkout. Same toolchain and cargo config; the target dir is the checkout's.
+        ws="$GITHUB_WORKSPACE"
+        chef="$RUNNER_TEMP/chef-ws"
+        rm -rf "$chef" && mkdir -p "$chef"
+        cp "$ws/rust-toolchain.toml" "$chef/"
+        if [ -d "$ws/.cargo" ]; then cp -R "$ws/.cargo" "$chef/"; fi
+        export CARGO_TARGET_DIR="$ws/target"
+        step() { node "$ws/scripts/ci/private-step.mjs" "$@"; }
+        # shellcheck disable=SC2086
+        (cd "$chef" && step chef-cook -- cargo chef cook --recipe-path "$recipe" $COOK ${pkgs[@]+"${pkgs[@]}"})
+        if [ "$CLIPPY" = true ]; then
+          # shellcheck disable=SC2086
+          (cd "$chef" && step chef-cook-clippy -- cargo chef cook --recipe-path "$recipe" --clippy $COOK ${pkgs[@]+"${pkgs[@]}"})
+        fi
+        node scripts/ci/chef-strip.mjs target
+    - name: Only third-party artifacts left?
+      id: check
+      if: steps.restore.outputs.cache-hit != 'true' && github.ref == 'refs/heads/main'
+      shell: bash
+      run: node scripts/ci/chef-strip.mjs target --check
+    - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      if: steps.restore.outputs.cache-hit != 'true' && github.ref == 'refs/heads/main' && steps.check.outcome == 'success'
+      with:
+        path: target
+        key: ${{ steps.key.outputs.key }}

@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent, 
 import { MoreHorizontal, Plus, Search, X } from "lucide-react";
 import type { ProjectSummary } from "@/generated";
 import { errorMessage, useOptionalConnection, type EngineCommands } from "@/features/transport-bar/engine";
-import { Badge, Button, Dialog, IconButton, openContextMenu, TextInput, type ContextMenuEntry } from "@/kit";
+import { Badge, Button, Dialog, DismissibleError, IconButton, openContextMenu, TextInput, type ContextMenuEntry } from "@/kit";
 import { useRecoveryShown } from "@/features/versions/store";
+import { DiscordLink } from "@/features/community";
+import { notify } from "@/features/notifications";
 import { newProjectCommand, ProjectTemplatePicker, type ProjectTemplateChoice } from "@/features/templates";
 import { useProjectStore } from "@/state";
 import { cmd, newProjectId, type EngineTransport } from "@/transport";
@@ -18,6 +20,7 @@ import { Examples } from "./Examples";
 import { APP_VERSION } from "@/config/version";
 import { splitLocalCopy } from "./sessionMarks";
 import { t as translate, Trans, useT } from "@/i18n";
+import { contributions, useContributions, type ProjectRowAction } from "@/ext";
 
 /**
  * The project picker ("Open project", owner request): a modal listing the stored projects to
@@ -78,23 +81,19 @@ export function ProjectScreen({ commands }: { commands: EngineCommands }) {
 }
 
 function ErrorLine({ commands, extra, clearExtra }: { commands: EngineCommands; extra?: string | null; clearExtra?: () => void }) {
-  const t = useT();
   const { error, clearError } = commands;
   const shown = extra ?? error;
   if (!shown) return null;
   return (
-    <button
-      type="button"
+    <DismissibleError
       className="eth-project__error"
-      role="alert"
-      title={t("common.dismiss")}
-      onClick={() => {
+      onDismiss={() => {
         clearError();
         clearExtra?.();
       }}
     >
       {shown}
-    </button>
+    </DismissibleError>
   );
 }
 
@@ -104,12 +103,19 @@ function ErrorLine({ commands, extra, clearExtra }: { commands: EngineCommands; 
  */
 function ProjectBadges({ project, name = project?.name }: { project: ProjectSummary | undefined; name?: string }) {
   const t = useT();
+  const extra = useContributions("project.badges");
   const localCopy = name !== undefined && splitLocalCopy(name).localCopy;
-  return localCopy ? (
-    <span title={t("project.badge.local_copy_hint")}>
-      <Badge tone="warn">{t("project.badge.local_copy")}</Badge>
-    </span>
-  ) : null;
+  return (
+    <>
+      {localCopy && (
+        <span title={t("project.badge.local_copy_hint")}>
+          <Badge tone="warn">{t("project.badge.local_copy")}</Badge>
+        </span>
+      )}
+      {/* Extensions' badges (`@/ext` "project.badges"). */}
+      {project && extra.map((Extra, i) => <Extra key={i} project={project} />)}
+    </>
+  );
 }
 
 /** The brand, never translated. */
@@ -168,6 +174,9 @@ function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  // A pending extension row action's confirmation (`@/ext` "project.rowActions").
+  const [confirmAction, setConfirmAction] = useState<{ id: string; action: ProjectRowAction } | null>(null);
+  const welcomeActions = useContributions("project.welcomeActions");
   // Failures of actions run outside `send` (export, import, duplicate, close and delete).
   const [error, setError] = useState<string | null>(null);
 
@@ -227,7 +236,23 @@ function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(
     rename(renaming.id, renaming.name);
   };
 
+  /** Run an extension's row action (opening its project first when asked): a toast when it says so. */
+  const runRowAction = async (p: ProjectSummary, a: ProjectRowAction) => {
+    const go = async () => {
+      const ok = await act(async (tr) => {
+        await a.run(tr);
+        return true;
+      });
+      if (!ok) return;
+      if (a.done) notify("Info", a.done);
+      if (a.close) onDone();
+    };
+    if (a.openFirst && p.id !== current?.id) await guardLeave(go);
+    else await go();
+  };
+
   const menu = (e: MouseEvent, p: ProjectSummary) => {
+    const extra = contributions("project.rowActions").flatMap((f) => [...f(p)]);
     const entries: ContextMenuEntry[] = [
       { label: t("project.actions.open"), onSelect: () => void openProject(p.id) },
       // base-131: plugin devices stay bypassed placeholders until "Load plugins".
@@ -249,6 +274,16 @@ function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(
         label: t("project.row.export"),
         onSelect: () => useExportProject.getState().show(p.id, p.name),
       },
+      ...(extra.length > 0
+        ? ([
+            "separator",
+            ...extra.map((a) => ({
+              label: a.label,
+              danger: a.danger,
+              onSelect: () => (a.confirm ? setConfirmAction({ id: p.id, action: a }) : void runRowAction(p, a)),
+            })),
+          ] as ContextMenuEntry[])
+        : []),
       "separator",
       { label: t("project.row.delete"), danger: true, onSelect: () => setConfirmDelete(p.id) },
     ];
@@ -275,6 +310,7 @@ function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(
           </span>
         )}
         <span className="eth-welcome__actions">
+          <DiscordLink variant="icon" />
           <Button
             size="sm"
             tone="accent"
@@ -289,6 +325,10 @@ function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(
             <Plus aria-hidden />
             {t("project.new_project")}
           </Button>
+          {/* Extensions' buttons (`@/ext` "project.welcomeActions"). */}
+          {welcomeActions.map((Action, i) => (
+            <Action key={i} busy={busy} ready={ready} onDone={onDone} />
+          ))}
           <IconButton size="sm" tone="ghost" label={t("common.close")} icon={<X />} onClick={onClose} />
         </span>
       </header>
@@ -378,6 +418,28 @@ function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(
                           }}
                         />
                       </form>
+                    ) : confirmAction?.id === p.id && confirmAction.action.confirm ? (
+                      <span className="eth-project-screen__confirm">
+                        <span className="eth-project-screen__name" title={confirmAction.action.confirm.title}>
+                          {confirmAction.action.confirm.text}
+                        </span>
+                        <Button size="sm" onClick={() => setConfirmAction(null)}>
+                          {t("project.actions.cancel")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="eth-project-screen__danger"
+                          disabled={busy}
+                          aria-label={confirmAction.action.confirm.buttonLabel}
+                          onClick={() => {
+                            const a = confirmAction.action;
+                            setConfirmAction(null);
+                            void runRowAction(p, a);
+                          }}
+                        >
+                          {confirmAction.action.confirm.button}
+                        </Button>
+                      </span>
                     ) : confirmDelete === p.id ? (
                       <span className="eth-project-screen__confirm">
                         <span className="eth-project-screen__name">

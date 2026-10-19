@@ -67,7 +67,7 @@ describe("MockTransport racks and modulation (racks-modulation)", () => {
     const delay = await insert(track, "Delay");
     const lfo = id();
     await send(cmd("Modulation", { type: "AddModulator", id: lfo, device: fx, kind: "Lfo", name: null }));
-    expect(project().modulators[lfo]?.name).toBe("LFO");
+    expect(project().modulators[lfo]?.name).toBe("lfo");
     // Out of the rack: rejected; on its own macros: rejected.
     await expect(
       send(cmd("Modulation", { type: "Map", id: id(), source: { type: "Modulator", modulator: lfo }, device: delay, param: 0, depth: 0.5 })),

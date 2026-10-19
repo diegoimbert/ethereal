@@ -92,8 +92,8 @@ describe("Browser v2 (indexed)", () => {
     expect(q).toMatchObject({ query: { text: "loop", sort: "Relevance", roots: [], kinds: ["Audio"] } });
     expect(screen.getByRole("combobox", { name: "sort" })).toHaveTextContent("relevance");
 
-    fireEvent.click(kindChip("MIDI"));
-    expect(kindChip("MIDI")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(kindChip("midi"));
+    expect(kindChip("midi")).toHaveAttribute("aria-pressed", "true");
     expect(await screen.findByText("no matches")).toBeInTheDocument();
     search("");
     await expand("Library", "MIDI");
@@ -177,12 +177,12 @@ describe("Browser v2 (indexed)", () => {
     const kick = await node("Kick.wav");
     fireEvent.click(kick);
     await waitFor(() => expect(browserCommands(spy)).toContainEqual({ type: "Preview", item: "library/Drums/Kick.wav", sync: true }));
-    expect(kick).toHaveAttribute("aria-pressed", "true");
+    expect(kick).toHaveClass("eth-browser__row--previewing");
     // ↓ moves to the next row and previews it; ← steps to the parent folder, ← again collapses it.
     fireEvent.keyDown(kick, { key: "ArrowDown" });
     const snare = await node("Snare.wav");
     await waitFor(() => expect(document.activeElement).toBe(snare));
-    await waitFor(() => expect(snare).toHaveAttribute("aria-pressed", "true"));
+    await waitFor(() => expect(snare).toHaveClass("eth-browser__row--previewing"));
     fireEvent.keyDown(snare, { key: "ArrowLeft" });
     const drums = await node("Drums");
     await waitFor(() => expect(document.activeElement).toBe(drums));

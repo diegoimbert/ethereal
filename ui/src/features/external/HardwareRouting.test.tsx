@@ -37,7 +37,7 @@ describe("routing helpers", () => {
 
   it("finds missing ports and what a measurement needs", () => {
     const r: ExternalRouting = { midi_out: "Gone", midi_channel: 1, audio_send: { first: 2, count: 2 }, audio_return: { first: 2, count: 2 } };
-    expect(missingParts(r, PORTS)).toEqual(["MIDI “Gone”", "audio return"]);
+    expect(missingParts(r, PORTS)).toEqual(["midi “Gone”", "audio return"]);
     expect(missingParts(r, null)).toEqual([]);
     expect(canMeasure("ExternalInstrument", { ...EMPTY, midi_out: "Synth A" })).toBe(false);
     expect(canMeasure("ExternalInstrument", { ...EMPTY, midi_out: "Synth A", audio_return: { first: 0, count: 1 } })).toBe(true);
@@ -95,8 +95,8 @@ async function pick(panel: HTMLElement, name: string, option: string) {
 describe("HardwareRoutingWidget", () => {
   it("routes an instrument to a MIDI port and channel and back from an input (undoable)", async () => {
     const panel = await render("ExternalInstrument");
-    await pick(panel, "MIDI output", "Mock Synth");
-    await pick(panel, "MIDI channel", "ch 10");
+    await pick(panel, "midi output", "Mock Synth");
+    await pick(panel, "midi channel", "ch 10");
     await pick(panel, "audio return", "In 3/4");
     expect(routing()).toEqual({ midi_out: "Mock Synth", midi_channel: 10, audio_send: null, audio_return: { first: 2, count: 2 } });
     // The mock has no hardware clock: measuring fails with a readable message.
@@ -116,7 +116,7 @@ describe("HardwareRoutingWidget", () => {
 
   it("sends an effect to outputs and marks ports this machine lacks", async () => {
     const panel = await render("ExternalAudioEffect");
-    expect(within(panel).queryByRole("combobox", { name: "MIDI output" })).toBeNull();
+    expect(within(panel).queryByRole("combobox", { name: "midi output" })).toBeNull();
     expect(within(panel).getByRole("button", { name: /measure/ })).toBeDisabled();
     await pick(panel, "audio send", "Out 3/4");
     expect(routing().audio_send).toEqual({ first: 2, count: 2 });

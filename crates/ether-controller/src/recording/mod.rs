@@ -1,4 +1,4 @@
-//! Controller-side recording (owned by the `recording` wave-3 node; see `docs/WAVE3.md`).
+//! Controller-side recording.
 //!
 //! - **Arm** (`RecordingCommand::Arm`): runtime state in `EtherController::armed`, not in
 //!   the document and not undoable; reported with `RecordingEvent::ArmChanged`. Arm state
@@ -454,7 +454,7 @@ fn unsupported_host(e: &BridgeError) -> bool {
     matches!(e, BridgeError::Unsupported(_))
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

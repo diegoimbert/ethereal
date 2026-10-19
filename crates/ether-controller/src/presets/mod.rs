@@ -1,4 +1,4 @@
-//! Device presets (v0.2, owned by the `presets` node; file format `ether_model::preset`,
+//! Device presets (v0.2, `presets`; file format `ether_model::preset`,
 //! protocol `ether_protocol::presets`, CONTRACTS.md §12.5).
 //!
 //! - **Factory** presets are embedded per built-in type (`ether_devices::factory_presets`,
@@ -82,6 +82,7 @@ fn preset_kind(kind: &BuiltinDevice) -> Option<BuiltinDevice> {
         BuiltinDevice::Sampler { .. }
             | BuiltinDevice::MultiSampler { .. }
             | BuiltinDevice::ConvolutionReverb { .. }
+            | BuiltinDevice::VolumeLfo { .. }
     )
     .then(|| kind.clone())
 }
@@ -137,7 +138,7 @@ fn no_presets(d: &Device) -> ether_core::protocol::CommandError {
     )
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

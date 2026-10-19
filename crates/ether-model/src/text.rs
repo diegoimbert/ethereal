@@ -54,6 +54,23 @@ impl From<usize> for TextArg {
     }
 }
 
+macro_rules! int_arg {
+    ($($t:ty),*) => {$(
+        impl From<$t> for TextArg {
+            fn from(n: $t) -> Self {
+                TextArg::Int(i64::from(n))
+            }
+        }
+    )*};
+}
+int_arg!(u8, u16, u32, i32);
+
+impl From<u64> for TextArg {
+    fn from(n: u64) -> Self {
+        TextArg::Int(i64::try_from(n).unwrap_or(i64::MAX))
+    }
+}
+
 impl From<String> for TextArg {
     fn from(s: String) -> Self {
         TextArg::Str(s)
@@ -70,6 +87,130 @@ impl From<TextKey> for TextArg {
     fn from(k: TextKey) -> Self {
         TextArg::Key(Box::new(k))
     }
+}
+
+/// Formats catalog `message` with `args`: the small ICU subset the engine's messages use,
+/// `{name}`, `{n, plural, one {…} other {# …}}` (and `=N`), `{x, select, a {…} other {…}}`.
+/// `nested` gives the text of an argument that is itself a message.
+pub fn format(
+    message: &str,
+    args: &BTreeMap<String, TextArg>,
+    nested: &dyn Fn(&TextKey) -> String,
+) -> String {
+    format_in(message, args, None, nested)
+}
+
+fn arg_text(arg: &TextArg, nested: &dyn Fn(&TextKey) -> String) -> String {
+    match arg {
+        TextArg::Int(n) => n.to_string(),
+        TextArg::Str(s) => s.clone(),
+        TextArg::Key(k) => nested(k),
+    }
+}
+
+/// The index just past the `}` closing the `{` at `open`.
+fn close_of(s: &str, open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (i, c) in s[open..].char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(open + i + 1);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// `sel {text} sel {text}` → `[(sel, text)]`.
+fn options(s: &str) -> Vec<(&str, &str)> {
+    let mut out = Vec::new();
+    let mut rest = s.trim_start();
+    while let Some(open) = rest.find('{') {
+        let selector = rest[..open].trim();
+        let Some(end) = close_of(rest, open) else {
+            break;
+        };
+        out.push((selector, &rest[open + 1..end - 1]));
+        rest = rest[end..].trim_start();
+    }
+    out
+}
+
+fn format_in(
+    message: &str,
+    args: &BTreeMap<String, TextArg>,
+    pound: Option<i64>,
+    nested: &dyn Fn(&TextKey) -> String,
+) -> String {
+    let mut out = String::new();
+    let mut i = 0;
+    while i < message.len() {
+        let c = message[i..].chars().next().expect("in bounds");
+        match c {
+            '{' => {
+                let Some(end) = close_of(message, i) else {
+                    out.push_str(&message[i..]);
+                    break;
+                };
+                let inner = &message[i + 1..end - 1];
+                let mut parts = inner.splitn(3, ',');
+                let name = parts.next().unwrap_or("").trim();
+                let kind = parts.next().map(str::trim);
+                let arg = args.get(name);
+                match (kind, parts.next()) {
+                    (Some("plural"), Some(opts)) => {
+                        let n = match arg {
+                            Some(TextArg::Int(n)) => *n,
+                            _ => 0,
+                        };
+                        let opts = options(opts);
+                        let exact = format!("={n}");
+                        let pick = opts
+                            .iter()
+                            .find(|(s, _)| *s == exact)
+                            .or_else(|| {
+                                opts.iter()
+                                    .find(|(s, _)| *s == if n == 1 { "one" } else { "other" })
+                            })
+                            .or_else(|| opts.iter().find(|(s, _)| *s == "other"));
+                        if let Some((_, text)) = pick {
+                            out.push_str(&format_in(text, args, Some(n), nested));
+                        }
+                    }
+                    (Some("select"), Some(opts)) => {
+                        let value = arg.map(|a| arg_text(a, nested)).unwrap_or_default();
+                        let opts = options(opts);
+                        let pick = opts
+                            .iter()
+                            .find(|(s, _)| *s == value)
+                            .or_else(|| opts.iter().find(|(s, _)| *s == "other"));
+                        if let Some((_, text)) = pick {
+                            out.push_str(&format_in(text, args, pound, nested));
+                        }
+                    }
+                    _ => out.push_str(
+                        &arg.map(|a| arg_text(a, nested))
+                            .unwrap_or_else(|| format!("{{{name}}}")),
+                    ),
+                }
+                i = end;
+            }
+            '#' if pound.is_some() => {
+                out.push_str(&pound.expect("checked").to_string());
+                i += 1;
+            }
+            c => {
+                out.push(c);
+                i += c.len_utf8();
+            }
+        }
+    }
+    out
 }
 
 #[cfg(test)]

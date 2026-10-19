@@ -13,6 +13,7 @@
 // is up (`pickerExpected`), it shows as soon as the app paints and waits for the engine
 // there (its actions are enabled once launch is done, `launching`); elsewhere it shows as
 // soon as launch has decided, before the launch draft is made.
+import { contributions } from "@/ext";
 import { useEffect } from "react";
 import { create } from "zustand";
 import type { ProjectId } from "@/generated";
@@ -77,7 +78,7 @@ export async function projectToReopen(transport: EngineTransport): Promise<Proje
  */
 export function pickerExpected(transport: EngineTransport): boolean {
   if (transport.kind !== "wasm" || useProjectStore.getState().project) return false;
-  if (urlProjectId(transport)) return false;
+  if (urlProjectId(transport) || launchHeld()) return false;
   if (useLaunchPrefs.getState().reopenLast && read(LAST_PROJECT_KEY)) return false;
   return !webSessionLeftOpen();
 }
@@ -143,7 +144,8 @@ async function launchInner(transport: EngineTransport): Promise<void> {
 }
 
 /**
- * The launch draft behind the project picker. Returns whether the picker was shown.
+ * The launch draft behind the project picker. The picker isn't shown while an extension
+ * holds it (`launchHeld`: e.g. a join screen takes its place). Returns whether it was shown.
  */
 async function launchPicker(transport: EngineTransport): Promise<boolean> {
   if (useProjectStore.getState().project) {
@@ -156,7 +158,10 @@ async function launchPicker(transport: EngineTransport): Promise<boolean> {
   };
   // The picker first, then the draft behind it; after a crash the crash dialog's question
   // (asked meanwhile) goes first: the picker waits for the draft, as before.
-  if (
+  // Held (`launchHeld`): no picker, but the draft is still made (dismissing the other screen
+  // lands in it).
+  if (launchHeld()) hideEarlyPicker();
+  else if (
     await previousSession(transport).then(
       (s) => s.clean,
       () => false,
@@ -170,8 +175,18 @@ async function launchPicker(transport: EngineTransport): Promise<boolean> {
   } catch (e) {
     console.warn("Ethereal: creating the launch draft failed", e);
   }
+  // Another screen took its place meanwhile (an extension's, `launchHeld`).
+  if (launchHeld()) {
+    hideEarlyPicker();
+    return false;
+  }
   show();
   return true;
+}
+
+/** An extension shows another screen instead of the picker now (`@/ext` "project.launchHeld"). */
+function launchHeld(): boolean {
+  return contributions("project.launchHeld").some((held) => held());
 }
 
 /** Launch opened something else after all: the picker it showed (still on its home) goes. */

@@ -1,4 +1,4 @@
-//! Project and track templates (v0.3, owned by the `templates` node; file format
+//! Project and track templates (v0.3, `templates`; file format
 //! `ether_model::template`, protocol `ether_protocol::templates`; CONTRACTS.md §13.10).
 //!
 //! - **Library** ([`files`]): user templates are files under `<user root>/Templates/`
@@ -149,7 +149,7 @@ fn kind_of(template: &Template) -> TemplateKind {
     files::body_kind(&template.body)
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

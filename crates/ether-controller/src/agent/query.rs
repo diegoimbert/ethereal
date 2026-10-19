@@ -32,7 +32,7 @@ fn candidates_json(c: &[Match], max: usize) -> Value {
     json!(c.iter().take(max).map(Match::to_json).collect::<Vec<_>>())
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,
@@ -42,9 +42,9 @@ where
     pub(super) fn agent_salience(&self) -> Salience {
         let mut sel = Vec::new();
         if let Some(s) = &self.agent.selection {
-            sel.extend(s.selected_tracks.iter().map(ToString::to_string));
-            sel.extend(s.selected_clips.iter().map(ToString::to_string));
-            sel.extend(s.selected_devices.iter().map(ToString::to_string));
+            sel.extend(s.tracks.iter().map(ToString::to_string));
+            sel.extend(s.clips.iter().map(ToString::to_string));
+            sel.extend(s.devices.iter().map(ToString::to_string));
             if let Some(c) = s.editing_clip {
                 sel.push(c.to_string());
             }

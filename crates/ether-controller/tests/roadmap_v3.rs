@@ -157,6 +157,7 @@ fn fx_modulation_devices_insert_with_layouts() {
         BuiltinDeviceType::Phaser,
         BuiltinDeviceType::Flanger,
         BuiltinDeviceType::Tremolo,
+        BuiltinDeviceType::Vibrato,
     ];
     group_inserts_and_compiles(&types);
     let mut h = Harness::with_project();
@@ -183,7 +184,7 @@ fn fx_modulation_devices_insert_with_layouts() {
     h.tick();
     let graph = h.ctl.bridge.last_graph();
     let track = graph.tracks.iter().find(|x| x.id == t).unwrap();
-    assert_eq!(track.chain.len(), 4);
+    assert_eq!(track.chain.len(), 5);
 }
 
 fn descriptor_type(h: &Harness, d: DeviceId) -> BuiltinDeviceType {

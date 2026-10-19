@@ -433,6 +433,25 @@ impl EngineBridge for NativeBridge {
                 .map_err(engine_err)?;
             return Ok(true);
         }
+        // A Volume LFO's drawn curve (`fx-modulation`): a fixed-size copy, swapped in.
+        if let BuiltinDevice::VolumeLfo { .. } = kind {
+            let Some(entry) = self.devices.get(&device) else {
+                return Ok(false);
+            };
+            if !matches!(
+                entry.kind,
+                DeviceKind::Builtin(BuiltinDeviceType::VolumeLfo)
+            ) {
+                return Ok(false);
+            }
+            let Some(data) = ether_devices::fx_modulation::volume_lfo_curve(kind) else {
+                return Ok(false);
+            };
+            self.handle
+                .set_node_data(entry.key, data)
+                .map_err(engine_err)?;
+            return Ok(true);
+        }
         // v0.3 (`fx-space`): a new IR, read and partitioned here (off the audio thread);
         // the node crossfades to it.
         if let BuiltinDevice::ConvolutionReverb { .. } = kind {
@@ -992,9 +1011,13 @@ impl Drop for NativeBridge {
     }
 }
 
-/// Native [`HostServices`]: wall clock and OS entropy.
-#[derive(Debug, Default, Clone, Copy)]
-pub struct NativeServices;
+/// Native [`HostServices`]: wall clock, OS entropy and (feature `net`) the sample pack's
+/// downloads (`samples_http`).
+#[derive(Debug, Default, Clone)]
+pub struct NativeServices {
+    #[cfg(feature = "net")]
+    http: crate::samples_http::Http,
+}
 
 impl HostServices for NativeServices {
     fn now_ms(&self) -> u64 {
@@ -1005,6 +1028,20 @@ impl HostServices for NativeServices {
 
     fn random_seed(&mut self) -> u64 {
         getrandom::u64().unwrap_or_else(|_| self.now_ms() ^ u64::from(std::process::id()) << 32)
+    }
+
+    fn samples_url(&self) -> Option<String> {
+        std::env::var("ETHER_SAMPLES_URL").ok()
+    }
+
+    #[cfg(feature = "net")]
+    fn http_get(&mut self, id: u64, url: &str, max_bytes: u64) -> Result<(), String> {
+        self.http.get(id, url, max_bytes)
+    }
+
+    #[cfg(feature = "net")]
+    fn poll_http(&mut self, out: &mut Vec<ether_controller::HttpEvent>) {
+        self.http.poll(out);
     }
 }
 
@@ -1845,8 +1882,12 @@ mod tests {
             fake::instantiate(),
             shared.clone(),
         );
-        let mut ctl =
-            EtherController::new(b, NativeServices, MemoryStore::new(), MemoryLibrary::new());
+        let mut ctl = EtherController::new(
+            b,
+            NativeServices::default(),
+            MemoryStore::new(),
+            MemoryLibrary::new(),
+        );
         let mut n = 0;
         let mut send = |ctl: &mut EtherController<_, _, _, _>, command: Command| {
             n += 1;
@@ -1917,7 +1958,7 @@ mod tests {
         let mut result = None;
         while result.is_none() && std::time::Instant::now() < deadline {
             let mut out = Vec::new();
-            ctl.tick(NativeServices.now_ms(), &mut out);
+            ctl.tick(NativeServices::default().now_ms(), &mut out);
             for m in out {
                 if let ServerMessage::Event(Event::External { event }) = m {
                     result = Some(event);

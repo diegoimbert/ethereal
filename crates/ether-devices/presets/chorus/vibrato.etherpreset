@@ -15,7 +15,7 @@
         "lofi"
       ],
       "author": "ethereal",
-      "description": "wet-only pitch vibrato at 5.5 Hz."
+      "description": "wet-only pitch vibrato at 5.5 hz."
     },
     "params": {
       "0": 2.0,

@@ -9,7 +9,7 @@ covers:
   - mobile/turning-on-the-mobile-beta #turning-on-the-mobile-beta
   - mobile/the-mobile-layout #the-layout
   - mobile/what-s-missing-on-mobile #what-still-needs-a-computer
-  - mobile/projects-sharing-and-settings-on-a-phone #projects-sharing-and-settings
+  - mobile/projects-sharing-and-settings-on-a-phone #projects-and-settings
   - mobile/leaving-the-app-stops-playback #leaving-the-app-stops-playback
   - mobile/rotating-keeps-your-place #rotating-the-phone
 ---
@@ -31,7 +31,7 @@ Pour décider, Ethereal regarde l’appareil, pas la taille de la fenêtre :
 - Une tablette avec un clavier et un pavé tactile (un iPad avec un Magic Keyboard, par exemple) a l’éditeur de bureau normal.
 - Les ordinateurs portables à écran tactile ont l’éditeur de bureau.
 
-Deux types de liens fonctionnent toujours sur un téléphone, avec ou sans la bêta : les [liens de partage statiques](/docs/sharing/static-links) (`/s/…`), qui ouvrent la [visionneuse de partage](/docs/sharing/share-viewer) en lecture seule, et cette documentation.
+Cette documentation fonctionne toujours sur un téléphone, avec ou sans la bêta.
 
 ## activer la bêta mobile {#turning-on-the-mobile-beta}
 
@@ -50,7 +50,7 @@ La bêta utilise le même arrangement que sur ordinateur, disposé pour le pouce
 
 ![La bêta mobile sur un téléphone : la barre du haut, l’arrangement avec des clips, et le transport en bas](images/phone.jpg "La bêta mobile sur un téléphone.")
 
-- **La barre du haut** : le menu du projet (touchez le nom du projet ; il contient aussi **exporter l’audio…**), **annuler** et **rétablir**, **partager** et le bouton des réglages.
+- **La barre du haut** : le menu du projet (touchez le nom du projet ; il contient aussi **exporter l’audio…**), **annuler** et **rétablir**, et le bouton des réglages.
 - **L’arrangement** : les pistes et leurs clips. Sur un téléphone, chaque en-tête de piste affiche le nom puis **muet**, **solo** et **armer** en taille tactile. Le volume, le panoramique, les prises et l’automation sont dans la [fiche de piste](/docs/mobile/gestures#the-track-sheet).
 - **La ligne d’état** : la position, le tempo et la signature rythmique, et le bouton **suivre la tête de lecture**.
 - **Le transport** en bas : **arrêter**, **lecture** / **pause**, **enregistrer**, **boucle**, **métronome**, et un bouton qui bascule entre les pistes et le [mixeur](/docs/mobile/editing-on-touch#the-mixer).
@@ -69,17 +69,13 @@ La bêta sert à arranger et modifier ce qui est déjà dans un projet. Ces chos
 - **Les fonctions clavier** : pas de palette de commandes, de raccourcis clavier ni de clavier MIDI d’ordinateur.
 - L’**assignation MIDI**, les visites guidées et l’assistant IA.
 
-Pour signaler un problème depuis votre téléphone, utilisez **signaler un problème…** dans le menu du projet (il n’y a pas de barre d’état sur mobile).
+## projets et réglages {#projects-and-settings}
 
-## projets, partage et réglages {#projects-sharing-and-settings}
-
-L’écran des projets, le menu du projet, le partage et les réglages fonctionnent tous sur un téléphone :
+L’écran des projets, le menu du projet et les réglages fonctionnent tous sur un téléphone :
 
 - Les fenêtres comme les réglages s’ouvrent en plein écran, et leurs boutons sont à taille tactile.
 - Sur l’écran des projets, les boutons **renommer**, **dupliquer** et **supprimer** de chaque projet sont toujours affichés (il n’y a pas de survol sur un écran tactile).
 - L’adresse du projet est conservée dans la barre d’adresse, donc recharger la page rouvre le même projet.
-- **partager** fonctionne comme sur un ordinateur. Voir [partager votre musique](/docs/sharing/overview).
-- Un lien d’invitation à une session en direct affiche d’abord l’écran « pas disponible » sur un téléphone. Touchez-y **essayer la bêta mobile** (ou ouvrez le lien dans un onglet où la bêta est déjà activée) : l’écran pour rejoindre apparaît, et **continuer dans le navigateur** rejoint la session dans la version tactile. Voir [rejoindre une session](/docs/sharing/joining).
 
 ## quitter l’application arrête la lecture {#leaving-the-app-stops-playback}
 

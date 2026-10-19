@@ -4,12 +4,19 @@ name: CI
 # The full product (OSS + ee/) is built on the private side, which reports back to OSS PRs as
 # the `ee/build` and `ee/pointer` commit statuses (docs/EE-WORKFLOW.md).
 #
-# Everything runs on GitHub-hosted runners (never self-hosted: a fork's pull request runs its
-# own code here), with no secret, so every job gates pull requests from forks too.
+# Runners (docs/CI-RUNNERS.md): the Linux build and test jobs of trusted runs (pushes to `main`,
+# manual runs; never a bot) go to the devbox runner pool when the repository variable CI_POOL is
+# `devbox`; everything else (pull requests, macOS, Windows) runs on GitHub-hosted runners. No job
+# has a secret.
 #
 # Supply chain: every action is pinned to a full commit SHA (the comment names its release);
 # Dependabot (.github/dependabot.yml) proposes the bumps. The Rust toolchain is pinned in
 # rust-toolchain.toml, tools installed by taiki-e/install-action are pinned to exact versions.
+#
+# What runs when: pull requests run the cheap checks only (`What changed` and `Policy`; the CLA
+# check and `ee/pointer` come from elsewhere). Builds and tests run on `main` and manual runs,
+# every platform. A failure there is fixed forward: the `main is red` job opens (or comments on)
+# an issue labelled `ci-main`, and the fix lands as a follow-up pull request.
 #
 # Caches: the repository has 10 GB of Actions cache. Only `main` saves Rust caches (pull
 # requests restore them), so pull requests cannot evict `main`'s and every job starts warm.
@@ -20,14 +27,22 @@ on:
     # A pointer bump of the private submodule changes nothing this workflow builds.
     paths-ignore: [ee]
   workflow_dispatch:
+    inputs:
+      full:
+        description: "Builds and tests on every platform (false: the pull-request checks only)"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
-  # A new push to a pull request supersedes its last run; runs on `main` always finish (they
-  # save the caches every pull request starts from).
+  # A new push to a pull request supersedes its last run. Runs on `main` are not serialized as a
+  # whole: each build job is a lane of its own (the job-level `concurrency` below), so a quick
+  # Linux job tests the newest `main` while a slow Windows job of an older run finishes. A lane
+  # runs one job at a time, always to the end (it saves the caches pull requests start from), and
+  # only the newest waiting one: older waiting ones are dropped (reported as cancelled).
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -43,52 +58,61 @@ env:
 
 jobs:
   changes:
-    # A pull request that touches no Rust, packaging or CI file (UI, web, docs) skips the Rust and
-    # packaging jobs: they would rebuild the same thing, and macOS runners are scarce. `main`
-    # runs everything.
+    # Decides what this run builds. Pull requests: nothing (the build and test jobs report as
+    # skipped). `main` and manual runs: everything, on every platform.
     name: What changed
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      rust: ${{ steps.diff.outputs.rust }}
+      full: ${{ steps.what.outputs.full }}
+      linux: ${{ steps.what.outputs.linux }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - id: diff
+      - id: what
+        # The pool runs trusted jobs only; its runners refuse anything else anyway
+        # (scripts/ci/runner/trust.mjs mirrors these rules).
         env:
           EVENT: ${{ github.event_name }}
-          BASE: ${{ github.event.pull_request.base.sha }}
+          POOL: ${{ vars.CI_POOL }}
+          ACTOR: ${{ github.actor }}
+          # Manual runs: the `full` input (the Dependabot notices workflow dispatches the cheap
+          # checks only).
+          FULL_INPUT: ${{ inputs.full }}
         run: |
-          rust=true
-          if [ "$EVENT" = pull_request ]; then
-            git fetch --no-tags --depth=1 origin "$BASE"
-            git diff --name-only FETCH_HEAD HEAD > "$RUNNER_TEMP/changed.txt"
-            grep -qE '^(crates/|apps/desktop/|ui/src/generated/|third-party/|\.cargo/|\.config/|\.github/|scripts/(build-sandbox-helper\.mjs|release/)|Cargo\.(toml|lock)$|rust-toolchain\.toml$|deny\.toml$|package\.json$|pnpm-lock\.yaml$)' "$RUNNER_TEMP/changed.txt" || rust=false
-          fi
-          echo "rust=$rust" >> "$GITHUB_OUTPUT"
-          echo "Rust and packaging jobs: $rust"
+          full=true
+          [ "$EVENT" = pull_request ] && full=false
+          [ "$EVENT" = workflow_dispatch ] && [ "$FULL_INPUT" = false ] && full=false
+          linux='"ubuntu-latest"'
+          case "$ACTOR" in *'[bot]') ;; *)
+            if [ "$POOL" = devbox ] && [ "$EVENT" != pull_request ]; then linux='["self-hosted","devbox-pool"]'; fi ;;
+          esac
+          { echo "full=$full"; echo "linux=$linux"; } >> "$GITHUB_OUTPUT"
+          echo "Builds and tests: $full. Linux jobs run on: $linux"
 
   # --- Rust ---------------------------------------------------------------------------------
 
   rust-linux:
     name: Rust (Linux)
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
-    runs-on: ubuntu-latest
+    if: needs.changes.outputs.full == 'true'
+    runs-on: ${{ fromJSON(needs.changes.outputs.linux) }}
     timeout-minutes: 60
+    concurrency:
+      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-rust-linux
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: ./.github/actions/free-disk
+        if: runner.environment == 'github-hosted'
       - name: Linux system deps (Tauri, ALSA)
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libssl-dev pkg-config
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: runner.environment == 'github-hosted'
         with:
           key: linux
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -107,6 +131,11 @@ jobs:
         run: >-
           cargo nextest run --profile ci --workspace --all-features
           -E 'not (test(=appended_params_keep_the_default_sound) | test(=patches_from_before_render_as_before))'
+      - name: Sweep stale test binaries (self-hosted target dir)
+        if: ${{ !cancelled() && runner.environment != 'github-hosted' }}
+        continue-on-error: true
+        timeout-minutes: 5
+        run: node scripts/ci/sweep-test-binaries.mjs -- --workspace --all-features
       - name: doctests
         run: cargo test --workspace --all-features --doc
       - name: wasm32 check
@@ -128,17 +157,21 @@ jobs:
     # macOS runners are the scarcest (5 at a time per account), so this job stays lean.
     name: Rust (macOS)
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
+    if: needs.changes.outputs.full == 'true'
     runs-on: macos-latest
     timeout-minutes: 60
+    concurrency:
+      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-rust-macos
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: ./.github/actions/free-disk
+        if: runner.environment == 'github-hosted'
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: runner.environment == 'github-hosted'
         with:
           key: macos
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -149,28 +182,30 @@ jobs:
       - name: clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: test
-        # dropping_without_deactivate_is_safe deadlocks on these runners (#45).
         run: >-
           cargo nextest run --profile ci --all-features
           -p ether-au -p ether-clap -p ether-vst3 -p ether-plugin-host -p ether-plugin-scanner
           -p ether-sandbox -p ether-native -p ether-server -p ether-mcp
           -p ether-core -p ether-devices -p ether-media -p ether-stretch
-          -E 'not test(=dropping_without_deactivate_is_safe)'
 
   rust-windows:
     name: Rust (Windows)
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
+    if: needs.changes.outputs.full == 'true'
     runs-on: windows-latest
     timeout-minutes: 75
+    concurrency:
+      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-rust-windows
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: ./.github/actions/free-disk
+        if: runner.environment == 'github-hosted'
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: runner.environment == 'github-hosted'
         with:
           key: windows
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -190,8 +225,12 @@ jobs:
 
   web:
     name: Web (tsc, eslint, prettier, vitest)
-    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
+    runs-on: ${{ fromJSON(needs.changes.outputs.linux) }}
     timeout-minutes: 20
+    concurrency:
+      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-web
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -200,7 +239,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
+          cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
       - run: pnpm install --frozen-lockfile
       - name: tsc
         run: pnpm -r typecheck
@@ -212,27 +251,33 @@ jobs:
         run: node scripts/check-case-clashes.mjs
       - name: vitest
         run: pnpm -r test
-      - name: release scripts
-        run: node --test scripts/release/*.test.mjs
+      - name: release and CI scripts
+        run: node --test scripts/release/*.test.mjs scripts/ci/*.test.mjs
 
   web-build:
     # The web build the e2e shards test (wasm engine + UI, `vite build`), the native server some
     # specs drive, the release's web zip, and the production bundle under the deployed
     # Content-Security-Policy (any violation fails, e2e/global-teardown.ts).
     name: Web build (wasm, dist, server) + CSP
-    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.full == 'true'
+    runs-on: ${{ fromJSON(needs.changes.outputs.linux) }}
     timeout-minutes: 40
+    concurrency:
+      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-web-build
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Linux system deps (ALSA)
+        if: runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y libasound2-dev pkg-config
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: runner.environment == 'github-hosted'
         with:
           key: web-build
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -247,7 +292,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
+          cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
       - run: pnpm install --frozen-lockfile
       - name: build ui + web
         run: |
@@ -260,7 +305,7 @@ jobs:
         run: |
           cargo build -p ether-server --bin ether-server --features full
           mkdir -p "$RUNNER_TEMP/e2e-bin"
-          cp target/debug/ether-server "$RUNNER_TEMP/e2e-bin/"
+          cp "${CARGO_TARGET_DIR:-target}/debug/ether-server" "$RUNNER_TEMP/e2e-bin/"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-web
@@ -278,7 +323,7 @@ jobs:
           if-no-files-found: error
       - name: Playwright browser
         working-directory: apps/web
-        run: npx playwright install --with-deps chromium-headless-shell
+        run: npx playwright install ${{ runner.environment == 'github-hosted' && '--with-deps' || '' }} chromium-headless-shell
       - name: CSP (production bundle under the deployed policy)
         working-directory: apps/web
         env:
@@ -298,10 +343,19 @@ jobs:
     # its retry is reported as flaky in the log (a bug to fix), without blocking the merge.
     # Left out: `@frames` (frame-time budgets) and `@pixels` (text rasterization against the
     # DOM), both calibrated on the devbox and not stable on shared runners.
+    #
+    # GitHub-hosted even when the pool is on: it builds nothing (the web build and the server
+    # come from `web-build`), so a warm cache gains it nothing, and its four ~10 min shards per
+    # run would hold the pool's few slots while the Rust and build jobs of `main` wait. The
+    # server binary may come from the pool (Debian 13, glibc 2.41): today it needs glibc 2.39,
+    # what ubuntu-latest (24.04) has; a "GLIBC_2.4x not found" here means it no longer fits.
     name: e2e (${{ matrix.shard }}/4)
-    needs: web-build
+    needs: [changes, web-build]
+    if: needs.changes.outputs.full == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    concurrency:
+      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-e2e-${{ strategy.job-index }}
     strategy:
       fail-fast: false
       matrix:
@@ -314,7 +368,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
+          cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
       - run: pnpm install --frozen-lockfile
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -326,7 +380,7 @@ jobs:
           path: ${{ runner.temp }}/e2e-bin
       - name: Playwright browser
         working-directory: apps/web
-        run: npx playwright install --with-deps chromium-headless-shell
+        run: npx playwright install ${{ runner.environment == 'github-hosted' && '--with-deps' || '' }} chromium-headless-shell
       - name: Playwright
         working-directory: apps/web
         env:
@@ -355,15 +409,17 @@ jobs:
     # codegen unit; here only the packaging is under test, so both are off to keep it fast.
     name: Package (${{ matrix.name }})
     needs: changes
-    if: needs.changes.outputs.rust == 'true'
-    runs-on: ${{ matrix.os }}
+    if: needs.changes.outputs.full == 'true'
+    runs-on: ${{ matrix.os == 'linux' && fromJSON(needs.changes.outputs.linux) || matrix.os }}
     timeout-minutes: 60
+    concurrency:
+      group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-package-${{ strategy.job-index }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: Linux deb
-            os: ubuntu-latest
+            os: linux
             target: x86_64-unknown-linux-gnu
             bundles: deb
           - name: Windows nsis
@@ -378,12 +434,13 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/free-disk
+        if: runner.environment == 'github-hosted'
       - name: Windows (aws-lc-sys without NASM)
         if: runner.os == 'Windows'
         shell: bash
         run: echo "AWS_LC_SYS_PREBUILT_NASM=1" >> "$GITHUB_ENV"
       - name: Linux system deps (Tauri, ALSA)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && runner.environment == 'github-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libasound2-dev libssl-dev libxdo-dev pkg-config
@@ -391,6 +448,7 @@ jobs:
         shell: bash
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        if: runner.environment == 'github-hosted'
         with:
           key: package-${{ matrix.target }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
@@ -399,7 +457,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
+          cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
       - run: pnpm install --frozen-lockfile
       - name: Release config overlay
         shell: bash
@@ -456,7 +514,7 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
+          cache: ${{ runner.environment == 'github-hosted' && 'pnpm' || '' }}
       - run: pnpm install --frozen-lockfile
       - name: Notices fresh
         run: |
@@ -488,3 +546,33 @@ jobs:
       - name: Advisories (pnpm audit, production dependencies)
         continue-on-error: ${{ steps.deps.outputs.gate != 'true' }}
         run: pnpm audit --prod --audit-level high
+
+  # --- main is red ---------------------------------------------------------------------------
+
+  main-red:
+    # Pull requests no longer run the cross-platform jobs, so `main` is where a macOS, Windows
+    # or packaging break shows up first: fix it forward. One open `ci-main` issue collects them.
+    name: main is red
+    needs: [changes, rust-linux, rust-macos, rust-windows, web, web-build, e2e, package, policy]
+    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          body="CI failed on \`main\` at $SHA: $RUN"
+          open=$(gh issue list --label ci-main --state open --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "$body"
+          else
+            gh label create ci-main --color B60205 --description "CI is red on main" 2>/dev/null || true
+            gh issue create --title "CI is red on main" --label ci-main --body "$body
+
+          Pull requests run Linux and the cheap checks only; the cross-platform jobs run on \`main\`. Fix forward, then close this issue."
+          fi

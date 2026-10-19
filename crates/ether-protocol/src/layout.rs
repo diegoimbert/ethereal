@@ -1,4 +1,4 @@
-//! Declarative device layouts (v0.2, frozen by contracts-3; renderer: `device-ui` node;
+//! Declarative device layouts (v0.2, frozen by contracts-3; renderer: `device-ui`;
 //! CONTRACTS.md §12.4.2).
 //!
 //! Every built-in device ships a [`DeviceLayout`] in its `DeviceDescriptor::layout` (written
@@ -15,7 +15,7 @@
 //! "all parameters" view. MIDI-learn targets, modulation drop targets and depth rings are
 //! added by the renderer on every param widget.
 //!
-//! The widget catalog is append-only: new widgets need a BCR (renderer + this enum).
+//! The widget catalog is append-only: a new widget is a protocol change (renderer + this enum).
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -163,7 +163,7 @@ pub enum Widget {
     /// crossovers. `spectrum` overlays `AnalysisData::Spectrum` frames (watched device).
     /// v0.2: the EQ only (8 bands). Other filters (auto filter, multiband crossovers) use
     /// `FilterCurve` / `Crossover` for now and may adopt it later with an explicit param
-    /// mapping (BCR).
+    /// mapping.
     EqCurve {
         bands: Vec<EqBandBinding>,
         crossovers: Vec<ParamId>,
@@ -232,6 +232,18 @@ pub enum Widget {
     FmAlgorithm {
         algorithm: ParamId,
         algorithms: Vec<FmRouting>,
+    },
+    // --- fx-modulation ---
+    /// Editor of a Volume LFO's drawn cycle (`BuiltinDevice::VolumeLfo::curve`, written with
+    /// `Device::SetLfoCurve`): breakpoints on a grid of the cycle's divisions and a playhead.
+    /// `sync` / `sync_rate` / `rate` set the grid and the playhead's speed, `phase` its
+    /// offset; `depth` scales the drawn gain.
+    LfoCurve {
+        sync: ParamId,
+        sync_rate: ParamId,
+        rate: ParamId,
+        phase: ParamId,
+        depth: ParamId,
     },
 }
 

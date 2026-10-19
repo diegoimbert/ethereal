@@ -14,7 +14,7 @@
  * | `export.ts`     | export          | `Export::*` (`MockExports`)                       |
  * | `remote.ts`     | remote-engine   | uploads (simulated)                               |
  *
- * v0.2 (contracts-3, docs/ROADMAP.md "v0.2"):
+ * v0.2 (contracts-3, CONTRACTS.md §12):
  *
  * | file                 | node              | commands                                  |
  * |----------------------|-------------------|-------------------------------------------|
@@ -28,7 +28,7 @@
  * | `mediaReferences.ts` | media-references  | `MediaRef::*`                             |
  * | `groupsBuses.ts`     | groups-buses      | `Track::{GroupSelected, Ungroup, SetVca}` |
  *
- * v0.3 (contracts-4, docs/ROADMAP.md "v0.3"):
+ * v0.3 (contracts-4, CONTRACTS.md §13):
  *
  * | file             | node                | commands                                              |
  * |------------------|---------------------|-------------------------------------------------------|
@@ -49,6 +49,7 @@
  * The core reducer / MockTransport call into these with one line per feature.
  */
 
+import { contributions } from "@/ext";
 import type { Command } from "@/generated";
 import type { ReducerContext } from "../documentReducer";
 import { markerCommand } from "./clipEditing";
@@ -89,7 +90,8 @@ export function isRoadmapDocumentCommand(command: Command): boolean {
     case "Template":
       return command.command.type === "Insert";
     default:
-      return false;
+      // An extension's document domain (`@/ext` "mock.docDomain").
+      return contributions("mock.docDomain").some((d) => d.domain === command.domain);
   }
 }
 
@@ -98,6 +100,11 @@ export function isRoadmapDocumentCommand(command: Command): boolean {
  * core device cascade (used when pads are removed).
  */
 export function reduceRoadmapCommand(ctx: ReducerContext, command: Command, deleteDevice: (id: string) => void): boolean {
+  const extension = contributions("mock.docDomain").find((d) => d.domain === command.domain);
+  if (extension) {
+    extension.apply(ctx, (command as { command: unknown }).command);
+    return true;
+  }
   switch (command.domain) {
     case "Tempo":
       tempoCommand(ctx, command.command);

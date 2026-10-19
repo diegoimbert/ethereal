@@ -1,4 +1,6 @@
 import "./arrangement.css";
+import { rulerMenuEntries, surfaceMenuEntries } from "@/ext/surfaces";
+import { useContributions } from "@/ext";
 import { AmbientBlobs, Button, openContextMenu, setDragCursor, useThemeColor } from "@/kit";
 import { useProjectScreen } from "@/features/project/screenStore";
 import { droppedFiles, hasOsFiles, importAudio, noteHover, openImportDialog, type DropPoint, type ImportSource } from "@/features/import";
@@ -148,6 +150,8 @@ function ConnectedArrangementView() {
 
   const rootRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Extensions' layers over the tracks (`@/ext` "arrangement.layer").
+  const layers = useContributions("arrangement.layer");
   const contentRef = useRef<HTMLDivElement>(null);
   useLaneAnimation(contentRef, rows, rowsRef);
   // The canvas reads its rows from `rowsRef`, but nothing else tells it they changed: folding
@@ -200,13 +204,20 @@ function ConnectedArrangementView() {
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       // keymap: `track.group` / `track.ungroup` (defaults Mod+G / Mod+Shift+G).
-      const action = firstMatch(["track.group", "track.ungroup"] as const, e);
-      const grouping = action === "track.ungroup" ? "ungroup" : action ? "group" : null;
-      if (!grouping || e.defaultPrevented || isTextEntry(e.target)) return;
+      // #870: `clip.consolidate` (Mod+J) too, when nothing has focus (a click elsewhere): else
+      // the browser takes Ctrl+J (Chrome opens its downloads). In the arrangement, its own
+      // key handler already ran it (and prevented the default).
+      const action = firstMatch(["track.group", "track.ungroup", "clip.consolidate"] as const, e);
+      if (!action || e.defaultPrevented || isTextEntry(e.target)) return;
       const active = document.activeElement;
       const root = rootRef.current;
       if (active && active !== document.body && !root?.contains(active)) return;
       e.preventDefault();
+      if (action === "clip.consolidate") {
+        void runClipAction(transport, "consolidate");
+        return;
+      }
+      const grouping = action === "track.ungroup" ? "ungroup" : "group";
       const ui = useArrangementUi.getState();
       const fallback = useSelectionStore.getState().selectedTrack;
       const selected = ui.selectedTracks.size > 0 ? [...ui.selectedTracks] : fallback ? [fallback] : [];
@@ -460,6 +471,7 @@ function ConnectedArrangementView() {
             view={view}
             grid={grid}
             className="eth-arr__ruler"
+            menuItems={rulerMenuEntries}
           />
         </div>
         <div className="eth-arr__scroll" ref={scrollRef} onPointerDownCapture={onTracksPointerDownCapture}>
@@ -488,6 +500,7 @@ function ConnectedArrangementView() {
                     shortcut: shortcutLabel("file.import"),
                     onSelect: () => void openImportDialog(transport),
                   },
+                  ...surfaceMenuEntries({ kind: "arranger" }, e),
                 ]);
               }
             }}
@@ -545,6 +558,10 @@ function ConnectedArrangementView() {
             </div>
           </div>
         )}
+        {/* Extensions' layers over the tracks (`@/ext` "arrangement.layer"). */}
+        {layers.map((Layer, i) => (
+          <Layer key={i} rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
+        ))}
         <HeaderColumnResizer />
         <TimeEditNotice />
         <UngroupConfirmDialog />

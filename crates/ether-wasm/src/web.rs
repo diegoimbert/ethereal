@@ -197,14 +197,26 @@ impl crate::media_stream::RangeFs for JsFs {
     }
 }
 
-/// Clock + entropy for the controller.
+/// #519: HTTP requests of the sample pack, run by the controller Worker's JS
+/// (`WasmController::take_http_requests` → `fetch` → `http_progress` / `http_done`).
+#[derive(Default)]
+pub struct HttpQueue {
+    requests: Vec<(u64, String, u64)>,
+    events: Vec<ether_controller::HttpEvent>,
+}
+
+/// Clock + entropy for the controller, and the sample pack's downloads.
 pub struct WebHost {
     state: u64,
+    http: std::rc::Rc<std::cell::RefCell<HttpQueue>>,
 }
 
 impl WebHost {
     pub fn new(seed: u64) -> Self {
-        Self { state: seed | 1 }
+        Self {
+            state: seed | 1,
+            http: Default::default(),
+        }
     }
 }
 
@@ -221,7 +233,31 @@ impl HostServices for WebHost {
         z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
         z ^ (z >> 31)
     }
+
+    fn http_get(&mut self, id: u64, url: &str, max_bytes: u64) -> Result<(), String> {
+        self.http
+            .borrow_mut()
+            .requests
+            .push((id, url.to_string(), max_bytes));
+        Ok(())
+    }
+
+    fn poll_http(&mut self, out: &mut Vec<ether_controller::HttpEvent>) {
+        out.append(&mut self.http.borrow_mut().events);
+    }
 }
+
+/// The web build's controller.
+pub type WebController =
+    EtherController<WebBridge<SabMemory>, WebHost, WebStore<JsFs>, WebLibrary<JsFs>>;
+
+/// Set up every web controller (its extensions, `EtherController::add_extension`;
+/// docs/EXTENSIONS.md). Call once, before the UI creates the controller.
+pub fn set_controller_setup(setup: fn(&mut WebController)) {
+    let _ = CONTROLLER_SETUP.set(setup);
+}
+
+static CONTROLLER_SETUP: std::sync::OnceLock<fn(&mut WebController)> = std::sync::OnceLock::new();
 
 /// Controller side (Web Worker).
 #[wasm_bindgen]
@@ -231,6 +267,7 @@ pub struct WasmController {
     reported_errors: usize,
     /// Reported as a notification with the first batch of messages.
     startup_warning: Option<String>,
+    http: std::rc::Rc<std::cell::RefCell<HttpQueue>>,
 }
 
 #[wasm_bindgen]
@@ -257,7 +294,8 @@ impl WasmController {
             .err()
             .map(|e| format!("Demo samples could not be written: {e}"));
         let host = WebHost::new(seed);
-        let controller: Box<dyn Controller> = Box::new(EtherController::with_config(
+        let http = host.http.clone();
+        let mut ctl: WebController = EtherController::with_config(
             bridge,
             host,
             WebStore::new(fs.clone()),
@@ -266,13 +304,58 @@ impl WasmController {
                 engine_sample_rate: sample_rate,
                 ..ControllerConfig::default()
             },
-        ));
+        );
+        if let Some(setup) = CONTROLLER_SETUP.get() {
+            setup(&mut ctl);
+        }
+        let controller: Box<dyn Controller> = Box::new(ctl);
         Ok(WasmController {
             controller,
             shared,
             reported_errors: 0,
             startup_warning,
+            http,
         })
+    }
+
+    /// #519: the HTTP GETs the controller asked for since the last call, as a JSON array of
+    /// `{id, url, max}`; the Worker runs each with `fetch` and answers with
+    /// [`Self::http_progress`] and [`Self::http_done`].
+    pub fn take_http_requests(&mut self) -> String {
+        let requests = std::mem::take(&mut self.http.borrow_mut().requests);
+        let list: Vec<serde_json::Value> = requests
+            .into_iter()
+            .map(|(id, url, max)| serde_json::json!({ "id": id, "url": url, "max": max }))
+            .collect();
+        serde_json::Value::Array(list).to_string()
+    }
+
+    /// #519: body bytes received so far for request `id` (`total` < 0: unknown).
+    pub fn http_progress(&mut self, id: f64, received: f64, total: f64) {
+        self.http
+            .borrow_mut()
+            .events
+            .push(ether_controller::HttpEvent::Progress {
+                id: id as u64,
+                received: received as u64,
+                total: (total >= 0.0).then_some(total as u64),
+            });
+    }
+
+    /// #519: request `id` finished: an HTTP `status` and `body`, or (`error` set) a network
+    /// failure.
+    pub fn http_done(&mut self, id: f64, status: u16, body: &[u8], error: Option<String>) {
+        let result = match error {
+            Some(e) => Err(e),
+            None => Ok((status, body.to_vec())),
+        };
+        self.http
+            .borrow_mut()
+            .events
+            .push(ether_controller::HttpEvent::Done {
+                id: id as u64,
+                result,
+            });
     }
 
     /// Handle one JSON `ClientMessage`; returns a JSON array of `ServerMessage`s (patches

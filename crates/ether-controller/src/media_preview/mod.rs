@@ -1,5 +1,4 @@
-//! Browser sample preview (owned by the `media-preview` node; see `docs/ROADMAP.md` and
-//! CONTRACTS.md §11.15).
+//! Browser sample preview (CONTRACTS.md §11.15).
 //!
 //! `Media::Preview { source }` resolves the source (a library file, a file in the project's
 //! `media/` folder, or project media), reads its bytes and probes the header in `handle`
@@ -186,7 +185,7 @@ fn advance(mut job: Job, budget: usize, rate: u32) -> Result<Progress, MediaErro
     Ok(Progress::Pending(job))
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

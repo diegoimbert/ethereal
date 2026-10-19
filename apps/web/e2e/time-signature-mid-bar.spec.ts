@@ -3,9 +3,9 @@
 //
 // The arrangement ruler's context menu adds a change mid bar 1 (beat 3, snapped to a beat);
 // its chip's menu (in the marker lane) makes it 7/8 → the ruler numbers a partial bar 1 (3
-// beats), bar 2 from the change and bar 3 one 7/8 bar later; Alt + right-click places a
-// change off the beat grid; undo restores the numbering. (The Tempo tab, where this was
-// done before, is gone: d5d2e4f9 / e6d68591.)
+// beats), bar 2 from the change and bar 3 one 7/8 bar later; dragging the chip snaps to the
+// grid (Alt: free); Alt + right-click places a change off the beat grid; undo restores the
+// numbering. (The Tempo tab, where this was done before, is gone: d5d2e4f9 / e6d68591.)
 //
 // `TIME_SIG_SHOTS=<dir>` also writes PR screenshots there. No sleeps: every step waits on
 // UI or engine state (the mirror is read through `window.__ether`).
@@ -91,6 +91,35 @@ test("time signature change mid-bar: partial bar, ruler numbering, Alt places fr
   await expect(marker).toBeVisible();
   expect(Math.abs((await marker.boundingBox())!.x - (await barLabels(ruler)).get("2")!)).toBeLessThan(6);
   if (shots) await page.screenshot({ path: `${shots}/01-mid-bar-7-8.png` });
+
+  // --- Drag the chip: on the arrangement grid by default, free with Alt -------------------
+  // The grid applies in the meter before the change (4/4 from beat 0): the default adaptive
+  // grid is a beat or finer, so the change lands on a beat subdivision, never in between.
+  const dragChip = async (beats: number, alt = false) => {
+    const box = (await marker.boundingBox())!;
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    if (alt) await page.keyboard.down("Alt");
+    for (let i = 1; i <= 4; i++) await page.mouse.move(x + (beats * pxPerBeat * i) / 4, y);
+    await page.mouse.up();
+    if (alt) await page.keyboard.up("Alt");
+  };
+  await dragChip(1.37);
+  await expect.poll(async () => (await doc(page)).time_signatures[mid.id]!.time).toBeGreaterThan(3.9);
+  const snapped = (await doc(page)).time_signatures[mid.id]!.time;
+  expect(snapped).toBeLessThan(4.6);
+  expect(Math.abs(snapped * 4 - Math.round(snapped * 4))).toBeLessThan(1e-6); // on the grid
+  await dragChip(0.13, true);
+  await expect.poll(async () => (await doc(page)).time_signatures[mid.id]!.time).not.toBe(snapped);
+  const dragged = (await doc(page)).time_signatures[mid.id]!.time;
+  expect(Math.abs(dragged * 4 - Math.round(dragged * 4))).toBeGreaterThan(0.01); // off the grid
+  // Back to beat 3 (undo both drags) for the rest of the spec.
+  for (const want of [snapped, 3]) {
+    await page.getByRole("button", { name: "undo" }).click();
+    await expect.poll(async () => (await doc(page)).time_signatures[mid.id]!.time).toBe(want);
+  }
 
   // --- Alt + right-click: no snapping (a change off the beat grid) ------------------------
   await addSignatureAt(9.3, ["Alt"]);

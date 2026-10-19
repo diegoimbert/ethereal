@@ -8,13 +8,15 @@ import { TransportContext } from "@/transport";
 import { bindTransport, targetTrack, toggleKeyboardMidi, TOGGLE_ACTION, useKeyboardMidi } from "./keyboard";
 import { noteName, octaveBase } from "./notes";
 import { useT } from "@/i18n";
+import { KeyboardMidiPopover } from "./KeyboardMidiPopover";
 
 /** The keys named in the tooltip (key caps, not translated). */
 const KEYS = { keys: "A–;", octave: "Z/X", vel: "C/V" }; // i18n-ignore
 
 /**
  * Transport-bar toggle of the computer MIDI keyboard, with its indicator while on: the
- * lowest note (octave, Z/X) and the velocity (C/V). Lit while notes are held. Binds the
+ * lowest note (octave, Z/X) and the velocity (C/V), a button opening a popover to set both
+ * (`KeyboardMidiPopover`). Lit while notes are held. Binds the
  * app's transport for the key handler (`keyboard.ts`).
  */
 export function KeyboardMidiButton({ className }: { className?: string }) {
@@ -50,23 +52,7 @@ export function KeyboardMidiButton({ className }: { className?: string }) {
       >
         <Piano aria-hidden />
       </Button>
-      {enabled && (
-        <output
-          className="eth-kbmidi__status"
-          data-testid="keyboard-midi-status"
-          data-playing={playing || undefined}
-          aria-label={t("keyboard_midi.status", { low, velocity })}
-          title={title}
-        >
-          <span className="eth-kbmidi__octave eth-user-text">{low}</span>
-          <span className="eth-kbmidi__velocity">
-            <span className="eth-kbmidi__unit" aria-hidden>
-              {t("keyboard_midi.vel")}
-            </span>
-            {velocity}
-          </span>
-        </output>
-      )}
+      {enabled && <KeyboardMidiPopover low={low} velocity={velocity} playing={playing} />}
     </span>
   );
 }

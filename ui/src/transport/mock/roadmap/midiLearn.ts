@@ -142,7 +142,7 @@ export class MockMidiLearn {
       const stale = Object.values(host.project().midi_mappings)
         .filter((m) => JSON.stringify(m.target) === key)
         .map((m) => m.id);
-      host.applyDocument([...(stale.length ? [cmd("MidiMap", { type: "Unmap", ids: stale })] : []), cmd("MidiMap", { type: "Map", mapping })], "MIDI learn");
+      host.applyDocument([...(stale.length ? [cmd("MidiMap", { type: "Unmap", ids: stale })] : []), cmd("MidiMap", { type: "Map", mapping })], "midi learn");
       this.learnTarget = null;
       host.emit({ type: "MidiMap", event: { type: "Learned", mapping: mapping.id } });
       host.emit({ type: "MidiMap", event: { type: "LearnChanged", target: null } });

@@ -1,4 +1,4 @@
-import { useEffect, useState, type DragEvent } from "react";
+import { useEffect, useState, type DragEvent, type PointerEvent } from "react";
 import { duration } from "@/theme/tokens";
 import { MOTION } from "@/timeline/motion";
 import { IconButton, Popover, Select } from "@/kit";
@@ -18,6 +18,7 @@ import { DeviceLibrary } from "./DeviceLibrary";
 import { DeviceView } from "./DeviceView";
 import { useSend } from "./gesture";
 import { useSelectedTrack } from "./selectedTrack";
+import { pasteChainAttr, useDeviceClipboard, useDeviceClipboardKeys, type PasteChain } from "./deviceClipboard";
 import "./devices.css";
 
 function TrackPicker({ track }: { track: Track }) {
@@ -73,9 +74,16 @@ function AddSectionDevice({
   accept,
   onAdd,
   autoOpen = false,
+  drop,
 }: {
   category: DeviceDescriptor["category"];
   card?: boolean;
+  /**
+   * The card as a drop target for a dragged device: it lands at the end of the section (right
+   * after its last device), and the insert line shows in the gap above the card, between the
+   * last device and the card, like the line before any other card.
+   */
+  drop?: { active: boolean; onDragOver(e: DragEvent): void; onDragLeave(): void; onDrop(e: DragEvent): void };
   accept?(payload: LibraryDevicePayload): boolean;
   onAdd(payload: LibraryDevicePayload): void;
   /** Open the library on mount (after the surrounding fold's opening animation). */
@@ -101,7 +109,16 @@ function AddSectionDevice({
       trigger={(p) =>
         card ? (
           // The section's last "device": a placeholder card that adds one.
-          <button type="button" className="eth-devices__add-card" aria-label={addLabel} {...p}>
+          <button
+            type="button"
+            className="eth-devices__add-card"
+            aria-label={addLabel}
+            onDragOver={drop?.onDragOver}
+            onDragLeave={drop?.onDragLeave}
+            onDrop={drop?.onDrop}
+            {...p}
+          >
+            {drop?.active && <span className="eth-device__insert" aria-hidden data-testid="device-insert" />}
             <Plus aria-hidden />
             {addLabel}
           </button>
@@ -146,6 +163,11 @@ export interface ChainSectionsProps {
   autoOpenAdd?: DeviceCategory | null;
   /** No section headers (label and "+"): a chain of one kind of device (an effect rack's). */
   hideHeads?: boolean;
+  /**
+   * The chain, for ⌘V with no device selected (deviceClipboard.ts): a click on its empty space
+   * clears the selection and focuses it, and a paste then appends at its end.
+   */
+  pasteChain?: PasteChain;
 }
 
 /**
@@ -164,13 +186,29 @@ export function ChainSections({
   onRemove,
   autoOpenAdd = null,
   hideHeads = false,
+  pasteChain,
 }: ChainSectionsProps) {
   const stack = layout === "stack";
   const t = useT();
   const builtins = useBuiltinTypes();
   const plugins = usePluginStore((s) => s.plugins);
   const [endDrop, setEndDrop] = useState(false);
+  /** The section whose add card a dragged device is over (it lands at the section's end). */
+  const [cardDrop, setCardDrop] = useState<DeviceCategory | null>(null);
+  const readOnly = useReadOnly();
   const categoryOf = (d: Device) => deviceCategory(d, builtins, plugins);
+  const transport = useTransport();
+  // Bound here too, so an empty chain takes a paste.
+  useDeviceClipboardKeys(transport, categoryOf);
+  // A click on the chain's own space (not a card, not a control): no device selected and the
+  // chain focused, so ⌘V appends at its end.
+  const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    const el = e.target as HTMLElement;
+    if (!pasteChain || e.button !== 0 || el.closest("[data-paste-chain]") !== e.currentTarget) return;
+    if (el.closest(".eth-device, button, input, select, textarea, a, [role='button'], [contenteditable='true']")) return;
+    useDeviceClipboard.getState().select(null);
+    e.currentTarget.focus({ preventScroll: true });
+  };
   // Moves stay inside the device's section (the engine's chain rule): before a device of the
   // same section, or right after the section's last one. A device of another chain goes anywhere.
   const canMove = (id: DeviceId | null, before: DeviceId | null) => {
@@ -194,6 +232,35 @@ export function ChainSections({
     devices: devices.filter((d) => categoryOf(d) === s.id),
   }));
 
+  // Stacked, a section ends with its add card (none for the instrument while there is one, none
+  // for a viewer): the end of the section is between its last device and that card.
+  const hasCard = (s: (typeof sections)[number]) => stack && !readOnly && (s.id !== "Instrument" || s.devices.length === 0);
+  /** Where a device dropped at a section's end lands: before the next section's first device. */
+  const sectionEnd = (category: DeviceCategory): DeviceId | null => {
+    const later = CHAIN_SECTIONS.slice(CHAIN_SECTIONS.findIndex((c) => c.id === category) + 1).map((c) => c.id);
+    return devices.find((d) => later.includes(categoryOf(d)))?.id ?? null;
+  };
+  // The chain's end zone (below everything) is the last section's end: with an add card there,
+  // its line shows above that card, not below it.
+  const last = sections.at(-1);
+  const lastCard = last && hasCard(last) ? last.id : null;
+  const cardDropProps = (category: DeviceCategory) => ({
+    active: cardDrop === category || (endDrop && category === lastCard),
+    onDragOver: (e: DragEvent) => {
+      if (!e.dataTransfer.types.includes(DEVICE_DRAG_TYPE) || !canMove(draggingDevice(), sectionEnd(category))) return;
+      e.preventDefault();
+      setCardDrop(category);
+    },
+    onDragLeave: () => setCardDrop(null),
+    onDrop: (e: DragEvent) => {
+      setCardDrop(null);
+      const id = e.dataTransfer.getData(DEVICE_DRAG_TYPE);
+      if (!id) return;
+      e.preventDefault();
+      moveTo(id, sectionEnd(category));
+    },
+  });
+
   const onEndDragOver = (e: DragEvent) => {
     if (!e.dataTransfer.types.includes(DEVICE_DRAG_TYPE) || !canMove(draggingDevice(), null)) return;
     e.preventDefault();
@@ -208,7 +275,14 @@ export function ChainSections({
   };
 
   return (
-    <div className={clsx("eth-devices__chain", stack && "eth-devices__chain--stack")} role="list" aria-label={label}>
+    <div
+      className={clsx("eth-devices__chain", stack && "eth-devices__chain--stack")}
+      role="list"
+      aria-label={label}
+      data-paste-chain={pasteChain && pasteChainAttr(pasteChain)}
+      tabIndex={pasteChain ? -1 : undefined}
+      onPointerDown={onPointerDown}
+    >
       {sections.map((section) => (
         <div key={section.id} role="group" aria-label={section.label} className="eth-devices__section">
           {!hideHeads && (
@@ -239,13 +313,20 @@ export function ChainSections({
               </div>
             );
           })}
-          {stack && (section.id !== "Instrument" || section.devices.length === 0) && (
-            <AddSectionDevice category={section.id} accept={accept} onAdd={(p) => onAdd(p, section.id)} card autoOpen={autoOpenAdd === section.id} />
+          {hasCard(section) && (
+            <AddSectionDevice
+              category={section.id}
+              accept={accept}
+              onAdd={(p) => onAdd(p, section.id)}
+              card
+              autoOpen={autoOpenAdd === section.id}
+              drop={cardDropProps(section.id)}
+            />
           )}
         </div>
       ))}
       <div
-        className={endDrop ? "eth-devices__end eth-devices__end--drop" : "eth-devices__end"}
+        className={endDrop && !lastCard ? "eth-devices__end eth-devices__end--drop" : "eth-devices__end"}
         onDragOver={onEndDragOver}
         onDragLeave={() => setEndDrop(false)}
         onDrop={onEndDrop}
@@ -278,6 +359,7 @@ function Chain({ track, layout, picker }: { track: Track; layout: ChainLayout; p
         label={t("devices.chain.label", { name: track.name })}
         onAdd={(payload) => void insertFromLibrary(transport, track, payload)}
         onMove={(id, before) => void send(cmd("Device", { type: "Move", id, track: track.id, before }))}
+        pasteChain={{ type: "Track", track: track.id }}
       />
     </div>
   );

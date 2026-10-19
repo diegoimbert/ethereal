@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { t } from "@/i18n";
 import { tempoPoints, useProjectStore } from "@/state";
@@ -131,14 +131,14 @@ describe("TransportBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "record" }));
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toMatch(/recording/);
-    fireEvent.click(alert);
+    fireEvent.click(within(alert).getByRole("button"));
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("shows CPU load and engine status", async () => {
     const { mock } = await renderWithMock(<TransportBar />);
     await waitFor(() => expect(screen.getByTestId("engine-status")).toHaveAttribute("data-level", "ok"));
-    expect(screen.getByTestId("engine-status").getAttribute("title")).toMatch(/48000 Hz/);
+    expect(screen.getByTestId("engine-status").getAttribute("title")).toMatch(/48000 hz/);
     fireEvent.click(screen.getByRole("button", { name: "play" }));
     await waitFor(() => expect(store().transport?.playing).toBe(true));
     act(() => mock.tick(200));

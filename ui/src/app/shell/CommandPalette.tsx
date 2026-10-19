@@ -253,6 +253,7 @@ function Palette({ closing, onClose, onClosed }: { closing: boolean; onClose(): 
         <div ref={list} id={`${id}-list`} className="eth-palette__list" role="listbox" aria-label={t("shell.palette.list")}>
           {shown.length === 0 && <div className="eth-palette__empty">{t("shell.palette.empty")}</div>}
           {shown.map((c, i) => (
+            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus -- a listbox option: the search field keeps the focus and drives it (aria-activedescendant)
             <div
               key={c.id}
               id={`${id}-${i}`}

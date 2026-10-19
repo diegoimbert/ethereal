@@ -1,4 +1,4 @@
-//! MPE (v0.3, owned by the `mpe` node; CONTRACTS.md §13.3). Three RT-safe pieces, all
+//! MPE (v0.3, `mpe`; CONTRACTS.md §13.3). Three RT-safe pieces, all
 //! fixed-size (no allocation):
 //!
 //! - **Zone layout** ([`master_channel`], [`is_member`], [`members`]) and the pitch

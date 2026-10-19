@@ -1,4 +1,4 @@
-//! Time-selection edits across tracks (v0.2, owned by the `time-edits` node; protocol
+//! Time-selection edits across tracks (v0.2, `time-edits`; protocol
 //! `ether_protocol::time_edit`, CONTRACTS.md §12.3).
 //!
 //! [`EtherController::time_edit_command`] (dispatched from `handlers.rs`): `Copy` fills the
@@ -237,7 +237,7 @@ fn paste_pairs(
     Ok(pairs)
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

@@ -1,22 +1,19 @@
 //! Incremental sample-rate conversion, stepped from `tick()` a budget at a time.
 //!
-//! Identical algorithm and alignment to `ether_media::resample` (rubato `SincFixedIn`,
-//! sinc 256 / oversampling 1024 / Blackman-Harris², exact time alignment by padding
-//! `q - 1` zeros and dropping `p - 1` outputs for `ratio = p / q`), so the result matches
+//! Identical algorithm and alignment to `ether_media::resample` (`ether_media::sinc_resampler`:
+//! sinc 256 / oversampling 1024 / Blackman-Harris², exact time alignment by the padding
+//! and dropping of `ether_media::alignment` for `ratio = p / q`), so the result matches
 //! the one-shot version; only the work is split across calls.
 
 use std::sync::Arc;
 
-use ether_media::{DecodedAudio, MediaError, resampled_len};
-use rubato::{
-    Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
+use ether_media::{
+    DecodedAudio, MediaError, alignment, process_chunk, resampled_len, resampler_buffers,
+    sinc_resampler,
 };
+use rubato::{Async, Resampler};
 
 const CHUNK: usize = 1024;
-
-fn err(e: impl std::fmt::Display) -> MediaError {
-    MediaError::Resample(e.to_string())
-}
 
 fn gcd(mut a: u32, mut b: u32) -> u32 {
     while b != 0 {
@@ -26,7 +23,7 @@ fn gcd(mut a: u32, mut b: u32) -> u32 {
 }
 
 struct Running {
-    resampler: SincFixedIn<f32>,
+    resampler: Async<f32>,
     pad: usize,
     drop: usize,
     total_in: usize,
@@ -44,23 +41,16 @@ impl Running {
         frames: usize,
     ) -> Result<Self, MediaError> {
         let ratio = target_rate as f64 / source_rate as f64;
-        let params = SincInterpolationParameters {
-            sinc_len: 256,
-            f_cutoff: rubato::calculate_cutoff(256, WindowFunction::BlackmanHarris2),
-            oversampling_factor: 1024,
-            interpolation: SincInterpolationType::Cubic,
-            window: WindowFunction::BlackmanHarris2,
-        };
-        let resampler = SincFixedIn::<f32>::new(ratio, 1.0, params, CHUNK, n_ch).map_err(err)?;
+        let resampler = sinc_resampler(ratio, CHUNK, n_ch)?;
         let g = gcd(target_rate, source_rate);
         let (p, q) = ((target_rate / g) as usize, (source_rate / g) as usize);
-        let inbuf = resampler.input_buffer_allocate(true);
-        let outbuf = resampler.output_buffer_allocate(true);
+        let (pad, drop) = alignment(p, q);
+        let (inbuf, outbuf) = resampler_buffers(&resampler);
         Ok(Self {
             resampler,
-            pad: q - 1,
-            drop: p - 1,
-            total_in: q - 1 + frames,
+            pad,
+            drop,
+            total_in: pad + frames,
             pos: 0,
             inbuf,
             outbuf,
@@ -138,10 +128,7 @@ impl IncrementalResampler {
                     };
                 }
             }
-            let (_, n) = r
-                .resampler
-                .process_into_buffer(&r.inbuf, &mut r.outbuf, None)
-                .map_err(err)?;
+            let (_, n) = process_chunk(&mut r.resampler, &r.inbuf, &mut r.outbuf)?;
             if n == 0 && r.pos > r.total_in + 4 * CHUNK {
                 break;
             }
@@ -289,10 +276,7 @@ impl StreamResampler {
                     };
                 }
             }
-            let (_, n) = r
-                .resampler
-                .process_into_buffer(&r.inbuf, &mut r.outbuf, None)
-                .map_err(err)?;
+            let (_, n) = process_chunk(&mut r.resampler, &r.inbuf, &mut r.outbuf)?;
             if n == 0 && r.pos > r.total_in + 4 * CHUNK {
                 break;
             }

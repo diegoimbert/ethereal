@@ -8,6 +8,7 @@ use ts_rs::TS;
 use crate::drum_rack::SliceSettings;
 use crate::external::{ExternalRouting, IrSource};
 use crate::ids::{DeviceId, DrumPadId, MediaId, RackChainId, TrackId};
+use crate::lfo_curve::LfoCurve;
 use crate::multisampler::SampleZone;
 use crate::value::{Base64Bytes, OrderKey, ParamId};
 
@@ -203,11 +204,11 @@ impl MissingParam {
 ///
 /// Parameters are *not* here (they are `Device::params`, described by the device type's
 /// `DeviceDescriptor` from `ether-devices`). Variants after `Delay` are roadmap v2: their
-/// parameter lists are defined by the owning node (`devices-2`, `drum-rack`); ids are
+/// parameter lists are defined in `ether-devices` (docs/DEVICES.md); ids are
 /// append-only, never renumbered once released. Variants after `DrumRack` are v0.2
 /// (contracts-3): their param tables are frozen in their `ether-devices` module (append-only)
-/// and implemented by the owning node (docs/ROADMAP.md "v0.2"). Variants after
-/// `MidiEffectRack` are v0.3 (contracts-4), same rules (docs/ROADMAP.md "v0.3").
+/// and implemented there (docs/DEVICES.md). Variants after `MidiEffectRack` are v0.3
+/// (contracts-4), same rules.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum BuiltinDevice {
@@ -231,7 +232,7 @@ pub enum BuiltinDevice {
     /// Instrument hosting [`crate::drum_rack::DrumPad`]s, each with its own chain
     /// (`drum-rack`).
     DrumRack,
-    // --- v0.2 (contracts-3); owning node in parentheses ---
+    // --- v0.2 (contracts-3); work item in parentheses ---
     /// Polyphonic subtractive/wavetable synth (`synth-2`).
     PolySynth,
     /// Key/velocity-zoned sampler with round robin (`multisampler`).
@@ -282,7 +283,7 @@ pub enum BuiltinDevice {
     AudioEffectRack,
     /// Rack of parallel MIDI effect chains (`racks-modulation`).
     MidiEffectRack,
-    // --- v0.3 (contracts-4); owning node in parentheses ---
+    // --- v0.3 (contracts-4); work item in parentheses ---
     /// Partitioned convolution reverb (`fx-space`). `ir: None` = no IR loaded (dry only); a
     /// new one ([`BuiltinDevice::new`]) starts on the factory [`DEFAULT_CONVOLUTION_IR`].
     ConvolutionReverb {
@@ -296,9 +297,18 @@ pub enum BuiltinDevice {
     ExternalAudioEffect {
         routing: ExternalRouting,
     },
-    // --- after v0.3; owning node in parentheses ---
+    // --- after v0.3; work item in parentheses ---
     /// Four-operator FM synth with 11 algorithms (`fm-synth`).
     FmSynth,
+    /// Pitch wobble: LFO-modulated delay line (vibrato, wow and flutter; `fx-modulation`).
+    Vibrato,
+    /// Volume shaped by a drawn LFO cycle, tempo-synced (sidechain pumping, gates,
+    /// tremolo; `fx-modulation`, [`crate::lfo_curve`]).
+    VolumeLfo {
+        /// Omitted (an agent's `{"type": "VolumeLfo"}`) = the default pump.
+        #[serde(default)]
+        curve: LfoCurve,
+    },
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -343,11 +353,13 @@ pub enum BuiltinDeviceType {
     ExternalAudioEffect,
     // --- after v0.3 ---
     FmSynth,
+    Vibrato,
+    VolumeLfo,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 37] = [
+    pub const ALL: [BuiltinDeviceType; 39] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -385,6 +397,8 @@ impl BuiltinDeviceType {
         Self::ExternalInstrument,
         Self::ExternalAudioEffect,
         Self::FmSynth,
+        Self::Vibrato,
+        Self::VolumeLfo,
     ];
 
     /// Rack types ([`crate::rack`]).
@@ -454,6 +468,8 @@ impl BuiltinDevice {
             Self::ExternalInstrument { .. } => BuiltinDeviceType::ExternalInstrument,
             Self::ExternalAudioEffect { .. } => BuiltinDeviceType::ExternalAudioEffect,
             Self::FmSynth => BuiltinDeviceType::FmSynth,
+            Self::Vibrato => BuiltinDeviceType::Vibrato,
+            Self::VolumeLfo { .. } => BuiltinDeviceType::VolumeLfo,
         }
     }
 
@@ -508,6 +524,10 @@ impl BuiltinDevice {
                 routing: ExternalRouting::default(),
             },
             BuiltinDeviceType::FmSynth => Self::FmSynth,
+            BuiltinDeviceType::Vibrato => Self::Vibrato,
+            BuiltinDeviceType::VolumeLfo => Self::VolumeLfo {
+                curve: LfoCurve::default(),
+            },
         }
     }
 

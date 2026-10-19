@@ -2,6 +2,7 @@
 // save as, duplicate, export / import a `.ether` bundle, delete (or close and delete the open
 // project). Every file operation is engine-side (`Command::Project`); the desktop passes the
 // OS dialog's path to the engine, the web build downloads / uploads the bundle.
+import { emit } from "@/ext";
 import type { ProjectSummary, ReplyValue } from "@/generated";
 import { fetchDownload, saveFile } from "@/features/export/download";
 import { notify } from "@/features/notifications";
@@ -180,6 +181,7 @@ export async function importAndOpenBundle(t: EngineTransport, source: { file: Up
 
 /** Open a stored project. */
 export function openProject(t: EngineTransport, id: string): Promise<ReplyValue> {
+  emit("app.event", { type: "project_opened" });
   return t.send(cmd("Project", { type: "Open", id }));
 }
 

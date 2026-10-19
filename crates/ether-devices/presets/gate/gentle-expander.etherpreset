@@ -15,7 +15,7 @@
         "vocal"
       ],
       "author": "ethereal",
-      "description": "2:1 downward expander that lowers breaths and room noise between phrases by up to 20 dB."
+      "description": "2:1 downward expander that lowers breaths and room noise between phrases by up to 20 db."
     },
     "params": {
       "0": -45.0,

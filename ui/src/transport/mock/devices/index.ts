@@ -24,7 +24,7 @@ import multisampler from "./multisampler.json";
 import polySynth from "./polySynth.json";
 import racks from "./racks.json";
 
-/** The v0.2 built-in types (after `DrumRack` in `BuiltinDeviceType::ALL`). */
+/** The v0.2 built-in types (after `DrumRack` in `BuiltinDeviceType::ALL`), and the later fx-modulation `Vibrato`. */
 export type V02DeviceType =
   | "PolySynth"
   | "MultiSampler"
@@ -35,6 +35,8 @@ export type V02DeviceType =
   | "Phaser"
   | "Flanger"
   | "Tremolo"
+  | "Vibrato"
+  | "VolumeLfo"
   | "Gate"
   | "MultibandCompressor"
   | "TransientShaper"

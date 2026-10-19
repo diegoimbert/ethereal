@@ -1,9 +1,12 @@
 // The bundled docs: every Markdown file and image under docs-site/content, read at build time
 // (Vite globs), parsed once when the docs chunk loads. Translations live beside it
 // (docs-site/content-<lang>, a lazy chunk per language): a translated page replaces the
-// English one, the others stay English, page by page (docs/LOCALIZATION.md "Docs").
+// English one, the others stay English, page by page (docs/LOCALIZATION.md "Docs"). A build can
+// add pages of its own (`extendDocs`, extensions.ts).
 import { useEffect, useState } from "react";
 import { getLocale, useLocale, type Locale } from "@/i18n";
+import { docsExtensions, onDocsExtended } from "./extensions";
+import type { Block, Inline } from "./markdown";
 import { buildDocs, type Docs, type DocPage } from "./model";
 
 const ROOT = "../../../../docs-site/content/";
@@ -14,9 +17,11 @@ const images = import.meta.glob("../../../../docs-site/content/**/*.{png,webp,jp
   string
 >;
 
-/** `{ "<section>/<page>.md": source }`. */
+/** `{ "<section>/<page>.md": source }`: the bundled pages and the added ones. */
 export function contentFiles(): Record<string, string> {
-  return Object.fromEntries(Object.entries(markdown).map(([k, v]) => [k.slice(ROOT.length), v]));
+  const files: Record<string, string> = Object.fromEntries(Object.entries(markdown).map(([k, v]) => [k.slice(ROOT.length), v]));
+  for (const ext of docsExtensions()) Object.assign(files, ext.pages);
+  return files;
 }
 
 /** The translations, per language (absent: the docs are English only in that language). */
@@ -26,6 +31,7 @@ const TRANSLATIONS: Partial<Record<Locale, () => Promise<Record<string, string>>
 
 const loaded = new Map<Locale, Record<string, string>>();
 const built = new Map<Locale | "en", Docs>();
+onDocsExtended(() => built.clear());
 
 /** The docs in `locale` once its translations are loaded ([`loadDocs`]), else in English. */
 export function getDocs(locale: Locale = getLocale()): Docs {
@@ -39,9 +45,42 @@ export function getDocs(locale: Locale = getLocale()): Docs {
   return docs;
 }
 
-/** The shape a translation keeps from its English page: headings (their ids are link targets) and coverage. */
+/**
+ * The shape a translation keeps from its English page: headings (their ids are link targets),
+ * coverage, the block structure (a paragraph, list item, table row or callout added or dropped)
+ * and the links in each block.
+ */
 function shape(page: DocPage): string {
-  return JSON.stringify([page.headings.map((h) => h.id), page.covers]);
+  return JSON.stringify([page.headings.map((h) => h.id), page.covers, page.blocks.map(blockShape)]);
+}
+
+function blockShape(b: Block): unknown {
+  switch (b.t) {
+    case "heading":
+      return `h:${b.id}`;
+    case "p":
+      return ["p", linksOf(b.c)];
+    case "list":
+      return [b.ordered ? "ol" : "ul", b.items.map((item) => item.map(blockShape))];
+    case "callout":
+      return [b.kind, b.blocks.map(blockShape)];
+    case "table":
+      return ["table", b.rows.length, [b.head, ...b.rows].map((row) => row.map(linksOf))];
+    case "image":
+      return `img:${b.src}`;
+    default:
+      return b.t;
+  }
+}
+
+/** The link targets in `nodes`, in order. */
+function linksOf(nodes: ReadonlyArray<Inline>): string[] {
+  const out: string[] = [];
+  for (const n of nodes) {
+    if (n.t === "link") out.push(n.href, ...linksOf(n.c));
+    else if (n.t === "strong" || n.t === "em") out.push(...linksOf(n.c));
+  }
+  return out;
 }
 
 /**
@@ -67,6 +106,7 @@ export async function loadDocs(locale: Locale): Promise<void> {
   const load = TRANSLATIONS[locale];
   if (!load || loaded.has(locale)) return;
   const files = { ...(await load()) };
+  for (const ext of docsExtensions()) Object.assign(files, ext.translations?.[locale]);
   for (const f of staleTranslations(files)) delete files[f];
   loaded.set(locale, files);
 }
@@ -98,7 +138,10 @@ export function imageUrl(page: DocPage, src: string): string | null {
     if (part === "..") dir.pop();
     else if (part !== ".") dir.push(part);
   }
-  return images[ROOT + dir.join("/")] ?? null;
+  const path = dir.join("/");
+  let url = images[ROOT + path] ?? null;
+  for (const ext of docsExtensions()) url = ext.images?.[path] ?? url;
+  return url;
 }
 
 /** Every bundled image (relative to the content root), for the content test. */

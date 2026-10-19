@@ -1,4 +1,4 @@
-//! Freeze, flatten, bounce in place, consolidate (v0.2, owned by the `freeze-bounce` node;
+//! Freeze, flatten, bounce in place, consolidate (v0.2, `freeze-bounce`;
 //! protocol `ether_protocol::freeze`, model `Track::freeze`, CONTRACTS.md §12.3).
 //!
 //! - [`EtherController::freeze_command`] (dispatched from `handlers.rs`): render jobs
@@ -259,7 +259,7 @@ fn content_end(p: &Project, track: TrackId) -> f64 {
         .fold(0.0, f64::max)
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,
@@ -658,7 +658,14 @@ where
             .is_none_or(|p| (progress - p).abs() >= 0.001)
         {
             state.last_progress = Some(progress);
-            freeze_event(out, FreezeEvent::Progress { job: id, progress });
+            freeze_event(
+                out,
+                FreezeEvent::Progress {
+                    job: id,
+                    progress,
+                    host: None,
+                },
+            );
         }
         state.running = Some(running);
     }
@@ -737,6 +744,7 @@ where
                     FreezeEvent::Progress {
                         job: job.clone(),
                         progress: 1.0,
+                        host: None,
                     },
                 );
                 freeze_event(out, FreezeEvent::Done { job });

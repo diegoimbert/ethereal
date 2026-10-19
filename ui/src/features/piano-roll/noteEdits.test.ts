@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Clip, Note } from "@/generated";
 import { TempoMap, type GridStep } from "@/timeline";
-import { clipSongStart, clipTempoMap, contentEnd, contentToSong, songToContent } from "./clipTime";
+import { clipSongStart, clipTempoMap, contentEnd, contentFloor, contentToSong, songToContent } from "./clipTime";
+import { singleClipSpace } from "./rollSpace";
 import { isBlackKey, noteHitZone, pitchName, pitchToY, yToPitch } from "./geometry";
 import {
   clampMove,
@@ -57,6 +58,16 @@ describe("moveEdits", () => {
     ]);
     expect(edits[0]!.duration).toBeNull();
     expect(edits[0]!.velocity).toBeNull();
+  });
+
+  it("keeps an off-grid anchor's offset within the grid (relative snap)", () => {
+    const beat: GridStep = { kind: "beats", beats: 1 };
+    const a = note("a", 60, 4.34, 1);
+    const b = note("b", 62, 6, 1);
+    expect(moveEdits([a, b], a, 0.8, 0, beat, tempo).map((e) => e.start)).toEqual([expect.closeTo(5.34, 9), expect.closeTo(7, 9)]);
+    expect(moveEdits([a], a, -1.3, 0, beat, tempo)[0]!.start).toBeCloseTo(3.34);
+    // Clamped at 0: the selection stops at the start of the clip.
+    expect(moveEdits([a], a, -9, 0, beat, tempo)[0]!.start).toBe(0);
   });
 
   it("does not snap with a null step", () => {
@@ -220,5 +231,42 @@ describe("geometry", () => {
     expect(noteHitZone(50, 100)).toBe("body");
     expect(noteHitZone(98, 100)).toBe("end");
     expect(noteHitZone(4, 12)).toBe("body");
+  });
+});
+
+describe("a clip extended to the left past its content start (negative offset)", () => {
+  // Song 6..16 playing content -2..8: the editor's axis starts at content -2.
+  const extended = clip({ start: 6, length: 10, offset: -2 });
+
+  it("the axis, placement and move limits start at the clip start, not at content 0", () => {
+    expect(contentFloor(extended)).toBe(-2);
+    expect(contentFloor(clip({ offset: 1 }))).toBe(0);
+    const space = singleClipSpace(extended);
+    expect(space.floor).toBe(-2);
+    expect(space.place(-1.5)).toEqual({ clip: extended, content: -1.5 });
+    expect(space.place(-5)).toEqual({ clip: extended, content: -2 });
+    // Song ↔ content: the gap plays content -2..0 at song 6..8.
+    expect(space.fromSong(7)).toBe(-1);
+    expect(space.toSong(-1)).toBe(7);
+    // A note moves into the gap, down to the clip start.
+    const n = note("n", 60, 1, 1);
+    expect(moveEdits([n], n, -2.5, 0, sixteenth, tempo, space.limits)[0]!.start).toBe(-1.5);
+    expect(moveEdits([n], n, -9, 0, sixteenth, tempo, space.limits)[0]!.start).toBe(-2);
+    expect(nudgeEdits([n], -9, 0, space.limits)[0]!.start).toBe(-2);
+  });
+
+  it("notes in the gap keep their place: moves, resizes and new notes never pull them to 0", () => {
+    const g = note("g", 60, -1, 0.5);
+    // Without limits (from 0 on) a note before 0 is not pushed forward, only kept from going further back.
+    expect(clampMove([g], 0.25, 0).dBeats).toBe(0.25);
+    expect(clampMove([g], -1, 0).dBeats).toBe(0);
+    expect(nudgeEdits([g], 0.25, 0)[0]!.start).toBe(-0.75);
+    expect(nudgeEdits([g], 0, 1)[0]).toMatchObject({ start: -1, pitch: 61 });
+    // Start-edge resize: down to the floor.
+    expect(resizeEdits([g], g, "start", -0.5, sixteenth, tempo, -2)[0]).toMatchObject({ start: -1.5, duration: 1 });
+    expect(resizeEdits([g], g, "start", -5, sixteenth, tempo, -2)[0]).toMatchObject({ start: -2, duration: 1.5 });
+    expect(newNote("x", 60, -1.25, 1, 0.8, -2).start).toBe(-1.25);
+    expect(newNote("x", 60, -3, 1, 0.8, -2).start).toBe(-2);
+    expect(newNote("x", 60, -1, 1).start).toBe(0);
   });
 });

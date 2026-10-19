@@ -15,7 +15,7 @@
         "radio"
       ],
       "author": "ethereal",
-      "description": "coarse 6-bit crunch at 8 kHz blended under the dry signal."
+      "description": "coarse 6-bit crunch at 8 khz blended under the dry signal."
     },
     "params": {
       "0": 6.0,

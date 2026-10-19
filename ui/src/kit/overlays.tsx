@@ -246,6 +246,7 @@ export function MenuList({ items, close, label }: { items: ReadonlyArray<MenuEnt
   const ref = useRef<HTMLDivElement>(null);
   useFocusFirstItem(ref);
   return (
+    // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- a menu: focus is on its items (roving, menuKeyDown)
     <div ref={ref} className="eth-menu" role="menu" aria-label={label} onKeyDown={(e) => menuKeyDown(e, ref.current)}>
       {items.map((it) =>
         "separator" in it ? <div key={it.id} className="eth-menu__separator" role="separator" /> : <MenuItemButton key={it.id} it={it} close={close} />,
@@ -278,6 +279,10 @@ export interface DialogProps {
    */
   closeButton?: boolean;
   className?: string;
+  /** `data-testid` of the dialog element. */
+  testId?: string;
+  /** A click on the backdrop closes it (default true). */
+  backdropClose?: boolean;
 }
 
 /** Unmount delay of a closing dialog (its exit animation; see kit.css). */
@@ -322,7 +327,7 @@ function trapTab(e: KeyboardEvent<HTMLElement>, dialog: HTMLElement | null) {
  * Modal dialog, rendered in a portal. Tab and Shift+Tab cycle inside it; Escape (wherever
  * focus is while it is the topmost dialog), a backdrop click or its × close it.
  */
-export function Dialog({ open, onClose, title, children, footer, closeButton, className }: DialogProps) {
+export function Dialog({ open, onClose, title, children, footer, closeButton, className, testId, backdropClose = true }: DialogProps) {
   const t = useT();
   const titleId = useId();
   const ref = useRef<HTMLDivElement>(null);
@@ -372,7 +377,7 @@ export function Dialog({ open, onClose, title, children, footer, closeButton, cl
       className={clsx("eth-dialog-backdrop", closing && "eth-dialog-backdrop--closing")}
       aria-hidden={closing || undefined}
       onPointerDown={(e) => {
-        if (!closing && e.target === e.currentTarget) onClose();
+        if (!closing && backdropClose && e.target === e.currentTarget) onClose();
       }}
     >
       {/* Slow, very blurred color blobs drifting behind the dialog (decoration). */}
@@ -383,6 +388,7 @@ export function Dialog({ open, onClose, title, children, footer, closeButton, cl
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        data-testid={testId}
         tabIndex={-1}
         onKeyDown={(e) => {
           if (e.key === "Escape" && !closing) {

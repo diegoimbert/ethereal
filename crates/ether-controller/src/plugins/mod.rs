@@ -1,4 +1,4 @@
-//! Controller-side plugin logic (owned by the `plugins` wave-3 node; see `docs/WAVE3.md`).
+//! Controller-side plugin logic.
 //!
 //! - Inserting a plugin (`DeviceCommand::Insert { device: DeviceSpec::Plugin }`), the
 //!   sandbox toggle (`PluginCommand::SetSandboxed`: the live state is captured into
@@ -49,6 +49,12 @@ pub(crate) const MAX_RESTARTS: usize = 3;
 pub(crate) const RESTART_WINDOW_MS: u64 = 60_000;
 
 impl PluginsState {
+    /// Mirror `device`'s params into the document again at the next tick (its instance
+    /// loaded another state in place).
+    pub(crate) fn remirror(&mut self, device: DeviceId) {
+        self.mirrored.remove(&device);
+    }
+
     /// Record a restart request of `device` at `now`: whether to honour it, and whether this
     /// is the first one refused (to warn once).
     pub(crate) fn allow_restart(&mut self, device: DeviceId, now: u64) -> (bool, bool) {
@@ -104,7 +110,7 @@ fn mirror_params(
     changed.then(|| Entity::Device(d.clone()))
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

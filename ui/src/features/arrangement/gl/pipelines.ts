@@ -32,7 +32,7 @@ export const WAVE_STRIDE = 16;
 
 /** Rect flags (`i_p.w`). */
 export const RectFlag = {
-  /** The clip box's start / end edge handle (`min(6px, 25%)` wide, full height). */
+  /** The clip box's start / end edge handle (25% wide, clamped to 3–6 px, full height: hitTest.ts `handleWidth`). */
   HandleStart: 1,
   HandleEnd: 2,
   /** Clipped to the lane (row) instead of the clip box: glows. */

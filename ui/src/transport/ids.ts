@@ -58,7 +58,7 @@ function decodeUlid(s: string): bigint {
   let v = 0n;
   for (const ch of s.toUpperCase()) {
     const d = CROCKFORD.indexOf(ch);
-    if (d < 0) throw new Error(`not a ULID: ${s}`);
+    if (d < 0) throw new Error(`not a ulid: ${s}`);
     v = (v << 5n) | BigInt(d);
   }
   return v & ((1n << 128n) - 1n);

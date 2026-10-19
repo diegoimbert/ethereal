@@ -1,4 +1,4 @@
-//! User keymap storage (v0.3, owned by the `keymap` node; protocol `ether_protocol::keymap`,
+//! User keymap storage (v0.3, `keymap`; protocol `ether_protocol::keymap`,
 //! CONTRACTS.md §13.12).
 //!
 //! [`EtherController::keymap_command`]: `Keymap::{Get, Set, Reset}` (from `handlers.rs`):
@@ -33,7 +33,7 @@ pub(crate) struct KeymapState {
     session: Option<Keymap>,
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

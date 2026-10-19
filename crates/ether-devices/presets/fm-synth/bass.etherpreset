@@ -15,7 +15,7 @@
         "tight"
       ],
       "author": "ethereal",
-      "description": "mono FM bass with glide: a fed-back 1:1 modulator and a short octave click, low-passed."
+      "description": "mono fm bass with glide: a fed-back 1:1 modulator and a short octave click, low-passed."
     },
     "params": {
       "6": 0.0,

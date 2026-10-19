@@ -86,17 +86,6 @@ Voici les mots que vous rencontrerez dans l’application et dans cette document
 - **Mode sans échec** : ouvrir un projet avec tous les plug-ins désactivés, pour contourner un plug-in qui plante. Voir [mode sans échec](/docs/advanced/safe-mode).
 - **Palette de commandes** : le champ de recherche de toutes les commandes, qui s’ouvre avec [[action:palette.open]]. Voir [la palette de commandes et les réglages](/docs/basics/command-palette-and-settings).
 
-## partage {#sharing}
-
-- **Session en direct** : travailler ensemble sur un projet, en temps réel. Voir [sessions en direct](/docs/sharing/live-sessions).
-- **Hôte** : la personne qui a partagé le projet. Son ordinateur fait tenir la session. Voir [sessions en direct](/docs/sharing/live-sessions).
-- **Lien d’invitation** : le lien qui permet à quelqu’un de rejoindre. Un lien **peut modifier** lui permet de changer le projet ; un lien **peut écouter** lui permet seulement d’écouter. Voir [partager votre musique](/docs/sharing/overview).
-- **Copie hors ligne** : la copie d’un projet partagé sur laquelle vous continuez à travailler pendant que l’hôte est hors ligne. Vos modifications se synchronisent au retour de l’hôte. Voir [sessions en direct](/docs/sharing/live-sessions).
-- **Copie locale** : un projet séparé nommé « … (copie locale) ». Il est créé quand des modifications faites hors ligne sur un projet partagé ne peuvent pas être fusionnées dans la session. Voir [sessions en direct](/docs/sharing/live-sessions).
-- **Jouer avec** : choisir l’ordinateur qui joue le son dans une session. Voir [écouter sur l’ordinateur d’un ami](/docs/sharing/listening-together).
-- **Lien statique (instantané)** : une copie en lecture seule d’un projet publiée sur le web, pour que d’autres l’écoutent. Voir [liens de partage statiques](/docs/sharing/static-links).
-- **Visionneuse de partage** : la page en lecture seule qu’ouvre un lien statique. Voir [la visionneuse de partage](/docs/sharing/share-viewer).
-
 ## l’application {#the-app}
 
 - **Moteur** : la partie d’Ethereal qui produit le son. Dans l’application de bureau, il tourne sur votre ordinateur ; dans l’application web, il tourne dans l’onglet de votre navigateur. Voir [qu’est-ce qu’Ethereal](/docs/welcome/what-is-ethereal).

@@ -37,7 +37,7 @@ export function MpeSettingsFields({ track, Row }: MpeSettingsFieldsProps) {
   return (
     <div className="eth-mpe" data-testid="mpe-settings">
       <Row label={t("mpe.enabled")}>
-        <Toggle size="sm" aria-label="MPE" checked={mpe !== null} onChange={(on) => set(on ? DEFAULT_MPE : null)} />
+        <Toggle size="sm" aria-label="mpe" checked={mpe !== null} onChange={(on) => set(on ? DEFAULT_MPE : null)} />
       </Row>
       {mpe && (
         <>

@@ -37,11 +37,11 @@ export function formatExact(ms: number): string {
   return formatDateTime(ms, { dateStyle: "medium", timeStyle: "medium" });
 }
 
-/** "1.2 MB", "340 KB". */
+/** "1.2 mb", "340 kb". */
 export function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024) return `${bytes} b`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} kb`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} mb`;
 }
 
 /** The engine's diff tables (`ether_model::template::entity_table`), by name. */

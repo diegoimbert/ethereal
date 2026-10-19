@@ -15,7 +15,7 @@
         "metallic"
       ],
       "author": "ethereal",
-      "description": "FM wavetable struck bright and decaying towards its softer frames."
+      "description": "fm wavetable struck bright and decaying towards its softer frames."
     },
     "params": {
       "0": 4.0,

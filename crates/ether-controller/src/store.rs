@@ -43,6 +43,10 @@ pub enum StoreError {
 /// store's writer thread when it has one).
 pub type RenderDocument = Box<dyn FnOnce() -> Result<String, StoreError> + Send>;
 
+/// A file written right after the document by [`ProjectStore::save_in_background_with`],
+/// built from the document's JSON: `(relative path, bytes)`, or nothing.
+pub type RenderSidecar = Box<dyn FnOnce(&str) -> Option<(String, Vec<u8>)> + Send>;
+
 /// `export` (#434): an export file being written piece by piece
 /// ([`ProjectStore::create_export`]). It is seekable because encoders fill their header in
 /// at the end. Dropped without [`ProjectStore::commit_export`] (cancel, failure), it leaves
@@ -84,6 +88,26 @@ pub trait ProjectStore {
         let _ = name;
         let json = render()?;
         self.save(id, &json)
+    }
+
+    /// [`Self::save_in_background`], then `sidecar`'s file (from the document's JSON) is
+    /// written right after the document, in the same job: a newer save replaces both, and
+    /// the sidecar never lands before its document (an extension's file that names the
+    /// document it goes with). Default: synchronous.
+    fn save_in_background_with(
+        &mut self,
+        id: ProjectId,
+        name: &str,
+        render: RenderDocument,
+        sidecar: RenderSidecar,
+    ) -> Result<ProjectSummary, StoreError> {
+        let _ = name;
+        let json = render()?;
+        let summary = self.save(id, &json)?;
+        if let Some((path, bytes)) = sidecar(&json) {
+            self.write(id, &path, &bytes)?;
+        }
+        Ok(summary)
     }
 
     /// Wait until every [`Self::save_in_background`] write is on disk (or failed).
@@ -388,6 +412,42 @@ pub trait Library {
         let _ = path;
         Err(StoreError::Unsupported(
             "external media is not available on this host".into(),
+        ))
+    }
+
+    // --- #519: the sample pack cache (docs/SAMPLES.md) ---
+
+    /// Read a file of the sample pack cache: `rel` (checked by the caller, `/`-separated) under
+    /// the host's samples folder (natively `<app data>/samples`, OPFS `samples/` on the web).
+    /// Default: unsupported (no cache: the built-in kit only).
+    fn sample_cache_read(&mut self, rel: &str) -> Result<Vec<u8>, StoreError> {
+        let _ = rel;
+        Err(StoreError::Unsupported(
+            "the sample cache is not available on this host".into(),
+        ))
+    }
+
+    /// Write a cache file, creating its folders; replaces it atomically where the host can.
+    fn sample_cache_write(&mut self, rel: &str, bytes: &[u8]) -> Result<(), StoreError> {
+        let _ = (rel, bytes);
+        Err(StoreError::Unsupported(
+            "the sample cache is not available on this host".into(),
+        ))
+    }
+
+    /// Delete a cache file (a missing one is not an error).
+    fn sample_cache_remove(&mut self, rel: &str) -> Result<(), StoreError> {
+        let _ = rel;
+        Err(StoreError::Unsupported(
+            "the sample cache is not available on this host".into(),
+        ))
+    }
+
+    /// The file names in a cache folder (empty when it doesn't exist).
+    fn sample_cache_list(&mut self, dir: &str) -> Result<Vec<String>, StoreError> {
+        let _ = dir;
+        Err(StoreError::Unsupported(
+            "the sample cache is not available on this host".into(),
         ))
     }
 }

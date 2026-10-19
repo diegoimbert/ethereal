@@ -1,4 +1,4 @@
-//! Project versions and crash recovery (v0.3, owned by the `project-versions` node;
+//! Project versions and crash recovery (v0.3, `project-versions`;
 //! protocol `ether_protocol::versions`, CONTRACTS.md §13.11).
 //!
 //! - [`EtherController::version_command`]: every `Version` command (from `handlers.rs`).
@@ -183,7 +183,7 @@ fn marker_session(bytes: &[u8]) -> Option<String> {
     v.get("session")?.as_str().map(str::to_owned)
 }
 
-impl<B, H, S, L> EtherController<B, H, S, L>
+impl<B, H, S, L, X> EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,
@@ -442,7 +442,7 @@ where
         out: &mut dyn MessageSink,
     ) -> CmdResult<()> {
         let id = self.open_project_id()?;
-        if self.collab_active() {
+        if self.session_active() {
             return Err(crate::tx::keyed_err(
                 ether_core::protocol::ErrorCode::InvalidState,
                 crate::text::msg("error.versions.leave_session_to_restore"),
@@ -544,7 +544,7 @@ where
             .next()
             .ok_or_else(|| invalid(format!("project {project} has no versions to recover")))?;
         let recovered = self.read_version(project, &newest.id)?;
-        if self.collab_active() {
+        if self.session_active() {
             return Err(crate::tx::keyed_err(
                 ether_core::protocol::ErrorCode::InvalidState,
                 crate::text::msg("error.versions.leave_session_to_recover"),
@@ -566,7 +566,7 @@ where
     }
 }
 
-impl<B, H, S, L> Drop for EtherController<B, H, S, L>
+impl<B, H, S, L, X> Drop for EtherController<B, H, S, L, X>
 where
     B: EngineBridge,
     H: HostServices,

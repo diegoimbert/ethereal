@@ -1,4 +1,4 @@
-//! Tempo map editing and metronome settings (roadmap v2, `tempo-metronome` node).
+//! Tempo map editing and metronome settings (roadmap v2, `tempo-metronome`).
 //!
 //! `Transport::SetTempo` / `SetTimeSignature` keep editing "the point in effect at the
 //! playhead"; these commands edit the tempo map as a list of points. All are undoable

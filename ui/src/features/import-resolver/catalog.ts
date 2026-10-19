@@ -4,6 +4,7 @@
  *
  * - desktop (`tauri`): the scanned list (`Plugin::List`, shared with the plugin store);
  * - mock engine: its fake plugins ([`MOCK_INSTALLED_PLUGINS`]);
+ * - another computer's engine plays the project (`usePluginStore.remote`): that computer's list;
  * - web / remote: no plugin host. The e2e suite can stand in an installed list with
  *   `window.__etherResolverPlugins` (set by an init script) to exercise the real engine's
  *   matching; without it the resolver lists audio files only.
@@ -22,6 +23,8 @@ function seeded(): PluginDescriptor[] | null {
 /** The installed plugins known right now (`null` = this host has no plugin catalog). */
 export function catalogNow(transport: EngineTransport | null | undefined): PluginDescriptor[] | null {
   if (!transport) return null;
+  const remote = usePluginStore.getState().remote;
+  if (remote) return remote.plugins;
   if (transport.kind === "tauri") return usePluginStore.getState().plugins;
   if (transport.kind === "mock") return MOCK_INSTALLED_PLUGINS;
   return seeded();
@@ -29,7 +32,7 @@ export function catalogNow(transport: EngineTransport | null | undefined): Plugi
 
 /** The installed plugins, fetched when needed (`null` = no plugin catalog on this host). */
 export async function loadCatalog(transport: EngineTransport): Promise<PluginDescriptor[] | null> {
-  if (transport.kind === "tauri") {
+  if (transport.kind === "tauri" && !usePluginStore.getState().remote) {
     const known = usePluginStore.getState().plugins;
     if (known) return known;
     const reply = await transport.send(cmd("Plugin", { type: "List" }));
