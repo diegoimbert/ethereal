@@ -13,8 +13,8 @@
 //!   and parallel dev instances so nobody contends for the sound card.
 //! - `offline`: like `null` but as fast as possible (yielding between blocks).
 
-// cpal 0.17 deprecates `Device::name()` for `id()` / `description()`; the saved device
-// settings match by name, so the names stay until that migration (issue to follow).
+// cpal 0.17 deprecates `Device::name()` for `id()` / `description()`: devices are saved by
+// id ([`AudioSettings::output_device_id`]), the name is what the settings show.
 #![allow(deprecated)]
 
 use std::sync::Arc;
@@ -71,8 +71,19 @@ pub struct AudioSettings {
     pub host: Option<String>,
     /// Output device name; `None` = default device.
     pub output_device: Option<String>,
+    /// The output device's cpal id ([`crate::cpal_host::device_id`]), matched before the
+    /// name (names change: cpal 0.17 renamed devices, the OS renames them). Recorded when
+    /// the device opens ([`AudioSettings::with_device_ids`]); `None` for settings saved
+    /// before ids were (matched by name, then given the id), and cleared when the device
+    /// changes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_device_id: Option<String>,
     /// Input device name (`None` = no input; `loopback[:<samples>]` = test loopback).
     pub input_device: Option<String>,
+    /// The input device's cpal id, as [`AudioSettings::output_device_id`] (`None` for the
+    /// default input, which follows the system).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_device_id: Option<String>,
     /// Requested sample rate; `None` = device default (48 kHz for null/offline).
     pub sample_rate: Option<u32>,
     /// Requested device buffer size in frames; `None` = device default (the engine block
@@ -89,7 +100,9 @@ impl Default for AudioSettings {
             backend: AudioBackendKind::Cpal,
             host: None,
             output_device: None,
+            output_device_id: None,
             input_device: None,
+            input_device_id: None,
             sample_rate: None,
             buffer_size: None,
             max_block_size: 1024,
@@ -143,7 +156,65 @@ impl AudioSettings {
         if c.buffer_size.is_some() {
             s.buffer_size = c.buffer_size;
         }
+        // Another device: its id is recorded when it opens.
+        if s.output_device != self.output_device {
+            s.output_device_id = None;
+        }
+        if s.input_device != self.input_device {
+            s.input_device_id = None;
+        }
         Ok(s)
+    }
+
+    /// These settings with their devices' ids recorded, and their names refreshed from the
+    /// devices found by id (what the settings list shows), if the cpal host lists them.
+    /// Settings saved by name only (before ids were) get their ids here once: the
+    /// migration. `None`: nothing to change. Not on ASIO (its id is the driver name, and
+    /// listing loads the drivers).
+    pub fn with_device_ids(&self) -> Option<Self> {
+        if self.backend != AudioBackendKind::Cpal {
+            return None;
+        }
+        let host = cpal_host::host(self.host.as_deref()).ok()?;
+        if cpal_host::is_asio(&host) {
+            return None;
+        }
+        let listed = |devices: Result<Vec<cpal::Device>, cpal::DevicesError>| {
+            devices
+                .map(|ds| ds.iter().map(cpal_host::Listed::of).collect::<Vec<_>>())
+                .unwrap_or_default()
+        };
+        let mut s = self.clone();
+        if s.output_device.is_some() {
+            let outputs = listed(host.output_devices().map(Iterator::collect));
+            identify(&mut s.output_device, &mut s.output_device_id, &outputs);
+        }
+        if s.input_device.as_deref().is_some_and(is_input_device_name) {
+            let inputs = listed(host.input_devices().map(Iterator::collect));
+            identify(&mut s.input_device, &mut s.input_device_id, &inputs);
+        }
+        (s != *self).then_some(s)
+    }
+}
+
+/// An input setting naming a device (not the system default, not the test loopback).
+fn is_input_device_name(name: &str) -> bool {
+    name != "default" && crate::recording::parse_loopback(name).is_none()
+}
+
+/// Record the id of the device `name`/`id` designates among `listed`, and its current name.
+/// A device not listed (unplugged) keeps what was saved.
+fn identify(name: &mut Option<String>, id: &mut Option<String>, listed: &[cpal_host::Listed]) {
+    let Some(n) = name.as_deref() else { return };
+    let Some(at) = cpal_host::pick(listed, n, id.as_deref()) else {
+        return;
+    };
+    let found = &listed[at];
+    if found.id.is_some() {
+        id.clone_from(&found.id);
+    }
+    if found.name.is_some() {
+        name.clone_from(&found.name);
     }
 }
 
@@ -193,6 +264,7 @@ pub fn resolve(settings: &AudioSettings) -> Result<ResolvedConfig, AudioError> {
         AudioBackendKind::Cpal => {
             let (host, device) = cpal_device(settings)?;
             let system_buffer = cpal_host::system_buffer_size(&host);
+            let settings = &with_host_buffer(settings, &host);
             let (config, _) = cpal_config(&device, settings, None, system_buffer)?;
             Ok(ResolvedConfig {
                 info: StreamInfo {
@@ -212,8 +284,23 @@ pub fn resolve(settings: &AudioSettings) -> Result<ResolvedConfig, AudioError> {
 
 fn cpal_device(settings: &AudioSettings) -> Result<(cpal_host::HostRef, cpal::Device), AudioError> {
     let host = cpal_host::host(settings.host.as_deref())?;
-    let device = cpal_host::output_device(&host, settings.output_device.as_deref())?;
+    let device = cpal_host::output_device(
+        &host,
+        settings.output_device.as_deref(),
+        settings.output_device_id.as_deref(),
+    )?;
     Ok((host, device))
+}
+
+/// `settings` asking for the host's default buffer size when they ask for none
+/// ([`cpal_host::default_buffer_frames`]; saved settings keep `None`).
+fn with_host_buffer(settings: &AudioSettings, host: &cpal::Host) -> AudioSettings {
+    AudioSettings {
+        buffer_size: settings
+            .buffer_size
+            .or_else(|| cpal_host::default_buffer_frames(host)),
+        ..settings.clone()
+    }
 }
 
 /// Pick the stream config: the requested (or forced) sample rate if the device supports
@@ -307,9 +394,11 @@ fn is_supported_format(f: cpal::SampleFormat) -> bool {
     )
 }
 
-/// Enumerate cpal hosts and output devices (plus the null/offline backends).
-pub fn list_devices(current: &AudioSettings) -> AudioDeviceList {
+/// Enumerate cpal hosts and output devices (plus the null/offline backends). On ALSA only
+/// the useful devices unless `all` ([`cpal_host::shown_devices`]).
+pub fn list_devices(current: &AudioSettings, all: bool) -> AudioDeviceList {
     let mut outputs = Vec::new();
+    let mut hidden = 0;
     let mut buffer_size_settable = true;
     if let Ok(host) = cpal_host::host(current.host.as_deref()) {
         let system_buffer = cpal_host::system_buffer_size(&host);
@@ -321,6 +410,12 @@ pub fn list_devices(current: &AudioSettings) -> AudioDeviceList {
             host.default_output_device().and_then(|d| d.name().ok())
         };
         if let Ok(devices) = host.output_devices() {
+            let chosen = current
+                .output_device
+                .as_deref()
+                .map(|n| (n, current.output_device_id.as_deref()));
+            let (devices, left_out) = cpal_host::shown_devices(&host, devices, chosen, all);
+            hidden += left_out;
             for d in devices {
                 let Ok(name) = d.name() else { continue };
                 let default = d.default_output_config().ok();
@@ -355,6 +450,7 @@ pub fn list_devices(current: &AudioSettings) -> AudioDeviceList {
             push_unopened_asio_drivers(&mut outputs);
         }
     }
+    let (inputs, inputs_hidden) = crate::recording::list_input_devices(current, all);
     AudioDeviceList {
         backends: vec!["cpal".into(), "null".into(), "offline".into()],
         hosts: cpal::available_hosts()
@@ -362,9 +458,10 @@ pub fn list_devices(current: &AudioSettings) -> AudioDeviceList {
             .map(|h| h.name().to_string())
             .collect(),
         outputs,
-        inputs: crate::recording::list_input_devices(current),
+        inputs,
         current: current.to_protocol(),
         buffer_size_settable: buffer_size_settable || current.backend != AudioBackendKind::Cpal,
+        hidden_devices: hidden + inputs_hidden,
     }
 }
 
@@ -544,6 +641,7 @@ fn start_cpal(
                 crate::recording::open_input(&settings, &shared, None)
             };
             let system_buffer = cpal_host::system_buffer_size(&device.0);
+            let settings = with_host_buffer(&settings, &device.0);
             let (stream, buffer_frames) = match build_cpal(
                 renderer,
                 &settings,
@@ -826,6 +924,89 @@ mod tests {
     }
 
     #[test]
+    fn device_ids_round_trip_through_the_saved_settings() {
+        let s = AudioSettings {
+            host: Some("ALSA".into()),
+            output_device: Some("hw:CARD=USB,DEV=0".into()),
+            output_device_id: Some("alsa:hw:CARD=USB,DEV=0".into()),
+            input_device: Some("Line In".into()),
+            input_device_id: Some("alsa:hw:CARD=USB,DEV=0".into()),
+            buffer_size: Some(256),
+            ..Default::default()
+        };
+        let json = serde_json::to_string_pretty(&s).unwrap();
+        assert_eq!(serde_json::from_str::<AudioSettings>(&json).unwrap(), s);
+        // No id: none written (the file stays as it was before ids).
+        let plain = serde_json::to_string(&AudioSettings::default()).unwrap();
+        assert!(!plain.contains("device_id"), "{plain}");
+    }
+
+    /// Settings saved before ids (cpal 0.16): read by name, given the ids once the devices
+    /// are listed, and found by id after a rename.
+    #[test]
+    fn name_only_settings_migrate_to_ids() {
+        let saved = r#"{"backend":"cpal","host":null,"output_device":"Speakers",
+            "input_device":"Mic","sample_rate":null,"buffer_size":null,"max_block_size":1024}"#;
+        let s: AudioSettings = serde_json::from_str(saved).unwrap();
+        assert_eq!(s.output_device.as_deref(), Some("Speakers"));
+        assert_eq!(s.output_device_id, None);
+        let listed = |name: &str, id: &str| cpal_host::Listed {
+            name: Some(name.into()),
+            id: Some(id.into()),
+        };
+        let outputs = [
+            listed("Headphones", "coreaudio:hp"),
+            listed("Speakers", "coreaudio:spk"),
+        ];
+        let (mut name, mut id) = (s.output_device.clone(), s.output_device_id.clone());
+        identify(&mut name, &mut id, &outputs);
+        assert_eq!(
+            (name.as_deref(), id.as_deref()),
+            (Some("Speakers"), Some("coreaudio:spk"))
+        );
+        // Renamed by the OS (or a cpal upgrade): found by id, and the name follows.
+        let renamed = [listed("MacBook Pro Speakers", "coreaudio:spk")];
+        identify(&mut name, &mut id, &renamed);
+        assert_eq!(name.as_deref(), Some("MacBook Pro Speakers"));
+        assert_eq!(id.as_deref(), Some("coreaudio:spk"));
+        // Unplugged: what was saved stays.
+        identify(&mut name, &mut id, &[]);
+        assert_eq!(name.as_deref(), Some("MacBook Pro Speakers"));
+        assert_eq!(id.as_deref(), Some("coreaudio:spk"));
+        // Only real input devices get an id (the default input follows the system).
+        assert!(is_input_device_name("Mic"));
+        assert!(!is_input_device_name("default"));
+        assert!(!is_input_device_name("loopback:64"));
+    }
+
+    #[test]
+    fn choosing_another_device_forgets_the_old_id() {
+        let s = AudioSettings {
+            output_device: Some("Speakers".into()),
+            output_device_id: Some("wasapi:spk".into()),
+            input_device: Some("Mic".into()),
+            input_device_id: Some("wasapi:mic".into()),
+            ..Default::default()
+        };
+        let config = |output: Option<&str>, input: Option<&str>| AudioConfig {
+            backend: None,
+            host: None,
+            output_device: output.map(Into::into),
+            input_device: input.map(Into::into),
+            sample_rate: None,
+            buffer_size: Some(128),
+        };
+        // The same devices (or none sent): the ids stay.
+        let same = s.merged(&config(Some("Speakers"), None)).unwrap();
+        assert_eq!(same.output_device_id.as_deref(), Some("wasapi:spk"));
+        assert_eq!(same.input_device_id.as_deref(), Some("wasapi:mic"));
+        let other = s.merged(&config(Some("Headphones"), Some(""))).unwrap();
+        assert_eq!(other.output_device_id, None);
+        assert_eq!(other.input_device, None);
+        assert_eq!(other.input_device_id, None);
+    }
+
+    #[test]
     fn buffer_size_only_change_keeps_the_default_output() {
         let s = AudioSettings {
             buffer_size: Some(256),
@@ -926,6 +1107,56 @@ mod tests {
             assert_eq!(shared.buffer_size.load(Ordering::Relaxed), n);
             engine = out.stop().expect("engine back");
         }
+        // None asked: the host's default (ALSA: `ALSA_DEFAULT_BUFFER`, not the device period).
+        let settings = AudioSettings {
+            sample_rate: Some(rate),
+            ..Default::default()
+        };
+        let out = AudioOutput::start(engine, &settings, shared.clone())
+            .map_err(|(e, _)| e)
+            .unwrap();
+        let host = cpal_host::host(None).unwrap();
+        if let Some(n) = cpal_host::default_buffer_frames(&host) {
+            assert_eq!(out.info.buffer_size, n);
+        }
+        println!(
+            "default buffer: {} frames",
+            shared.buffer_size.load(Ordering::Relaxed)
+        );
+        out.stop().expect("engine back");
+    }
+
+    /// On a machine with audio devices (`cargo test -p ether-native -- --ignored
+    /// lists_the_useful_devices --nocapture`): the default list is the full one minus what
+    /// it reports hidden, and a listed device saved by name gets its id.
+    #[test]
+    #[ignore = "needs audio devices"]
+    fn lists_the_useful_devices() {
+        let settings = AudioSettings::default();
+        let short = list_devices(&settings, false);
+        let full = list_devices(&settings, true);
+        let names = |l: &AudioDeviceList| l.outputs.iter().map(|d| d.name.clone()).collect();
+        let (short_names, full_names): (Vec<String>, Vec<String>) = (names(&short), names(&full));
+        println!(
+            "shown: {short_names:?}\nall: {full_names:?}\nhidden: {}",
+            short.hidden_devices
+        );
+        assert_eq!(full.hidden_devices, 0);
+        assert_eq!(
+            short.outputs.len() + short.inputs.len() + short.hidden_devices as usize,
+            full.outputs.len() + full.inputs.len()
+        );
+        let Some(name) = short_names.first() else {
+            return;
+        };
+        let saved = AudioSettings {
+            output_device: Some(name.clone()),
+            ..settings
+        };
+        let migrated = saved.with_device_ids().expect("an id for a listed device");
+        println!("{name} -> {:?}", migrated.output_device_id);
+        assert!(migrated.output_device_id.is_some());
+        assert!(migrated.with_device_ids().is_none(), "migrated once");
     }
 
     #[test]

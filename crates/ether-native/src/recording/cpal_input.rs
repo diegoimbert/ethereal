@@ -1,7 +1,7 @@
 //! The cpal input stream: device lookup, format conversion, the RT input callback.
 
-// cpal 0.17 deprecates `Device::name()` for `id()` / `description()`; the saved device
-// settings match by name, so the names stay until that migration (issue to follow).
+// cpal 0.17 deprecates `Device::name()` for `id()` / `description()`: devices are matched
+// by their saved id, then by name (`cpal_host::find_device`).
 #![allow(deprecated)]
 
 use std::sync::atomic::Ordering;
@@ -16,7 +16,7 @@ use crate::audio::AudioSettings;
 use crate::cpal_host;
 use crate::rt::AudioShared;
 
-fn device(host: &cpal::Host, name: &str) -> Option<cpal::Device> {
+fn device(host: &cpal::Host, name: &str, id: Option<&str>) -> Option<cpal::Device> {
     if name == "default" {
         return if cpal_host::is_asio(host) {
             // No default ASIO device (and asking for one loads drivers): the first with inputs.
@@ -27,15 +27,14 @@ fn device(host: &cpal::Host, name: &str) -> Option<cpal::Device> {
             host.default_input_device()
         };
     }
-    host.input_devices()
-        .ok()?
-        .find(|d| d.name().is_ok_and(|n| n == name))
+    cpal_host::find_device(host.input_devices().ok()?, name, id)
 }
 
-/// Input devices of the configured cpal host (`AudioDeviceList::inputs`).
-pub fn list_input_devices(settings: &AudioSettings) -> Vec<AudioDeviceInfo> {
+/// Input devices of the configured cpal host (`AudioDeviceList::inputs`), and how many
+/// were left out (ALSA without `all`, see `cpal_host::shown_devices`).
+pub fn list_input_devices(settings: &AudioSettings, all: bool) -> (Vec<AudioDeviceInfo>, u32) {
     let Ok(host) = cpal_host::host(settings.host.as_deref()) else {
-        return Vec::new();
+        return (Vec::new(), 0);
     };
     let asio = cpal_host::is_asio(&host);
     let default_name = if asio {
@@ -44,9 +43,15 @@ pub fn list_input_devices(settings: &AudioSettings) -> Vec<AudioDeviceInfo> {
         host.default_input_device().and_then(|d| d.name().ok())
     };
     let Ok(devices) = host.input_devices() else {
-        return Vec::new();
+        return (Vec::new(), 0);
     };
+    let chosen = settings
+        .input_device
+        .as_deref()
+        .map(|n| (n, settings.input_device_id.as_deref()));
+    let (devices, hidden) = cpal_host::shown_devices(&host, devices, chosen, all);
     let mut list: Vec<AudioDeviceInfo> = devices
+        .into_iter()
         .filter_map(|d| {
             let name = d.name().ok()?;
             let config = d.default_input_config().ok()?;
@@ -82,7 +87,7 @@ pub fn list_input_devices(settings: &AudioSettings) -> Vec<AudioDeviceInfo> {
     if asio {
         crate::audio::push_unopened_asio_drivers(&mut list);
     }
-    list
+    (list, hidden)
 }
 
 /// ASIO duplex: the input opens on the output's driver, after it, with its buffer size
@@ -123,7 +128,12 @@ pub(crate) fn open_input(
             None => {
                 let host = cpal_host::host(host_name.as_deref().or(settings.host.as_deref()))
                     .map_err(|e| e.to_string())?;
-                device(&host, &name).ok_or_else(|| format!("input device {name} not found"))?
+                // The id saved with the input setting, when that is the pending device.
+                let id = settings
+                    .input_device_id
+                    .as_deref()
+                    .filter(|_| settings.input_device.as_deref() == Some(name.as_str()));
+                device(&host, &name, id).ok_or_else(|| format!("input device {name} not found"))?
             }
         };
         let supported = input_config(&device, rate)?

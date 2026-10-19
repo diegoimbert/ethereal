@@ -53,6 +53,7 @@
   "settings.audio.no_devices": "no devices.",
   "settings.audio.choose_input_hint": "choose an input device to record from: no input is open yet, so recordings would be silent.",
   "settings.audio.refresh": "refresh devices",
+  "settings.audio.all_devices": "show all devices",
   "settings.audio.driver": "driver",
   "settings.audio.output": "output device",
   "settings.audio.system_default": "{name} (system default)",
