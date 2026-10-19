@@ -1,7 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import type { AudioConfig, TrackId } from "@/generated";
 import { RefreshCw } from "lucide-react";
-import { Button, Dialog, IconButton, Meter, Select, Tabs, type SelectOption } from "@/kit";
+import { Button, Dialog, IconButton, Meter, Select, Tabs, Toggle, type SelectOption } from "@/kit";
 import { useProjectStore, useTrackMeter } from "@/state";
 import { cmd, commandErrorText, isCommandFailed, isTauri, TransportContext, type EngineTransport } from "@/transport";
 import { PluginFoldersPanel } from "@/features/plugins";
@@ -157,6 +157,7 @@ function AudioSettingsBody({ transport, reason }: { transport: EngineTransport; 
   const status = useAudioSettings((s) => s.status);
   const unavailable = useAudioSettings((s) => s.unavailable);
   const loading = useAudioSettings((s) => s.loading);
+  const allDevices = useAudioSettings((s) => s.allDevices);
   const [error, setError] = useState<string | null>(null);
   const refresh = () => void loadAudioDevices(transport);
   // The host reports a status of its own when it closes or reopens the device (the local
@@ -217,6 +218,18 @@ function AudioSettingsBody({ transport, reason }: { transport: EngineTransport; 
       )}
 
       <div className="eth-audio-settings__toolbar">
+        {/* Linux lists every ALSA device; the engine keeps the sound server and the hardware. */}
+        {(devices.hidden_devices > 0 || allDevices) && (
+          <Toggle
+            size="sm"
+            checked={allDevices}
+            label={t("settings.audio.all_devices")}
+            onChange={(all) => {
+              useAudioSettings.setState({ allDevices: all });
+              refresh();
+            }}
+          />
+        )}
         <IconButton
           size="sm"
           tone="ghost"

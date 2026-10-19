@@ -6,8 +6,13 @@ use ts_rs::TS;
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum EngineCommand {
-    /// Replies `AudioDevices`.
-    ListAudioDevices,
+    /// Replies `AudioDevices`. `all`: every device the driver lists (ALSA lists each PCM
+    /// of `aplay -L`; by default only the sound server and the hardware devices).
+    ListAudioDevices {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        all: Option<bool>,
+    },
     /// (Re)start the audio backend with this configuration. Replies `Status`.
     SetAudioConfig { config: AudioConfig },
     /// Replies `Status`.
@@ -39,6 +44,9 @@ pub struct AudioDeviceList {
     /// the device buffer (WASAPI shared mode: one Windows period per callback), so the
     /// settings show the running size instead of offering a choice.
     pub buffer_size_settable: bool,
+    /// Devices left out of `outputs` and `inputs` (listed with `all`).
+    #[serde(default)]
+    pub hidden_devices: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

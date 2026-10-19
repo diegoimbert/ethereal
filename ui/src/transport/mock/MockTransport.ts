@@ -1341,6 +1341,7 @@ export class MockTransport implements EngineTransport {
             inputs: [{ name: "Mock Input", channels: 2, sample_rates: [44100, 48000], is_default: true, buffer_size_range: null }],
             current,
             buffer_size_settable: true,
+            hidden_devices: 0,
           },
         };
       case "SetAudioConfig":

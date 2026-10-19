@@ -82,6 +82,30 @@ describe("AudioSettingsDialog", () => {
     expect(screen.getByTestId("audio-status")).toHaveTextContent("running · mock");
   });
 
+  it("offers all devices only when the engine left some out", async () => {
+    const { mock } = await setup();
+    act(() => openAudioSettings());
+    expect(screen.queryByRole("switch", { name: "show all devices" })).toBeNull();
+    const send = vi.mocked(mock.send).getMockImplementation()!;
+    vi.mocked(mock.send).mockImplementation(async (c: Command, o) => {
+      const reply = await send(c, o);
+      if (reply.type !== "AudioDevices" || c.domain !== "Engine" || c.command.type !== "ListAudioDevices") return reply;
+      return { ...reply, devices: { ...reply.devices, hidden_devices: c.command.all ? 0 : 33 } };
+    });
+    await act(async () => loadAudioDevices(mock));
+    const toggle = screen.getByRole("switch", { name: "show all devices" });
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(toggle);
+    await waitFor(() =>
+      expect(vi.mocked(mock.send).mock.calls.some(([c]) => c.domain === "Engine" && c.command.type === "ListAudioDevices" && c.command.all === true)).toBe(
+        true,
+      ),
+    );
+    // Nothing hidden any more, and the switch stays to turn it off.
+    await waitFor(() => expect(screen.getByRole("switch", { name: "show all devices" })).toHaveAttribute("aria-checked", "true"));
+    act(() => useAudioSettings.setState({ allDevices: false }));
+  });
+
   it("arming with no input device opens the settings with a hint", async () => {
     const { mock } = await setup();
     await act(async () => promptForInputIfNone(mock));
