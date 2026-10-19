@@ -30,10 +30,10 @@ Rules:
 |---|---|
 | `start x [--ee] [--worktree <dir>]` | Branch `x` off `origin/main` (or `origin/x`), here or in a new worktree (outside this checkout). `--ee` (or an existing EE branch `x`) also initialises `ee/` and puts it on EE branch `x`. |
 | `ee` | Initialise `ee/` and put it on the current branch's name (existing EE `x`, else new off EE `main`). `start`, `ee`, `update` and `tree` also check out the submodules nested in `ee/` (libvpx). |
-| `push [--draft] [--title T] [--body B \| --body-file F] [--ee-title T] [--ee-body B \| --ee-body-file F]` | Push EE `x` (if it has commits), commit the pointer (`ee: point at x`), push OSS `x`, open or update both PRs with cross-links (a given title/body is applied to open PRs too; `--ee-*` set the EE PR's, which default to the OSS ones), post `ee/pointer` and start the full build (`ee/build`). With no OSS changes the OSS branch stays local: EE-only. If a branch moved on GitHub (bot pointer commits, a ship's merge of main), that is merged in first; nothing is force-pushed except bot pointer-only commits. |
+| `push [--draft] [--title T] [--body B \| --body-file F] [--ee-title T] [--ee-body B \| --ee-body-file F]` | Push EE `x` (if it has commits), commit the pointer (`ee: point at x`), push OSS `x`, open or update both PRs with cross-links (a given title/body is applied to open PRs too; `--ee-*` set the EE PR's, which default to the OSS ones), post `ee/pointer`. No full build (pull requests build nothing, see below). With no OSS changes the OSS branch stays local: EE-only. If a branch moved on GitHub (bot pointer commits, a ship's merge of main), that is merged in first; nothing is force-pushed except bot pointer-only commits. |
 | `status` | Branches, pointers, PRs, checks, `ee/*` statuses, the ship lock, and what is out of line. |
 | `update` | Merge `main` into OSS `x` and EE `main` into EE `x`; a gitlink conflict resolves to `ee/`'s HEAD. |
-| `ship [x] [--admin] [--force] [--no-build] [--ignore-ee-checks] [--timeout <min>] [--takeover] [--strict] [--log F]` | Brings OSS `x` (and EE `x`) up to date with `main`, starts the full build if it has not run, and waits for every check on both PRs including `ee/build`, without the lock (a cancelled run is re-run once). Then it takes the global ship lock and brings both up to date again. If `main` came in cleanly and touches none of the PR's files (or nothing changed), it merges on the checks that passed: the EE PR, then OSS `x` pointed at EE `main`, then the OSS PR (squash), and makes sure OSS `main` points at EE `main`. Otherwise (the PR got new commits, or `main` changed files the PR changes; with `--strict` or `FEAT_SHIP_STRICT=1`, any tree change) it lets the lock go and waits for the checks on the new heads first. Logs to a file of its own as well (printed first; `--log F` picks it). `--force` ships despite failing checks, `--no-build` skips only the `ee/build` wait, `--ignore-ee-checks` reports failing EE PR checks without gating on them (an EE change merged ahead of its OSS side), `--admin` bypasses branch protection. |
+| `ship [x] [--admin] [--force] [--build] [--ignore-ee-checks] [--timeout <min>] [--takeover] [--strict] [--log F]` | Brings OSS `x` (and EE `x`) up to date with `main`, and waits for the gating checks (`CLA`, `What changed`, `Policy`, `ee/pointer`; see below), without the lock (a cancelled run is re-run once). Then it takes the global ship lock and brings both up to date again. If `main` came in cleanly and touches none of the PR's files (or nothing changed), it merges on the checks that passed: the EE PR, then OSS `x` pointed at EE `main`, then the OSS PR (squash), and makes sure OSS `main` points at EE `main`. Otherwise (the PR got new commits, or `main` changed files the PR changes; with `--strict` or `FEAT_SHIP_STRICT=1`, any tree change) it lets the lock go and waits for the checks on the new heads first. Logs to a file of its own as well (printed first; `--log F` picks it). `--force` ships despite failing checks, `--build` also waits for an `ee/build` started by hand (`feat sync --pr N --build`), `--ignore-ee-checks` reports failing EE PR checks without gating on them (an EE change merged ahead of its OSS side), `--admin` bypasses branch protection. |
 | `queue [--prune]` | Who holds the ship lock and what every running ship waits for (its checks, the full build, the lock), with ages. `--prune` deletes the tickets of ships that died. |
 | `sync [--dry-run] [--pr N] [--build]` | The reconcile the private-side bot runs (needs write access to both repos). |
 | `check <pr>` | Dry-run the pointer guard for one OSS PR. |
@@ -72,15 +72,16 @@ reaches this repository's Actions:
   (or EE `main` once that merged), merges `main` into a PR whose only conflict is the gitlink,
   and posts the **`ee/pointer`** status on OSS PRs. Its API commits touch nothing but `ee` and
   are fast-forward only, retried when the branch moved.
-- **Full build**: each non-draft OSS PR head gets the **`ee/build`** status: the full product
-  built from that PR (with EE `main` when the PR leaves `ee` alone). Fork PRs are not built
-  automatically.
-- **EE CI** builds each EE PR against OSS branch `x` (or OSS `main`).
+- **Pull requests build and test nothing** (owner, 2026-10-19): only `CLA`, `What changed`,
+  `Policy` and `ee/pointer` gate a merge. Run the relevant tests locally before pushing. Every
+  build and test (OSS CI on all platforms, the full product, EE CI) runs on `main`; a red `main`
+  opens a `ci-main` issue and is fixed forward in a follow-up PR. A full build of a PR
+  (**`ee/build`**) only runs on request: `just feat sync --pr N --build`.
 - Releases and the dev deploy are built on the private side from OSS `main` + the `ee` commit
   it points at; GitHub Releases are still published here.
 
 `feat push` and `feat ship` do the bot's part for their own PR themselves (pointer status,
-starting the build, turning a finished build into `ee/build`), so the workflow keeps working
+and turning a finished build into `ee/build` when one was requested), so the workflow keeps working
 when the bot cannot write here.
 
 ## Concurrency notes
