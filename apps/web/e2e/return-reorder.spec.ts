@@ -46,7 +46,7 @@ test("a new return drags between two others; the sends keep their returns", asyn
   await selectTrack(page, audio.name);
   const sends = page.getByTestId("inspector").getByLabel("sends");
   for (const r of [a, b, c]) {
-    await sends.getByRole("slider", { name: `Send ${r.name}` }).focus();
+    await sends.getByRole("slider", { name: `send ${r.name}` }).focus();
     await page.keyboard.press("ArrowUp");
   }
   await expect.poll(async () => Object.values((await project(page)).sends).filter((s) => s.from === audio.id).length).toBe(3);
@@ -80,7 +80,7 @@ test("a new return drags between two others; the sends keep their returns", asyn
   await selectTrack(page, audio.name);
   await expect
     .poll(() => sends.getByRole("slider").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label"))))
-    .toEqual([`Send ${a.name}`, `Send ${c.name}`, `Send ${b.name}`]);
+    .toEqual([`send ${a.name}`, `send ${c.name}`, `send ${b.name}`]);
 
   // One undo step.
   await header(a).click({ position: { x: 6, y: 10 } });

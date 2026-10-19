@@ -57,7 +57,7 @@ fn referenced_in_place_missing_relinked_collected() {
     );
     assert_eq!(
         s["location"],
-        json!({"type": "External", "path": library.join("Drums/Snare.wav").to_str().unwrap()})
+        json!({"type": "External", "path": library.join("Drums").join("Snare.wav").to_str().unwrap()})
     );
     let project_dir = tmp.path().join("projects").join(&pid);
     for m in [&k, &s] {
@@ -67,7 +67,7 @@ fn referenced_in_place_missing_relinked_collected() {
     c.quit();
 
     // Moved while the app was closed.
-    let archive = tmp.path().join("Archive/2026");
+    let archive = tmp.path().join("Archive").join("2026");
     std::fs::create_dir_all(&archive).unwrap();
     std::fs::rename(&kick_path, archive.join("Kick.wav")).unwrap();
     let mut c = Client::start(&paths);
