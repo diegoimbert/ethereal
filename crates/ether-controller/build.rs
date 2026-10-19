@@ -6,6 +6,9 @@
 //! - `names.rs`: per language, the default names (`name.*`) and the built-in devices' text
 //!   (`engine.*`) the engine names new tracks, devices, chains and markers with, in the
 //!   language the UI sets (`Settings::SetLanguage`).
+//!
+//! `ETHER_EXTRA_LOCALES` (a directory of `<code>.json` catalogs): an extension's messages,
+//! merged in (its undo labels, notices and errors; docs/EXTENSIONS.md).
 
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -14,6 +17,18 @@ use std::path::Path;
 const ENGINE_PREFIXES: [&str; 5] = ["undo.", "notice.", "error.", "engine.", "name."];
 /// The catalog areas of default names.
 const NAME_PREFIXES: [&str; 2] = ["name.", "engine."];
+
+/// `<dir>/<code>.json`, merged with the extension's catalog of that language, if any.
+fn catalog(dir: &Path, extra: Option<&Path>, code: &str) -> BTreeMap<String, String> {
+    let mut messages = read(&dir.join(format!("{code}.json")));
+    if let Some(extra) = extra {
+        let path = extra.join(format!("{code}.json"));
+        if path.exists() {
+            messages.extend(read(&path));
+        }
+    }
+    messages
+}
 
 fn read(path: &Path) -> BTreeMap<String, String> {
     println!("cargo:rerun-if-changed={}", path.display());
@@ -39,7 +54,13 @@ fn main() {
     let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR");
     let dir = Path::new(&manifest).join("../../ui/src/i18n/locales");
     println!("cargo:rerun-if-changed={}", dir.display());
-    let en = read(&dir.join("en.json"));
+    println!("cargo:rerun-if-env-changed=ETHER_EXTRA_LOCALES");
+    let extra = std::env::var_os("ETHER_EXTRA_LOCALES").map(std::path::PathBuf::from);
+    if let Some(extra) = &extra {
+        println!("cargo:rerun-if-changed={}", extra.display());
+    }
+    let extra = extra.as_deref();
+    let en = catalog(&dir, extra, "en");
     std::fs::write(
         Path::new(&out_dir).join("en_undo.rs"),
         format!("{}\n", table(&en, &ENGINE_PREFIXES)),
@@ -56,7 +77,7 @@ fn main() {
     codes.sort();
     let mut names = String::from("&[\n");
     for code in codes {
-        let messages = read(&dir.join(format!("{code}.json")));
+        let messages = catalog(&dir, extra, &code);
         names.push_str(&format!(
             "({code:?}, {}),\n",
             table(&messages, &NAME_PREFIXES)

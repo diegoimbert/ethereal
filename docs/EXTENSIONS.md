@@ -61,7 +61,10 @@ contribute("shell.root", { name: "my feature", Component: MyRoot }, /* order */ 
 | tests | `mock.domain`, `mock.docDomain`, `e2e.arrangement` | command domains of the mock engine, and extra arranger test handles |
 
 i18n: an extension ships its own catalogs, merged at build time (`i18nCatalogPlugin({ extraDirs })`).
-Its keys type-check through the `ExtensionMessages` interface (`ui/src/i18n/types.ts`).
+Its keys type-check through the `ExtensionMessages` interface (`ui/src/i18n/types.ts`). The engine
+sends some messages itself (undo labels, notices, errors): a build that sets
+`ETHER_EXTRA_LOCALES` to a directory of `<code>.json` catalogs merges them into the engine's
+(`crates/ether-controller/build.rs`).
 
 ## Desktop (`apps/desktop/src-tauri`)
 
