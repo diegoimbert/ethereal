@@ -401,6 +401,8 @@ export interface MessageArgs {
   "name.track.midi": { n: string | number };
   "name.track.return": { letter: string | number };
   "name.track.vca": { n: string | number };
+  "news.list.error": { error: string | number };
+  "news.viewer.next": { count: string | number };
   "notice.audio.crash_failed": { error: string | number };
   "notice.audio.device_unavailable": { error: string | number };
   "notice.audio.engine_error": { error: string | number };
