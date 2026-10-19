@@ -63,6 +63,8 @@ import { TransportContext } from "@/transport";
 import { useTransportSwitch } from "@/transport/createDefaultTransport";
 import { PanelBoundary } from "./PanelBoundary";
 import { ExtensionRoots, useExtensionInit } from "./ExtensionRoots";
+import { useContributions } from "@/ext";
+import { useAgentSelectionSync } from "@/features/ai-chat/selectionSync";
 import "./App.css";
 
 /** Sizes in px, from the design tokens (`size.*` in ui/src/theme/tokens.ts). */
@@ -314,12 +316,17 @@ const MobileShell = lazy(() => import("@/features/mobile/MobileShell").then((m) 
 const MobileViewerShell = lazy(() => import("@/features/mobile/MobileShell").then((m) => ({ default: m.MobileViewerShell })));
 
 export function App() {
+  const toasts = useContributions("app.toasts");
   return (
     <PanelBoundary name="app" variant="app">
       <Shell />
-      {/* The app's notices (saved, exported, duplicated, warnings), over every shell. */}
+      {/* The app's notices (saved, exported, duplicated, warnings), over every shell, then
+          extensions' toasts (`@/ext` "app.toasts"). */}
       <ToastStack>
         <NotificationToastItems />
+        {toasts.map((Toasts, i) => (
+          <Toasts key={i} />
+        ))}
       </ToastStack>
     </PanelBoundary>
   );
@@ -333,6 +340,8 @@ function Shell() {
   useDocumentTitle();
   // Extensions (`@/ext` "app.init").
   useExtensionInit();
+  // The selection the agent tools read (AI chat, MCP).
+  useAgentSelectionSync(connection?.transport ?? null, connection?.connection.status === "connected");
   // A read-only view (`state/viewer.ts`, an extension's): in the touch layout on phones and tablets.
   if (useReadOnly())
     return mobile ? (

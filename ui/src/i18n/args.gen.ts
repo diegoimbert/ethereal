@@ -730,7 +730,6 @@ export interface MessageArgs {
   "undo.note.delete": { count: number };
   "undo.note.duplicate": { count: number };
   "undo.note.edit": { count: number };
-  "undo.pinned_note.delete": { count: number };
   "undo.plugin.set_device_params": { count: number; device: string | number };
   "undo.plugin.set_params": { count: number };
   "undo.rack.group": { count: number };

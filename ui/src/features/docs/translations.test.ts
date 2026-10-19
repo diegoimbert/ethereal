@@ -74,6 +74,8 @@ const NOT_LABELS: Record<string, string[]> = {
   "mobile/mobile-beta.md": ["devices", "recording", "share"],
   "reference/faq.md": ["share"],
   "reference/glossary.md": ["plugin"],
+  // macOS's own settings entry (System Settings › Privacy & Security), "Microphone" in French too.
+  "reference/troubleshooting.md": ["microphone"],
   "sharing/live-sessions.md": ["share"],
   "sharing/overview.md": ["share"],
   "sharing/static-links.md": ["share"],

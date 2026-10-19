@@ -322,7 +322,7 @@ fn copies_never_carry_the_share_file() {
     let ReplyValue::Projects { projects } = h.ok(Command::Project(ProjectCommand::List)) else {
         panic!()
     };
-    assert!(projects.iter().all(|p| p.share.is_none()));
+    assert!(projects.iter().all(|p| p.ext.is_none()));
 
     // Duplicate (not opened).
     let c = h.project_id();
@@ -331,7 +331,7 @@ fn copies_never_carry_the_share_file() {
         new_id: c,
         name: "Copy".into(),
     }));
-    assert!(matches!(v, ReplyValue::Saved { project } if project.share.is_none()));
+    assert!(matches!(v, ReplyValue::Saved { project } if project.ext.is_none()));
     assert!(h.ctl.store.file(c, SHARE_FILE).is_none());
 
     // Save As (switches to the copy).

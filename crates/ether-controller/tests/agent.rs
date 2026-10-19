@@ -4,8 +4,7 @@
 mod common;
 
 use common::*;
-use ether_core::protocol::agent::AgentCommand;
-use ether_core::protocol::collab::{CollabCommand, PresenceState};
+use ether_core::protocol::agent::{AgentCommand, AgentSelection};
 use ether_core::protocol::model::*;
 use ether_core::protocol::project::EditCommand;
 use ether_core::protocol::*;
@@ -707,10 +706,10 @@ fn overview_and_track_reads() {
         "add_notes",
         json!({ "clip_id": c, "notes": [{ "pitch": 60, "start_beats": 0, "duration_beats": 1 }] }),
     );
-    h.ok(Command::Collab(CollabCommand::SetPresence {
-        presence: PresenceState {
-            selected_tracks: vec![t.parse().unwrap()],
-            ..PresenceState::default()
+    h.ok(Command::Agent(AgentCommand::SetSelection {
+        selection: AgentSelection {
+            tracks: vec![t.parse().unwrap()],
+            ..AgentSelection::default()
         },
     }));
     let o = ok_call(&mut h, "get_project_overview", json!({}));

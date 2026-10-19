@@ -16,6 +16,7 @@ use ether_core::protocol::clips::ClipCommand as C;
 use ether_core::protocol::devices::{DeviceCommand as D, DeviceSpec};
 use ether_core::protocol::drum_rack::{DrumRackCommand as Dr, SliceCommand as Sl};
 use ether_core::protocol::expression::ExpressionCommand as Ex;
+use ether_core::protocol::ext::ExtCommand;
 use ether_core::protocol::external::ExternalCommand;
 use ether_core::protocol::freeze::FreezeCommand as F;
 use ether_core::protocol::groove::GrooveCommand;
@@ -35,7 +36,6 @@ use ether_core::protocol::project::{EditCommand as E, ProjectCommand as P};
 use ether_core::protocol::racks::{ModulationCommand as Mo, RackCommand as R};
 use ether_core::protocol::recording::RecordingCommand as Rec;
 use ether_core::protocol::resolver::ResolveCommand;
-use ether_core::protocol::social::{ChatCommand, PinnedNoteCommand as Pn};
 use ether_core::protocol::takes::TakeCommand as Tk;
 use ether_core::protocol::templates::TemplateCommand as Tpl;
 use ether_core::protocol::tempo::TempoCommand as Te;
@@ -523,14 +523,6 @@ pub(crate) fn label_of(command: &Command, project: Option<&Project>) -> UndoLabe
             ),
             Mo::ListModulatorKinds => k("undo.modulation.list"),
         },
-        Command::PinnedNote(c) => match c {
-            Pn::Add { .. } => k("undo.pinned_note.add"),
-            Pn::Edit {
-                resolved: Some(r), ..
-            } => pick(*r, "undo.pinned_note.resolve", "undo.pinned_note.reopen"),
-            Pn::Edit { .. } => k("undo.pinned_note.edit"),
-            Pn::Delete { ids } => kn("undo.pinned_note.delete", ids.len()),
-        },
         Command::Expression(c) => match c {
             Ex::CreateLane { .. } => k("undo.expression.create_lane"),
             Ex::RemoveLane { .. } => k("undo.expression.delete_lane"),
@@ -573,7 +565,6 @@ pub(crate) fn label_of(command: &Command, project: Option<&Project>) -> UndoLabe
             P::Get => k("undo.project.get"),
             P::SetScale { .. } => k("undo.project.set_scale"),
             P::ExportBundle { .. } | P::ExportTo { .. } => k("undo.project.export"),
-            P::StaticSnapshot { .. } | P::StaticView { .. } => k("undo.project.share_snapshot"),
             P::ImportBundle { .. } | P::Import { .. } => k("undo.project.import"),
             P::CancelImport { .. } => k("undo.project.cancel_import"),
         },
@@ -653,24 +644,38 @@ pub(crate) fn label_of(command: &Command, project: Option<&Project>) -> UndoLabe
             ResolveCommand::Apply { .. } => k("undo.resolve.apply"),
             ResolveCommand::Replace { .. } => k("undo.resolve.replace"),
         },
-        Command::Chat(ChatCommand::Send { .. }) => k("undo.chat.send"),
         Command::Agent(c) => match c {
             AgentCommand::ListTools => k("undo.agent.list_tools"),
             AgentCommand::CallTool { .. } => k("undo.agent.call_tool"),
+            AgentCommand::SetSelection { .. } => k("undo.agent.set_selection"),
         },
         // Never document commands, never an undo step: one label per domain.
         Command::Engine(_) => k("undo.domain.engine"),
         Command::Export(_) => k("undo.domain.export"),
-        Command::Collab(_) => k("undo.domain.collab"),
         Command::Browser(_) => k("undo.domain.browser"),
         Command::Analysis(_) => k("undo.domain.analysis"),
         Command::History(_) => k("undo.domain.history"),
         Command::Version(_) => k("undo.domain.versions"),
         Command::Keymap(_) => k("undo.domain.keymap"),
         Command::Settings(_) => k("undo.domain.settings"),
-        Command::Share(_) => k("undo.domain.share"),
         Command::Samples(_) => k("undo.domain.samples"),
+        // An extension's command: its own label (`set_ext_labels`), else a generic one.
+        Command::Ext(c) => match EXT_LABELS.get().and_then(|f| f(c, project)) {
+            Some(key) => UndoLabel::keyed(key),
+            None => k("undo.domain.ext"),
+        },
     }
+}
+
+/// The undo labels of an extension's commands: a catalog message (`None`: the generic
+/// label). The catalog is the app's merged with the extension's (docs/LOCALIZATION.md).
+pub type ExtLabels = fn(&ExtCommand, Option<&Project>) -> Option<TextKey>;
+
+static EXT_LABELS: std::sync::OnceLock<ExtLabels> = std::sync::OnceLock::new();
+
+/// Extension point: the undo labels of an extension's commands (set once, at start).
+pub fn set_ext_labels(labels: ExtLabels) {
+    let _ = EXT_LABELS.set(labels);
 }
 
 #[cfg(test)]

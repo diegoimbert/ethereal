@@ -43,6 +43,7 @@ mod drum_rack;
 mod engine;
 mod export;
 mod expression;
+pub mod ext;
 mod external;
 mod file_import;
 mod freeze;
@@ -50,9 +51,8 @@ mod fx_space;
 mod groove;
 mod groups;
 mod handlers;
-// The other-DAW parsers (DAWproject / REAPER / Ableton / FL Studio) live in the private
-// collaboration overlay; without them `Project::Import` replies `Unsupported`
-// (`import/disabled.rs`).
+// `Project::Import` / `CancelImport` without an extension that imports other DAWs' projects:
+// `Unsupported` (`import/disabled.rs`).
 #[path = "import/disabled.rs"]
 mod import;
 mod keymap;
@@ -70,8 +70,8 @@ mod patch_compat;
 mod plugins;
 mod presets;
 mod project;
-// Export to other DAWs (DAWproject / Ableton / FL Studio) is private (the overlay):
-// without it `Project::ExportTo` replies `Unsupported` (`project_export/disabled.rs`).
+// `Project::ExportTo` without an extension that exports to other DAWs: `Unsupported`
+// (`project_export/disabled.rs`).
 #[path = "project_export/disabled.rs"]
 mod project_export;
 mod racks;
@@ -82,7 +82,6 @@ pub mod sample_pack;
 mod saving;
 mod sidechain;
 pub mod store;
-pub mod streaming;
 mod templates;
 mod tempo;
 pub mod text;
@@ -95,17 +94,17 @@ mod warp;
 
 use std::collections::BTreeMap;
 
-use ether_core::protocol::collab::{IceServer, StreamSignal};
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::{
     Base64Bytes, BuiltinDevice, DeviceId, GestureId, History, IdGen, MediaId, MediaRef, ParamId,
-    PluginInstance, Project, SiteId, TrackId,
+    PluginInstance, Project, TrackId,
 };
 use ether_core::protocol::transport::TransportState;
 use ether_core::protocol::{ClientMessage, Reply, ReplyResult, ServerMessage};
 use ether_core::{EngineOutputs, NodeKey, ParamChange, RenderGraphDesc, TransportControl};
 
 pub use compile::{CompileContext, compile_graph_with};
+pub use doc::{ExtLabels, set_ext_labels};
 pub use engine::LATENCY_REPUBLISH_MS;
 pub use media::hash::content_hash;
 pub use patch_compat::{LegacyClient, PatchCompat};
@@ -396,68 +395,6 @@ pub trait EngineBridge {
         None
     }
 
-    // ─── base-53: "listen on <peer>" native sender (`stream-host`; docs/COLLAB.md §9) ───
-
-    /// What this host can do for streaming. Default: nothing (the web build streams from
-    /// the UI instead, `CollabCommand::SetHosting { ui_sender: true }`).
-    fn stream_capabilities(&self) -> streaming::StreamCapabilities {
-        streaming::StreamCapabilities::default()
-    }
-
-    /// Start copying the engine's stream tap (master + metronome/count-in, never the
-    /// preview voice: `EngineHandle::set_stream_tap`) into the sender's ring. Called
-    /// when the first listener arrives; idempotent.
-    fn start_stream_capture(&mut self) -> Result<(), BridgeError> {
-        Err(BridgeError::Unsupported(
-            "streaming is not available on this host".into(),
-        ))
-    }
-
-    /// Stop the capture (after the last listener left). Idempotent.
-    fn stop_stream_capture(&mut self) -> Result<(), BridgeError> {
-        Ok(())
-    }
-
-    /// Open a peer connection to `listener` for `stream` using `ice` servers: the sender
-    /// creates the offer and reports it (and its ICE candidates) through `poll_stream`.
-    fn stream_open(
-        &mut self,
-        listener: SiteId,
-        stream: u32,
-        ice: &[IceServer],
-    ) -> Result<(), BridgeError> {
-        let _ = (listener, stream, ice);
-        Err(BridgeError::Unsupported(
-            "streaming is not available on this host".into(),
-        ))
-    }
-
-    /// A signal from `listener` (its answer, trickle ICE, or `Bye`) for `stream`.
-    fn stream_signal(
-        &mut self,
-        listener: SiteId,
-        stream: u32,
-        signal: &StreamSignal,
-    ) -> Result<(), BridgeError> {
-        let _ = (listener, stream, signal);
-        Err(BridgeError::Unsupported(
-            "streaming is not available on this host".into(),
-        ))
-    }
-
-    /// Close the peer connection for `stream` (no `Bye` is sent by the bridge: the
-    /// controller does that). Unknown streams are ignored.
-    fn stream_close(&mut self, listener: SiteId, stream: u32) -> Result<(), BridgeError> {
-        let _ = (listener, stream);
-        Ok(())
-    }
-
-    /// Drain what the sender produced since the last call (signals, clock anchors, link
-    /// states). Called from every controller tick.
-    fn poll_stream(&mut self, out: &mut Vec<streaming::StreamOutput>) {
-        let _ = out;
-    }
-
     // ─── base-53: plugin GUI mirrors (`plugin-mirror`; docs/COLLAB.md §9.6) ───
 
     /// Instantiate a GUI-only instance of a plugin device: never routed, never processes
@@ -740,6 +677,8 @@ where
     plugin_states: saving::PluginStates,
     /// v0.3: the history panel (`undo_history` module; runtime).
     undo_history: undo_history::UndoHistoryState,
+    /// The extensions (`ext` module): features built outside this repository.
+    extensions: ext::Extensions<B, H, S, L>,
     /// `import-resolver`: media search job and the last import's hints (`resolver`).
     resolver: resolver::ResolverState,
     /// #519: the default sample pack (`sample_pack` module; runtime).
@@ -801,6 +740,7 @@ where
             versions: Default::default(),
             plugin_states: Default::default(),
             undo_history: Default::default(),
+            extensions: Default::default(),
             resolver: Default::default(),
             samples: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
@@ -927,8 +867,8 @@ where
         self.engine.check_latencies(&self.bridge, now_ms);
         // v0.3 `external-instrument`: latency measurements and hardware port changes.
         self.external_tick(now_ms, out);
-        // `import-dawproject`: one step of a running project import.
-        self.import_tick(now_ms, out);
+        // Extensions' background work (e.g. a project import from another DAW).
+        self.ext_tick(now_ms, out);
         let mut tap = agent::ExportTap::new(out);
         self.tick_impl(now_ms, &mut tap);
         self.agent_absorb(tap);

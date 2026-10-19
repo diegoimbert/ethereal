@@ -31,13 +31,14 @@ use ether_core::plugin::PluginNode;
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::ParamId;
 use ether_core::transport::TransportInfo;
-use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, Bool, Imp, Sel};
 use objc2::sel;
 use objc2_audio_toolbox::{
     AUAudioUnit, AUEventSampleTimeImmediate, AUHostTransportStateFlags, AudioUnitRenderActionFlags,
 };
 use objc2_core_audio_types::{AudioBuffer, AudioBufferList, AudioTimeStamp, AudioTimeStampFlags};
+
+use super::Unit;
 
 /// Max channels per bus we pass to a unit.
 pub(crate) const MAX_CHANNELS: usize = 16;
@@ -186,7 +187,7 @@ pub(crate) struct AuNode {
     schedule_param: Option<RcBlock<ScheduleParamFn>>,
     schedule_midi: Option<RcBlock<ScheduleMidiFn>>,
     _host_blocks: HostBlocks,
-    au: Retained<AUAudioUnit>,
+    unit: Arc<Activation>,
     rt: Box<UnsafeCell<RtState>>,
     out_bufs: Vec<Vec<f32>>,
     out_list: Box<BufList>,
@@ -210,6 +211,26 @@ pub(crate) struct AuNode {
     mpe_out: MpeOut,
 }
 
+/// The unit while it is active, shared by the controller and its node. Whichever of the two
+/// goes last ends the activation (render resources, host blocks), so a unit is never
+/// released with its render resources allocated.
+pub(crate) struct Activation {
+    pub au: Arc<Unit>,
+}
+
+impl Drop for Activation {
+    fn drop(&mut self) {
+        // SAFETY: the unit no longer renders (neither half that could drive it is left); it
+        // stops using the node's host blocks before they are freed.
+        unsafe {
+            self.au.deallocateRenderResources();
+            self.au.setMusicalContextBlock(std::ptr::null_mut());
+            self.au.setTransportStateBlock(std::ptr::null_mut());
+            self.au.setMIDIOutputEventBlock(std::ptr::null_mut());
+        }
+    }
+}
+
 type ResetImp = unsafe extern "C-unwind" fn(*mut AnyObject, Sel);
 
 /// The implementation of `-reset` for `au`'s class.
@@ -225,7 +246,7 @@ fn reset_imp(au: &AUAudioUnit) -> Option<ResetImp> {
 unsafe impl Send for AuNode {}
 
 pub(crate) struct NodeInit {
-    pub au: Retained<AUAudioUnit>,
+    pub unit: Arc<Activation>,
     pub render: RcBlock<RenderFn>,
     pub schedule_param: Option<RcBlock<ScheduleParamFn>>,
     pub schedule_midi: Option<RcBlock<ScheduleMidiFn>>,
@@ -481,7 +502,7 @@ fn midi_bytes(kind: &EventKind) -> Option<([u8; 3], usize)> {
 impl AuNode {
     pub(crate) fn new(init: NodeInit, parts: RtParts) -> Self {
         let NodeInit {
-            au,
+            unit,
             render,
             schedule_param,
             schedule_midi,
@@ -510,15 +531,19 @@ impl AuNode {
         values.sort_by_key(|v| v.id);
         let pending_cap = values.len().max(16);
         // SAFETY: plain getter (main thread, at activation).
-        let in_process = unsafe { au.isLoadedInProcess() };
-        let reset_imp = if in_process { reset_imp(&au) } else { None };
+        let in_process = unsafe { unit.au.isLoadedInProcess() };
+        let reset_imp = if in_process {
+            reset_imp(&unit.au)
+        } else {
+            None
+        };
         Self {
             render,
             pull: parts.pull,
             schedule_param,
             schedule_midi,
             _host_blocks: parts.host,
-            au,
+            unit,
             rt: parts.rt,
             out_bufs: (0..out_channels).map(|_| vec![0.0; max_frames]).collect(),
             out_list: BufList::new(),
@@ -632,7 +657,7 @@ impl Node for AuNode {
             return;
         }
         if let Some(imp) = self.reset_imp {
-            let obj = Retained::as_ptr(&self.au) as *mut AnyObject;
+            let obj = &**self.unit.au as *const AUAudioUnit as *mut AnyObject;
             // SAFETY: `imp` is the implementation of `reset` for the unit's class (looked up
             // at creation); `reset` takes no arguments and returns void.
             unsafe { imp(obj, sel!(reset)) };

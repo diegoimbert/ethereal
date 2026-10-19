@@ -36,6 +36,7 @@ contribute("shell.root", { name: "my feature", Component: MyRoot }, /* order */ 
 | app | `shell.leftTab` | a left rail tab and its pane (`isVisible` / `useVisible` to show it only sometimes) |
 | app | `app.event` | a listener for app events (device inserted, project opened, export done, ...) |
 | app | `app.crash`, `app.crashActions` | a listener for caught crashes, and buttons on the crash cards |
+| app | `app.toasts` | toasts in the app's stack, after its notices |
 | app | `history.hint` | a note in the history panel |
 | commands | `palette.commands` | commands in the command palette |
 | commands | `project.commands`, `project.menu` | project commands, and where they show in the project menu (a section, an item or a submenu) |
@@ -72,3 +73,37 @@ The macOS Help menu shows only items the app handles. An extension adds its grou
 `app_menu::set_extra_help_items(groups)` before the menu is built, and labels them in the UI with
 `desktopMenu.labels`. Their actions reach the UI like the app's own.
 
+## The engine protocol (`crates/ether-protocol/src/ext.rs`)
+
+A command domain, event or reply value this repository doesn't declare is an extension's. On
+the wire it looks like the app's own (`{ "domain": "<name>", "command": … }`, `{ "type": … }`);
+the protocol keeps it as JSON in the `Ext` variant (`Command::Ext`, `Event::Ext`,
+`ReplyValue::Ext`), and the extension reads it with its own types (`ExtCommand::parse`,
+`ExtValue::parse`). Without an extension the engine replies `Unsupported`. The generated
+TypeScript types leave `Ext` out: an extension generates its own and joins them to the app's.
+
+In the controller (`crates/ether-controller`):
+
+- `set_ext_labels(f)`: the undo labels of an extension's commands (catalog messages).
+- `set_agent_selection(selection)`: the selection the agent tools read, for an extension that
+  learns it otherwise (the UI sends `Agent::SetSelection`).
+- `ETHER_EXTRA_LOCALES` (build time, see i18n above): the extension's undo labels, notices and
+  errors.
+
+## The controller (`crates/ether-controller/src/ext.rs`)
+
+An extension implements `ControllerExt` and is added with `EtherController::add_extension`.
+It keeps its own state and gets the controller with every hook:
+
+- `command`: every command, before the app handles it. Returning `Some` answers it: an
+  extension's own domain (`Command::Ext`), or an app command the app leaves to extensions
+  (`Project::Import`, `CancelImport` and `ExportTo` reply `Unsupported` without one).
+- `tick`: every controller tick (background jobs).
+
+It may use the controller's public API: its `pub` fields (bridge, host, store, library) and
+methods (`Controller::project`, `list_projects`, `load_project`, `take_upload`, `add_download`, ...),
+and the helpers of `ether_controller::ext::api`.
+
+The hosts add a process's extensions to every controller they create:
+`ether_native::host::set_controller_setup(f)` (desktop app, engine server) and
+`ether_wasm::web::set_controller_setup(f)` (web), called once at startup.
