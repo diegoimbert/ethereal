@@ -36,6 +36,7 @@ contribute("shell.root", { name: "my feature", Component: MyRoot }, /* order */ 
 | app | `shell.leftTab` | a left rail tab and its pane (`isVisible` / `useVisible` to show it only sometimes) |
 | app | `app.event` | a listener for app events (device inserted, project opened, export done, ...) |
 | app | `app.crash`, `app.crashActions` | a listener for caught crashes, and buttons on the crash cards |
+| app | `app.toasts` | toasts in the app's stack, after its notices |
 | app | `history.hint` | a note in the history panel |
 | commands | `palette.commands` | commands in the command palette |
 | commands | `project.commands`, `project.menu` | project commands, and where they show in the project menu (a section, an item or a submenu) |
