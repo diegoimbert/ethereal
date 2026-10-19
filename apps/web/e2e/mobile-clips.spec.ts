@@ -31,9 +31,7 @@ async function midiClip(page: Page): Promise<{ id: string; track: string }> {
   const lanes = (await page.getByTestId("arrangement-content").boundingBox())!;
   const ppb = (await arrangementViewState(page)).pxPerBeat;
   const at = { x: lanes.x + row.width + 2 * ppb + 4, y: row.y + row.height / 2 };
-  await touch.tap(at);
-  await touch.sleep(120);
-  await touch.tap(at);
+  await touch.doubleTap(at);
   await expect.poll(async () => (await clips(page)).length).toBe(1);
   const c = (await clips(page))[0]!;
   expect(c.start).toBe(0);

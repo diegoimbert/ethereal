@@ -26,9 +26,7 @@ async function midiClips(page: Page, beats: number[]) {
   const ppb = (await arrangementViewState(page)).pxPerBeat;
   for (const [i, b] of beats.entries()) {
     const at = { x: lanes.x + row.width + b * ppb + 2, y: row.y + row.height * 0.7 };
-    await touch.tap(at);
-    await touch.sleep(120);
-    await touch.tap(at);
+    await touch.doubleTap(at);
     await expect.poll(async () => (await clips(page)).length).toBe(i + 1);
     await touch.sleep(400);
   }
