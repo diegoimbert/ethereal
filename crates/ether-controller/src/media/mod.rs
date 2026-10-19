@@ -150,6 +150,9 @@ pub(crate) struct MediaState {
     pub(crate) underruns_at: u64,
     /// "No engine" (docs/COLLAB.md §15): nothing is decoded or handed to the engine.
     engine_off: bool,
+    /// Project files still on their way (an extension fills them in later). Their media are
+    /// not read (nor reported missing) until [`Self::reload_file`].
+    incoming: BTreeSet<String>,
 }
 
 /// Decoded audio sized to the document's frame count (headers and decoders can disagree
@@ -226,14 +229,13 @@ impl MediaState {
     /// The project file `file` was replaced (collab: a peer's relink to other content):
     /// reload the media stored there.
     /// The next [`Self::sync`] queues them again.
-    /// (Also the private overlay's collab media chunks; unused in the OSS build.)
-    #[allow(dead_code)]
     pub fn reload_file<B: EngineBridge + ?Sized>(
         &mut self,
         bridge: &mut B,
         project: &Project,
         file: &str,
     ) {
+        self.incoming.remove(file);
         for m in project.media.values().filter(|m| m.file == file) {
             self.streamed.remove(&m.id);
             if self.loaded.remove(&m.id).is_some() {
@@ -243,6 +245,28 @@ impl MediaState {
             self.missing.remove(&m.id);
             self.jobs.retain(|j| j.media.id != m.id);
         }
+    }
+
+    /// These project files are on their way: their media wait for [`Self::reload_file`] (no
+    /// read, no "missing" report).
+    pub fn set_incoming(&mut self, project: &Project, files: BTreeSet<String>) {
+        let ids: BTreeSet<MediaId> = project
+            .media
+            .values()
+            .filter(|m| files.contains(&m.file))
+            .map(|m| m.id)
+            .collect();
+        self.jobs.retain(|j| !ids.contains(&j.media.id));
+        for id in &ids {
+            self.missing.remove(id);
+        }
+        self.incoming = files;
+    }
+
+    /// No file is on its way any more.
+    pub fn clear_incoming(&mut self) {
+        self.incoming.clear();
+        self.recheck = true;
     }
 
     /// Check the missing media again (a file may have been restored): they are retried by
@@ -277,6 +301,7 @@ impl MediaState {
         self.jobs.clear();
         self.missing.clear();
         self.reported.clear();
+        self.incoming.clear();
         self.refs = RefsState::default();
     }
 
@@ -339,6 +364,7 @@ impl MediaState {
         for m in media.values() {
             if !self.loaded.contains_key(&m.id)
                 && !self.is_pending(m.id)
+                && !self.incoming.contains(&m.file)
                 && (self.recheck || !self.missing.contains_key(&m.id))
             {
                 self.jobs.push_back(Job {

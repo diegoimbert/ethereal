@@ -311,6 +311,19 @@ pub trait EngineBridge {
         Ok(None)
     }
 
+    /// Load `state` into the running instance of plugin `device` in place (an extension's,
+    /// e.g. a collaborator's preset), so its editor stays open and its audio keeps playing.
+    /// `Ok(true)`: loaded; `Ok(false)`: no running instance, or the host cannot load states
+    /// live (the default). The caller then re-creates the instance from the document.
+    fn set_plugin_state(
+        &mut self,
+        device: DeviceId,
+        state: &Base64Bytes,
+    ) -> Result<bool, BridgeError> {
+        let _ = (device, state);
+        Ok(false)
+    }
+
     /// Hardware inputs for `RecordingCommand::ListInputs` (native). Default: unsupported (web).
     fn list_inputs(&mut self) -> Result<ether_core::protocol::recording::InputList, BridgeError> {
         Err(BridgeError::Unsupported(

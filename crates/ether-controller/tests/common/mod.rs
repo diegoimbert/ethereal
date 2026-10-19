@@ -34,6 +34,8 @@ pub enum Call {
     Publish(u64),
     SetParam(ParamChange),
     Transport(TransportControl),
+    /// A state loaded into a running plugin instance in place (`set_plugin_state`).
+    SetPluginState(DeviceId, Base64Bytes),
 }
 
 #[derive(Default)]
@@ -73,6 +75,8 @@ pub struct FakeBridge {
     /// `create_offline_plugin` works (a Utility node stands in for the plugin); unset: the
     /// default `Unsupported` (no plugin host).
     pub offline_plugins: bool,
+    /// `set_plugin_state` fails (a plugin that cannot load a state while running).
+    pub live_state_fails: bool,
 }
 
 impl FakeBridge {
@@ -306,6 +310,24 @@ impl EngineBridge for FakeBridge {
     fn plugin_state(&mut self, device: DeviceId) -> Result<Option<Base64Bytes>, BridgeError> {
         self.plugin_state_reads.push(device);
         Ok(self.plugin_states.get(&device).cloned())
+    }
+
+    fn set_plugin_state(
+        &mut self,
+        device: DeviceId,
+        state: &Base64Bytes,
+    ) -> Result<bool, BridgeError> {
+        if !self.live.values().any(|d| *d == device) {
+            return Ok(false);
+        }
+        if self.live_state_fails {
+            return Err(BridgeError::Other(
+                "cannot load a state while running".into(),
+            ));
+        }
+        self.calls.push(Call::SetPluginState(device, state.clone()));
+        self.plugin_states.insert(device, state.clone());
+        Ok(true)
     }
 
     fn probe_plugin(&mut self, plugin: &PluginInstance) -> Option<DeviceDescriptor> {
