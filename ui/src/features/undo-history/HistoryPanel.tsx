@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { useContributions } from "@/ext";
 import { Flag } from "lucide-react";
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import type { HistoryList, HistoryStep } from "@/generated";
@@ -162,6 +163,7 @@ export function HistoryPanel() {
 }
 
 function HistoryPanelBody({ transport }: { transport: EngineTransport }) {
+  const hints = useContributions("history.hint");
   const t = useT();
   const { list, setList, error, setError } = useHistoryList(transport);
   const editing = useUndoHistoryUi((s) => s.editing);
@@ -207,6 +209,10 @@ function HistoryPanelBody({ transport }: { transport: EngineTransport }) {
   const undone = list.steps.filter((s) => s.undone).length;
   return (
     <div className="eth-history" data-feature="undo-history">
+      {/* Extensions' notes about the history (`@/ext` "history.hint"). */}
+      {hints.map((Hint, i) => (
+        <Hint key={i} />
+      ))}
       {list.truncated && <p className="eth-history__hint">{t("history.truncated")}</p>}
       <ol className="eth-history__list" aria-label={t("history.list")} onKeyDown={onListKey}>
         <OriginRow list={list} onJump={() => jump(null)} />

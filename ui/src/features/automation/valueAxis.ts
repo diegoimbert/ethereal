@@ -152,11 +152,11 @@ export function incrementNudge(info: ParamInfo, normalized: number, dir: number)
   return paramToNormalized(info, Math.min(hi, Math.max(lo, next)));
 }
 
-/** What the step modifier snaps a continuous param to, for the drag hint ("1 dB"). */
+/** What the step modifier snaps a continuous param to, for the drag hint ("1 db"). */
 export function incrementLabel(info: ParamInfo): string {
   switch (info.unit) {
     case "Decibels":
-      return "1 dB";
+      return "1 db";
     case "Percent":
       return "1 %";
     case "Pan":

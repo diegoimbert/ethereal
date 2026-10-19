@@ -6,10 +6,12 @@
  * `begin`/`end` to the kit controls' `onChangeStart`/`onChangeEnd`. Changes made outside a
  * drag (keyboard, double-click reset) are sent without a gesture, one undo step each.
  *
- * During a drag, `Device::SetParam`s are coalesced to one per (device, param) per animation
- * frame, last value wins (perf-plugins, audit #4): pointer events can outpace the display,
- * and each command is a transaction, a patch and a collab message. `end` sends what is
- * pending before closing the gesture.
+ * During a drag, `Device::SetParam`s and the mixer's continuous levels (volume, pan, send
+ * level) are coalesced to one per target per animation frame, last value wins (perf-plugins,
+ * audit #4; #911): pointer events can outpace the display, and each command is a
+ * transaction, a patch and a collab message. A caller can coalesce other commands under its
+ * own key (`send(command, { coalesce })`, e.g. a multi-track `Edit::Batch`). `end` sends
+ * what is pending before closing the gesture.
  */
 
 import { useCallback, useMemo, useRef } from "react";
@@ -31,8 +33,12 @@ export function useSend(): (command: Command) => Promise<ReplyValue | undefined>
 }
 
 export interface GestureSender {
-  /** Send `command`, inside the current drag's gesture if a drag is in progress. */
-  send(command: Command): Promise<ReplyValue | undefined>;
+  /**
+   * Send `command`, inside the current drag's gesture if a drag is in progress. `coalesce`:
+   * during a drag, the key under which it replaces a pending command of the same key (sent
+   * on the next animation frame); by default only the commands of `coalesceKey` coalesce.
+   */
+  send(command: Command, opts?: { coalesce?: string }): Promise<ReplyValue | undefined>;
   /** Start of a pointer drag (`onChangeStart`). */
   begin(): void;
   /** End of a pointer drag (`onChangeEnd`): closes the gesture if anything was sent. */
@@ -43,7 +49,14 @@ export interface GestureSender {
 
 /** Coalescing key of a command sent during a drag (`null` = sent at once). */
 function coalesceKey(command: Command): string | null {
-  return command.domain === "Device" && command.command.type === "SetParam" ? `${command.command.device}:${command.command.param}` : null;
+  if (command.domain === "Device" && command.command.type === "SetParam") return `${command.command.device}:${command.command.param}`;
+  if (command.domain === "Mixer") {
+    const c = command.command;
+    if (c.type === "SetVolume") return `volume:${c.track}`;
+    if (c.type === "SetPan") return `pan:${c.track}`;
+    if (c.type === "SetSendLevel") return `send:${c.send}`;
+  }
+  return null;
 }
 
 interface Pending {
@@ -79,12 +92,12 @@ export function useGestureSender(): GestureSender {
       }
     };
     return {
-      send(command) {
+      send(command, opts) {
         const s = state.current;
         if (!s.dragging) return reportFailure(transport.send(command));
         if (s.gesture === null) s.gesture = nextGestureId();
         const gesture = s.gesture;
-        const key = coalesceKey(command);
+        const key = opts?.coalesce ?? coalesceKey(command);
         if (key === null) {
           // Keep the order: anything coalesced so far goes first.
           flush(gesture);

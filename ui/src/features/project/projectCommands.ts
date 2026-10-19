@@ -19,6 +19,7 @@ import { useExportProject } from "./exportProjectStore";
 import { guardLeave } from "./leaveGuard";
 import { useProjectScreen } from "./screenStore";
 import { t } from "@/i18n";
+import { contributions } from "@/ext";
 
 export interface ProjectCommand {
   id: string;
@@ -55,6 +56,11 @@ export function deleteOpenProject(transport: EngineTransport, id: string): void 
   attempt(() => guardLeave(() => closeAndDelete(transport, id), t("project.leave.delete")));
 }
 
+/** The extensions' project commands (`@/ext` "project.commands") for `project` (`null`: app-level ones). */
+function contributed(transport: EngineTransport, project: { id: string; name: string } | null): ProjectCommand[] {
+  return contributions("project.commands").flatMap((f) => [...f({ transport, project, attempt, guardLeave })]);
+}
+
 /** The actions available with no project open (and with one). */
 export function appProjectCommands(transport: EngineTransport): ProjectCommand[] {
   return [
@@ -72,6 +78,7 @@ export function appProjectCommands(transport: EngineTransport): ProjectCommand[]
       keywords: "projects recent switch load",
       run: () => useProjectScreen.getState().show(),
     },
+    ...contributed(transport, null),
   ];
 }
 
@@ -163,6 +170,7 @@ export function openProjectCommands(transport: EngineTransport, project: { id: s
       keywords: "delete remove trash project",
       run: () => confirmDeleteProject(transport, id, name),
     },
+    ...contributed(transport, project),
   ];
 }
 

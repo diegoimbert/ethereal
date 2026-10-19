@@ -658,7 +658,14 @@ where
             .is_none_or(|p| (progress - p).abs() >= 0.001)
         {
             state.last_progress = Some(progress);
-            freeze_event(out, FreezeEvent::Progress { job: id, progress });
+            freeze_event(
+                out,
+                FreezeEvent::Progress {
+                    job: id,
+                    progress,
+                    host: None,
+                },
+            );
         }
         state.running = Some(running);
     }
@@ -737,6 +744,7 @@ where
                     FreezeEvent::Progress {
                         job: job.clone(),
                         progress: 1.0,
+                        host: None,
                     },
                 );
                 freeze_event(out, FreezeEvent::Done { job });

@@ -695,6 +695,26 @@ function deviceCommandInner(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
       // v0.3 (`fx-space`, `roadmap/fxSpace.ts`).
       setIr(ctx, c.device, c.ir);
       break;
+    case "SetLfoCurve": {
+      // `fx-modulation`: the Volume LFO's drawn cycle, sanitized like Rust `LfoCurve::sanitized`.
+      const d = device(ctx, c.device);
+      if (d.kind.type !== "Builtin" || d.kind.device.type !== "VolumeLfo") {
+        fail("InvalidArgument", `device ${d.id} is not a volume lfo`);
+      }
+      const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+      const points = c.curve.points
+        .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+        .map((p) => ({
+          x: clamp01(p.x),
+          y: clamp01(p.y),
+          curve: p.curve.type === "Curve" ? { type: "Curve" as const, tension: Math.min(1, Math.max(-1, p.curve.tension)) } : p.curve,
+        }))
+        .sort((a, b) => a.x - b.x)
+        .slice(0, 64);
+      if (points.length === 0) points.push({ x: 0, y: 1, curve: { type: "Linear" } });
+      tx.upsert("Device", { ...d, kind: { type: "Builtin", device: { type: "VolumeLfo", curve: { points } } } });
+      break;
+    }
     case "ListFactoryIrs":
       return listFactoryIrs();
     case "ListBuiltin":
@@ -942,6 +962,12 @@ function note(ctx: ReducerContext, id: string): Note {
   return ctx.tx.get("Note", id) ?? fail("NotFound", `note ${id}`);
 }
 
+/** Earliest note start in a clip: 0, or its start when extended left (a leading gap; `ether_model::clip`). */
+function noteFloor(ctx: ReducerContext, clipId: string): number {
+  const cl = ctx.tx.get("Clip", clipId);
+  return cl ? Math.min(0, cl.offset) : 0;
+}
+
 function noteCommand(ctx: ReducerContext, c: NoteCommand): void {
   const { tx } = ctx;
   switch (c.type) {
@@ -951,7 +977,7 @@ function noteCommand(ctx: ReducerContext, c: NoteCommand): void {
       for (const n of c.notes) {
         if (tx.get("Note", n.id)) continue; // already added (a retry): kept as is
         if (!pitchOk(n.pitch)) fail("InvalidArgument", `invalid pitch ${n.pitch}`);
-        if (!(n.duration > 0) || n.start < 0) fail("InvalidArgument", "invalid note timing");
+        if (!(n.duration > 0) || !(n.start >= Math.min(0, cl.offset) - 1e-6)) fail("InvalidArgument", "invalid note timing");
         tx.upsert("Note", {
           id: n.id,
           clip: cl.id,
@@ -981,7 +1007,7 @@ function noteCommand(ctx: ReducerContext, c: NoteCommand): void {
           ...n,
           pitch: e.pitch ?? n.pitch,
           velocity: e.velocity !== null ? velocity(e.velocity) : n.velocity,
-          start: e.start !== null ? Math.max(0, finite(e.start, "note start must be finite")) : n.start,
+          start: e.start !== null ? Math.max(noteFloor(ctx, n.clip), finite(e.start, "note start must be finite")) : n.start,
           duration: e.duration ?? n.duration,
           muted: e.muted ?? n.muted,
         });
@@ -999,7 +1025,7 @@ function noteCommand(ctx: ReducerContext, c: NoteCommand): void {
       const snap = (t: number) => t + (target(t) - t) * strength;
       for (const n of tx.all("Note")) {
         if (n.clip !== c.clip || (ids && !ids.has(n.id))) continue;
-        const start = Math.max(0, snap(n.start));
+        const start = Math.max(Math.min(noteFloor(ctx, n.clip), n.start), snap(n.start));
         const end = c.ends ? snap(n.start + n.duration) : start + n.duration;
         tx.upsert("Note", { ...n, start, duration: Math.max(end - start, c.grid * 0.25) });
       }
@@ -1012,7 +1038,7 @@ function noteCommand(ctx: ReducerContext, c: NoteCommand): void {
         tx.upsert("Note", {
           ...n,
           id: cp.new_id,
-          start: Math.max(0, n.start + c.offset),
+          start: Math.max(noteFloor(ctx, n.clip), n.start + c.offset),
           pitch: clamp(n.pitch + c.transpose, 0, 127),
         });
         copyNoteExpressions(ctx, cp.from, cp.new_id);
@@ -1299,6 +1325,6 @@ export function labelOf(command: Command): string {
   return command.command.type
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .split(" ")
-    .map((w) => (w === "Midi" ? "MIDI" : w.toLowerCase()))
+    .map((w) => w.toLowerCase())
     .join(" ");
 }

@@ -29,9 +29,9 @@ const options = () => within(screen.getByRole("listbox", { name: "commands" })).
 
 describe("fuzzyScore", () => {
   it("matches in-order characters and prefers substrings and word starts", () => {
-    expect(fuzzyScore("amt", "Add MIDI track")).toBeGreaterThan(0);
-    expect(fuzzyScore("xyz", "Add MIDI track")).toBe(-1);
-    expect(fuzzyScore("midi", "Add MIDI track")).toBeGreaterThan(fuzzyScore("amt", "Add MIDI track"));
+    expect(fuzzyScore("amt", "Add midi track")).toBeGreaterThan(0);
+    expect(fuzzyScore("xyz", "Add midi track")).toBe(-1);
+    expect(fuzzyScore("midi", "Add midi track")).toBeGreaterThan(fuzzyScore("amt", "Add midi track"));
     expect(fuzzyScore("add", "Add audio track")).toBeGreaterThan(fuzzyScore("add", "Go to track Padded"));
   });
 });
@@ -44,7 +44,7 @@ describe("CommandPalette", () => {
     expect(screen.getByRole("dialog", { name: "command palette" })).toBeInTheDocument();
     expect(search()).toHaveFocus();
     fireEvent.change(search(), { target: { value: "add midi" } });
-    expect(options()[0]).toHaveTextContent("add MIDI track");
+    expect(options()[0]).toHaveTextContent("add midi track");
     fireEvent.keyDown(search(), { key: "Enter" });
     await waitFor(() => expect(tracksOrdered(project())).toHaveLength(before + 1));
     expect(useShellStore.getState().paletteOpen).toBe(false);

@@ -32,8 +32,8 @@ use ether_core::protocol::model::{
 };
 use ether_core::protocol::resolver::{
     DeviceResolution, MediaResolution, MissingDeviceGroup, MissingMedia, MissingPlugin, ParamName,
-    ParamPlan, PluginParams, PluginResolution, ResolveCommand, ResolveEvent, ResolveProposal,
-    SavedParam,
+    ParamPlan, PluginParams, PluginResolution, Replacement, ResolveCommand, ResolveEvent,
+    ResolveProposal, SavedParam,
 };
 use ether_core::protocol::{Event, NotificationLevel, ReplyValue};
 
@@ -84,6 +84,8 @@ pub(crate) struct PluginEdit {
     map: Option<Vec<(ParamId, ParamId)>>,
     /// The device's parameter values after the switch (else they follow `map`).
     params: Option<BTreeMap<ParamId, f64>>,
+    /// The new device has no sidechain input: its sidechain source goes.
+    clear_sidechain: bool,
 }
 
 /// A media resolution with its bytes checked (and copied when needed).
@@ -157,11 +159,21 @@ where
             ResolveCommand::Replace {
                 device,
                 plugin,
+                builtin,
                 retain,
                 preview,
-            } => Ok(ReplyValue::PluginReplaced {
-                report: self.replace_plugin(*device, plugin, *retain, *preview, now, out)?,
-            }),
+            } => {
+                let to = match (plugin, builtin) {
+                    (Some(plugin), None) => Replacement::Plugin {
+                        plugin: plugin.clone(),
+                    },
+                    (None, Some(device)) => Replacement::Builtin { device: *device },
+                    _ => return Err(invalid("replace with either a plugin or a built-in device")),
+                };
+                Ok(ReplyValue::PluginReplaced {
+                    report: self.replace_device(*device, &to, *retain, *preview, now, out)?,
+                })
+            }
         }
     }
 
@@ -537,6 +549,7 @@ where
                     .then(|| r.name.clone()),
                 map,
                 params: None,
+                clear_sidechain: false,
             });
         }
         Ok(())
@@ -599,7 +612,7 @@ where
             && (probed.sample_rate != m.sample_rate || probed.channels != m.channels)
         {
             return Err(format!(
-                "\"{}\" is {} Hz, {} ch; the file is {} Hz, {} ch",
+                "\"{}\" is {} hz, {} ch; the file is {} hz, {} ch",
                 m.name, m.sample_rate, m.channels, probed.sample_rate, probed.channels
             ));
         }
@@ -820,6 +833,10 @@ fn replace_plugin_device(ctx: &mut crate::doc::DocCtx<'_, '_>, e: PluginEdit) ->
     }
     ctx.tx.remove(EntityKey::Device(id))?;
     d.kind = e.kind.clone();
+    if e.clear_sidechain {
+        d.sidechain = None;
+        d.sidechain_tap = None;
+    }
     if let Some(name) = &e.rename {
         d.name = name.clone();
     }

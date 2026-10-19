@@ -80,7 +80,7 @@ describe("useDocumentTitle", () => {
     act(() => {
       store().loadProject(named("internal name"));
       store().setDirty(true);
-      useViewerStore.getState().setViewer({ name: "Shared song", permissions: {} as never, listenable: new Set() });
+      useViewerStore.getState().setViewer({ name: "Shared song" });
     });
     renderHook(() => useDocumentTitle());
     expect(document.title).toBe("ethereal - Shared song");

@@ -96,7 +96,7 @@ describe("TemplateDialogs", () => {
     select("insert track template…");
     const insert = await screen.findByRole("dialog", { name: "insert track template" });
     const list = within(insert).getByRole("group", { name: "track templates" });
-    expect(await within(list).findByRole("button", { name: /^Vocal Chain/ })).toBeInTheDocument();
+    expect(await within(list).findByRole("button", { name: /^vocal chain/ })).toBeInTheDocument();
     fireEvent.change(within(insert).getByRole("textbox", { name: "search templates" }), { target: { value: "chain" } });
     await act(async () => {
       fireEvent.click(await within(list).findByRole("button", { name: /^My chain/ }));

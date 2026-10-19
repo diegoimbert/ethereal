@@ -17,6 +17,7 @@
 
 import type { Beats, Clip, ClipId, Command, Note, NoteEdit, NoteId } from "@/generated";
 import { cmd } from "@/transport";
+import { contentFloor } from "./clipTime";
 import { MIN_NOTE_BEATS, noteEdit } from "./noteEdits";
 import { editSource, growCommands, isSectionMarker, type PianoRollSection, type PitchRange } from "./section";
 
@@ -71,26 +72,27 @@ export function stretchSource(notes: ReadonlyArray<Note>, selected: ReadonlySet<
 /**
  * The range after dragging `handle` by `rawBeats` from `range`. `snap` puts a position on
  * the grid (identity when snapping is off). Edges never cross the anchor; nothing goes
- * before 0.
+ * before `floor` (the clip's `contentFloor`; 0 by default).
  */
-export function stretchRange(range: StretchRange, handle: StretchHandle, rawBeats: Beats, snap: (beats: Beats) => Beats): StretchRange {
+export function stretchRange(range: StretchRange, handle: StretchHandle, rawBeats: Beats, snap: (beats: Beats) => Beats, floor: Beats = 0): StretchRange {
+  const lo = Math.min(floor, range.start);
   if (handle === "end") {
     return { start: range.start, end: Math.max(range.start + MIN_STRETCH_BEATS, snap(range.end + rawBeats)) };
   }
   if (handle === "start") {
-    const start = Math.min(range.end - MIN_STRETCH_BEATS, Math.max(0, snap(range.start + rawBeats)));
-    return { start: Math.max(0, start), end: range.end };
+    const start = Math.min(range.end - MIN_STRETCH_BEATS, Math.max(lo, snap(range.start + rawBeats)));
+    return { start: Math.max(lo, start), end: range.end };
   }
-  const d = Math.max(-range.start, snap(range.start + rawBeats) - range.start);
+  const d = Math.max(lo - range.start, snap(range.start + rawBeats) - range.start);
   return { start: range.start + d, end: range.end + d };
 }
 
-/** Map `notes` from `from` onto `to` (affine in time): starts, durations and gaps scale. */
-export function stretchEdits(notes: ReadonlyArray<Note>, from: StretchRange, to: StretchRange): NoteEdit[] {
+/** Map `notes` from `from` onto `to` (affine in time): starts (from `floor` on), durations and gaps scale. */
+export function stretchEdits(notes: ReadonlyArray<Note>, from: StretchRange, to: StretchRange, floor: Beats = 0): NoteEdit[] {
   const factor = (to.end - to.start) / (from.end - from.start);
   return notes.map((n) =>
     noteEdit(n.id, {
-      start: Math.max(0, to.start + (n.start - from.start) * factor),
+      start: Math.max(Math.min(floor, n.start), to.start + (n.start - from.start) * factor),
       duration: Math.max(MIN_NOTE_BEATS, n.duration * factor),
     }),
   );
@@ -103,7 +105,7 @@ export function stretchEdits(notes: ReadonlyArray<Note>, from: StretchRange, to:
  * needed any more, so the gesture never leaves it longer than the result needs.
  */
 export function stretchCommand(clip: Clip | null, source: StretchSource, to: StretchRange, restore = false): { command: Command; grows: boolean } {
-  const edits = stretchEdits(source.notes, source, to);
+  const edits = stretchEdits(source.notes, source, to, clip ? contentFloor(clip) : 0);
   const end = Math.max(to.end, ...edits.map((e) => e.start! + e.duration!));
   // `clip` null (multi-clip editing): the clips never grow.
   const grow = clip ? growCommands(clip, end) : [];

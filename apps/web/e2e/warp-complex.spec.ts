@@ -84,7 +84,7 @@ test("Complex warp keeps pitch at another tempo and transposes without changing 
   // Its window out of the way of the clip and the editor drawer (top right).
   await moveDeviceWindow(page, tuner.id, { x: 1440 - 560 - 12, y: 60 });
   const hz = async () => {
-    const m = /([\d.]+) Hz/.exec((await readout.textContent()) ?? "");
+    const m = /([\d.]+) hz/.exec((await readout.textContent()) ?? "");
     return m ? Number(m[1]) : 0;
   };
 

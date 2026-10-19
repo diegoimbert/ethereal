@@ -15,7 +15,7 @@
         "loud"
       ],
       "author": "ethereal",
-      "description": "a finishing chain for the master: a gentle smile eq, light three-band glue, and a true-peak limiter at -1 dB. macro 1 raises the loudness."
+      "description": "a finishing chain for the master: a gentle smile eq, light three-band glue, and a true-peak limiter at -1 db. macro 1 raises the loudness."
     },
     "params": {
       "0": 0.0,

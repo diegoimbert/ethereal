@@ -30,10 +30,10 @@ describe("palette: MIDI mode", () => {
   it("turns MIDI mode on and off without the MIDI tab", async () => {
     const { mock } = await renderWithMock(<MidiLearnRoot />);
     const toggle = () => act(() => byId(buildCommands(mock, []), "transport:midiMode")!.run());
-    expect(byId(buildCommands(mock, []), "transport:midiMode")?.label).toBe("turn MIDI mode on");
+    expect(byId(buildCommands(mock, []), "transport:midiMode")?.label).toBe("turn midi mode on");
     toggle();
     await waitFor(() => expect(document.body).toHaveClass(MIDI_MODE_CLASS));
-    expect(byId(buildCommands(mock, []), "transport:midiMode")?.label).toBe("turn MIDI mode off");
+    expect(byId(buildCommands(mock, []), "transport:midiMode")?.label).toBe("turn midi mode off");
     toggle();
     await waitFor(() => expect(document.body).not.toHaveClass(MIDI_MODE_CLASS));
     // No MIDI input on the web build: no entry.

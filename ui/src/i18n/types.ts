@@ -9,8 +9,15 @@ import type { MessageArgs } from "./args.gen";
 export type CompiledMessage = string | MessageFormatElement[];
 export type CompiledCatalog = Readonly<Record<string, CompiledMessage>>;
 
-/** Every message key: the keys of the English catalog (the source of truth). */
-export type MessageKey = keyof typeof EN;
+/**
+ * Message keys an extension adds (its own catalogs, `i18nCatalogPlugin({ extraDirs })`): it
+ * augments this interface with its English catalog's type (docs/EXTENSIONS.md).
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface ExtensionMessages {}
+
+/** Every message key: the keys of the English catalog (the source of truth), and the extensions'. */
+export type MessageKey = keyof typeof EN | keyof ExtensionMessages;
 
 /** A rich-text tag's renderer (`<b>…</b>` in a message): gets the tag's content. */
 export type Tag<T = unknown> = (chunks: Array<string | T>) => unknown;

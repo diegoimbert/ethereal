@@ -266,7 +266,7 @@ export function suggestionCandidate(s: AiSuggestion, target: PluginDescriptor, p
     version: target.version,
     rule: "Ai",
     confidence: s.confidence,
-    reason: `AI suggestion (${providerLabel})${s.reason ? `: ${s.reason}` : ""}`,
+    reason: `ai suggestion (${providerLabel})${s.reason ? `: ${s.reason}` : ""}`,
     plan: s.params.length > 0 ? { type: "Map", map: s.params } : { type: "Auto" },
     lost: [],
   };

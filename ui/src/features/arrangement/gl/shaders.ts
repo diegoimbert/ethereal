@@ -1,3 +1,4 @@
+// eth-allow-case-file: GLSL source.
 /**
  * GLSL (WebGL2, `#version 300 es`) of the arranger pipelines. Every pipeline draws
  * instanced quads; instance positions are in "lane space":
@@ -94,7 +95,7 @@ void main() {
   vec2 cx = boxX(i_cx, i_q.y);
   vec4 clipRect = vec4(cx.x, rowY(i_cy.x, i_cy.y), cx.y, rowY(i_cy.z, i_cy.w));
   vec2 x = boxX(i_x, i_p.x);
-  float handle = min(6.0, 0.25 * (cx.y - cx.x));
+  float handle = clamp(0.25 * (cx.y - cx.x), 3.0, 6.0); // hitTest.ts handleWidth
   if ((flags & HANDLE_START) != 0) x = vec2(cx.x, cx.x + handle);
   if ((flags & HANDLE_END) != 0) x = vec2(cx.y - handle, cx.y);
   vec4 r = vec4(x.x, rowY(i_y.x, i_y.y), x.y, rowY(i_y.z, i_y.w));

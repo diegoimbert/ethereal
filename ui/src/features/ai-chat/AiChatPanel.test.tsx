@@ -40,10 +40,10 @@ const toolResult = (n: number) => JSON.parse(String((api.requests[n]!.messages a
 describe("AiChatPanel", () => {
   it("asks for an API key first, then shows the composer", async () => {
     await renderWithMock(<AiChatPanel />);
-    expect(screen.getByText("ask AI to edit your project")).toBeInTheDocument();
+    expect(screen.getByText("ask ai to edit your project")).toBeInTheDocument();
     expect(screen.getByText(/local storage/)).toBeInTheDocument();
     expect(screen.queryByTestId("ai-input")).toBeNull();
-    fireEvent.change(screen.getByLabelText("API key"), { target: { value: KEY } });
+    fireEvent.change(screen.getByLabelText("api key"), { target: { value: KEY } });
     fireEvent.click(screen.getByRole("button", { name: "save key" }));
     expect(await screen.findByTestId("ai-input")).toBeInTheDocument();
     expect(useAiSettings.getState().apiKey).toBe(KEY);
@@ -139,14 +139,14 @@ describe("AiChatPanel", () => {
     await renderWithMock(<AiChatPanel />);
     fireEvent.change(screen.getByTestId("ai-input"), { target: { value: "hello" } });
     fireEvent.click(screen.getByTestId("ai-send"));
-    expect(await screen.findByRole("alert")).toHaveTextContent(/API key was rejected/);
-    expect(screen.getByText("your API key was rejected")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/api key was rejected/);
+    expect(screen.getByText("your api key was rejected")).toBeInTheDocument();
   });
 
   it("settings: masked key, tool-round cap; no MCP section in the web build", async () => {
     useAiSettings.getState().setApiKey(KEY);
     await renderWithMock(<AiChatPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "AI settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "ai settings" }));
     expect(screen.getByTestId("ai-key-masked")).toHaveTextContent("sk-ant-…0123");
     expect(screen.queryByTestId("ai-mcp")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "remove" }));
@@ -176,9 +176,9 @@ describe("other providers (OpenAI-compatible)", () => {
     const anthropic = vi.spyOn(clientFactory, "create");
     await renderWithMock(<AiChatPanel />);
     fireEvent.click(screen.getByRole("combobox", { name: "provider" }));
-    fireEvent.click(await screen.findByRole("option", { name: "OpenAI" }));
+    fireEvent.click(await screen.findByRole("option", { name: "openai" }));
     expect(screen.getByText(/only ever sent to api\.openai\.com/)).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("API key"), { target: { value: OAI_KEY } });
+    fireEvent.change(screen.getByLabelText("api key"), { target: { value: OAI_KEY } });
     fireEvent.click(screen.getByRole("button", { name: "save key" }));
     expect(useAiSettings.getState()).toMatchObject({ provider: "openai", apiKey: OAI_KEY, model: "gpt-5" });
     expect(localStorage.getItem("eth.ai.apiKey.openai")).toBe(OAI_KEY);
@@ -231,7 +231,7 @@ describe("other providers (OpenAI-compatible)", () => {
     await renderWithMock(<AiChatPanel />);
     fireEvent.change(screen.getByTestId("ai-input"), { target: { value: "hello" } });
     fireEvent.click(screen.getByTestId("ai-send"));
-    expect(await screen.findByRole("alert")).toHaveTextContent(/localhost:1234 blocked the request .*CORS.*Enable CORS/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/localhost:1234 blocked the request .*cors.*Enable CORS/);
   });
 
   it("Stop interrupts the stream", async () => {
@@ -253,8 +253,8 @@ describe("other providers (OpenAI-compatible)", () => {
     await renderWithMock(<AiChatPanel />);
     fireEvent.change(screen.getByTestId("ai-input"), { target: { value: "hello" } });
     fireEvent.click(screen.getByTestId("ai-send"));
-    expect(await screen.findByRole("alert")).toHaveTextContent(/rejected by Groq/);
-    expect(screen.getByText("your API key was rejected")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/rejected by groq/);
+    expect(screen.getByText("your api key was rejected")).toBeInTheDocument();
   });
 
   it("switching provider mid-conversation starts the model fresh, with a notice", async () => {
@@ -271,23 +271,23 @@ describe("other providers (OpenAI-compatible)", () => {
     fireEvent.change(screen.getByTestId("ai-input"), { target: { value: "hello again" } });
     fireEvent.click(screen.getByTestId("ai-send"));
     await screen.findByText("Hi from Ollama.");
-    expect(screen.getByText(/switched to Ollama \(local\): it starts fresh/)).toBeInTheDocument();
+    expect(screen.getByText(/switched to ollama \(local\): it starts fresh/)).toBeInTheDocument();
     expect((oai.requests[0]!.messages as unknown[]).length).toBe(2); // system + this message
   });
 
   it("settings: provider picker, base URL, model, per-provider key, test connection", async () => {
     useAiSettings.getState().setApiKey(KEY);
     await renderWithMock(<AiChatPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "AI settings" }));
-    expect(screen.getByLabelText("base URL")).toHaveValue("https://api.anthropic.com");
+    fireEvent.click(screen.getByRole("button", { name: "ai settings" }));
+    expect(screen.getByLabelText("base url")).toHaveValue("https://api.anthropic.com");
     fireEvent.click(screen.getByRole("combobox", { name: "provider" }));
-    fireEvent.click(await screen.findByRole("option", { name: "DeepSeek" }));
-    expect(screen.getByLabelText("base URL")).toHaveValue("https://api.deepseek.com");
+    fireEvent.click(await screen.findByRole("option", { name: "deepseek" }));
+    expect(screen.getByLabelText("base url")).toHaveValue("https://api.deepseek.com");
     expect(screen.getByLabelText("model name")).toHaveValue("deepseek-chat");
     // No DeepSeek key yet: the Anthropic one stays Anthropic's.
     expect(screen.queryByTestId("ai-key-masked")).toBeNull();
     expect(screen.getByTestId("ai-test-connection")).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("API key"), { target: { value: "sk-deepseek-0000000000000000" } });
+    fireEvent.change(screen.getByLabelText("api key"), { target: { value: "sk-deepseek-0000000000000000" } });
     fireEvent.click(screen.getByRole("button", { name: "save key" }));
     expect(screen.getByTestId("ai-key-masked")).toHaveTextContent("sk-deep…0000");
     expect(useAiSettings.getState().keys).toMatchObject({ anthropic: KEY, deepseek: "sk-deepseek-0000000000000000" });
@@ -297,11 +297,11 @@ describe("other providers (OpenAI-compatible)", () => {
     fireEvent.keyDown(screen.getByLabelText("model name"), { key: "Enter" });
     expect(useAiSettings.getState().model).toBe("deepseek-reasoner");
     // Base URL: committed on blur, with a reset.
-    fireEvent.change(screen.getByLabelText("base URL"), { target: { value: "https://proxy.example/v1/" } });
-    fireEvent.blur(screen.getByLabelText("base URL"));
+    fireEvent.change(screen.getByLabelText("base url"), { target: { value: "https://proxy.example/v1/" } });
+    fireEvent.blur(screen.getByLabelText("base url"));
     expect(useAiSettings.getState().configs.deepseek.baseUrl).toBe("https://proxy.example/v1");
     expect(screen.getByText(/only ever sent to proxy\.example/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "reset base URL" }));
+    fireEvent.click(screen.getByRole("button", { name: "reset base url" }));
     expect(useAiSettings.getState().configs.deepseek.baseUrl).toBe("https://api.deepseek.com");
 
     const fetch = vi.spyOn(http, "fetch").mockImplementation(async () => Response.json({ data: [{ id: "deepseek-chat" }, { id: "deepseek-reasoner" }] }));
@@ -326,7 +326,7 @@ describe("MCP bridge toggle (desktop)", () => {
     }) as typeof bridgeIpc.invoke);
     useAiSettings.getState().setApiKey(KEY);
     await renderWithMock(<AiChatPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "AI settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "ai settings" }));
     const toggle = await screen.findByRole("switch");
     await waitFor(() => expect(toggle).toBeEnabled());
     expect(toggle).toHaveAttribute("aria-checked", "false");
@@ -343,7 +343,7 @@ describe("MCP bridge toggle (desktop)", () => {
     vi.spyOn(bridgeIpc, "invoke").mockImplementation((async () => ({ enabled: true, port: 43117, connected_clients: 0, mcp_path })) as typeof bridgeIpc.invoke);
     useAiSettings.getState().setApiKey(KEY);
     await renderWithMock(<AiChatPanel />);
-    fireEvent.click(screen.getByRole("button", { name: "AI settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "ai settings" }));
     expect(await screen.findByText(`claude mcp add ethereal -- ${mcp_path}`)).toBeInTheDocument();
   });
 
@@ -372,7 +372,7 @@ describe("consent and the saved conversation (#717)", () => {
     await renderWithMock(<AiChatPanel />);
     const consent = screen.getByTestId("ai-consent");
     expect(consent).toHaveTextContent("tracks, clips, notes, device settings");
-    expect(consent).toHaveTextContent("Anthropic");
+    expect(consent).toHaveTextContent("anthropic");
     expect(screen.queryByTestId("ai-input")).toBeNull();
     fireEvent.click(screen.getByTestId("ai-consent-accept"));
     expect(await screen.findByTestId("ai-input")).toBeInTheDocument();
@@ -381,7 +381,7 @@ describe("consent and the saved conversation (#717)", () => {
     expect(useAiSettings.getState().consented).toEqual(["anthropic"]);
     // Another provider asks again.
     act(() => useAiSettings.getState().setProvider("ollama"));
-    expect(await screen.findByTestId("ai-consent")).toHaveTextContent("Ollama");
+    expect(await screen.findByTestId("ai-consent")).toHaveTextContent("ollama");
   });
 
   it("the conversation is kept per project and comes back on reload; clear chat forgets it", async () => {
@@ -424,7 +424,7 @@ describe("consent and the saved conversation (#717)", () => {
 });
 
 describe("the alpha badge and notice (#743)", () => {
-  const NOTICE = /the AI assistant is in alpha: it can make mistakes/;
+  const NOTICE = /the ai assistant is in alpha: it can make mistakes/;
 
   it("the badge is always in the toolbar, with the notice as its tooltip", async () => {
     await renderWithMock(<AiChatPanel />); // no key yet: the key setup

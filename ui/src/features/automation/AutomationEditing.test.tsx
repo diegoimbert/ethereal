@@ -328,7 +328,7 @@ describe("copy / cut / paste / duplicate", () => {
     expect(input.value).toBe(String(Number(paramToPlain(VOLUME_INFO, 0.9).toFixed(2))));
     expect(document.activeElement).toBe(input);
 
-    fireEvent.change(input, { target: { value: "-10 dB" } });
+    fireEvent.change(input, { target: { value: "-10 db" } });
     await key(input, "Enter");
     for (const p of [b!, c!]) expect(paramToPlain(VOLUME_INFO, project().automation_points[p.id]!.value)).toBeCloseTo(-10, 6);
     // The lane keeps its points (Enter didn't reach its shortcuts) and gets the focus back.
@@ -369,8 +369,8 @@ describe("value snapping", () => {
     await move(80, y(0.87), { shiftKey: true });
     await move(80, y(0.83), { shiftKey: true });
     const tip = screen.getByTestId("automation-drag-tip");
-    expect(tip.textContent).toMatch(/dB/);
-    expect(tip.textContent).toContain(`${formatKeys("Shift")} 1 dB steps`);
+    expect(tip.textContent).toMatch(/db/);
+    expect(tip.textContent).toContain(`${formatKeys("Shift")} 1 db steps`);
     expect(tip.textContent).toContain(`${formatKeys("Alt")} fine, off grid`);
     await release();
     expect(dB()).toBeCloseTo(Math.round(dB()), 6);
@@ -473,12 +473,19 @@ describe("value snapping", () => {
     // per step.
     expect(svg.querySelectorAll(".eth-auto-lane__step")).toHaveLength(7);
     const st = (s: number) => LANE_PAD + (1 - (s + 3) / 6) * (LANE_HEIGHT - 2 * LANE_PAD);
-    // Double-click a bit above +1 st.
-    await doublePress(svg, [40, st(1.3)]);
+    // The empty lane's first point takes the param's value (+1 st), not the pointer's.
+    await send(cmd("Device", { type: "SetParam", device: synth.id, param: 1, value: 1 }));
+    expect(Number(svg.querySelector('[data-testid="automation-baseline"]')!.getAttribute("y1"))).toBeCloseTo(st(1), 6);
+    await doublePress(svg, [40, st(-2.3)]);
     const detune = Object.values(project().automation_lanes).find((l) => l.target.type === "DeviceParam")!;
     const [p] = lanePoints(detune.id);
     const semis = () => project().automation_points[p!.id]!.value * 48 - 24;
     expect(semis()).toBeCloseTo(1, 9);
+
+    // A double-click once it has points: the lane's value there (held after the last point),
+    // not the pointer's.
+    await doublePress(svg, [200, st(-2.3)]);
+    expect(lanePoints(detune.id)[1]!.value * 48 - 24).toBeCloseTo(1, 9);
 
     // A coarse 24 px drag up moves exactly 3 st (8 px per step, whatever the lane height).
     const circle = document.querySelector(`circle[data-point="${p!.id}"]`)!;

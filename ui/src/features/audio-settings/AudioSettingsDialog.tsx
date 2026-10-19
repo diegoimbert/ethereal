@@ -15,7 +15,8 @@ import { AppearanceSettings } from "./AppearanceSettings";
 import { InputSettings } from "./InputSettings";
 import { LanguageSettings } from "./LanguageSettings";
 import { bufferChoice } from "./buffer";
-import { loadAudioDevices, useAudioSettings, type SettingsTab } from "./store";
+import { loadAudioDevices, useAudioSettings, type BuiltinSettingsTab } from "./store";
+import { useContributions, type SettingsSectionContribution } from "@/ext";
 import { formatFixed, useT, type MessageKey } from "@/i18n";
 import "./audioSettings.css";
 
@@ -28,7 +29,7 @@ function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-const TABS: ReadonlyArray<{ id: SettingsTab; label: MessageKey }> = [
+const TABS: ReadonlyArray<{ id: BuiltinSettingsTab; label: MessageKey }> = [
   { id: "general", label: "settings.tabs.general" },
   { id: "appearance", label: "settings.tabs.appearance" },
   { id: "audio", label: "settings.tabs.audio" },
@@ -38,8 +39,11 @@ const TABS: ReadonlyArray<{ id: SettingsTab; label: MessageKey }> = [
   { id: "advanced", label: "settings.tabs.advanced" },
 ];
 
+/** The tabs shown without an engine (the others say "no engine connected"). */
+const NO_ENGINE_TABS: ReadonlySet<string> = new Set(["general", "appearance", "input", "privacy"]);
+
 /**
- * Settings, in tabs (base-115, docs/SHARING.md §8.6):
+ * Settings, in tabs:
  * - Appearance: theme, interface zoom, translucency (kept on this device; needs no engine).
  * - General (base-131): startup ("Reopen last project on launch"); library files (base-145:
  *   which files the library browser lists, regex rules; needs the engine).
@@ -53,6 +57,7 @@ const TABS: ReadonlyArray<{ id: SettingsTab; label: MessageKey }> = [
  *   folders with a format filter), Rescan and Full rescan.
  * - Privacy: "check for news" (docs/NEWS.md). Kept on this device; needs no engine.
  * - Advanced: the engine server (remote engine), the engine log and the debug panels.
+ * Extensions add tabs (`@/ext` "settings.tab") and sections to any tab ("settings.section").
  * Mounted once by the app shell; open it with `openSettings(tab)` or `openAudioSettings()`.
  */
 export function AudioSettingsDialog() {
@@ -67,7 +72,15 @@ export function AudioSettingsDialog() {
   const tab = useAudioSettings((s) => s.tab);
   const setTab = useAudioSettings((s) => s.setTab);
   const close = useAudioSettings((s) => s.close);
-  const tabs = TABS.map((tab) => ({ id: tab.id, label: t(tab.label), tour: `settings-tab-${tab.id}` }));
+  const extraTabs = useContributions("settings.tab");
+  const sections = useContributions("settings.section");
+  const tabs: Array<{ id: string; label: string; tour: string }> = TABS.map((tab) => ({ id: tab.id, label: t(tab.label), tour: `settings-tab-${tab.id}` }));
+  for (const x of extraTabs) {
+    const at = tabs.findIndex((tab) => tab.id === (x.before ?? "advanced"));
+    tabs.splice(at < 0 ? tabs.length : at, 0, { id: x.id, label: x.label(), tour: `settings-tab-${x.id}` });
+  }
+  const extra = extraTabs.find((x) => x.id === tab);
+  const noEngine = NO_ENGINE_TABS.has(tab) || !!extra?.noEngine;
   return (
     <Dialog
       open={open}
@@ -84,9 +97,8 @@ export function AudioSettingsDialog() {
         <div className="eth-settings">
           <Tabs label={t("settings.title")} value={tab} onChange={setTab} items={tabs} className="eth-settings__tabs" />
           <div className="eth-settings__panel" role="tabpanel" aria-label={tabs.find((x) => x.id === tab)?.label}>
-            {!transport && tab !== "general" && tab !== "appearance" && tab !== "input" && tab !== "privacy" && (
-              <p className="eth-audio-settings__note">{t("settings.no_engine")}</p>
-            )}
+            {!transport && !noEngine && <p className="eth-audio-settings__note">{t("settings.no_engine")}</p>}
+            <Sections at="start" tab={tab} sections={sections} transport={transport} />
             {tab === "general" && (
               <div className="eth-settings__stack">
                 <LanguageSettings />
@@ -106,10 +118,35 @@ export function AudioSettingsDialog() {
             {transport && tab === "audio" && <AudioSettingsBody transport={transport} reason={reason} />}
             {transport && tab === "plugins" && <PluginFoldersPanel transport={transport} />}
             {transport && tab === "advanced" && <AdvancedSettings transport={transport} />}
+            {extra && (transport || extra.noEngine) && <extra.Component transport={transport} />}
+            <Sections at="end" tab={tab} sections={sections} transport={transport} />
           </div>
         </div>
       )}
     </Dialog>
+  );
+}
+
+/** The extensions' sections of `tab` at its `at` end. */
+function Sections({
+  at,
+  tab,
+  sections,
+  transport,
+}: {
+  at: "start" | "end";
+  tab: string;
+  sections: ReadonlyArray<SettingsSectionContribution>;
+  transport: EngineTransport | null;
+}) {
+  const shown = sections.filter((x) => x.tab === tab && (x.at ?? "end") === at && (transport || x.noEngine));
+  if (shown.length === 0) return null;
+  return (
+    <div className="eth-settings__stack">
+      {shown.map((x, i) => (
+        <x.Component key={i} transport={transport} />
+      ))}
+    </div>
   );
 }
 

@@ -6,7 +6,7 @@
 import type { Row } from "@/features/arrangement/layout";
 import { clipRects } from "@/features/arrangement/layout";
 import { arrangementView } from "@/features/arrangement/uiStore";
-import { useProjectStore } from "@/state";
+import { useProjectStore, useReadOnly } from "@/state";
 import { itemSelection, useTimelineView } from "@/timeline";
 import { useStore } from "zustand";
 import { trimZones } from "./clipTouch";
@@ -17,7 +17,9 @@ import { useTouchDrag } from "./dragState";
 const MAX_HANDLED = 8;
 
 export function ClipHandles({ rows }: { rows: ReadonlyArray<Row> }) {
-  const mobile = useMobileUi((s) => s.enabled);
+  // A read-only view trims nothing: no handles.
+  const readOnly = useReadOnly();
+  const mobile = useMobileUi((s) => s.enabled) && !readOnly;
   const selected = useStore(itemSelection, (s) => s.selected.clip);
   const clips = useProjectStore((s) => s.project?.clips);
   // Follows pans and zooms (only while something is selected: a few elements).

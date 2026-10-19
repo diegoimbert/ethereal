@@ -91,7 +91,12 @@ impl Rig {
         s[IMPULSE_AT] = 0.5;
         library.add_file("lib", "impulse.wav", common::wav(RATE, &[s]));
         Self {
-            ctl: EtherController::new(bridge, NativeServices, MemoryStore::new(), library),
+            ctl: EtherController::new(
+                bridge,
+                NativeServices::default(),
+                MemoryStore::new(),
+                library,
+            ),
             engine: parts.engine,
             gc: parts.gc,
             out: Vec::new(),

@@ -200,6 +200,15 @@
   pointer-events: none;
 }
 
+/* An empty lane: the target's current value, grayed and dashed (the first point takes it). */
+.eth-auto-lane__baseline {
+  stroke: var(--eth-color-text-dim);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  pointer-events: none;
+}
+
+.eth-auto-lane--disabled .eth-auto-lane__baseline,
 .eth-auto-lane--disabled .eth-auto-lane__line,
 .eth-auto-lane--disabled .eth-auto-lane__point {
   opacity: 0.35;

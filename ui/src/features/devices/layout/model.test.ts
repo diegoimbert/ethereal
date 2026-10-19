@@ -105,7 +105,7 @@ describe("values", () => {
     expect(formatValue(semis, 7.2)).toBe("+7 st");
     expect(formatValue(p(0, "Voices", null, { min: 1, max: 16, step: 1 }), 3.4)).toBe("3");
     expect(formatValue(p(0, "Wave", null, { labels: ["Sine", "Saw"], max: 1, step: 1 }), 1)).toBe("Saw");
-    expect(formatValue(p(0, "Cutoff", null, { unit: "Hertz", min: 20, max: 20000 }), 1200)).toBe("1.2 kHz");
+    expect(formatValue(p(0, "Cutoff", null, { unit: "Hertz", min: 20, max: 20000 }), 1200)).toBe("1.2 khz");
     expect(formatValue(p(0, "Mix", null, { unit: "Percent", min: 0, max: 100, step: 1 }), 33.3)).toBe("33 %");
   });
 });
@@ -141,8 +141,12 @@ describe("curves", () => {
     expect(waveOf("Square")).toBe("square");
     expect(waveOf("S&H")).toBe("random");
     expect(waveOf("Wavetable")).toBe("table");
+    expect(waveOf("Drift")).toBe("drift");
     expect(waveAt("sine", 0.25)).toBeCloseTo(1, 9);
     expect(waveAt("triangle", 0.25)).toBeCloseTo(1, 9);
     expect(waveAt("table", 0.25, 0)).toBeCloseTo(1, 9);
+    // Drift passes through the random steps and glides between them (continuous).
+    expect(waveAt("drift", 0.5)).toBeCloseTo(waveAt("random", 0.5), 9);
+    expect(Math.abs(waveAt("drift", 0.501) - waveAt("drift", 0.499))).toBeLessThan(0.01);
   });
 });

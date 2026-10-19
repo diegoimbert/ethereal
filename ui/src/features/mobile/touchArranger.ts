@@ -154,8 +154,9 @@ export function useTouchArranger(
             return true;
           }
         }
-        // A tap on the selected track's header (not on one of its controls): its sheet.
-        if (g.count !== 1 || !header || target.closest(HEADER_CONTROLS) || !header.classList.contains("eth-arr-header--selected")) return false;
+        // A tap on the selected track's header (not on one of its controls): its sheet (none in a
+        // read-only view: everything on it edits).
+        if (g.count !== 1 || isReadOnly() || !header || target.closest(HEADER_CONTROLS) || !header.classList.contains("eth-arr-header--selected")) return false;
         openSheet({ kind: "track", track: header.dataset.track! });
         return true;
       },

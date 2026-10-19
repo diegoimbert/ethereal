@@ -8,7 +8,8 @@
 import { useEffect } from "react";
 import { ArrowDown, ArrowUp, Circle, Headphones, Spline, Volume2, VolumeX } from "lucide-react";
 import { AutomationToggleButton } from "@/features/automation";
-import type { Command, Track } from "@/generated";
+import { useDeviceOn } from "@/features/automation/live";
+import type { Command, Device, Track } from "@/generated";
 import { Button, type ContextMenuItem } from "@/kit";
 import { useDevicesOfTrack, useProjectStore } from "@/state";
 import { cmd } from "@/transport";
@@ -47,6 +48,19 @@ function TrackTitle({ track }: { track: Track }) {
       <span className="eth-track-sheet__swatch" aria-hidden />
       <span className="eth-user-text">{name}</span>
     </span>
+  );
+}
+
+/** A device and whether it runs now (its "Device On" automation at the playhead, else its switch). */
+function DeviceRow({ device }: { device: Device }) {
+  const t = useT();
+  const { on } = useDeviceOn(device);
+  return (
+    <li className="eth-track-sheet__device" data-enabled={on}>
+      <span className="eth-track-sheet__device-dot" aria-hidden />
+      <span className="eth-user-text">{device.name}</span>
+      <span className="eth-track-sheet__device-state">{on ? t("mobile.track.device_on") : t("common.off")}</span>
+    </li>
   );
 }
 
@@ -163,11 +177,7 @@ function TrackSheetBody({ track }: { track: Track }) {
         ) : (
           <ul className="eth-track-sheet__device-list">
             {devices.map((d) => (
-              <li key={d.id} className="eth-track-sheet__device" data-enabled={d.enabled}>
-                <span className="eth-track-sheet__device-dot" aria-hidden />
-                <span className="eth-user-text">{d.name}</span>
-                <span className="eth-track-sheet__device-state">{d.enabled ? t("mobile.track.device_on") : t("common.off")}</span>
-              </li>
+              <DeviceRow key={d.id} device={d} />
             ))}
           </ul>
         )}

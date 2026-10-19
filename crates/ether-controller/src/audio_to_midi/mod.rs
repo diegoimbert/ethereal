@@ -18,7 +18,7 @@
 //!   `Done` follows its patch. A read/decode error or a refused edit emits `Failed`; the
 //!   job is `Cancelled` when its clip (or the project) goes away.
 
-mod kit;
+pub(crate) mod kit;
 mod place;
 
 use std::sync::Arc;
@@ -442,7 +442,7 @@ where
                 out,
                 AudioToMidiEvent::Failed {
                     job: job.id.clone(),
-                    message: format!("Convert to MIDI: {}", e.message),
+                    message: format!("convert to midi: {}", e.message),
                 },
             ),
         }

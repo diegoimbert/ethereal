@@ -5,11 +5,14 @@
  * - like the arranger (#621): a drag on the background selects the points in a box
  *   (cmd/ctrl-drag toggles them); on track lanes a click selects the track and the lane and
  *   places the insert marker (like the track's empty clip-lane space), and a shift-drag
- *   selects a time range in the lane (shift-click extends it);
- * - double-click the background: a point is added on the second press and follows the
- *   pointer until release (one undo step; time on the grid, alt = no snap; value on the
- *   param's steps, shift = whole increments). Double presses are detected on pointerdown
- *   (`createDoublePress`), never on `dblclick`;
+ *   selects a time range in the lane (shift-click extends it); a shift-drag ON THE LINE inside
+ *   a time section (the lane's, or the track row's) moves that section up/down and nothing
+ *   outside it (`sectionMovePlan`);
+ * - double-click the background: a point is added on the second press at the clicked time
+ *   (on the grid, alt = no snap) with the lane's value there, so the lane doesn't change
+ *   (an empty lane: the target's current value). Holding and moving past 3 px drags it like
+ *   a grabbed point, from that value (one undo step). Double presses are detected on
+ *   pointerdown (`createDoublePress`), never on `dblclick`;
  * - click a point: select it (shift = add, cmd/ctrl = toggle); drag: move the selection.
  *   Time snaps to the grid, stepped params (semitones, enums, toggles) snap to their steps;
  *   alt: off the time grid; shift held while dragging: whole value increments of
@@ -68,7 +71,7 @@ import {
   type TempoMap,
   type TimelineViewStore,
 } from "@/timeline";
-import { newId, useTransport } from "@/transport";
+import { cmd, newId, useTransport } from "@/transport";
 import { pasteTarget as editCursorTarget, placeInsertMarker, setPlayStart } from "@/features/time-edits/marker";
 import { isTimeTrack } from "@/features/time-edits/commands";
 import { isMarker, MARKER_EPS, rangeOf, useTimeSelection, type TimeRangeSelection } from "@/features/time-edits/store";
@@ -90,6 +93,9 @@ import {
 import { addPointCommand, bendTension, editPointsCommand, moveEdits, removePointsCommand, setCurveCommand, tensionOf } from "./edit";
 import { LANE_PAD, lanePath, pointRect, POINT_RADIUS, segmentAt, timeToX, valueToY, xToTime, yToValue, type LaneGeometry } from "./geometry";
 import { LaneGesture, sendEdit } from "./gesture";
+import { evaluatePoints, splitPointAt } from "./curve";
+import { sectionMovePlan } from "./range";
+import { emptyLaneBaseline, useTargetValue } from "./baseline";
 import { formatNormalized, targetKey as keyOfTarget } from "./params";
 import { PointValuePopover, type PointValueEdit } from "./PointValuePopover";
 import { dragHint, FULL_RANGE, incrementNudge, nudgeSize, paramStep, snapValue, stepDragDelta, stepLines, type ValueRange } from "./valueAxis";
@@ -201,6 +207,14 @@ const STILL_VIEW = createTimelineViewStore();
 
 /** Pixels before a press on a point turns into a drag. */
 const DRAG_THRESHOLD = 2;
+/**
+ * Pixels before a point just created by a double-click (held) moves, like a clip drag; on
+ * touch, the touch slop. Below it the point keeps exactly the lane's value at its time.
+ */
+const CREATE_THRESHOLD_PX = 3;
+const CREATE_TOUCH_THRESHOLD_PX = 8;
+/** How close (px, vertically) to the lane's line a ⇧-press grabs a time section. */
+const LINE_HIT_PX = 6;
 const FALLBACK_WIDTH = 4000;
 
 interface Tip {
@@ -243,15 +257,18 @@ export function AutomationLaneView({
   /** Second press of a double-click, seen on `pointerdown` (so a double-click can drag). */
   const [doublePress] = useState(createDoublePress);
   const tKey = useMemo(() => keyOfTarget(target), [target]);
+  /** The target's document value (what the knob shows); an empty lane draws it, dashed. */
+  const current = useTargetValue(target, info);
+  const baseline = emptyLaneBaseline(points.length, current);
 
   const geom: LaneGeometry = useMemo(() => ({ vp, height, offset, range }), [vp, height, offset, range]);
   const path = useMemo(() => (gl ? "" : lanePath(points, geom, 0, width)), [gl, points, geom, width]);
   const lines = useMemo(() => stepLines(info, range, height - 2 * LANE_PAD), [info, range, height]);
 
   // Latest values for window-level drag handlers.
-  const live = useRef({ points, geom, lane, grid, tempo, info, owner, target, tKey, cursorToLane });
+  const live = useRef({ points, geom, lane, grid, tempo, info, owner, target, tKey, cursorToLane, current });
   useLayoutEffect(() => {
-    live.current = { points, geom, lane, grid, tempo, info, owner, target, tKey, cursorToLane };
+    live.current = { points, geom, lane, grid, tempo, info, owner, target, tKey, cursorToLane, current };
   });
 
   /** The lane geometry now (WebGL: at the view's current position). */
@@ -404,12 +421,17 @@ export function AutomationLaneView({
    * Run a window-level pointer drag until release. Unmounting the lane mid-drag (its owner
    * deleted by a collaborator or an undo) ends it like a `pointercancel`.
    */
-  const trackDrag = (onMove: (e: PointerEvent) => void, onUp: (moved: boolean, e: Pick<PointerEvent, "type">) => void, start: { x: number; y: number }) => {
+  const trackDrag = (
+    onMove: (e: PointerEvent) => void,
+    onUp: (moved: boolean, e: Pick<PointerEvent, "type">) => void,
+    start: { x: number; y: number },
+    threshold = DRAG_THRESHOLD,
+  ) => {
     let moved = false;
     let last: Pick<PointerEvent, "type"> = { type: "pointercancel" };
     const move = (e: PointerEvent) => {
       const p = local(e);
-      if (!moved && Math.hypot(p.x - start.x, p.y - start.y) < DRAG_THRESHOLD) return;
+      if (!moved && Math.hypot(p.x - start.x, p.y - start.y) < threshold) return;
       moved = true;
       onMove(e);
     };
@@ -451,41 +473,10 @@ export function AutomationLaneView({
     }
     const originals = selectedHere();
     if (!originals.some((p) => p.id === point.id)) return;
-    // The lane's other points (a moved point landing on one's exact time keeps its side).
-    const moving = new Set(originals.map((p) => p.id));
-    const unmoved = live.current.points.filter((p) => !moving.has(p.id));
     const start = local(e);
     const gesture = new LaneGesture(transport);
-    const usable = Math.max(1, geomNow().height - 2 * LANE_PAD);
-    const offset = precisionDrag(start);
     trackDrag(
-      (ev) => {
-        // ⌥: precision, 1/10 of the pointer's motion (and off the grid); ⇧'s increments win
-        // for the value, so with ⇧ + ⌥ only the time is fine.
-        const { dx, dy } = offset(local(ev), { x: ev.altKey, y: ev.altKey && !ev.shiftKey });
-        // ⌘/Ctrl: lock to the dominant axis (⇧ is whole value increments, ⌥ precision).
-        const lock = ev.metaKey || ev.ctrlKey;
-        const lockTime = lock && Math.abs(dy) > Math.abs(dx);
-        const lockValue = lock && !lockTime;
-        const g = geomNow();
-        const span = (g.range ?? FULL_RANGE).hi - (g.range ?? FULL_RANGE).lo;
-        const dt = dx / g.vp.pxPerBeat;
-        // Stepped params: whole steps at a fixed px-per-step; others follow the pointer.
-        const dv = stepDragDelta(live.current.info, -dy) ?? (-dy / usable) * span;
-        const inf = live.current.info;
-        const edits = moveEdits(originals, point, dt, dv, snapFn(ev.altKey), {
-          lockTime,
-          lockValue,
-          others: unmoved,
-          // ⇧ held mid-drag: whole increments.
-          snapValue: (v) => snapValue(inf, v, ev.shiftKey),
-        });
-        gesture.update(editPointsCommand(edits));
-        const mine = edits.find((x) => x.id === point.id);
-        const t = mine?.time ?? point.time;
-        const v = mine?.value ?? point.value;
-        setTip({ x: timeToX(t, g), y: valueToY(v, g.height, g.range), value: formatNormalized(inf, v), hint: dragHint(inf) });
-      },
+      pointMover(originals, point, live.current.points, gesture, start),
       (moved) => {
         gesture.end();
         setTip(null);
@@ -494,6 +485,54 @@ export function AutomationLaneView({
       },
       start,
     );
+  };
+
+  /**
+   * Drag `originals` (the selection when the drag started, `point` the grabbed one) from
+   * lane-local `from`. One implementation for grabbed points and points just created by a
+   * double-click, so both follow the same rules (grid, steps, clamping, axis lock, and a
+   * point landing on a neighbour's exact time keeps its side instead of swapping values).
+   * Returns the pointermove handler; `gesture` carries the edits.
+   */
+  const pointMover = (
+    originals: ReadonlyArray<AutomationPoint>,
+    point: AutomationPoint,
+    lanePoints: ReadonlyArray<AutomationPoint>,
+    gesture: LaneGesture,
+    from: { x: number; y: number },
+  ) => {
+    // The lane's other points (a moved point landing on one's exact time keeps its side).
+    const moving = new Set(originals.map((p) => p.id));
+    const unmoved = lanePoints.filter((p) => !moving.has(p.id));
+    const usable = Math.max(1, geomNow().height - 2 * LANE_PAD);
+    const offset = precisionDrag(from);
+    return (ev: PointerEvent) => {
+      // ⌥: precision, 1/10 of the pointer's motion (and off the grid); ⇧'s increments win
+      // for the value, so with ⇧ + ⌥ only the time is fine.
+      const { dx, dy } = offset(local(ev), { x: ev.altKey, y: ev.altKey && !ev.shiftKey });
+      // ⌘/Ctrl: lock to the dominant axis (⇧ is whole value increments, ⌥ precision).
+      const lock = ev.metaKey || ev.ctrlKey;
+      const lockTime = lock && Math.abs(dy) > Math.abs(dx);
+      const lockValue = lock && !lockTime;
+      const g = geomNow();
+      const span = (g.range ?? FULL_RANGE).hi - (g.range ?? FULL_RANGE).lo;
+      const dt = dx / g.vp.pxPerBeat;
+      // Stepped params: whole steps at a fixed px-per-step; others follow the pointer.
+      const dv = stepDragDelta(live.current.info, -dy) ?? (-dy / usable) * span;
+      const inf = live.current.info;
+      const edits = moveEdits(originals, point, dt, dv, snapFn(ev.altKey), {
+        lockTime,
+        lockValue,
+        others: unmoved,
+        // ⇧ held mid-drag: whole increments.
+        snapValue: (v) => snapValue(inf, v, ev.shiftKey),
+      });
+      gesture.update(editPointsCommand(edits));
+      const mine = edits.find((x) => x.id === point.id);
+      const t = mine?.time ?? point.time;
+      const v = mine?.value ?? point.value;
+      setTip({ x: timeToX(t, g), y: valueToY(v, g.height, g.range), value: formatNormalized(inf, v), hint: dragHint(inf) });
+    };
   };
 
   /** WebGL: the point under the pointer (the canvas draws them; no element to hit). */
@@ -511,12 +550,6 @@ export function AutomationLaneView({
     return snap ? snap(raw) : raw;
   };
 
-  /** A new point's time and value at lane-local `p` (⌥: off the grid; ⇧: whole increments). */
-  const pointAt = (p: { x: number; y: number }, mods: { altKey: boolean; shiftKey: boolean }) => {
-    const g = geomNow();
-    return { time: timeAt(p.x, mods.altKey), value: snapValue(live.current.info, yToValue(p.y, g.height, g.range), mods.shiftKey) };
-  };
-
   const tipAt = (time: number, value: number): Tip => {
     const g = geomNow();
     const inf = live.current.info;
@@ -525,36 +558,41 @@ export function AutomationLaneView({
 
   /**
    * Second press of a double-click on empty space: the point is created right away (on the
-   * press, not the release) and follows the pointer until release, like a moved point.
-   * Creation and drag are one undo step (one `LaneGesture`).
+   * press, not the release) at the snapped time with the lane's value there, so adding a
+   * point never changes the lane (`splitPointAt`: same value, and a curve that continues the
+   * segment it splits). The first point of an empty lane takes the target's current value
+   * (the dashed baseline). Holding and moving past a small threshold then drags it exactly
+   * like a grabbed point (`pointMover`), from where it was created; a release before that
+   * leaves it untouched. Creation and drag are one undo step (one `LaneGesture`).
    */
   const createAndDrag = (e: ReactPointerEvent) => {
     e.preventDefault();
     const l = live.current;
-    const start = local(e);
+    const press = local(e);
     const id = newId();
     // Switches (a device's on/off) hold their value; everything else ramps.
-    const curve: CurveShape = l.info.unit === "Toggle" ? { type: "Step" } : { type: "Linear" };
-    const first = pointAt(start, e);
+    const fallback: CurveShape = l.info.unit === "Toggle" ? { type: "Step" } : { type: "Linear" };
+    const time = timeAt(press.x, e.altKey);
+    // No points and no known current value (the target is gone): the pointer's value.
+    const g0 = geomNow();
+    const empty = { value: l.current ?? snapValue(l.info, yToValue(press.y, g0.height, g0.range), e.shiftKey), curve: fallback };
+    const { value, curve } = splitPointAt(l.points, time, fallback) ?? empty;
+    const created: AutomationPoint = { id, lane: l.lane?.id ?? "", time, value, curve };
     const gesture = new LaneGesture(transport);
-    gesture.update(addPointCommand(l.lane, l.owner, l.target, { id, ...first, curve }, newId()), () =>
+    gesture.update(addPointCommand(l.lane, l.owner, l.target, { id, time, value, curve }, newId()), () =>
       selection.getState().select("automationPoint", [id], "replace"),
     );
-    setTip(tipAt(first.time, first.value));
-    // ⌥ slows the new point down like a moved one.
-    const offset = precisionDrag(start);
+    setTip(tipAt(time, value));
+    // Like a grabbed point: moved by the pointer's motion since the press (never to the
+    // pointer's y), once past the threshold.
     trackDrag(
-      (ev) => {
-        const { dx, dy } = offset(local(ev), { x: ev.altKey, y: ev.altKey && !ev.shiftKey });
-        const at = pointAt({ x: start.x + dx, y: start.y + dy }, ev);
-        gesture.update(editPointsCommand([{ id, time: at.time, value: at.value, curve: null }]));
-        setTip(tipAt(at.time, at.value));
-      },
+      pointMover([created], created, l.points, gesture, press),
       () => {
         gesture.end();
         setTip(null);
       },
-      start,
+      press,
+      e.pointerType === "touch" ? CREATE_TOUCH_THRESHOLD_PX : CREATE_THRESHOLD_PX,
     );
   };
 
@@ -599,6 +637,71 @@ export function AutomationLaneView({
     );
   };
 
+  /**
+   * The time section under lane-local `p` when `p` is on the lane's line: the lane's own
+   * section, or a section of the track's row (it covers the automation lanes too). Null on an
+   * empty lane (no line to grab: its dashed baseline is not in the document).
+   */
+  const sectionUnder = (p: { x: number; y: number }): { start: number; end: number } | null => {
+    const l = live.current;
+    if (l.owner.type !== "Track" || l.points.length === 0) return null;
+    const sel = rangeOf(useTimeSelection.getState().selection);
+    const track = l.owner.track;
+    const r = laneRange() ?? (sel && sel.automationLane === undefined && sel.tracks.includes(track) ? sel : null);
+    if (!r) return null;
+    const g = geomNow();
+    const t = xToTime(p.x, g);
+    if (t < r.start || t > r.end) return null;
+    const v = evaluatePoints(l.points, t)!;
+    return Math.abs(valueToY(v, g.height, g.range) - p.y) <= LINE_HIT_PX ? r : null;
+  };
+
+  /**
+   * ⇧-drag on the line inside a time section: the section moves up/down, the lane outside it
+   * doesn't change (`sectionMovePlan`: jumps of two points at its edges, added only once the
+   * pointer moved past the threshold, so a ⇧-click changes nothing). The inside moves like a
+   * vertical multi-point drag (`moveEdits`: stepped params by whole steps, the group clamped
+   * to 0..1; ⌥: precision). One undo step.
+   */
+  const moveSection = (e: ReactPointerEvent, r: { start: number; end: number }) => {
+    const l = live.current;
+    const lane = l.lane;
+    if (!lane) return;
+    const pts = l.points;
+    const press = local(e);
+    const gesture = new LaneGesture(transport);
+    const usable = Math.max(1, geomNow().height - 2 * LANE_PAD);
+    const offset = precisionDrag(press);
+    // The line's value under the press (the tooltip follows it).
+    const grabbed = evaluatePoints(pts, xToTime(press.x, geomNow()))!;
+    let plan: ReturnType<typeof sectionMovePlan> | undefined;
+    trackDrag(
+      (ev) => {
+        if (plan === undefined) {
+          plan = sectionMovePlan(pts, r.start, r.end, lane.id);
+          if (plan?.add.length) gesture.update(cmd("Automation", { type: "AddPoints", lane: lane.id, points: plan.add }));
+        }
+        if (!plan || plan.moving.length === 0) return;
+        const { dy } = offset(local(ev), { x: false, y: ev.altKey });
+        const g = geomNow();
+        const span = (g.range ?? FULL_RANGE).hi - (g.range ?? FULL_RANGE).lo;
+        const inf = live.current.info;
+        const dv = stepDragDelta(inf, -dy) ?? (-dy / usable) * span;
+        const anchor = plan.moving[0]!;
+        const edits = moveEdits(plan.moving, anchor, 0, dv, null, { lockTime: true, snapValue: (v) => snapValue(inf, v, false) });
+        gesture.update(editPointsCommand(edits));
+        const v = grabbed + (edits[0]?.value ?? anchor.value) - anchor.value;
+        setTip({ x: press.x, y: valueToY(v, g.height, g.range), value: formatNormalized(inf, v), hint: "" });
+      },
+      () => {
+        gesture.end();
+        setTip(null);
+      },
+      press,
+      CREATE_THRESHOLD_PX,
+    );
+  };
+
   const onBackgroundPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     const hit = e.button === 0 ? glPointAt(e) : null;
     if (hit) {
@@ -632,6 +735,15 @@ export function AutomationLaneView({
           () => gesture.end(),
           start,
         );
+        return;
+      }
+    }
+    // ⇧-press on the line inside a time section: move that section up/down.
+    if (e.shiftKey && !(e.metaKey || e.ctrlKey)) {
+      const r = sectionUnder(local(e));
+      if (r) {
+        e.preventDefault();
+        moveSection(e, r);
         return;
       }
     }
@@ -847,8 +959,8 @@ export function AutomationLaneView({
   useLayoutEffect(() => {
     const el = rootRef.current;
     if (!glTrack || !el) return;
-    publishAutomationLane(glKey.current, { track: glTrack, el, points, selected, height, range, lines, disabled, offset });
-  }, [glTrack, points, selected, height, range, lines, disabled, offset]);
+    publishAutomationLane(glKey.current, { track: glTrack, el, points, selected, height, range, lines, disabled, offset, baseline });
+  }, [glTrack, points, selected, height, range, lines, disabled, offset, baseline]);
   useLayoutEffect(() => {
     const key = glKey.current;
     return () => publishAutomationLane(key, null);
@@ -890,6 +1002,8 @@ export function AutomationLaneView({
         data-testid="automation-lane-svg"
         data-steps={lines.length}
         data-renderer={gl ? "webgl" : undefined}
+        // The empty lane's baseline (normalized value), for tests (WebGL draws it on the canvas).
+        data-baseline={baseline ?? undefined}
       >
         {gl && hoverTip && <title>{hoverTip}</title>}
         {!gl &&
@@ -907,6 +1021,16 @@ export function AutomationLaneView({
               />
             );
           })}
+        {!gl && baseline !== null && (
+          <line
+            className="eth-auto-lane__baseline"
+            x1={0}
+            x2="100%"
+            y1={valueToY(baseline, height, range)}
+            y2={valueToY(baseline, height, range)}
+            data-testid="automation-baseline"
+          />
+        )}
         {path && <path className="eth-auto-lane__line" d={path} />}
         {!gl &&
           points.map((p) => {

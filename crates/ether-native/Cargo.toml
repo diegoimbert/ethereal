@@ -36,6 +36,9 @@ getrandom.workspace = true
 assert_no_alloc = { workspace = true, features = ["warn_debug"] }
 rtrb.workspace = true
 rubato.workspace = true
+# The sample pack's downloads (feature `net`; `samples_http.rs`): blocking reqwest + rustls.
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"], optional = true }
+
 # ASIO driver support on Windows (cpal's asio-sys builds against the Steinberg ASIO SDK).
 [target.'cfg(windows)'.dependencies]
 cpal = { workspace = true, features = ["asio"] }
@@ -53,7 +56,9 @@ workspace = true
 # its code out; its commands reply `Unsupported` (the paths the web host already takes).
 [features]
 default = []
-full = ["plugins", "warp-complex"]
+full = ["net", "plugins", "warp-complex"]
+# The sample pack's downloads (`samples_http`). Off: the built-in kit only.
+net = ["dep:reqwest"]
 # Every plugin format and the sandbox.
 plugins = ["plugins-clap", "plugins-vst3", "plugins-au", "sandbox"]
 plugins-clap = ["dep:ether-clap"]

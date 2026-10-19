@@ -1,0 +1,45 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.6.0",
+  "preset": {
+    "name": "half-time pump",
+    "device": {
+      "type": "Builtin",
+      "device": "VolumeLfo"
+    },
+    "meta": {
+      "tags": [
+        "volume lfo",
+        "sidechain",
+        "pump",
+        "half-time"
+      ],
+      "author": "ethereal",
+      "description": "a deep duck on beat 1 and a lighter one on beat 3, over a bar: kick and snare of a half-time groove."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 1.0,
+      "2": 10.0,
+      "3": 100.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 1.0,
+      "7": 0.0
+    },
+    "kind": {
+      "type": "VolumeLfo",
+      "curve": {
+        "points": [
+          {"x": 0.0, "y": 1.0, "curve": {"type": "Linear"}},
+          {"x": 0.01, "y": 0.0, "curve": {"type": "Curve", "tension": -0.45}},
+          {"x": 0.3, "y": 1.0, "curve": {"type": "Linear"}},
+          {"x": 0.5, "y": 1.0, "curve": {"type": "Linear"}},
+          {"x": 0.51, "y": 0.55, "curve": {"type": "Curve", "tension": -0.45}},
+          {"x": 0.7, "y": 1.0, "curve": {"type": "Linear"}}
+        ]
+      }
+    }
+  }
+}

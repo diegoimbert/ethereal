@@ -15,7 +15,7 @@
         "highs"
       ],
       "author": "ethereal",
-      "description": "fast 4:1 compression above 3.5 kHz catches harsh cymbals and sibilance; lows and mids pass untouched."
+      "description": "fast 4:1 compression above 3.5 khz catches harsh cymbals and sibilance; lows and mids pass untouched."
     },
     "params": {
       "0": 250.0,

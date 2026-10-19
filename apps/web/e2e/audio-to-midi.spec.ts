@@ -141,7 +141,7 @@ test("convert a melody and a drum loop to MIDI tracks below their clips", async 
 
   await convert(page, vox!, "melody", "01-dialog");
   let p = await project(page);
-  const midiTrack = Object.values(p.tracks).find((t) => t.kind === "Midi" && t.name === `${src.name} MIDI`)!;
+  const midiTrack = Object.values(p.tracks).find((t) => t.kind === "Midi" && t.name === `${src.name} midi`)!;
   expect(midiTrack).toBeDefined();
   // Right below the source track.
   const siblings = Object.values(p.tracks)
@@ -168,7 +168,7 @@ test("convert a melody and a drum loop to MIDI tracks below their clips", async 
   await convert(page, drums!, "drums");
   p = await project(page);
   const beatSrc = p.clips[drums!]!;
-  const drumTrack = Object.values(p.tracks).find((t) => t.kind === "Midi" && t.name === `${beatSrc.name} MIDI`)!;
+  const drumTrack = Object.values(p.tracks).find((t) => t.kind === "Midi" && t.name === `${beatSrc.name} midi`)!;
   const drumClip = Object.values(p.clips).find((c) => c.track === drumTrack.id)!;
   const keys = Object.values(p.notes)
     .filter((n) => n.clip === drumClip.id)

@@ -184,6 +184,16 @@ export function shiftVelocity(dir: -1 | 1): void {
   useKeyboardMidi.setState((s) => ({ velocity: stepVelocity(s.velocity, dir) }));
 }
 
+/** Set the octave (clamped), e.g. from the indicator's popover. */
+export function setOctave(octave: number): void {
+  useKeyboardMidi.setState({ octave: clampOctave(octave) });
+}
+
+/** Set the velocity (clamped to 1..=127). */
+export function setVelocity(velocity: number): void {
+  useKeyboardMidi.setState({ velocity: clampVelocity(velocity) });
+}
+
 /** Start the note of a note key (ignored if that key is already held). */
 export function noteOn(code: string): void {
   const s = useKeyboardMidi.getState();

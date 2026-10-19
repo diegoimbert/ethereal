@@ -8,7 +8,8 @@
 
 use ether_protocol::model::{ClipId, SendId, TrackId};
 
-use crate::delay::DelayLine;
+use crate::config::EngineConfig;
+use crate::delay::{DelayLine, DryLine};
 use crate::event::{EventBuffer, EventKind, ProcessEvent};
 use crate::node::NodeKey;
 use crate::param::Smoother;
@@ -33,6 +34,10 @@ pub(crate) struct ChainRt {
     /// Device on/off automation (`ResolvedTarget::NodeEnabled`): overrides `enabled` while
     /// a lane or clip envelope drives it; `None` = the static switch.
     pub auto_enabled: Option<bool>,
+    /// Sample of the sub-block where the automation flips the switch. The audio switch is
+    /// sample-accurate (the crossfade turns there); MIDI thru and note releases follow
+    /// [`Self::is_enabled`], the value at the sub-block start.
+    pub auto_switch_at: Option<u32>,
     pub channels: (u16, u16),
     /// Events for the current sub-block (sorted before `process`).
     pub events: EventBuffer,
@@ -43,33 +48,141 @@ pub(crate) struct ChainRt {
     /// Whether the device ran the last time its chain reached it ([`Self::switch_notes`];
     /// carried over snapshot swaps by node, [`inherit_switches`]).
     pub was_enabled: bool,
+    /// Click-free switching: gain of the processed signal against the bypass path (1 = on),
+    /// ramped over [`SWITCH_FADE_MS`]; carried over snapshot swaps.
+    pub fade: f32,
+    fade_step: f32,
+    /// The node ran in the last sub-block (a bypassed one doesn't).
+    ran: bool,
+    /// Samples the fade-in still waits after the node started running again: its latency,
+    /// so a look-ahead device's output is warm (not its stale or empty delay buffer) when
+    /// it fades in.
+    warmup: u32,
+    /// The bypass path: the entry's input delayed by the entry's latency, so switching it
+    /// (statically or by automation) never moves the signal in time (a bypassed device's
+    /// latency still counts in PDC). None for entries without audio outputs.
+    dry: DryLine,
 }
 
+/// Crossfade between a device's output and its bypass path when it switches on or off.
+pub(crate) const SWITCH_FADE_MS: f32 = 10.0;
+
 impl ChainRt {
-    /// Non-RT. A chain entry with its event lists (`max_events` per sub-block).
+    /// Non-RT. A chain entry with its event lists. `latency`: how much the bypass path
+    /// delays the entry's input (its latency plus a sidechain main delay planned before it).
     pub(crate) fn new(
         key: NodeKey,
         enabled: bool,
         channels: (u16, u16),
         sidechain: bool,
-        max_events: usize,
+        latency: usize,
+        config: &EngineConfig,
     ) -> Self {
+        let fade_frames = SWITCH_FADE_MS * 0.001 * config.sample_rate.max(1) as f32;
         Self {
             key,
             enabled,
             auto_enabled: None,
+            auto_switch_at: None,
             channels,
-            events: EventBuffer::with_capacity(max_events),
+            events: EventBuffer::with_capacity(config.max_events_per_block),
             pending: EventBuffer::with_capacity(MAX_PENDING_EVENTS),
             sidechain,
             was_enabled: enabled,
+            fade: if enabled { 1.0 } else { 0.0 },
+            fade_step: 1.0 / fade_frames.max(1.0),
+            ran: enabled,
+            warmup: 0,
+            dry: if channels.1 > 0 {
+                DryLine::new(latency, config.max_block_size)
+            } else {
+                DryLine::default()
+            },
         }
     }
 
-    /// Whether the device runs this sub-block (automation wins over the static switch).
+    /// Whether the device is on this sub-block (automation wins over the static switch).
     #[inline]
     pub fn is_enabled(&self) -> bool {
         self.auto_enabled.unwrap_or(self.enabled)
+    }
+
+    /// RT. Automation drives the switch this sub-block: `on` at its start, flipping at
+    /// sample `at` (if it does).
+    pub(crate) fn set_auto(&mut self, on: bool, at: Option<u32>) {
+        self.auto_enabled = Some(on);
+        self.auto_switch_at = at;
+    }
+
+    /// RT. Back to the static switch (automation is re-evaluated every sub-block).
+    pub(crate) fn clear_auto(&mut self) {
+        self.auto_enabled = None;
+        self.auto_switch_at = None;
+    }
+
+    /// Whether the node must run this sub-block: on, still fading out, or switched on inside
+    /// it. Entries without audio outputs switch instantly.
+    #[inline]
+    pub(crate) fn runs(&self) -> bool {
+        self.is_enabled()
+            || (self.dry.active() && (self.fade > 0.0 || self.auto_switch_at.is_some()))
+    }
+
+    /// RT. Keep this sub-block's input for the bypass path. Call before anything writes into
+    /// `input` (a sidechain alignment, a rack's chains), on every sub-block.
+    #[inline]
+    pub(crate) fn push_dry(&mut self, input: &Stereo, n: usize) {
+        self.dry.push(input, n);
+    }
+
+    /// RT. The entry doesn't run: its output is its delayed input (written into `io`).
+    pub(crate) fn bypass(&mut self, io: &mut Stereo, n: usize) {
+        if self.dry.active() {
+            for (ch, x) in io.iter_mut().enumerate() {
+                for (i, s) in x[..n].iter_mut().enumerate() {
+                    *s = self.dry.get(ch, i);
+                }
+            }
+        }
+        self.fade = 0.0;
+        self.ran = false;
+    }
+
+    /// RT. The node ran into `out` (both channels): crossfade with the bypass path while
+    /// the switch ramps (equal-gain, [`SWITCH_FADE_MS`]; a node that just started running
+    /// fades in after its latency); nothing to do once settled on.
+    pub(crate) fn blend(&mut self, out: &mut Stereo, n: usize) {
+        let on = self.is_enabled();
+        let flip = self.auto_switch_at.map_or(usize::MAX, |a| a as usize);
+        if !self.ran {
+            self.ran = true;
+            self.warmup = self.dry.delay() as u32;
+        }
+        if !self.dry.active() {
+            self.fade = if on != (flip < n) { 1.0 } else { 0.0 };
+            return;
+        }
+        if self.fade >= 1.0 && on && flip >= n {
+            return;
+        }
+        let (start, step, hold) = (self.fade, self.fade_step, self.warmup as usize);
+        let mut fade = start;
+        for (ch, x) in out.iter_mut().enumerate() {
+            fade = start;
+            for (i, s) in x[..n].iter_mut().enumerate() {
+                fade = if on == (i >= flip) {
+                    (fade - step).max(0.0)
+                } else if i >= hold {
+                    (fade + step).min(1.0)
+                } else {
+                    fade
+                };
+                let d = self.dry.get(ch, i);
+                *s = d + (*s - d) * fade;
+            }
+        }
+        self.fade = fade;
+        self.warmup = hold.saturating_sub(n) as u32;
     }
 
     /// RT. Call when the chain reaches this entry, before its events are sorted. When the
@@ -103,11 +216,17 @@ impl ChainRt {
 }
 
 /// RT. Carry each entry's last on/off state over a snapshot swap (same node), so a switch
-/// changed by the new snapshot counts as a transition ([`ChainRt::switch_notes`]).
-pub(crate) fn inherit_switches(new: &mut [ChainRt], old: &[ChainRt]) {
+/// changed by the new snapshot counts as a transition ([`ChainRt::switch_notes`]) and
+/// crossfades from where it was ([`ChainRt::blend`]).
+pub(crate) fn inherit_switches(new: &mut [ChainRt], old: &mut [ChainRt]) {
     for e in new {
-        if let Some(o) = old.iter().find(|o| o.key == e.key) {
+        if let Some(o) = old.iter_mut().find(|o| o.key == e.key) {
             e.was_enabled = o.was_enabled;
+            // The crossfade and the bypass path continue (same delay).
+            e.fade = o.fade;
+            e.ran = o.ran;
+            e.warmup = o.warmup;
+            e.dry.inherit(&mut o.dry);
         }
     }
 }
@@ -216,8 +335,6 @@ pub(crate) struct TrackRt {
     pub to_hardware: bool,
     pub chain: Vec<ChainRt>,
     pub sends: Vec<SendRt>,
-    /// Keeps a constant latency when devices with latency are bypassed.
-    pub bypass_delay: DelayLine,
     /// PDC: aligns this track's output with the other inputs of `output`.
     pub output_delay: DelayLine,
     pub volume: Smoother,
@@ -311,7 +428,6 @@ impl TrackRt {
         self.gate = old.gate;
         self.gate.set_target(gate);
         self.output_delay.inherit(&mut old.output_delay);
-        self.bypass_delay.inherit(&mut old.bypass_delay);
         for send in &mut self.sends {
             if let Some(o) = old.sends.iter_mut().find(|s| s.id == send.id) {
                 let level = send.level.current();
@@ -325,7 +441,7 @@ impl TrackRt {
         // v0.2 (`midi-fx`): a MIDI effect was added or removed: release everything once.
         // Devices switched on or off release their notes when the chain reaches them.
         release_on_midi_fx_change(&mut self.chain, &old.chain);
-        inherit_switches(&mut self.chain, &old.chain);
+        inherit_switches(&mut self.chain, &mut old.chain);
         std::mem::swap(&mut self.notes, &mut old.notes);
         std::mem::swap(&mut self.live, &mut old.live);
         self.next_note_id = old.next_note_id;

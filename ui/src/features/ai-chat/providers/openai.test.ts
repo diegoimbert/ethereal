@@ -322,7 +322,7 @@ describe("OpenAI-compatible errors", () => {
     const err = await run(fakeOpenAi([errorResponse(401, "Incorrect API key provided")])).catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ProviderError);
     expect(err).toMatchObject({ kind: "auth", status: 401, keyRejected: true });
-    expect((err as Error).message).toMatch(/rejected by OpenAI/);
+    expect((err as Error).message).toMatch(/rejected by openai/);
     expect((err as Error).message).not.toContain(KEY);
   });
 
@@ -339,7 +339,7 @@ describe("OpenAI-compatible errors", () => {
     await expect(run(fakeOpenAi([errorResponse(404, "The model `gpt-9` does not exist")]))).rejects.toMatchObject({ kind: "not_found" });
     await expect(run(fakeOpenAi([errorResponse(503, "overloaded")]))).rejects.toMatchObject({ kind: "server" });
     const midStream = () => new Response(`data: ${JSON.stringify({ error: { message: "upstream died" } })}\n\n`, { status: 200 });
-    await expect(run(fakeOpenAi([midStream]))).rejects.toMatchObject({ message: "OpenAI: upstream died" });
+    await expect(run(fakeOpenAi([midStream]))).rejects.toMatchObject({ message: "openai: upstream died" });
   });
 
   it("a blocked request (CORS) is told apart from an unreachable server", async () => {
@@ -353,7 +353,7 @@ describe("OpenAI-compatible errors", () => {
     });
     const cors = await session.step(conn, new AbortController().signal, () => {}).catch((e: unknown) => e);
     expect(cors).toMatchObject({ kind: "cors" });
-    expect((cors as Error).message).toMatch(/api\.deepseek\.com blocked the request .*CORS/);
+    expect((cors as Error).message).toMatch(/api\.deepseek\.com blocked the request .*cors/);
     // The probe carries no key.
     const probe = fetchCors.mock.calls.find(([, init]) => init?.mode === "no-cors")!;
     expect(JSON.stringify(probe)).not.toContain(KEY);
@@ -367,7 +367,7 @@ describe("OpenAI-compatible errors", () => {
     const off = await local
       .step({ baseUrl: "http://localhost:11434/v1", apiKey: null, model: "qwen3" }, new AbortController().signal, () => {})
       .catch((e: unknown) => e);
-    expect((off as Error).message).toMatch(/is Ollama running/);
+    expect((off as Error).message).toMatch(/is ollama running/);
   });
 });
 

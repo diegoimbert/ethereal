@@ -8,7 +8,7 @@ import { cmd, type EngineTransport } from "@/transport";
 import { bindTransport, handleForwardedKey, pluginCaptureCodes, setEnabled, useKeyboardMidi } from "./keyboard";
 import { KeyboardMidiButton } from "./KeyboardMidiButton";
 
-const toggle = () => screen.getByRole("button", { name: "computer MIDI keyboard" });
+const toggle = () => screen.getByRole("button", { name: "computer midi keyboard" });
 const status = () => screen.getByTestId("keyboard-midi-status");
 const down = (code: string, init: Partial<KeyboardEventInit> = {}) => fireEvent.keyDown(window, { code, key: code.replace(/^Key/, "").toLowerCase(), ...init });
 const up = (code: string, init: Partial<KeyboardEventInit> = {}) => fireEvent.keyUp(window, { code, key: code.replace(/^Key/, "").toLowerCase(), ...init });
@@ -39,9 +39,9 @@ describe("KeyboardMidiButton", () => {
     expect(screen.queryByTestId("keyboard-midi-status")).toBeNull();
     fireEvent.click(toggle());
     expect(toggle()).toHaveAttribute("aria-pressed", "true");
-    expect(status()).toHaveTextContent("C3");
+    expect(status()).toHaveTextContent("c3");
     expect(status()).toHaveTextContent("vel100");
-    expect(status()).toHaveAccessibleName("octave C3, velocity 100");
+    expect(status()).toHaveAccessibleName("octave c3, velocity 100");
     down("KeyM", { key: "m" });
     expect(toggle()).toHaveAttribute("aria-pressed", "false");
     down("KeyM", { key: "m" });
@@ -58,12 +58,12 @@ describe("KeyboardMidiButton", () => {
     render(<KeyboardMidiButton />);
     fireEvent.click(toggle());
     down("KeyX");
-    expect(status()).toHaveTextContent("C4");
+    expect(status()).toHaveTextContent("c4");
     down("KeyX", { repeat: true });
-    expect(status()).toHaveTextContent("C4");
+    expect(status()).toHaveTextContent("c4");
     down("KeyZ");
     down("KeyZ");
-    expect(status()).toHaveTextContent("C2");
+    expect(status()).toHaveTextContent("c2");
     down("KeyV");
     expect(status()).toHaveTextContent("vel120");
     down("KeyC");

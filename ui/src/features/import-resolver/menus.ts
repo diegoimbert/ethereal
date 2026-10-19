@@ -9,7 +9,7 @@ import type { ContextMenuEntry } from "@/kit";
 import { useMediaRefs } from "@/features/media-refs/store";
 import type { EngineTransport } from "@/transport";
 import { catalogNow, isMissingPlugin } from "./catalog";
-import { openReplace } from "./replace";
+import { isRackDevice, openReplace } from "./replace";
 import { openResolver } from "./store";
 import { t } from "@/i18n";
 
@@ -17,12 +17,12 @@ import { t } from "@/i18n";
 export const resolveLabel = (): string => t("resolver.menu.resolve");
 /** The top-left menu and palette entry that reopens the all-missing modal (shown only when something is missing). */
 export const resolveMissingLabel = (): string => t("resolver.menu.resolve_missing");
-export const replacePluginLabel = (): string => t("resolver.menu.replace_plugin");
+export const replaceDeviceLabel = (): string => t("resolver.menu.replace_device");
 
-/** "Replace plugin…" for any plugin device, on hosts with a plugin catalog. */
-export function replacePluginEntries(device: Device, transport: EngineTransport | null | undefined): ContextMenuEntry[] {
-  if (device.kind.type !== "Plugin" || catalogNow(transport) === null) return [];
-  return [{ label: replacePluginLabel(), onSelect: () => void openReplace(device.id, transport ?? undefined) }];
+/** "Replace device…" for any device but a rack: factory devices everywhere, plugins where the host has a catalog. */
+export function replaceDeviceEntries(device: Device, transport: EngineTransport | null | undefined): ContextMenuEntry[] {
+  if (!transport || (device.kind.type === "Builtin" && isRackDevice(device.kind.device.type))) return [];
+  return [{ label: replaceDeviceLabel(), onSelect: () => void openReplace(device.id, transport) }];
 }
 
 /** "Resolve…" for a plugin device whose plugin isn't installed, or a missing device (placeholder). */

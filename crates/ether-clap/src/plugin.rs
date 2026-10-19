@@ -13,11 +13,13 @@ use clack_host::events::event_types::ParamValueEvent;
 use clack_host::events::spaces::CoreEventSpace;
 use clack_host::prelude::*;
 use ether_core::config::PrepareConfig;
-use ether_core::plugin::{PluginController, PluginError, PluginNode, PluginNotification};
+use ether_core::plugin::{
+    NativeWindow, PluginController, PluginError, PluginNode, PluginNotification,
+};
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, DeviceTypeRef, ParamInfo};
 use ether_core::protocol::model::ParamId;
 
-use crate::gui::HostWindow;
+use crate::gui::{FloatingWindow, HostWindow};
 use crate::host::{EtherHost, HostMainThread, HostShared, PluginExts, host_info};
 use crate::node::{ClapNode, NodeInit, NodeMsg, NodeShared, PortLayout};
 use crate::scan::{category_from_features, load_entry};
@@ -51,6 +53,8 @@ pub struct ClapPlugin {
     editor_open: bool,
     /// Host-created window for embedded editors (macOS).
     editor_window: Option<HostWindow>,
+    /// The plugin's own window for an open floating editor.
+    floating_window: Option<FloatingWindow>,
 }
 
 impl std::fmt::Debug for ClapPlugin {
@@ -115,6 +119,7 @@ impl ClapPlugin {
             editor: None,
             editor_open: false,
             editor_window: None,
+            floating_window: None,
         };
         plugin.params = plugin.query_params();
         plugin.refresh_io();
@@ -536,6 +541,7 @@ impl PluginController for ClapPlugin {
                 .map_err(|e| PluginError::Load(format!("editor: {e}")));
         }
         if config.is_floating {
+            let before = ether_plugin_host::native_window::NewWindows::snapshot();
             let handle = self.instance.plugin_handle();
             gui.create(&handle, config)
                 .map_err(|e| PluginError::Load(format!("editor: {e}")))?;
@@ -553,6 +559,7 @@ impl PluginController for ClapPlugin {
                 gui.destroy(&handle);
                 return Err(PluginError::Load(format!("editor: {e}")));
             }
+            self.floating_window = Some(FloatingWindow::search(before));
         } else {
             self.open_host_window(gui, config)?;
         }
@@ -573,7 +580,16 @@ impl PluginController for ClapPlugin {
         if let Some(w) = self.editor_window.take() {
             w.close();
         }
+        self.floating_window = None;
         self.editor_open = false;
+    }
+
+    fn editor_window(&self) -> Option<NativeWindow> {
+        match (&self.editor_window, &self.floating_window) {
+            (Some(w), _) => Some(w.native_window()),
+            (None, Some(f)) => f.window(),
+            (None, None) => None,
+        }
     }
 
     fn poll(&mut self, out: &mut Vec<PluginNotification>) {
@@ -653,8 +669,12 @@ impl PluginController for ClapPlugin {
             if let Some(gui) = exts.gui {
                 gui.destroy(&self.instance.plugin_handle());
             }
+            self.floating_window = None;
             self.editor_open = false;
             out.push(PluginNotification::EditorClosed);
+        }
+        if let Some(f) = self.floating_window.as_mut() {
+            f.poll(Instant::now());
         }
         self.poll_host_window(exts.gui, out);
     }

@@ -70,13 +70,13 @@ describe("App shell", () => {
     expect(pane("left")).toBeNull();
     for (const [label, feature] of [
       ["library", "browser"],
-      ["MIDI mapping", "midi-learn"],
+      ["midi mapping", "midi-learn"],
     ] as const) {
       fireEvent.click(screen.getByRole("button", { name: label }));
       expect(pane("left")).toHaveAttribute("aria-label", label);
       expect(container.querySelector(`[data-pane="left"] [data-feature="${feature}"]`), feature).not.toBeNull();
     }
-    fireEvent.click(screen.getByRole("button", { name: "MIDI mapping" }));
+    fireEvent.click(screen.getByRole("button", { name: "midi mapping" }));
     await waitFor(() => expect(pane("left")).toBeNull());
   });
 
@@ -104,10 +104,10 @@ describe("App shell", () => {
     expect(workspace().style.getPropertyValue("--pane-left-size")).toBe(`${start + 40}px`);
   });
 
-  it("⌘J toggles the editor drawer; its tabs switch editors; Escape closes it", async () => {
+  it("⌘⌥L toggles the editor drawer; its tabs switch editors; Escape closes it", async () => {
     const { container } = render(<App />);
     expect(pane("bottom")).toBeNull();
-    fireEvent.keyDown(window, { key: "j", metaKey: true });
+    fireEvent.keyDown(window, { key: "l", metaKey: true, altKey: true });
     expect(pane("bottom")).not.toBeNull();
     // The editors that apply: no clip open, only Automation (the piano roll is for a MIDI clip,
     // Warp for an audio one; tempo is on the master track, groove in the clip inspector, drum
@@ -120,9 +120,9 @@ describe("App shell", () => {
     expect(screen.getByRole("tab", { name: "automation" })).toHaveAttribute("aria-selected", "true");
     fireEvent.keyDown(container.querySelector('[data-pane="bottom"] [data-slot="detail"]')!, { key: "Escape" });
     await waitFor(() => expect(pane("bottom")).toBeNull());
-    fireEvent.keyDown(window, { key: "j", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "l", ctrlKey: true, altKey: true });
     expect(pane("bottom")).not.toBeNull();
-    fireEvent.keyDown(window, { key: "j", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "l", ctrlKey: true, altKey: true });
     await waitFor(() => expect(pane("bottom")).toBeNull());
   });
 });
@@ -515,13 +515,13 @@ describe("App shell: collapsing the inspector and the bottom pane", () => {
     fireEvent.pointerDown(bar, { button: 0 });
     fireEvent.pointerUp(window, { button: 0 });
     expect(useShellStore.getState().bottom.open).toBe(true);
-    // A click away still closes it; Ctrl+J reopens it collapsed.
+    // A click away still closes it; Ctrl+Alt+L reopens it collapsed.
     await act(async () => {
       fireEvent.pointerDown(document.body, { button: 0 });
       fireEvent.pointerUp(window, { button: 0 });
     });
     expect(useShellStore.getState().bottom.open).toBe(false);
-    fireEvent.keyDown(window, { key: "j", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "l", ctrlKey: true, altKey: true });
     expect(await screen.findByRole("button", { name: "expand the editor panel" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "expand the editor panel" }));
     expect(document.querySelector(".eth-drawer")).not.toBeNull();

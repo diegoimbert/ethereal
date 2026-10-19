@@ -33,7 +33,7 @@ import { beatRects, BeatRenderer } from "./beatCanvas";
 import { createTimelineViewStore, PlayheadLine, Ruler, useMiddleButtonPan, useTempoMap, useTimelineView, useTimelineWheel, useViewport } from "@/timeline";
 import { useBeatView } from "./beatView";
 import { EditorSwitch } from "./EditorSwitch";
-import { clipTempoMap, contentEnd, contentToSong, songToContent } from "./clipTime";
+import { clipTempoMap, contentEnd, contentFloor, contentToSong, songToContent } from "./clipTime";
 import { pitchName } from "./geometry";
 import { playPreview, usePreviewSetting } from "./notePreview";
 
@@ -103,6 +103,7 @@ export function BeatGrid({ clip, rack }: { clip: Clip; rack: string }) {
   const step: Beats = STEP_OPTIONS[stepIndex]!.beats * (triplet ? 2 / 3 : 1);
 
   const regionStart = clip.looping.enabled ? clip.looping.start : clip.offset;
+  const floor = contentFloor(clip);
   const steps = Math.max(1, Math.round((contentEnd(clip) - regionStart) / step));
 
   const rows = useMemo<BeatRow[]>(() => {
@@ -156,14 +157,15 @@ export function BeatGrid({ clip, rack }: { clip: Clip; rack: string }) {
         pxPerBeat: DEFAULT_PX_PER_BEAT,
         scrollBeats: regionStart,
         followPlayhead: false,
-        limits: { minPxPerBeat: MIN_STEP_PX / step, maxPxPerBeat: MAX_STEP_PX / step },
+        // A left-extended clip (leading gap) starts before content 0.
+        limits: { minPxPerBeat: MIN_STEP_PX / step, maxPxPerBeat: MAX_STEP_PX / step, minScrollBeats: floor },
       }),
     [], // eslint-disable-line react-hooks/exhaustive-deps
   );
   // The zoom range follows the step size (a step between MIN_STEP_PX and MAX_STEP_PX wide).
   useEffect(() => {
-    view.getState().setLimits({ minPxPerBeat: MIN_STEP_PX / step, maxPxPerBeat: MAX_STEP_PX / step });
-  }, [view, step]);
+    view.getState().setLimits({ minPxPerBeat: MIN_STEP_PX / step, maxPxPerBeat: MAX_STEP_PX / step, minScrollBeats: floor });
+  }, [view, step, floor]);
   const vp = useViewport(view);
   const widthPx = useTimelineView(view, (s) => s.widthPx);
   const songTempo = useTempoMap();

@@ -60,10 +60,10 @@ export interface AiSettingsState {
   dismissAlpha(): void;
 }
 
-/** `claude-sonnet-5-5` → `Claude Sonnet 5.5`; other ids as they are. */
+/** `claude-sonnet-5-5` → `claude sonnet 5.5`; other ids as they are. */
 export function modelLabel(id: string): string {
   const m = /^claude-(\w+)-(\d+)-(\d+)/.exec(id);
-  return m ? `Claude ${m[1]![0]!.toUpperCase()}${m[1]!.slice(1)} ${m[2]}.${m[3]}` : id;
+  return m ? `claude ${m[1]} ${m[2]}.${m[3]}` : id;
 }
 
 function read(key: string): string | null {

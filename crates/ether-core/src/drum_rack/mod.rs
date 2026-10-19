@@ -418,15 +418,13 @@ impl RacksRt {
                     .pads
                     .iter()
                     .map(|p| {
-                        // Latency this pad actually adds: bypassed entries are skipped by
-                        // `run_pads` (the rack's total still counts them, like a track chain
-                        // counts bypassed devices).
+                        // Latency this pad adds (bypassed entries delay their input by
+                        // theirs, like on a track chain).
                         let lat: u32 = p
                             .chain
                             .iter()
-                            .filter(|e| e.enabled)
                             .map(|e| entry_latency(chain_racks, all, e.node, node_info, 1))
-                            .sum();
+                            .fold(0, u32::saturating_add);
                         let [gl, gr] = pad_gains(p.volume, p.pan, p.mute);
                         PadRt {
                             id: p.pad,
@@ -441,7 +439,9 @@ impl RacksRt {
                                         e.enabled,
                                         node_info(e.node).map_or((2, 2), |i| i.channels),
                                         has_sc(e.node),
-                                        config.max_events_per_block,
+                                        entry_latency(chain_racks, all, e.node, node_info, 1)
+                                            as usize,
+                                        config,
                                     )
                                 })
                                 .collect(),
@@ -490,7 +490,7 @@ impl RacksRt {
                     continue;
                 };
                 release_on_midi_fx_change(&mut pad.chain, &op.chain);
-                inherit_switches(&mut pad.chain, &op.chain);
+                inherit_switches(&mut pad.chain, &mut op.chain);
                 pad.delay.inherit(&mut op.delay);
                 for (g, og) in pad.gain.iter_mut().zip(&op.gain) {
                     let target = g.target();
@@ -523,7 +523,7 @@ impl RacksRt {
             .flat_map(|r| r.pads.iter_mut())
             .flat_map(|p| p.chain.iter_mut())
         {
-            e.auto_enabled = None;
+            e.clear_auto();
         }
     }
 
@@ -657,13 +657,17 @@ impl RacksRt {
                 overflow |= entry.switch_notes(tail.first_mut().map(|e| &mut e.events));
                 entry.events.sort();
                 overflow |= entry.events.overflowed();
-                if entry.is_enabled() {
-                    sc.taps.align_main(entry.key, &mut pad.a, n);
+                // The bypass path keeps the input (`ChainRt::blend`).
+                entry.push_dry(&pad.a, n);
+                sc.taps.align_main(entry.key, &mut pad.a, n);
+                // Off: no events (one fading out runs without them).
+                if !entry.is_enabled() {
+                    entry.events.clear();
                 }
+                let runs = entry.runs();
                 // A chain rack on the pad (v0.2): its chains feed its node's input first,
                 // like at a track-chain entry (`crate::rack_chains`).
-                let nested =
-                    entry.is_enabled() && !chain_racks.is_empty() && chain_racks.is_rack(entry.key);
+                let nested = runs && !chain_racks.is_empty() && chain_racks.is_rack(entry.key);
                 if nested {
                     overflow |= chain_racks.run(
                         entry.key,
@@ -687,7 +691,8 @@ impl RacksRt {
                 if reset {
                     node.reset();
                 }
-                if !entry.is_enabled() {
+                if !runs {
+                    entry.bypass(&mut pad.a, n);
                     sc.points.write(ScPoint::After(entry.key), &pad.a, n);
                     continue;
                 }
@@ -726,14 +731,22 @@ impl RacksRt {
                 if nested {
                     chain_racks.finish(entry.key, &mut pad.out_events);
                 }
+                // Fading out: its MIDI goes nowhere.
+                if !entry.is_enabled() {
+                    pad.out_events.clear();
+                }
                 match n_out {
                     0 => {}
                     1 => {
                         let [bl, br] = &mut pad.b;
                         br[..n].copy_from_slice(&bl[..n]);
+                        entry.blend(&mut pad.b, n);
                         std::mem::swap(&mut pad.a, &mut pad.b);
                     }
-                    _ => std::mem::swap(&mut pad.a, &mut pad.b),
+                    _ => {
+                        entry.blend(&mut pad.b, n);
+                        std::mem::swap(&mut pad.a, &mut pad.b);
+                    }
                 }
                 sc.points.write(ScPoint::After(entry.key), &pad.a, n);
                 if let Some(next) = tail.first_mut() {

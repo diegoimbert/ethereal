@@ -40,6 +40,8 @@ const GROUPS: &[(&str, &[BuiltinDeviceType])] = &[
             BuiltinDeviceType::Phaser,
             BuiltinDeviceType::Flanger,
             BuiltinDeviceType::Tremolo,
+            BuiltinDeviceType::Vibrato,
+            BuiltinDeviceType::VolumeLfo,
         ],
     ),
     (
@@ -119,7 +121,7 @@ fn mock_descriptors_match_rust() {
     }
     // Every v0.2 type belongs to exactly one group (the 9 earlier ones are in
     // `builtinDevices.ts`, the 3 v0.3 ones in `v03_descriptors.rs`, the FM Synth in
-    // `fm_synth.rs`).
+    // `fm_synth.rs`; the later Vibrato and Volume LFO are in the fxModulation group).
     assert_eq!(covered, BuiltinDeviceType::ALL.len() - 9 - 3 - 1);
     // The EQ (devices-2) carries the v0.2 `EqCurve` layout (graphical-eq): generated too.
     check_file(
@@ -446,14 +448,10 @@ fn native_synths_have_a_voice_mode_and_global_pitch() {
 }
 
 /// Factory preset text (preset, chain, device and modulator names, descriptions, author) is
-/// lowercase like the rest of the UI (#524, #520), but for the acronyms and units of the
-/// UI's proper-noun list (`ui/src/i18n/tooling/text.ts`) and note names (A4, C3).
+/// lowercase like the rest of the UI (#524, #520), acronyms and units included ("lfo", "fm",
+/// "db", "hz": no exceptions, docs/LOCALIZATION.md); only note names (A4, C3) keep a capital.
 #[test]
 fn factory_preset_text_is_lowercase() {
-    const PROPER: &[&str] = &[
-        "AU", "DC", "EQ", "FM", "GR", "HPF", "PWM", "RMS", "Hz", "kHz", "IR", "IRs", "LFO", "MIDI",
-        "MPE", "OSC", "dB", "dBFS",
-    ];
     fn note(w: &str) -> bool {
         let b = w.as_bytes();
         b.len() >= 2
@@ -473,7 +471,7 @@ fn factory_preset_text_is_lowercase() {
                     ) {
                         let words = text.split(|c: char| !c.is_alphanumeric());
                         for w in words.filter(|w| w.chars().any(char::is_uppercase)) {
-                            if !PROPER.contains(&w) && !note(w) {
+                            if !note(w) {
                                 bad.push(format!("{id}: {k} {text:?} ({w})"));
                             }
                         }

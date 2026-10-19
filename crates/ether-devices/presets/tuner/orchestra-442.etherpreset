@@ -13,7 +13,7 @@
         "orchestral"
       ],
       "author": "ethereal",
-      "description": "A4 = 442 Hz, common for european orchestras."
+      "description": "A4 = 442 hz, common for european orchestras."
     },
     "params": {
       "0": 442.0,

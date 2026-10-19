@@ -77,10 +77,15 @@ test("clip envelopes: draw one in the piano roll; it moves with the clip", async
   const box = (await svg.boundingBox())!;
   await svg.dblclick({ position: { x: 4, y: box.height * 0.25 } });
   await expect.poll(async () => (await clipLanes(page, clip.id)).length).toBe(1);
-  await svg.dblclick({ position: { x: box.width * 0.3, y: box.height * 0.75 } });
+  // The second point takes the envelope's value there; held, it's dragged down.
+  await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.5);
+  await page.mouse.down({ clickCount: 2 });
   const [lane] = await clipLanes(page, clip.id);
   expect(lane!.target).toEqual({ type: "TrackVolume", track: midi.id });
   await expect.poll(async () => (await pointsOf(page, lane!.id)).length).toBe(2);
+  await page.mouse.move(box.x + box.width * 0.3, box.y + box.height * 0.75, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(async () => (await pointsOf(page, lane!.id))[1]!.value).toBeLessThan((await pointsOf(page, lane!.id))[0]!.value);
   const pts = await pointsOf(page, lane!.id);
   expect(pts[0]!.value).toBeGreaterThan(pts[1]!.value);
   await expect(roll.getByTestId("clip-envelope-enabled")).toHaveAttribute("aria-pressed", "true");
@@ -122,12 +127,21 @@ test("clip envelopes: an audio clip's gain envelope silences it while it plays",
   // With no envelope yet the strip opens on the clip's own gain.
   await expect(strip.getByTestId("clip-envelope")).toHaveAttribute("data-target", "clip-gain");
   const svg = strip.getByTestId("automation-lane-svg");
-  const box = (await svg.boundingBox())!;
-  // The bottom of the lane: normalized 0, silence.
-  await svg.dblclick({ position: { x: 4, y: box.height - 1 } });
+  // The empty envelope's first point takes the current value (no offset: 0 dB); held, it is
+  // dragged down past the bottom of the lane: normalized 0, silence.
+  // 0 dB on the fader law (-inf..+6 dB): cbrt(10^(-6/20)).
+  const zeroDb = Math.cbrt(10 ** (-6 / 20));
+  await expect.poll(async () => Number(await svg.getAttribute("data-baseline"))).toBeCloseTo(zeroDb, 9);
+  // A click where the editor has settled (the locator waits), then the second press, held.
+  await svg.click({ position: { x: 4, y: (await svg.boundingBox())!.height - 1 } });
+  await page.mouse.down();
   await expect.poll(async () => (await clipLanes(page, clip.id)).length).toBe(1);
   const [lane] = await clipLanes(page, clip.id);
   expect(lane!.target).toEqual({ type: "ClipGain" });
+  expect((await pointsOf(page, lane!.id))[0]!.value).toBeCloseTo(zeroDb, 9);
+  const box = (await svg.boundingBox())!;
+  await page.mouse.move(box.x + 4, box.y + box.height + 200, { steps: 4 });
+  await page.mouse.up();
   await expect.poll(async () => (await pointsOf(page, lane!.id)).map((p) => p.value)).toEqual([0]);
 
   // The picker lists the clip's own targets first, then the track's.

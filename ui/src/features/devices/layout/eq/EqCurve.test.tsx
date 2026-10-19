@@ -88,7 +88,7 @@ describe("EqCurve", () => {
     // Defaults: band 1 (low cut) and band 8 (high cut) are off.
     expect(handle(svg, 0).el.getAttribute("data-on")).toBe("false");
     expect(handle(svg, 3).el.getAttribute("data-on")).toBe("true");
-    expect(handle(svg, 3).el.getAttribute("aria-label")).toMatch(/^band 4 · Bell · 1(\.0+)? kHz · 0\.0 dB · Q 0\.71/);
+    expect(handle(svg, 3).el.getAttribute("aria-label")).toMatch(/^band 4 · Bell · 1(\.0+)? khz · 0\.0 db · Q 0\.71/);
   });
 
   it("a handle drag sets frequency and gain in one undo step", async () => {
@@ -151,6 +151,43 @@ describe("EqCurve", () => {
     expect(param(id(3, FREQ))).toBe(1000);
     expect(param(id(3, GAIN))).toBe(0);
     expect(param(id(3, TYPE))).toBe(2);
+  });
+
+  it("the reset button puts every param back to its default in one undo step", async () => {
+    const { svg, panel } = await renderEq();
+    const reset = within(panel).getByRole("button", { name: "reset eq" });
+    expect(reset).toBeDisabled();
+    const undo = store().history.undo_label;
+    const output = EQ.params.find((p) => p.name === "Output")!;
+    const edits: Array<[number, number]> = [
+      [id(3, TYPE), 4],
+      [id(0, ON), 1],
+      [output.id, 3],
+    ];
+    for (const [param, value] of edits) {
+      await act(() => mock!.send(cmd("Device", { type: "SetParam", device: eqId, param, value })));
+    }
+    const h = handle(svg, 5);
+    await drag(svg, h, { x: h.x - 20, y: h.y + 10 });
+    await drag(svg, handle(svg, 2), { x: handle(svg, 2).x + 10, y: handle(svg, 2).y }, { altKey: true });
+    const before = EQ.params.map((p) => param(p.id));
+    expect(before).not.toEqual(EQ.params.map((p) => p.default));
+    const label = store().history.undo_label;
+
+    expect(reset).toBeEnabled();
+    await act(async () => {
+      fireEvent.click(reset);
+    });
+    await flush();
+    expect(EQ.params.map((p) => param(p.id))).toEqual(EQ.params.map((p) => p.default));
+    expect(reset).toBeDisabled();
+
+    // One undo step brings every value back.
+    await act(() => mock!.send(cmd("Edit", { type: "Undo" })));
+    await flush();
+    expect(EQ.params.map((p) => param(p.id))).toEqual(before);
+    expect(store().history.undo_label).toBe(label);
+    expect(label).not.toBe(undo);
   });
 
   it("the wheel over a handle changes Q; arrow keys move a focused handle", async () => {

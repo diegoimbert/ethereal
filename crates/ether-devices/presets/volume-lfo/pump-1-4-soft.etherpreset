@@ -1,0 +1,42 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.6.0",
+  "preset": {
+    "name": "pump 1/4 soft",
+    "device": {
+      "type": "Builtin",
+      "device": "VolumeLfo"
+    },
+    "meta": {
+      "tags": [
+        "volume lfo",
+        "sidechain",
+        "pump",
+        "subtle"
+      ],
+      "author": "ethereal",
+      "description": "a gentle quarter-note duck that never fully mutes: glue for pads and bass."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 1.0,
+      "2": 8.0,
+      "3": 70.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 1.5,
+      "7": 0.0
+    },
+    "kind": {
+      "type": "VolumeLfo",
+      "curve": {
+        "points": [
+          {"x": 0.0, "y": 1.0, "curve": {"type": "Linear"}},
+          {"x": 0.04, "y": 0.15, "curve": {"type": "Curve", "tension": -0.3}},
+          {"x": 0.75, "y": 1.0, "curve": {"type": "Linear"}}
+        ]
+      }
+    }
+  }
+}

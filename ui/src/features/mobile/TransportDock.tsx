@@ -2,11 +2,12 @@
  * The mobile transport (#522): a thumb-reach bar at the bottom of the screen. The same
  * commands as the desktop transport bar (`features/transport-bar`), with touch-sized
  * buttons: stop, play/pause, record, loop, metronome, plus the position, the tempo and the
- * follow-playhead toggle on a slim status row above (one row in phone landscape).
+ * follow-playhead toggle on a slim status row above (one row in phone landscape). A read-only
+ * view (`state/viewer.ts`) has no record or metronome: stop, play, loop and the view switch.
  */
 import { Circle, LocateFixed, Pause, Play, Repeat, Rows3, SlidersVertical, Square, Timer } from "lucide-react";
 import { Button } from "@/kit";
-import { useProjectStore } from "@/state";
+import { useProjectStore, useReadOnly } from "@/state";
 import { cmd } from "@/transport";
 import { useTimelineView } from "@/timeline";
 import { stopButton } from "@/features/time-edits/marker";
@@ -25,8 +26,9 @@ export function TransportDock() {
   const hasProject = useProjectStore((s) => s.project !== null);
   const follow = useTimelineView(arrangementView, (s) => s.followPlayhead);
   const disabled = !transport || !hasProject;
+  const readOnly = useReadOnly();
   // The browser has no audio or MIDI inputs: no recording there (#717), like the desktop bar.
-  const noRecording = useRecordingUnsupported(transport ?? null, !disabled);
+  const noRecording = useRecordingUnsupported(transport ?? null, !disabled && !readOnly);
   const playing = state?.playing ?? false;
   const recording = state?.recording ?? false;
   const loop = state?.loop_enabled ?? false;
@@ -79,17 +81,19 @@ export function TransportDock() {
         >
           {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
         </Button>
-        <Button
-          tone="ghost"
-          aria-label={t("mobile.transport.record")}
-          active={recording}
-          className="eth-mdock__btn eth-mdock__record"
-          title={noRecording ? unsupportedTooltip() : undefined}
-          disabled={disabled || noRecording}
-          onClick={() => void send(cmd("Recording", { type: "SetRecording", enabled: !recording }))}
-        >
-          <Circle aria-hidden />
-        </Button>
+        {!readOnly && (
+          <Button
+            tone="ghost"
+            aria-label={t("mobile.transport.record")}
+            active={recording}
+            className="eth-mdock__btn eth-mdock__record"
+            title={noRecording ? unsupportedTooltip() : undefined}
+            disabled={disabled || noRecording}
+            onClick={() => void send(cmd("Recording", { type: "SetRecording", enabled: !recording }))}
+          >
+            <Circle aria-hidden />
+          </Button>
+        )}
         <Button
           tone="ghost"
           aria-label={t("mobile.transport.loop")}
@@ -100,16 +104,18 @@ export function TransportDock() {
         >
           <Repeat aria-hidden />
         </Button>
-        <Button
-          tone="ghost"
-          aria-label={t("mobile.transport.metronome")}
-          active={metronome}
-          className="eth-mdock__btn"
-          disabled={disabled}
-          onClick={() => void send(cmd("Transport", { type: "SetMetronome", enabled: !metronome }))}
-        >
-          <Timer aria-hidden />
-        </Button>
+        {!readOnly && (
+          <Button
+            tone="ghost"
+            aria-label={t("mobile.transport.metronome")}
+            active={metronome}
+            className="eth-mdock__btn"
+            disabled={disabled}
+            onClick={() => void send(cmd("Transport", { type: "SetMetronome", enabled: !metronome }))}
+          >
+            <Timer aria-hidden />
+          </Button>
+        )}
         <ViewSwitch />
       </div>
     </div>

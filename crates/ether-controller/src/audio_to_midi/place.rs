@@ -223,7 +223,7 @@ pub(crate) fn apply(ctx: &mut DocCtx, r: &Result<'_>) -> CmdResult<u32> {
         &Command::Track(TrackCommand::Create {
             id: r.track,
             kind: TrackKind::Midi,
-            name: Some(format!("{name} MIDI")),
+            name: Some(format!("{name} midi")),
             color: Some(source.color),
             parent: source.parent,
             before,

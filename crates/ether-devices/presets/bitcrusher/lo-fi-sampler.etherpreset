@@ -15,7 +15,7 @@
         "sampler"
       ],
       "author": "ethereal",
-      "description": "12-bit, 26 kHz, dithered: an early sampler with its noise floor."
+      "description": "12-bit, 26 khz, dithered: an early sampler with its noise floor."
     },
     "params": {
       "0": 12.0,

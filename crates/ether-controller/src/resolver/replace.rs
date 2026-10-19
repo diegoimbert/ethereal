@@ -1,8 +1,10 @@
 //! Replacing a device's implementation while keeping what refers to it, shared by
-//! `Resolve::Replace` (owner request: "swap plugins even if no error": any plugin device,
-//! installed or missing, or a missing device, gets another plugin in one undo step "Replace
-//! Plugin") and `Resolve::Apply`'s missing devices (owner request "missing devices": a
-//! placeholder of a device Ethereal could not create gets a plugin or a built-in device).
+//! `Resolve::Replace` (owner requests: "swap plugins even if no error", then "it should
+//! rather just be replace device and not limited to plugins": any device that isn't a rack,
+//! built-in, plugin or missing, gets another device of the same role, built-in or plugin, in
+//! one undo step "Replace Device") and `Resolve::Apply`'s missing devices (owner request
+//! "missing devices": a placeholder of a device Ethereal could not create gets a plugin or
+//! a built-in device).
 //!
 //! The switch itself is the resolver's ([`super::replace_plugin_device`]: the device is
 //! re-created with the same id, so its position, sidechain source and enabled state stay,
@@ -12,7 +14,9 @@
 //! - without `retain`: nothing maps (the new device starts at its defaults; parameter lanes
 //!   and mappings go, the on/off lane and modulators stay);
 //! - the same plugin, or another version of it in the same format (the resolver's
-//!   [`super::plugins::can_keep_state`] rule): the state is carried, parameter ids kept;
+//!   [`super::plugins::can_keep_state`] rule), or the same built-in type: the state (a
+//!   built-in's content: its sample, zones, impulse response, routing) is carried,
+//!   parameter ids kept;
 //! - both parameter lists known: by normalized name ([`match_by_name`]), values converted
 //!   through their normalized range;
 //! - the same plugin family in another format, names unknown: by id;
@@ -22,6 +26,12 @@
 //! a missing device's from its placeholder; the new plugin's from a device already using
 //! it, else a short-lived private instance ([`crate::EngineBridge::probe_plugin`], cached); a
 //! built-in's from its descriptor.
+//!
+//! Roles: the old and new devices' categories must match (audio effect, instrument, MIDI
+//! effect) when both are known (a plugin's only from a descriptor), and an instrument needs
+//! a MIDI track. Racks and drum racks are never replaced nor replacements: their chains and
+//! pads would go with them. The sidechain source stays when the new device has a sidechain
+//! input (or it is unknown: a plugin that couldn't be probed), else it goes and is listed.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -29,10 +39,10 @@ use ether_core::protocol::devices::{
     DeviceCategory, DeviceDescriptor, ParamInfo, ParamScale, ParamUnit,
 };
 use ether_core::protocol::model::{
-    AutomationTarget, Base64Bytes, BuiltinDevice, DeviceId, DeviceKind, MidiMapTarget,
-    MissingParam, ParamId, PluginFormat, PluginInstance, TrackKind,
+    AutomationTarget, Base64Bytes, BuiltinDevice, BuiltinDeviceType, DeviceId, DeviceKind,
+    MidiMapTarget, MissingParam, MissingRole, ParamId, PluginFormat, PluginInstance, TrackKind,
 };
-use ether_core::protocol::resolver::{ParamMatch, ReplaceReport, Replacement, ReplacementPlugin};
+use ether_core::protocol::resolver::{ParamMatch, ReplaceReport, Replacement};
 
 use super::normalize::{self, VendorMatch};
 use super::plugins::vst2_equivalent;
@@ -46,6 +56,10 @@ use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 const DEFAULT_EPSILON: f64 = 1e-9;
 /// Lost parameters listed by name before "and N more parameters".
 const LOST_SHOWN: usize = 8;
+/// Report lines (English, like the parameter names around them).
+const LOST_PLUGIN_STATE: &str = "plugin state (presets, loaded samples)";
+const LOST_CONTENT: &str = "device content (samples, impulse response, routing)";
+const LOST_SIDECHAIN: &str = "sidechain input";
 
 /// One side of a replacement.
 pub(crate) struct Side<'a> {
@@ -206,6 +220,11 @@ struct Old {
     live_state: Option<Base64Bytes>,
     /// The name the device got from it (renamed after the replacement when unchanged).
     default_name: String,
+    /// Its role, when known (a plugin's only from its descriptor).
+    category: Option<DeviceCategory>,
+    /// A built-in: its type, and whether it carries content (a sample, zones, an impulse
+    /// response, routing) a fresh one of that type doesn't.
+    builtin: Option<(BuiltinDeviceType, bool)>,
 }
 
 impl<B, H, S, L> EtherController<B, H, S, L>
@@ -240,8 +259,8 @@ where
         Some(d)
     }
 
-    /// Check replacing `device` (a plugin or a missing device) with `to` and work out the
-    /// parameter map, values and report. Changes nothing.
+    /// Check replacing `device` (any device but a rack) with `to` and work out the parameter
+    /// map, values and report. Changes nothing.
     pub(crate) fn prepare_replacement(
         &mut self,
         device: DeviceId,
@@ -288,6 +307,7 @@ where
             DeviceKind::Plugin { plugin } => {
                 let desc = self.engine.descriptor(&d);
                 let live = self.engine.node(device).is_some();
+                let category = desc.as_ref().map(|d| d.category);
                 let names: Option<Vec<(ParamId, String)>> =
                     desc.as_ref().map(names_of).or_else(|| {
                         self.hints()
@@ -323,6 +343,8 @@ where
                         None
                     },
                     default_name: plugin.name.clone(),
+                    category,
+                    builtin: None,
                 }
             }
             DeviceKind::Missing { missing } => Old {
@@ -347,12 +369,45 @@ where
                 state: None,
                 live_state: None,
                 default_name: missing.description.clone(),
+                category: Some(match missing.role {
+                    MissingRole::Instrument => DeviceCategory::Instrument,
+                    MissingRole::AudioEffect => DeviceCategory::AudioEffect,
+                    MissingRole::NoteEffect => DeviceCategory::NoteEffect,
+                }),
+                builtin: None,
             },
-            DeviceKind::Builtin { .. } => {
-                return Err(invalid(format!(
-                    "\"{}\" is a built-in device: only plugins and missing devices can be replaced",
-                    d.name
-                )));
+            DeviceKind::Builtin { device: b } => {
+                if d.kind.is_any_rack() {
+                    return Err(invalid(format!(
+                        "\"{}\" is a rack: racks can't be replaced",
+                        d.name
+                    )));
+                }
+                let ty = b.device_type();
+                let desc = crate::doc::builtin_descriptor(b);
+                let valued = d
+                    .params
+                    .iter()
+                    .filter_map(|(id, v)| match desc.params.iter().find(|p| p.id == *id) {
+                        Some(i) if (v - i.default).abs() <= DEFAULT_EPSILON => None,
+                        _ => Some(*id),
+                    })
+                    .collect();
+                Old {
+                    names: Some(names_of(&desc)),
+                    valued,
+                    format: None,
+                    id: format!("{ty:?}"),
+                    name: desc.name.clone(),
+                    vendor: "Ethereal".into(),
+                    sandboxed: false,
+                    state: None,
+                    live_state: None,
+                    default_name: crate::doc::default_device_name(b),
+                    category: Some(desc.category),
+                    builtin: Some((ty, *b != BuiltinDevice::new(ty))),
+                    info: desc.params.into_iter().map(|p| (p.id, p)).collect(),
+                }
             }
         };
         let missing_source = matches!(d.kind, DeviceKind::Missing { .. });
@@ -368,6 +423,9 @@ where
         };
         // The new device, its side and its descriptor (names matter only when matching by
         // name).
+        // The same built-in type keeps its content (a sample, zones...) and parameter ids.
+        let same_builtin = retain
+            && matches!((old.builtin, to), (Some((a, _)), Replacement::Builtin { device: b }) if a == *b);
         let (mut kind, new_name, new_desc, new_format, new_id, new_vendor) = match to {
             Replacement::Plugin { plugin: to } => {
                 let target = PluginInstance {
@@ -391,13 +449,15 @@ where
                     &used,
                     retain,
                 );
+                // Its descriptor: to match names, and to check its role against a known one.
                 let desc = match pre.matched {
-                    ParamMatch::Reset | ParamMatch::SameIds => None,
-                    _ if old.names.is_none() => None,
+                    ParamMatch::SameIds => None,
+                    ParamMatch::Reset if old.category.is_none() => None,
+                    _ if old.names.is_none() && old.category.is_none() => None,
                     _ => self.target_descriptor(&target),
                 };
                 if let Some(desc) = &desc {
-                    check_role(desc.category, track_kind, &d.name)?;
+                    check_role(old.category, desc.category, track_kind, &d.name)?;
                 }
                 (
                     DeviceKind::Plugin { plugin: target },
@@ -409,16 +469,19 @@ where
                 )
             }
             Replacement::Builtin { device: ty } => {
-                if ty.is_rack() || *ty == ether_core::protocol::model::BuiltinDeviceType::DrumRack {
+                if ty.is_rack() || *ty == BuiltinDeviceType::DrumRack {
                     return Err(invalid(
-                        "a missing device can't be replaced by a rack or a drum rack",
+                        "a device can't be replaced by a rack or a drum rack",
                     ));
                 }
                 let desc = ether_devices::descriptor(*ty);
-                check_role(desc.category, track_kind, &d.name)?;
+                check_role(old.category, desc.category, track_kind, &d.name)?;
                 (
                     DeviceKind::Builtin {
-                        device: BuiltinDevice::new(*ty),
+                        device: match &d.kind {
+                            DeviceKind::Builtin { device } if same_builtin => device.clone(),
+                            _ => BuiltinDevice::new(*ty),
+                        },
                     },
                     crate::doc::default_device_name(&BuiltinDevice::new(*ty)),
                     Some(desc),
@@ -429,18 +492,25 @@ where
             }
         };
         let new_names = new_desc.as_ref().map(names_of);
-        let plan = plan(
-            &old_side,
-            &Side {
-                format: new_format,
-                id: &new_id,
-                name: &new_name,
-                vendor: &new_vendor,
-                names: new_names.as_deref(),
-            },
-            &used,
-            retain,
-        );
+        let plan = if same_builtin {
+            Plan {
+                matched: ParamMatch::SameIds,
+                map: None,
+            }
+        } else {
+            plan(
+                &old_side,
+                &Side {
+                    format: new_format,
+                    id: &new_id,
+                    name: &new_name,
+                    vendor: &new_vendor,
+                    names: new_names.as_deref(),
+                },
+                &used,
+                retain,
+            )
+        };
 
         // The state: carried for the same plugin (the live one when it runs).
         let current_state = old.live_state.clone().or_else(|| old.state.clone());
@@ -464,6 +534,23 @@ where
                 })
                 .collect()
         });
+
+        // The sidechain: kept when the new device has an input for it (unknown counts as
+        // yes); a plugin is probed for it only when there is one to keep.
+        let clear_sidechain = d.sidechain.is_some()
+            && plan.matched != ParamMatch::SameIds
+            && match (&new_desc, &kind) {
+                (Some(desc), _) => desc.sidechain_inputs == 0,
+                (None, DeviceKind::Plugin { plugin }) => {
+                    let probe = PluginInstance {
+                        state: None,
+                        ..plugin.clone()
+                    };
+                    self.target_descriptor(&probe)
+                        .is_some_and(|desc| desc.sidechain_inputs == 0)
+                }
+                (None, _) => false,
+            };
 
         // The report.
         let mapped = |param: &ParamId| match &plan.map {
@@ -507,7 +594,13 @@ where
         }
         let had_state = old.live_state.is_some() || old.state.is_some();
         if !state_kept && plan.matched != ParamMatch::Reset && had_state {
-            lost.insert(0, "Plugin state (presets, loaded samples)".into());
+            lost.insert(0, LOST_PLUGIN_STATE.into());
+        }
+        if !state_kept && plan.matched != ParamMatch::Reset && old.builtin.is_some_and(|b| b.1) {
+            lost.insert(0, LOST_CONTENT.into());
+        }
+        if clear_sidechain {
+            lost.push(LOST_SIDECHAIN.into());
         }
         let report = ReplaceReport {
             matched: plan.matched,
@@ -523,6 +616,7 @@ where
             kind,
             map: plan.map,
             params,
+            clear_sidechain,
         };
         Ok(Prepared {
             report,
@@ -555,17 +649,16 @@ where
         }
     }
 
-    pub(crate) fn replace_plugin(
+    pub(crate) fn replace_device(
         &mut self,
         device: DeviceId,
-        to: &ReplacementPlugin,
+        to: &Replacement,
         retain: bool,
         preview: bool,
         now: u64,
         out: &mut dyn MessageSink,
     ) -> CmdResult<ReplaceReport> {
-        let prepared =
-            self.prepare_replacement(device, &Replacement::Plugin { plugin: to.clone() }, retain)?;
+        let prepared = self.prepare_replacement(device, to, retain)?;
         if preview {
             return Ok(prepared.report);
         }
@@ -600,14 +693,37 @@ where
     }
 }
 
-/// An instrument replacement needs a MIDI track.
-fn check_role(category: DeviceCategory, track: Option<TrackKind>, name: &str) -> CmdResult<()> {
+/// A replacement has the old device's role (when both are known), and an instrument needs a
+/// MIDI track.
+fn check_role(
+    old: Option<DeviceCategory>,
+    category: DeviceCategory,
+    track: Option<TrackKind>,
+    name: &str,
+) -> CmdResult<()> {
+    if let Some(old) = old
+        && old != category
+    {
+        return Err(invalid(format!(
+            "\"{name}\" is {}: {} can't replace it",
+            role_text(old),
+            role_text(category)
+        )));
+    }
     if category == DeviceCategory::Instrument && track.is_some_and(|k| k != TrackKind::Midi) {
         return Err(invalid(format!(
             "\"{name}\" is on an audio track: an instrument can't replace it"
         )));
     }
     Ok(())
+}
+
+fn role_text(c: DeviceCategory) -> &'static str {
+    match c {
+        DeviceCategory::Instrument => "an instrument",
+        DeviceCategory::AudioEffect => "an audio effect",
+        DeviceCategory::NoteEffect => "a MIDI effect",
+    }
 }
 
 #[cfg(test)]

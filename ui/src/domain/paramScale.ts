@@ -87,14 +87,14 @@ function trimNumber(v: number, digits: number): string {
   return Number(v.toFixed(digits)).toString();
 }
 
-/** Human-readable plain value ("-6.0 dB", "1.20 kHz", "35 %", "Saw"). */
+/** Human-readable plain value ("-6.0 db", "1.20 khz", "35 %", "saw"). */
 export function formatParam(info: ParamInfo, plain: number): string {
   if (info.labels && info.labels.length > 0) return info.labels[labelIndex(info, plain)] ?? String(plain);
   switch (info.unit) {
     case "Decibels":
       return formatDb(plain);
     case "Hertz":
-      return plain >= 1000 ? `${trimNumber(plain / 1000, 2)} kHz` : `${trimNumber(plain, plain < 100 ? 1 : 0)} Hz`;
+      return plain >= 1000 ? `${trimNumber(plain / 1000, 2)} khz` : `${trimNumber(plain, plain < 100 ? 1 : 0)} hz`;
     case "Milliseconds":
       return plain >= 1000 ? `${trimNumber(plain / 1000, 2)} s` : `${trimNumber(plain, plain < 10 ? 2 : plain < 100 ? 1 : 0)} ms`;
     case "Seconds":
@@ -118,8 +118,8 @@ export function formatParam(info: ParamInfo, plain: number): string {
 
 /** Decibels with -inf at/below silence (-144 dB, `Decibels::SILENCE`). */
 export function formatDb(db: number): string {
-  if (db <= SILENCE_DB) return "-inf dB";
-  return `${db.toFixed(1)} dB`;
+  if (db <= SILENCE_DB) return "-inf db";
+  return `${db.toFixed(1)} db`;
 }
 
 /** Pan -1..1 as "C", "25L", "100R". */

@@ -121,8 +121,8 @@ describe("steps", () => {
   it("hints the modifiers", () => {
     // From the keymap's point-drag gestures, in the platform's style.
     expect(dragHint(TRANSPOSE, true)).toBe("⌥ fine, off grid · ⌘ one axis");
-    expect(dragHint(VOLUME_INFO, true)).toBe("⇧ 1 dB steps · ⌥ fine, off grid · ⌘ one axis");
-    expect(dragHint(VOLUME_INFO, false)).toBe("Shift 1 dB steps · Alt fine, off grid · Ctrl one axis");
+    expect(dragHint(VOLUME_INFO, true)).toBe("⇧ 1 db steps · ⌥ fine, off grid · ⌘ one axis");
+    expect(dragHint(VOLUME_INFO, false)).toBe("Shift 1 db steps · Alt fine, off grid · Ctrl one axis");
   });
 
   it("drags of a stepped param land on steps (the group follows the anchor)", () => {

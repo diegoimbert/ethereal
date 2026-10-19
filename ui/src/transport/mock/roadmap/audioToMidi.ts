@@ -100,7 +100,7 @@ function finish(host: MockHost, c: Extract<AudioToMidiCommand, { type: "Start" }
       type: "Create",
       id: c.track,
       kind: "Midi",
-      name: `${name} MIDI`,
+      name: `${name} midi`,
       color: source.color,
       parent: source.parent,
       before: nextSibling(p, source),
@@ -118,7 +118,7 @@ function finish(host: MockHost, c: Extract<AudioToMidiCommand, { type: "Start" }
         before: null,
       }),
     );
-  host.applyDocument(commands, "convert to MIDI");
+  host.applyDocument(commands, "convert to midi");
   return notes.length;
 }
 
@@ -144,7 +144,7 @@ function stepJob(host: MockHost, job: Job, c: Extract<AudioToMidiCommand, { type
     host.emit({ type: "AudioToMidi", event: { type: "Done", job: job.job, track: c.track, clip: c.new_clip, notes } });
   } catch (err) {
     const message = err && typeof err === "object" && "message" in err ? String(err.message) : String(err);
-    host.emit({ type: "AudioToMidi", event: { type: "Failed", job: job.job, message: `Convert to MIDI: ${message}` } });
+    host.emit({ type: "AudioToMidi", event: { type: "Failed", job: job.job, message: `convert to midi: ${message}` } });
   }
 }
 
