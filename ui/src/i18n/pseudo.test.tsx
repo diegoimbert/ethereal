@@ -48,6 +48,8 @@ import { FileFilterSettings } from "@/features/browser/settings/FileFilterSettin
 import { AiChatPanel } from "@/features/ai-chat/AiChatPanel";
 import { reloadAiSettings, useAiSettings } from "@/features/ai-chat/settings";
 import { DebugPanelsRoot, DebugPanelsSettings } from "@/features/debug/DebugPanelsRoot";
+import { NewsList } from "@/features/news/NewsDialog";
+import { resetNews, useNews } from "@/features/news/store";
 import { openDebugPanel, registerDebugPanel, resetDebugPanels } from "@/features/debug/registry";
 import { TourRoot } from "@/features/tutorials";
 import { askExit, nextStep, resetTour, startTour } from "@/features/tutorials/store";
@@ -172,7 +174,7 @@ describe("the pseudo-locale finds no untranslated text", () => {
     }
   });
 
-  for (const tab of ["appearance", "input", "audio"] satisfies SettingsTab[]) {
+  for (const tab of ["appearance", "input", "audio", "privacy"] satisfies SettingsTab[]) {
     it(`in settings > ${tab}`, async () => {
       await renderWithMock(<AudioSettingsDialog />);
       await act(async () => openSettings(tab));
@@ -492,6 +494,16 @@ describe("the pseudo-locale finds no untranslated text", () => {
     consent.unmount();
     localStorage.clear();
     reloadAiSettings();
+  });
+
+  it("in the news list, in each of its states", () => {
+    for (const state of [{ enabled: false }, { enabled: true, items: [], loading: false, error: null }, { enabled: true, items: null, error: PSEUDO_OPEN }]) {
+      act(() => useNews.setState({ ...state, listOpen: true } as never));
+      const { unmount } = render(<NewsList />);
+      expect(untranslated(screen.getByRole("dialog"))).toEqual([]);
+      unmount();
+    }
+    act(() => resetNews());
   });
 
   it("in the debug panels", () => {

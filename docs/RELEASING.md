@@ -97,6 +97,26 @@ bundled into each app (`tauri.conf.json` `bundle.licenseFile` / `files` and the
 - **Release overlay.** `scripts/release/tauri-config.mjs` writes a config merged over
   `tauri.conf.json` with `--config`: the version and signing settings. The base config stays release-agnostic.
 
+### Bundle identifier
+
+The desktop app's identifier is `ws.ethereal.daw` (`identifier` in `tauri.conf.json`,
+`ether_native::app_identity::DESKTOP_IDENTIFIER`; a test keeps the two equal). It is the
+reverse-DNS of ethereal.ws plus a third segment: Flathub requires at least three, and Tauri
+warns about an identifier that ends in `.app`. It names the app's data, log and WebView
+storage directories, so **it must not change again**.
+
+Releases up to v0.6.0 used `dev.ethereal.app`. On the first launch of a newer release,
+before anything opens them, `ether_native::app_identity::migrate_on_startup` moves those
+directories to the new names: the app data dir (settings, plugin database, caches,
+autosaves), the logs, and the WebView storage (macOS `~/Library/{Application Support,
+Caches,Logs,WebKit,HTTPStorages}`, Windows `%APPDATA%` and `%LOCALAPPDATA%`, Linux
+`$XDG_DATA_HOME`, `$XDG_CONFIG_HOME` and `$XDG_CACHE_HOME`). Nothing is deleted: when both
+names exist, entries missing from the new directory are moved, and entries present in both
+are left in the old directory, with a warning in the log. Projects are in
+`~/Documents/Ethereal/Projects`, which does not depend on the identifier. macOS ties privacy
+permissions (microphone, screen recording) to the identifier, so it asks for them again once.
+Say so in the release notes.
+
 ## Signing (optional)
 
 Without secrets, everything builds **unsigned** and the release notes say so. macOS builds
