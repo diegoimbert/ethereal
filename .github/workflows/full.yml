@@ -252,8 +252,12 @@ jobs:
           ETHEREAL_TOURS: "1"
           ETHER_E2E_PREBUILD: "1"
           SHARD: ${{ matrix.shard }}
+        # The full UI is ee/app, a layer package over ui/ (docs/EXTENSIONS.md): its Playwright
+        # config serves the full web build and runs the OSS suite plus the private specs.
+        # apps/web's own config would test the OSS UI over the full engine.
         run: >-
-          node scripts/ci/private-step.mjs e2e -- "cd apps/web && node scripts/build-wasm.mjs &&
+          node scripts/ci/private-step.mjs e2e -- "node apps/web/scripts/build-wasm.mjs &&
+          cd ee/app && node link.mjs && cd web &&
           npx playwright test --workers=2 --shard=$SHARD/4 --grep-invert '@frames|@pixels' --retries=1 --reporter=list"
       - uses: ./.github/actions/full-logs
         if: always()
