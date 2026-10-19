@@ -195,7 +195,7 @@ export function collectTracks(p: Project, tracks: ReadonlyArray<TrackId>): Entit
       out.push({ type: "Device", value: fixDevice(d) });
     }
   }
-  for (let progressed = true; progressed; ) {
+  for (let progressed = true; progressed;) {
     progressed = false;
     for (const pad of Object.values(p.drum_pads)) {
       if (devices.has(pad.rack) && !pads.has(pad.id)) {

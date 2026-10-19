@@ -270,7 +270,12 @@ describe("palette commands are actions", () => {
     expect(ids).not.toContain("goto:t1");
     expect(ids).not.toContain("project:save");
     // The hint is the derived action's default; the palette shows the keymap's chord.
-    expect(effectiveChords(allActions().find((a) => a.id === "demo:ask")!, DEFAULT_KEYMAP)).toEqual(["Mod+Shift+L"]);
+    expect(
+      effectiveChords(
+        allActions().find((a) => a.id === "demo:ask")!,
+        DEFAULT_KEYMAP,
+      ),
+    ).toEqual(["Mod+Shift+L"]);
     expect(paletteShortcut(entries[3]!)).toBe("⇧Ctrl+L");
     setKeymap(withBinding(DEFAULT_KEYMAP, "demo:ask", ["F6"]));
     expect(paletteShortcut(entries[3]!)).toBe("F6");

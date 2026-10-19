@@ -54,7 +54,7 @@ describe("MockTransport export", () => {
     const dl = done.result.downloads[0]!;
     expect(dl).toMatchObject({ name: "Song.wav", mime: "audio/wav" });
     let bytes = "";
-    for (let offset = 0; ; ) {
+    for (let offset = 0; ;) {
       const r = (await f.mock.send(
         cmd("Export", {
           type: "ReadChunk",

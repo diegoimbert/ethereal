@@ -95,8 +95,7 @@ function useViewport(): Viewport {
 }
 
 type Gesture =
-  | { kind: "move"; px: number; py: number; start: WindowRect }
-  | { kind: "resize"; px: number; py: number; start: Required<WindowRect>; edge: ResizeEdge };
+  { kind: "move"; px: number; py: number; start: WindowRect } | { kind: "resize"; px: number; py: number; start: Required<WindowRect>; edge: ResizeEdge };
 
 export function FloatingWindow({
   id,
