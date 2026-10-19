@@ -1,4 +1,4 @@
-//! Device presets (v0.2, owned by the `presets` node; file format `ether_model::preset`,
+//! Device presets (v0.2, `presets`; file format `ether_model::preset`,
 //! protocol `ether_protocol::presets`, CONTRACTS.md §12.5).
 //!
 //! - **Factory** presets are embedded per built-in type (`ether_devices::factory_presets`,

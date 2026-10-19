@@ -1,4 +1,4 @@
-//! Drum racks and sampler slicing (roadmap v2, `drum-rack` node). All undoable. See
+//! Drum racks and sampler slicing (roadmap v2, `drum-rack`). All undoable. See
 //! `ether_model::drum_rack` for the data model and playback rules.
 //!
 //! Pad chain devices are ordinary devices: rename, bypass, params, remove and automation go

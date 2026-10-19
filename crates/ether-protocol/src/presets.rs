@@ -1,4 +1,4 @@
-//! Device presets (v0.2, `presets` node; CONTRACTS.md §12.5). File format:
+//! Device presets (v0.2, `presets`; CONTRACTS.md §12.5). File format:
 //! `ether_model::preset`.
 //!
 //! - Factory presets ship embedded in `ether-devices` (`ether_devices::factory_presets`), one

@@ -1,5 +1,4 @@
-//! v0.2 devices owned by the `fx-dynamics` node (contracts-3 froze the param tables; see
-//! docs/ROADMAP.md "v0.2" and the device agent guide there).
+//! v0.2 dynamics devices (contracts-3 froze the param tables; see docs/DEVICES.md).
 //!
 //! Dynamics: gate/expander, 3-band multiband compressor, transient shaper.
 //!

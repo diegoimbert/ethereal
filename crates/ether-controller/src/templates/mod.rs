@@ -1,4 +1,4 @@
-//! Project and track templates (v0.3, owned by the `templates` node; file format
+//! Project and track templates (v0.3, `templates`; file format
 //! `ether_model::template`, protocol `ether_protocol::templates`; CONTRACTS.md §13.10).
 //!
 //! - **Library** ([`files`]): user templates are files under `<user root>/Templates/`

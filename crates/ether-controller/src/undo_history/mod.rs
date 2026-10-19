@@ -1,4 +1,4 @@
-//! Undo history panel (v0.3, owned by the `undo-history` node; protocol
+//! Undo history panel (v0.3, `undo-history`; protocol
 //! `ether_protocol::undo_history`, CONTRACTS.md §13.8).
 //!
 //! - [`EtherController::history_command`]: `History::{List, JumpTo, SetCheckpoint}`
