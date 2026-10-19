@@ -7,9 +7,9 @@
 //! restart [`SEEK_PREROLL`] frames early (lossy codecs need a few packets to settle). The
 //! source is cut or zero-padded to the document's frame count, like the whole-file path.
 //!
-//! Rate side: the same rubato `SincFixedIn` setup and exact alignment as
-//! `ether_media::resample` (ratio `p / q` in lowest terms, `q - 1` zeros prepended, the
-//! first `p - 1` outputs dropped). Sequential chunks continue one resampler, so a stream
+//! Rate side: the same rubato sinc resampler setup and exact alignment as
+//! `ether_media::resample` (ratio `p / q` in lowest terms, the zeros prepended and the
+//! outputs dropped of [`crate::alignment`]). Sequential chunks continue one resampler, so a stream
 //! played from the start matches the whole-file resample to float rounding. A jump restarts
 //! the resampler at a source frame `s0` that is a multiple of `q` (so its output grid lands
 //! on the global one: output `k'` of the restart is global output `s0 * p / q + k'`) at
@@ -17,9 +17,7 @@
 
 use std::sync::Arc;
 
-use rubato::{
-    Resampler, SincFixedIn, SincInterpolationParameters, SincInterpolationType, WindowFunction,
-};
+use rubato::{Async, Resampler};
 use symphonia::core::audio::{AudioBuffer, Signal};
 use symphonia::core::codecs::{CODEC_TYPE_NULL, Decoder, DecoderOptions};
 use symphonia::core::errors::Error as SymError;
@@ -290,7 +288,7 @@ impl SourceReader {
 
 /// Running resampler (engine rate != source rate).
 struct Rate {
-    resampler: SincFixedIn<f32>,
+    resampler: Async<f32>,
     p: u64,
     q: u64,
     /// Next global output frame the resampler produces (after dropping).
@@ -340,18 +338,9 @@ impl ChunkDecoder {
             None
         } else {
             let g = gcd(engine_rate, source_rate);
-            let params = SincInterpolationParameters {
-                sinc_len: 256,
-                f_cutoff: rubato::calculate_cutoff(256, WindowFunction::BlackmanHarris2),
-                oversampling_factor: 1024,
-                interpolation: SincInterpolationType::Cubic,
-                window: WindowFunction::BlackmanHarris2,
-            };
             let ratio = engine_rate as f64 / source_rate as f64;
-            let resampler = SincFixedIn::<f32>::new(ratio, 1.0, params, RS_CHUNK, n_ch)
-                .map_err(|e| MediaError::Resample(e.to_string()))?;
-            let inbuf = resampler.input_buffer_allocate(true);
-            let outbuf = resampler.output_buffer_allocate(true);
+            let resampler = crate::sinc_resampler(ratio, RS_CHUNK, n_ch)?;
+            let (inbuf, outbuf) = crate::resampler_buffers(&resampler);
             Some(Rate {
                 resampler,
                 p: (engine_rate / g) as u64,
@@ -444,8 +433,9 @@ impl ChunkDecoder {
             let s0 = m * q;
             self.src.seek(s0)?;
             rate.resampler.reset();
-            rate.pad = q - 1;
-            rate.to_drop = p - 1;
+            let (pad, drop) = crate::alignment(p as usize, q as usize);
+            rate.pad = pad as u64;
+            rate.to_drop = drop as u64;
             rate.next_out = m * p;
             for c in &mut rate.pending {
                 c.clear();
@@ -472,10 +462,7 @@ impl ChunkDecoder {
                 dst.resize(zeros, 0.0);
                 dst.extend_from_slice(&self.tmp[c.min(self.tmp.len() - 1)]);
             }
-            let (_, n) = rate
-                .resampler
-                .process_into_buffer(&rate.inbuf, &mut rate.outbuf, None)
-                .map_err(|e| MediaError::Resample(e.to_string()))?;
+            let (_, n) = crate::process_chunk(&mut rate.resampler, &rate.inbuf, &mut rate.outbuf)?;
             let mut from = 0usize;
             if rate.to_drop > 0 {
                 from = (rate.to_drop as usize).min(n);
