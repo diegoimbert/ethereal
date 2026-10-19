@@ -731,8 +731,25 @@ pub fn is_document_command(command: &Command, current: Option<ProjectId>) -> boo
         ),
         Command::Project(ProjectCommand::SetScale { .. }) => true,
         Command::Project(ProjectCommand::Rename { id, .. }) => Some(*id) == current,
-        _ => false,
+        // An extension's document commands (`set_ext_doc_commands`).
+        other => EXT_DOC.get().is_some_and(|x| (x.is_document)(other)),
     }
+}
+
+/// An extension's document commands: which commands are document commands (applied in a
+/// transaction, one undo step), and how they apply to the document.
+#[derive(Clone, Copy)]
+pub struct ExtDocCommands {
+    pub is_document: fn(&Command) -> bool,
+    /// `None`: not the extension's.
+    pub apply: fn(&mut DocCtx, &Command) -> Option<CmdResult<()>>,
+}
+
+static EXT_DOC: std::sync::OnceLock<ExtDocCommands> = std::sync::OnceLock::new();
+
+/// Extension point: an extension's document commands (set once, at start).
+pub fn set_ext_doc_commands(commands: ExtDocCommands) {
+    let _ = EXT_DOC.set(commands);
 }
 
 /// Apply one document command (see [`is_document_command`]).
@@ -772,10 +789,13 @@ pub fn apply(ctx: &mut DocCtx, command: &Command) -> CmdResult<ReplyValue> {
             ctx.tx.settings(SettingsChange::Scale(*scale))
         }
         Command::Project(ProjectCommand::Rename { name, .. }) => misc::rename_project(ctx, name),
-        other => Err(unsupported(format!(
-            "{} is not a document command",
-            label_of(other, None)
-        ))),
+        other => match EXT_DOC.get().and_then(|x| (x.apply)(ctx, other)) {
+            Some(result) => result,
+            None => Err(unsupported(format!(
+                "{} is not a document command",
+                label_of(other, None)
+            ))),
+        },
     }?;
     Ok(ReplyValue::Unit)
 }

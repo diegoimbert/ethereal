@@ -1,4 +1,4 @@
-//! Freeze, flatten, bounce in place, consolidate (v0.2, `freeze-bounce`;
+//! Freeze, flatten, bounce in place, consolidate (v0.2, owned by the `freeze-bounce` node;
 //! protocol `ether_protocol::freeze`, model `Track::freeze`, CONTRACTS.md §12.3).
 //!
 //! - [`EtherController::freeze_command`] (dispatched from `handlers.rs`): render jobs
@@ -26,6 +26,11 @@
 //!   live tail compiles into the chain after the render and stays editable. Flatten keeps
 //!   the live tail.
 //! - [`check_editable`]: called before every command (`handlers.rs`), see [`editable`].
+//! - An extension may run a render elsewhere (`ControllerExt::offload_render`: this site
+//!   validates and keeps the [`Finish`], the result comes back through
+//!   [`EtherController::finish_render`]) or run one here for another site
+//!   ([`EtherController::freeze_for`]: its progress and result go to the extension,
+//!   `ControllerExt::render_update`, and this site's document does not change).
 
 mod edit;
 mod editable;
@@ -37,6 +42,9 @@ use ether_core::freeze::FrozenDesc;
 use ether_core::protocol::freeze::{BounceTarget, FreezeCommand, FreezeEvent};
 use ether_core::protocol::model::*;
 use ether_core::protocol::{Event, NotificationLevel, ReplyValue};
+
+use ether_core::protocol::model::SiteId;
+use ether_core::protocol::model::text::TextKey;
 
 use crate::doc::clip_start;
 use crate::handlers::{event, notify};
@@ -54,7 +62,7 @@ const TICK_BUDGET_MS: u64 = 12;
 
 /// What a job does with its renders at `Done`.
 #[derive(Clone, Debug)]
-enum Finish {
+pub enum Finish {
     Freeze {
         track: TrackId,
         /// The freeze point (`TrackFreeze::up_to`; `None` = whole chain).
@@ -84,6 +92,11 @@ enum Finish {
 struct Running {
     job: Box<RenderJob>,
     finish: Finish,
+    /// Rendered for another site (`freeze_for`): progress, warnings and the result go to it
+    /// through the extensions, and this site's document does not change.
+    requester: Option<SiteId>,
+    /// Last progress sent to the requester, and when (ms; the keepalive).
+    sent: (f32, u64),
 }
 
 /// The running render job (hosted by `ExportState::render`).
@@ -91,6 +104,32 @@ struct Running {
 pub struct RenderState {
     running: Option<Running>,
     last_progress: Option<f32>,
+    /// Set while another site's request is validated and started: the job runs here for it.
+    serving: Option<SiteId>,
+}
+
+/// The renderer for another site sends a progress at most this often...
+pub const PROGRESS_MS: u64 = 250;
+/// ...and at least this often while it renders.
+pub const KEEPALIVE_MS: u64 = 2_000;
+
+/// What a render for another site reports (`ControllerExt::render_update`).
+#[derive(Clone, Debug, PartialEq)]
+pub enum RenderUpdate {
+    Progress {
+        progress: f32,
+    },
+    Warning {
+        message: String,
+        key: Option<TextKey>,
+    },
+    Failed {
+        message: String,
+    },
+    /// The rendered media, in this site's store.
+    Done {
+        media: Vec<MediaRef>,
+    },
 }
 
 fn freeze_event(out: &mut dyn MessageSink, e: FreezeEvent) {
@@ -276,8 +315,17 @@ where
         match command {
             FreezeCommand::Cancel { job } => {
                 let state = &mut self.export.render;
-                if state.running.as_ref().is_some_and(|r| &r.job.id == job) {
+                if state
+                    .running
+                    .as_ref()
+                    .is_some_and(|r| &r.job.id == job && r.requester.is_none())
+                {
                     state.running = None;
+                    freeze_event(out, FreezeEvent::Cancelled { job: job.clone() });
+                } else if self
+                    .with_extensions(|e, ctl| e.cancel_render(ctl, job).then_some(()))
+                    .is_some()
+                {
                     freeze_event(out, FreezeEvent::Cancelled { job: job.clone() });
                 }
                 Ok(ReplyValue::Unit)
@@ -356,12 +404,14 @@ where
                     name: format!("{} Freeze", t.name),
                 };
                 self.start_job(
+                    command,
                     job,
                     vec![spec],
                     Finish::Freeze {
                         track: *track,
                         up_to,
                     },
+                    out,
                 )
             }
             FreezeCommand::Bounce {
@@ -423,6 +473,7 @@ where
                     name: format!("{} Bounce", t.name),
                 };
                 self.start_job(
+                    command,
                     job,
                     vec![spec],
                     Finish::Bounce {
@@ -430,6 +481,7 @@ where
                         start: *start,
                         target: target.clone(),
                     },
+                    out,
                 )
             }
             FreezeCommand::BounceRange {
@@ -496,12 +548,14 @@ where
                     return Err(invalid("nothing to bounce: no clips in the selection"));
                 }
                 self.start_job(
+                    command,
                     job,
                     specs,
                     Finish::BounceRange {
                         bounces,
                         start: *start,
                     },
+                    out,
                 )
             }
             FreezeCommand::Consolidate {
@@ -560,6 +614,10 @@ where
                     seed_media: *seed_media,
                 };
                 if specs.is_empty() {
+                    if self.export.render.serving.is_some() {
+                        // A peer asked for a render: nothing to render here is a mismatch.
+                        return Err(invalid("nothing to render"));
+                    }
                     // MIDI only: instantaneous.
                     self.edit_with(
                         crate::doc::undo("undo.freeze.consolidate"),
@@ -571,7 +629,7 @@ where
                     return Ok(ReplyValue::Unit);
                 }
                 self.check_can_start(job)?;
-                self.start_job(job, specs, finish)
+                self.start_job(command, job, specs, finish, out)
             }
         }
     }
@@ -580,7 +638,10 @@ where
         if job.is_empty() {
             return Err(invalid("empty job id"));
         }
-        if self.export.render.running.is_some() {
+        let busy_elsewhere = self
+            .ext_ask(|e, ctl| e.render_busy(ctl).then_some(()))
+            .is_some();
+        if self.export.render.running.is_some() || busy_elsewhere {
             return Err(crate::tx::keyed_err(
                 ether_core::protocol::ErrorCode::InvalidState,
                 crate::text::msg("error.freeze.already_running"),
@@ -589,18 +650,30 @@ where
         Ok(())
     }
 
+    /// Start the render here, or let an extension run it elsewhere.
     fn start_job(
         &mut self,
+        command: &FreezeCommand,
         job: &str,
         passes: Vec<PassSpec>,
         finish: Finish,
+        out: &mut dyn MessageSink,
     ) -> CmdResult<ReplyValue> {
         self.check_can_start(job)?;
+        let requester = self.export.render.serving;
+        if requester.is_none()
+            && let Some(reply) =
+                self.with_extensions(|e, ctl| e.offload_render(ctl, command, job, &finish, out))
+        {
+            return Ok(reply);
+        }
         let p = &self.doc.as_ref().ok_or_else(no_project)?.project;
         let render = RenderJob::new(job.to_string(), p, self.config.engine_sample_rate, passes);
         self.export.render.running = Some(Running {
             job: Box::new(render),
             finish,
+            requester,
+            sent: (0.0, self.host.now_ms()),
         });
         self.export.render.last_progress = None;
         Ok(ReplyValue::RenderStarted {
@@ -609,20 +682,58 @@ where
     }
 
     /// Called every tick: advance the running render job.
+    /// Run `command` (a render) here for another site `requester` (an extension asked):
+    /// validated against this site's document, its progress and result go to the extensions
+    /// (`ControllerExt::render_update`), and this site's document does not change.
+    pub fn freeze_for(
+        &mut self,
+        requester: SiteId,
+        command: &FreezeCommand,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<ReplyValue> {
+        self.export.render.serving = Some(requester);
+        let result = self.freeze_command(command, now, out);
+        self.export.render.serving = None;
+        result
+    }
+
+    /// Drop the render running here for `requester` (`job`: only that one).
+    pub fn cancel_render_for(&mut self, requester: SiteId, job: Option<&str>) {
+        let state = &mut self.export.render;
+        if state
+            .running
+            .as_ref()
+            .is_some_and(|r| r.requester == Some(requester) && job.is_none_or(|j| r.job.id == j))
+        {
+            state.running = None;
+        }
+    }
+
+    /// Tell the extensions how a render for another site goes.
+    fn render_update(&mut self, to: SiteId, job: &str, update: RenderUpdate) {
+        self.ext_each(|e, ctl| e.render_update(ctl, to, job, update.clone()));
+    }
+
     pub fn freeze_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
         let Some(mut running) = self.export.render.running.take() else {
             return;
         };
         let current = self.doc.as_ref().map(|d| d.project.id);
         let id = running.job.id.clone();
+        // Rendered for a peer: dropped when it is no longer in the session with us.
+        if running.requester.is_some_and(|to| {
+            self.ext_ask(|e, ctl| e.render_requester_present(ctl, to).then_some(()))
+                .is_none()
+        }) {
+            return;
+        }
         if Some(running.job.project_id) != current {
-            freeze_event(
-                out,
-                FreezeEvent::Failed {
-                    job: id,
-                    message: "the project was closed".into(),
-                },
-            );
+            let message = "the project was closed".to_string();
+            match running.requester {
+                Some(to) => self.render_update(to, &id, RenderUpdate::Failed { message }),
+                None => freeze_event(out, FreezeEvent::Failed { job: id, message }),
+            }
             return;
         }
         let started = self.host.now_ms().max(now);
@@ -633,17 +744,47 @@ where
                 &mut self.store,
                 &mut self.library,
             );
-            for message in running.job.warnings.drain(..) {
-                notify(out, NotificationLevel::Warning, message);
+            for message in std::mem::take(&mut running.job.warnings) {
+                match running.requester {
+                    Some(to) => self.render_update(
+                        to,
+                        &id,
+                        RenderUpdate::Warning {
+                            message: message.text,
+                            key: message.key,
+                        },
+                    ),
+                    None => notify(out, NotificationLevel::Warning, message),
+                }
             }
-            match step {
-                Ok(Step::Working) => {}
-                Ok(Step::Done) => {
-                    self.finish_render(&running, now, out);
+            match (step, running.requester) {
+                (Ok(Step::Working), _) => {}
+                (Ok(Step::Done), None) => {
+                    let media = running
+                        .job
+                        .results
+                        .iter()
+                        .map(|r| r.media.clone())
+                        .collect();
+                    self.finish_render(id, &running.finish, media, None, now, out);
                     return;
                 }
-                Err(message) => {
+                (Ok(Step::Done), Some(to)) => {
+                    let media = running
+                        .job
+                        .results
+                        .iter()
+                        .map(|r| r.media.clone())
+                        .collect();
+                    self.render_update(to, &id, RenderUpdate::Done { media });
+                    return;
+                }
+                (Err(message), None) => {
                     freeze_event(out, FreezeEvent::Failed { job: id, message });
+                    return;
+                }
+                (Err(message), Some(to)) => {
+                    self.render_update(to, &id, RenderUpdate::Failed { message });
                     return;
                 }
             }
@@ -652,34 +793,49 @@ where
             }
         }
         let progress = running.job.progress();
-        let state = &mut self.export.render;
-        if state
-            .last_progress
-            .is_none_or(|p| (progress - p).abs() >= 0.001)
-        {
-            state.last_progress = Some(progress);
-            freeze_event(
-                out,
-                FreezeEvent::Progress {
-                    job: id,
-                    progress,
-                    host: None,
-                },
-            );
+        match running.requester {
+            // A peer's: whole percents, and a keepalive while a long step runs.
+            Some(to) => {
+                let (sent, at) = running.sent;
+                let since = now.saturating_sub(at);
+                if (progress - sent >= 0.01 && since >= PROGRESS_MS) || since >= KEEPALIVE_MS {
+                    running.sent = (progress, now);
+                    self.render_update(to, &id, RenderUpdate::Progress { progress });
+                }
+            }
+            None => {
+                let state = &mut self.export.render;
+                if state
+                    .last_progress
+                    .is_none_or(|p| (progress - p).abs() >= 0.001)
+                {
+                    state.last_progress = Some(progress);
+                    freeze_event(
+                        out,
+                        FreezeEvent::Progress {
+                            job: id,
+                            progress,
+                            host: None,
+                        },
+                    );
+                }
+            }
         }
-        state.running = Some(running);
+        self.export.render.running = Some(running);
     }
 
     /// Apply the job's document edit (one undo step), then report `Done` (or `Failed`).
-    fn finish_render(&mut self, running: &Running, now: u64, out: &mut dyn MessageSink) {
-        let job = running.job.id.clone();
-        let media: Vec<MediaRef> = running
-            .job
-            .results
-            .iter()
-            .map(|r| r.media.clone())
-            .collect();
-        let (label, result) = match &running.finish {
+    /// `host`: the peer that rendered it (its name, for the last progress event).
+    pub fn finish_render(
+        &mut self,
+        job: String,
+        finish: &Finish,
+        media: Vec<MediaRef>,
+        host: Option<String>,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) {
+        let (label, result) = match finish {
             Finish::Freeze { track, up_to } => (
                 "Freeze",
                 self.edit_with(
@@ -744,7 +900,7 @@ where
                     FreezeEvent::Progress {
                         job: job.clone(),
                         progress: 1.0,
-                        host: None,
+                        host,
                     },
                 );
                 freeze_event(out, FreezeEvent::Done { job });

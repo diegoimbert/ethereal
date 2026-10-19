@@ -2011,3 +2011,105 @@ fn flatten_a_partially_frozen_audio_track_keeps_its_tail() {
     assert!(d.p().tracks[&t].freeze.is_none());
     assert_eq!(d.p().clips[&clip].track, t);
 }
+
+/// Records what a render for another site reports, and may run renders elsewhere.
+#[derive(Default)]
+struct Offload {
+    offload: bool,
+    updates: std::rc::Rc<std::cell::RefCell<Vec<ether_controller::ext::RenderUpdate>>>,
+}
+
+impl ether_controller::ext::ControllerExt<RealBridge, TestHost, MemoryStore, MemoryLibrary>
+    for Offload
+{
+    fn offload_render(
+        &mut self,
+        _ctl: &mut EtherController<RealBridge, TestHost, MemoryStore, MemoryLibrary>,
+        _command: &FreezeCommand,
+        job: &str,
+        _finish: &ether_controller::ext::Finish,
+        _out: &mut dyn ether_controller::MessageSink,
+    ) -> Option<ReplyValue> {
+        self.offload
+            .then(|| ReplyValue::RenderStarted { job: job.into() })
+    }
+
+    fn render_update(
+        &mut self,
+        _ctl: &mut EtherController<RealBridge, TestHost, MemoryStore, MemoryLibrary>,
+        _site: SiteId,
+        _job: &str,
+        update: ether_controller::ext::RenderUpdate,
+    ) {
+        self.updates.borrow_mut().push(update);
+    }
+}
+
+/// `ControllerExt::offload_render` runs a render elsewhere (nothing renders here), and
+/// `freeze_for` renders here for another site: its result goes to the extension, the
+/// document does not change.
+#[test]
+fn renders_may_run_elsewhere_or_for_another_site() {
+    let mut d = Drive::new();
+    let (t, _) = keys(&mut d);
+    d.ctl.add_extension(Offload {
+        offload: true,
+        ..Default::default()
+    });
+    let media: MediaId = d.id();
+    assert_eq!(
+        d.ok(Command::Freeze(FreezeCommand::Freeze {
+            job: "away".into(),
+            track: t,
+            media,
+            up_to: None,
+        })),
+        ReplyValue::RenderStarted { job: "away".into() }
+    );
+    assert!(
+        events(&d.tick())
+            .iter()
+            .all(|e| !matches!(e, Event::Freeze { .. }))
+    );
+
+    let mut d = Drive::new();
+    let (t, _) = keys(&mut d);
+    let ext = Offload::default();
+    let updates = ext.updates.clone();
+    d.ctl.add_extension(ext);
+    let before = d.p().clone();
+    let media: MediaId = d.id();
+    let mut out = Vec::new();
+    let now = d.ctl.host.now_ms();
+    let started = d.ctl.freeze_for(
+        SiteId(7),
+        &FreezeCommand::Freeze {
+            job: "for7".into(),
+            track: t,
+            media,
+            up_to: None,
+        },
+        now,
+        &mut out,
+    );
+    assert_eq!(
+        started,
+        Ok(ReplyValue::RenderStarted { job: "for7".into() })
+    );
+    for _ in 0..100_000 {
+        d.tick();
+        if updates
+            .borrow()
+            .iter()
+            .any(|u| matches!(u, ether_controller::ext::RenderUpdate::Done { .. }))
+        {
+            break;
+        }
+    }
+    assert!(
+        matches!(updates.borrow().last(), Some(ether_controller::ext::RenderUpdate::Done { media }) if media.len() == 1),
+        "{:?}",
+        updates.borrow()
+    );
+    assert_eq!(d.p().tracks, before.tracks, "the document does not change");
+}

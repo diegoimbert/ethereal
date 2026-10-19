@@ -166,3 +166,52 @@ fn extensions_see_commits_and_may_refuse_edits_and_saves() {
     let out = h.send(Command::Project(ProjectCommand::Save { autosave: false }));
     assert_eq!(code(&out), ErrorCode::InvalidState);
 }
+
+/// Writes a sidecar with every save, and records copies.
+#[derive(Default)]
+struct Journal {
+    log: std::rc::Rc<std::cell::RefCell<Vec<String>>>,
+}
+
+impl ControllerExt<FakeBridge, FakeHost, MemoryStore, MemoryLibrary> for Journal {
+    fn save_sidecar(
+        &mut self,
+        _ctl: &mut Ctl,
+        _project: ProjectId,
+    ) -> Option<ether_controller::store::RenderSidecar> {
+        Some(Box::new(|json: &str| {
+            Some((
+                "journal.json".into(),
+                format!("{}", json.len()).into_bytes(),
+            ))
+        }))
+    }
+
+    fn saved(&mut self, _ctl: &mut Ctl, _project: ProjectId, with_sidecar: bool) {
+        self.log.borrow_mut().push(format!("saved {with_sidecar}"));
+    }
+
+    fn project_copied(&mut self, _ctl: &mut Ctl, _copy: ProjectId) {
+        self.log.borrow_mut().push("copied".into());
+    }
+}
+
+#[test]
+fn extensions_add_files_to_saves_and_see_copies() {
+    use ether_controller::store::ProjectStore;
+    let mut h = Harness::with_project();
+    let id = h.ctl.project().unwrap().id;
+    let ext = Journal::default();
+    let log = ext.log.clone();
+    h.ctl.add_extension(ext);
+    ok(&h.send(Command::Project(ProjectCommand::Save { autosave: false })));
+    assert!(h.ctl.store.read(id, "journal.json").is_ok());
+    assert_eq!(log.borrow().last().unwrap(), "saved true");
+    let copy = h.project_id();
+    ok(&h.send(Command::Project(ProjectCommand::Duplicate {
+        id,
+        new_id: copy,
+        name: "Copy".into(),
+    })));
+    assert!(log.borrow().iter().any(|l| l == "copied"));
+}
