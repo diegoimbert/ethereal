@@ -7,13 +7,13 @@
 //                  [--ee-title T] [--ee-body B | --ee-body-file F]
 //                                                   push EE x, then the pointer + OSS x; open/update
 //                                                   both PRs (title/body too, when given),
-//                                                   cross-linked; start the full build
+//                                                   cross-linked (no full build: see GATE_CHECKS)
 //   just feat update                                merge main into OSS x (and EE main into EE x)
 //   just feat status                                branches, pointers, PRs, checks, warnings
-//   just feat ship [x] [--admin] [--force] [--no-build] [--ignore-ee-checks] [--timeout <min>] [--takeover]
+//   just feat ship [x] [--admin] [--force] [--build] [--ignore-ee-checks] [--timeout <min>] [--takeover]
 //                  [--strict] [--log F]
-//                                                   bring both sides up to date and wait for every
-//                                                   check (no lock), then under a global lock:
+//                                                   bring both sides up to date and wait for the
+//                                                   gating checks (GATE_CHECKS; no lock), then under a global lock:
 //                                                   update again (re-wait only if main touched the
 //                                                   PR's files; always with --strict), merge EE,
 //                                                   point OSS x at EE main, merge OSS
@@ -113,6 +113,11 @@ const LOCK_STALE_MIN = 30; // no heartbeat for this long: the ship died
 const LOCK_BEAT_MIN = 3;
 const POINTER_CTX = "ee/pointer";
 const BUILD_CTX = "ee/build";
+// The checks that gate a merge (owner, 2026-10-19): pull requests build and test nothing; `main`
+// runs every build and test, and a red main is fixed forward. Anything else a PR reports (an
+// `ee/build` someone asked for, a check from an older workflow) is informational.
+const GATE_CHECKS = [/^cla$/i, /^What changed$/, /^Policy\b/, new RegExp(`^${POINTER_CTX}$`)];
+const gating = (name) => GATE_CHECKS.some((re) => re.test(name));
 const BUILD_WORKFLOW = "oss-pr.yml";
 
 // ---------------------------------------------------------------------------------- GitHub
@@ -631,7 +636,8 @@ function cmdPush(args) {
     setBody(OSS, ossPr, withPair(ossText, eePr ? `Paired EE PR: ${eePr.url} (private). The \`ee\` pointer follows its branch; ship with \`just feat ship ${x}\`.` : "Leaves `ee` untouched."));
   if (ossPr) {
     // What the bot would do, done right away (and without it): pointer status + full build.
-    sync({ only: String(ossPr.number), build: !ossPr.isDraft, quiet: true, main: true });
+    // No full build: pull requests build nothing (GATE_CHECKS); `feat sync --build` still can.
+    sync({ only: String(ossPr.number), quiet: true, main: true });
   }
   triggerSync();
   log(`done: ${[eePr && `EE ${eePr.url}`, ossPr && `OSS ${ossPr.url}`, ossPushed && !ossPr && `OSS ${x} pushed`].filter(Boolean).join("  ")}`);
@@ -687,17 +693,18 @@ function headOf(repo, n, expect) {
   return p.headRefOid;
 }
 
-// Wait until every check of PR `n` (only the required ones with `required`) passes, on head
-// `sha`. Checks need a moment to register after a push: none at all counts as pending for a
-// while.
+// Wait until every gating check (GATE_CHECKS) of PR `n` (only the required ones with `required`)
+// passes, on head `sha`. Checks need a moment to register after a push: none at all counts as
+// pending for a while. EE pull requests have no gating check (EE CI runs on EE main only).
 async function waitChecks(repo, n, sha, { required = false, timeoutMin, label, lock }) {
+  if (repo === EE) return { ok: true };
   const start = Date.now();
   let told = "";
   for (;;) {
     lock?.beat();
     const head = headOf(repo, n, sha);
     if (head !== sha) return { ok: false, moved: true, why: `head moved to ${short(head)}` };
-    const cs = checksOf(repo, n, required);
+    const cs = checksOf(repo, n, required).filter((c) => gating(c.name));
     const bad = cs.filter((c) => c.bucket === "fail" || c.bucket === "cancel").map((c) => c.name);
     // Cancelled runs (superseded, or cancelled by hand) say nothing about the code: re-run
     // them once, then wait for the result.
@@ -937,7 +944,9 @@ async function cmdShip(args) {
   const admin = argFlag(args, "--admin");
   const force = argFlag(args, "--force");
   const takeover = argFlag(args, "--takeover");
-  const noBuild = argFlag(args, "--no-build");
+  // The full build (`ee/build`) no longer gates a ship (GATE_CHECKS); `--build` waits for it
+  // anyway. `--no-build` is the default and still accepted.
+  const noBuild = !argFlag(args, "--build");
   // EE PR checks known red for a reason outside the PR (e.g. an EE change that merged ahead of
   // its OSS side): reported, not gating. The OSS checks still gate.
   const ignoreEeChecks = argFlag(args, "--ignore-ee-checks");
@@ -999,8 +1008,7 @@ async function cmdShip(args) {
       else gate(c, `EE PR #${eePr.number} checks`);
     }
     if (ossPr) {
-      if (noBuild) log(`! not waiting for ee/build (--no-build)`);
-      else {
+      if (!noBuild) {
         ticket.at(`ee/build of OSS #${ossPr.number}`);
         gate(await awaitBuild(ossPr.number, ossHead, { timeoutMin, lock: ticket }), `OSS PR #${ossPr.number}`);
       }
@@ -1277,7 +1285,7 @@ function cmdSync(args) {
   const dry = argFlag(args, "--dry-run");
   const ci = argFlag(args, "--ci");
   const only = argVal(args, "--pr") ?? null;
-  sync({ dry, ci, only, build: ci || argFlag(args, "--build") });
+  sync({ dry, ci, only, build: argFlag(args, "--build") });
 }
 function cmdCheck(args) {
   const n = args[0] ?? die("usage: feat check <oss-pr-number>");

@@ -1,8 +1,9 @@
 name: Full product
 
 # The full product: this repository with the private `ee/` repository overlaid (docs/EE-WORKFLOW.md),
-# built and tested on GitHub-hosted runners. The `ee/build` job is the check `just feat ship`
-# waits for.
+# built and tested on GitHub-hosted runners, on every push to `main` and on demand. Pull requests
+# build nothing (owner, 2026-10-19: builds and tests run on `main`, a red `main` is fixed
+# forward); a maintainer builds one by hand with `gh workflow run full.yml -f ref=refs/pull/N/head`.
 #
 # Safety, since this repository is public:
 #   - The private code is fetched with the ETHER_PRIVATE_TOKEN secret, which GitHub withholds from
@@ -20,7 +21,6 @@ name: Full product
 # Runners: repository variables FULL_RUNNER / FULL_MACOS_RUNNER / FULL_WINDOWS_RUNNER (JSON, e.g.
 # '"ubuntu-latest"' or '["self-hosted","linux"]') pick them; GitHub-hosted by default.
 on:
-  pull_request:
   push:
     branches: [main]
   workflow_dispatch:
