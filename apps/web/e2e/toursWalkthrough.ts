@@ -339,8 +339,9 @@ export function walkthroughTours(tours: ReadonlyArray<Tour>): void {
       const section = screen.getByRole("region", { name: "get started" });
       for (const t of tours.filter((t) => !t.example)) {
         const item = section.locator(".eth-welcome__article", { hasText: t.title });
-        await expect(item).toHaveAttribute("aria-disabled", "true");
+        await expect(item).toHaveAttribute("data-soon", "true");
         await expect(item).toContainText("soon");
+        await expect(item.getByRole("button")).toHaveCount(0);
       }
       // The examples still open there, without their tours.
       const examples = screen.getByRole("region", { name: "examples" });
