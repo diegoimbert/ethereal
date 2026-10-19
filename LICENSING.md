@@ -47,3 +47,8 @@ release, and the license text it requires, is listed in
 licenses of those components apply to them; the AGPL above applies to Ethereal's own code.
 All current dependencies are permissive (plus `symphonia`, MPL-2.0); the `deny.toml` allow-list
 keeps it that way (`just check-licenses`).
+
+## Name and logo
+
+The AGPL covers the code, not the Ethereal name and logo. How you may use them is in
+[TRADEMARK.md](TRADEMARK.md).
