@@ -338,10 +338,16 @@ jobs:
     # its retry is reported as flaky in the log (a bug to fix), without blocking the merge.
     # Left out: `@frames` (frame-time budgets) and `@pixels` (text rasterization against the
     # DOM), both calibrated on the devbox and not stable on shared runners.
+    #
+    # GitHub-hosted even when the pool is on: it builds nothing (the web build and the server
+    # come from `web-build`), so a warm cache gains it nothing, and its four ~10 min shards per
+    # run would hold the pool's few slots while the Rust and build jobs of `main` wait. The
+    # server binary may come from the pool (Debian 13, glibc 2.41): today it needs glibc 2.39,
+    # what ubuntu-latest (24.04) has; a "GLIBC_2.4x not found" here means it no longer fits.
     name: e2e (${{ matrix.shard }}/4)
     needs: [changes, web-build]
     if: needs.changes.outputs.full == 'true'
-    runs-on: ${{ fromJSON(needs.changes.outputs.linux) }}
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     concurrency:
       group: ci-lane-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}-e2e-${{ strategy.job-index }}
