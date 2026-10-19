@@ -13,6 +13,9 @@ name: CI
 # Dependabot (.github/dependabot.yml) proposes the bumps. The Rust toolchain is pinned in
 # rust-toolchain.toml, tools installed by taiki-e/install-action are pinned to exact versions.
 #
+# Windows (the slowest platform: ~35 min of Rust, ~17 of packaging) is ci-windows.yml, a workflow
+# of its own so it doesn't hold up this one's cycle on `main`.
+#
 # What runs when: pull requests run the cheap checks only (`What changed` and `Policy`; the CLA
 # check and `ee/pointer` come from elsewhere). Builds and tests run on `main` and manual runs,
 # every platform. A failure there is fixed forward: the `Main status` workflow (main-status.yml)
@@ -183,37 +186,6 @@ jobs:
           -p ether-au -p ether-clap -p ether-vst3 -p ether-plugin-host -p ether-plugin-scanner
           -p ether-sandbox -p ether-native -p ether-server -p ether-mcp
           -p ether-core -p ether-devices -p ether-media -p ether-stretch
-
-  rust-windows:
-    name: Rust (Windows)
-    needs: changes
-    if: needs.changes.outputs.full == 'true'
-    runs-on: windows-latest
-    timeout-minutes: 75
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/free-disk
-        if: runner.environment == 'github-hosted'
-      - name: Toolchain (from rust-toolchain.toml)
-        run: rustup show active-toolchain || rustup toolchain install
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
-        if: runner.environment == 'github-hosted'
-        with:
-          key: windows
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-          cache-on-failure: true
-      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
-        with:
-          tool: cargo-nextest@0.9.148
-      - name: clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
-      - name: test
-        # `ether-desktop`'s test binaries link the Tauri app, which needs the Common Controls v6
-        # manifest an installed app carries; bare, they don't start (0xc0000139). Its tests run on
-        # Linux, and the Windows packaging job builds and bundles it.
-        run: cargo nextest run --profile ci --workspace --all-features --exclude ether-desktop
 
   # --- Web ----------------------------------------------------------------------------------
 
@@ -408,10 +380,6 @@ jobs:
             os: linux
             target: x86_64-unknown-linux-gnu
             bundles: deb
-          - name: Windows nsis
-            os: windows-latest
-            target: x86_64-pc-windows-msvc
-            bundles: nsis
     env:
       CARGO_PROFILE_RELEASE_LTO: "off"
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
