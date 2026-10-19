@@ -1,5 +1,5 @@
-//! `Project::ExportTo` in a build without the `import` feature (the exchange-format
-//! writers, `ether-export`, are not compiled in): replies `Unsupported`.
+//! `Project::ExportTo` when no extension exports to other DAWs (`crate::ext`: an extension
+//! that does answers the command first): `Unsupported`.
 
 use ether_core::protocol::ReplyValue;
 use ether_core::protocol::model::ProjectId;

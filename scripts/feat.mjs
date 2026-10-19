@@ -118,7 +118,8 @@ const BUILD_CTX = "ee/build";
 // `ee/build` someone asked for, a check from an older workflow) is informational.
 const GATE_CHECKS = [/^cla$/i, /^What changed$/, /^Policy\b/, new RegExp(`^${POINTER_CTX}$`)];
 const gating = (name) => GATE_CHECKS.some((re) => re.test(name));
-const BUILD_WORKFLOW = "oss-pr.yml";
+// The full product (OSS + ee/): this repository's full.yml, on demand for a PR (`--build`).
+const BUILD_WORKFLOW = "full.yml";
 
 // ---------------------------------------------------------------------------------- GitHub
 
@@ -643,10 +644,12 @@ function cmdPush(args) {
   log(`done: ${[eePr && `EE ${eePr.url}`, ossPr && `OSS ${ossPr.url}`, ossPushed && !ossPr && `OSS ${x} pushed`].filter(Boolean).join("  ")}`);
 }
 
-// Kick the EE-side sync workflow so pointers/statuses update now instead of on its schedule.
+// Kick the sync workflow so pointers/statuses update now instead of on its schedule. It is moving
+// from the EE repository to this one (ethereal-private#45): kick whichever exists (this repo's does
+// nothing until its ETHER_BOT_TOKEN secret is set).
 function triggerSync() {
-  const r = gh(EE, ["workflow", "run", "ee-sync.yml", "-R", EE, "--ref", "main"], { allowFail: true, full: true });
-  if (r.status !== 0) log("(could not trigger the EE sync workflow; it also runs on a schedule)");
+  const ok = [EE, OSS].filter((repo) => gh(repo, ["workflow", "run", "ee-sync.yml", "-R", repo, "--ref", "main"], { allowFail: true, full: true }).status === 0);
+  if (!ok.length) log("(could not trigger the sync workflow; it also runs on a schedule)");
 }
 
 // Merge origin/main into OSS x and EE main into EE x; a conflict on the gitlink resolves to
@@ -745,23 +748,17 @@ function rerunCancelled(repo, sha) {
   return any;
 }
 
-// Re-run the failed jobs of the latest EE CI run of `sha` (once per ship round).
-function rerunEeCi(sha) {
-  const r = gh(EE, ["run", "list", "-R", EE, "-w", "ee-ci.yml", "--commit", sha, "-L", "5", "--json", "databaseId,status,conclusion,attempt"], { allowFail: true, full: true });
-  const run = r.status === 0 ? JSON.parse(r.stdout || "[]")[0] : null;
-  if (!run || run.status !== "completed" || run.conclusion === "success" || run.attempt > 2) return false;
-  log(`re-running the failed EE CI jobs (run ${run.databaseId}) against the current OSS branch`);
-  return gh(EE, ["run", "rerun", String(run.databaseId), "-R", EE, "--failed"], { allowFail: true, full: true }).status === 0;
-}
-
-// The run of oss-pr.yml that builds `sha` (its run-name carries the sha).
+// The full.yml dispatch that builds `sha` (its run name, "Full product: <ref> + ee ...", carries it).
 function buildRun(sha, after = 0) {
-  const out = gh(EE, ["run", "list", "-R", EE, "-w", BUILD_WORKFLOW, "-L", "40", "--json", "databaseId,displayTitle,status,conclusion,url,createdAt"], { allowFail: true, full: true });
+  const out = gh(OSS, ["run", "list", "-R", OSS, "-w", BUILD_WORKFLOW, "-e", "workflow_dispatch", "-L", "40", "--json", "databaseId,displayTitle,status,conclusion,url,createdAt"], { allowFail: true, full: true });
   if (out.status !== 0) return null;
   return JSON.parse(out.stdout || "[]").find((r) => r.displayTitle.includes(sha) && Date.parse(r.createdAt) >= after) ?? null;
 }
+// Dispatch full.yml on PR `n`'s branch at `sha` (Linux only: `all=false`). A fork's PR has no branch
+// here, so this fails: build it by hand after reading it (full.yml's header).
 function startBuild(n, sha) {
-  const r = gh(EE, ["workflow", "run", BUILD_WORKFLOW, "-R", EE, "--ref", "main", "-f", `pr=${n}`, "-f", `sha=${sha}`], { allowFail: true, full: true });
+  const branch = JSON.parse(gh(OSS, ["pr", "view", String(n), "-R", OSS, "--json", "headRefName"])).headRefName;
+  const r = gh(OSS, ["workflow", "run", BUILD_WORKFLOW, "-R", OSS, "--ref", branch, "-f", `ref=${sha}`, "-f", "all=false"], { allowFail: true, full: true });
   if (r.status !== 0) {
     log(`  could not start the full build: ${r.stderr.trim()}`);
     return false;
@@ -1019,12 +1016,7 @@ async function cmdShip(args) {
     const { eePr, ossPr, eeHead, ossHead } = s;
     if (eePr) {
       ticket.at(`checks of EE #${eePr.number}`);
-      let c = await waitChecks(EE, eePr.number, eeHead, { timeoutMin, label: `EE #${eePr.number}`, lock: ticket });
-      // EE CI builds against whatever OSS x was when it ran; OSS x may have moved since.
-      if (!c.ok && !c.moved && ossPr && rerunEeCi(eeHead)) {
-        await sleep(20000);
-        c = await waitChecks(EE, eePr.number, eeHead, { timeoutMin, label: `EE #${eePr.number} (re-run)`, lock: ticket });
-      }
+      const c = await waitChecks(EE, eePr.number, eeHead, { timeoutMin, label: `EE #${eePr.number}`, lock: ticket });
       if (c.moved) return { moved: true };
       if (!c.ok && ignoreEeChecks) log(`! EE PR #${eePr.number} checks ${c.why} (--ignore-ee-checks)`);
       else gate(c, `EE PR #${eePr.number} checks`);

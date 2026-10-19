@@ -27,7 +27,8 @@ use ether_core::protocol::model::file::CACHE_DIR;
 use ether_core::protocol::model::{MediaId, MediaLocation, MediaRef, Project, ProjectId};
 use ether_media::{DecodedAudio, MAX_PAD_FRAMES, MediaError, PeakMipmap};
 
-pub(crate) use decode::{IncrementalDecoder, is_chained_ogg};
+pub use decode::IncrementalDecoder;
+pub(crate) use decode::is_chained_ogg;
 pub(crate) use resample::{IncrementalResampler, StreamResampler};
 
 use crate::EngineBridge;
@@ -74,7 +75,7 @@ pub(crate) fn peaks_cache_path(hash: &str) -> String {
     format!("{CACHE_DIR}/{hash}.peaks")
 }
 
-pub(crate) fn extension_of(path: &str) -> Option<&str> {
+pub fn extension_of(path: &str) -> Option<&str> {
     let name = path.rsplit('/').next().unwrap_or(path);
     name.rfind('.').filter(|i| *i > 0).map(|i| &name[i + 1..])
 }

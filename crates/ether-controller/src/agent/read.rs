@@ -207,17 +207,17 @@ impl AgentState {
             )
         }
         let mut m = Map::new();
-        if !s.selected_tracks.is_empty() {
-            m.insert("tracks".into(), list(&s.selected_tracks, 64));
+        if !s.tracks.is_empty() {
+            m.insert("tracks".into(), list(&s.tracks, 64));
         }
-        if !s.selected_clips.is_empty() {
-            m.insert("clips".into(), list(&s.selected_clips, 64));
+        if !s.clips.is_empty() {
+            m.insert("clips".into(), list(&s.clips, 64));
         }
-        if !s.selected_notes.is_empty() {
-            m.insert("notes".into(), list(&s.selected_notes, 64));
+        if !s.notes.is_empty() {
+            m.insert("notes".into(), list(&s.notes, 64));
         }
-        if !s.selected_devices.is_empty() {
-            m.insert("devices".into(), list(&s.selected_devices, 64));
+        if !s.devices.is_empty() {
+            m.insert("devices".into(), list(&s.devices, 64));
         }
         if let Some(c) = s.editing_clip {
             m.insert("open_clip_id".into(), json!(c.to_string()));

@@ -441,8 +441,7 @@ impl DiskStore {
             id,
             name: name_from_ether(&json).unwrap_or_else(|| "Untitled".to_string()),
             modified_ms: modified_ms(&file),
-            // Reading `share.json` is part of the private sharing overlay.
-            share: None,
+            ext: None,
         })
     }
 
@@ -539,8 +538,7 @@ impl ProjectStore for DiskStore {
             id,
             name: name.to_string(),
             modified_ms,
-            // Reading `share.json` is part of the private sharing overlay.
-            share: None,
+            ext: None,
         })
     }
 
@@ -1681,7 +1679,7 @@ mod tests {
         s.create(host).unwrap();
         s.save(host, &ether("Song")).unwrap();
         s.write(host, SHARE_FILE, b"{}").unwrap();
-        assert_eq!(ProjectStore::list(&mut s).unwrap()[0].share, None);
+        assert_eq!(ProjectStore::list(&mut s).unwrap()[0].ext, None);
 
         s.write(host, "media/a.wav", b"A").unwrap();
         s.duplicate(host, dup).unwrap();
@@ -1690,7 +1688,7 @@ mod tests {
             ProjectStore::read(&mut s, dup, "media/a.wav").unwrap(),
             b"A"
         );
-        assert_eq!(ProjectStore::list(&mut s).unwrap()[0].share, None);
+        assert_eq!(ProjectStore::list(&mut s).unwrap()[0].ext, None);
     }
 
     #[test]

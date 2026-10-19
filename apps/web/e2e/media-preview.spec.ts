@@ -11,10 +11,11 @@ import { expect, test, type Page } from "@playwright/test";
 import { launch, openLibrary, playButton, expandFolder } from "./ui";
 
 const files = (page: Page) => page.getByRole("tree", { name: "folders" });
-// Clicking a row toggles its preview; the previewing row is pressed.
+// Clicking a row toggles its preview; the previewing row carries the previewing class
+// (a treeitem takes no aria-pressed).
 const row = (page: Page, name: string) => files(page).getByRole("treeitem", { name, exact: true });
-const previewButton = (page: Page, name: string) => row(page, name).and(page.locator('[aria-pressed="false"]'));
-const stopButton = (page: Page, name: string) => row(page, name).and(page.locator('[aria-pressed="true"]'));
+const previewButton = (page: Page, name: string) => row(page, name).and(page.locator(":not(.eth-browser__row--previewing)"));
+const stopButton = (page: Page, name: string) => row(page, name).and(page.locator(".eth-browser__row--previewing"));
 
 test("media preview: play to the end, replace and stop from the browser", async ({ page }) => {
   test.setTimeout(120_000);

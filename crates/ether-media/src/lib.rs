@@ -19,7 +19,9 @@ pub mod to_midi;
 
 pub use decode::{decode, decode_owned, reserve_frames};
 pub use peaks::{BASE_SAMPLES_PER_PEAK, MAX_PAD_FRAMES, PeakMipmap};
-pub use resample::{resample, resampled_len};
+pub use resample::{
+    alignment, process_chunk, resample, resampled_len, resampler_buffers, sinc_resampler,
+};
 
 /// Planar `f32` audio fully in memory.
 #[derive(Clone, Debug, Default, PartialEq)]

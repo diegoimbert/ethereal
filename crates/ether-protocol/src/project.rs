@@ -78,26 +78,12 @@ pub enum ProjectCommand {
         path: Option<String>,
         #[serde(default = "default_true")]
         include_media: bool,
-        /// Static sharing (docs/SHARING.md §14): strip every device and plugin chain from the
-        /// packed document (the audio clips stay; the project's own copy is untouched).
+        /// Strip every device and plugin chain from the packed document (the audio clips
+        /// stay; the project's own copy is untouched).
         #[serde(default)]
         #[ts(optional)]
         hide_devices: Option<bool>,
     },
-    /// Static sharing (docs/SHARING.md §14): the manifest of a snapshot of the project (the
-    /// open one: its current state): tracks, colors, clip layout, and the device chains
-    /// unless `permissions.hide_devices`. Replies `StaticSnapshot`. The audio is rendered
-    /// with `Export::Render` (`Mix`, then `Stems` of the tracks that have a `stem` in the
-    /// manifest).
-    StaticSnapshot {
-        id: ProjectId,
-        permissions: crate::static_share::StaticPermissions,
-    },
-    /// Static sharing (docs/SHARING.md §14.6): the view document of a snapshot (the project
-    /// without plugin states, chat, paths; without devices when `hide_devices`) and the
-    /// waveform peaks of its media (the open project's; others have none), as in-memory
-    /// downloads to pull with `Export::ReadChunk`. Replies `StaticView`.
-    StaticView { id: ProjectId, hide_devices: bool },
     /// Unpack a `.ether` bundle (from `ExportBundle`) as a new stored project `new_id` (not
     /// opened). `name`: the new project's name (`None` = the name inside the bundle). A bare
     /// `project.ether` document (no archive) is accepted too. Replies `Saved`.
@@ -152,11 +138,11 @@ pub struct ProjectSummary {
     pub name: String,
     /// Last save time, Unix epoch milliseconds.
     pub modified_ms: f64,
-    /// base-115: shared by this app, or an offline copy of someone's shared project
-    /// (Recents badge and avatars; docs/SHARING.md §8.5). Omitted when not shared.
+    /// What an extension knows of the stored project (e.g. a badge on the project list),
+    /// as its own JSON (`crate::ext`). Omitted when it has nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[ts(optional)]
-    pub share: Option<crate::share::ProjectShareInfo>,
+    #[ts(optional, type = "unknown")]
+    pub ext: Option<crate::ext::ExtValue>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
