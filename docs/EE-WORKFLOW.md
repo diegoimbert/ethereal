@@ -28,12 +28,13 @@ Rules:
 
 | Command | What it does |
 |---|---|
-| `start x [--ee] [--worktree <dir>]` | Branch `x` off `origin/main` (or `origin/x`), here or in a new worktree. `--ee` (or an existing EE branch `x`) also initialises `ee/` and puts it on EE branch `x`. |
-| `ee` | Initialise `ee/` and put it on the current branch's name (existing EE `x`, else new off EE `main`). |
-| `push [--draft] [--title T] [--body B \| --body-file F]` | Push EE `x` (if it has commits), commit the pointer (`ee: point at x`), push OSS `x`, open or update both PRs with cross-links, post `ee/pointer` and start the full build (`ee/build`). With no OSS changes the OSS branch stays local: EE-only. If a branch moved on GitHub (bot pointer commits, a ship's merge of main), that is merged in first; nothing is force-pushed except bot pointer-only commits. |
+| `start x [--ee] [--worktree <dir>]` | Branch `x` off `origin/main` (or `origin/x`), here or in a new worktree (outside this checkout). `--ee` (or an existing EE branch `x`) also initialises `ee/` and puts it on EE branch `x`. |
+| `ee` | Initialise `ee/` and put it on the current branch's name (existing EE `x`, else new off EE `main`). `start`, `ee`, `update` and `tree` also check out the submodules nested in `ee/` (libvpx). |
+| `push [--draft] [--title T] [--body B \| --body-file F] [--ee-title T] [--ee-body B \| --ee-body-file F]` | Push EE `x` (if it has commits), commit the pointer (`ee: point at x`), push OSS `x`, open or update both PRs with cross-links (a given title/body is applied to open PRs too; `--ee-*` set the EE PR's, which default to the OSS ones), post `ee/pointer` and start the full build (`ee/build`). With no OSS changes the OSS branch stays local: EE-only. If a branch moved on GitHub (bot pointer commits, a ship's merge of main), that is merged in first; nothing is force-pushed except bot pointer-only commits. |
 | `status` | Branches, pointers, PRs, checks, `ee/*` statuses, the ship lock, and what is out of line. |
 | `update` | Merge `main` into OSS `x` and EE `main` into EE `x`; a gitlink conflict resolves to `ee/`'s HEAD. |
-| `ship [x] [--admin] [--force] [--no-build] [--ignore-ee-checks] [--timeout <min>] [--takeover]` | Takes the global ship lock, brings OSS `x` (and EE `x`) up to date with `main`, waits for every check on both PRs including `ee/build`, merges the EE PR, points OSS `x` at EE `main`, merges the OSS PR (squash) and makes sure OSS `main` points at EE `main`. Repeats the update/wait round if anything moved meanwhile. `--force` ships despite failing checks, `--no-build` skips only the `ee/build` wait, `--ignore-ee-checks` reports failing EE PR checks without gating on them (an EE change merged ahead of its OSS side), `--admin` bypasses branch protection. |
+| `ship [x] [--admin] [--force] [--no-build] [--ignore-ee-checks] [--timeout <min>] [--takeover] [--strict] [--log F]` | Brings OSS `x` (and EE `x`) up to date with `main`, starts the full build if it has not run, and waits for every check on both PRs including `ee/build`, without the lock (a cancelled run is re-run once). Then it takes the global ship lock and brings both up to date again. If `main` came in cleanly and touches none of the PR's files (or nothing changed), it merges on the checks that passed: the EE PR, then OSS `x` pointed at EE `main`, then the OSS PR (squash), and makes sure OSS `main` points at EE `main`. Otherwise (the PR got new commits, or `main` changed files the PR changes; with `--strict` or `FEAT_SHIP_STRICT=1`, any tree change) it lets the lock go and waits for the checks on the new heads first. Logs to a file of its own as well (printed first; `--log F` picks it). `--force` ships despite failing checks, `--no-build` skips only the `ee/build` wait, `--ignore-ee-checks` reports failing EE PR checks without gating on them (an EE change merged ahead of its OSS side), `--admin` bypasses branch protection. |
+| `queue [--prune]` | Who holds the ship lock and what every running ship waits for (its checks, the full build, the lock), with ages. `--prune` deletes the tickets of ships that died. |
 | `sync [--dry-run] [--pr N] [--build]` | The reconcile the private-side bot runs (needs write access to both repos). |
 | `check <pr>` | Dry-run the pointer guard for one OSS PR. |
 | `hooks` | Install a pre-push hook that refuses OSS commits pointing at unpushed EE commits. |
@@ -48,6 +49,12 @@ just feat push            # EE first, then the pointer + OSS; PRs opened and cro
 just feat status
 just feat ship my-thing   # EE merges first, then OSS (squash), under the lock
 ```
+
+An agent (or anyone) already working in a worktree of its own runs `just feat start my-thing --ee`
+there, without `--worktree`: the worktree itself switches to `my-thing`. Agent harnesses that
+confine git to the agent's worktree block `--worktree ../x`, and a worktree nested inside the
+checkout is refused (its tools would sweep it up). The OSS PR is public: keep private details
+out of `--title`/`--body` and put them in `--ee-title`/`--ee-body`.
 
 An OSS-only change is the same without `--ee` (its PR never touches the gitlink); an EE-only
 change is the same with only `ee/` commits (only an EE PR is opened).
@@ -78,9 +85,16 @@ when the bot cannot write here.
 
 ## Concurrency notes
 
-- Only `feat ship` merges paired PRs, one ship at a time: a lock ref in the private repo,
-  renewed every few minutes while the ship waits, and considered dead after 30 minutes without
-  renewal. The sync bot leaves the shipping branch and OSS `main` alone while the lock is held.
+- Only `feat ship` merges paired PRs, one merge at a time: a lock ref in the private repo,
+  held only from the final update to the merges (the long CI wait happens before it), renewed
+  every few minutes, and considered dead after 30 minutes without renewal. A ship that is
+  killed (Ctrl-C, SIGTERM) lets it go. The sync bot leaves the shipping branch and OSS `main`
+  alone while the lock is held. Ships in parallel each wait for their own checks; when one
+  merges, the others merge in the new `main` on their final update and, unless it touched
+  their files, merge right away. A semantic conflict that slips through (two PRs that merge
+  cleanly but break together) shows up in `main`'s own CI after the merge: fix it forward.
+- Each running ship keeps a ticket ref in the private repo (`locks/queue/<x>`), renewed with
+  what it is waiting for; `just feat queue` lists them.
 - Squash merges and `main` pointer bumps make the gitlink conflict on open paired PRs; that is
   expected. The bot, `feat update` and `feat ship` resolve it (to the EE branch tip, then EE
   `main`).
