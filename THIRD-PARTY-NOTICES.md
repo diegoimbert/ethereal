@@ -387,7 +387,7 @@ Components: 587 (Rust crates, npm packages and vendored source).
 | `sha2` | 0.10.9 | MIT OR Apache-2.0 | https://github.com/RustCrypto/hashes |
 | `sharded-slab` | 0.1.7 | MIT | https://github.com/hawkw/sharded-slab |
 | `shared_memory` | 0.12.4 | MIT OR Apache-2.0 | https://github.com/elast0ny/shared_memory-rs |
-| `signal-hook` | 0.3.18 | Apache-2.0/MIT | https://github.com/vorner/signal-hook |
+| `signal-hook` | 0.4.5 | MIT OR Apache-2.0 | https://github.com/vorner/signal-hook |
 | `signal-hook-registry` | 1.4.8 | MIT OR Apache-2.0 | https://github.com/vorner/signal-hook |
 | `Signalsmith Linear (vendored C++)` | - | MIT | https://github.com/Signalsmith-Audio/linear |
 | `Signalsmith Stretch (vendored C++)` | 1.3.1 | MIT | https://github.com/Signalsmith-Audio/signalsmith-stretch |
