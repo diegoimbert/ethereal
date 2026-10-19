@@ -1,5 +1,4 @@
-//! v0.2 devices owned by the `fx-modulation` node (contracts-3 froze the param tables; see
-//! docs/ROADMAP.md "v0.2" and the device agent guide there).
+//! v0.2 modulation devices (contracts-3 froze the param tables; see docs/DEVICES.md).
 //!
 //! Modulation effects: chorus, phaser, flanger, tremolo/auto-pan, vibrato.
 //!

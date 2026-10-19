@@ -33,6 +33,7 @@ import { ProjectMenu } from "@/features/project";
 import { ExportDialog } from "@/features/export";
 import { bindSelectionHistory } from "@/features/time-edits/selectionHistory";
 import { VersionsRoot } from "@/features/versions";
+import { NewsRoot } from "@/features/news";
 import { bindBackgroundStop } from "./background";
 import { useKeepRecordingSetup } from "@/features/recording";
 import { keepCenterOnRotation } from "./rotation";
@@ -122,6 +123,7 @@ export function MobileShell() {
       <MediaRefsRoot />
       <ImportResolverRoot />
       <VersionsRoot />
+      <NewsRoot />
       <ExtensionRoots shell="mobile" slot="overlay" />
       <ConfirmDialog />
       <TrackSheetRoot />

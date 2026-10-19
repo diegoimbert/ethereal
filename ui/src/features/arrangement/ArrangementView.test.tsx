@@ -154,6 +154,20 @@ describe("ArrangementView: tracks", () => {
     expect(document.querySelectorAll('[data-slot="automation"]')).toHaveLength(5);
   });
 
+  it("lists each track's clips as text for screen readers (the canvas draws them)", () => {
+    const summary = within(screen.getByRole("list", { name: "clips" }));
+    const clips = Object.values(project().clips).filter((c) => c.lane == null);
+    expect(clips.length).toBeGreaterThan(0);
+    for (const track of tracksOrdered(project())) {
+      const own = clips.filter((c) => c.track === track.id);
+      if (own.length === 0) continue;
+      const list = summary.getByRole("list", { name: `${track.name}: ${own.length === 1 ? "1 clip" : `${own.length} clips`}` });
+      expect(within(list).getAllByRole("listitem")).toHaveLength(own.length);
+    }
+    const first = clips[0]!;
+    expect(summary.getAllByRole("listitem").some((li) => li.textContent?.includes(first.name) && li.textContent.includes(" to "))).toBe(true);
+  });
+
   it("selects the track on header click", () => {
     fireEvent.click(screen.getByRole("group", { name: "Bass track" }));
     expect(useSelectionStore.getState().selectedTrack).toBe(trackByName("Bass").id);

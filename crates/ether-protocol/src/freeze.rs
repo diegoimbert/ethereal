@@ -1,4 +1,4 @@
-//! Freeze, flatten, bounce in place and consolidate (v0.2, `freeze-bounce` node; CONTRACTS.md
+//! Freeze, flatten, bounce in place and consolidate (v0.2, `freeze-bounce`; CONTRACTS.md
 //! §12.3).
 //!
 //! Rendering commands (`Freeze`, `Bounce`, `Consolidate` of audio) reply `RenderStarted {

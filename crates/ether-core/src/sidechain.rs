@@ -1,5 +1,4 @@
-//! Sidechain routing in the engine (roadmap v2, owned by the `sidechain` node; see
-//! `docs/ROADMAP.md` and CONTRACTS.md §11.10). v0.4: sidechained entries at any depth (drum
+//! Sidechain routing in the engine (roadmap v2; see CONTRACTS.md §11.10). v0.4: sidechained entries at any depth (drum
 //! pads, rack chains, nested racks) and tap points other than the post-fader output.
 //!
 //! - **Consumers.** Any chain entry with `ChainEntry::sidechain` — on the track chain, a pad

@@ -47,6 +47,7 @@ export const LOCALIZED_PATHS: readonly string[] = [
   "src/transport/wasm",
   "../apps/web/src",
   "src/features/docs",
+  "src/features/news",
   "src/timeline/Ruler.tsx",
   "src/timeline/LoopBrace.tsx",
   "src/domain/soloCommands.ts",

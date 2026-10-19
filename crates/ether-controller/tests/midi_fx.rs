@@ -1,7 +1,7 @@
 //! v0.2 `midi-fx` controller side: MIDI effects precede the instrument
 //! (`check_chain_order`), and Scale Quantize / Random get the resolved `MusicalScale`
 //! (`EngineBridge::set_node_scale` on creation and on track/project scale or `Scale`
-//! source changes; the offline export pushes it too, BCR-C). The live path and the export
+//! source changes; the offline export pushes it too). The live path and the export
 //! run a real engine, so "the scale arrived" is checked by ear: quantized notes render
 //! exactly like the in-scale notes played directly.
 
@@ -338,7 +338,7 @@ impl Drive {
         std::mem::take(&mut self.ctl.bridge.scales)
     }
 
-    /// Export beats 0..4 as float WAV (the offline engine, BCR-C).
+    /// Export beats 0..4 as float WAV (the offline engine).
     fn export(&mut self) -> Vec<Vec<f32>> {
         let job = format!("job{}", self.next);
         self.ok(Command::Export(ExportCommand::Render {

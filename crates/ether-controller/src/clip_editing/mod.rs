@@ -1,5 +1,5 @@
-//! Clip editing: fade curves, reverse, crossfades and arrangement markers (roadmap v2,
-//! owned by the `clip-editing` node; see `docs/ROADMAP.md`).
+//! Clip editing: fade curves, reverse, crossfades and arrangement markers (roadmap v2;
+//! CONTRACTS.md §11.4).
 //!
 //! Dispatched from `doc::apply` (`MarkerCommand`) and `doc/clips.rs` (the v2
 //! `ClipCommand` variants). Overlap/crossfade rules: `ether_model::clip` module docs; the

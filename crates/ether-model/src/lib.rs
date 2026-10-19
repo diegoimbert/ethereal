@@ -16,8 +16,8 @@
 //!   [`patch`]: UI mirror updates, [`file`]: `.ether` format + migrations.
 //!
 //! Pure data + logic: no I/O, no threads, no clock, no randomness (native + wasm32).
-//! This crate's *types* are a frozen contract (changes via BCR); the logic (`todo!()`
-//! bodies) is implemented by the `model` node.
+//! This crate's *types* are a contract (docs/CONTRACTS.md): change them on purpose, keeping
+//! old `.ether` files readable.
 
 mod apply;
 pub mod automation;

@@ -6,8 +6,6 @@
 // and tools, and that only api.openai.com sees the key.
 //
 // No sleeps: every step waits on UI or engine state (mirror via `window.__ether`).
-import { existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import { expect, test, type Page, type Route } from "@playwright/test";
 import type { Project } from "@/generated";
 import { arrangerApi } from "./clips";
@@ -119,9 +117,6 @@ async function stubOpenAi(page: Page): Promise<{ requests: Request[]; headers: A
   });
   return { requests, headers };
 }
-
-const registry = fileURLToPath(new URL("../../../crates/ether-controller/src/agent", import.meta.url));
-test.skip(!existsSync(registry), "the controller's agent tool registry (node agent-api) is not merged yet");
 
 test("ai-chat (OpenAI-compatible): the scripted conversation edits the arrangement", async ({ page }) => {
   test.setTimeout(120_000);

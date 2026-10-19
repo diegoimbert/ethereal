@@ -1,7 +1,7 @@
 import "./remote.css";
 import { useEffect, useState } from "react";
 import { t as tNow, Trans, useT } from "@/i18n";
-import { Badge, Button, Dialog } from "@/kit";
+import { Badge, Button, Dialog, DismissibleError } from "@/kit";
 import { useTransportSwitch } from "@/transport/createDefaultTransport";
 import { WsTransport } from "@/transport/ws/WsTransport";
 import { openSettings } from "@/features/audio-settings/store";
@@ -60,9 +60,9 @@ export function ConnectDialog() {
         </Button>
       )}
       {error && (
-        <button type="button" className="eth-remote__error" role="alert" title={t("common.dismiss")} onClick={() => setError(null)}>
+        <DismissibleError className="eth-remote__error" onDismiss={() => setError(null)}>
           {error}
-        </button>
+        </DismissibleError>
       )}
       <UploadStatus />
       <Dialog

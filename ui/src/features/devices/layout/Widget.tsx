@@ -1,6 +1,6 @@
 /**
  * The widget dispatcher: one case per catalog entry (`ether_protocol::layout::Widget`,
- * append-only; a new widget = a BCR + a case here).
+ * append-only; a new widget = a protocol change + a case here).
  */
 
 import type { Widget, WidgetSize } from "@/generated";

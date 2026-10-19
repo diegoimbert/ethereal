@@ -1,7 +1,6 @@
 /**
  * WsTransport: the UI talking to a remote engine (`ether-server` or a desktop app) over a
- * WebSocket. Owned by the `remote-engine` node (see `crates/ether-protocol/src/remote.rs`
- * and docs/ROADMAP.md).
+ * WebSocket (see `crates/ether-protocol/src/remote.rs` and CONTRACTS.md §11.5).
  *
  * Protocol:
  * 1. Open `ws(s)://host:port/` (never put the token in the URL).

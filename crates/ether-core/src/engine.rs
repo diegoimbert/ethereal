@@ -351,7 +351,7 @@ pub struct Engine {
     /// "Listen on <peer>" tap ([`crate::stream_tap`], base-53): after master + metronome,
     /// before the preview voice.
     stream_tap: crate::stream_tap::StreamTap,
-    /// Parallel track processing ([`crate::parallel`], roadmap v2; `multicore` node).
+    /// Parallel track processing ([`crate::parallel`], roadmap v2; `multicore`).
     /// Sequential until a host injects one with [`Engine::set_executor`].
     executor: Box<dyn crate::parallel::ParallelExecutor>,
     pub(crate) warp: crate::warp::WarpRt,

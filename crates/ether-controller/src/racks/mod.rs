@@ -1,4 +1,4 @@
-//! Racks, macros and modulation (v0.2, owned by the `racks-modulation` node; model
+//! Racks, macros and modulation (v0.2, `racks-modulation`; model
 //! `ether_model::{rack, modulation}`, protocol `ether_protocol::racks`, CONTRACTS.md §12.6).
 //!
 //! - [`rack_command`], [`modulation_command`]: document commands (dispatched from

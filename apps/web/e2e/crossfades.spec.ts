@@ -1,4 +1,4 @@
-// Crossfades on the web build (`crossfades` node), through the UI against the real engine
+// Crossfades on the web build (`crossfades`), through the UI against the real engine
 // (WasmTransport → controller Worker → AudioWorklet): two audio clips back to back, drag the
 // first clip's fade-out handle across the boundary into the second → an equal-power
 // crossfade centred on the boundary (both clips extended into each other); one undo removes

@@ -1,4 +1,4 @@
-//! Audio to MIDI (v0.3, owned by the `audio-to-midi` node; protocol
+//! Audio to MIDI (v0.3, `audio-to-midi`; protocol
 //! `ether_protocol::audio_to_midi`, detection DSP in `ether_media::to_midi`; CONTRACTS.md
 //! §13.5).
 //!

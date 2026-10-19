@@ -1,4 +1,4 @@
-//! MIDI learn / controller mappings (`midi-learn` node): learn mode, `Map`/`Edit`/`Unmap`/
+//! MIDI learn / controller mappings (`midi-learn`): learn mode, `Map`/`Edit`/`Unmap`/
 //! `List`, every mapping mode driven by injected `MidiInputEvent`s, undo coalescing and
 //! persistence.
 

@@ -359,6 +359,12 @@ export function BeatGrid({ clip, rack }: { clip: Clip; rack: string }) {
     e.currentTarget.style.cursor = at ? "pointer" : "";
     scheduleDraw();
   };
+  /** A row's hit steps as text (1-based), for screen readers. */
+  const rowSteps = (note: number): string => {
+    const on: number[] = [];
+    for (let i = 0; i < steps; i++) if (hits.get(`${note}:${i}`)?.length) on.push(i + 1);
+    return t("piano_roll.beat.row_steps", { count: on.length, steps: on.join(", "), total: steps });
+  };
   const onCanvasLeave = () => {
     if (!hover.current) return;
     hover.current = null;
@@ -444,10 +450,12 @@ export function BeatGrid({ clip, rack }: { clip: Clip; rack: string }) {
             </div>
           </div>
           <div className="eth-beats__rows">
-            {/* Every step of every row: one canvas over the rows' step area. */}
+            {/* Every step of every row: one canvas over the rows' step area (pixels only: each
+                row's cell below says its steps as text). */}
             <canvas
               ref={canvasRef}
               className="eth-beats__canvas"
+              aria-hidden
               data-testid="beat-canvas"
               style={{ height: rows.length * rowH }}
               onPointerDown={onCanvasDown}
@@ -458,6 +466,7 @@ export function BeatGrid({ clip, rack }: { clip: Clip; rack: string }) {
             />
             {rows.map((r) => (
               <div key={r.note} className={clsx("eth-beats__row", r.stray && "eth-beats__row--stray")} role="row">
+                {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus -- a pointer shortcut to the drum rack pad (the drum rack opens from the device chain too) */}
                 <span
                   className={clsx("eth-beats__name", "eth-user-text", !r.stray && "eth-beats__name--pad")}
                   role="rowheader"
@@ -475,7 +484,10 @@ export function BeatGrid({ clip, rack }: { clip: Clip; rack: string }) {
                   {r.name}
                   {nameGrip}
                 </span>
-                <span className="eth-beats__cells" />
+                {/* The row's steps as text (the canvas draws them as pixels only). */}
+                <span className="eth-beats__cells" role="gridcell">
+                  <span className="eth-sr-only">{rowSteps(r.note)}</span>
+                </span>
               </div>
             ))}
           </div>

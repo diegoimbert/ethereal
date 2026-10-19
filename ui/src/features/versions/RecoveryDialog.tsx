@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Command, ProjectId, RecoveryInfo } from "@/generated";
 import { useProjectScreen } from "@/features/project/screenStore";
 import { useEngineCommands, useOptionalConnection } from "@/features/transport-bar/engine";
-import { Button, Dialog } from "@/kit";
+import { Button, Dialog, DismissibleError } from "@/kit";
 import { cmd } from "@/transport";
 import { formatExact, formatWhen } from "./format";
 import { previousSession } from "./session";
@@ -98,9 +98,9 @@ export function RecoveryDialog() {
         {anyWork ? t("versions.recovery.intro_work", { count: items.length }) : t("versions.recovery.intro_crash", { count: items.length })}
       </p>
       {error && (
-        <button type="button" className="eth-versions__error" role="alert" title={t("common.dismiss")} onClick={clearError}>
+        <DismissibleError className="eth-versions__error" onDismiss={clearError}>
           {error}
-        </button>
+        </DismissibleError>
       )}
       <ul className="eth-recovery__list" aria-label={t("versions.recovery.list")}>
         {items.map((item) => (

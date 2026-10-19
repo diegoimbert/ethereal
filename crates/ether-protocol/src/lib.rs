@@ -5,8 +5,8 @@
 //! - Document types (`Project`, entities, `Patch`) come from `ether-model` and are
 //!   re-exported as [`model`]; IDs as [`ids`].
 //!
-//! Commands are split per domain (one file each) so domain nodes rarely collide. The whole
-//! crate is a frozen contract: changes go through a BCR. TypeScript types are generated
+//! Commands are split per domain (one file each). The whole crate is the wire contract
+//! (docs/CONTRACTS.md): change it on purpose and keep old messages readable. TypeScript types are generated
 //! from here (`just gen-types` → `ui/src/generated/`), never hand-written.
 //!
 //! JSON conventions: field names are the Rust snake_case names; enums are tagged with

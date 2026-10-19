@@ -197,7 +197,9 @@ function LiveClip(p: LiveClipProps) {
         <span className="eth-clip__name">{t("recording.live_clip")}</span>
       </div>
       <div className="eth-clip__body" style={{ left: 0, width: "100%" }}>
-        <canvas ref={canvas} className="eth-clip__canvas eth-clip__canvas--live" />
+        {/* Hidden with the whole live clip: the record button's pressed state says a take is
+            recording, and the take becomes a listed clip (ClipSummary) once it lands. */}
+        <canvas ref={canvas} className="eth-clip__canvas eth-clip__canvas--live" aria-hidden />
       </div>
     </div>
   );

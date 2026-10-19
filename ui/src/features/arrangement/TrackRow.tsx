@@ -195,6 +195,7 @@ function TrackHeader({ row }: { row: Row }) {
           }}
         />
       )}
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- a pointer shortcut: the keyboard selects tracks with the command palette (go to track) */}
       <div
         className={clsx(
           "eth-arr-header",
@@ -293,6 +294,7 @@ function TrackHeader({ row }: { row: Row }) {
               {displayName}
             </span>
           )}
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- only keeps its events from reaching the track header around it */}
           <span className="eth-arr-header__buttons" onClick={stop}>
             {/* First: the takes button must not move the others (their positions are the same
             with or without take lanes). */}

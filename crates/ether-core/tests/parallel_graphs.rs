@@ -1,4 +1,4 @@
-//! Randomized projects for the multicore tests (`multicore` node): many tracks, nested
+//! Randomized projects for the multicore tests (`multicore`): many tracks, nested
 //! groups, returns with pre/post sends, sidechains, drum racks with choke groups, latent
 //! devices (PDC), audio clips (resampled, optionally Complex-warped = pinned to the audio
 //! thread), automation, mute/solo, a snapshot swap, live params and a locate.

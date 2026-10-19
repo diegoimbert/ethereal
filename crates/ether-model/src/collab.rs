@@ -1,5 +1,4 @@
-//! Collaboration envelope (RESERVED). Roadmap v2, refined by the `collab` node via BCR (see
-//! `docs/ROADMAP.md`).
+//! Collaboration envelope (reserved for the full product; not implemented in this repo).
 //!
 //! Only the identity/stamping shapes are frozen here so ops can be attributed once several
 //! replicas edit one document; the sync algorithm (Loro/Yrs, a relay, ...) lives in

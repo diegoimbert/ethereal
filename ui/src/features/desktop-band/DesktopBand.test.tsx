@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { DISCORD_INVITE_URL } from "@/features/community";
 import { t } from "@/i18n";
 import { BAND_TEXT, DesktopBandFrame, resetDesktopBandDismissal } from "./index";
 
@@ -47,6 +48,17 @@ describe("DesktopBand", () => {
     open();
     expect(openDeepLink).toHaveBeenCalledWith("ethereal://open");
     expect(screen.getByTestId("desktop-band")).toHaveTextContent(t(BAND_TEXT));
+  });
+
+  it("the discord link opens the invite in a new tab, beside open on desktop", () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    show();
+    const discord = screen.getByRole("button", { name: "discord" });
+    expect(screen.getByRole("button", { name: "open on desktop" }).nextElementSibling).toBe(discord);
+    fireEvent.click(discord);
+    expect(open).toHaveBeenCalledWith(DISCORD_INVITE_URL, "_blank", "noopener,noreferrer");
+    // The page stays where it is (the project isn't left).
+    expect(screen.getByTestId("app")).toBeInTheDocument();
   });
 
   it("close hides the band (the app stays mounted); a reload shows it again", () => {

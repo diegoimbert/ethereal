@@ -1,8 +1,9 @@
 // base-131: launch with no project open (the project screen first), "Reopen last project
 // on launch" (only after a clean close), and "open without plugins" (safe mode).
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Project } from "@/generated";
+import { DISCORD_INVITE_URL } from "@/features/community";
 import { resetStores } from "@/features/transport-bar/testUtils";
 import { useContextMenuStore } from "@/kit";
 import { useProjectStore } from "@/state";
@@ -84,6 +85,15 @@ describe("launch", () => {
     // The splash screen is text-only: the wordmark, no logo (the owner's call).
     expect(within(dialog).getByText("ethereal")).toBeInTheDocument();
     expect(within(dialog).queryByTestId("logo")).toBeNull();
+  });
+
+  it("the splash screen links to the discord (opened in the browser)", async () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    launchWith();
+    const dialog = await screen.findByRole("dialog", { name: "open project" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "join the ethereal discord" }));
+    expect(open).toHaveBeenCalledWith(DISCORD_INVITE_URL, "_blank", "noopener,noreferrer");
+    open.mockRestore();
   });
 
   it('keeps the arranger blank (no "Open a project") until launch has decided', async () => {

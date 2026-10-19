@@ -13,7 +13,7 @@ function Editor({ scope, onAction }: { scope: string; onAction(scope: string, id
     e.preventDefault();
     onAction(scope, id);
   };
-  return <div tabIndex={0} aria-label={scope} data-keymap-scope={scope} onKeyDown={onKeyDown} />;
+  return <div tabIndex={0} role="group" aria-label={scope} data-keymap-scope={scope} onKeyDown={onKeyDown} />;
 }
 
 let uninstall: () => void;

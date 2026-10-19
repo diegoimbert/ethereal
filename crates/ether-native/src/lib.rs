@@ -20,6 +20,7 @@
 
 use std::path::PathBuf;
 
+pub mod app_identity;
 pub mod audio;
 pub mod bridge;
 mod cpal_host;

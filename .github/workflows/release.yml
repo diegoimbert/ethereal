@@ -1,0 +1,549 @@
+# Release: build the full product's desktop app (macOS arm64 + x86_64, Linux x86_64, Windows
+# x86_64) and web bundle, then publish a GitHub Release here (VERSION, or the next patch after the
+# last release so a version is never published twice) and deploy the web app to Cloudflare Pages.
+# See docs/RELEASING.md.
+#
+# The full product: this repository at `ref` with the private `ee/` repository overlaid at the
+# commit `ref` points `ee` at (.github/actions/ee-overlay, ETHER_PRIVATE_TOKEN). As in full.yml,
+# nothing private reaches the public log or cache: the steps that compile it go through
+# scripts/ci/private-step.mjs (logs uploaded encrypted, `just full-logs <run-id>`), and no Rust
+# cache is saved.
+#
+# The build artifacts (installers, web bundle) are kept 7 days: on a public repository any
+# signed-in GitHub user can download them, so they are no more private than a release.
+#
+# Secrets: the signing keys and the Cloudflare token live in the protected `release` environment
+# (main only, required reviewer), used only by a dispatch on main that publishes. A dry run, or a
+# run on another branch, builds unsigned and publishes nothing.
+#
+# Runners: repository variables RELEASE_LINUX_RUNNER / RELEASE_MACOS_RUNNER /
+# RELEASE_WINDOWS_RUNNER (JSON), GitHub-hosted by default.
+name: Release
+
+on:
+  # Manual only: a push to `main` must not publish a release. See docs/RELEASING.md.
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish a GitHub Release (only honored on main)"
+        type: boolean
+        default: true
+      allow_partial:
+        description: "Publish even if some platforms failed (as a prerelease)"
+        type: boolean
+        default: false
+      ref:
+        description: "Ref of this repository to build (default: the dispatched branch)"
+        type: string
+        default: ""
+      dry_run:
+        description: "Dry run: build and assemble everything, but create, upload and deploy nothing (any branch)"
+        type: boolean
+        default: false
+
+# One release at a time per ref; never cancel a run that may be publishing.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: "0"
+  ETHER_AUDIO: "null"
+  NODE_VERSION: "24"
+  # The signed, publishing path: a dispatch on main that publishes and is not a dry run.
+  SIGNED: ${{ github.ref == 'refs/heads/main' && inputs.publish && !inputs.dry_run }}
+
+jobs:
+  prepare:
+    name: Version
+    runs-on: ${{ fromJSON(vars.RELEASE_LINUX_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 10
+    outputs:
+      sha: ${{ steps.ref.outputs.sha }}
+      ee_sha: ${{ steps.ref.outputs.ee_sha }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.ref || github.ref }}
+      - name: Commit and ee pointer
+        id: ref
+        run: |
+          ee="$(git ls-tree HEAD ee | awk '$2 == "commit" { print $3 }')"
+          [ -n "$ee" ] || { echo "::error::no ee pointer at this ref"; exit 1; }
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "ee_sha=$ee" >> "$GITHUB_OUTPUT"
+      - name: Case clashes (macOS/Windows file systems ignore case)
+        run: node scripts/check-case-clashes.mjs
+      - name: Version and tag
+        id: version
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error file=VERSION::VERSION must be X.Y.Z, got '$version'"
+            exit 1
+          fi
+          # Never publish the same version twice: VERSION wins if it is newer than every
+          # released vX.Y.Z; otherwise bump the patch of the highest released version.
+          base="$version"
+          latest="$(git ls-remote --tags origin 'refs/tags/v*' | awk '{print $2}' \
+            | sed -nE 's#^refs/tags/v([0-9]+\.[0-9]+\.[0-9]+)$#\1#p' \
+            | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)"
+          if [[ -n "$latest" ]]; then
+            newest="$(printf '%s\n%s\n' "$latest" "$base" | sort -t. -k1,1n -k2,2n -k3,3n | tail -1)"
+            if [[ "$newest" != "$base" || "$base" == "$latest" ]]; then
+              IFS=. read -r ma mi pa <<<"$latest"
+              version="$ma.$mi.$((pa + 1))"
+              echo "::notice::VERSION $base is not newer than released v$latest: publishing v$version"
+            fi
+          fi
+          {
+            echo "version=$version"
+            echo "tag=v$version"
+            echo "prerelease=false"
+          } >> "$GITHUB_OUTPUT"
+          echo "Release v$version (signed and published: $SIGNED)" >> "$GITHUB_STEP_SUMMARY"
+
+  desktop:
+    name: Desktop (${{ matrix.name }})
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macos-arm64
+            label: macOS (Apple Silicon)
+            os: macos
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+          - name: macos-x64
+            label: macOS (Intel)
+            os: macos
+            target: x86_64-apple-darwin
+            bundles: app,dmg
+          - name: linux-x64
+            label: Linux (x86_64)
+            os: linux
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage,deb
+          - name: windows-x64
+            label: Windows (x86_64)
+            os: windows
+            target: x86_64-pc-windows-msvc
+            bundles: msi,nsis
+    # Oldest supported Linux runner = widest glibc compatibility for the AppImage/.deb.
+    runs-on: >-
+      ${{ fromJSON(matrix.os == 'macos' && (vars.RELEASE_MACOS_RUNNER || '"macos-latest"')
+      || matrix.os == 'windows' && (vars.RELEASE_WINDOWS_RUNNER || '"windows-latest"')
+      || (vars.RELEASE_LINUX_RUNNER || '"ubuntu-22.04"')) }}
+    timeout-minutes: 120
+    # The signing secrets: only on the signed path (an empty name is no environment).
+    environment: ${{ github.ref == 'refs/heads/main' && inputs.publish && !inputs.dry_run && 'release' || '' }}
+    env:
+      # The computed release version (VERSION, or the next patch after the last release).
+      ETHER_RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: ./.github/actions/free-disk
+      - uses: ./.github/actions/ee-overlay
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
+          ee-ref: ${{ needs.prepare.outputs.ee_sha }}
+      - name: Windows aws-lc (prebuilt NASM objects; str0m's DTLS pulls aws-lc-sys)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "AWS_LC_SYS_PREBUILT_NASM=1" >> "$GITHUB_ENV"
+      - name: Linux system deps (Tauri, ALSA, AppImage)
+        if: runner.os == 'Linux' && runner.environment == 'github-hosted'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev \
+            librsvg2-dev libasound2-dev libssl-dev libxdo-dev pkg-config patchelf file > /dev/null
+      - name: Toolchain (from rust-toolchain.toml) + target
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          rustup show active-toolchain || rustup toolchain install
+          rustup target add "$TARGET"
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      # No package-manager cache: it would save the overlaid tree's store.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: install
+        shell: bash
+        run: node scripts/ci/private-step.mjs install -- pnpm install --frozen-lockfile
+
+      # --- Signing: only when the secrets exist; otherwise build unsigned. ---------------
+      - name: macOS signing environment
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          LABEL: ${{ matrix.label }}
+        run: |
+          # Tauri treats a set-but-empty APPLE_* variable as configured, so export only the
+          # ones that exist (a missing secret expands to an empty string).
+          export_var() { { echo "$1<<__EOF_$1__"; printf '%s\n' "${!1}"; echo "__EOF_$1__"; } >> "$GITHUB_ENV"; }
+          status="unsigned (ad-hoc signature, not notarized)"
+          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_CERTIFICATE_PASSWORD" ] && [ -n "$APPLE_SIGNING_IDENTITY" ]; then
+            # Import the certificate into a temporary keychain on the search list ourselves
+            # (instead of letting Tauri do it from APPLE_CERTIFICATE during bundling): the
+            # sandbox helper is signed earlier, in beforeBuildCommand.
+            keychain="$RUNNER_TEMP/ethereal-signing.keychain-db"
+            kpw="$(openssl rand -hex 24)"
+            p12="$RUNNER_TEMP/ethereal-signing.p12"
+            security create-keychain -p "$kpw" "$keychain"
+            security set-keychain-settings -lut 21600 "$keychain"
+            security unlock-keychain -p "$kpw" "$keychain"
+            printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$p12"
+            security import "$p12" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain" > /dev/null
+            rm -f "$p12"
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$kpw" "$keychain" >/dev/null
+            # shellcheck disable=SC2046
+            security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+            export_var APPLE_SIGNING_IDENTITY
+            status="signed, not notarized"
+            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_PASSWORD" ] && [ -n "$APPLE_TEAM_ID" ]; then
+              export_var APPLE_ID; export_var APPLE_PASSWORD; export_var APPLE_TEAM_ID
+              status="signed and notarized"
+            fi
+          fi
+          echo "SIGNING_STATUS=$status" >> "$GITHUB_ENV"
+          echo "::notice::$LABEL: $status"
+      - name: Windows signing certificate
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
+          LABEL: ${{ matrix.label }}
+        run: |
+          $status = "unsigned"
+          if ($env:WINDOWS_CERTIFICATE) {
+            $pfx = Join-Path $env:RUNNER_TEMP "ethereal-signing.pfx"
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+            $pw = ConvertTo-SecureString -String "$env:WINDOWS_CERTIFICATE_PASSWORD" -AsPlainText -Force
+            $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $pw
+            Remove-Item $pfx
+            Add-Content -Path $env:GITHUB_ENV -Value "WINDOWS_CERTIFICATE_THUMBPRINT=$($cert.Thumbprint)"
+            if ($env:WINDOWS_TIMESTAMP_URL) { Add-Content -Path $env:GITHUB_ENV -Value "WINDOWS_TIMESTAMP_URL=$env:WINDOWS_TIMESTAMP_URL" }
+            $status = "signed"
+          }
+          Add-Content -Path $env:GITHUB_ENV -Value "SIGNING_STATUS=$status"
+          Write-Output "::notice::$($env:LABEL): $status"
+      - name: Linux signing status
+        if: runner.os == 'Linux'
+        shell: bash
+        run: echo "SIGNING_STATUS=unsigned (checksums only)" >> "$GITHUB_ENV"
+      - name: Updater signing key (auto-update)
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          LABEL: ${{ matrix.label }}
+        run: |
+          # With the key, Tauri also builds and signs the updater bundles (tauri-config.mjs sets
+          # bundle.createUpdaterArtifacts) and the publish job writes latest.json. Without it
+          # the build is exactly as before: no updater artifacts, and never a failure.
+          export_var() { { echo "$1<<__EOF_$1__"; printf '%s\n' "${!1}"; echo "__EOF_$1__"; } >> "$GITHUB_ENV"; }
+          if [ -n "$TAURI_SIGNING_PRIVATE_KEY" ] && [ -n "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" ]; then
+            export_var TAURI_SIGNING_PRIVATE_KEY
+            export_var TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+            echo "::notice::$LABEL: updater bundles will be signed"
+          else
+            echo "::notice::$LABEL: no updater signing key; no auto-update bundles for this build"
+          fi
+
+      # --- Build ---------------------------------------------------------------------------
+      - name: Release config overlay (version, signing)
+        shell: bash
+        run: node scripts/release/tauri-config.mjs "$RUNNER_TEMP/tauri.release.json"
+      - name: tauri build
+        shell: bash
+        working-directory: apps/desktop
+        # The helpers (plugin scanner, sandbox helper on macOS/Linux) and the MCP server are
+        # built and staged by tauri.conf.json's beforeBuildCommand and installed next to the app
+        # binary; collect.mjs checks they are in the .app and the .deb. `--features full`: every
+        # Cargo feature (docs/ARCHITECTURE.md "Cargo features").
+        env:
+          TARGET: ${{ matrix.target }}
+          BUNDLES: ${{ matrix.bundles }}
+        run: >-
+          node ../../scripts/ci/private-step.mjs tauri-build --
+          pnpm tauri build --ci --features full --target "$TARGET" --bundles "$BUNDLES"
+          --config "$RUNNER_TEMP/tauri.release.json"
+      - name: Collect installers
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          NAME: ${{ matrix.name }}
+          LABEL: ${{ matrix.label }}
+        run: |
+          node scripts/release/collect.mjs desktop "$TARGET" "$RUNNER_TEMP/out"
+          mkdir -p "$RUNNER_TEMP/meta"
+          echo "$LABEL: $SIGNING_STATUS" > "$RUNNER_TEMP/meta/$NAME.txt"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: desktop-${{ matrix.name }}
+          path: ${{ runner.temp }}/out/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: meta-${{ matrix.name }}
+          path: ${{ runner.temp }}/meta/*
+      - uses: ./.github/actions/full-logs
+        if: always()
+        with:
+          name: full-logs-desktop-${{ matrix.name }}
+
+  web:
+    name: Web bundle
+    needs: prepare
+    runs-on: ${{ fromJSON(vars.RELEASE_LINUX_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: ./.github/actions/ee-overlay
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
+          ee-ref: ${{ needs.prepare.outputs.ee_sha }}
+      # Shared with deploy-dev.yml (dev.ethereal.ws).
+      - name: Build + Pages site
+        uses: ./.github/actions/web-build
+        with:
+          out: ${{ runner.temp }}/pages
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Zip
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: node scripts/release/collect.mjs web "$VERSION" "$RUNNER_TEMP/out"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web-site
+          path: ${{ runner.temp }}/pages
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: web
+          path: ${{ runner.temp }}/out/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - uses: ./.github/actions/full-logs
+        if: always()
+        with:
+          name: full-logs-web
+
+  pages:
+    name: Deploy web app to Cloudflare Pages
+    needs: [prepare, web]
+    # Only a publishing dispatch on main. Skipped, not failed, when the Cloudflare secrets are not
+    # configured.
+    if: needs.web.result == 'success' && github.ref == 'refs/heads/main' && inputs.publish && !inputs.dry_run
+    runs-on: ${{ fromJSON(vars.RELEASE_LINUX_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 20
+    environment:
+      name: release
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT || 'ethereal' }}
+      WRANGLER_VERSION: "4.142.0"
+    steps:
+      - name: Check secrets
+        id: check
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::warning::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID not set in the release environment; skipping the Pages deploy"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.check.outputs.skip != 'true'
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.check.outputs.skip != 'true'
+        with:
+          name: web-site
+          path: pages
+      - name: Create the Pages project if missing
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          npx --yes "wrangler@$WRANGLER_VERSION" pages project list | grep -qw "$PAGES_PROJECT" \
+            || npx --yes "wrangler@$WRANGLER_VERSION" pages project create "$PAGES_PROJECT" --production-branch main
+      - name: Deploy
+        id: deploy
+        if: steps.check.outputs.skip != 'true'
+        env:
+          SHA: ${{ needs.prepare.outputs.sha }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          # From `pages/`, so wrangler also bundles `pages/functions` (the /signal route).
+          cd pages
+          out="$(npx --yes "wrangler@$WRANGLER_VERSION" pages deploy site \
+            --project-name "$PAGES_PROJECT" --branch main \
+            --commit-hash "$SHA" --commit-message "v$VERSION" 2>&1)"
+          echo "$out"
+          url="$(echo "$out" | grep -Eo 'https://[a-zA-Z0-9.-]+\.pages\.dev' | tail -1)"
+          echo "url=${url:-https://$PAGES_PROJECT.pages.dev}" >> "$GITHUB_OUTPUT"
+          echo "Web app deployed: ${url:-https://$PAGES_PROJECT.pages.dev}" >> "$GITHUB_STEP_SUMMARY"
+
+  publish:
+    name: Publish GitHub Release
+    needs: [prepare, desktop, web]
+    # Only main publishes, unless `publish` is off. Failed platforms block publishing unless the
+    # dispatch sets `allow_partial`. A `dry_run` dispatch runs this job on any branch but only
+    # prints the writes (see DRY_RUN below).
+    if: >-
+      always() && needs.prepare.result == 'success'
+      && ((github.ref == 'refs/heads/main' && inputs.publish) || inputs.dry_run)
+      && ((needs.desktop.result == 'success' && needs.web.result == 'success') || inputs.allow_partial)
+    runs-on: ${{ fromJSON(vars.RELEASE_LINUX_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 30
+    environment: ${{ github.ref == 'refs/heads/main' && inputs.publish && !inputs.dry_run && 'release' || '' }}
+    permissions:
+      contents: write
+    env:
+      # "true" on a dry-run dispatch: every write (release create/upload) is printed, not run.
+      DRY_RUN: ${{ inputs.dry_run == true }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.prepare.outputs.sha }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: ${{ runner.temp }}/artifacts
+          pattern: "{desktop-*,meta-*,web}"
+      - name: Assemble assets, checksums and notes
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          DESKTOP_RESULT: ${{ needs.desktop.result }}
+          WEB_RESULT: ${{ needs.web.result }}
+        run: |
+          a="$RUNNER_TEMP/artifacts"
+          assets="$RUNNER_TEMP/assets"
+          mkdir -p "$assets"
+          find "$a" -type f -path "$a/desktop-*/*" -exec cp {} "$assets/" \;
+          find "$a" -type f -path "$a/web/*" -exec cp {} "$assets/" \;
+          (cd "$assets" && sha256sum -- * > SHA256SUMS.txt)
+          notes="$RUNNER_TEMP/notes.md"
+          {
+            echo "## Ethereal $TAG"
+            echo
+            # Hand-written notes for this version (docs/RELEASING.md "Release notes"), if any.
+            if [ -f "docs/release-notes/$VERSION.md" ]; then
+              cat "docs/release-notes/$VERSION.md"
+              echo
+            fi
+            echo "### Downloads"
+            echo "- **macOS**: \`*_aarch64.dmg\` (Apple Silicon), \`*_x64.dmg\` (Intel). \`.app.zip\` is the same app, zipped."
+            echo "- **Linux**: \`*.AppImage\` (any x86_64 distro) or \`*.deb\` (Debian/Ubuntu)."
+            echo "- **Windows**: \`*-setup.exe\` (NSIS) or \`*.msi\`. Sandboxed plugins are not supported on Windows yet."
+            echo "- **Web**: \`*_web.zip\`, a static site; it needs COOP/COEP headers (see \`DEPLOY.txt\` inside)."
+            echo "- \`SHA256SUMS.txt\`: \`sha256sum -c SHA256SUMS.txt\`."
+            if ls "$assets"/*.sig >/dev/null 2>&1; then
+              echo "- \`*.app.tar.gz\`, \`*.sig\`, \`latest.json\`: used by the app's built-in updater (no need to download them)."
+            fi
+            echo
+            echo "### Code signing"
+            for f in "$a"/meta-*/*.txt; do [ -f "$f" ] && echo "- $(cat "$f")"; done
+            if grep -qh unsigned "$a"/meta-*/*.txt 2>/dev/null; then
+              echo
+              echo "Unsigned builds trigger OS warnings. macOS: right-click the app → Open, or run \`xattr -dr com.apple.quarantine /Applications/Ethereal.app\`. Windows: SmartScreen → More info → Run anyway."
+            fi
+            if [ "$DESKTOP_RESULT" != success ] || [ "$WEB_RESULT" != success ]; then
+              echo
+              echo "> **Partial release**: some platforms failed to build (desktop: $DESKTOP_RESULT, web: $WEB_RESULT); their files are missing."
+            fi
+            echo
+          } > "$notes"
+          ls -la "$assets"
+          cat "$notes" >> "$GITHUB_STEP_SUMMARY"
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+          PARTIAL: ${{ needs.desktop.result != 'success' || needs.web.result != 'success' }}
+        run: |
+          flags=()
+          if [ "$PRERELEASE" = true ] || [ "$PARTIAL" = true ]; then flags+=(--prerelease); else flags+=(--latest); fi
+          if [ "$DRY_RUN" = true ]; then
+            echo "::notice::dry run: would create $TAG at $SHA (${flags[*]}) with $(find "$RUNNER_TEMP/assets" -type f | wc -l) assets"
+            exit 0
+          fi
+          # Re-running a failed publish job keeps the release and replaces its files.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$RUNNER_TEMP"/assets/* --clobber
+            exit 0
+          fi
+          # --generate-notes appends GitHub's changelog (PRs since the previous release).
+          gh release create "$TAG" "$RUNNER_TEMP"/assets/* \
+            --target "$SHA" \
+            --title "Ethereal $TAG" \
+            --notes-file "$RUNNER_TEMP/notes.md" \
+            --generate-notes \
+            "${flags[@]}"
+      - name: Updater manifest (latest.json)
+        # auto-update (docs/RELEASING.md "Auto-update"): from the signed updater bundles and the
+        # published release notes. Skipped with a notice when the bundles aren't signed; never
+        # fails the release.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          if ! ls "$RUNNER_TEMP"/assets/*.sig >/dev/null 2>&1; then
+            echo "::notice::No signed updater bundles (no TAURI_SIGNING_PRIVATE_KEY): no latest.json, the apps won't offer this release as an update"
+            exit 0
+          fi
+          if [ "$DRY_RUN" = true ]; then
+            cp "$RUNNER_TEMP/notes.md" "$RUNNER_TEMP/release-body.md"
+          else
+            gh release view "$TAG" --json body --jq .body > "$RUNNER_TEMP/release-body.md" || true
+          fi
+          node scripts/release/updater-manifest.mjs \
+            --assets "$RUNNER_TEMP/assets" --version "$VERSION" --tag "$TAG" --repo "$GH_REPO" \
+            --notes-file "$RUNNER_TEMP/release-body.md" --out "$RUNNER_TEMP/latest.json"
+          if [ -f "$RUNNER_TEMP/latest.json" ]; then
+            if [ "$DRY_RUN" = true ]; then
+              echo "::notice::dry run: would upload latest.json to $TAG"
+              cat "$RUNNER_TEMP/latest.json"
+            else
+              gh release upload "$TAG" "$RUNNER_TEMP/latest.json" --clobber
+              echo "Updater manifest: latest.json uploaded" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          fi

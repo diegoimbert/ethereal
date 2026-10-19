@@ -1119,3 +1119,18 @@
   width: auto;
   height: var(--eth-size-icon-inline);
 }
+
+/* DismissibleError's alert wrapper: no box of its own. */
+.eth-alert {
+  display: contents;
+}
+
+/* Text for screen readers only (what a canvas draws, as text). */
+.eth-sr-only {
+  position: absolute;
+  width: var(--eth-border-width);
+  height: var(--eth-border-width);
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

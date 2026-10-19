@@ -33,6 +33,7 @@ import { ArrangerRenderer } from "./renderer";
 import { reportWebglFailure, reportWebglLoss, WEBGL_RESTORE_TIMEOUT_MS, type BackendKind } from "./backendChoice";
 import type { Hover, SceneInput } from "./scene";
 import { setGlRenderer } from "./active";
+import { ClipSummary } from "./ClipSummary";
 import { mountOverlayLayers } from "./layers/overlays";
 import { size, space } from "@/theme";
 import { t as tr, useT } from "@/i18n";
@@ -322,9 +323,11 @@ export function GlClipLayer({ ctx, scrollRef, backend }: GlClipLayerProps) {
 
   return (
     <div className="eth-arr-gl" style={{ left: headerWidth - bleedOf(backend, headerWidth) }} data-testid="arranger-gl" data-backend={backend}>
+      {/* Pixels only: the clips are in ClipSummary, as text. */}
       <canvas ref={canvasRef} className="eth-arr-gl__canvas" aria-hidden />
       {renderer && <RenameOverlay renderer={renderer} ctx={ctx} />}
       {renderer && <ClipStatusOverlay renderer={renderer} ctx={ctx} />}
+      {renderer && <ClipSummary />}
       {renderer && <SelectionAnnouncer />}
     </div>
   );

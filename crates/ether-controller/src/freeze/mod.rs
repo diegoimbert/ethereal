@@ -1,4 +1,4 @@
-//! Freeze, flatten, bounce in place, consolidate (v0.2, owned by the `freeze-bounce` node;
+//! Freeze, flatten, bounce in place, consolidate (v0.2, `freeze-bounce`;
 //! protocol `ether_protocol::freeze`, model `Track::freeze`, CONTRACTS.md §12.3).
 //!
 //! - [`EtherController::freeze_command`] (dispatched from `handlers.rs`): render jobs

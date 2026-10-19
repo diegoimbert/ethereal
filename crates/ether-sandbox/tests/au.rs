@@ -1,5 +1,4 @@
 //! Sandboxed AU hosting (`ether-sandbox-helper --format au`) against Apple's built-in units.
-//! Owned by the `au` node.
 #![cfg(target_os = "macos")]
 
 use std::path::{Path, PathBuf};

@@ -107,6 +107,7 @@ function KeyboardMidiSettings() {
           {whites.map((n) => {
             const played = n >= base && n <= base + SPAN;
             return (
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- a pointer shortcut in an aria-hidden strip (the octave buttons are the keyboard way)
               <span
                 key={n}
                 className="eth-kbmidi-pop__white"
@@ -126,6 +127,7 @@ function KeyboardMidiSettings() {
               // Centered on the line between its two white neighbours.
               const left = (whites.findIndex((w) => w > n) / whites.length) * 100;
               return (
+                // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- a pointer shortcut in an aria-hidden strip (the octave buttons are the keyboard way)
                 <span
                   key={n}
                   className="eth-kbmidi-pop__black"

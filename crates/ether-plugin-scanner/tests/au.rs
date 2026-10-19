@@ -1,5 +1,5 @@
 //! Out-of-process AU scanning through the real scanner binary, against Apple's built-in
-//! units (present on every Mac). Owned by the `au` node.
+//! units (present on every Mac).
 #![cfg(target_os = "macos")]
 
 use std::path::{Path, PathBuf};

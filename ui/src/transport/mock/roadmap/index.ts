@@ -14,7 +14,7 @@
  * | `export.ts`     | export          | `Export::*` (`MockExports`)                       |
  * | `remote.ts`     | remote-engine   | uploads (simulated)                               |
  *
- * v0.2 (contracts-3, docs/ROADMAP.md "v0.2"):
+ * v0.2 (contracts-3, CONTRACTS.md §12):
  *
  * | file                 | node              | commands                                  |
  * |----------------------|-------------------|-------------------------------------------|
@@ -28,7 +28,7 @@
  * | `mediaReferences.ts` | media-references  | `MediaRef::*`                             |
  * | `groupsBuses.ts`     | groups-buses      | `Track::{GroupSelected, Ungroup, SetVca}` |
  *
- * v0.3 (contracts-4, docs/ROADMAP.md "v0.3"):
+ * v0.3 (contracts-4, CONTRACTS.md §13):
  *
  * | file             | node                | commands                                              |
  * |------------------|---------------------|-------------------------------------------------------|

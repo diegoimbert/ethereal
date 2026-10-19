@@ -1,5 +1,4 @@
-//! v0.2 devices owned by the `fx-analysis` node (contracts-3 froze the param tables; see
-//! docs/ROADMAP.md "v0.2" and the device agent guide there).
+//! v0.2 analysis devices (contracts-3 froze the param tables; see docs/DEVICES.md).
 //!
 //! Analysis devices (audio passes through untouched): spectrum analyzer and tuner. They publish `AnalysisKind::{Spectrum, Tuner}` frames through `Node::{has_analysis, analysis}` (`ether_core::analysis`).
 //!

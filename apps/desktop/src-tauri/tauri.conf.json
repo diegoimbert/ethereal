@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Ethereal",
   "version": "0.0.1",
-  "identifier": "dev.ethereal.app",
+  "identifier": "ws.ethereal.daw",
   "build": {
     "frontendDist": "../../../ui/dist",
     "beforeDevCommand": "",
@@ -31,7 +31,7 @@
         "media-src": "'self' blob:",
         "worker-src": "'self'",
         "connect-src": "'self' ipc: http://ipc.localhost https: wss: http: ws:",
-        "frame-src": "https://ethereal-news.diegoimbert.workers.dev",
+        "frame-src": "https://news.ethereal.ws",
         "object-src": "'none'",
         "base-uri": "'self'",
         "form-action": "'self'"

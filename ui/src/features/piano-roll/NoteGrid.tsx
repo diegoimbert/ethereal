@@ -87,6 +87,7 @@ import {
   type PianoRollSection,
 } from "./section";
 import { outsideBands, type GhostNote } from "./multiClip";
+import { NoteSummary } from "./NoteSummary";
 import { playPreview, stopPreview } from "./notePreview";
 import type { RollSpace } from "./rollSpace";
 
@@ -712,6 +713,7 @@ export function NoteGrid({
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
     >
+      {/* Decorative: the key rows and grid lines behind the notes. */}
       <canvas ref={rowsCanvasRef} className="eth-pr-grid__canvas" data-testid="piano-roll-rows-canvas" aria-hidden />
       {outside.map((o, i) => {
         const x0 = Math.max(0, beatsToPx(o.start, vp));
@@ -755,7 +757,9 @@ export function NoteGrid({
         )
       )}
       <NotePitchCurves notes={visible} vp={vp} keyH={keyH} rowY={(p) => pitchToY(p, keyH, rows)} widthPx={widthPx} height={height} />
+      {/* Pixels only: the notes are in NoteSummary, as text. */}
       <canvas ref={notesCanvasRef} className="eth-pr-grid__canvas eth-pr-grid__canvas--notes" data-testid="piano-roll-notes-canvas" aria-hidden />
+      <NoteSummary notes={notes} tempo={tempo} />
       {velocityNote && <VelocityBadge note={notes.find((n) => n.id === velocityNote)} vp={vp} keyH={keyH} rows={rows} />}
       {marquee.rect && (
         <div

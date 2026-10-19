@@ -4,6 +4,7 @@ export { cmd, type CommandDomain, type DomainCommand } from "./cmd";
 export { TransportContext, useConnectionStatus, useTransport, useTransportEvent, type ConnectionStatus, type TransportContextValue } from "./context";
 export { createDefaultTransport, isTauri } from "./createDefaultTransport";
 export { CommandFailedError, commandErrorText, Emitter, isCommandFailed, type EngineTransport, type SendOptions, type Unsubscribe } from "./EngineTransport";
+export { openExternal } from "./external";
 export { deriveId, newId, newProjectId, nextGestureId, uuidv7 } from "./ids";
 export { BUILTIN_DESCRIPTORS, builtinDescriptor, clampParam } from "./mock/builtinDevices";
 export { createDemoProject, createDemoProjects, createEmptyProject } from "./mock/demoProject";

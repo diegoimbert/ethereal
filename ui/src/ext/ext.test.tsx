@@ -137,7 +137,7 @@ describe("shell points", () => {
 
 describe("settings", () => {
   it("a contributed tab (with or without an engine) and sections of the app's tabs", async () => {
-    contribute("settings.tab", { id: "privacy", label: () => "privacy", noEngine: true, Component: () => <p>privacy body</p> });
+    contribute("settings.tab", { id: "sync", label: () => "sync", noEngine: true, Component: () => <p>sync body</p> });
     contribute("settings.section", { tab: "general", noEngine: true, Component: () => <p>general extra</p> });
     render(<AudioSettingsDialog />);
     act(() => openSettings("general"));
@@ -146,9 +146,9 @@ describe("settings", () => {
     const tabs = within(dialog)
       .getAllByRole("tab")
       .map((t) => t.textContent);
-    expect(tabs.indexOf("privacy")).toBe(tabs.indexOf("advanced") - 1);
-    fireEvent.click(within(dialog).getByRole("tab", { name: "privacy" }));
-    expect(within(dialog).getByText("privacy body")).toBeInTheDocument();
+    expect(tabs.indexOf("sync")).toBe(tabs.indexOf("advanced") - 1);
+    fireEvent.click(within(dialog).getByRole("tab", { name: "sync" }));
+    expect(within(dialog).getByText("sync body")).toBeInTheDocument();
     expect(within(dialog).queryByText("no engine connected.")).toBeNull();
   });
 });
