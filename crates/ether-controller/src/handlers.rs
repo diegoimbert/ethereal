@@ -214,8 +214,6 @@ where
     ) -> CmdResult<ReplyValue> {
         let current = self.doc.as_ref().map(|d| d.project.id);
         let command = &msg.command;
-        // `agent-api`: remember what the agent tools report (the UI's selection).
-        self.agent_observe(command);
         // base-53: while listening on a peer, transport commands go to the host and
         // recording is refused (loop changes are document commands: intercept first).
         if let Some(r) = self.collab_transport_intercept(command, out) {
@@ -286,12 +284,6 @@ where
             // Roadmap v2 (non-document parts; document parts go through `doc::apply`).
             Command::Export(c) => self.export_command(c, out),
             Command::MidiMap(c) => self.midi_map_command(c, out),
-            // Collaboration is private (the overlay). `SetPresence` is a local selection
-            // notification the agent tools read (`agent_observe`); keep it a no-op.
-            Command::Collab(ether_core::protocol::collab::CollabCommand::SetPresence {
-                ..
-            }) => Ok(ReplyValue::Unit),
-            Command::Collab(_) => Err(unsupported("collaboration is not available in this build")),
             // v0.2 (contracts-3; document parts of `Take`, `Rack`, `Modulation` and the new
             // `Track` commands go through `doc::apply`).
             Command::Freeze(c) => self.freeze_command(c, now, out),
@@ -305,7 +297,6 @@ where
             ) => Ok(ReplyValue::ModulatorKinds {
                 kinds: ether_devices::modulators::all(),
             }),
-            Command::Chat(_) => Err(unsupported("chat is not available in this build")),
             // v0.3 (contracts-4; document parts of `Expression`, `External` and `Template`
             // go through `doc::apply`).
             Command::Capture(c) => self.capture_command(c, now, out),
@@ -321,14 +312,17 @@ where
                 crate::text::set_names_language(language);
                 Ok(ReplyValue::Unit)
             }
-            // base-115 (docs/SHARING.md) is private (the overlay).
-            Command::Share(_) => Err(unsupported("sharing is not available in this build")),
             // `agent-api`: LLM tools (each edit tool call is one undo step).
             Command::Agent(c) => self.agent_command(c, now, out),
             // `import-resolver`: missing plugins and audio files (`Apply` is one undo step).
             Command::Resolve(c) => self.resolve_command(c, now, out),
             // #519: the default sample pack.
             Command::Samples(c) => self.samples_command(c, out),
+            // A domain this build doesn't have (an extension's, `ether_protocol::ext`).
+            Command::Ext(c) => Err(unsupported(format!(
+                "{} commands are not available in this build",
+                c.domain
+            ))),
             other => Err(internal(format!(
                 "unhandled command {}",
                 doc::label_of(other, None)
@@ -1499,32 +1493,11 @@ where
         Ok(())
     }
 
-    /// Emit `CollabEvent::Engine` when it changed (`force`: always, on `Get`). The status is
-    /// part of the kept protocol even without the remote-engine choice: report the local
-    /// engine (always Mine here, unless the overlay turned it off).
+    /// Report the local engine's status (`force`: even unchanged). Which engine plays is an
+    /// extension's choice (remote and dedicated engines); this build has only its own, so
+    /// there is nothing to report.
     pub(crate) fn engine_emit_status(&mut self, force: bool, out: &mut dyn MessageSink) {
-        use ether_core::protocol::collab::{CollabEvent, LocalEngine, LocalEngineStatus};
-        let status = LocalEngineStatus {
-            local: if self.engine.off {
-                LocalEngine::None
-            } else {
-                LocalEngine::Mine
-            },
-            error: self.engine.switch_error.clone(),
-            // Dedicated remote engines are private; none exist here.
-            dedicated: None,
-        };
-        let last = self.engine.emitted_status.clone().unwrap_or_default();
-        if !force && last == status {
-            return;
-        }
-        self.engine.emitted_status = Some(status.clone());
-        event(
-            out,
-            Event::Collab {
-                event: CollabEvent::Engine { status },
-            },
-        );
+        let _ = (force, out);
     }
 
     /// A project is about to load: clear any stale local-engine-off state so it opens with

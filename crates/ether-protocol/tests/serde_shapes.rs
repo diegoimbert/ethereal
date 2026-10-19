@@ -220,7 +220,7 @@ fn project_store_and_browser_shapes() {
             id: pid,
             name: "Song".into(),
             modified_ms: 1.0,
-            share: None,
+            ext: None,
         }],
     });
     let json = roundtrip(&Command::Media(MediaCommand::Import {
@@ -235,4 +235,51 @@ fn project_store_and_browser_shapes() {
         location: BrowseLocation::ProjectMedia,
         path: String::new(),
     });
+}
+
+#[test]
+fn extension_domains_roundtrip() {
+    use ether_protocol::ext::{ExtCommand, ExtValue};
+    // A domain the app doesn't declare: kept as JSON, written back as it came.
+    let wire = json!({ "domain": "Jam", "command": { "type": "Start", "room": "r1" } });
+    let cmd: Command = serde_json::from_value(wire.clone()).unwrap();
+    let Command::Ext(ext) = &cmd else {
+        panic!("not an extension command: {cmd:?}")
+    };
+    assert_eq!(ext.domain, "Jam");
+    assert_eq!(serde_json::to_value(&cmd).unwrap(), wire);
+    // The app's own domains still parse as theirs.
+    let own: Command =
+        serde_json::from_value(json!({ "domain": "Transport", "command": { "type": "Play" } }))
+            .unwrap();
+    assert_eq!(own, Command::Transport(TransportCommand::Play));
+
+    // The extension's own types.
+    #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq)]
+    #[serde(tag = "domain", content = "command")]
+    enum Jam {
+        Jam(JamCommand),
+    }
+    #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq)]
+    #[serde(tag = "type")]
+    enum JamCommand {
+        Start { room: String },
+    }
+    let start = Jam::Jam(JamCommand::Start { room: "r1".into() });
+    assert_eq!(ext.parse::<Jam>().unwrap(), start);
+    assert_eq!(&ExtCommand::of(&start).unwrap(), ext);
+
+    // Events and reply values of other types.
+    let ev = json!({ "type": "Jam", "event": { "type": "Started" } });
+    let event: Event = serde_json::from_value(ev.clone()).unwrap();
+    assert!(matches!(&event, Event::Ext(v) if v.kind() == Some("Jam")));
+    assert_eq!(serde_json::to_value(&event).unwrap(), ev);
+    let rv = json!({ "type": "JamRoom", "room": "r1" });
+    let value: ReplyValue = serde_json::from_value(rv.clone()).unwrap();
+    assert_eq!(value, ReplyValue::Ext(ExtValue(rv.clone())));
+    assert_eq!(serde_json::to_value(&value).unwrap(), rv);
+    assert_eq!(
+        serde_json::from_value::<ReplyValue>(json!({ "type": "Unit" })).unwrap(),
+        ReplyValue::Unit
+    );
 }

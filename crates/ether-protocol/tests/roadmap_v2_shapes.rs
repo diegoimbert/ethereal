@@ -2,7 +2,6 @@
 //! every new internally-tagged enum that wraps data.
 
 use ether_protocol::clips::ClipCommand;
-use ether_protocol::collab::{CollabMessage, PresenceState};
 use ether_protocol::drum_rack::{AutoSlice, SliceCommand};
 use ether_protocol::export::*;
 use ether_protocol::midi_map::{MidiInputEvent, MidiMapCommand, MidiMapEvent};
@@ -150,7 +149,7 @@ fn tempo_midi_slice_clip_shapes() {
 }
 
 #[test]
-fn remote_and_collab_shapes() {
+fn remote_shapes() {
     let hello = ClientHello {
         protocol_version: remote::PROTOCOL_VERSION,
         token: Some("s3cret".into()),
@@ -169,9 +168,8 @@ fn remote_and_collab_shapes() {
     );
 
     // SiteId is a decimal string (u64 does not fit a JS number).
-    let msg = CollabMessage::Leave {
-        site: SiteId(u64::MAX),
-    };
-    assert_eq!(roundtrip(&msg)["site"], "18446744073709551615");
-    roundtrip(&PresenceState::default());
+    assert_eq!(
+        serde_json::to_value(SiteId(u64::MAX)).unwrap(),
+        "18446744073709551615"
+    );
 }
