@@ -104,8 +104,9 @@ All CI runs in this repository, on GitHub-hosted runners; the private repository
   - No private build output in the Actions cache (a fork's PR can restore caches made on
     `main`): the web jobs restore `ci.yml`'s OSS-only caches; the Rust jobs cache only the
     third-party dependencies, built by cargo-chef (`.github/actions/chef-cache`: cook's stubs of
-    the workspace crates are removed and checked for before the save; key = recipe, toolchain,
-    profile, OS; only `main` saves).
+    the workspace crates are removed and checked for before the save; key = toolchain, profile,
+    flags, OS, then the recipe, with a fallback to the newest cache of the same settings; only
+    `main` saves).
   - Runners: repository variables `FULL_RUNNER`, `FULL_MACOS_RUNNER`, `FULL_WINDOWS_RUNNER`,
     `SYNC_RUNNER` (JSON labels), GitHub-hosted by default.
 - **Sync** (`.github/workflows/ee-sync.yml`, every 10 minutes and on demand, plus `feat push`/
