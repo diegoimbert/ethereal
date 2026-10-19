@@ -6,6 +6,7 @@ import { usePluginEvents, usePluginStore, useScannedPlugins } from "@/features/p
 import { useProjectStore } from "@/state";
 import { cmd, useTransport, type EngineTransport } from "@/transport";
 import { useDeviceWindows } from "./store";
+import { useT } from "@/i18n";
 import { isChainRack } from "@/features/racks/model";
 
 export interface DeviceWindowControl {
@@ -42,6 +43,7 @@ export function hasWindow(device: Pick<Device, "kind">): boolean {
  * (`Plugin::OpenEditor` / `CloseEditor`), or a built-in device's floating window.
  */
 export function useDeviceWindow(device: Device): DeviceWindowControl {
+  const t = useT();
   const transport = useTransport();
   const plugin = device.kind.type === "Plugin" ? device.kind.plugin : null;
   // The plugin's window closing by itself (`EditorClosed`) or crashing reaches the store.
@@ -62,6 +64,9 @@ export function useDeviceWindow(device: Device): DeviceWindowControl {
     .map((useWindow) => useWindow(device, { missing: missingHere, noPluginHost }))
     .find((c) => c !== null);
   if (ext) return ext;
+  // No plugin host (the browser's engines): the editor can't open; the toggle says why.
+  if (plugin && noPluginHost)
+    return { open: false, available: false, softDisabled: true, title: t("devices.window.no_plugin_host"), toggle: () => {}, show: () => {} };
   const open = plugin ? editorOpen : windowOpen;
   return {
     open,

@@ -1009,6 +1009,7 @@
   "devices.window.close_hint": "close the window",
   "devices.window.open_plugin": "open the plugin window",
   "devices.window.open_device": "open the device window",
+  "devices.window.no_plugin_host": "plugins don't run in the browser",
   "devices.insert.vca": "{track} is a vca track: it takes no devices",
   "devices.insert.instrument_needs_midi": "{name} is an instrument: select a midi track",
   "devices.insert.midi_effect_needs_midi": "{name} is a midi effect: select a midi track",
