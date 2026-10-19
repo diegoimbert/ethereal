@@ -42,7 +42,6 @@ const press = (name: string) => (page: Page) => bubble(page).getByRole("button",
 /** The play button: the example tours wait for playback. */
 export const play: Action = (page) => page.getByRole("toolbar", { name: "transport" }).getByRole("button", { name: "play", exact: true }).click();
 
-
 /** The open project's first MIDI track and its first clip (the first-track tour makes them). */
 async function firstMidi(page: Page): Promise<{ track: string; clip: string | null }> {
   const p = await page.evaluate(() => (window as unknown as { __ether: { state(): { project: Project | null } } }).__ether.state().project);
