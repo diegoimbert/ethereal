@@ -1,5 +1,9 @@
 //! The cpal input stream: device lookup, format conversion, the RT input callback.
 
+// cpal 0.17 deprecates `Device::name()` for `id()` / `description()`; the saved device
+// settings match by name, so the names stay until that migration (issue to follow).
+#![allow(deprecated)]
+
 use std::sync::atomic::Ordering;
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
@@ -52,9 +56,7 @@ pub fn list_input_devices(settings: &AudioSettings) -> Vec<AudioDeviceInfo> {
                     cs.flat_map(|c| {
                         [44_100, 48_000, 88_200, 96_000, 176_400, 192_000]
                             .into_iter()
-                            .filter(move |r| {
-                                c.min_sample_rate().0 <= *r && *r <= c.max_sample_rate().0
-                            })
+                            .filter(move |r| c.min_sample_rate() <= *r && *r <= c.max_sample_rate())
                     })
                     .collect()
                 })
@@ -173,7 +175,7 @@ fn input_config(
     };
     let best = configs
         .into_iter()
-        .filter_map(|c| c.try_with_sample_rate(cpal::SampleRate(rate)))
+        .filter_map(|c| c.try_with_sample_rate(rate))
         .max_by_key(|c| {
             (
                 c.channels(),
@@ -184,7 +186,7 @@ fn input_config(
         });
     Ok(match (default, best) {
         (Some(d), best)
-            if d.sample_rate().0 == rate
+            if d.sample_rate() == rate
                 && best.as_ref().is_none_or(|b| b.channels() <= d.channels()) =>
         {
             Some(d)
@@ -206,7 +208,7 @@ where
     let channels = usize::from(config.channels.max(1));
     // Frames in the ring carry the device's first `MAX_INPUT_CHANNELS` channels.
     let kept = channels.min(MAX_INPUT_CHANNELS);
-    let rate = f64::from(config.sample_rate.0);
+    let rate = f64::from(config.sample_rate);
     let errors = shared.clone();
     device
         .build_input_stream::<T, _, _>(
