@@ -11,6 +11,7 @@ import type { Clip, ClipId, Color, Command, TrackId } from "@/generated";
 import { addTrackCommand, type NewTrackKind } from "./actions";
 import { asCountedStep, keyedStep, moveCommand, type ClipBounds } from "./editMath";
 import { rowsHeight, type Row } from "./layout";
+import { TRACK_FALLBACK_COLOR } from "@/theme/tokens";
 
 /** A track a drag below the last track would create (drawn as a ghost lane meanwhile). */
 export interface NewLane {
@@ -31,6 +32,9 @@ export function inNewTrackZone(rows: ReadonlyArray<Row>, y: number, visibleBotto
   return rows.length > 0 && y >= rowsHeight(rows) && y < visibleBottom;
 }
 
+/** A source track that isn't shown: its color is unknown. */
+const FALLBACK: Color = parseInt(TRACK_FALLBACK_COLOR.slice(1), 16);
+
 /**
  * The new tracks a drag of `clips` below the last track creates: one per distinct source
  * track, in display order (`rows`; tracks not shown keep the clips' order, after them).
@@ -44,7 +48,7 @@ export function newTrackLanes(clips: ReadonlyArray<Clip>, rows: ReadonlyArray<Ro
     sources.push({ track: c.track, kind: c.content.type === "Midi" ? "Midi" : "Audio", first: i });
   });
   const rank = (s: (typeof sources)[number]) => order.get(s.track) ?? rows.length + s.first;
-  return sources.sort((a, b) => rank(a) - rank(b)).map((s) => ({ id: newId(), kind: s.kind, source: s.track, color: color.get(s.track) ?? 0x8a91a8 }));
+  return sources.sort((a, b) => rank(a) - rank(b)).map((s) => ({ id: newId(), kind: s.kind, source: s.track, color: color.get(s.track) ?? FALLBACK }));
 }
 
 /** The drag preview with every clip moved onto its new lane (times unchanged). */
