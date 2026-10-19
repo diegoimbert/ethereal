@@ -1,0 +1,175 @@
+//! `BinaryCodec::decode` is cheap and bounded (web-perf): it allocates exactly once per
+//! non-empty `Vec` of the desc, and decoding the large fixture (64 tracks, 500 clips,
+//! automation) stays under [`DECODE_BOUND`].
+//!
+//! Own test binary: it installs a counting global allocator.
+
+#[path = "codec_fixture.rs"]
+mod fixture;
+
+use std::alloc::{GlobalAlloc, Layout, System};
+use std::cell::Cell;
+use std::time::{Duration, Instant};
+
+use ether_core::codec::{BinaryCodec, GraphCodec};
+use ether_core::graph::{AutomationDesc, ClipContentDesc, RenderGraphDesc};
+
+struct Counting;
+
+thread_local! {
+    static ALLOCS: Cell<usize> = const { Cell::new(0) };
+}
+
+unsafe impl GlobalAlloc for Counting {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let _ = ALLOCS.try_with(|c| c.set(c.get() + 1));
+        unsafe { System.alloc(layout) }
+    }
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        unsafe { System.dealloc(ptr, layout) }
+    }
+    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        let _ = ALLOCS.try_with(|c| c.set(c.get() + 1));
+        unsafe { System.realloc(ptr, layout, new_size) }
+    }
+}
+
+#[global_allocator]
+static GLOBAL: Counting = Counting;
+
+fn allocs_during<T>(f: impl FnOnce() -> T) -> (T, usize) {
+    let before = ALLOCS.with(Cell::get);
+    let out = f();
+    (out, ALLOCS.with(Cell::get) - before)
+}
+
+/// Number of non-empty `Vec`s in `d` (each costs exactly one allocation to decode).
+fn vec_count(d: &RenderGraphDesc) -> usize {
+    let nz = |n: usize| usize::from(n > 0);
+    let lanes =
+        |a: &[AutomationDesc]| nz(a.len()) + a.iter().map(|l| nz(l.points.len())).sum::<usize>();
+    nz(d.tempo.len())
+        + nz(d.signatures.len())
+        + nz(d.vcas.len())
+        + d.vcas.iter().map(|v| lanes(&v.automation)).sum::<usize>()
+        + nz(d.tracks.len())
+        + d.tracks
+            .iter()
+            .map(|t| {
+                nz(t.chain.len())
+                    + nz(t.sends.len())
+                    + nz(t.clips.len())
+                    + lanes(&t.automation)
+                    + nz(t.racks.len())
+                    + nz(t.chain_racks.len())
+                    + t.chain_racks
+                        .iter()
+                        .map(|r| {
+                            nz(r.chains.len())
+                                + r.chains.iter().map(|c| nz(c.chain.len())).sum::<usize>()
+                        })
+                        .sum::<usize>()
+                    + nz(t.modulation.modulators.len())
+                    + t.modulation
+                        .modulators
+                        .iter()
+                        .map(|m| nz(m.params.len()))
+                        .sum::<usize>()
+                    + nz(t.modulation.mappings.len())
+                    + nz(t.modulation.macros.len())
+                    + t.racks
+                        .iter()
+                        .map(|r| {
+                            nz(r.pads.len())
+                                + r.pads.iter().map(|p| nz(p.chain.len())).sum::<usize>()
+                        })
+                        .sum::<usize>()
+                    + t.clips
+                        .iter()
+                        .map(|c| {
+                            lanes(&c.envelopes)
+                                + match &c.content {
+                                    ClipContentDesc::Midi { notes } => nz(notes.len()),
+                                    ClipContentDesc::Audio {
+                                        warp,
+                                        gain_envelope,
+                                        transpose_envelope,
+                                        ..
+                                    } => {
+                                        warp.as_ref().map_or(0, |w| nz(w.markers.len()))
+                                            + gain_envelope
+                                                .as_ref()
+                                                .map_or(0, |e| nz(e.points.len()))
+                                            + transpose_envelope.as_ref().map_or(0, |t| {
+                                                nz(t.env.points.len()) + nz(t.rate.cum.len())
+                                            })
+                                    }
+                                }
+                        })
+                        .sum::<usize>()
+            })
+            .sum::<usize>()
+}
+
+#[test]
+fn decode_allocates_once_per_vec() {
+    // v0.2 fields in the binary layout (`frozen`, still a JSON blob, left out).
+    let mut v02 = fixture::v02_filled();
+    for t in &mut v02.tracks {
+        t.frozen = None;
+    }
+    for d in [
+        RenderGraphDesc::default(),
+        fixture::all_variants(),
+        fixture::large_project(),
+        v02,
+    ] {
+        let mut bytes = Vec::new();
+        BinaryCodec.encode(&d, &mut bytes);
+        let (back, allocs) = allocs_during(|| BinaryCodec.decode(&bytes).unwrap());
+        assert_eq!(back, d);
+        assert_eq!(allocs, vec_count(&d));
+    }
+}
+
+/// Documented bound for decoding the large fixture (64 tracks, 500 clips, ~8.8k notes, ~190
+/// automation lanes; about 0.5 MB encoded). Measured at ~0.3 ms natively (release-like test
+/// profile, Apple M-series); the bound leaves ~10x headroom for slower machines and a
+/// loaded CI host. The fastest of several runs is compared, so load spikes don't flake it.
+pub const DECODE_BOUND: Duration = Duration::from_millis(5);
+
+#[test]
+fn large_fixture_decodes_within_bound() {
+    decodes_within_bound(fixture::large_project());
+}
+
+/// The same bound with every v0.2 field filled on all 64 tracks (a JSON blob for the fields
+/// still in it; `groups-buses` moved `input_tap`, `vca` and `vcas` into the binary layout in
+/// codec v3, `chain_racks` and `modulation` since v4 (`racks-modulation`); `frozen` is
+/// the last field in the blob).
+#[test]
+fn large_v02_fixture_decodes_within_bound() {
+    decodes_within_bound(fixture::large_v02_project());
+}
+
+fn decodes_within_bound(d: RenderGraphDesc) {
+    let mut bytes = Vec::new();
+    BinaryCodec.encode(&d, &mut bytes);
+    let best = (0..15)
+        .map(|_| {
+            let t = Instant::now();
+            let back = BinaryCodec.decode(std::hint::black_box(&bytes)).unwrap();
+            let e = t.elapsed();
+            drop(back);
+            e
+        })
+        .min()
+        .unwrap();
+    eprintln!(
+        "decode large fixture: {} bytes in {:?} (bound {:?})",
+        bytes.len(),
+        best,
+        DECODE_BOUND
+    );
+    assert!(best < DECODE_BOUND, "decode took {best:?}");
+}

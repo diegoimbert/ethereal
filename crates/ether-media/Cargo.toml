@@ -1,62 +1,19 @@
 [package]
 name = "ether-media"
 description = "Media decoding, resampling and peak mipmaps."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
 
-[package.edition]
+[dependencies]
+ether-core.workspace = true
+symphonia.workspace = true
+rubato.workspace = true
+midly.workspace = true
+thiserror.workspace = true
+
+[lints]
 workspace = true
-
-[package.version]
-workspace = true
-
-[package.authors]
-workspace = true
-
-[package.repository]
-workspace = true
-
-[package.rust-version]
-workspace = true
-
-[package.publish]
-workspace = true
-
-[dependencies.ether-core]
-workspace = true
-
-[dependencies.midly]
-workspace = true
-
-[dependencies.rubato]
-workspace = true
-
-[dependencies.symphonia]
-workspace = true
-
-[dependencies.thiserror]
-workspace = true
-
-[[test]]
-path = "tests/decode.rs"
-name = "decode"
-required-features = []
-
-[[test]]
-path = "tests/resample_peaks.rs"
-name = "resample_peaks"
-required-features = []
-
-[[test]]
-path = "tests/stream_decoder.rs"
-name = "stream_decoder"
-required-features = []
-
-[[test]]
-path = "tests/to_midi_accuracy.rs"
-name = "to_midi_accuracy"
-required-features = []
-
-[lib]
-path = "src/lib.rs"
-name = "ether_media"
-required-features = []
-crate-type = ["lib"]

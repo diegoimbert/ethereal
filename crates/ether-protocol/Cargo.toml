@@ -1,75 +1,22 @@
 [package]
 name = "ether-protocol"
 description = "Wire protocol: commands, events, replies, patches and TypeScript type export."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
 
-[package.edition]
+[dependencies]
+ether-model.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+ts-rs.workspace = true
+
+[lints]
 workspace = true
-
-[package.version]
-workspace = true
-
-[package.authors]
-workspace = true
-
-[package.repository]
-workspace = true
-
-[package.rust-version]
-workspace = true
-
-[package.publish]
-workspace = true
-
-[dependencies.ether-model]
-workspace = true
-
-[dependencies.serde]
-workspace = true
-
-[dependencies.serde_json]
-workspace = true
-
-[dependencies.ts-rs]
-workspace = true
-
-[[test]]
-path = "tests/collab_v2_shapes.rs"
-name = "collab_v2_shapes"
-required-features = []
-
-[[test]]
-path = "tests/eq_response.rs"
-name = "eq_response"
-required-features = []
-
-[[test]]
-path = "tests/param_scale_vectors.rs"
-name = "param_scale_vectors"
-required-features = []
-
-[[test]]
-path = "tests/roadmap_v2_shapes.rs"
-name = "roadmap_v2_shapes"
-required-features = []
-
-[[test]]
-path = "tests/serde_shapes.rs"
-name = "serde_shapes"
-required-features = []
-
-[[test]]
-path = "tests/social_shapes.rs"
-name = "social_shapes"
-required-features = []
 
 [[example]]
-path = "examples/gen_ts.rs"
 name = "gen-ts"
-required-features = []
-crate-type = ["bin"]
-
-[lib]
-path = "src/lib.rs"
-name = "ether_protocol"
-required-features = []
-crate-type = ["lib"]
+path = "examples/gen_ts.rs"

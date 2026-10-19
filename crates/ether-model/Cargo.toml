@@ -1,106 +1,24 @@
 [package]
 name = "ether-model"
 description = "Canonical document model: IDs, entities, ops, undo, .ether file format and migrations."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
 
-[package.edition]
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+ulid.workspace = true
+uuid.workspace = true
+ts-rs.workspace = true
+thiserror.workspace = true
+base64.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
 workspace = true
-
-[package.version]
-workspace = true
-
-[package.authors]
-workspace = true
-
-[package.repository]
-workspace = true
-
-[package.rust-version]
-workspace = true
-
-[package.publish]
-workspace = true
-
-[dependencies.base64]
-workspace = true
-
-[dependencies.serde]
-workspace = true
-
-[dependencies.serde_json]
-workspace = true
-
-[dependencies.thiserror]
-workspace = true
-
-[dependencies.ts-rs]
-workspace = true
-
-[dependencies.ulid]
-workspace = true
-
-[dependencies.uuid]
-workspace = true
-
-[dev-dependencies.proptest]
-workspace = true
-
-[[test]]
-path = "tests/format_fixtures.rs"
-name = "format_fixtures"
-required-features = []
-
-[[test]]
-path = "tests/index.rs"
-name = "index"
-required-features = []
-
-[[test]]
-path = "tests/model_rules.rs"
-name = "model_rules"
-required-features = []
-
-[[test]]
-path = "tests/nested_sidechain.rs"
-name = "nested_sidechain"
-required-features = []
-
-[[test]]
-path = "tests/ops_proptest.rs"
-name = "ops_proptest"
-required-features = []
-
-[[test]]
-path = "tests/plugin_formats.rs"
-name = "plugin_formats"
-required-features = []
-
-[[test]]
-path = "tests/roadmap_v2.rs"
-name = "roadmap_v2"
-required-features = []
-
-[[test]]
-path = "tests/roadmap_v3.rs"
-name = "roadmap_v3"
-required-features = []
-
-[[test]]
-path = "tests/roadmap_v4.rs"
-name = "roadmap_v4"
-required-features = []
-
-[[test]]
-path = "tests/social.rs"
-name = "social"
-required-features = []
-
-[[test]]
-path = "tests/tempo_vectors.rs"
-name = "tempo_vectors"
-required-features = []
-
-[lib]
-path = "src/lib.rs"
-name = "ether_model"
-required-features = []
-crate-type = ["lib"]

@@ -1,116 +1,49 @@
 [package]
 name = "ether-wasm"
 description = "wasm-bindgen bindings: controller worker + AudioWorklet engine."
-
-[package.edition]
-workspace = true
-
-[package.version]
-workspace = true
-
-[package.authors]
-workspace = true
-
-[package.repository]
-workspace = true
-
-[package.rust-version]
-workspace = true
-
-[package.publish]
-workspace = true
-
-[dependencies.console_error_panic_hook]
-workspace = true
-
-[dependencies.ether-controller]
-workspace = true
-
-[dependencies.ether-core]
-workspace = true
-
-[dependencies.ether-devices]
-workspace = true
-
-[dependencies.ether-media]
-workspace = true
-
-[dependencies.ether-stretch]
-workspace = true
-optional = true
-
-[dependencies.js-sys]
-workspace = true
-
-[dependencies.serde]
-workspace = true
-
-[dependencies.serde_json]
-workspace = true
-
-[dependencies.thiserror]
-workspace = true
-
-[dependencies.wasm-bindgen]
-workspace = true
-
-[dependencies.web-sys]
-workspace = true
-features = ["MessagePort"]
-
-[features]
-bench = []
-default = []
-full = ["warp-complex"]
-warp-complex = ["dep:ether-stretch", "ether-stretch/rust-stretch"]
-
-[[test]]
-path = "tests/web_perf.rs"
-name = "web_perf"
-required-features = ["bench"]
-
-[[test]]
-path = "tests/file_filters.rs"
-name = "file_filters"
-required-features = []
-
-[[test]]
-path = "tests/file_import.rs"
-name = "file_import"
-required-features = []
-
-[[test]]
-path = "tests/folder_import.rs"
-name = "folder_import"
-required-features = []
-
-[[test]]
-path = "tests/ir_swap.rs"
-name = "ir_swap"
-required-features = []
-
-[[test]]
-path = "tests/latency_republish.rs"
-name = "latency_republish"
-required-features = []
-
-[[test]]
-path = "tests/media_stream.rs"
-name = "media_stream"
-required-features = []
-
-[[test]]
-path = "tests/pipeline.rs"
-name = "pipeline"
-required-features = []
-
-[[test]]
-path = "tests/stuck_notes.rs"
-name = "stuck_notes"
-required-features = []
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
 
 [lib]
-path = "src/lib.rs"
-name = "ether_wasm"
-required-features = []
 crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+ether-core.workspace = true
+ether-controller.workspace = true
+ether-devices.workspace = true
+ether-media.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+wasm-bindgen.workspace = true
+js-sys.workspace = true
+console_error_panic_hook.workspace = true
+# The share port (docs/SHARING.md §6.2). Replaced by the private overlay.
+web-sys = { workspace = true, features = ["MessagePort"] }
+# Complex warp (feature `warp-complex`): the pure-Rust Signalsmith Stretch port.
+ether-stretch = { workspace = true, optional = true }
+
+[lints]
+workspace = true
+
+# Cargo features (feature-flags; docs/ARCHITECTURE.md "Cargo features"). The web build
+# (apps/web/scripts/build-wasm.mjs) uses `full` unless ETHER_WASM_FEATURES says otherwise.
+[features]
+default = []
+full = ["warp-complex"]
+# Pitch-preserving Complex warp (`ether-stretch/rust-stretch`, no C++). Off: Complex clips
+# play Repitch.
+warp-complex = ["dep:ether-stretch", "ether-stretch/rust-stretch"]
+# Graph snapshot benchmark (`perf` module, the large fixture and the
+# `bench_graph_snapshot` export), for `apps/web/src/engine/graphSnapshot.bench.test.ts`
+# and `tests/web_perf.rs`. Not in `full`: the production wasm doesn't ship it. Build it with
+# `just bench-wasm` (ETHER_WASM_FEATURES=full,bench).
+bench = []
+
+[[test]]
+name = "web_perf"
+required-features = ["bench"]

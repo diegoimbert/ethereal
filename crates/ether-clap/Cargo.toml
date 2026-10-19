@@ -1,99 +1,43 @@
 [package]
 name = "ether-clap"
 description = "CLAP plugin hosting (in-process PluginNode) via clack."
-
-[package.edition]
-workspace = true
-
-[package.version]
-workspace = true
-
-[package.authors]
-workspace = true
-
-[package.repository]
-workspace = true
-
-[package.rust-version]
-workspace = true
-
-[package.publish]
-workspace = true
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
 
 [dependencies]
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.assert_no_alloc]
-workspace = true
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Plugin calls on the audio thread are exempt from the debug allocation check (`rt.rs`).
+assert_no_alloc.workspace = true
+ether-core.workspace = true
+ether-plugin-host.workspace = true
+thiserror.workspace = true
+clack-host.workspace = true
+clack-extensions.workspace = true
+rtrb.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.clack-extensions]
-workspace = true
+# Host-created editor windows (embedded CLAP GUIs).
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2.workspace = true
+objc2-app-kit.workspace = true
+objc2-foundation.workspace = true
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.clack-host]
-workspace = true
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+# The minimal test plugin (`examples/ether_test_plugin.rs`, a cdylib) is built with clack's
+# plugin-side crates, so tests never depend on plugins installed on the machine.
+clack-plugin.workspace = true
+clack-extensions = { workspace = true, features = ["clack-plugin"] }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-core]
-workspace = true
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.ether-plugin-host]
-workspace = true
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.rtrb]
-workspace = true
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.serde_json]
-workspace = true
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.thiserror]
-workspace = true
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies.tracing]
-workspace = true
-
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies.clack-extensions]
-workspace = true
-features = ["clack-plugin"]
-
-[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies.clack-plugin]
-workspace = true
-
-[target.'cfg(not(target_arch = "wasm32"))'.build-dependencies]
-
-[target.'cfg(target_os = "macos")'.dependencies.objc2]
-workspace = true
-
-[target.'cfg(target_os = "macos")'.dependencies.objc2-app-kit]
-workspace = true
-
-[target.'cfg(target_os = "macos")'.dependencies.objc2-foundation]
-workspace = true
-
-[target.'cfg(target_os = "macos")'.dev-dependencies]
-
-[target.'cfg(target_os = "macos")'.build-dependencies]
-
-[[test]]
-path = "tests/host.rs"
-name = "host"
-required-features = []
-
-[[test]]
-path = "tests/mpe.rs"
-name = "mpe"
-required-features = []
-
-[[test]]
-path = "tests/plugin_sidechain.rs"
-name = "plugin_sidechain"
-required-features = []
-
+# Minimal CLAP plugin used by the tests of this crate and of `ether-plugin-scanner`.
 [[example]]
-path = "examples/ether_test_plugin.rs"
 name = "ether_test_plugin"
-required-features = []
 crate-type = ["cdylib"]
 
-[lib]
-path = "src/lib.rs"
-name = "ether_clap"
-required-features = []
-crate-type = ["lib"]
+[lints]
+workspace = true
