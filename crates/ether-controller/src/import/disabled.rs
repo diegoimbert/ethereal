@@ -1,7 +1,6 @@
-//! `Project::Import` in a build without the `import` feature (feature-flags;
-//! docs/ARCHITECTURE.md "Cargo features"): the DAWproject / REAPER / Ableton / FL Studio
-//! parsers (`ether-import`) are not compiled in, so the command replies `Unsupported`.
-//! `CancelImport` has nothing to cancel.
+//! `Project::Import` when no extension imports other DAWs' projects (`crate::ext`: an
+//! extension that does answers the command first): `Unsupported`. `CancelImport` has
+//! nothing to cancel.
 
 use ether_core::protocol::ReplyValue;
 use ether_core::protocol::model::ProjectId;
@@ -39,12 +38,5 @@ where
         _out: &mut dyn MessageSink,
     ) -> CmdResult<ReplyValue> {
         Ok(ReplyValue::Unit)
-    }
-
-    pub(crate) fn import_tick(&mut self, _now: u64, _out: &mut dyn MessageSink) {}
-
-    /// `true` while an import runs (never in this build).
-    pub fn import_running(&self) -> bool {
-        false
     }
 }

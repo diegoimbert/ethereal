@@ -43,6 +43,7 @@ mod drum_rack;
 mod engine;
 mod export;
 mod expression;
+pub mod ext;
 mod external;
 mod file_import;
 mod freeze;
@@ -50,9 +51,8 @@ mod fx_space;
 mod groove;
 mod groups;
 mod handlers;
-// The other-DAW parsers (DAWproject / REAPER / Ableton / FL Studio) live in the private
-// collaboration overlay; without them `Project::Import` replies `Unsupported`
-// (`import/disabled.rs`).
+// `Project::Import` / `CancelImport` without an extension that imports other DAWs' projects:
+// `Unsupported` (`import/disabled.rs`).
 #[path = "import/disabled.rs"]
 mod import;
 mod keymap;
@@ -70,8 +70,8 @@ mod patch_compat;
 mod plugins;
 mod presets;
 mod project;
-// Export to other DAWs (DAWproject / Ableton / FL Studio) is private (the overlay):
-// without it `Project::ExportTo` replies `Unsupported` (`project_export/disabled.rs`).
+// `Project::ExportTo` without an extension that exports to other DAWs: `Unsupported`
+// (`project_export/disabled.rs`).
 #[path = "project_export/disabled.rs"]
 mod project_export;
 mod racks;
@@ -677,6 +677,8 @@ where
     plugin_states: saving::PluginStates,
     /// v0.3: the history panel (`undo_history` module; runtime).
     undo_history: undo_history::UndoHistoryState,
+    /// The extensions (`ext` module): features built outside this repository.
+    extensions: ext::Extensions<B, H, S, L>,
     /// `import-resolver`: media search job and the last import's hints (`resolver`).
     resolver: resolver::ResolverState,
     /// #519: the default sample pack (`sample_pack` module; runtime).
@@ -738,6 +740,7 @@ where
             versions: Default::default(),
             plugin_states: Default::default(),
             undo_history: Default::default(),
+            extensions: Default::default(),
             resolver: Default::default(),
             samples: Default::default(),
             // Internal gestures (plugin GUI, tap tempo) live in the upper half of the id
@@ -864,8 +867,8 @@ where
         self.engine.check_latencies(&self.bridge, now_ms);
         // v0.3 `external-instrument`: latency measurements and hardware port changes.
         self.external_tick(now_ms, out);
-        // `import-dawproject`: one step of a running project import.
-        self.import_tick(now_ms, out);
+        // Extensions' background work (e.g. a project import from another DAW).
+        self.ext_tick(now_ms, out);
         let mut tap = agent::ExportTap::new(out);
         self.tick_impl(now_ms, &mut tap);
         self.agent_absorb(tap);

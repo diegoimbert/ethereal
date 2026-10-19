@@ -24,7 +24,7 @@ fn map_err(e: SymError) -> MediaError {
     }
 }
 
-pub(crate) struct IncrementalDecoder {
+pub struct IncrementalDecoder {
     format: Box<dyn FormatReader>,
     decoder: Box<dyn Decoder>,
     track_id: u32,
