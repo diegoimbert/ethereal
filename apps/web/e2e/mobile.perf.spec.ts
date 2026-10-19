@@ -22,6 +22,11 @@ test.use({ trace: "off" });
  * dominate. The budget leaves about a quarter of headroom.
  */
 const BUDGET_LONG_AUDIO_MB = 700;
+/**
+ * The tab with the 16-track MIDI project: 350 MB (332-350 MB measured on 2026-10-19). A build
+ * with more of its own UI sets its budget with `ETHER_E2E_MOBILE_MEMORY_MB`.
+ */
+const BUDGET_MB = Number(process.env.ETHER_E2E_MOBILE_MEMORY_MB ?? 350);
 
 /** The lanes' box (right of the header column). */
 async function lanes(page: Page) {
@@ -129,7 +134,7 @@ test.describe("on a Pixel 7", () => {
     }
   });
 
-  test("memory: the tab stays under 350 MB with a 16-track project", async ({ page }) => {
+  test(`memory: the tab stays under ${BUDGET_MB} MB with a 16-track project`, async ({ page }) => {
     test.setTimeout(180_000);
     await launchMobile(page);
     expect(await page.evaluate(() => crossOriginIsolated && typeof SharedArrayBuffer === "function")).toBe(true);
@@ -140,7 +145,7 @@ test.describe("on a Pixel 7", () => {
     const line = `pixel 7 memory: ${(bytes! / 1048576).toFixed(1)} MB (the renderer processes: page, workers, worklet, wasm)`;
     console.log(line);
     test.info().annotations.push({ type: "perf", description: line });
-    expect(bytes!).toBeLessThan(350 * 1048576);
+    expect(bytes!).toBeLessThan(BUDGET_MB * 1048576);
   });
 });
 

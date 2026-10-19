@@ -66,9 +66,12 @@ export async function arrangement(page: Page): Promise<{ renderer: ArrangerBacke
   return { renderer: await arrangerApi(page, "renderer") };
 }
 
-/** The backend a Playwright project runs the arranger on: `canvas2d` forces the fallback. */
+/**
+ * The backend a Playwright project runs the arranger on: `canvas2d` (or a project derived from
+ * it, `canvas2d-<suffix>`, as a config built over this one names its own) forces the fallback.
+ */
 export function projectBackend(projectName: string): ArrangerBackend {
-  return projectName === "canvas2d" || process.env.ETHER_E2E_ARRANGER === "canvas2d" ? "canvas2d" : "webgl";
+  return /^canvas2d(-|$)/.test(projectName) || process.env.ETHER_E2E_ARRANGER === "canvas2d" ? "canvas2d" : "webgl";
 }
 
 /** Checks the backend the spec runs on (`projectBackend`). */
