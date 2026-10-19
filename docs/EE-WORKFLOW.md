@@ -117,8 +117,9 @@ All CI runs in this repository, on GitHub-hosted runners; the private repository
 - **Release and dev deploy** (`.github/workflows/release.yml`, `deploy-dev.yml`; docs/RELEASING.md):
   the same overlay and encrypted logs; the signing and Cloudflare secrets live in the protected
   `release` and `dev` environments (`main` only; `release` also needs the owner's approval).
-- **EE-only changes** (no OSS PR): `feat ship` dispatches `full.yml` on `main` with
-  `ee_ref=<EE head>` and waits for it before merging.
+- **EE-only changes** (no OSS PR): `feat ship` merges them on the gating checks like any other;
+  the `ee` pointer bump that follows is a push to `main`, which runs `full.yml`. To build one
+  before merging: `gh workflow run full.yml --ref main -f ref=main -f ee_ref=<EE head>`.
 
 Secrets (this repository): `ETHER_PRIVATE_TOKEN` (read the private repository: the full build)
 and `ETHER_BOT_TOKEN` (write this repository's contents, pull requests and statuses, read the
