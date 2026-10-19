@@ -1,4 +1,4 @@
-//! MIDI expression playback (v0.3, contracts-4; owned by the `midi-expression` node, the
+//! MIDI expression playback (v0.3, contracts-4; `midi-expression`, the
 //! per-note pitch/timbre and MPE output parts by `mpe`; CONTRACTS.md §13.2).
 //!
 //! The controller compiles a MIDI track's clip expression lanes and note expressions

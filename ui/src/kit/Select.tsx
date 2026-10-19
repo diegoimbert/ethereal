@@ -299,6 +299,7 @@ function SelectList<V extends string>(p: SelectListProps<V>) {
   const option = (i: number) => {
     const o = p.options[i]!;
     return (
+      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/interactive-supports-focus -- a listbox option: the trigger or search field keeps the focus and drives it (aria-activedescendant)
       <div
         id={p.optionId(i)}
         data-index={i}

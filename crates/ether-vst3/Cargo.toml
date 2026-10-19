@@ -1,6 +1,6 @@
 [package]
 name = "ether-vst3"
-description = "VST3 plugin hosting (PluginFormatHost for .vst3 bundles). Owned by the `vst3` node."
+description = "VST3 plugin hosting (PluginFormatHost for .vst3 bundles)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

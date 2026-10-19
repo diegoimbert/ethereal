@@ -86,7 +86,7 @@ pub enum Command {
     Warp(WarpCommand),
     Media(MediaCommand),
     Engine(EngineCommand),
-    // --- roadmap v2 (one domain per feature node, see docs/ROADMAP.md) ---
+    // --- roadmap v2 (one domain per feature, CONTRACTS.md §11) ---
     Export(ExportCommand),
     Tempo(TempoCommand),
     Marker(MarkerCommand),
@@ -95,7 +95,7 @@ pub enum Command {
     DrumRack(DrumRackCommand),
     Slice(SliceCommand),
     Collab(CollabCommand),
-    // --- v0.2 (contracts-3; one domain per node, see docs/ROADMAP.md "v0.2") ---
+    // --- v0.2 (contracts-3; one domain per feature, CONTRACTS.md §12) ---
     Take(TakeCommand),
     Freeze(FreezeCommand),
     TimeEdit(TimeEditCommand),
@@ -110,7 +110,7 @@ pub enum Command {
     Chat(ChatCommand),
     /// Notes pinned on the arrangement (document command).
     PinnedNote(PinnedNoteCommand),
-    // --- v0.3 (contracts-4; one domain per node, see docs/ROADMAP.md "v0.3") ---
+    // --- v0.3 (contracts-4; one domain per feature, CONTRACTS.md §13) ---
     /// Clip expression lanes, note expressions, track MPE (`midi-expression`, `mpe`).
     Expression(ExpressionCommand),
     /// MIDI capture buffer (`capture-midi`).

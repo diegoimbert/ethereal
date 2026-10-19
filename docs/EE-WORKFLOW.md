@@ -6,6 +6,25 @@ submodule**. `.gitmodules` marks it `update = none`, so a public clone (even
 `git clone --recursive`) leaves `ee/` empty, and everything here builds and tests without it.
 Contributors without access to the private repository can ignore this page.
 
+## Building the full app
+
+From a normal OSS checkout (your uncommitted changes included):
+
+| Command | What it builds |
+|---|---|
+| `just full-desktop [args]` | the desktop app, dev build, every feature |
+| `just full-build [args]` | the desktop release bundle (`tauri build --features full`) |
+| `just full-server [args]` | the headless engine server, every feature |
+| `just full-web [args]` | the web app's dev server |
+
+They initialise `ee/` and its submodules when missing (that needs read access to the private
+repository). While the private Rust code still overlays OSS files (`ee/overlay.mjs`), they
+build in a cached copy, `target/full-tree`: this checkout with the overlay applied, refreshed
+on every run by rewriting only the files whose content changed, so its cargo target stays
+warm. `node scripts/full.mjs prepare` only refreshes it. Once `ee/` builds on its own, the
+same commands build there in place. Extra arguments go to the underlying command (e.g.
+`just full-desktop --release`).
+
 Rules:
 
 - **Dependency direction**: `ee/` may depend on this repo, never the reverse. Nothing outside
@@ -72,9 +91,12 @@ All CI runs in this repository, on GitHub-hosted runners; the private repository
   product) runs on `main`; a red `main` opens a `ci-main` issue and is fixed forward in a
   follow-up PR.
 - **Full build** (`.github/workflows/full.yml`): the full product (this repo + `ee/` overlaid)
-  on every push to `main` (Linux, macOS, Windows, the e2e suite), and on demand: a PR by hand,
-  after reading it, with `gh workflow run full.yml -f ref=refs/pull/N/head` (it builds against
-  the PR's `ee` pointer when it moves it, else EE `main`).
+  on every push to `main` (Linux, macOS, Windows, web, e2e) and on demand; its aggregate job is
+  **`ee/build`**. Pull requests run no builds or tests (owner, 2026-10-19): only CLA, Policy,
+  What changed and `ee/pointer` gate a merge, so run the relevant tests locally, and fix `main`
+  forward if it goes red. A PR's full build on demand:
+  `gh workflow run full.yml --ref <branch> -f ref=<sha> -f all=false` (it uses the commit's `ee`
+  pointer; a fork's PR only after reading it: `-f ref=refs/pull/N/head`).
   - The private code never shows in the public log: each step's output goes to a file
     (`scripts/ci/private-step.mjs`), the log shows the result and the names of what failed, and
     the files are uploaded **encrypted with age** to the recipients in `ee/.sops.yaml`.
@@ -91,7 +113,11 @@ All CI runs in this repository, on GitHub-hosted runners; the private repository
   PR's pointer on its EE branch tip (or EE `main` once that merged), merges `main` into a PR
   whose only conflict is the gitlink, and posts the **`ee/pointer`** status on OSS PRs. Its API
   commits touch nothing but `ee` and are fast-forward only, retried when the branch moved.
-- Releases and the dev deploy still run on the private side until they move here too.
+- **Release and dev deploy** (`.github/workflows/release.yml`, `deploy-dev.yml`; docs/RELEASING.md):
+  the same overlay and encrypted logs; the signing and Cloudflare secrets live in the protected
+  `release` and `dev` environments (`main` only; `release` also needs the owner's approval).
+- **EE-only changes** (no OSS PR): `feat ship` dispatches `full.yml` on `main` with
+  `ee_ref=<EE head>` and waits for it before merging.
 
 Secrets (this repository): `ETHER_PRIVATE_TOKEN` (read the private repository: the full build)
 and `ETHER_BOT_TOKEN` (write this repository's contents, pull requests and statuses, read the

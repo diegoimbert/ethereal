@@ -1,4 +1,4 @@
-//! Arrangement markers (roadmap v2, `clip-editing` node). Undoable document edits on
+//! Arrangement markers (roadmap v2, `clip-editing`). Undoable document edits on
 //! `Project::markers`. Jumping to a marker is `Transport::Locate { position }` (the UI reads
 //! the position from its mirror).
 

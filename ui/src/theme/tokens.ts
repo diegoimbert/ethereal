@@ -381,7 +381,6 @@ export const size = {
   mainMinSize: "160px",
   /** Grab width of the pane splitters (laid over the gaps between panes). */
   splitterWidth: "6px",
-  detailCollapsedHeight: "24px",
   popoverMinWidth: "140px",
   selectListMaxHeight: "320px",
   /** Searchable Select (long option lists, e.g. thousands of plugin params): list width. */
@@ -595,6 +594,12 @@ export const TRACK_COLORS = [
   "#a4b6a9",
   "#d6d9e2",
 ] as const;
+
+/**
+ * The color shown for a track or clip whose color is unknown (a mixed selection, a track
+ * that isn't shown): a quiet neutral, outside the palette (`--eth-track-fallback`).
+ */
+export const TRACK_FALLBACK_COLOR = "#8a91a8";
 
 // ---------------------------------------------------------------------------------------
 // Component tokens: per-component knobs for shape/color, defaulting to global tokens.
@@ -818,6 +823,7 @@ export function sharedEntries(): Array<[string, string]> {
     for (const [key, value] of Object.entries(tokens)) out.push([tokenName(group, key), value]);
   }
   TRACK_COLORS.forEach((c, i) => out.push([`--eth-track-${i}`, c]));
+  out.push(["--eth-track-fallback", TRACK_FALLBACK_COLOR]);
   return out;
 }
 

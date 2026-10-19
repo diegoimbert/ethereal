@@ -1,4 +1,4 @@
-//! Groups, buses, track input taps and VCAs (v0.2, owned by the `groups-buses` node,
+//! Groups, buses, track input taps and VCAs (v0.2, `groups-buses`,
 //! priority 1; CONTRACTS.md §12.10).
 //!
 //! - [`track_command`]: `Track::{GroupSelected, Ungroup, SetVca}` (document commands,

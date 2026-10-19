@@ -1,5 +1,5 @@
 //! Factory presets of the v0.1/v2 built-in devices (synth, sampler, compressor, delay, EQ,
-//! reverb, limiter, utility), owned by the `presets` node. Each entry is a file under
+//! reverb, limiter, utility), `presets`. Each entry is a file under
 //! `crates/ether-devices/presets/<device-key>/<slug>.etherpreset` embedded with
 //! `include_str!`; ids are `"<device-key>/<slug>"`. The v0.2 device groups register their
 //! own presets in their modules. The drum rack ships none: its sound lives in its pads

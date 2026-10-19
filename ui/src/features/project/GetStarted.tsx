@@ -2,15 +2,14 @@ import { AudioLines, BookOpen, CircleCheck, Music } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Button } from "@/kit";
 import type { EngineCommands } from "@/features/transport-bar/engine";
-import { platformOf, RECORD_AUDIO_TOUR, useTour, useTutorialProgress, type TourDef } from "@/features/tutorials";
+import { FIRST_TRACK_TOUR, platformOf, RECORD_AUDIO_TOUR, useTour, useTutorialProgress, type TourDef } from "@/features/tutorials";
 import { openDocs } from "@/features/docs/open";
 import { useStartTour } from "./useStartTour";
 import { useT, type MessageKey } from "@/i18n";
 
 /** The welcome screen's guides: guided tours of the real UI (docs/TUTORIALS.md), or coming soon. */
 const ARTICLES: ReadonlyArray<{ title: MessageKey; blurb: MessageKey; icon: ReactNode; tour?: TourDef }> = [
-  // Waits for the default sample pack (#519).
-  { title: "project.start.first_track", blurb: "project.start.first_track_blurb", icon: <Music aria-hidden /> },
+  { title: "project.start.first_track", blurb: "project.start.first_track_blurb", icon: <Music aria-hidden />, tour: FIRST_TRACK_TOUR },
   { title: "tutorials.record.title", blurb: "project.start.record_blurb", icon: <AudioLines aria-hidden />, tour: RECORD_AUDIO_TOUR },
 ];
 
@@ -52,7 +51,7 @@ export function GetStarted({ commands, onStarted }: { commands: EngineCommands; 
           );
           if (!tour || !available)
             return (
-              <li key={a.title} className="eth-welcome__article" aria-disabled="true">
+              <li key={a.title} className="eth-welcome__article" data-soon>
                 {body}
                 <span className="eth-welcome__soon">{t("project.start.soon")}</span>
               </li>
