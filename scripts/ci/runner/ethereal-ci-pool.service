@@ -1,0 +1,20 @@
+# systemd user unit of the devbox runner pool (docs/CI-RUNNERS.md). Install:
+#   cp scripts/ci/runner/ethereal-ci.slice scripts/ci/runner/ethereal-ci-pool.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now ethereal-ci-pool
+[Unit]
+Description=Ethereal CI: devbox runner pool (one sandboxed unit per job)
+After=network-online.target
+
+[Service]
+# A checkout of main the pool's scripts and hooks come from (`git -C ~/ci/ethereal pull` to
+# update, then restart: busy jobs finish, their units are not this one's children).
+WorkingDirectory=%h/ci/ethereal
+EnvironmentFile=-%h/.config/ethereal-ci/env
+Environment=PATH=%h/.nvm/versions/node/v24.20.0/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/env node scripts/ci/runner/pool.mjs run
+Restart=always
+RestartSec=30
+Slice=ethereal-ci.slice
+
+[Install]
+WantedBy=default.target

@@ -21,7 +21,7 @@ if (!dir || (flag && flag !== "--check")) {
 }
 const check = flag === "--check";
 
-const meta = JSON.parse(execFileSync("cargo", ["metadata", "--no-deps", "--format-version", "1"], { encoding: "utf8", maxBuffer: 1 << 28 }));
+const meta = JSON.parse(execFileSync("cargo", ["metadata", "--no-deps", "--format-version", "1"], { encoding: "utf8", maxBuffer: 1 << 28, stdio: ["ignore", "pipe", "ignore"] }));
 const names = new Set();
 for (const p of meta.packages) {
   // Build scripts are all named `build-script-build`: not a crate name.

@@ -26,7 +26,7 @@ members = [
 [workspace.package]
 version = "0.0.1"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.90"
 repository = "https://github.com/diegoimbert/ethereal"
 authors = ["Ethereal contributors"]
 license = "AGPL-3.0-or-later"
@@ -55,7 +55,7 @@ ether-server = { path = "crates/ether-server" }
 serde = { version = "1.0.219", features = ["derive", "rc"] }
 # float_roundtrip: exact f64 parse (beats, bpm, automation values must survive save/load and the wire).
 serde_json = { version = "1.0.140", features = ["float_roundtrip"] }
-ulid = { version = "1.2", default-features = false }
+ulid = { version = "3.0", default-features = false }
 # ProjectId is a UUIDv7. No `v7` feature here: it pulls in `getrandom` (breaks the wasm
 # check); the model builds v7 UUIDs from injected time + entropy (`IdGen::next_project_id`).
 # Native-only crates may add `features = ["v7"]` to use `Uuid::now_v7()`.

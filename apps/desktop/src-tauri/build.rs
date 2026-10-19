@@ -8,6 +8,9 @@ fn main() {
     // gitignored and gets replaced by the real build (Vite empties it first), and
     // `tauri build` runs `beforeBuildCommand` which builds the UI before this script runs.
     let dist = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../ui/dist");
+    // Re-run when the page goes away (`git clean`, a fresh checkout of a kept workspace): a cached
+    // run of this script would not recreate the placeholder.
+    println!("cargo:rerun-if-changed={}", dist.join("index.html").display());
     if !dist.join("index.html").exists() {
         std::fs::create_dir_all(&dist).expect("create ui/dist placeholder dir");
         std::fs::write(
