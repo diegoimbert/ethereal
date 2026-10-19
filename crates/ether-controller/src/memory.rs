@@ -161,8 +161,7 @@ impl MemoryStore {
             id,
             name,
             modified_ms: p.modified_ms as f64,
-            // Reading `share.json` is part of the private sharing overlay.
-            share: None,
+            ext: None,
         }
     }
 }

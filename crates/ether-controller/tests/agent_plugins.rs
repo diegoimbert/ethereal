@@ -8,9 +8,8 @@ mod common;
 use common::*;
 use ether_controller::PluginCatalogView;
 use ether_controller::memory::MemoryLibrary;
-use ether_core::protocol::agent::AgentCommand;
 use ether_core::protocol::clips::ClipCommand;
-use ether_core::protocol::collab::{CollabCommand, PresenceState};
+use ether_core::protocol::agent::{AgentCommand, AgentSelection};
 use ether_core::protocol::devices::DeviceCategory;
 use ether_core::protocol::markers::MarkerCommand;
 use ether_core::protocol::media::{BrowseLocation, MediaCommand, MediaSource};
@@ -114,11 +113,11 @@ fn raw_clip(h: &mut Harness, track: &str, name: &str, start: f64, len: f64) -> S
 }
 
 fn select(h: &mut Harness, clips: &[&str], tracks: &[&str]) {
-    h.ok(Command::Collab(CollabCommand::SetPresence {
-        presence: PresenceState {
-            selected_clips: clips.iter().map(|c| c.parse().unwrap()).collect(),
-            selected_tracks: tracks.iter().map(|t| t.parse().unwrap()).collect(),
-            ..PresenceState::default()
+    h.ok(Command::Agent(AgentCommand::SetSelection {
+        selection: AgentSelection {
+            clips: clips.iter().map(|c| c.parse().unwrap()).collect(),
+            tracks: tracks.iter().map(|t| t.parse().unwrap()).collect(),
+            ..AgentSelection::default()
         },
     }));
 }

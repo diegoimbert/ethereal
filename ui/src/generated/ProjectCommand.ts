@@ -3,7 +3,6 @@ import type { BundleSource } from "./BundleSource";
 import type { MusicalScale } from "./MusicalScale";
 import type { ProjectExportFormat } from "./ProjectExportFormat";
 import type { ProjectId } from "./ProjectId";
-import type { StaticPermissions } from "./StaticPermissions";
 
 export type ProjectCommand = { "type": "List" } | { "type": "Create", id: ProjectId, name: string, } | { "type": "Open", id: ProjectId, } | { "type": "OpenSafe", id: ProjectId, } | { "type": "LoadPlugins" } | { "type": "Save", 
 /**
@@ -15,7 +14,7 @@ export type ProjectCommand = { "type": "List" } | { "type": "Create", id: Projec
  */
 autosave?: boolean, } | { "type": "SaveAs", new_id: ProjectId, name: string, } | { "type": "Duplicate", id: ProjectId, new_id: ProjectId, name: string, } | { "type": "Rename", id: ProjectId, name: string, } | { "type": "Delete", id: ProjectId, } | { "type": "Get" } | { "type": "SetScale", scale: MusicalScale, } | { "type": "ExportBundle", id: ProjectId, path: string | null, include_media: boolean, 
 /**
- * Static sharing (docs/SHARING.md §14): strip every device and plugin chain from the
- * packed document (the audio clips stay; the project's own copy is untouched).
+ * Strip every device and plugin chain from the packed document (the audio clips
+ * stay; the project's own copy is untouched).
  */
-hide_devices?: boolean, } | { "type": "StaticSnapshot", id: ProjectId, permissions: StaticPermissions, } | { "type": "StaticView", id: ProjectId, hide_devices: boolean, } | { "type": "ImportBundle", new_id: ProjectId, source: BundleSource, name: string | null, } | { "type": "Import", new_id: ProjectId, source: BundleSource, name: string | null, } | { "type": "CancelImport", id: ProjectId, } | { "type": "ExportTo", id: ProjectId, format: ProjectExportFormat, path: string | null, };
+hide_devices?: boolean, } | { "type": "ImportBundle", new_id: ProjectId, source: BundleSource, name: string | null, } | { "type": "Import", new_id: ProjectId, source: BundleSource, name: string | null, } | { "type": "CancelImport", id: ProjectId, } | { "type": "ExportTo", id: ProjectId, format: ProjectExportFormat, path: string | null, };
