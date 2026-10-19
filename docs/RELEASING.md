@@ -49,8 +49,8 @@ guide; GitHub's generated changelog follows. It is what the download page and th
 
 ### Before a release (required)
 
-CI runs most of these on every PR; run them locally too, especially the e2e and tours, which
-CI does not run:
+CI runs these on every PR (the e2e and tours too, except the `@frames` and `@pixels` specs,
+which only hold on the devbox); run them locally before a release anyway:
 
 - `just check-all` and the test suites (`check-all` starts with `just check-case-clashes`:
   tracked paths or TS module names that differ only in case break macOS/Windows builds).
@@ -154,6 +154,10 @@ set-but-empty variable as configured.
 | `WINDOWS_CERTIFICATE_PASSWORD` | the `.pfx` password |
 | `WINDOWS_TIMESTAMP_URL` | optional, default `http://timestamp.digicert.com` |
 
+The default timestamp server is plain HTTP on purpose: an RFC 3161 timestamp is signed by the
+authority and verified against its certificate chain, so the transport adds nothing (DigiCert's
+authority does not answer over HTTPS).
+
 The workflow imports the `.pfx` into the runner's user certificate store and passes its
 thumbprint to Tauri (`bundle.windows.certificateThumbprint`, SHA-256, timestamped), which
 signs the executable, the MSI and the NSIS installer. Certificates that live only in an
@@ -174,8 +178,9 @@ the private build (see `ethereal-private`).
 When it is enabled (`full` in the private build), the app reads
 `https://github.com/diegoimbert/ethereal/releases/latest/download/latest.json`, so only the
 newest stable release is offered; prereleases (`v<VERSION>+<sha>`, partial releases) never
-are. Every download is verified against the minisign public key in
-`apps/desktop/src-tauri/tauri.conf.json` (`plugins.updater.pubkey`) before it is installed.
+are. Every download is verified against the minisign public key before it is installed:
+`plugins.updater.pubkey`, which the private overlay adds to the Tauri config (this
+repository's `apps/desktop/src-tauri/tauri.conf.json` has no updater section).
 
 ### How a release gets updater files
 

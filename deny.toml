@@ -1,4 +1,5 @@
-# cargo-deny: license policy for the dependency tree (`just check-licenses`, CI).
+# cargo-deny: license, advisory, ban and source policy for the dependency tree
+# (`just check-licenses`, `just check-advisories`, CI).
 #
 # Ethereal ships desktop installers and a web build, so every dependency is distributed.
 # Everything allowed here is permissive (MPL-2.0 is file-level copyleft and is fine to link,
@@ -17,9 +18,28 @@
 [graph]
 all-features = true
 
+# Security advisories (RustSec). CI gates a pull request on them when it changes Cargo.lock,
+# and checks `main` on every push and daily, so a new advisory against an existing dependency
+# shows up without blocking unrelated pull requests (.github/workflows/ci.yml, `advisories`).
 [advisories]
 version = 2
-yanked = "warn"
+yanked = "deny"
+# Unmaintained crates are flagged only when the workspace depends on them directly; deep
+# transitive ones (proc-macro-error, unic-* under tauri/gtk) have no replacement we control.
+unmaintained = "workspace"
+
+[bans]
+# Duplicate versions are unavoidable with tauri/gtk/windows-rs; not a policy question.
+multiple-versions = "allow"
+wildcards = "deny"
+# The workspace's own `path` dependencies carry no version.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+# clack (CLAP hosting) comes from git at a pinned rev (crates/ether-clap).
+allow-git = ["https://github.com/prokopyl/clack"]
 
 [licenses]
 version = 2
