@@ -395,3 +395,26 @@ fn dropping_without_deactivate_is_safe() {
     Harness::new().run(&mut *node, 64, &[]);
     drop(node);
 }
+
+#[test]
+fn releasing_many_units_is_safe() {
+    let _serial = serial();
+    // Apple's v2 bridge briefly retains a unit on its parameter-refresh thread: a unit
+    // released last there wedged that thread and every later v2 release in the process (#45).
+    for i in 0..9 {
+        let mut plugin = load(DELAY);
+        let mut node = plugin.activate(&config()).expect("activate");
+        Harness::new().run(&mut *node, 64, &[]);
+        match i % 3 {
+            0 => plugin.deactivate(node),
+            1 => drop(node),
+            _ => {
+                drop(plugin);
+                drop(node);
+                continue;
+            }
+        }
+        drop(plugin);
+    }
+    drop(load(DELAY));
+}
