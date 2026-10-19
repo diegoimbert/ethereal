@@ -1,34 +1,37 @@
-# Keeps the SHA-pinned actions current: one grouped pull request a month, which updates each
-# pin and its version comment.
+# Weekly, low-noise updates: per ecosystem, one grouped pull request for the minor and patch
+# bumps; each new major gets its own pull request. At most 5 open pull requests per ecosystem.
 version: 2
 updates:
+  # Keeps the SHA-pinned actions current (each pin and its version comment).
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: monthly
+      interval: weekly
+    open-pull-requests-limit: 5
     groups:
       actions:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
   # The composite actions also run on the private side's self-hosted runners: minor and patch
   # bumps only; a new major is a deliberate change there.
   - package-ecosystem: github-actions
     directory: "/.github/actions/web-build"
     schedule:
-      interval: monthly
+      interval: weekly
+    open-pull-requests-limit: 5
     groups:
       composite-actions:
         patterns: ["*"]
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
-  # Rust and pnpm: one grouped pull request a month per ecosystem for the minor and patch bumps;
-  # each new major gets its own pull request. Tauri's Rust crates and its JS packages move
-  # together, in their own group. A bump that changes a license text fails the "Notices fresh"
-  # check: run `just notices` on the branch and push.
+  # Tauri's Rust crates and its JS packages move together, in their own group. A bump that
+  # changes a license text fails the "Notices fresh" check: run `just notices` on the branch
+  # and push.
   - package-ecosystem: cargo
     directory: "/"
     schedule:
-      interval: monthly
+      interval: weekly
     open-pull-requests-limit: 5
     groups:
       tauri:
@@ -40,7 +43,7 @@ updates:
   - package-ecosystem: npm
     directory: "/"
     schedule:
-      interval: monthly
+      interval: weekly
     open-pull-requests-limit: 5
     groups:
       tauri:
