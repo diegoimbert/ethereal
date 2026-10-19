@@ -10,7 +10,9 @@ GitHub-hosted runners.
 
 | job                                           | runner                                                                          |
 | --------------------------------------------- | ------------------------------------------------------------------------------- |
-| Linux jobs of a push to `main` or a manual run | the pool, when the repository variable `CI_POOL` is `devbox`; else GitHub-hosted |
+| Linux jobs of a push to `main` or a manual run, but e2e | the pool, when the repository variable `CI_POOL` is `devbox`; else GitHub-hosted |
+| the full product's Linux build jobs (`full.yml`), but e2e | the pool, when `FULL_RUNNER` is `["self-hosted","devbox-pool"]`; else GitHub-hosted |
+| e2e shards                                    | GitHub-hosted (they build nothing, and four of them per run would fill the pool) |
 | pull requests (forks included), any bot       | always GitHub-hosted                                                            |
 | macOS, Windows                                | always GitHub-hosted                                                            |
 
@@ -27,6 +29,11 @@ fork could edit a workflow to ask for the pool. Three layers stop that:
 Trusted jobs build the same code the maintainers build on that machine anyway; the sandbox is
 defense in depth. The pool's caches can hold private build output, which is why no untrusted job
 may ever reach them.
+
+The full product's jobs (`full.yml`) overlay the private `ee/` repository on their checkout. Their
+cargo target dirs are their own (`full-*` job ids), and the hooks empty the overlay from the slot's
+workspace after every job and again before the next (`scripts/ci/runner/clean-workspace.sh`), so an
+open-source job that lands on the same slot, whose artifacts are public, never sees private code.
 
 ## The pool
 
