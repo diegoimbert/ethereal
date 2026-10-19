@@ -1,4 +1,4 @@
-// Main status (.github/workflows/main-status.yml): after a run of CI or Full product on `main`
+// Main status (.github/workflows/main-status.yml): after a run of CI, CI (Windows) or Full product on `main`
 // finishes, report the latest *finished* push run of each (a skipped run, reported as cancelled,
 // says nothing about `main`) on the one open `ci-main` issue:
 //   - a red run that the issue doesn't mention yet: a comment (the issue is opened if none is);
@@ -11,6 +11,7 @@ import { pathToFileURL } from "node:url";
 
 export const WORKFLOWS = [
   { file: "ci.yml", name: "CI" },
+  { file: "ci-windows.yml", name: "CI (Windows)" },
   { file: "full.yml", name: "Full product", logs: (id) => `logs: \`just full-logs ${id}\`` },
 ];
 const VERDICTS = new Set(["success", "failure", "timed_out", "startup_failure"]);
@@ -50,7 +51,10 @@ function main() {
   const dry = process.argv.includes("--dry-run");
   const repo = process.env.GH_REPO ?? die("GH_REPO is not set");
   const latest = WORKFLOWS.map((w) => {
-    const runs = api(`repos/${repo}/actions/workflows/${w.file}/runs?branch=main&event=push&status=completed&per_page=50`).workflow_runs;
+    let runs = [];
+    try {
+      runs = api(`repos/${repo}/actions/workflows/${w.file}/runs?branch=main&event=push&status=completed&per_page=50`).workflow_runs;
+    } catch {} // a workflow that isn't on `main` yet: no finished run
     const run = latestFinished(runs);
     const failed = run
       ? api(`repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`)
