@@ -90,6 +90,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "asio-sys"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "477f1cf5b65679fc2e5422af426f87becba79d1cfa2cd77eff3433e36c8021b9"
+dependencies = [
+ "bindgen",
+ "cc",
+ "num-derive",
+ "num-traits",
+ "walkdir",
+]
+
+[[package]]
 name = "assert_no_alloc"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -662,7 +675,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cbd307f43cc2a697e2d1f8bc7a1d824b5269e052209e28883e5bc04d095aaa3f"
 dependencies = [
  "alsa",
- "asio-sys",
+ "asio-sys 0.2.6",
  "coreaudio-rs",
  "dasp_sample",
  "jni",
@@ -1270,7 +1283,7 @@ dependencies = [
 name = "ether-native"
 version = "0.0.1"
 dependencies = [
- "asio-sys",
+ "asio-sys 0.4.0",
  "assert_no_alloc",
  "cpal",
  "crossbeam-channel",

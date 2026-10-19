@@ -40,7 +40,7 @@ rubato.workspace = true
 [target.'cfg(windows)'.dependencies]
 cpal = { workspace = true, features = ["asio"] }
 # The ASIO driver names without loading the drivers (the version cpal uses).
-asio-sys = "0.2"
+asio-sys = "0.4"
 # COM on the threads that open ASIO drivers (`cpal_host.rs`).
 windows-sys = { workspace = true, features = ["Win32_System_Com", "Win32_Media"] }
 
