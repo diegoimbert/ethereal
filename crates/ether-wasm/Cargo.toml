@@ -34,7 +34,12 @@ workspace = true
 # Cargo features (docs/ARCHITECTURE.md "Cargo features"). The web build
 # (apps/web/scripts/build-wasm.mjs) uses `full` unless ETHER_WASM_FEATURES says otherwise.
 [features]
-default = []
+default = ["app-controller"]
+# The app's own controller (`WebController`), built when no `set_controller_factory` was set.
+# A module whose controller always comes from its factory (an extension's, with its own state)
+# leaves it out (`default-features = false`): the module then holds one controller's code,
+# not two.
+app-controller = []
 full = ["warp-complex"]
 # Pitch-preserving Complex warp (`ether-stretch/rust-stretch`, no C++). Off: Complex clips
 # play Repitch.
