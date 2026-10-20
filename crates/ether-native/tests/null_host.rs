@@ -83,7 +83,9 @@ fn null_backend_streams_playhead_and_meters() {
             .map(|w| w[1].0.duration_since(w[0].0))
             .min()
             .unwrap();
-        assert!(min_gap >= Duration::from_millis(30), "{min_gap:?}");
+        // ~33 ms apart when sent; delivery jitter (Windows timers tick at ~15.6 ms) shortens
+        // a gap on arrival. Uncoalesced, one frame per 512-frame block would be ~11 ms apart.
+        assert!(min_gap >= Duration::from_millis(20), "{min_gap:?}");
     });
 
     // Host-handled commands.
