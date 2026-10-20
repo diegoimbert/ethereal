@@ -163,8 +163,9 @@ fn dispatches_by_format() {
         "{err}"
     );
 
-    // Unknown extension, no format: not claimed by any format.
-    let other = dir.join("Thing.vst");
+    // Unknown extension, no format: not claimed by any format (not `.vst`, a VST2 bundle on
+    // macOS in builds with VST2).
+    let other = dir.join("Thing.notaplugin");
     std::fs::write(&other, b"").unwrap();
     let err = runner().scan_bundle(&other).unwrap_err();
     assert!(err.contains("not a plugin bundle"), "{err}");
