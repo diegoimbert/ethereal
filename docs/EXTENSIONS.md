@@ -169,3 +169,11 @@ it), with a `#[wasm_bindgen(start)]` function that sets them, and exports of its
 `apps/web/scripts/build-wasm.mjs` builds it with `--package <its package>` (and
 `ETHER_WASM_WORKSPACE=<its workspace>` when it lives in another one); the output keeps the
 app's name (`ether_wasm.js`), so the UI loads it the same way.
+
+## The engine server (`crates/ether-server`)
+
+The `ether-server` process is `ether_server::app::main(hooks)`: its binary passes the default
+`Hooks`. A product with extensions builds an `ether-server` binary of its own whose `Hooks`
+set them up: `startup` (first thing: controller factory, bridge extension, plugin formats)
+and `started(data_dir, dev)` (before the engine starts; the closure it returns runs at
+shutdown).
