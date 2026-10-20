@@ -253,14 +253,18 @@ pub type WebController =
 
 /// Set up every web controller (its extensions, `EtherController::add_extension`;
 /// docs/EXTENSIONS.md). Call once, before the UI creates the controller.
+#[cfg(feature = "app-controller")]
 pub fn set_controller_setup(setup: fn(&mut WebController)) {
     let _ = CONTROLLER_SETUP.set(setup);
 }
 
+#[cfg(feature = "app-controller")]
 static CONTROLLER_SETUP: std::sync::OnceLock<fn(&mut WebController)> = std::sync::OnceLock::new();
 
 /// Builds the web controller instead of the app's own (an extension's, with its state:
 /// `EtherController::with_state`; docs/EXTENSIONS.md). Call once, before the UI creates it.
+/// Without the `app-controller` feature, the module has no controller of its own: this is
+/// required.
 pub fn set_controller_factory(factory: WebControllerFactory) {
     let _ = CONTROLLER_FACTORY.set(factory);
 }
@@ -324,6 +328,13 @@ impl WasmController {
                 WebLibrary::new(fs),
                 config,
             ),
+            #[cfg(not(feature = "app-controller"))]
+            None => {
+                return Err(JsError::new(
+                    "no controller: set_controller_factory was not called (no app-controller feature)",
+                ));
+            }
+            #[cfg(feature = "app-controller")]
             None => {
                 let mut ctl: WebController = EtherController::with_config(
                     bridge,
