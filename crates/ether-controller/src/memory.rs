@@ -13,8 +13,9 @@ use ether_core::protocol::model::file::{CACHE_DIR, MEDIA_DIR, PROJECT_FILE};
 use ether_core::protocol::project::ProjectSummary;
 
 use crate::store::{
-    ExportFile, Library, ProjectStore, RenderDocument, SHARE_FILE, StoreError, USER_FOLDER_PREFIX,
-    check_relative_path, file_kind, import_folder_name, unique_folder_name, user_folder_id,
+    ExportFile, Library, ProjectStore, RenderDocument, StoreError, USER_FOLDER_PREFIX,
+    check_relative_path, file_kind, import_folder_name, private_files, summary_ext,
+    unique_folder_name, user_folder_id,
 };
 
 /// `base-136`: engine-side path prefix of [`MemoryLibrary`]'s imported folders.
@@ -161,7 +162,7 @@ impl MemoryStore {
             id,
             name,
             modified_ms: p.modified_ms as f64,
-            ext: None,
+            ext: summary_ext(&mut |f| p.files.get(f).cloned()),
         }
     }
 }
@@ -249,9 +250,9 @@ impl ProjectStore for MemoryStore {
             return Err(StoreError::AlreadyExists(to.to_string()));
         }
         let mut copy = self.project(from)?.clone();
-        // A copy is private: never its cache nor the sharing state (and secrets).
+        // A copy is private: never its cache nor an extension's private files.
         copy.files.retain(|path, _| {
-            !path.starts_with(&format!("{CACHE_DIR}/")) && path.as_str() != SHARE_FILE
+            !path.starts_with(&format!("{CACHE_DIR}/")) && !private_files().contains(&path.as_str())
         });
         copy.modified_ms = self.now_ms;
         self.projects.insert(to, copy);

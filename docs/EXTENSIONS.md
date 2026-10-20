@@ -112,6 +112,11 @@ It keeps its own state and gets the controller with every hook:
   one here for another site, reported through `render_update` (`render_requester_present`
   drops it when that site is gone).
 - Document commands of an extension (one undo step, like the app's): `set_ext_doc_commands`.
+- Files of its own in a project folder: `store::set_store_ext(StoreExt { private_files,
+  sidecar_files, summary })`. Every store leaves `private_files` out of a `Duplicate` /
+  `SaveAs` copy, waits for a queued save before reading or replacing a `sidecar_files` file
+  (written with the document, see `save_sidecar`), and lists `summary`'s value as
+  `ProjectSummary::ext` (e.g. a badge on the project list).
 
 An extension that needs state of its own inside the controller gives it as the controller's
 fifth type parameter: `EtherController<B, H, S, L, X>` (`X = ()` by default) built with

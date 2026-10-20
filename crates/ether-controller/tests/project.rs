@@ -308,21 +308,22 @@ fn get_resends_runtime_state() {
     assert!(evs.iter().any(|e| matches!(e, Event::Recording { .. })));
 }
 
-/// base-115 (`recents-shared`): Save As and Duplicate make private copies (no `share.json`).
-/// Reading it into `ProjectSummary.ext` is part of the private sharing overlay, so the list
-/// never carries share info in this build.
+/// Save As and Duplicate make private copies: never an extension's private files
+/// (`store::set_store_ext`), whose summary the project list carries.
 #[test]
-fn copies_never_carry_the_share_file() {
-    use ether_controller::store::{ProjectStore, SHARE_FILE};
+fn copies_never_carry_an_extensions_private_files() {
+    use ether_controller::store::ProjectStore;
+    use ether_controller::store::test_store_ext::{self, PRIVATE};
+    test_store_ext::install();
 
     let mut h = Harness::with_project();
     let a = h.project().id;
     h.ok(Command::Project(ProjectCommand::Save { autosave: false }));
-    h.ctl.store.write(a, SHARE_FILE, b"{}").unwrap();
+    h.ctl.store.write(a, PRIVATE, br#"{"badge":1}"#).unwrap();
     let ReplyValue::Projects { projects } = h.ok(Command::Project(ProjectCommand::List)) else {
         panic!()
     };
-    assert!(projects.iter().all(|p| p.ext.is_none()));
+    assert!(projects[0].ext.is_some());
 
     // Duplicate (not opened).
     let c = h.project_id();
@@ -332,7 +333,7 @@ fn copies_never_carry_the_share_file() {
         name: "Copy".into(),
     }));
     assert!(matches!(v, ReplyValue::Saved { project } if project.ext.is_none()));
-    assert!(h.ctl.store.file(c, SHARE_FILE).is_none());
+    assert!(h.ctl.store.file(c, PRIVATE).is_none());
 
     // Save As (switches to the copy).
     let d = h.project_id();
@@ -341,9 +342,18 @@ fn copies_never_carry_the_share_file() {
         name: "Version 2".into(),
     }));
     ok(&out);
-    assert!(h.ctl.store.file(d, SHARE_FILE).is_none());
+    assert!(h.ctl.store.file(d, PRIVATE).is_none());
     assert!(
-        h.ctl.store.file(a, SHARE_FILE).is_some(),
+        h.ctl.store.file(a, PRIVATE).is_some(),
         "the original keeps it"
     );
+    let ReplyValue::Projects { projects } = h.ok(Command::Project(ProjectCommand::List)) else {
+        panic!()
+    };
+    let with: Vec<_> = projects
+        .iter()
+        .filter(|p| p.ext.is_some())
+        .map(|p| p.id)
+        .collect();
+    assert_eq!(with, [a]);
 }

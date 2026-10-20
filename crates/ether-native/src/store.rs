@@ -28,8 +28,8 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use ether_controller::store::{
-    ExportFile, Library, ProjectStore, RenderDocument, SHARE_FILE, StoreError, file_kind,
-    import_folder_name, unique_folder_name,
+    ExportFile, Library, ProjectStore, RenderDocument, RenderSidecar, StoreError, file_kind,
+    import_folder_name, is_sidecar_file, private_files, summary_ext, unique_folder_name,
 };
 pub use ether_controller::store::{USER_FOLDER_PREFIX, user_folder_id};
 use ether_core::protocol::media::{
@@ -441,16 +441,48 @@ impl DiskStore {
             id,
             name: name_from_ether(&json).unwrap_or_else(|| "Untitled".to_string()),
             modified_ms: modified_ms(&file),
-            ext: None,
+            ext: self.summary_ext(id),
         })
     }
 
-    /// Accesses to `project.ether` through the generic file methods wait for background
-    /// saves too (media and other files don't: they never race with them).
+    /// An extension's [`ProjectSummary::ext`] of the project folder.
+    fn summary_ext(&self, id: ProjectId) -> Option<ether_core::protocol::ext::ExtValue> {
+        let dir = self.project_dir(id);
+        summary_ext(&mut |f| fs::read(dir.join(sanitize_rel(f).ok()?)).ok())
+    }
+
+    /// Accesses to `project.ether` (or a save's sidecar) through the generic file methods
+    /// wait for background saves too (media and other files don't: they never race with
+    /// them).
     fn flush_if_document(&self, rel_path: &str) {
-        if sanitize_rel(rel_path).is_ok_and(|p| p == Path::new(PROJECT_FILE)) {
+        if sanitize_rel(rel_path)
+            .is_ok_and(|p| p == Path::new(PROJECT_FILE) || p.to_str().is_some_and(is_sidecar_file))
+        {
             self.writer.flush();
         }
+    }
+
+    /// `save_in_background(_with)`: queue the document (and its sidecar) on the writer.
+    fn submit_save(
+        &mut self,
+        id: ProjectId,
+        name: &str,
+        render: RenderDocument,
+        sidecar: Option<RenderSidecar>,
+    ) -> Result<ProjectSummary, StoreError> {
+        let dir = self.existing_project_dir(id)?;
+        self.writer
+            .submit(id, dir.join(PROJECT_FILE), render, sidecar);
+        // What `summary` would read once the write lands (without waiting for it).
+        let modified_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0.0, |d| d.as_millis() as f64);
+        Ok(ProjectSummary {
+            id,
+            name: name.to_string(),
+            modified_ms,
+            ext: self.summary_ext(id),
+        })
     }
 
     fn library_root(&self, root: &str) -> Result<&LibraryRoot, StoreError> {
@@ -528,18 +560,17 @@ impl ProjectStore for DiskStore {
         name: &str,
         render: RenderDocument,
     ) -> Result<ProjectSummary, StoreError> {
-        let dir = self.existing_project_dir(id)?;
-        self.writer.submit(id, dir.join(PROJECT_FILE), render);
-        // What `summary` would read once the write lands (without waiting for it).
-        let modified_ms = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0.0, |d| d.as_millis() as f64);
-        Ok(ProjectSummary {
-            id,
-            name: name.to_string(),
-            modified_ms,
-            ext: None,
-        })
+        self.submit_save(id, name, render, None)
+    }
+
+    fn save_in_background_with(
+        &mut self,
+        id: ProjectId,
+        name: &str,
+        render: RenderDocument,
+        sidecar: RenderSidecar,
+    ) -> Result<ProjectSummary, StoreError> {
+        self.submit_save(id, name, render, Some(sidecar))
     }
 
     fn flush_saves(&mut self) {
@@ -562,8 +593,12 @@ impl ProjectStore for DiskStore {
             .projects_root
             .join(format!(".dup-{to}-{}.tmp", std::process::id()));
         let _ = fs::remove_dir_all(&tmp);
-        // A copy is private: no cache, and never the sharing state (and its secrets).
-        let result = copy_dir(&src, &tmp, &["cache", SHARE_FILE])
+        // A copy is private: no cache, and never an extension's private files.
+        let skip: Vec<&str> = ["cache"]
+            .into_iter()
+            .chain(private_files().iter().copied())
+            .collect();
+        let result = copy_dir(&src, &tmp, &skip)
             .and_then(|()| fs::create_dir_all(tmp.join("cache")))
             .and_then(|()| fs::rename(&tmp, &dst));
         if let Err(e) = result {
@@ -1668,27 +1703,80 @@ mod tests {
         assert_eq!(ProjectStore::list(&mut s).unwrap().len(), 1);
     }
 
-    /// base-115 (`recents-shared`): `duplicate` (SaveAs) makes a private project, never
-    /// copying `share.json`. Reading it into `ProjectSummary.ext` is part of the private
-    /// sharing overlay, so the list never carries share info in this build.
+    /// An extension's files (`store::set_store_ext`): its summary, never copied by
+    /// `duplicate` (SaveAs / Duplicate make a private project).
     #[test]
-    fn duplicate_never_copies_the_share_file() {
-        let tmp = TempDir::new("store-share");
+    fn an_extensions_private_files_and_summary() {
+        use ether_controller::store::test_store_ext::{self, PRIVATE};
+        test_store_ext::install();
+        let tmp = TempDir::new("store-ext");
         let mut s = store(&tmp);
         let (host, dup) = (pid(10), pid(11));
         s.create(host).unwrap();
         s.save(host, &ether("Song")).unwrap();
-        s.write(host, SHARE_FILE, b"{}").unwrap();
+        assert_eq!(ProjectStore::list(&mut s).unwrap()[0].ext, None);
+        s.write(host, PRIVATE, br#"{"badge":1}"#).unwrap();
+        let ext = ProjectStore::list(&mut s).unwrap()[0].ext.clone();
+        assert_eq!(ext.unwrap().0, serde_json::json!({"badge": 1}));
+        // `save` reports it too (the `Saved` event's summary).
+        assert!(s.save(host, &ether("Song")).unwrap().ext.is_some());
+        // An unreadable file lists the project without it, never hides it.
+        s.write(host, PRIVATE, b"{ corrupt").unwrap();
         assert_eq!(ProjectStore::list(&mut s).unwrap()[0].ext, None);
 
+        s.write(host, PRIVATE, b"{}").unwrap();
         s.write(host, "media/a.wav", b"A").unwrap();
         s.duplicate(host, dup).unwrap();
-        assert!(!s.project_dir(dup).join(SHARE_FILE).exists());
+        assert!(!s.project_dir(dup).join(PRIVATE).exists());
         assert_eq!(
             ProjectStore::read(&mut s, dup, "media/a.wav").unwrap(),
             b"A"
         );
-        assert_eq!(ProjectStore::list(&mut s).unwrap()[0].ext, None);
+        let list = ProjectStore::list(&mut s).unwrap();
+        assert_eq!(list.iter().find(|p| p.id == dup).unwrap().ext, None);
+    }
+
+    /// A save's sidecar (`save_in_background_with`) is written right after its document,
+    /// from its JSON; reading or replacing it waits for the queue.
+    #[test]
+    fn a_background_save_writes_its_sidecar_after_the_document() {
+        use ether_controller::store::test_store_ext::{self, SIDECAR};
+        test_store_ext::install();
+        let tmp = TempDir::new("store-sidecar");
+        let mut s = store(&tmp);
+        let a = pid(6);
+        s.create(a).unwrap();
+        let sidecar = |tag: &'static str| -> RenderSidecar {
+            Box::new(move |json: &str| {
+                Some((
+                    SIDECAR.to_string(),
+                    format!("{tag}:{}", json.len()).into_bytes(),
+                ))
+            })
+        };
+        let doc = ether("with sidecar");
+        s.save_in_background_with(a, "x", render(doc.clone()), sidecar("j1"))
+            .unwrap();
+        assert_eq!(
+            ProjectStore::read(&mut s, a, SIDECAR).unwrap(),
+            format!("j1:{}", doc.len()).into_bytes()
+        );
+        assert_eq!(s.load(a).unwrap(), doc);
+        // A path that leaves the folder is never written.
+        s.save_in_background_with(
+            a,
+            "x",
+            render(ether("evil")),
+            Box::new(|_: &str| Some(("../escape.json".to_string(), b"x".to_vec()))),
+        )
+        .unwrap();
+        s.flush_saves();
+        assert!(!tmp.path().join("projects/escape.json").exists());
+        // Clearing it (a write) waits for a queued save that carries one.
+        s.save_in_background_with(a, "x", render(ether("again")), sidecar("j2"))
+            .unwrap();
+        ProjectStore::write(&mut s, a, SIDECAR, b"").unwrap();
+        assert!(ProjectStore::read(&mut s, a, SIDECAR).unwrap().is_empty());
     }
 
     #[test]

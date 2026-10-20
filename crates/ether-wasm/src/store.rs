@@ -20,8 +20,8 @@
 use std::collections::BTreeMap;
 
 use ether_controller::store::{
-    Library, ProjectStore, SHARE_FILE, StoreError, USER_FOLDER_PREFIX, check_relative_path,
-    file_kind, import_folder_name, unique_folder_name, user_folder_id,
+    Library, ProjectStore, StoreError, USER_FOLDER_PREFIX, check_relative_path, file_kind,
+    import_folder_name, private_files, summary_ext, unique_folder_name, user_folder_id,
 };
 use ether_core::protocol::media::{
     BrowseLocation, BrowseRoot, DirectoryEntry, DirectoryListing, FileKind,
@@ -210,11 +210,17 @@ impl<F: Fs> WebStore<F> {
     fn summary(&mut self, id: ProjectId) -> Result<ProjectSummary, StoreError> {
         let (bytes, path) = self.read_document(id)?;
         let modified_ms = self.fs.stat(&path)?.map_or(0.0, |e| e.modified_ms);
+        // An extension's summary of the folder (a missing or unreadable file: none).
+        let dir = Self::dir(id);
+        let ext = summary_ext(&mut |f| {
+            check_relative_path(f).ok()?;
+            self.fs.read(&format!("{dir}/{f}")).ok()
+        });
         Ok(ProjectSummary {
             id,
             name: name_of(&bytes),
             modified_ms,
-            ext: None,
+            ext,
         })
     }
 
@@ -335,10 +341,14 @@ impl<F: Fs> ProjectStore for WebStore<F> {
         // folders are removed.
         let (tmp, dst) = (Self::dup_dir(to), Self::dir(to));
         let _ = self.fs.remove(&tmp);
-        // The cache is regenerable: copy an empty one. A copy is private: never copy the
-        // sharing state (and its secrets).
+        // The cache is regenerable: copy an empty one. A copy is private: never copy an
+        // extension's private files.
+        let skip: Vec<&str> = [CACHE_DIR]
+            .into_iter()
+            .chain(private_files().iter().copied())
+            .collect();
         let result = self
-            .copy_tree(&Self::dir(from), &tmp, &[CACHE_DIR, SHARE_FILE])
+            .copy_tree(&Self::dir(from), &tmp, &skip)
             .and_then(|()| self.fs.mkdir(&format!("{tmp}/{CACHE_DIR}")))
             .and_then(|()| self.move_tree(&tmp, &dst, true));
         let _ = self.fs.remove(&tmp);
@@ -1148,22 +1158,30 @@ mod tests {
         assert_eq!(w.stat(&tmp).unwrap(), None);
     }
 
-    /// base-115 (`recents-shared`): `duplicate` (SaveAs) makes a private project, never
-    /// copying `share.json`. Reading it into `ProjectSummary.ext` is part of the private
-    /// sharing overlay, so the list never carries share info in this build.
+    /// An extension's files (`store::set_store_ext`): its summary, never copied by
+    /// `duplicate` (SaveAs / Duplicate make a private project).
     #[test]
-    fn duplicate_never_copies_the_share_file() {
+    fn an_extensions_private_files_and_summary() {
+        use ether_controller::store::test_store_ext::{self, PRIVATE};
+        test_store_ext::install();
         let (_fs, mut s) = store();
         s.create(pid(1)).unwrap();
         s.save(pid(1), &doc("Song")).unwrap();
-        s.write(pid(1), SHARE_FILE, b"{}").unwrap();
+        assert!(s.list().unwrap()[0].ext.is_none());
+        s.write(pid(1), PRIVATE, br#"{"badge":1}"#).unwrap();
+        let ext = s.list().unwrap()[0].ext.clone();
+        assert_eq!(ext.unwrap().0, serde_json::json!({"badge": 1}));
+        assert!(s.save(pid(1), &doc("Song")).unwrap().ext.is_some());
+        s.write(pid(1), PRIVATE, b"{ corrupt").unwrap();
         assert!(s.list().unwrap()[0].ext.is_none());
 
+        s.write(pid(1), PRIVATE, b"{}").unwrap();
         s.write(pid(1), "media/a.wav", b"A").unwrap();
         s.duplicate(pid(1), pid(2)).unwrap();
-        assert!(s.read(pid(2), SHARE_FILE).is_err());
+        assert!(s.read(pid(2), PRIVATE).is_err());
         assert_eq!(s.read(pid(2), "media/a.wav").unwrap(), b"A");
-        assert!(s.list().unwrap()[0].ext.is_none());
+        let list = s.list().unwrap();
+        assert!(list.iter().find(|p| p.id == pid(2)).unwrap().ext.is_none());
     }
 
     #[test]

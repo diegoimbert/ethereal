@@ -4,6 +4,7 @@ description = "MCP server (stdio) exposing Ethereal's agent tools to LLM clients
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 repository.workspace = true
 authors.workspace = true
 publish.workspace = true
