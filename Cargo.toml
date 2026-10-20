@@ -63,7 +63,7 @@ ulid = { version = "3.0", default-features = false }
 # Native-only crates may add `features = ["v7"]` to use `Uuid::now_v7()`.
 uuid = { version = "1.18", default-features = false, features = ["std", "serde"] }
 ts-rs = { version = "12", features = ["serde-compat"] }
-base64 = "0.22"
+base64 = "0.23"
 
 # --- errors / logging ---
 thiserror = "2"
