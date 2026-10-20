@@ -131,3 +131,19 @@ The hosts add a process's extensions to every controller they create:
 `ether_wasm::web::set_controller_setup(f)` (web), called once at startup. An extension with
 state of its own builds the controller itself instead: `set_controller_factory(f)` (both
 hosts), `f` returning a controller made with `with_state`.
+
+## The native bridge (`crates/ether-native/src/bridge.rs`)
+
+- `bridge::set_bridge_ext(f)` (once, at startup): `f` makes a `BridgeExt` for every
+  `NativeBridge` (the main engine's and each dedicated engine's). It sees the graphs and
+  transport controls the bridge sends (`observe_graph`, `observe_transport`) and the
+  dedicated engines spawned from it (`spawned`), and is dropped before the bridge's plugin
+  instances. The extension reaches it with `NativeBridge::ext_mut` / `ext_ref`, and the
+  engine handle for taps of its own with `ext_and_handle`.
+- `NativeBridge::spawn_dedicated()`: a second engine of this app on the paced `null` backend
+  (no audio device), for a copy of the open project played for someone else. Its plugins are
+  the same host's, registered under ids of their own (`dedicated_device_id`,
+  `is_main_instance_id`); their notifications come back from its own `poll_plugins`.
+  Dropping the `DedicatedEngine` stops it.
+- Feature `test-support`: fake plugins (`plugins::fake`) and `test_util::fake_bridge` for
+  another crate's tests.

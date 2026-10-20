@@ -69,6 +69,9 @@ plugins-au = ["dep:ether-au"]
 sandbox = ["dep:ether-sandbox"]
 # Complex warp (Signalsmith Stretch). Off: Complex-warped clips play Repitch, as on the web.
 warp-complex = ["ether-stretch/signalsmith"]
+# Test helpers for other crates' tests: fake plugins (`plugins::fake`) and a bridge over them
+# (`test_util::fake_bridge`).
+test-support = []
 
 [[test]]
 name = "formats_e2e"

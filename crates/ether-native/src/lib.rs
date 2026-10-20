@@ -24,6 +24,7 @@ pub mod app_identity;
 pub mod audio;
 pub mod bridge;
 mod cpal_host;
+pub mod dedicated;
 pub mod demo_samples;
 pub mod disk_stream;
 pub mod health;
