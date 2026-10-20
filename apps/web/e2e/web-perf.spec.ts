@@ -1,4 +1,4 @@
-// web-perf: a larger project on the web build, against the real engine. Every graph
+// A larger project on the web build, against the real engine. Every graph
 // snapshot reaches the AudioWorklet as a binary `Publish` frame (ether_core::codec).
 //
 // One MIDI track (synth, 8 clips of 16 notes) duplicated to 24 tracks (192 clips) through

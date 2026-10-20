@@ -1,4 +1,4 @@
-// Audio streaming on the web build (audio-streaming, CONTRACTS.md §13.1): a media longer
+// Audio streaming on the web build (CONTRACTS.md §13.1): a media longer
 // than 30 s is not decoded into memory; the engine Worker reads it from OPFS by byte ranges
 // and ships chunks to the worklet's cache. Import a 40 s file → it plays → click mid-clip
 // (locate) → it plays from there → no stream underrun is reported and no engine error.

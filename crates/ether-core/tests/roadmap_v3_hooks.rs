@@ -1,4 +1,4 @@
-//! v0.2 engine hooks (contracts-3): the analysis channel, and the v0.2 graph fields (frozen
+//! v0.2 engine hooks: the analysis channel, and the v0.2 graph fields (frozen
 //! tracks, rack chains, modulation, input taps, VCAs) leaving v0.1 behaviour unchanged when
 //! unused. Each feature has its own behaviour tests.
 

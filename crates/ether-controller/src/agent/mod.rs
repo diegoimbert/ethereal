@@ -1,4 +1,4 @@
-//! Agent API (`agent-api`; docs/MCP.md, CONTRACTS.md §13): the LLM tool registry behind
+//! Agent API (docs/MCP.md, CONTRACTS.md §13): the LLM tool registry behind
 //! `Command::Agent`, shared by the in-app AI chat and the MCP server (`ether-mcp`).
 //!
 //! - `ListTools` → [`tools::TOOLS`] (name, description, JSON Schema).
@@ -246,7 +246,7 @@ where
                 names.join(", ")
             )));
         };
-        // #583: a listen link is view only; editing tools would only change the local copy.
+        // A listen link is view only; editing tools would only change the local copy.
         if self.ext_view_only() && !tools::allowed_view_only(def.name) {
             return Err(ToolError::Command(crate::tx::keyed_err(
                 ether_core::protocol::ErrorCode::InvalidState,

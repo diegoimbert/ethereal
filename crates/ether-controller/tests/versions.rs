@@ -1,4 +1,4 @@
-//! Project versions and crash recovery (`project-versions`, CONTRACTS.md §13.11).
+//! Project versions and crash recovery (CONTRACTS.md §13.11).
 
 mod common;
 

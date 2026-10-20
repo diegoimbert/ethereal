@@ -83,25 +83,25 @@ pub trait GraphCodec {
 pub struct BinaryCodec;
 
 impl BinaryCodec {
-    /// Current format version (first byte of every encoding). 2 = v0.2 (contracts-3): track
-    /// kind `Vca`, the v0.2 track fields and `RenderGraphDesc::vcas`. 3 = `groups-buses`:
+    /// Current format version (first byte of every encoding). 2 = v0.2: track
+    /// kind `Vca`, the v0.2 track fields and `RenderGraphDesc::vcas`. 3 = groups and buses:
     /// `TrackDesc::{input_tap, vca}` and `RenderGraphDesc::vcas` in the binary layout. 4 =
-    /// `racks-modulation`: `TrackDesc::{chain_racks, modulation}` in the binary layout. 5 =
+    /// `TrackDesc::{chain_racks, modulation}` in the binary layout. 5 =
     /// clip envelopes of audio clips' gain and transposition (`ClipContentDesc::Audio::
     /// {gain_envelope, transpose_envelope}`, `AutomationTarget::{ClipGain, ClipTranspose}`).
     pub const VERSION: u8 = 5;
 }
 
-/// v0.2 fields of a [`TrackDesc`] (contracts-3) still outside the binary layout. Encoded as
+/// v0.2 fields of a [`TrackDesc`] still outside the binary layout. Encoded as
 /// one tagged JSON blob (`0` = all default, the common case: no allocation; `1` + `u32`
 /// length + JSON), so the v0.2 nodes can refine their own desc types without touching the
 /// binary layout. A node that needs a hot, compact encoding moves its field into the binary
-/// layout (bumping `VERSION`): `groups-buses` did (v3), so did `racks-modulation` (v4).
+/// layout (bumping `VERSION`): groups and buses did (v3), so did racks and modulation (v4).
 ///
 /// v0.4 adds `sidechain_taps` (same rules).
 ///
-/// v0.3 (contracts-4) adds `expression` and `hw_io` to the blob (absent = default, so the
-/// binary layout and `VERSION` are unchanged); `midi-expression` may move `expression` into
+/// v0.3 adds `expression` and `hw_io` to the blob (absent = default, so the
+/// binary layout and `VERSION` are unchanged); MIDI expression may move `expression` into
 /// the binary layout (bumping `VERSION`) if profiling asks for it.
 #[derive(serde::Serialize)]
 struct TrackExtRef<'a> {
@@ -253,7 +253,7 @@ impl Writer<'_> {
         });
         self.opt(&count_in_end, |w, v| w.f64(*v));
         self.vec(tracks, Self::track);
-        // v0.2 (`groups-buses`): VCA faders.
+        // v0.2: VCA faders.
         self.vec(vcas, |w, v| {
             let crate::vca::VcaDesc {
                 id,
@@ -362,7 +362,7 @@ impl Writer<'_> {
                 w.bool(*mute);
             });
         });
-        // v0.2 (`groups-buses`): input tap and VCA assignment.
+        // v0.2: input tap and VCA assignment.
         self.opt(input_tap, |w, tap| {
             let crate::bus_tap::InputTapDesc { track, point } = *tap;
             w.ulid(track.0);
@@ -373,7 +373,7 @@ impl Writer<'_> {
             });
         });
         self.opt(vca, |w, v| w.ulid(v.0));
-        // v0.2 (`racks-modulation`, v4): rack chains and modulation.
+        // v0.2 (v4): rack chains and modulation.
         self.vec(chain_racks, Self::chain_rack);
         self.modulation(modulation);
         // Other v0.2 and the v0.3 fields (`TrackExt`).

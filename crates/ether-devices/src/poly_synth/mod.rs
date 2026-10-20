@@ -1,4 +1,4 @@
-//! v0.2 poly synth (contracts-3 froze the param tables; see docs/DEVICES.md).
+//! v0.2 poly synth (the v0.2 contracts froze the param tables; see docs/DEVICES.md).
 //!
 //! The polyphonic synth: 2 oscillators (virtual-analog shapes + wavetable position), sub, noise, multimode filter with drive, amp/filter/mod envelopes, 2 LFOs, unison, glide, voice modes.
 //!
@@ -82,7 +82,7 @@
 //! `Transpose` / `Fine` (65/66) shift the whole synth (both oscillators, sub, unison) on
 //! top of each oscillator's own `Octave` / `Semitones` / `Fine`.
 //!
-//! ## Unison (`devices-pass-instruments`)
+//! ## Unison
 //!
 //! `Unison Voices` (61) stacks up to 16 copies of both oscillators per note, detuned
 //! symmetrically by up to ±`Unison Detune` cents (the outermost copies; the others evenly
@@ -140,9 +140,9 @@ pub mod poly_synth {
     pub const SUB_OCTAVE: ParamId = ParamId(15);
     pub const NOISE_LEVEL: ParamId = ParamId(16);
     pub const NOISE_COLOR: ParamId = ParamId(17);
-    /// Hidden since `devices-pass-instruments` (old documents): see [`UNISON_VOICES`].
+    /// Hidden since the instruments pass (old documents): see [`UNISON_VOICES`].
     pub const LEGACY_UNISON_VOICES: ParamId = ParamId(18);
-    /// Hidden since `devices-pass-instruments` (old documents): see [`UNISON_DETUNE`].
+    /// Hidden since the instruments pass (old documents): see [`UNISON_DETUNE`].
     pub const LEGACY_UNISON_DETUNE: ParamId = ParamId(19);
     pub const UNISON_SPREAD: ParamId = ParamId(20);
     pub const VOICES: ParamId = ParamId(21);
@@ -185,13 +185,13 @@ pub mod poly_synth {
     pub const VELOCITY: ParamId = ParamId(58);
     pub const OSC1_TABLE: ParamId = ParamId(59);
     pub const OSC2_TABLE: ParamId = ParamId(60);
-    /// `devices-pass-instruments`: unison stack size (1..=16).
+    /// Unison stack size (1..=16).
     pub const UNISON_VOICES: ParamId = ParamId(61);
-    /// `devices-pass-instruments`: unison detune of the outermost copies, in cents.
+    /// Unison detune of the outermost copies, in cents.
     pub const UNISON_DETUNE: ParamId = ParamId(62);
-    /// `devices-pass-instruments`: level of the side unison copies against the centre.
+    /// Level of the side unison copies against the centre.
     pub const UNISON_BLEND: ParamId = ParamId(63);
-    /// `devices-pass-instruments`: analog pitch drift.
+    /// Analog pitch drift.
     pub const DRIFT: ParamId = ParamId(64);
     /// Global coarse tuning, semitones (both oscillators).
     pub const TRANSPOSE: ParamId = ParamId(65);

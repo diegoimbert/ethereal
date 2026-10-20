@@ -106,7 +106,7 @@ fn descriptors_report_a_stereo_sidechain_input() {
     assert_eq!(Compressor::new().sidechain_inputs(), 2);
     assert_eq!(Limiter::new().sidechain_inputs(), 2);
     // The HPF param is appended (ids stay stable); `Detector` came after it, then the
-    // `devices-pass-effects` params (Knee .. Auto Makeup).
+    // effects pass params (Knee .. Auto Makeup).
     let p = compressor::param_infos();
     assert_eq!(p[5].id, compressor::params::SIDECHAIN_HPF);
     assert_eq!(p[6].id, compressor::params::DETECTOR);

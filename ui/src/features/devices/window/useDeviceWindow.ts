@@ -39,7 +39,7 @@ export function hasWindow(device: Pick<Device, "kind">): boolean {
 }
 
 /**
- * The window of a device, whatever its kind (base-153): a plugin's native editor window
+ * The window of a device, whatever its kind: a plugin's native editor window
  * (`Plugin::OpenEditor` / `CloseEditor`), or a built-in device's floating window.
  */
 export function useDeviceWindow(device: Device): DeviceWindowControl {

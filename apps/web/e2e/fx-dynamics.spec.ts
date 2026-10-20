@@ -74,7 +74,7 @@ test("gate, multiband compressor and transient shaper on an audio track", async 
     await expect.poll(async () => (await chainOf()).length).toBe(i + 1);
   }
   const [shaper, mbc, gate] = (await chainOf()).map((d) => d.id) as [string, string, string];
-  // base-153: a factory device's UI is in its window (opened, and raised, on use).
+  // A factory device's UI is in its window (opened, and raised, on use).
   const panel = (id: string) => openDeviceWindow(page, id);
 
   // Declarative panels: crossover display, one gain-reduction meter per band, gate meter.

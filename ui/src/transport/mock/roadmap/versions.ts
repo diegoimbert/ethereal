@@ -1,5 +1,5 @@
 /**
- * Mock of `Version::*` (v0.3, `project-versions`; CONTRACTS.md §13.11): rolling autosaved
+ * Mock of `Version::*` (v0.3; CONTRACTS.md §13.11): rolling autosaved
  * versions of the open project (`List`, `Create`, `Restore`, `Delete`, `Rename`, `Compare`)
  * and crash recovery (`ListRecoverable`, `Recover`, `DiscardRecovery`) next to the mock
  * project store. Mirrors `crates/ether-controller/src/versions/`:
@@ -269,7 +269,7 @@ export class MockVersions {
       case "DiscardRecovery":
         this.markers.delete(c.project);
         return { type: "Unit" };
-      // base-131: the mock's session markers are the simulated crashes.
+      // The mock's session markers are the simulated crashes.
       case "SessionStatus":
         return { type: "SessionStatus", unclean: [...this.markers] };
     }

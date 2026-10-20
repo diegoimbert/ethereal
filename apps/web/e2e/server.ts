@@ -1,5 +1,5 @@
 // The native engine server (`ether-server`) for the specs that run against it (comping,
-// live-record, remote-engine, tap-recording).
+// live-record, remote-engine).
 import { execFileSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

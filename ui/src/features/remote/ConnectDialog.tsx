@@ -9,7 +9,7 @@ import { uploadStore, useUploads } from "./upload";
 
 /**
  * The engine server in the top bar (`data-slot="remote"`). The connect form lives in
- * Settings > Advanced > Engine server (base-115). Here: "● <server>"
+ * Settings > Advanced > Engine server. Here: "● <server>"
  * while this window runs on an engine server (its dialog disconnects), why a connection was
  * lost, and the upload progress. A dropped connection returns to the local engine.
  */

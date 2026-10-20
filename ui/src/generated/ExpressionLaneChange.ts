@@ -2,7 +2,7 @@
 import type { ExpressionPoint } from "./ExpressionPoint";
 
 /**
- * v0.3 (`midi-expression`): a lane's whole curve is one last-writer-wins value
+ * v0.3: a lane's whole curve is one last-writer-wins value
  * (`ether_model::expression`). The kind and clip never change (re-create the lane).
  */
 export type ExpressionLaneChange = { "field": "Points", "value": Array<ExpressionPoint> };

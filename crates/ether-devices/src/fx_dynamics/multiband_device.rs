@@ -124,14 +124,14 @@ pub struct MultibandCompressor {
     bands: [Band; BANDS],
     channels: [Channel; 2],
     /// Current (gliding) crossover frequencies, their logs (the glide runs on them: perf
-    /// audit #17, one `exp` per step instead of two `ln` and an `exp`) and coefficients.
+    /// One `exp` per step instead of two `ln` and an `exp`) and coefficients.
     freq: [f32; 2],
     log_freq: [f32; 2],
     coefs: [SvfCoefs; 2],
     glide_coef: f32,
     output: GainRamp,
     mix: GainRamp,
-    /// Silence reporting (perf audit #5).
+    /// Silence reporting.
     tail: util::Tail,
 }
 
@@ -295,7 +295,7 @@ impl MultibandCompressor {
     ) {
         let thresholds = BAND_IDS.map(|ids| self.params.get(ids.threshold));
         let ratios = BAND_IDS.map(|ids| self.params.get(ids.ratio));
-        // Perf audit #17: detector peaks clearly under a band's knee skip the log10 (the
+        // Detector peaks clearly under a band's knee skip the log10 (the
         // reduction is exactly 0 either way), see `compressor.rs`.
         let below_knee =
             thresholds.map(|t| db_to_amp(t - crate::compressor::KNEE_DB * 0.5) * 0.999);

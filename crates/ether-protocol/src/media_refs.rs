@@ -1,4 +1,4 @@
-//! External media references: missing media, relink and collect (v0.2, `media-references`
+//! External media references: missing media, relink and collect (v0.2
 //! node; CONTRACTS.md §12.9). Model: `ether_model::MediaLocation`.
 //!
 //! Behaviour change in v0.2: `Media::Import { source: Location }` references the library file
@@ -25,7 +25,7 @@ pub enum MediaRefCommand {
     /// `MediaRefEvent::SearchProgress` (the last one has `total: Some(scanned)`). Replies
     /// `Unit` when started.
     ///
-    /// `folder` (v0.2 additive, `media-references`): also search this absolute engine-side
+    /// `folder` (v0.2 additive): also search this absolute engine-side
     /// folder, recursively (the Relink dialog's "Search in folder…", desktop only: hosts
     /// without OS files reply `Unsupported`). Missing = library roots only.
     Search {

@@ -1,4 +1,4 @@
-// base-152 on the web build, through the UI, against the real engine: Ctrl+Shift+drag on an
+// On the web build, through the UI, against the real engine: Ctrl+Shift+drag on an
 // audio clip's body slips its content (the offset), clamped to the source. The clip's start
 // and length stay; one undo per drag; a drag on the title band still moves the clip.
 // Runs on the `webgl` and `canvas2d` projects (ARRANGER_SPECS).

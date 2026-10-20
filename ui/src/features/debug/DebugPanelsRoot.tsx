@@ -6,7 +6,7 @@ import { closeDebugPanel, debugWindowId, setDebugPanelOpen, useDebugPanels, type
 import "./debug.css";
 
 /**
- * base-154: the open debug panels, each in a kit `FloatingWindow` (moved, resized, kept on
+ * The open debug panels, each in a kit `FloatingWindow` (moved, resized, kept on
  * screen, geometry remembered). Mounted once by the app shell.
  */
 export function DebugPanelsRoot() {

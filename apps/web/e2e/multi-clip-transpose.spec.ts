@@ -1,7 +1,7 @@
-// base-150 on the web build, through the UI, against the real engine: with two audio clips
+// On the web build, through the UI, against the real engine: with two audio clips
 // selected, the Inspector's transpose applies to both (one undo step reverts both). Their
 // values differ first, so the field shows mixed ("—"); an arrow step moves each by +1
-// (differences kept); a typed value sets both. Each clip still resizes (base-144).
+// (differences kept); a typed value sets both. Each clip still resizes.
 //
 // Screenshots for the PR (skipped unless `MULTI_TRANSPOSE_SHOTS=<dir>`).
 import { expect, test, type Page } from "@playwright/test";

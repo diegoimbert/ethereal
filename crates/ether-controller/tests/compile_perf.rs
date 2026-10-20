@@ -1,4 +1,4 @@
-//! Graph compile and delete cost on large synthetic projects (perf audit #1, #23), driven
+//! Graph compile and delete cost on large synthetic projects, driven
 //! through the real controller with the fake bridge.
 //!
 //! Default runs use one small size (16k notes) and only check deterministic properties
@@ -264,7 +264,7 @@ fn compile_and_delete_timings() {
     }
 }
 
-/// Names and colours don't recompile the graph (perf audit #1): no publish follows them,
+/// Names and colours don't recompile the graph: no publish follows them,
 /// and the graph compiled after them is the one already published.
 #[test]
 fn renames_and_colours_do_not_republish() {

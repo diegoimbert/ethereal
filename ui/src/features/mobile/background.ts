@@ -1,5 +1,5 @@
 /**
- * Phones in the background (#522): when the page is hidden (another app, the lock screen, a
+ * Phones in the background: when the page is hidden (another app, the lock screen, a
  * call), playback stops and a recording take is finished. iOS suspends a hidden tab's
  * AudioContext anyway (the transport would keep "playing" in silence), a call should never
  * keep a take recording, and it saves the battery. Coming back does not resume.

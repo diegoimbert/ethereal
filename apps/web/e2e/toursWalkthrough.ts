@@ -6,7 +6,7 @@
 // For each step it checks what breaks tours in practice:
 // - the highlighted parts are found (no "we'll skip it" fallback), inside the window, and a
 //   press at their center reaches them (nothing covers them: a menu, a dialog, the bubble);
-// - the ring is the topmost element along its edge (no layer hides the highlight, #753);
+// - the ring is the topmost element along its edge (no layer hides the highlight);
 // - the bubble is inside the window and nothing in it is clipped or needs scrolling;
 // - the step moves on after the action it asks for, done the way a user does it (a click on
 //   "share", "add track" then "create audio track", the arm button), within STEP_TIMEOUT;
@@ -81,7 +81,7 @@ const FIRST_TRACK: Script = {
 
 /**
  * The web walk of every tour on this build's welcome screen, by its item's title. `example`: an example
- * beat's tour (#518), started by its "show me how" button in the examples section.
+ * beat's tour, started by its "show me how" button in the examples section.
  */
 export const TOURS: ReadonlyArray<Tour> = [
   { title: "make your first track", id: "first-track", script: FIRST_TRACK },
@@ -314,7 +314,7 @@ export function walkthroughTours(tours: ReadonlyArray<Tour>): void {
         .map((t) => t.title)
         .sort(),
     );
-    // The example beats' tours (#518): each example's "show me how".
+    // The example beats' tours: each example's "show me how".
     const examples = screen.getByRole("region", { name: "examples" });
     const guides = examples.getByRole("button", { name: /^show me how: / });
     await expect(guides.first()).toBeEnabled({ timeout: 30_000 });

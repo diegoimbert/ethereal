@@ -60,7 +60,7 @@ export function onLaneInsertPointerDown(
   ctx.focus();
 
   // Over a clip's body (clicks pass through it to the lane): open it instead of inserting,
-  // expanding the collapsed drawer and inspector like any double-click on a clip (#758).
+  // expanding the collapsed drawer and inspector like any double-click on a clip.
   const under = Object.values(project.clips).find((c) => c.track === track && isArrangementClip(c) && anchor >= startOf(c) && anchor < startOf(c) + c.length);
   if (under) {
     if (under.content.type === "Midi") useEditorStore.getState().revealClip(under.id);

@@ -1,4 +1,4 @@
-//! Shared v0.2 device scaffolding (contracts-3; a shared contract, change it on purpose): param-table builders,
+//! Shared v0.2 device scaffolding (a shared contract, change it on purpose): param-table builders,
 //! the placeholder node every v0.2 device starts as, factory-preset registration and layout
 //! builders. Device nodes use these from their own modules.
 //!

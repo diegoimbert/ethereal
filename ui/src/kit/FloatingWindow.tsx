@@ -1,5 +1,5 @@
 /**
- * base-154: a floating, non-modal window above the app (device windows, debug panels).
+ * A floating, non-modal window above the app (device windows, debug panels).
  *
  * - Moves by its title bar, resizes from every edge and corner (pointer capture, within its
  *   min / max size); with the keyboard, once the window has the focus: Alt+arrows move it,

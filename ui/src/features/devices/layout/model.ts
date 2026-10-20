@@ -37,7 +37,7 @@ export function boundParams(w: Widget): ParamId[] {
       return some([w.start, w.end]);
     case "EqCurve":
       return [...w.bands.flatMap((b) => some([b.on, b.kind, b.freq, b.gain, b.q])), ...w.crossovers];
-    // devices-pass-effects visualisations.
+    // Effect visualisations.
     case "DynamicsCurve":
       return some([w.threshold, w.ratio, w.knee, w.mode, w.floor, w.input_gain]);
     case "DelayTaps":

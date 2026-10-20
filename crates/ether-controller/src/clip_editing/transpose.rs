@@ -1,5 +1,5 @@
 //! `ClipCommand::SetTranspose`: transposing an audio clip resizes it on the arrangement
-//! when the transpose changes its playback speed (base-144).
+//! when the transpose changes its playback speed.
 //!
 //! An unwarped clip, or a warped clip in `Repitch` mode, plays its source at
 //! `2^(transpose/12)` times the speed around its pivot (`max(offset, 0)`, the engine's

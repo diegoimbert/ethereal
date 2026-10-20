@@ -300,7 +300,7 @@ describe("GetStarted", () => {
   afterEach(() => useProjectScreen.setState({ launching: false }));
 
   it("starts a tour, and asks before running a finished one again", async () => {
-    // Launching (the engine loading, #646): shown, but waiting.
+    // Launching (the engine loading): shown, but waiting.
     useProjectScreen.setState({ launching: true });
     render(
       <>

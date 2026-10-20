@@ -6,7 +6,7 @@
  * footer. It is the chain sections' add popover: a click on a row, or Enter on the active
  * one (↑ ↓ from the search field), picks it.
  *
- * Plugins (#425): a plugin installed in several formats is listed once per format, each row
+ * Plugins: a plugin installed in several formats is listed once per format, each row
  * with its format chip. The format toggles (CLAP / VST2 / VST3 / AU: the platform's formats
  * present in the plugin list, shown when there are two or more) filter the plugins, search
  * included. They are a multi-select, every format on by default and at least one on; the

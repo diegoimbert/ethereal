@@ -83,7 +83,7 @@ export function literalText(ast: MessageFormatElement[]): string {
   return s;
 }
 
-/** Capitalized words (the lowercase rule, #524: no exceptions, acronyms and units included). */
+/** Capitalized words (the lowercase rule, no exceptions, acronyms and units included). */
 export function capitalsIn(text: string): string[] {
   return [...text.matchAll(/[\p{L}\p{N}]*\p{Lu}[\p{L}\p{N}]*/gu)].map((m) => m[0]);
 }

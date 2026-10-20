@@ -294,7 +294,7 @@ fn worker_main(s: &Shared, index: usize, options: PoolOptions) {
     }
     if options.realtime {
         os::promote_current_thread(options.period);
-        // Audit #9: nodes here wait on the device callback's shared deadline.
+        // Nodes here wait on the device callback's shared deadline.
         ether_core::period::mark_device_thread();
     }
     let mut seen = unpack(s.claim.load(Ordering::Acquire)).0;

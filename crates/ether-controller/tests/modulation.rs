@@ -1,4 +1,4 @@
-//! Modulation (`racks-modulation`, Bitwig-style): modulators inside devices, mappings with
+//! Modulation (Bitwig-style): modulators inside devices, mappings with
 //! depth, scope rules, compile into `TrackDesc::modulation` (bases, macros, sidechains),
 //! one undo step each.
 

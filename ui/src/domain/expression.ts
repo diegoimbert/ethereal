@@ -1,5 +1,5 @@
 /**
- * MIDI expression data model (v0.3, `midi-expression`; Rust `ether_model::expression`,
+ * MIDI expression data model (v0.3; Rust `ether_model::expression`,
  * CONTRACTS.md §13.2). Pure functions shared by the piano-roll lanes and the MockTransport
  * (`transport/mock/roadmap/expression.ts`), so the mock validates exactly like the engine.
  *

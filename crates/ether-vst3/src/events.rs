@@ -8,7 +8,7 @@
 //! thread, outside `IAudioProcessor::process`, and the plugin only inside it, so accesses
 //! never overlap.
 //!
-//! **Point pool** (perf-plugins, audit #16): the points of every queue live in one pool
+//! **Point pool**: the points of every queue live in one pool
 //! shared by the block's queues, sized for a block's worth of points, instead of a
 //! worst-case buffer per param (`params × (max_events + 1)` points, ~33 MB for a
 //! 2048-param plugin). Points are appended as they come; the first read sorts the pool by
@@ -476,7 +476,7 @@ mod tests {
         }
     }
 
-    /// perf-plugins (audit #16): one shared pool instead of `params × (max_events + 1)`
+    /// One shared pool instead of `params × (max_events + 1)`
     /// points; one param may still use the whole pool, and lookups are by id.
     #[test]
     fn param_changes_share_one_pool() {

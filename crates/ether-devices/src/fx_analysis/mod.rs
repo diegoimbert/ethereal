@@ -1,4 +1,4 @@
-//! v0.2 analysis devices (contracts-3 froze the param tables; see docs/DEVICES.md).
+//! v0.2 analysis devices (the v0.2 contracts froze the param tables; see docs/DEVICES.md).
 //!
 //! Analysis devices (audio passes through untouched): spectrum analyzer and tuner. They publish `AnalysisKind::{Spectrum, Tuner}` frames through `Node::{has_analysis, analysis}` (`ether_core::analysis`).
 //!
@@ -143,7 +143,7 @@ fn tuner_layout() -> DeviceLayout {
     ])
 }
 
-/// The frozen param tables (contracts-3).
+/// The frozen param tables.
 fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
     match ty {
         BuiltinDeviceType::SpectrumAnalyzer => build(

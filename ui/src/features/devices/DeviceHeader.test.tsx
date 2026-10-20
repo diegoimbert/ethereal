@@ -8,7 +8,7 @@ import { DeviceChain } from "./index";
 import { resetCollapsed } from "./collapsed";
 import { DeviceWindowsRoot, resetDeviceWindows } from "./window";
 
-// #790: the header's hover-only controls (presets, "+" modulator) take no room until the
+// The header's hover-only controls (presets, "+" modulator) take no room until the
 // header is hovered or focused, so the device name gets the whole width. jsdom has no layout
 // (and no :hover), so this checks the cascade: hidden = no width; focused = shown. The e2e
 // (device-header.spec.ts) measures the name's width with and without hover.

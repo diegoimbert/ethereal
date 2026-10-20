@@ -1,4 +1,4 @@
-//! base-131: launch safety. Safe open (`Project::OpenSafe`: plugin devices held as bypassed
+//! Launch safety. Safe open (`Project::OpenSafe`: plugin devices held as bypassed
 //! placeholders until `Project::LoadPlugins`, the saved document untouched) and the
 //! previous session's status (`Version::SessionStatus`) that the UI's "Reopen last project
 //! on launch" and crash dialog read.
@@ -187,7 +187,7 @@ fn safe_open_holds_plugins_as_placeholders_until_loaded() {
     assert!(safe_mode_events(&out).is_empty());
 }
 
-/// #588: save as keeps safe mode (the plugins stay placeholders), and says so after its
+/// Save as keeps safe mode (the plugins stay placeholders), and says so after its
 /// `ProjectLoaded` (clients leave safe mode on it).
 #[test]
 fn save_as_in_safe_mode_says_safe_mode_again() {

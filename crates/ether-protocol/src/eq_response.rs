@@ -1,5 +1,5 @@
 //! Filter magnitude responses shared by the engine's EQ-style devices and the UI's `EqCurve`
-//! widget (v0.2, frozen by contracts-3; UI mirror owned by `graphical-eq`, CONTRACTS.md
+//! widget (v0.2, frozen by the v0.2 contracts; UI mirror, CONTRACTS.md
 //! §12.15).
 //!
 //! Every shape is a Simper TPT state-variable filter (`ether_devices::dsp::svf`, the EQ's

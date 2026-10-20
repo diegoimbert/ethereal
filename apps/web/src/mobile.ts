@@ -1,4 +1,4 @@
-// Phones and touch-only tablets get the mobile UI (#522): the touch shell instead of the desktop
+// Phones and touch-only tablets get the mobile UI: the touch shell instead of the desktop
 // editor. The rule (`isMobileDevice`), on the physical device, not the window, so a small
 // desktop window keeps the desktop editor:
 //   - no fine pointer anywhere (`any-pointer: fine` is false: no mouse, trackpad or pen), and

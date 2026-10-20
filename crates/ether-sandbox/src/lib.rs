@@ -12,7 +12,7 @@
 //!   so the audio thread never blocks. On a miss it outputs silence and counts an underrun;
 //! - one device period of extra latency (at most `max_block_size`), reported via
 //!   `Node::latency` (on top of the plugin's own) so PDC compensates; the audio thread's
-//!   waits share one deadline per device buffer (`ether_core::period`, audit #9);
+//!   waits share one deadline per device buffer (`ether_core::period`);
 //! - helper crash/hang → the node outputs silence and is faulted, `poll` reports
 //!   `PluginNotification::Crashed`; the host process is unaffected.
 //!

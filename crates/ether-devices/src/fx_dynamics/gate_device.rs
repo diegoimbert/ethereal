@@ -16,7 +16,7 @@
 //! delays the audio (not the detector) and is reported as latency. The applied gain (dB,
 //! ≤ 0; the most reduced value since the last read) is published as
 //! `AnalysisKind::Levels [gain dB, detector peak dBFS]` for the layout meter and the transfer
-//! curve's level dot (the second value appended by `devices-pass-effects`).
+//! curve's level dot (the second value appended by the effects pass).
 
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::{BuiltinDeviceType, ParamId};
@@ -60,7 +60,7 @@ pub struct Gate {
     meter_db: f32,
     /// Loudest detector peak (linear) since the last analysis read (the curve's level dot).
     meter_peak: f32,
-    /// Silence reporting (perf audit #5).
+    /// Silence reporting.
     tail: util::Tail,
 }
 
@@ -181,7 +181,7 @@ impl Gate {
             sidechain
         };
         let delayed = self.lookahead.active();
-        // Perf audit #17: level comparisons on the linear peak (exact near the thresholds,
+        // Level comparisons on the linear peak (exact near the thresholds,
         // see `level_at_least`), and the gain chain recomputed only when `gr_db` moves.
         let thr_amp = db_to_amp(threshold);
         let close_amp = db_to_amp(close_at);

@@ -1,5 +1,5 @@
 /**
- * Draft projects (owner request): the empty project you land in when you dismiss the
+ * Draft projects: the empty project you land in when you dismiss the
  * project picker, and a new project from the menu, exist in the store (the engine creates a
  * project's folder at once) but only count once you change something. Until then a draft is
  * left out of the project lists, and leaving it untouched (opening another project, the next
@@ -77,7 +77,7 @@ export async function createDraftProject(transport: EngineTransport): Promise<vo
  * project about to open (the one in the address bar on a reload).
  */
 export async function deleteStaleDrafts(transport: EngineTransport, keep: string | null = null): Promise<void> {
-  // Read again: the tab that owned the store before this one (#563) may have kept drafts
+  // Read again: the tab that owned the store before this one may have kept drafts
   // since this page loaded the list.
   drafts = read();
   const open = useProjectStore.getState().project?.id;

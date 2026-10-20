@@ -66,7 +66,7 @@ const LOOKAHEAD_FADE: u32 = 480;
 
 /// The audio tap of a lookahead (`Lookahead` of the compressor and the gate): a change of
 /// its length crossfades from the old tap to the new one instead of jumping the read
-/// position (a jump is a click, #520).
+/// position (a jump is a click).
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct LookaheadTap {
     current: usize,

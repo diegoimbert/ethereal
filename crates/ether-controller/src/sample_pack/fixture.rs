@@ -1,6 +1,6 @@
 //! A dev pack built in code (synthesized audio, signed with [`manifest::DEV_SEED`]) for tests
 //! (`cargo run -p ether-controller --example sample_pack -- dev <out>` writes it to disk).
-//! Never shipped as content (#519).
+//! Never shipped as content.
 
 use std::f64::consts::TAU;
 

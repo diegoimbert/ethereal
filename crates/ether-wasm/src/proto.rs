@@ -6,14 +6,14 @@
 //!   decodes them on the audio thread, so no JSON parsing there. Decoded media is raw `f32`
 //!   split into bounded chunks (`MediaBegin`, `MediaChunk`s, `MediaEnd`; see
 //!   [`MediaAssembler`]), so no single frame makes the audio thread convert or buffer a whole
-//!   file. A convolution reverb's IR prepared on the Worker (#514) travels the same way:
+//!   file. A convolution reverb's IR prepared on the Worker travels the same way:
 //!   [`Frame::IrBegin`] then [`Frame::IrChunk`]s of its flat `f32` stream
 //!   ([`encode_prepared_ir`]; assembled by `ether_devices::fx_space::ConvolverAssembly`).
 //!   The remaining small messages are JSON (tag `b'J'`).
 //! - Worklet → Worker: [`EngineReport`] (playhead, max-held meters, diagnostics; compact
 //!   binary encoded into a reused buffer so the audio thread doesn't allocate),
 //!   [`REPORT_ANALYSIS`] device analysis frames (`fx-analysis`, [`encode_analysis_into`])
-//!   [`REPORT_LATENCY`] node latency changes (`web-latency`, [`crate::latency`]) and
+//!   [`REPORT_LATENCY`] node latency changes ([`crate::latency`]) and
 //!   [`REPORT_ERROR`] text messages (compile errors etc.).
 
 use std::collections::BTreeMap;
@@ -41,12 +41,12 @@ const TAG_MEDIA_END: u8 = b'D';
 /// `keyboard-midi`: `[M][status][data1][data2]`, an [`EngineMsg::LiveMidi`] (binary: decoded
 /// on the audio thread without parsing or allocating).
 const TAG_LIVE_MIDI: u8 = b'M';
-/// base-150: `[N][track ulid, 16 bytes LE][status][data1][data2]`, an
+/// `[N][track ulid, 16 bytes LE][status][data1][data2]`, an
 /// [`EngineMsg::PreviewNote`] (binary like `LiveMidi`).
 const TAG_PREVIEW_NOTE: u8 = b'N';
-/// `audio-streaming`: one channel of a streamed chunk (see [`encode_stream_chunk`]).
+/// One channel of a streamed chunk (see [`encode_stream_chunk`]).
 const TAG_STREAM_CHUNK: u8 = b'S';
-/// #514: a prepared convolution IR for a live node (see [`encode_prepared_ir`]).
+/// A prepared convolution IR for a live node (see [`encode_prepared_ir`]).
 const TAG_IR_BEGIN: u8 = b'I';
 const TAG_IR_CHUNK: u8 = b'K';
 /// [`Frame::StreamChunk`] flags: first frame of the chunk (claims the slot), last one
@@ -108,7 +108,7 @@ pub enum EngineMsg {
         key: NodeKey,
         on: bool,
     },
-    /// v0.3 (`audio-streaming`): register a streamed media: allocate its chunk cache
+    /// v0.3: register a streamed media: allocate its chunk cache
     /// (`slots` chunks of `CHUNK_FRAMES` frames, `frames` long at the engine rate) and add
     /// it as the media's source. Chunks follow as [`Frame::StreamChunk`]s
     /// ([`crate::media_stream`]).
@@ -131,7 +131,7 @@ pub enum EngineMsg {
     LiveMidi {
         data: [u8; 3],
     },
-    /// base-150: one short MIDI message for one track's instrument
+    /// One short MIDI message for one track's instrument
     /// (`EngineBridge::preview_note`, piano-roll note preview).
     PreviewNote {
         track: TrackId,
@@ -283,7 +283,7 @@ pub enum Frame<'a> {
     MediaEnd {
         media: MediaId,
     },
-    /// `audio-streaming`: channel `channel` of chunk `chunk`, for cache slot `slot`.
+    /// Channel `channel` of chunk `chunk`, for cache slot `slot`.
     StreamChunk {
         media: MediaId,
         slot: u32,
@@ -294,7 +294,7 @@ pub enum Frame<'a> {
         /// `CHUNK_FRAMES` `f32` LE samples.
         samples: &'a [u8],
     },
-    /// #514: a prepared IR for node `key` follows (a convolver to allocate for `header`,
+    /// A prepared IR for node `key` follows (a convolver to allocate for `header`,
     /// built at `sample_rate` from `source`); its stream arrives as [`Frame::IrChunk`]s.
     IrBegin {
         key: NodeKey,
@@ -475,7 +475,7 @@ fn encode_media(media: MediaId, audio: &DecodedAudio) -> Vec<Vec<u8>> {
 }
 
 // [S][media u128][slot u32][chunk u64][channel u16][flags u8][count u32][count x f32 LE]
-/// `audio-streaming`: one frame per channel of a decoded chunk (`channels[c]`).
+/// One frame per channel of a decoded chunk (`channels[c]`).
 pub fn encode_stream_chunk(
     media: MediaId,
     slot: u32,
@@ -514,7 +514,7 @@ pub fn encode_stream_chunk(
 // Begin: [I][key u32 u32][sample_rate u32][channels u8][frames u32][decay u16][size u16]
 //        [reverse u8][source JSON]
 // Chunk: [K][key u32 u32][segment u8][offset u32][count u32][count x f32 LE]
-/// #514: a convolution IR prepared on the Worker, for the Worklet's live node `key`: one
+/// A convolution IR prepared on the Worker, for the Worklet's live node `key`: one
 /// begin frame, then the segments of its stream in order, each split into frames of at most
 /// [`MEDIA_CHUNK_SAMPLES`] values (even counts, so spectra stay whole `re, im` pairs).
 pub fn encode_prepared_ir(
@@ -663,7 +663,7 @@ pub const REPORT_STATE: u8 = b'R';
 pub const REPORT_ERROR: u8 = b'E';
 /// Tag of an analysis frame (Worklet → Worker; `fx-analysis`).
 pub const REPORT_ANALYSIS: u8 = b'A';
-/// Tag of a node latency report (Worklet → Worker; `web-latency`,
+/// Tag of a node latency report (Worklet → Worker,
 /// [`crate::latency::LatencyReport`]).
 pub const REPORT_LATENCY: u8 = b'L';
 

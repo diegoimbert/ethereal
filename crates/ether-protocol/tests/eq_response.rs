@@ -1,4 +1,4 @@
-//! Test vectors of `ether_protocol::eq_response` for the UI mirror (`graphical-eq`). The
+//! Test vectors of `ether_protocol::eq_response` for the UI mirror. The
 //! TS implementation must reproduce every vector within 1e-6 dB. Regenerate with
 //! `UPDATE_EQ_VECTORS=1 cargo test -p ether-protocol --test eq_response` (never by hand).
 //!

@@ -1,4 +1,4 @@
-// MIDI files (#717) on the web build, through the real wasm engine (`Media::ReadMidiFile` /
+// MIDI files on the web build, through the real wasm engine (`Media::ReadMidiFile` /
 // `WriteMidiFile`, `ether_media::smf`): a .mid dropped from the OS below the tracks becomes
 // one MIDI track per file track, with the file's tempo in a project without clips; "export
 // MIDI…" on the track writes a Standard MIDI File that reads back with the same notes.

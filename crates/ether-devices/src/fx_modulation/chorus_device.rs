@@ -58,14 +58,14 @@ pub(super) struct Chorus {
     gain: Ramp,
     /// Wet feedback signal of the previous sample, per channel.
     fb: [f32; 2],
-    /// Control rate (perf audit #17): each voice's LFO value per channel and the high-cut
+    /// Control rate: each voice's LFO value per channel and the high-cut
     /// coefficient, ramped; samples left in the chunk.
     voice_m: [[CtlRamp; MAX_VOICES]; 2],
     cut: CtlRamp,
     ctl_left: usize,
-    /// Wet signal above the floor in this block (perf audit #5).
+    /// Wet signal above the floor in this block.
     loud: bool,
-    /// Silence reporting (perf audit #5).
+    /// Silence reporting.
     tail: crate::util::Tail,
 }
 
@@ -241,8 +241,8 @@ impl Chorus {
 }
 
 impl Chorus {
-    /// Rates of the main and the ensemble's fast LFO: free (Hz) or, with `Sync`
-    /// (devices-pass-effects), the synced length (the fast one [`ENSEMBLE_FAST_RATIO`]
+    /// Rates of the main and the ensemble's fast LFO: free (Hz) or, with `Sync`,
+    /// the synced length (the fast one [`ENSEMBLE_FAST_RATIO`]
     /// times faster).
     fn rates(&self) -> (Rate, Rate) {
         if self.params.on(p::SYNC) {

@@ -1,4 +1,4 @@
-//! Browser v2: engine-side library index (v0.2, `browser-v2`; protocol
+//! Browser v2: engine-side library index (v0.2; protocol
 //! `ether_protocol::browser`, CONTRACTS.md §12.8).
 //!
 //! [`EtherController::browser_command`] (dispatched from `handlers.rs`) and
@@ -32,7 +32,7 @@
 //! - **Incremental.** A rescan keeps the probed metadata of files whose size did not change
 //!   and drops items no longer found. Favourites and tags are keyed by item id and survive
 //!   rescans (and items that come back). A full rescan also runs every [`RESCAN_EVERY_MS`].
-//! - **Imported folders** (`base-136`). `ImportFolder` asks the library for an engine-owned
+//! - **Imported folders**. `ImportFolder` asks the library for an engine-owned
 //!   folder (`Library::create_import_folder`) and adds it like `AddFolder`; `ImportFile`
 //!   writes a completed upload into it (`Library::write_file`); the UI then sends `Rescan`.
 //!   `RenameFolder` stores a display name with the user folder (the root's and its items'
@@ -41,7 +41,7 @@
 //!   (`media_preview`): with `sync`, repitched by project bpm / item bpm (a resample to
 //!   `engine rate / ratio`, played back at the engine rate) and, while the transport plays,
 //!   delayed to the next beat.
-//! - **File filters** (`base-145`, [`filter`]): regex whitelist/blacklist rules on file
+//! - **File filters** ([`filter`]): regex whitelist/blacklist rules on file
 //!   names. Scans skip hidden files and folders (and count every file name seen, for the
 //!   settings' "shows N of M"); `Media::ListDirectory` (handlers.rs) drops them too.
 
@@ -149,7 +149,7 @@ pub struct BrowserState {
     dirty_since: Option<u64>,
     /// The user data changed: write `index.json` at the end of the command/tick.
     user_dirty: bool,
-    /// `base-145`: the file filter.
+    /// The file filter.
     filter: filter::FilterState,
     /// File names the last finished scan of each root saw.
     seen_names: filter::SeenNames,

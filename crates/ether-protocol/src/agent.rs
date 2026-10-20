@@ -1,4 +1,4 @@
-//! Agent API (`agent-api`, owner request; docs/MCP.md, CONTRACTS.md §13): a tool registry
+//! Agent API (docs/MCP.md, CONTRACTS.md §13): a tool registry
 //! for LLM agents, implemented by the controller (`ether-controller/src/agent`), so it works
 //! the same on the desktop app, the remote engine (`ether-server`) and the web build.
 //!

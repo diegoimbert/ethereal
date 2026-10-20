@@ -1,4 +1,4 @@
-//! Plugin sidechains in the controller (`plugin-sidechain`, CONTRACTS §12.14): a plugin
+//! Plugin sidechains in the controller (CONTRACTS §12.14): a plugin
 //! device whose instance descriptor reports `sidechain_inputs > 0` takes a sidechain source
 //! exactly like a built-in (validation, one undo step, compiled into `ChainEntry::
 //! sidechain`, kept by save/reopen, cut when the source track is deleted); one without an

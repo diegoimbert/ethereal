@@ -1,4 +1,4 @@
-//! Example projects (#518): short loops that sound good at once and are simple to rebuild
+//! Example projects: short loops that sound good at once and are simple to rebuild
 //! from an empty project, offered as factory project templates (`factory/example-<slug>`,
 //! the welcome screen's examples and the "New project" form). Each is built here the way a
 //! user builds it: the same commands (tracks, devices, factory presets, pads, clips, notes,
@@ -7,7 +7,7 @@
 //!
 //! Only built-in devices and their factory presets. The drums are drum rack pads, each
 //! made by [`pad_sound`], the one place that decides what a pad plays: today a poly synth
-//! with one of its drum presets (`poly-synth/kick`, …). When the default sample pack (#519)
+//! with one of its drum presets (`poly-synth/kick`, …). When the default sample pack
 //! ships, [`pad_sound`] gives each [`Drum`] its sample instead (a sampler pad, the
 //! template's `samples` naming the files) and every example follows, unchanged.
 

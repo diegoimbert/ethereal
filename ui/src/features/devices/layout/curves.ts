@@ -2,7 +2,7 @@
  * Pure math of the typed widgets' previews (filter response, waveshaper transfer, oscillator
  * and LFO shapes, log-frequency axis). Previews are illustrative: they follow the params
  * (mode labels, cutoff, resonance, drive...) but are not bit-exact models of each device's
- * DSP (the EQ's exact response lives in `graphical-eq`'s `eqResponse.ts`).
+ * DSP (the EQ's exact response lives in the graphical EQ's `eqResponse.ts`).
  */
 
 export const F_MIN = 20;

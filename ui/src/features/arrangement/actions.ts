@@ -144,7 +144,7 @@ export function bindSingleSelection(): () => void {
     const chosen = kinds[0];
     if (!chosen) return;
     useArrangementUi.getState().setTrackFocus(null);
-    // One kind at a time in the arrangement: clips, automation points or tempo points (#621).
+    // One kind at a time in the arrangement: clips, automation points or tempo points.
     for (const k of ["clip", "automationPoint", "tempoPoint"] as const) if (k !== chosen) itemSelection.getState().clear(k);
   });
 }
@@ -187,7 +187,7 @@ export async function addTrackAndSelect(
 
 /**
  * What the arrangement's edit keys (⌘C/X/V/D, ⌫) act on: the selected tracks or the
- * selected clips. Rule (base-151): the most recently selected kind wins. Selecting one
+ * selected clips. Rule: the most recently selected kind wins. Selecting one
  * normally clears the other (`selectTrackEntity`, `bindSingleSelection`), so this only
  * decides when both are set (e.g. a selection made by code): the later one. Paste
  * follows the clipboard instead (tracks after a track copy, clips after a clip copy).
@@ -218,7 +218,7 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
   switch (action) {
     case "split":
       // At the insert marker (else the range start, else the playhead): not the playhead
-      // while you listen (owner request).
+      // while you listen.
       return sendEdit(transport, splitCommand(clips, insertPoint().at, newId));
     case "duplicate": {
       if (onTracks) return duplicateSelectedTracks(transport).then(() => {});
@@ -247,7 +247,7 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
       return sendEdit(transport, reverseClipsCommand(clips));
     }
     case "consolidate":
-      // #870: Mod+J, like the clip menu's "consolidate" (frozen / rendering tracks: nothing).
+      // Mod+J, like the clip menu's "consolidate" (frozen / rendering tracks: nothing).
       consolidateIfAllowed(transport, clips);
       return Promise.resolve();
     case "select-all": {
@@ -319,7 +319,7 @@ export function clipMenu(transport: EngineTransport, clip: Clip): ContextMenuEnt
   const run = (a: ClipAction) => () => void runClipAction(transport, a);
   const allMuted = clips.length > 0 && clips.every((c) => c.muted);
   const allLooping = clips.length > 0 && clips.every((c) => c.looping.enabled);
-  // Several MIDI clips selected: the piano roll edits them all at once (base-143).
+  // Several MIDI clips selected: the piano roll edits them all at once.
   const midi = clips.filter((c) => c.content.type === "Midi").length;
   return [
     ...(clip.content.type === "Midi"
@@ -331,7 +331,7 @@ export function clipMenu(transport: EngineTransport, clip: Clip): ContextMenuEnt
           },
           "separator" as const,
         ]
-      : // #575: an audio clip opens in its editor (the drawer's audio tab), like a click on it.
+      : // An audio clip opens in its editor (the drawer's audio tab), like a click on it.
         [{ label: t("arrangement.clip_menu.open_in_editor"), onSelect: () => useEditorStore.getState().openClip(clip.id) }, "separator" as const]),
     ...(clips.length <= 1 ? [{ label: t("arrangement.menu.rename"), onSelect: () => renameClipInPlace(clip.id) }, "separator" as const] : []),
     { label: t("arrangement.menu.cut"), shortcut: shortcutLabel("edit.cut"), onSelect: run("cut") },
@@ -349,7 +349,7 @@ export function clipMenu(transport: EngineTransport, clip: Clip): ContextMenuEnt
       label: allMuted ? t("arrangement.clip_menu.unmute") : t("arrangement.clip_menu.mute"),
       onSelect: () => void sendEdit(transport, cmd("Clip", { type: "SetMuted", ids: clips.map((c) => c.id), muted: !allMuted })),
     },
-    // #717: the selected MIDI clips as a Standard MIDI File (from the first clip).
+    // The selected MIDI clips as a Standard MIDI File (from the first clip).
     ...(clips.length > 0 && midi === clips.length
       ? [
           "separator" as const,
@@ -379,7 +379,7 @@ export function trackMenu(transport: EngineTransport, track: Track): ContextMenu
   if (track.kind === "Master") return [];
   const count = selectedTrackIds().length;
   const addReturn: ContextMenuEntry = { label: t("arrangement.menu.add_return"), onSelect: () => void addTrackAndSelect(transport, "Return") };
-  // #717: the selected tracks' MIDI clips as a Standard MIDI File, from the project start.
+  // The selected tracks' MIDI clips as a Standard MIDI File, from the project start.
   const project = useProjectStore.getState().project;
   const midiClips = project ? midiClipsOfTracks(project, selectedTrackIds()) : [];
   const exportMidi: ContextMenuEntry = {

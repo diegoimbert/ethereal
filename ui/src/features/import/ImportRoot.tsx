@@ -100,7 +100,7 @@ function useImportCommands(transport: EngineTransport) {
       const paths = all.filter((p) => !projectFile(p));
       if (paths.length === 0) return;
       if (deliverPathDrop(paths)) return;
-      // Nowhere in particular: MIDI files become new MIDI tracks at the start (#717), audio
+      // Nowhere in particular: MIDI files become new MIDI tracks at the start, audio
       // files are added to the project.
       const midi = paths.filter(isMidiName);
       for (const p of midi) importMidiFile(transport, pathSource(p), { track: null, at: 0 }).catch((e: unknown) => console.warn("MIDI file import failed", e));

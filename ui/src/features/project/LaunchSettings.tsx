@@ -2,7 +2,7 @@ import { Toggle } from "@/kit";
 import { useT } from "@/i18n";
 import { useLaunchPrefs } from "./launch";
 
-/** Settings > General: what happens on launch (base-131). Appearance has its own tab. */
+/** Settings > General: what happens on launch. Appearance has its own tab. */
 export function LaunchSettings() {
   const t = useT();
   const reopen = useLaunchPrefs((s) => s.reopenLast);

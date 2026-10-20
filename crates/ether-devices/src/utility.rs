@@ -1,4 +1,4 @@
-//! Built-in `Utility` device (roadmap v2, `devices-2`).
+//! Built-in `Utility` device (roadmap v2).
 //!
 //! Gain, balance pan, stereo width, phase invert (L/R) and mono. Per sample:
 //! 1. input channel mode (`Channel`: stereo, left or right on both sides, swapped),
@@ -16,7 +16,7 @@
 //! filter switches at once: it only removes inaudible offset). With the appended params at
 //! their defaults the output is bit-exact with the utility before them.
 //!
-//! Analysis (`devices-pass-effects`, the window's meters): `AnalysisKind::Levels
+//! Analysis (the window's meters): `AnalysisKind::Levels
 //! [left peak dBFS, right peak dBFS]` of the output since the last read.
 //!
 //! # Parameter ids (stable, append-only)
@@ -29,7 +29,7 @@
 //! | 3  | `Invert L`| toggle                   |
 //! | 4  | `Invert R`| toggle                   |
 //! | 5  | `Mono`    | toggle                   |
-//! | 6  | `Channel` | Stereo / Left / Right / Swap (`devices-pass-effects`) |
+//! | 6  | `Channel` | Stereo / Left / Right / Swap |
 //! | 7  | `Width Mode` | Width / Mid/Side      |
 //! | 8  | `Mid/Side`| -100 ..= 100 % (Mid/Side mode) |
 //! | 9  | `Bass Mono` | toggle                 |
@@ -58,19 +58,19 @@ pub mod params {
     pub const INVERT_L: ParamId = ParamId(3);
     pub const INVERT_R: ParamId = ParamId(4);
     pub const MONO: ParamId = ParamId(5);
-    /// `devices-pass-effects`: input channel mode ([`super::CHANNEL_LABELS`]).
+    /// Input channel mode ([`super::CHANNEL_LABELS`]).
     pub const CHANNEL: ParamId = ParamId(6);
-    /// `devices-pass-effects`: Width / Mid/Side ([`super::WIDTH_MODE_LABELS`]).
+    /// Width / Mid/Side ([`super::WIDTH_MODE_LABELS`]).
     pub const WIDTH_MODE: ParamId = ParamId(7);
-    /// `devices-pass-effects`: mid/side balance (percent, Mid/Side mode).
+    /// Mid/side balance (percent, Mid/Side mode).
     pub const MID_SIDE: ParamId = ParamId(8);
-    /// `devices-pass-effects`: mono below `BASS_MONO_FREQ` (toggle).
+    /// Mono below `BASS_MONO_FREQ` (toggle).
     pub const BASS_MONO: ParamId = ParamId(9);
-    /// `devices-pass-effects`: bass mono crossover (Hz).
+    /// Bass mono crossover (Hz).
     pub const BASS_MONO_FREQ: ParamId = ParamId(10);
-    /// `devices-pass-effects`: DC filter (toggle).
+    /// DC filter (toggle).
     pub const DC_FILTER: ParamId = ParamId(11);
-    /// `devices-pass-effects`: mute (toggle).
+    /// Mute (toggle).
     pub const MUTE: ParamId = ParamId(12);
 }
 
@@ -117,7 +117,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
         toggle(3, "Invert L", "Phase"),
         toggle(4, "Invert R", "Phase"),
         toggle(5, "Mono", "Stereo"),
-        // --- devices-pass-effects ---
+        // --- devices pass effects ---
         choice(6, "Channel", "Utility", ParamUnit::None, &CHANNEL_LABELS, 0),
         choice(
             7,
@@ -278,7 +278,7 @@ pub struct Utility {
     dc: [(f32, f32); 2],
     /// Output peaks (linear) since the last analysis read.
     meter: [f32; 2],
-    /// Silence reporting (perf audit #5).
+    /// Silence reporting.
     tail: util::Tail,
 }
 
@@ -426,7 +426,7 @@ impl Utility {
         }
     }
 
-    /// The `devices-pass-effects` stages are idle (channel mode stereo, no DC filter, no
+    /// The effects pass stages are idle (channel mode stereo, no DC filter, no
     /// bass mono): the plain loop applies.
     fn plain(&self) -> bool {
         let route = &self.s.route;

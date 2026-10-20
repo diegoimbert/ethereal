@@ -65,7 +65,7 @@ pub fn read_hash<L: Library>(library: &mut L, sha256: &str) -> Result<Vec<u8>, S
 }
 
 /// Keep `sha256` across pack updates (a project references it). Returns whether it was new.
-#[allow(dead_code)] // projects pin the samples they reference (#519, project references)
+#[allow(dead_code)] // projects pin the samples they reference (project references)
 pub fn pin<L: Library>(library: &mut L, sha256: &str) -> bool {
     let mut pins = read_set(library, PINS);
     pins.insert(sha256.to_string()) && write_set(library, PINS, &pins)

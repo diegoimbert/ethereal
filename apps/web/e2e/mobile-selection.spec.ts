@@ -1,4 +1,4 @@
-// Selection on touch screens (#522, no Shift or Ctrl): "select more" turns taps into toggles and
+// Selection on touch screens (no Shift or Ctrl): "select more" turns taps into toggles and
 // a drag on empty space into a selection box; ◀ ▶ nudge the selection one grid step; long-press
 // then drag on empty lane space selects a time range (its handles drag its ends), whose bar
 // loops it; the clip sheet takes typed positions.

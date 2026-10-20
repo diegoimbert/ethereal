@@ -311,7 +311,7 @@ fn dry_mix_is_transparent() {
 }
 
 /// `Output` changes land at their sample and ramp linearly: over one automation grid
-/// interval for an automation-sized step, over up to ~20 ms for a jump (no zipper, #520).
+/// interval for an automation-sized step, over up to ~20 ms for a jump (no zipper).
 #[test]
 fn output_gain_is_sample_accurate() {
     let x = vec![1.0f32; 4_000];

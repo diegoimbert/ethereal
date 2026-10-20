@@ -1,6 +1,6 @@
 //! Sample-accurate automation: arrangement lanes and clip envelopes applied per sample
 //! (CONTRACTS.md §12.7; the v0.1 per-block runtime was extracted from `engine.rs` by
-//! contracts-3, then replaced by `sample-accurate-automation`).
+//! the v0.2 contracts, then replaced by sample-accurate automation).
 //!
 //! Everything is placed on the engine's sample clock, never on sub-block boundaries, so an
 //! offline render is the same for every block size:
@@ -87,7 +87,7 @@ impl Knots {
 
 /// RT. Index of the first clip that may still play at or after beat `lo`: every clip before
 /// it ends at or before `lo`. `ends` is the running maximum of the clips' ends
-/// ([`clip_ends`]), so this is a binary search however long the song is (perf audit #7).
+/// ([`clip_ends`]), so this is a binary search however long the song is.
 #[inline]
 pub(crate) fn first_live_clip(ends: &[f64], lo: f64) -> usize {
     ends.partition_point(|&e| e <= lo)

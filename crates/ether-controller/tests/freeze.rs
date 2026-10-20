@@ -1,4 +1,4 @@
-//! Freeze, flatten, bounce and consolidate (`freeze-bounce`, CONTRACTS.md §12.3), against a
+//! Freeze, flatten, bounce and consolidate (CONTRACTS.md §12.3), against a
 //! real engine behind the bridge: a frozen track sounds like the live one (also under a
 //! tempo ramp), its devices get no nodes, it can't be edited except its mixer, unfreeze and
 //! undo restore it, flatten/bounce/consolidate produce clips that play the render, and

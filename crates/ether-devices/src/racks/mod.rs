@@ -1,4 +1,4 @@
-//! v0.2 racks (contracts-3 froze the param tables; see docs/DEVICES.md).
+//! v0.2 racks (the v0.2 contracts froze the param tables; see docs/DEVICES.md).
 //!
 //! Racks (`ether_model::rack`): the rack node's params are the 8 macros and the chain
 //! selector (shared by the three types, `ether_model::rack_macro_param`,
@@ -258,7 +258,7 @@ const AUDIO_PRESETS: &[FactoryPreset] = &[
     FactoryPreset {
         id: "audio-effect-rack/wide-doubler",
         json: include_str!("../../presets/audio-effect-rack/wide-doubler.etherpreset"),
-    }, // Mix-bus chains (#520).
+    }, // Mix-bus chains.
     FactoryPreset {
         id: "audio-effect-rack/drum-bus",
         json: include_str!("../../presets/audio-effect-rack/drum-bus.etherpreset"),
@@ -298,7 +298,7 @@ const MIDI_PRESETS: &[FactoryPreset] = &[
 /// Factory presets of a type of this group. `init` and `macros-centered` hold the macro
 /// positions and the chain selector only (preset version 1); the others also store chains of
 /// built-in devices, the rack's modulators and their mappings (version 2, `Preset::rack`,
-/// v0.3 `rack-presets`).
+/// v0.3 rack presets).
 pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
     match ty {
         BuiltinDeviceType::InstrumentRack => INSTRUMENT_PRESETS,

@@ -1,4 +1,4 @@
-//! v0.2 multisampler (contracts-3 froze the param table; see docs/DEVICES.md). **Param ids are stable and
+//! v0.2 multisampler (the v0.2 contracts froze the param table; see docs/DEVICES.md). **Param ids are stable and
 //! append-only** (documents, automation and presets store them).
 //!
 //! # Multisampler (`BuiltinDeviceType::MultiSampler`)

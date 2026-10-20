@@ -188,7 +188,7 @@ impl ChainRt {
     /// RT. Call when the chain reaches this entry, before its events are sorted. When the
     /// device was switched on or off since it was last reached (static switch or On/Off
     /// automation, on a track chain, a rack chain or a drum pad), release the notes the
-    /// switch strands (#558): an off device is MIDI thru, so the notes it generated (on → off)
+    /// switch strands: an off device is MIDI thru, so the notes it generated (on → off)
     /// or passed through (off → on) would never get their note-offs at `next` (the next
     /// entry's events, or where the chain's MIDI goes), and a device that comes back on
     /// missed the note-offs sent while it was off. `AllNotesOff` at offset 0 goes to `next`
@@ -275,11 +275,11 @@ pub(crate) struct ActiveNote {
     pub key: u8,
     /// Timeline beat of the note-off.
     pub end: f64,
-    /// v0.3 (`midi-expression`): the clip note this voice plays (note expressions).
+    /// v0.3: the clip note this voice plays (note expressions).
     pub source: NoteSource,
 }
 
-/// The clip note a sounding note plays (v0.3, `midi-expression`): its note expressions
+/// The clip note a sounding note plays (v0.3): its note expressions
 /// (`crate::expression`) are looked up by clip and note index, timed from `start`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct NoteSource {
@@ -347,7 +347,7 @@ pub(crate) struct TrackRt {
     pub audio_input: Option<(u16, u16)>,
     pub monitor: bool,
     /// Live notes (and sustain pedals) this track received and still holds
-    /// (`crate::recording`, #559).
+    /// (`crate::recording`).
     pub live: crate::recording::LiveNotes,
     /// Ping-pong buffers for the device chain (current signal in `a`).
     pub a: Stereo,
@@ -360,14 +360,14 @@ pub(crate) struct TrackRt {
     pub env_last: Vec<f64>,
     pub env_base: Vec<usize>,
     /// Running maximum of the clips' ends (`automation_rt::clip_ends`): the first clip
-    /// that can still play is a binary search away (perf audit #7).
+    /// that can still play is a binary search away.
     pub clip_ends: Vec<f64>,
     /// Clip index range automation looked at in the previous sub-block
     /// (`automation_rt::apply_automation`).
     pub auto_window: (usize, usize),
     /// The track's job did real work in the last sub-block (processed a node, monitored
     /// input, ran racks or a frozen render). While stopped, the engine dispatches jobs to
-    /// the workers only when some track was awake (perf audit #2).
+    /// the workers only when some track was awake.
     pub awake: bool,
     /// A live param change reached one of this track's nodes: re-send automated node
     /// params so enabled lanes keep driving their targets.
@@ -396,7 +396,7 @@ pub(crate) struct TrackRt {
     /// Set by the track's job, collected on the audio thread after the last level.
     pub overflow: bool,
     pub underruns: u32,
-    // --- v0.2 hooks (contracts-3; each owned by its module's node) ---
+    // --- v0.2 hooks (each owned by its module's node) ---
     /// Rack chains (`crate::rack_chains`).
     pub chain_racks: crate::rack_chains::ChainRacksRt,
     /// Modulators and mappings (`crate::modulation`).
@@ -407,8 +407,8 @@ pub(crate) struct TrackRt {
     pub taps: crate::bus_tap::TapBuffers,
     /// VCA gain/mute (`crate::vca`).
     pub vca: crate::vca::TrackVcaRt,
-    // --- v0.3 hooks (contracts-4) ---
-    /// MIDI expression playback state (`crate::expression`, `midi-expression`).
+    // --- v0.3 hooks ---
+    /// MIDI expression playback state (`crate::expression`).
     pub expression: crate::expression::ExpressionRt,
 }
 

@@ -21,7 +21,7 @@ pub(crate) enum Shape {
 }
 
 /// SVF coefficients: `g = tan(π·fc/fs)` (warped), damping `k = 1/Q`, output mix `m*`.
-/// Derived values are cached (perf audit #17): the tick's `a1..a3` (functions of `g`,
+/// Derived values are cached: the tick's `a1..a3` (functions of `g`,
 /// `k`: recomputed only when they change, same bits) and `ln g` (the glide's domain).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct Coefs {
@@ -116,7 +116,7 @@ impl Coefs {
             }
         };
         // `g` glides in the log domain (frequency moves at a constant rate in octaves),
-        // kept as `ln g` so a step is one `exp` (perf audit #17).
+        // kept as `ln g` so a step is one `exp`.
         let (g0, k0) = (self.g, self.k);
         let g_moving = if (target.g - self.g).abs() < 1e-9 * target.g {
             self.g = target.g;

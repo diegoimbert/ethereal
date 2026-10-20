@@ -1,4 +1,4 @@
-//! Native e2e of `media-references` (CONTRACTS.md §12.9) on the real desktop host (null
+//! Native e2e of media references (CONTRACTS.md §12.9) on the real desktop host (null
 //! audio backend, real disk store): OS files and library files are referenced in place; a
 //! file moved while the app was closed is reported missing when the project opens; a
 //! folder search finds and relinks it; "collect all" copies it into the project folder.

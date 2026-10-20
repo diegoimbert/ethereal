@@ -53,7 +53,7 @@ export const TrackAutomationLanes = memo(function TrackAutomationLanes(props: Tr
   const animating = useLaneAnimating(trackId);
   const height = useAutomationUi((s) => automationHeight(s, trackId));
   // Closed (and not closing): an empty slot that subscribes to nothing else. The parameter
-  // lists, descriptors and lanes are only computed for open tracks (performance audit #12:
+  // lists, descriptors and lanes are only computed for open tracks (
   // every mixer or device change used to rebuild them for all tracks).
   if (!isOpen && !animating) {
     return (

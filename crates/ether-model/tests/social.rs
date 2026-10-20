@@ -1,4 +1,4 @@
-//! base-62 (`collab-social`): chat journal and pinned notes in the
+//! Chat journal and pinned notes in the
 //! document. Validation caps, chat order assigned at apply (log order), pruning, the
 //! History exemption for chat, and loading v3 files without the new tables.
 

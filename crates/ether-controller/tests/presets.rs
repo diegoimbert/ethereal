@@ -512,7 +512,7 @@ fn plugin_presets_store_and_restore_the_state_blob() {
     assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
 }
 
-/// Issue #427: undoing (and redoing) a plugin preset load re-creates the running instance
+/// Issue undoing (and redoing) a plugin preset load re-creates the running instance
 /// from the restored state, not just the document; unrelated undos leave it alone.
 #[test]
 fn undoing_a_plugin_preset_load_restores_the_running_state() {

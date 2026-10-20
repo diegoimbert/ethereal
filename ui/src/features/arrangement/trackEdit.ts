@@ -1,5 +1,5 @@
 /**
- * Edit actions on the selected tracks (base-151, Ableton semantics): duplicate, copy, cut,
+ * Edit actions on the selected tracks (Ableton semantics): duplicate, copy, cut,
  * paste and delete, for the keyboard (⌘D / ⌘C / ⌘X / ⌘V / ⌫) and the track header's
  * right-click menu. Each edit is one undo step.
  *

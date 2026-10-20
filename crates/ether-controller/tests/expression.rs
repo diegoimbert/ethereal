@@ -1,4 +1,4 @@
-//! MIDI expression (`midi-expression`, CONTRACTS.md §13.2): lane and note-expression
+//! MIDI expression (CONTRACTS.md §13.2): lane and note-expression
 //! commands (validation, idempotency, one undo step each, gestures), the compile hook, the
 //! copies (note duplicate, paste, consolidate, comp flatten) and an offline render through
 //! the Poly Synth identical for block sizes 64 and 512.

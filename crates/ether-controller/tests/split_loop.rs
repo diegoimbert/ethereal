@@ -1,4 +1,4 @@
-//! Cutting a looping clip after its first loop pass (#580): the part right of the cut gets
+//! Cutting a looping clip after its first loop pass: the part right of the cut gets
 //! its offset wrapped into the loop, so it keeps playing what the whole clip played there
 //! (split, time-edit split / delete time, and the overlap trims of clip edits). Checked
 //! through the real engine: the notes played before and after the edit.

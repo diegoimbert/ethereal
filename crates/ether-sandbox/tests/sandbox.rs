@@ -200,7 +200,7 @@ fn variable_sub_blocks_keep_a_constant_one_block_delay() {
     compare_delayed(&[128, 32, 96, 1, 127, 64, 128, 50, 128, 7, 100], 128);
 }
 
-/// perf-plugins (audit #9): on a thread that renders device buffers, the sandbox delay is
+/// On a thread that renders device buffers, the sandbox delay is
 /// the device period (64 frames here), not the engine's max block (256); a longer call
 /// later raises it.
 #[test]
@@ -687,7 +687,7 @@ fn helper_loads_through_the_requested_format() {
     }
 }
 
-/// perf-plugins (audit #9) measurement, not a regression test (timing depends on the
+/// The plugin perf work measurement, not a regression test (timing depends on the
 /// machine): 8 sandboxed instances in a real-time-paced callback loop at 128 and 256
 /// frames, the old per-node budget (a quarter of a 1024-frame block each) vs the shared
 /// device deadline. Prints callbacks over their period ("xruns"), helper underruns and the

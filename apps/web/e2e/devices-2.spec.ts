@@ -1,4 +1,4 @@
-// devices-2: the roadmap v2 effects (EQ, Reverb, Limiter, Utility) on the web build, against
+// The roadmap v2 effects (EQ, Reverb, Limiter, Utility) on the web build, against
 // the real wasm engine. Inserts all four on an audio track playing a demo sample, checks
 // their generic param panels (from the engine descriptors), edits a choice, a toggle and
 // two knobs, then plays: with the limiter's ceiling at -24 dB and +24 dB input gain, the
@@ -88,9 +88,9 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
   const [eq, reverb, limiter, utility] = chain as [(typeof chain)[0], (typeof chain)[0], (typeof chain)[0], (typeof chain)[0]];
 
   // Param panels come from the engine descriptors.
-  // base-153: a factory device's UI is in its window (opened, and raised, on use).
+  // A factory device's UI is in its window (opened, and raised, on use).
   const panel = (id: string) => openDeviceWindow(page, id);
-  // The EQ's declared layout (graphical-eq) shows every band under its curve: nothing
+  // The EQ's declared layout shows every band under its curve: nothing
   // folds under "More … controls".
   await expect((await panel(eq.id)).getByRole("img", { name: /^eq curve/ })).toBeVisible();
   await expect((await panel(eq.id)).getByRole("button", { name: "more EQ controls" })).toHaveCount(0);

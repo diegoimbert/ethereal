@@ -1,5 +1,5 @@
 /**
- * The mixer on touch screens (#522, the design's §2 "Mixer view"): a row of channel strips
+ * The mixer on touch screens (the design's §2 "Mixer view"): a row of channel strips
  * that scrolls sideways, the master pinned on the right. Each strip: the name, pan (the
  * header's knob), a tall fader with the track's meter, the level in dB, and mute / solo / arm.
  * The fader and knob drag relative to where they were (never jumping); moving the finger

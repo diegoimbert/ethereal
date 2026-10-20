@@ -1,5 +1,5 @@
 /**
- * Mock/controller contract (#596): UI tests run on `MockTransport`, so it must do what the
+ * Mock/controller contract: UI tests run on `MockTransport`, so it must do what the
  * controller does for the same commands. Each scenario here has a twin in
  * `crates/ether-controller/tests/mock_contract.rs`; the transport one is shared data
  * (`transport.json`, read by both).

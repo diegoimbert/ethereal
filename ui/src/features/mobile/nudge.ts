@@ -1,5 +1,5 @@
 /**
- * Nudging the selected clips by one grid step (#522, the design's §6 "Precision"): the clip
+ * Nudging the selected clips by one grid step (the design's §6 "Precision"): the clip
  * bar's ◀ ▶, where a drag would be too coarse. The step is the arrangement's grid at the
  * current zoom (a beat when the grid is off); never before the song's start.
  */

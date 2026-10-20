@@ -1,4 +1,4 @@
-/* base-154: debug panels (DebugPanelsRoot.tsx) in kit FloatingWindows. */
+/* Debug panels (DebugPanelsRoot.tsx) in kit FloatingWindows. */
 .eth-debug-panel__title {
   overflow: hidden;
   text-overflow: ellipsis;

@@ -1,4 +1,4 @@
-//! Streaming decode (v0.3, `audio-streaming`; CONTRACTS.md §13.1).
+//! Streaming decode (v0.3; CONTRACTS.md §13.1).
 //! Wasm-safe building blocks the hosts' reader threads use; no threads or I/O here.
 //!
 //! - [`ChunkDecoder`]: decode + resample a media file **chunk by chunk** at the engine

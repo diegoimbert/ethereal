@@ -1,4 +1,4 @@
-//! v0.2 modulation devices (contracts-3 froze the param tables; see docs/DEVICES.md).
+//! v0.2 modulation devices (the v0.2 contracts froze the param tables; see docs/DEVICES.md).
 //!
 //! Modulation effects: chorus, phaser, flanger, tremolo/auto-pan, vibrato.
 //!
@@ -28,7 +28,7 @@
 //! | 7 | Chorus | `High Cut` | 1000 ..= 20000 Hertz (log), default 20000 |
 //! | 8 | Output | `Mix` | 0 ..= 100 Percent, default 50 |
 //! | 9 | Output | `Output` | -24 ..= 24 Decibels, default 0 |
-//! | 10 | Chorus | `Sync` | toggle, default off (appended by `devices-pass-effects`) |
+//! | 10 | Chorus | `Sync` | toggle, default off (appended by the effects pass) |
 //! | 11 | Chorus | `Sync Rate` | sync rate (default index 10, 1 bar) |
 //!
 //! # Phaser (`BuiltinDeviceType::Phaser`)
@@ -45,7 +45,7 @@
 //! | 7 | Phaser | `Stereo Phase` | 0 ..= 180 None, default 90 |
 //! | 8 | Output | `Mix` | 0 ..= 100 Percent, default 50 |
 //! | 9 | Output | `Output` | -24 ..= 24 Decibels, default 0 |
-//! | 10 | Phaser | `LFO Shape` | Sine / Triangle / Square / Saw Up / Saw Down (default Sine; `devices-pass-effects`) |
+//! | 10 | Phaser | `LFO Shape` | Sine / Triangle / Square / Saw Up / Saw Down (default Sine) |
 //!
 //! # Flanger (`BuiltinDeviceType::Flanger`)
 //!
@@ -61,7 +61,7 @@
 //! | 7 | Output | `Mix` | 0 ..= 100 Percent, default 50 |
 //! | 8 | Output | `Output` | -24 ..= 24 Decibels, default 0 |
 //! | 9 | Flanger | `Through Zero` | toggle, default off (appended by `fx-modulation`) |
-//! | 10 | Flanger | `LFO Shape` | Sine / Triangle / Square / Saw Up / Saw Down (default Sine; `devices-pass-effects`) |
+//! | 10 | Flanger | `LFO Shape` | Sine / Triangle / Square / Saw Up / Saw Down (default Sine) |
 //!
 //! # Tremolo (`BuiltinDeviceType::Tremolo`)
 //!
@@ -153,7 +153,7 @@ pub mod chorus {
     pub const HIGH_CUT: ParamId = ParamId(7);
     pub const MIX: ParamId = ParamId(8);
     pub const OUTPUT: ParamId = ParamId(9);
-    /// Appended (devices-pass-effects): tempo-synced LFO.
+    /// Appended: tempo-synced LFO.
     pub const SYNC: ParamId = ParamId(10);
     pub const SYNC_RATE: ParamId = ParamId(11);
     /// Number of params.
@@ -173,7 +173,7 @@ pub mod phaser {
     pub const STEREO_PHASE: ParamId = ParamId(7);
     pub const MIX: ParamId = ParamId(8);
     pub const OUTPUT: ParamId = ParamId(9);
-    /// Appended (devices-pass-effects): LFO waveform.
+    /// Appended: LFO waveform.
     pub const LFO_SHAPE: ParamId = ParamId(10);
     /// Number of params.
     pub const COUNT: usize = 11;
@@ -193,7 +193,7 @@ pub mod flanger {
     pub const OUTPUT: ParamId = ParamId(8);
     /// Appended (fx-modulation): through-zero flanging (fixed dry delay, reported latency).
     pub const THROUGH_ZERO: ParamId = ParamId(9);
-    /// Appended (devices-pass-effects): LFO waveform.
+    /// Appended: LFO waveform.
     pub const LFO_SHAPE: ParamId = ParamId(10);
     /// Number of params.
     pub const COUNT: usize = 11;
@@ -341,7 +341,7 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                     (-24.0, 24.0, 0.0),
                     ParamScale::Linear,
                 ),
-                // --- devices-pass-effects ---
+                // --- devices pass effects ---
                 toggle(10, "Sync", "Chorus", false),
                 choice(11, "Sync Rate", "Chorus", &SYNC_RATES, 10),
             ],
@@ -414,7 +414,7 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                     (-24.0, 24.0, 0.0),
                     ParamScale::Linear,
                 ),
-                // --- devices-pass-effects ---
+                // --- devices pass effects ---
                 choice(10, "LFO Shape", "Phaser", &LFO_SHAPES, 0),
             ],
             2,
@@ -486,7 +486,7 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                     ParamScale::Linear,
                 ),
                 toggle(9, "Through Zero", "Flanger", false),
-                // --- devices-pass-effects ---
+                // --- devices pass effects ---
                 choice(10, "LFO Shape", "Flanger", &LFO_SHAPES, 0),
             ],
             2,
@@ -683,7 +683,7 @@ fn choice_item(param: ParamId) -> ether_core::protocol::layout::LayoutItem {
     item(Widget::Choice { param }, WidgetSize::Small)
 }
 
-/// The LFO section (devices-pass-effects): the LFO display (its shape / rate / depth
+/// The LFO section: the LFO display (its shape / rate / depth
 /// controls under it) spanning the section, then Sync and Sync Rate.
 fn lfo_section(
     shape: ParamId,

@@ -1,5 +1,5 @@
 /**
- * MIDI file export (#717): "export MIDI…" on a clip or a selection of clips (the file starts
+ * MIDI file export: "export MIDI…" on a clip or a selection of clips (the file starts
  * at the first clip) and on tracks (all their MIDI clips, from the project start, so they
  * keep their place). The engine writes a type 1 Standard MIDI File (`Media::WriteMidiFile`):
  * the desktop asks where in its OS save dialog and the engine writes it there; elsewhere the

@@ -79,7 +79,7 @@ export async function pickDevice(scope: Page | Locator, trigger: string, row: st
 /**
  * Selects a track the way a user does: a click on its header card, at its left edge. The
  * card's center lands on its mute toggle, and the name can't be clicked: at the default
- * header width it is squeezed to 0 px (an app layout bug reported by base-46).
+ * header width it is squeezed to 0 px (an app layout bug).
  */
 export async function selectTrack(page: Page, trackName: string): Promise<void> {
   const header = page.getByRole("group", { name: `${trackName} track` });
@@ -103,7 +103,7 @@ export function deviceCard(page: Page, id: string): Locator {
 
 /**
  * Clicks one of a device header's hover-only controls (the presets menu, "+" modulator) like
- * a user: they take no room until the header is hovered (#790), so hover it first.
+ * a user: they take no room until the header is hovered, so hover it first.
  */
 export async function clickHeaderControl(control: Locator): Promise<void> {
   await control.locator("xpath=ancestor::header[1]").hover({ position: { x: 4, y: 4 } });
@@ -111,7 +111,7 @@ export async function clickHeaderControl(control: Locator): Promise<void> {
 }
 
 /**
- * Opens a factory device's window from its card's header toggle (base-153: the device's own
+ * Opens a factory device's window from its card's header toggle (the device's own
  * UI, the layout, is there and never inline) and returns it, once its layout is loaded.
  */
 export async function openDeviceWindow(page: Page, id: string): Promise<Locator> {
@@ -275,7 +275,7 @@ export async function addDevice(page: Page, type: string, opts: { keepWindow?: b
 const NO_WINDOW = new Set(["InstrumentRack", "AudioEffectRack", "MidiEffectRack"]);
 
 /**
- * After an add: wait for the picker to close and the new device's window to open (base-154: a
+ * After an add: wait for the picker to close and the new device's window to open (a
  * device added from the library opens its window); closed again unless `keepWindow`. A chain
  * rack has no window: only the picker closing is waited for (callers wait for the device).
  */
@@ -417,11 +417,11 @@ export const playingButton = (page: Page): Locator =>
 
 /**
  * The transport bar's Stop button (the Play button also reads "Stop" while playing). Stopped,
- * it returns to the selection cursor, then to the start (transport-keys).
+ * it returns to the selection cursor, then to the start.
  */
 export const stopButton = (page: Page): Locator => page.getByTestId("transport-stop");
 
-/** Opens Settings (top-bar gear) on the Advanced tab (base-115). */
+/** Opens Settings (top-bar gear) on the Advanced tab. */
 export async function openAdvancedSettings(page: Page): Promise<void> {
   await page.getByRole("button", { name: "settings", exact: true }).click();
   await page.getByRole("dialog", { name: "settings" }).getByRole("tab", { name: "advanced" }).click();
@@ -443,7 +443,7 @@ export async function openEngineServer(page: Page): Promise<void> {
 export async function newProject(page: Page, name: string): Promise<void> {
   const screen = projectScreen(page);
   const before = await page.getByTestId("project-name").textContent();
-  // Nothing open yet (base-131): the app shows the picker by itself once the engine is up.
+  // Nothing open yet: the app shows the picker by itself once the engine is up.
   // Wait for it rather than opening the menu, which raced that opening under load.
   // (The name button is disabled while no project is open, in every language.)
   if (await page.getByTestId("project-name").isDisabled()) await expect(screen).toBeVisible({ timeout: 30_000 });
@@ -502,7 +502,7 @@ export async function paletteCommand(page: Page, label: string): Promise<void> {
 }
 
 /**
- * base-131: the app launches with no project open, on the project picker. Loads the app and
+ * The app launches with no project open, on the project picker. Loads the app and
  * creates a new, empty project there (what most specs start from).
  */
 export async function launch(page: Page, name = "Untitled"): Promise<void> {

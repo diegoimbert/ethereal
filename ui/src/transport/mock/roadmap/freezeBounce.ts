@@ -1,5 +1,5 @@
 /**
- * Mock of `Freeze::*` (v0.2, `MockFreeze`). Owned by `freeze-bounce`. Render jobs (`Freeze`,
+ * Mock of `Freeze::*` (v0.2, `MockFreeze`). Render jobs (`Freeze`,
  * `Bounce`, `BounceRange`, audio `Consolidate`) reply `RenderStarted`, then each playhead step
  * (`MockTransport.tick()` with manual timers) advances one phase: Progress 0.5, then the
  * document edit (one undo step: the render's media + the edit), Progress 1.0 and Done, like

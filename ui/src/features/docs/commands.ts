@@ -1,4 +1,4 @@
-// The docs' commands: the same entries in the command palette and the project menu (#577).
+// The docs' commands: the same entries in the command palette and the project menu.
 import { t } from "@/i18n";
 import { useProjectScreen } from "@/features/project/screenStore";
 import { openDocs } from "./open";
@@ -21,7 +21,7 @@ export function docsCommands() {
       run: () => openDocs(DOC_LINKS.shortcuts),
     },
     {
-      // #518: the example beats are on the welcome screen (open one, or its tour).
+      // The example beats are on the welcome screen (open one, or its tour).
       id: "app:examples",
       group: "Help",
       label: t("docs.command.examples"),

@@ -7,7 +7,7 @@ import { cmd } from "@/transport";
 import { useT } from "@/i18n";
 
 /**
- * base-131 safe mode ("Open without plugins"): while the open project's plugin devices are
+ * Safe mode ("Open without plugins"): while the open project's plugin devices are
  * held as bypassed placeholders, the top bar says so, with "Load plugins" to instantiate
  * them (`Project::LoadPlugins`). Nothing shows otherwise.
  */

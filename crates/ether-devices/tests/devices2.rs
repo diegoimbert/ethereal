@@ -1,4 +1,4 @@
-//! Offline render tests for the roadmap v2 effects (`devices-2`): EQ, reverb, limiter,
+//! Offline render tests for the roadmap v2 effects: EQ, reverb, limiter,
 //! utility. Every `process` call runs under `assert_no_alloc` (debug builds abort on
 //! allocation on the audio path).
 
@@ -119,7 +119,7 @@ fn param(id: ParamId, value: f64) -> EventKind {
 #[test]
 fn new_builtins_are_real_devices() {
     for (ty, count) in [
-        // devices-pass-effects appended EQ `Channel`, 4 reverb and 7 utility params; the
+        // The effects pass appended EQ `Channel`, 4 reverb and 7 utility params; the
         // Ableton reverb level match appended the reverb `Output`.
         (BuiltinDeviceType::Eq, eq::BANDS * 5 + 2),
         (BuiltinDeviceType::Reverb, 11),
@@ -541,7 +541,7 @@ fn reverb_is_clean_at_extremes() {
         let mut x = noise(0.7, frames, 21);
         x[SR as usize..].fill(0.0);
         // (Both channels stop: the right one used to play on, so the check below measured
-        // how fast a 20 s tank fills, not whether its energy grows without input, #845.)
+        // how fast a 20 s tank fills, not whether its energy grows without input.)
         let mut y = noise(0.7, frames, 4);
         y[SR as usize..].fill(0.0);
         // Size swept while the tail rings.

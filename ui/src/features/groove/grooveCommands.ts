@@ -59,7 +59,7 @@ interface GrooveSettingsState {
   reset(): void;
 }
 
-/** #717: the settings are kept on this computer (app-wide, not per project). */
+/** The settings are kept on this computer (app-wide, not per project). */
 export const GROOVE_STORAGE_KEY = "eth.groove";
 
 const unit = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : fallback);
@@ -93,7 +93,7 @@ function saveGrooveSettings(s: { quantize: QuantizeSettings; humanize: HumanizeS
   }
 }
 
-/** The quantize/humanize settings, kept on this computer (#717). */
+/** The quantize/humanize settings, kept on this computer. */
 export const useGrooveSettings = create<GrooveSettingsState>()((set, get) => ({
   ...loadGrooveSettings(),
   setQuantize: (patch) => {

@@ -1,7 +1,7 @@
 /**
- * Copying a folder of the user's computer into the engine's library (`base-136`; web, a
+ * Copying a folder of the user's computer into the engine's library (web, a
  * remote engine, and desktop drops that arrive as files): read it (`walk.ts`), keep the
- * supported audio the library's file filter shows (`plan.ts`, `base-145`), check the browser's storage quota (local web engine), then
+ * supported audio the library's file filter shows (`plan.ts`), check the browser's storage quota (local web engine), then
  * `Browser::ImportFolder` → per file an upload (`withUpload`) consumed by
  * `Browser::ImportFile` (sub-folders preserved) → `Browser::Rescan`, which indexes it like
  * any library root.
@@ -163,7 +163,7 @@ async function runJob(
 }
 
 /**
- * `base-145`: which of `paths` the library file filter shows (one `Browser::CheckFileFilter`);
+ * Which of `paths` the library file filter shows (one `Browser::CheckFileFilter`);
  * `undefined` (copy all) when the engine doesn't know file filters.
  */
 async function fileFilterVerdict(transport: EngineTransport, paths: string[]): Promise<((path: string) => boolean) | undefined> {

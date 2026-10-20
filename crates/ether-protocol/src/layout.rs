@@ -1,4 +1,4 @@
-//! Declarative device layouts (v0.2, frozen by contracts-3; renderer: `device-ui`;
+//! Declarative device layouts (v0.2, frozen by the v0.2 contracts; renderer: the device UI;
 //! CONTRACTS.md §12.4.2).
 //!
 //! Every built-in device ships a [`DeviceLayout`] in its `DeviceDescriptor::layout` (written
@@ -155,7 +155,7 @@ pub enum Widget {
     RackChains,
     /// The 8 macro knobs of a rack (params 0..8).
     Macros,
-    /// Interactive EQ curve (v0.2, `graphical-eq`): the combined magnitude response of
+    /// Interactive EQ curve (v0.2): the combined magnitude response of
     /// `bands` (`ether_protocol::eq_response`, mirrored in TS) on a log-frequency / dB grid,
     /// with a draggable handle per band: drag = freq (x) + gain (y), wheel or Alt-drag = Q,
     /// double-click = toggle `on`, context menu = `kind`. Each drag is one gesture (one undo
@@ -174,7 +174,7 @@ pub enum Widget {
     /// routing`): MIDI output + channel, audio send / return channels, missing ports, and
     /// the `External::MeasureLatency` button. No params.
     HardwareRouting,
-    // --- devices-pass-effects (effect window visualisations) ---
+    // --- effect window visualisations ---
     /// Static transfer curve of a dynamics device (input dB → output dB on a -60..0 dB
     /// square), drag = threshold (x) and ratio (y). Behaviour by the `mode` param's current
     /// label: "Expand…" = downward expander, "Gate" = gate (to `floor`), else a compressor

@@ -1,4 +1,4 @@
-//! Built-in `Limiter` device (roadmap v2, `devices-2`).
+//! Built-in `Limiter` device (roadmap v2).
 //!
 //! Stereo-linked lookahead brickwall limiter. The audio is delayed by a fixed
 //! [`LOOKAHEAD_MS`] lookahead, reported through [`Node::latency`] so the engine's PDC
@@ -12,7 +12,7 @@
 //! 5. the delayed audio times the gain, then a final safety clamp at the (delayed)
 //!    ceiling against float rounding. The output never exceeds the ceiling.
 //!
-//! The detector is **true-peak** (#520): besides each sample it estimates the three
+//! The detector is **true-peak**: besides each sample it estimates the three
 //! inter-sample points between it and the next (4x, a [`ISP_TAPS`]-tap Kaiser-windowed
 //! sinc), so peaks that a DAC or an encoder reconstructs between samples stay under the
 //! ceiling too (sample-peak detection let them through by up to 0.8 dB at +12 dB of drive).
@@ -23,7 +23,7 @@
 //! argument); the gain path and the final ceiling clamp stay the same, so the output still
 //! never exceeds the ceiling.
 //!
-//! Analysis (`devices-pass-effects`, the window's meter and transfer-curve dot):
+//! Analysis (the window's meter and transfer-curve dot):
 //! `AnalysisKind::Levels [gain reduction dB (<= 0), detector peak dBFS]`, the deepest
 //! reduction and the loudest (input-gained) detector peak since the last read.
 //!
@@ -238,7 +238,7 @@ pub struct Limiter {
     /// Lowest gain (linear) and loudest detector peak since the last analysis read.
     meter_gain: f32,
     meter_peak: f32,
-    /// Silence reporting (perf audit #5).
+    /// Silence reporting.
     tail: util::Tail,
 }
 

@@ -1,5 +1,5 @@
 //! Rack chains reordered within their rack (`Rack::MoveChain`) and copied / moved between racks
-//! (`Rack::CopyChain`, #892): same track, nested racks, other tracks; content rules, never
+//! (`Rack::CopyChain`): same track, nested racks, other tracks; content rules, never
 //! inside itself, modulation scope, automation carried on the same track, one undo step each.
 
 mod common;

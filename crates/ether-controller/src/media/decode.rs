@@ -34,7 +34,7 @@ pub struct IncrementalDecoder {
     /// Total frames from the header, if known.
     pub n_frames: Option<u64>,
     out: Vec<Vec<f32>>,
-    /// Frames to reserve per channel on the first decoded packet (#554: not up front, so a
+    /// Frames to reserve per channel on the first decoded packet (not up front, so a
     /// header-only probe or a peaks-only decode reserves nothing; bounded by the file size,
     /// as headers can lie).
     reserve: usize,
@@ -42,9 +42,9 @@ pub struct IncrementalDecoder {
     /// A chained stream was cut off (only the first stream is imported).
     pub truncated: bool,
     done: bool,
-    /// `audio-streaming`: peaks-only mode (the samples feed the peaks and are dropped).
+    /// Peaks-only mode (the samples feed the peaks and are dropped).
     peaks: Option<PeaksSink>,
-    /// #529: stop after this many frames (an IR only needs its first seconds).
+    /// Stop after this many frames (an IR only needs its first seconds).
     limit: Option<usize>,
 }
 
@@ -111,7 +111,7 @@ impl IncrementalDecoder {
         })
     }
 
-    /// `audio-streaming`: keep only the waveform peaks of a media streamed from disk (cut
+    /// Keep only the waveform peaks of a media streamed from disk (cut
     /// or padded to `frames`, the document length, like the whole-file path), dropping the
     /// samples as they are decoded. Call before the first [`Self::step`].
     pub fn peaks_only(&mut self, frames: u64) {
@@ -123,7 +123,7 @@ impl IncrementalDecoder {
         });
     }
 
-    /// #529: decode only the first `frames` frames (the rest of the file is not decoded).
+    /// Decode only the first `frames` frames (the rest of the file is not decoded).
     /// Call before the first [`Self::step`].
     pub fn limit(&mut self, frames: usize) {
         self.limit = Some(frames);
@@ -313,7 +313,7 @@ mod tests {
         b
     }
 
-    /// #554: the header's frame count reserved up to 1 GiB per channel up front, even for
+    /// The header's frame count reserved up to 1 GiB per channel up front, even for
     /// header-only probes.
     #[test]
     fn a_lying_header_reserves_nothing_up_front_and_little_when_decoding() {

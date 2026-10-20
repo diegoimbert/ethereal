@@ -85,7 +85,7 @@ function Panel({ count }: { count: number }) {
 - User content (track, clip, device, preset, file and people names) is never translated and
   carries `.eth-user-text`.
 
-### Lowercase (#524)
+### Lowercase
 
 All app text is lowercase in every language, French included (the brand style), except the
 proper nouns and acronyms listed in `i18n/tooling/text.ts` (`MIDI`, `VST3`, `CLAP`, `AU`,

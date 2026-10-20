@@ -4,7 +4,7 @@
  * that one is in (a track's, a rack chain, a drum pad's). The header's context menu has
  * "Copy" and "Paste After". A paste is `Device::Duplicate` onto the target's track (params,
  * plugin state, a rack's chains, a drum rack's pads) then a move to its place, in one
- * `Edit::Batch`: one undo step, and all or nothing (#582: a refused move used to leave the
+ * `Edit::Batch`: one undo step, and all or nothing (a refused move used to leave the
  * copy on the source track).
  *
  * With no device selected (a click on a chain's empty space clears the selection and focuses

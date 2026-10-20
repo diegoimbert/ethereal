@@ -1,6 +1,6 @@
-// base-132: a plugin with 10,000 params never renders all of them. Runs the web build on the
+// A plugin with 10,000 params never renders all of them. Runs the web build on the
 // mock transport (`?mock`), whose fake "Mock Mega" plugin has 10,000 params.
-// base-153: a plugin's card is its header; the header's "Parameters" toggle shows the
+// A plugin's card is its header; the header's "Parameters" toggle shows the
 // windowed, searchable list inline, capped in height; a pin (a UI setting per plugin, not
 // in the project) puts its param first and survives a reload.
 // `PARAM_CAP_SHOTS=<dir>` also writes the PR screenshots (dark; `PARAM_CAP_THEME=light`).

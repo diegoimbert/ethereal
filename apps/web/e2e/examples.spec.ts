@@ -1,4 +1,4 @@
-// The example beats (#518, docs/TUTORIALS.md "Example beats"): each example on the welcome
+// The example beats (docs/TUTORIALS.md "Example beats"): each example on the welcome
 // screen opens as a new project from its factory template (`factory/example-…`) and plays:
 // every track is heard on its meter (the drum rack's pads, the instruments and their
 // effects, in the real wasm engine). Help (the palette's "example beats", the project menu)

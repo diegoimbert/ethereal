@@ -351,7 +351,7 @@ impl Node for Tuner {
             self.since_hop = (self.since_hop - self.hop).min(self.hop);
             self.estimate();
         }
-        // Muted, or a pass-through of silence (perf audit #5; the engine processes a
+        // Muted, or a pass-through of silence (the engine processes a
         // watched tuner anyway).
         if !self.gain.is_smoothing()
             && (self.gain.current() == 0.0 || util::all_zero(inputs, frames))

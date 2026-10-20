@@ -39,7 +39,7 @@ interface HttpRequest {
 }
 
 /**
- * #519: run the sample pack's HTTP GETs the controller asked for (`HostServices::http_get`)
+ * Run the sample pack's HTTP GETs the controller asked for (`HostServices::http_get`)
  * with `fetch`, streaming the body with progress and the size cap, and hand the answers back.
  */
 function runHttp(ctl: WasmController): void {

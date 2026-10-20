@@ -142,7 +142,7 @@ test("ai-chat (OpenAI-compatible): the scripted conversation edits the arrangeme
   await expect(panel.getByText(/only ever sent to api\.openai\.com/)).toBeVisible();
   await panel.getByLabel("API key").fill(KEY);
   await panel.getByRole("button", { name: "save key" }).click();
-  // #717: agree once to send the project to this provider.
+  // Agree once to send the project to this provider.
   await panel.getByTestId("ai-consent-accept").click();
   await expect(panel.getByTestId("ai-model")).toHaveText(/gpt-5/);
 
@@ -205,7 +205,7 @@ for (const theme of ["dark", "light"] as const) {
     await page.getByRole("option", { name: "openai", exact: true }).click();
     await panel.getByLabel("API key").fill(KEY);
     await panel.getByRole("button", { name: "save key" }).click();
-    // #717: agree once to send the project to this provider.
+    // Agree once to send the project to this provider.
     await panel.getByTestId("ai-consent-accept").click();
     await panel.getByRole("button", { name: "AI settings" }).click();
     await expect(panel.getByTestId("ai-settings")).toBeVisible();

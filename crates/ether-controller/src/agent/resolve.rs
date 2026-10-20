@@ -1,4 +1,4 @@
-//! Reference resolution (`agent-plugins`): what "the drum loop", "the reverb on the
+//! Reference resolution: what "the drum loop", "the reverb on the
 //! drums" or "the chorus" mean in the open project.
 //!
 //! - Names are compared as **tokens**: lowercased, accents folded, punctuation and filler

@@ -89,7 +89,7 @@ impl HostSlot {
 static MAIN_THREAD: std::sync::OnceLock<std::thread::ThreadId> = std::sync::OnceLock::new();
 
 /// Runs plugin main-thread work on the process main thread (Tauri's event loop), through a
-/// [`main_queue::MainQueue`] the main thread also serves while it stops the host (#566).
+/// [`main_queue::MainQueue`] the main thread also serves while it stops the host.
 pub struct TauriMainThread {
     app: AppHandle,
     queue: main_queue::MainQueue,
@@ -296,7 +296,7 @@ fn agent_bridge_set_enabled(
     Ok(bridge.status())
 }
 
-/// base-114: file holding the remembered collaboration relay token (in the app data dir).
+/// File holding the remembered collaboration relay token (in the app data dir).
 const COLLAB_TOKEN_FILE: &str = "collab-token";
 
 /// The remembered collaboration token, if any. The token is never logged.
@@ -499,7 +499,7 @@ pub fn run_with(context: tauri::Context<tauri::Wry>, ext: DesktopExt) {
     let _ = MAIN_THREAD.set(std::thread::current().id());
     init_tracing(ext.log_filter);
     (ext.startup)();
-    // `app-identity`: an install made under an earlier bundle identifier (`dev.ethereal.app`)
+    // An install made under an earlier bundle identifier (`dev.ethereal.app`)
     // has its data, logs and WebView storage moved to this identifier's directories, before
     // Tauri or the WebView open them. Release builds only (dev instances have their own dirs).
     if !cfg!(debug_assertions) {
@@ -560,7 +560,7 @@ pub fn run_with(context: tauri::Context<tauri::Wry>, ext: DesktopExt) {
             .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
             tracing::info!(audio = ?host.audio_info(), "engine started");
             let host = Arc::new(host);
-            // `agent-api`: everything the engine emits goes through the fan-out (UI, and
+            // Everything the engine emits goes through the fan-out (UI, and
             // the agent bridge when enabled).
             let bridge = AgentBridgeState::new(data_dir.clone(), instance.clone());
             {
@@ -579,7 +579,7 @@ pub fn run_with(context: tauri::Context<tauri::Wry>, ext: DesktopExt) {
             });
             // `file-import`: OS file drops reach the UI as paths (macOS).
             if let Some(window) = app.get_webview_window("main") {
-                // `plugin-editor-owner`: plugin editor windows stay above the main window.
+                // Plugin editor windows stay above the main window.
                 let owner = editor_owner::OwnerWindow::from_window(&window);
                 if owner.is_none() {
                     tracing::info!("plugin editors not tied to the main window (no usable handle)");
@@ -594,7 +594,7 @@ pub fn run_with(context: tauri::Context<tauri::Wry>, ext: DesktopExt) {
                 return;
             }
             match event {
-                // `plugin-editor-owner`: editors not owned by the main window (made on
+                // Editors not owned by the main window (made on
                 // another thread) are put back above it when it is activated.
                 WindowEvent::Focused(true) => editor_owner::owner_activated(),
                 // `quit`: closing the main window quits; ask first.

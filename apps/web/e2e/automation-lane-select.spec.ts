@@ -1,9 +1,9 @@
-// Automation lanes take the arrangement's usual clicks (owner request), against the real
+// Automation lanes take the arrangement's usual clicks, against the real
 // engine, on both arranger renderers (listed in ARRANGER_SPECS):
 //
 // - a click on a lane's empty space selects the track and places the insert marker there;
 //   so does a click on the "+ Parameter…" bar's empty space;
-// - like the arranger (#621): a ⇧-drag selects a time range in the lane; ⌘/Ctrl+D duplicates
+// - like the arranger: a ⇧-drag selects a time range in the lane; ⌘/Ctrl+D duplicates
 //   the range's automation right after it (one undo step);
 // - a double-click creates a point on the SECOND PRESS: it exists before the release and
 //   follows the pointer until then (⇧: whole dB), one undo step with the creation.

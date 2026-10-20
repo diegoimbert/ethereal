@@ -6,7 +6,7 @@
 //!   (absolute, audio extension via `store::file_kind`, no NUL) and reads it with
 //!   `Library::read_external` (the host checks it is a regular readable file within
 //!   [`MAX_IMPORT_BYTES`]). The media is an external reference in place
-//!   (`MediaLocation::External { path }`, nothing copied; `media-references`, CONTRACTS.md
+//!   (`MediaLocation::External { path }`, nothing copied, CONTRACTS.md
 //!   §12.9).
 //! - Web (local wasm controller) and remote: bytes go through the frozen upload staging
 //!   (`Media::{BeginUpload, UploadChunk, CancelUpload}` → `MediaSource::Upload`, copied into
@@ -193,7 +193,7 @@ mod tests {
         ] {
             assert!(check_path(bad).is_err(), "{bad:?}");
         }
-        // #717: MIDI files for `Media::ReadMidiFile`.
+        // MIDI files for `Media::ReadMidiFile`.
         assert_eq!(
             check_path_of("/Users/me/song.MID", FileKind::Midi).unwrap(),
             "song.MID"

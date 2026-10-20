@@ -72,7 +72,7 @@ test("keymap: rebind, conflicts, persistence, Ableton-like preset, cheat sheet",
   await expect.poll(async () => (await state(page)).playing).toBe(true);
   await page.keyboard.press("Space");
   await expect.poll(async () => (await state(page)).playing).toBe(false);
-  // Shift+Space is its own action (#268: it plays too; stopping, it stays where it is).
+  // Shift+Space is its own action (it plays too; stopping, it stays where it is).
   await page.keyboard.press("Space");
   await expect.poll(async () => (await state(page)).playing).toBe(true);
   await page.keyboard.press("Shift+Space");
@@ -114,7 +114,7 @@ test("keymap: rebind, conflicts, persistence, Ableton-like preset, cheat sheet",
 
   // Stored by the engine in the user library: a reload keeps it.
   await page.reload();
-  // base-131: nothing opens on launch; reopen the project from Recents.
+  // Nothing opens on launch; reopen the project from Recents.
   await openOnLaunch(page);
   await expect(playButton(page)).toHaveAttribute("title", "play (P)");
   await openEditor(page);

@@ -58,7 +58,7 @@ pub const USER_LIBRARY_ID: &str = "user";
 /// Folder name of the default user library, next to the projects root
 /// (`~/Documents/Ethereal/User Library`, or `<instance data>/User Library` in dev builds).
 pub const USER_LIBRARY_DIR: &str = "User Library";
-/// `base-136`: folder of the folders imported from a remote UI (`Library::create_import_folder`),
+/// Folder of the folders imported from a remote UI (`Library::create_import_folder`),
 /// next to the user library (`~/Documents/Ethereal/Imported Folders`).
 pub const IMPORTED_FOLDERS_DIR: &str = "Imported Folders";
 
@@ -74,7 +74,7 @@ pub struct DiskStore {
     pub user_library: Option<PathBuf>,
     /// Routine autosaves in flight (`save_in_background`), shared by the clones.
     writer: Arc<crate::save_writer::SaveWriter>,
-    /// #519: the sample pack cache (`Library::sample_cache_*`): `<app data>/samples` in the
+    /// The sample pack cache (`Library::sample_cache_*`): `<app data>/samples` in the
     /// hosts; `None` = no cache (the built-in kit only).
     pub sample_cache: Option<PathBuf>,
 }
@@ -345,7 +345,7 @@ impl DiskStore {
         }
     }
 
-    /// #519: keep the sample pack cache in `dir`.
+    /// Keep the sample pack cache in `dir`.
     pub fn with_sample_cache(mut self, dir: Option<PathBuf>) -> Self {
         self.sample_cache = dir;
         self
@@ -380,7 +380,7 @@ impl DiskStore {
         }
     }
 
-    /// `base-136`: the folder holding imported folders (next to the user library; none
+    /// The folder holding imported folders (next to the user library; none
     /// without a user library).
     pub fn imports_dir(&self) -> Option<PathBuf> {
         Some(
@@ -391,7 +391,7 @@ impl DiskStore {
         )
     }
 
-    /// `base-136`: the folder of root `root` if it is an imported folder.
+    /// The folder of root `root` if it is an imported folder.
     fn imported_dir(&self, root: &str) -> Option<PathBuf> {
         let imports = self.imports_dir()?;
         let r = self.library_roots.iter().find(|r| r.id == root)?;
@@ -759,7 +759,7 @@ impl ProjectStore for DiskStore {
         fs::read(p).map_err(io_err)
     }
 
-    /// v0.3 (`project-versions`): delete one file (never a folder); missing = `Ok`.
+    /// v0.3: delete one file (never a folder); missing = `Ok`.
     fn remove(&mut self, id: ProjectId, rel_path: &str) -> Result<(), StoreError> {
         self.flush_if_document(rel_path);
         let dir = self.existing_project_dir(id)?;
@@ -853,7 +853,7 @@ impl Library for DiskStore {
         })
     }
 
-    /// v0.2 (`presets`): only the user library (and, `base-136`, imported folders) is
+    /// v0.2 (`presets`): only the user library (and, imported folders) is
     /// writable (atomic write, parents created).
     fn write_file(&mut self, root: &str, rel_path: &str, bytes: &[u8]) -> Result<(), StoreError> {
         let dir = self.writable_dir(root)?;
@@ -907,14 +907,14 @@ impl Library for DiskStore {
             .map(|_| USER_LIBRARY_ID.to_string())
     }
 
-    /// `file-import` (shared with `media-references`): an OS file chosen by the user (file
+    /// `file-import` (shared with media references): an OS file chosen by the user (file
     /// dialog or drop) or an external reference. Absolute, an audio file by extension, a
     /// regular file (symlinks followed) of at most [`MAX_EXTERNAL_BYTES`].
     fn read_external(&mut self, path: &str) -> Result<Vec<u8>, StoreError> {
         read_external_file(path)
     }
 
-    /// `media-references`: library files are referenced in place, by their absolute path
+    /// Library files are referenced in place, by their absolute path
     /// (the root joined with the checked relative path; symlinks are not resolved, so the
     /// reference keeps the path the user sees).
     fn external_path(&self, root: &str, rel_path: &str) -> Option<String> {
@@ -926,12 +926,12 @@ impl Library for DiskStore {
         path.to_str().map(str::to_string)
     }
 
-    /// `media-references`: the Relink dialog's folder search.
+    /// The Relink dialog's folder search.
     fn list_external_dir(&mut self, path: &str) -> Result<Vec<(String, bool)>, StoreError> {
         list_external_dir(path)
     }
 
-    /// `browser-v2`: a user folder becomes a library root (listed by `roots()`, browsable,
+    /// A user folder becomes a library root (listed by `roots()`, browsable,
     /// importable, referenced in place) with the stable id [`user_folder_id`]. The folder
     /// must be an existing absolute directory. Not persisted here: the controller's browser
     /// index remembers user folders and re-adds them on start.
@@ -961,7 +961,7 @@ impl Library for DiskStore {
         Ok(id)
     }
 
-    /// `browser-v2`: forget a user folder (files untouched; `base-136`: an imported
+    /// Forget a user folder (files untouched; an imported
     /// folder's copy is deleted). Configured roots can't be removed.
     fn remove_folder(&mut self, root: &str) -> Result<(), StoreError> {
         if !root.starts_with(USER_FOLDER_PREFIX) {
@@ -984,7 +984,7 @@ impl Library for DiskStore {
         Ok(())
     }
 
-    /// `base-136`: `<imports_dir>/<name>` (de-duplicated against existing folders), created.
+    /// `<imports_dir>/<name>` (de-duplicated against existing folders), created.
     fn create_import_folder(&mut self, name: &str) -> Result<String, StoreError> {
         let base = import_folder_name(name)
             .ok_or_else(|| StoreError::InvalidPath(format!("bad folder name {name:?}")))?;
@@ -1044,7 +1044,7 @@ pub fn list_external_dir(path: &str) -> Result<Vec<(String, bool)>, StoreError> 
 pub const MAX_EXTERNAL_BYTES: u64 = 1 << 30;
 
 /// See `Library::read_external` for `DiskStore`.
-/// base-114: an absolute `.ether` path from the desktop's OS save/open dialog.
+/// An absolute `.ether` path from the desktop's OS save/open dialog.
 fn bundle_path(path: &str) -> Result<&Path, StoreError> {
     let p = Path::new(path);
     let ether = p
@@ -1065,7 +1065,7 @@ pub fn read_external_file(path: &str) -> Result<Vec<u8>, StoreError> {
         return Err(StoreError::InvalidPath(path.to_string()));
     }
     let name = p.file_name().and_then(|n| n.to_str()).unwrap_or_default();
-    // Audio media, and MIDI files read by `Media::ReadMidiFile` (#717).
+    // Audio media, and MIDI files read by `Media::ReadMidiFile`.
     if !matches!(file_kind(name), FileKind::Audio | FileKind::Midi) {
         return Err(StoreError::InvalidPath(format!(
             "not an audio or MIDI file: {path}"
@@ -1252,7 +1252,7 @@ mod tests {
         );
     }
 
-    /// #434: a streamed export is written under a hidden temp name, seekable (headers are
+    /// A streamed export is written under a hidden temp name, seekable (headers are
     /// patched last), renamed on commit; dropped unfinished, it leaves nothing.
     #[test]
     fn streamed_exports_commit_or_vanish() {
@@ -1579,7 +1579,7 @@ mod tests {
         ));
     }
 
-    /// #717: `Media::WriteMidiFile { path }` and `ReadMidiFile { Path }`.
+    /// `Media::WriteMidiFile { path }` and `ReadMidiFile { Path }`.
     #[test]
     fn midi_files_at_absolute_midi_paths_only() {
         let tmp = TempDir::new("store-midi");
@@ -1619,7 +1619,7 @@ mod tests {
         assert!(s.project_dir(a).join("versions/1-manual.ether").exists());
     }
 
-    /// project-versions: the tiered pruning works on the disk folder (an existing project
+    /// The tiered pruning works on the disk folder (an existing project
     /// with the old 50 five-minute autosaves is thinned to 30; named versions stay).
     #[test]
     fn versions_are_pruned_on_disk() {

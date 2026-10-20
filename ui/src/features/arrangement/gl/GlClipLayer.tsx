@@ -270,7 +270,7 @@ export function GlClipLayer({ ctx, scrollRef, backend }: GlClipLayerProps) {
       // The body too (an audio clip's: a MIDI lane's double press opens its clips, clipInsert.ts).
       if (!hit || (hit.part !== "body" && !isClipPart(hit))) return;
       e.stopPropagation();
-      // A double-click opens the clip and expands the collapsed drawer and inspector (#758).
+      // A double-click opens the clip and expands the collapsed drawer and inspector.
       useEditorStore.getState().revealClip(hit.clip);
     };
     const onContextMenu = (e: MouseEvent) => {

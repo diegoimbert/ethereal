@@ -1,4 +1,4 @@
-//! base-24 engine hooks: sidechain PDC alignment (both directions), drum-rack pad chains
+//! Engine hooks: sidechain PDC alignment (both directions), drum-rack pad chains
 //! (live params, automation and audio reach pad devices; pad latency counts in PDC).
 
 mod common;

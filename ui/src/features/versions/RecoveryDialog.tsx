@@ -24,7 +24,7 @@ interface Item {
  * unsaved work newer than their saved file (`Version::ListRecoverable`). For each one:
  * - with unsaved work: "Recover" opens that work (unsaved, so Save keeps it), "Keep saved"
  *   drops the offer (the versions stay in the versions dialog);
- * - without (base-131: e.g. a plugin crashed while it loaded): "Open", or "Dismiss";
+ * - without (e.g. a plugin crashed while it loaded): "Open", or "Dismiss";
  * - both: "Open without plugins" opens the saved file in safe mode (plugin devices held as
  *   bypassed placeholders until "Load plugins").
  * Closing the dialog decides nothing: it asks again next time. The project screen waits

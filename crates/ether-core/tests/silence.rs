@@ -1,4 +1,4 @@
-//! Silence skipping (perf audit #5): the engine skips a node that returned
+//! Silence skipping: the engine skips a node that returned
 //! `ProcessStatus::Silent` while its input stays digital silence and no event reaches it,
 //! and processes it again on the first event, non-silent input, a reset, a watch of its
 //! analysis or its own wake request. Allocation-free on every path.

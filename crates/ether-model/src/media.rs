@@ -1,7 +1,7 @@
 //! References to media used by the project.
 //!
 //! v0.1 projects were self-contained: importing audio copied it into the project's `media/`
-//! folder. **v0.2 (`media-references`) references library files in place**
+//! folder. **v0.2 references library files in place**
 //! ([`MediaLocation::External`]); recordings, bounces, freezes, uploads from a remote UI and
 //! media received from collaborators still live in the project's `media/`
 //! ([`MediaLocation::Project`]). The UI never opens or supplies file-system paths (it may
@@ -30,13 +30,13 @@ pub struct MediaRef {
     /// Content hash (hex) of the file, used to key caches and dedupe imports. Required for
     /// external references (relink and collab transfer match on it).
     pub hash: Option<String>,
-    /// Where the audio is read from (v0.2, `media-references`). Missing in older files =
+    /// Where the audio is read from (v0.2). Missing in older files =
     /// `Project`.
     #[serde(default)]
     pub location: MediaLocation,
 }
 
-/// Where a [`MediaRef`]'s audio lives (v0.2, `media-references`).
+/// Where a [`MediaRef`]'s audio lives (v0.2).
 ///
 /// Resolution on every site (engine-side): an `External` path that exists and whose content
 /// hash matches `hash`; else the project copy at `MediaRef::file` (collected media, or media

@@ -225,7 +225,7 @@ impl Node for VolumeLfo {
             self.phase = 0.0;
         }
         self.was_playing = t.playing;
-        // Asleep for a while (perf audit #5): the free LFO goes on as if it had run.
+        // Asleep for a while: the free LFO goes on as if it had run.
         let skipped = self.tail.skipped(c);
         if skipped > 0 {
             let ph = self.phase + self.free_inc(t.bpm) * skipped as f64;

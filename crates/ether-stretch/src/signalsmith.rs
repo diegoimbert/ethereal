@@ -1,7 +1,7 @@
 //! [`Stretcher`] backed by Signalsmith Stretch (C++, vendored in `csrc/`, behind the small
 //! C ABI of `csrc/wrapper.cpp`).
 //!
-//! - **Split computation** (perf audit #8): `presetDefault` with `splitComputation` spreads
+//! - **Split computation**: `presetDefault` with `splitComputation` spreads
 //!   each STFT over the following interval instead of computing it in one burst every few
 //!   blocks (a full stereo STFT is ~0.6 ms; with every voice re-seeking on the same sample at
 //!   play/locate/loop, the bursts lined up). It adds one interval of output latency, which
@@ -401,7 +401,7 @@ mod tests {
         }
     }
 
-    /// Per-block cost of one stereo voice, unsplit vs split (perf audit #8). Ignored; run
+    /// Per-block cost of one stereo voice, unsplit vs split. Ignored; run
     /// in release with `--ignored --nocapture`.
     #[test]
     #[ignore = "perf harness"]

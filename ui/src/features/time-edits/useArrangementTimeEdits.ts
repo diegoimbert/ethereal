@@ -1,6 +1,6 @@
 /**
  * The arrangement's hooks into time editing, so `ArrangementView` only wires them:
- * - selection and section are separate (owner request): a drag over the lanes selects
+ * - selection and section are separate: a drag over the lanes selects
  *   clips (no section); a Shift-drag makes the time section instead (no clips), shown live
  *   while dragging; Shift can be pressed or released mid-drag to switch; a click clears it;
  * - a Shift-click extends the section (or the insert marker) to the click when outside it,

@@ -29,7 +29,7 @@ async function doc(page: Page): Promise<Project> {
 
 const tempoPoints = async (page: Page) => Object.values((await doc(page)).tempo_points).sort((a, b) => a.time - b.time);
 
-// WORKAROUND for an app layout bug (reported by base-46, for the user to fix): at the
+// WORKAROUND for an app layout bug (reported by for the user to fix): at the
 // default 1280 px width the transport bar's right side (.eth-tb__side--end: undo/redo, CPU,
 // engine status) overflows onto the Loop/Metronome buttons and takes their clicks. A wider
 // window keeps them clickable. Drop this once the transport bar fits at 1280 px.
@@ -112,7 +112,7 @@ test("tempo-metronome: metronome settings, tempo map editing", async ({ page }) 
   await expect.poll(async () => (await signatures(page))[1]!.signature).toEqual({ numerator: 7, denominator: 8 });
 
   // --- Arrangement ruler: add a tempo change from the context menu, then undo ---------------
-  // The tempo map's chips sit in the marker lane (#401); right-click on the ruler still adds.
+  // The tempo map's chips sit in the marker lane; right-click on the ruler still adds.
   await expect(page.getByTestId("marker-lane").locator(`[data-tempo-point="${added.id}"]`)).toBeVisible();
   await ruler.click({ button: "right", position: { x: rulerBox.width * 0.6, y: rulerBox.height / 2 } });
   await page.getByRole("menuitem", { name: "add tempo change here" }).click();

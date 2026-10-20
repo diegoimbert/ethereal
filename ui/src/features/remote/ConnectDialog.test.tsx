@@ -90,7 +90,7 @@ let local: MockTransport;
 beforeEach(async () => {
   sockets = [];
   localStorage.clear();
-  // #717: the form is hidden until turned on; these tests use it.
+  // The form is hidden until turned on; these tests use it.
   useEngineServerShown.setState({ shown: true });
   vi.stubGlobal("WebSocket", FakeServerSocket);
   local = new MockTransport({ timers: "manual" });
@@ -116,7 +116,7 @@ function renderApp() {
   );
 }
 
-/** Settings > Advanced > Engine server (base-115 moved the form out of the top bar). */
+/** Settings > Advanced > Engine server (the form is no longer in the top bar). */
 async function connectWith(url: string, token: string) {
   expect(screen.queryByTestId("remote-button")).toBeNull();
   fireEvent.change(screen.getByLabelText("server address"), { target: { value: url } });

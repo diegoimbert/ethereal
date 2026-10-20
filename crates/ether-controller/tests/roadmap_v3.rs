@@ -1,4 +1,4 @@
-//! v0.2 routing (contracts-3): the new commands reach their modules (or reply `Unsupported`
+//! v0.2 routing: the new commands reach their modules (or reply `Unsupported`
 //! without changing the document when the host can't serve them) and new built-ins insert
 //! and compile.
 
@@ -344,13 +344,13 @@ fn midi_fx_devices_insert_with_layouts_before_the_instrument() {
 
 // ─── feature nodes ──────────────────────────────────────────────────────────────────────
 
-// presets: see tests/presets.rs. racks-modulation: see tests/racks.rs and tests/modulation.rs.
+// presets: see tests/presets.rs. See tests/racks.rs and tests/modulation.rs.
 
-// browser-v2: see tests/browser.rs.
+// See tests/browser.rs.
 
-// media-references: see tests/media_refs.rs.
+// See tests/media_refs.rs.
 
-// groups-buses: see tests/groups.rs.
+// See tests/groups.rs.
 
 /// `file-import` landed: `Path` is validated first, then read through
 /// `Library::read_external`; a host without OS files (web, this memory library) replies

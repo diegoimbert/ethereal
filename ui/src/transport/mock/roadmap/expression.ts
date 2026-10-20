@@ -1,5 +1,5 @@
 /**
- * Mock of `Expression::*` (v0.3, contracts-4). Owned by `midi-expression`: clip expression
+ * Mock of `Expression::*` (v0.3).: clip expression
  * lanes (CC / pitch bend / channel pressure) and per-note expressions as ordinary undoable
  * document edits (CONTRACTS.md §13.2), validated like the Rust controller through the shared
  * pure model (`@/features/expression/model`). `SetTrackMpe` is `mpe`'s

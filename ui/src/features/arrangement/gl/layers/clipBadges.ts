@@ -1,7 +1,7 @@
 /**
  * Clip title badges, after the loop icon: the extensions' (`@/ext` "clips.badge", e.g.
  * "loading", optionally with a soft hatch over the clip), "REV" on reversed audio clips
- * (clip-editing) and "Missing" on clips whose sample can't be found (media-refs; the clip is
+ * and "Missing" on clips whose sample can't be found (media-refs; the clip is
  * also hatched and outlined).
  *
  * The scene lays the clip name out after them (`titleBadgesWidth`); this layer draws them.

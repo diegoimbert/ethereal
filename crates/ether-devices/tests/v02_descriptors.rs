@@ -1,4 +1,4 @@
-//! v0.2 device contracts (contracts-3): descriptor ↔ mock parity, placeholder behaviour, RT
+//! v0.2 device contracts: descriptor ↔ mock parity, placeholder behaviour, RT
 //! safety and factory presets. Device nodes keep these passing (update the mock JSON with
 //! `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v02_descriptors`, never
 //! by hand) and add their own behaviour tests next to them.
@@ -123,7 +123,7 @@ fn mock_descriptors_match_rust() {
     // `builtinDevices.ts`, the 3 v0.3 ones in `v03_descriptors.rs`, the FM Synth in
     // `fm_synth.rs`; the later Vibrato and Volume LFO are in the fxModulation group).
     assert_eq!(covered, BuiltinDeviceType::ALL.len() - 9 - 3 - 1);
-    // The EQ (devices-2) carries the v0.2 `EqCurve` layout (graphical-eq): generated too.
+    // The EQ carries the v0.2 `EqCurve` layout: generated too.
     check_file(
         "eq",
         &serde_json::to_value(ether_devices::descriptor(BuiltinDeviceType::Eq)).unwrap(),
@@ -237,7 +237,7 @@ fn integer_params_have_a_step() {
         "Root Key",
         "Voices",
         // "Unison Voices" is matched by "Voices"; "Unison Detune" / "Unison Blend" are not
-        // integers (devices-pass-instruments).
+        // integers.
         "Unison (legacy)",
         "Octave",
         "Octaves",
@@ -318,7 +318,7 @@ fn factory_presets_parse_and_match_their_type() {
     }
 }
 
-/// v0.3 (`rack-presets`): factory rack presets use built-in devices only, that fit the rack
+/// v0.3: factory rack presets use built-in devices only, that fit the rack
 /// (audio effect rack: audio effects, MIDI effect rack: MIDI effects, no nested racks), with
 /// known in-range params, and map only automatable params.
 fn check_rack_preset(id: &str, rack_type: BuiltinDeviceType, rack: &PresetRack) {
@@ -448,7 +448,7 @@ fn native_synths_have_a_voice_mode_and_global_pitch() {
 }
 
 /// Factory preset text (preset, chain, device and modulator names, descriptions, author) is
-/// lowercase like the rest of the UI (#524, #520), acronyms and units included ("lfo", "fm",
+/// lowercase like the rest of the UI, acronyms and units included ("lfo", "fm",
 /// "db", "hz": no exceptions, docs/LOCALIZATION.md); only note names (A4, C3) keep a capital.
 #[test]
 fn factory_preset_text_is_lowercase() {

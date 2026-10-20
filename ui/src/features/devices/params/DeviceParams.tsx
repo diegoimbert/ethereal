@@ -1,5 +1,5 @@
 /**
- * base-153: a device card's inline parameter list (the header's "Parameters" toggle): the
+ * A device card's inline parameter list (the header's "Parameters" toggle): the
  * generic UI for every device, factory or plugin (name + value control per visible param).
  * The area is capped at `--eth-size-device-params-max-height` and scrolls inside, so a
  * plugin with hundreds of params doesn't take over the chain; only the rows in view are

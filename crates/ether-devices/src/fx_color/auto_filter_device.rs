@@ -21,7 +21,7 @@
 //!   = ±4 octaves at 100 %. `Stereo Phase` offsets the right channel (0..180°). A 1 ms
 //!   one-pole softens the steps of square / sample & hold.
 //! - A filter type change between the SVF and the ladder crossfades over 5 ms.
-//! - **4x oversampled** (#520): the filters and the drive run at four times the rate
+//! - **4x oversampled**: the filters and the drive run at four times the rate
 //!   between the saturator's linear-phase half-band stages ([`super::oversample`]), so
 //!   driven input folds far less back into the audio band (at 24 dB of drive on a 5 kHz
 //!   sine: -17 dB at 1x, -35 dB at 2x, -60 dB at 4x). The device reports the round trip as
@@ -284,7 +284,7 @@ pub struct AutoFilter {
     os2: [Stage2; 2],
     pad: [f32; 2],
     dry: [FixedDelay<LATENCY_4X>; 2],
-    /// Control rate (perf audit #17): envelope/LFO cutoff modulation (log10, LFO shape,
+    /// Control rate: envelope/LFO cutoff modulation (log10, LFO shape,
     /// exp2, tan) once per [`CONTROL`] samples, `g` ramped linearly per channel in between.
     g: [f32; 2],
     g_step: [f32; 2],
@@ -296,7 +296,7 @@ pub struct AutoFilter {
     env_ctl: f32,
     /// Resonance/drive-derived coefficients for the last (res, drive dB, peak) seen.
     common: Option<((u32, u32, bool), Coefs)>,
-    /// Silence reporting (perf audit #5).
+    /// Silence reporting.
     tail: crate::util::Tail,
 }
 
@@ -519,7 +519,7 @@ impl AutoFilter {
             let lfo_amount = self.lfo_amount.tick();
             let offset = self.lfo_offset.tick();
             let cutoff = self.cutoff.tick();
-            // Cutoff modulation once per control chunk (perf audit #17); an envelope that
+            // Cutoff modulation once per control chunk; an envelope that
             // moved by more than 0.5 dB since (an onset) starts a new chunk right away.
             let env_moved = env_amount != 0.0
                 && (self.env > self.env_ctl * 1.0593 || self.env * 1.0593 < self.env_ctl);
@@ -643,7 +643,7 @@ impl AutoFilter {
             &[]
         };
         let transport = ctx.transport;
-        // Asleep for a while (perf audit #5): a free LFO goes on as if it had run.
+        // Asleep for a while: a free LFO goes on as if it had run.
         let skipped = self.tail.skipped(ctx);
         if skipped > 0 {
             if !(self.lfo_sync && transport.playing) {

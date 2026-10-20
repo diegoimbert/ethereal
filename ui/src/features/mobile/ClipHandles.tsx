@@ -1,5 +1,5 @@
 /**
- * The trim handles of the selected clips on touch screens (#522): a grip pill on each edge,
+ * The trim handles of the selected clips on touch screens: a grip pill on each edge,
  * drawn over the lanes (the arrangement's overlay, lanes coordinates). Their touch targets are
  * wider than drawn (`clipTouch.ts`: 44 px). Mobile UI only; nothing on the desktop.
  */

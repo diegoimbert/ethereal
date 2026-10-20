@@ -1,6 +1,6 @@
 /**
  * Mock of `Command::Agent` (the agent API, pinned in the agent contract; owned by `ai-chat`).
- * The real registry lives in the controller (`agent-api`); this is a representative subset of
+ * The real registry lives in the controller; this is a representative subset of
  * its tools over the mock document, so the in-app chat works in `just dev-ui` and in tests.
  *
  * - `ListTools` -> `AgentTools { tools }` (input schemas as JSON text).

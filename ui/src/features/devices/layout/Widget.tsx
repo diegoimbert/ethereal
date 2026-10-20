@@ -103,7 +103,7 @@ export function WidgetView({ widget, size, label }: WidgetViewProps) {
       return <EqCurveWidget widget={widget} size={size} label={label} />;
     case "HardwareRouting":
       return <HardwareRoutingWidget widget={widget} size={size} label={label} />;
-    // devices-pass-effects visualisations.
+    // Effect visualisations.
     case "DynamicsCurve":
       return <DynamicsCurveWidget widget={widget} size={size} label={label} />;
     case "DelayTaps":

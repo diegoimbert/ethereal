@@ -86,7 +86,7 @@ impl MediaLoader {
                 let Some(m) = self.queue.pop_front() else {
                     return Ok(true);
                 };
-                // External references resolve like live playback (`media-references`).
+                // External references resolve like live playback.
                 let bytes = crate::media::read_media_bytes(store, library, self.project, &m)
                     .map_err(|e| format!("could not read \"{}\": {e}", m.name))?;
                 let dec = IncrementalDecoder::new(bytes.into(), extension_of(&m.file))
@@ -109,7 +109,7 @@ impl MediaLoader {
                     .map_err(|e| format!("could not decode \"{}\": {e}", m.name))?;
                 // Same sizing as the live media pipeline (the document is the reference,
                 // padded by at most `MAX_PAD_FRAMES`: it may claim far more than the file
-                // holds, #562).
+                // holds).
                 if m.frames != 0 {
                     audio = crate::media::fit_frames(audio, m.frames);
                 }

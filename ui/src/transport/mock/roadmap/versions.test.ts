@@ -1,4 +1,4 @@
-/** MockTransport: `Version::*` (v0.3, project-versions; CONTRACTS.md §13.11). */
+/** MockTransport: `Version::*` (v0.3; CONTRACTS.md §13.11). */
 import { describe, expect, it } from "vitest";
 import type { RecoveryInfo, ReplyValue, VersionInfo } from "@/generated";
 import { cmd } from "../../cmd";

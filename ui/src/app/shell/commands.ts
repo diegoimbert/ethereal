@@ -58,7 +58,7 @@ export interface PaletteCommand {
   run(): void;
 }
 
-/** Editor actions the palette lists (#577): each runs where its chord would. */
+/** Editor actions the palette lists: each runs where its chord would. */
 export const EDITOR_PALETTE_ACTIONS = [
   "edit.copy",
   "edit.cut",
@@ -121,9 +121,9 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         keywords: "import file upload sample wav mp3 flac aiff open add",
         run: () => void openImportDialog(transport),
       },
-      // media-references: relink missing samples, collect referenced ones.
+      // Relink missing samples, collect referenced ones.
       ...mediaRefCommands(transport, project),
-      // import-resolver: missing plugins and audio files (any time, not only after an import).
+      // Missing plugins and audio files (any time, not only after an import).
       ...resolverCommands(transport, project),
       // templates: save / insert templates, new project from a template.
       ...templateCommands(project),
@@ -139,7 +139,7 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         run: () => {
           const p = useProjectStore.getState().project;
           const t = p ? deviceTargetTrack(p) : undefined;
-          // base-154: a device added from the palette opens its window; a failure says so.
+          // A device added from the palette opens its window; a failure says so.
           if (p && t) void insertDeviceCommand(transport, p, t, d).then((c) => c && sendUserInsert(transport, c, d.name));
         },
       });
@@ -156,7 +156,7 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
       {
         id: "transport:stopToSelection",
         group: "Transport",
-        // Stopped, both play; named apart so the two rows differ (#577).
+        // Stopped, both play; named apart so the two rows differ.
         label: state?.playing ? tr("shell.command.stop_here") : tr("shell.command.play_stop_here"),
         keywords: "play stop pause here stay",
         action: "transport.stopToSelection",
@@ -261,7 +261,7 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
           else void runClipAction(transport, "reverse");
         },
       },
-      // #577: the editors' own actions (the chords and context menus have them), run by the
+      // The editors' own actions (the chords and context menus have them), run by the
       // same key handlers in the editor focused last (`runAction`); labels from the keymap.
       ...EDITOR_PALETTE_ACTIONS.flatMap((id): PaletteCommand[] => {
         const a = registeredAction(id);
@@ -306,7 +306,7 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
     }
   }
 
-  // base-114 / #577: the project menu's actions, under its labels (`projectCommands.ts`).
+  // The project menu's actions, under its labels (`projectCommands.ts`).
   if (transport) out.push(...appProjectCommands(transport));
   if (transport && project) out.push(...openProjectCommands(transport, { id: project.id, name: project.settings.name }));
   // ai-chat.
@@ -381,7 +381,7 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
       run: () => printCheatSheet(),
     },
   );
-  // #717: the engine server form is hidden until asked for (ether-server isn't released).
+  // The engine server form is hidden until asked for (ether-server isn't released).
   out.push({
     id: "settings:engine-server",
     group: "Appearance",
@@ -409,11 +409,11 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
   });
   // Extensions (`@/ext` "palette.commands").
   for (const f of contributions("palette.commands")) out.push(...f({ transport, project, devices }));
-  // docs (#665): the user documentation.
+  // docs: the user documentation.
   out.push(...docsCommands());
   // news: "news…" (Help; the desktop Help menu's `app:news`).
   out.push(...newsCommands());
-  // base-154: "Debug: <title>" per registered debug panel.
+  // "Debug: <title>" per registered debug panel.
   out.push(...debugPanelCommands());
   return out;
 }

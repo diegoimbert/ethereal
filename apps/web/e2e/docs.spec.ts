@@ -1,4 +1,4 @@
-// The user docs (`/docs`, #665, ui/src/features/docs): their own small bundle that never boots
+// The user docs (`/docs`, ui/src/features/docs): their own small bundle that never boots
 // the engine; deep links survive a reload; search; the project menu and the palette open them
 // in a new tab; phones get them too (a drawer for the sections).
 import { expect, test, type Page } from "@playwright/test";

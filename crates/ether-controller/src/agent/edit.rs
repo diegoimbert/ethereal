@@ -30,7 +30,7 @@ use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 
 /// A built-in device type from a key such as `poly-synth` (also accepts `Poly Synth`,
 /// `poly_synth`, `PolySynth`). Types without a working node (`ether_devices::implemented`)
-/// are not offered: they are rejected like unknown keys (#438).
+/// are not offered: they are rejected like unknown keys.
 pub(super) fn builtin_type(key: &str) -> Result<BuiltinDeviceType, ToolError> {
     let norm = |s: &str| {
         s.chars()
@@ -941,7 +941,7 @@ where
             }
             for c in &cmds {
                 // The transposition of a frozen track's clips is refused like any other
-                // edit of them (#584; the whole batch rolls back).
+                // edit of them (the whole batch rolls back).
                 crate::freeze::check_editable(ctx.p(), c)?;
                 crate::doc::apply(ctx, c)?;
             }
@@ -1269,7 +1269,7 @@ where
             out,
         );
         if let Err(e) = placed {
-            // #585: a failed call leaves no media behind (and no undo step).
+            // A failed call leaves no media behind (and no undo step).
             let unknown_length = self
                 .doc
                 .as_ref()

@@ -266,7 +266,7 @@ pub(crate) fn below_floor<'a>(channels: impl IntoIterator<Item = &'a [f32]>) -> 
         .all(|ch| ch.iter().all(|s| s.abs() < SILENCE_FLOOR))
 }
 
-/// Silence reporting for effects (perf audit #5). The engine skips a node that returned
+/// Silence reporting for effects. The engine skips a node that returned
 /// [`ProcessStatus::Silent`] while its input stays digital silence and no event reaches it
 /// (its output is then silence), so an effect may only say so once nothing it holds can
 /// come out any more: its input has been silent (and event-free) for `hold` samples, longer

@@ -1,4 +1,4 @@
-//! Engine-side modulation (v0.2, `racks-modulation`; model
+//! Engine-side modulation (v0.2; model
 //! `ether_model::modulation`, composition rule frozen in CONTRACTS.md §12.6).
 //!
 //! The controller compiles every track's modulators and mappings into

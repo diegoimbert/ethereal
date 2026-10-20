@@ -6,7 +6,7 @@ build time (`ui/src/features/docs`). The developer docs in `/docs/*.md` are sepa
 shown to users.
 
 - `content/`: the pages (format below).
-- `inventory.json`: everything users need explained (the "explain" inventory, #665). Each item
+- `inventory.json`: everything users need explained (the "explain" inventory). Each item
   has an id (`<area>/<slug>`). An item that no longer applies keeps its entry with
   `"removed": "<why>"`.
 - `pending.txt`: inventory items and pages not written yet. It's empty once the docs are complete.

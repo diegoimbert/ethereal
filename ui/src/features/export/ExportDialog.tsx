@@ -101,7 +101,7 @@ function ExportPanel({ transport }: { transport: EngineTransport }) {
   }
 
   // Another engine (connected to a server, back to the local one): a render on the old one
-  // never reports here again; it is over for this dialog (#587).
+  // never reports here again; it is over for this dialog.
   const [seenTransport, setSeenTransport] = useState(transport);
   if (transport !== seenTransport) {
     setSeenTransport(transport);
@@ -205,7 +205,7 @@ function ExportPanel({ transport }: { transport: EngineTransport }) {
   };
 
   // The dialog is free again at once: an engine that lost the job (it died, or answers an
-  // unknown job without an event) can't leave it waiting (#587).
+  // unknown job without an event) can't leave it waiting.
   const cancel = () => {
     if (status.state !== "rendering") return;
     const job = status.job;

@@ -140,7 +140,7 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
   }, [confirmDelete]);
   if (!transport) return null;
 
-  // #577: the same actions and labels as the command palette (`projectCommands.ts`).
+  // The same actions and labels as the command palette (`projectCommands.ts`).
   const cmds = byId<MenuCommand>([
     ...appProjectCommands(transport),
     ...(project ? openProjectCommands(transport, { id: project.id, name: project.settings.name }) : []),
@@ -219,7 +219,7 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
             <Separator />
             {item("project:versions")}
             {item("project:snapshot")}
-            {/* import-resolver: everything missing (devices, plugins, samples), only while something is. */}
+            {/* everything missing (devices, plugins, samples), only while something is. */}
             {missing > 0 && (
               <Item
                 title={t("project.menu.missing_hint")}
@@ -261,9 +261,9 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
           </>
         )}
         <Separator />
-        {/* docs (#665): the user documentation (in the app on desktop, /docs in a new tab on the web). */}
+        {/* docs: the user documentation (in the app on desktop, /docs in a new tab on the web). */}
         {item("app:docs")}
-        {/* #518: the example beats, on the welcome screen. */}
+        {/* the example beats, on the welcome screen. */}
         {item("app:examples")}
         {/* news: past announcements (docs/NEWS.md). */}
         {item("app:news")}

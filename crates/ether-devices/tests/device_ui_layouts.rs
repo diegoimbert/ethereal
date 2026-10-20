@@ -1,4 +1,4 @@
-//! Declarative layouts of the v0.1 built-ins (device-ui, CONTRACTS.md §12.4.2): every
+//! Declarative layouts of the v0.1 built-ins (CONTRACTS.md §12.4.2): every
 //! built-in ships a layout, and the MockTransport's v0.1 descriptors are generated from the
 //! Rust ones (`ui/src/transport/mock/devices/v01Layouts.json`), so the shared renderer shows
 //! the same panels on the mock and on the real engine. Regenerate with
@@ -150,7 +150,7 @@ fn bound(w: &Widget) -> Vec<u32> {
             .collect(),
         W::StepEditor { first, count } => (0..u32::from(*count)).map(|i| first.0 + i).collect(),
         W::Crossover { frequencies } => frequencies.iter().map(|p| p.0).collect(),
-        // devices-pass-effects visualisations.
+        // Effect visualisations.
         W::DynamicsCurve {
             threshold,
             ratio,

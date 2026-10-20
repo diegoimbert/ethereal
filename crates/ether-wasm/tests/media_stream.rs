@@ -1,4 +1,4 @@
-//! `audio-streaming` on the web host, natively: the real controller + `WebBridge` (the
+//! Audio streaming on the web host, natively: the real controller + `WebBridge` (the
 //! Worker) streaming a long media from the OPFS fake by byte ranges, the `EngineHost` (the
 //! worklet) rendering from its chunk cache, connected by heap-backed rings.
 //!

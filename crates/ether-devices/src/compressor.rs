@@ -4,10 +4,10 @@
 //! dB) is smoothed with separate attack/release time constants by a smooth decoupled peak
 //! detector ([`ballistics`]): the reduction a peak asks for is held between the peaks of a
 //! waveform (released with `Release`), then approached with `Attack`, so a steady tone gets
-//! the static curve's reduction (#845: the branching smoother let it sag between the peaks
+//! the static curve's reduction (the branching smoother let it sag between the peaks
 //! of a sine, 1 dB short of 4:1 at 0 dBFS).
 //!
-//! `Detector` (param 6, appended by `ableton-more`):
+//! `Detector` (param 6, appended by a later pass):
 //! - **Peak** (default): the per-sample peak of the louder channel.
 //! - **RMS**: the root of the mean square of the louder channel, averaged by a one-pole
 //!   filter with an [`RMS_WINDOW_MS`] time constant, so short transients count less than
@@ -23,7 +23,7 @@
 //! The detector signal of the sidechain goes through a one-pole high-pass
 //! (`Sidechain HPF`, off at its 20 Hz minimum) so a kick's sub doesn't dominate.
 //!
-//! `devices-pass-effects` appends (defaults = the sound before them, bit-exact):
+//! The effects pass appends (defaults = the sound before them, bit-exact):
 //! - `Knee` (7, 0..=24 dB, default the former fixed 6 dB): quadratic soft knee width.
 //! - `Mix` (8, 0..=100 %, default 100): parallel compression (dry/wet, latency-aligned).
 //! - `Lookahead` (9, 0..=10 ms, default 0): the audio is delayed so the gain is already down
@@ -58,16 +58,16 @@ pub mod params {
     /// Roadmap v2 (`sidechain`): high-pass cutoff of the sidechain detector signal (Hz; the
     /// 20 Hz minimum = off). Only used while a sidechain is connected.
     pub const SIDECHAIN_HPF: ParamId = ParamId(5);
-    /// `ableton-more`: detector mode, a choice of [`super::DETECTOR_LABELS`] (0 = Peak, the
+    /// Detector mode, a choice of [`super::DETECTOR_LABELS`] (0 = Peak, the
     /// default, so documents without it behave as before).
     pub const DETECTOR: ParamId = ParamId(6);
-    /// `devices-pass-effects`: soft-knee width (dB).
+    /// Soft-knee width (dB).
     pub const KNEE: ParamId = ParamId(7);
-    /// `devices-pass-effects`: dry/wet (percent, 100 = fully compressed).
+    /// Dry/wet (percent, 100 = fully compressed).
     pub const MIX: ParamId = ParamId(8);
-    /// `devices-pass-effects`: lookahead (ms; latency).
+    /// Lookahead (ms; latency).
     pub const LOOKAHEAD: ParamId = ParamId(9);
-    /// `devices-pass-effects`: automatic makeup gain (toggle).
+    /// Automatic makeup gain (toggle).
     pub const AUTO_MAKEUP: ParamId = ParamId(10);
 }
 
@@ -150,7 +150,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
             &DETECTOR_LABELS,
             DETECTOR_PEAK,
         ),
-        // --- devices-pass-effects ---
+        // --- devices pass effects ---
         param(
             7,
             "Knee",
@@ -307,7 +307,7 @@ pub fn gain_reduction_knee_db(level_db: f32, threshold: f32, ratio: f32, knee: f
     }
 }
 
-/// Gain-reduction ballistics shared by the compressors (#845): a smooth decoupled peak
+/// Gain-reduction ballistics shared by the compressors: a smooth decoupled peak
 /// detector in the dB domain (Giannoulis, Massberg & Reiss, JAES 2012). `held` jumps up to
 /// `target` and releases towards it (`release` one-pole coefficient), so the reduction a
 /// waveform's peaks ask for holds between them; `gr` follows `held` with the `attack`
@@ -362,7 +362,7 @@ pub struct Compressor {
     /// analysis read.
     meter_gr: f32,
     meter_peak: f32,
-    /// Silence reporting (perf audit #5).
+    /// Silence reporting.
     tail: util::Tail,
 }
 
@@ -547,7 +547,7 @@ impl Compressor {
         let threshold = self.value(params::THRESHOLD);
         let ratio = self.value(params::RATIO);
         let knee = self.value(params::KNEE);
-        // Perf audit #17: a detector peak this far under the knee's lower edge needs no
+        // A detector peak this far under the knee's lower edge needs no
         // log10 (its gain reduction is exactly 0 either way; the margin covers rounding).
         let below_knee = util::db_to_amp(threshold - knee * 0.5) * 0.999;
         let inputs = audio.inputs;

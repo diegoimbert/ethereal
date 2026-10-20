@@ -603,7 +603,7 @@ fn plugin_format_is_recorded_and_defaults_to_clap() {
     assert_eq!(format(&h, vst3), PluginFormat::Vst3);
 }
 
-/// #425: the listed plugin's name reaches the host with the insert (it picks one of two VST2
+/// The listed plugin's name reaches the host with the insert (it picks one of two VST2
 /// plugins sharing a uniqueID); without one, the id stands in until the host names it.
 #[test]
 fn plugin_insert_passes_the_listed_name_to_the_host() {
@@ -626,7 +626,7 @@ fn plugin_insert_passes_the_listed_name_to_the_host() {
     assert_eq!(h.ctl.bridge.plugin_names[&named], "Verb Twin");
 }
 
-/// transport-keys: a key captured in a plugin editor window reaches the UI as an event, and
+/// A key captured in a plugin editor window reaches the UI as an event, and
 /// is not a document edit (no undo step, nothing dirty).
 #[test]
 fn plugin_editor_keys_become_events() {
@@ -783,7 +783,7 @@ fn plugins_gui_edits_latency_crash_and_state() {
     assert_eq!(creates, 3);
 
     // Its undo rebuilds the node with the live state too (the toggle leaves the document's
-    // state blob as it was: no reload from it, #427).
+    // state blob as it was: no reload from it).
     h.ctl.bridge.plugin_states.insert(d, Base64Bytes(vec![7]));
     h.ok(Command::Edit(EditCommand::Undo));
     h.tick();

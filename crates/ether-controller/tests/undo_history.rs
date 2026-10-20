@@ -312,7 +312,7 @@ fn state(h: &mut Harness) -> HistoryState {
     }
 }
 
-/// A client that connects to an engine with history (switching engines, #598) reads the
+/// A client that connects to an engine with history (switching engines) reads the
 /// undo/redo state without subscribing to the list.
 #[test]
 fn the_undo_state_is_queryable_without_listening() {

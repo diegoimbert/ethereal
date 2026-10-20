@@ -1,4 +1,4 @@
-// base-131: what happens on launch. Hosts connect with no project; the app opens a draft
+// What happens on launch. Hosts connect with no project; the app opens a draft
 // project (drafts.ts: the starter project, no plugins) so the arranger is there, and shows the
 // project screen over it (plugins load only once a stored project is picked: a plugin that
 // crashes the app can't take the next launch down with it).
@@ -9,7 +9,7 @@
 // nothing is opened, whatever the setting: the crash dialog offers the project, with
 // "Open without plugins".
 //
-// The picker comes first (#646): in the browser, where the launch is known before the engine
+// The picker comes first: in the browser, where the launch is known before the engine
 // is up (`pickerExpected`), it shows as soon as the app paints and waits for the engine
 // there (its actions are enabled once launch is done, `launching`); elsewhere it shows as
 // soon as launch has decided, before the launch draft is made.

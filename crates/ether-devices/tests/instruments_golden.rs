@@ -1,4 +1,4 @@
-//! `devices-pass-instruments`: patches written before the pass render as before. Each case
+//! Patches written before the pass render as before. Each case
 //! uses only params that existed then (by number) and is compared with a fingerprint
 //! recorded on the engine before the pass (`print_golden_fingerprints`, run on `dev`):
 //! per-block RMS everywhere (robust to another platform's libm) and the exact sample bits on
@@ -225,7 +225,7 @@ fn print_golden_fingerprints() {
 }
 
 /// Recorded on `dev` before this pass. The pitched sampler hashes were re-recorded when
-/// sample reads became band-limited, the synth ones with its 4-point polyBLEP (#520).
+/// sample reads became band-limited, the synth ones with its 4-point polyBLEP.
 #[rustfmt::skip]
 const GOLDEN: &[(&str, &[f32], u64)] = &[
     ("synth default", &[0.27813712, 0.26294354, 0.28318664, 0.24026938, 0.24484167, 0.26388997, 0.22873497, 0.22018507, 0.25455624, 0.21903804, 0.23048343, 0.24841115, 0.21750805, 0.25699583, 0.22034453, 0.21459094, 0.24937214, 0.22163662, 0.21014625, 0.24129285, 0.1629838, 0.093147896, 0.07030836, 0.06373118, 0.059210774, 0.0597732, 0.06014857, 0.060505707, 0.060528934, 0.060363267, 0.04198698, 0.01942349, 0.0092140315, 0.0043633105, 0.0020354157, 0.00093729864], 0xaf73eb95798a2d1),

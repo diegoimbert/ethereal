@@ -1,6 +1,6 @@
 // Grouping and pointer gestures for the shortcut lists (the keymap editor, the cheat sheet and
 // the user docs' generated shortcuts page). Pure: no stores.
-// eth-allow-case-file: the group ids are English identifiers, shown through their messages (#667).
+// eth-allow-case-file: the group ids are English identifiers, shown through their messages.
 import { t, type MessageKey } from "@/i18n";
 import { SCOPE_LABELS, type KeymapAction } from "./registry";
 
@@ -78,7 +78,7 @@ export function groupActions(actions: ReadonlyArray<KeymapAction>): Array<{ grou
  */
 /**
  * Modifiers of a point drag (automation lanes and clip envelopes; the tempo and expression lanes
- * share ⌥). The drag tooltip lists them with `hint` (#574: hints come from here, not the views).
+ * share ⌥). The drag tooltip lists them with `hint` (hints come from here, not the views).
  * ⇧ + ⌥: ⇧'s whole increments win for the value, the time stays fine and off the grid.
  * `label` and `hint` are message keys.
  */

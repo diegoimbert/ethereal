@@ -1,10 +1,10 @@
 // Section copy/paste/duplicate (owner report, `section-edit`) on the web build, through the
 // UI, against the real engine (WasmTransport → controller Worker → AudioWorklet). A MIDI
 // clip with notes at beats 0 and 3. In the arrangement a plain drag selects the clip (a
-// Shift-drag would make a time section, #268); ⌘D tiles the clip. In the piano roll a
+// Shift-drag would make a time section); ⌘D tiles the clip. In the piano roll a
 // Shift-drag makes the section; ⌘C / ⌘V and ⌘D tile it with its exact
-// length (gaps kept) and the clip grows. The piano-roll section is free like the arrangement's
-// (owner request): never widened to the notes it selects.
+// length (gaps kept) and the clip grows. The piano-roll section is free like the arrangement's:
+// never widened to the notes it selects.
 //
 // No sleeps: every step waits on UI or engine state. The mirror is read through
 // `window.__ether` (apps/web/src/main.tsx). `E2E_SHOTS=<dir>` saves PR screenshots (dark).
@@ -145,7 +145,7 @@ test("section edit: copy/paste a section (not the clip) and duplicate it with it
   await page.keyboard.press("Escape");
   const px = (await clipPart(page, clip.id)).width / 4;
 
-  // --- A plain drag over the lane draws no time section (a Shift-drag would, #268) ---------
+  // --- A plain drag over the lane draws no time section (a Shift-drag would) ---------
   // It selects the clip it crosses.
   const box = (await lane.boundingBox())!;
   await page.mouse.move(box.x + 2 * px, box.y + box.height - 8);
@@ -185,7 +185,7 @@ test("section edit: copy/paste a section (not the clip) and duplicate it with it
   await expect(page.getByTestId("piano-roll-grid")).toBeVisible();
   await drawNotes(page, clip2.id);
 
-  // A Shift-drag (#268: a plain drag only selects notes) from just after beat 0 to beat 3.9:
+  // A Shift-drag (a plain drag only selects notes) from just after beat 0 to beat 3.9:
   // the section 0..4.
   const g = await rollGeometry(page, 4);
   const roll = page.getByTestId("piano-roll");
@@ -353,7 +353,7 @@ test("piano-roll section: free, like the arrangement's (not widened to the notes
   await stripDrag(0, 6);
   await expect.poll(section).toEqual([0, 6]);
 
-  // A plain marquee over the note at 0 only selects it, and makes no section (#268: selection
+  // A plain marquee over the note at 0 only selects it, and makes no section (selection
   // and section are separate). A strip section from 0 to 0.6 selects that note and is 0..0.6.
   await page.mouse.move(g.x(0.3), g.rowY(-40));
   await page.mouse.down();

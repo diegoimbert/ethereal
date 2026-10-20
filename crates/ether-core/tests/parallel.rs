@@ -71,7 +71,7 @@ fn parallel_equals_sequential_bit_exact() {
 }
 
 /// Complex-warped clips: their tracks own their stretcher voices, run on the workers like
-/// the others (nothing is pinned to the calling thread any more, perf audit #8) and still
+/// the others (nothing is pinned to the calling thread any more) and still
 /// render bit-identically.
 #[test]
 fn complex_warp_tracks_run_on_workers_bit_exact() {
@@ -221,7 +221,7 @@ fn block(e: &mut ether_core::Engine) {
 }
 
 /// Stopped, the engine still dispatches while any device works (tails, plugins that never
-/// sleep: perf audit #2) ...
+/// sleep) ...
 #[test]
 fn stopped_engine_dispatches_while_devices_work() {
     let (mut engine, _h, calls) = stopped_rig(true);

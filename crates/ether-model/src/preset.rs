@@ -21,13 +21,13 @@
 //!   the engine-side user library (`<library>/Presets/<device-key>/<name>.etherpreset`). The
 //!   UI never touches files.
 //!
-//! - **Rack presets** (v0.3, `rack-presets`; version 2): a preset of a rack device
+//! - **Rack presets** (v0.3; version 2): a preset of a rack device
 //!   (`InstrumentRack`, `AudioEffectRack`, `MidiEffectRack`) also stores its structure in
 //!   `rack` ([`PresetRack`]): the chains with their devices, the rack's modulators and the
 //!   modulation mappings inside it. Loading one replaces the rack's chains (one undo step,
 //!   new ids derived from the load command's seed in chain/device order). Version-1 files
 //!   (no `rack`) load unchanged: a v1 rack preset sets macros and params only.
-//! - **Drum rack presets** (#761): a `DrumRack` preset stores its pads in `rack`
+//! - **Drum rack presets**: a `DrumRack` preset stores its pads in `rack`
 //!   ([`PresetRack::pads`]: note, name, color, choke group, mix and the pad chain's devices;
 //!   `chains` stays empty) with the rack's modulators and their mappings onto the rack
 //!   (modulators don't reach pad devices). The field is additive (still version 2: `pads`
@@ -126,13 +126,13 @@ pub struct Preset {
     /// Plugin state blob (plugins only).
     #[serde(default)]
     pub state: Option<Base64Bytes>,
-    /// Rack structure (v0.3, `rack-presets`; rack devices only). Omitted when `None`.
+    /// Rack structure (v0.3; rack devices only). Omitted when `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub rack: Option<PresetRack>,
 }
 
-/// The structure of a rack preset (v0.3, `rack-presets`). Indices refer to positions in
+/// The structure of a rack preset (v0.3). Indices refer to positions in
 /// these lists (chains in order, devices in chain order, modulators in order).
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
 pub struct PresetRack {
@@ -143,7 +143,7 @@ pub struct PresetRack {
     /// Mappings whose source and target are inside the preset.
     #[serde(default)]
     pub mappings: Vec<PresetModMapping>,
-    /// Drum rack pads sorted by note (`DrumRack` presets only, #761). Omitted when empty.
+    /// Drum rack pads sorted by note (`DrumRack` presets only). Omitted when empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub pads: Vec<PresetPad>,
 }

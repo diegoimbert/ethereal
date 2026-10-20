@@ -1,9 +1,9 @@
-// #717: the expression lanes ask before throwing points away (the shared confirmation dialog,
+// The expression lanes ask before throwing points away (the shared confirmation dialog,
 // mounted by the shell). `lane` is the lane's shown name (`./labels`).
 import { useConfirm } from "@/kit";
 import { t } from "@/i18n";
 
-/** #717: clearing a lane throws its curve away: ask first (undo still brings it back). */
+/** Clearing a lane throws its curve away: ask first (undo still brings it back). */
 export function confirmClearLane(lane: string, points: number, run: () => void): void {
   useConfirm.getState().ask({
     title: t("expression.confirm.clear_title", { lane }),
@@ -14,7 +14,7 @@ export function confirmClearLane(lane: string, points: number, run: () => void):
   });
 }
 
-/** #717: removing a lane with points asks first; an empty one goes at once. */
+/** Removing a lane with points asks first; an empty one goes at once. */
 export function confirmRemoveLane(lane: string, points: number, run: () => void): void {
   if (points === 0) return run();
   useConfirm.getState().ask({
@@ -26,7 +26,7 @@ export function confirmRemoveLane(lane: string, points: number, run: () => void)
   });
 }
 
-/** #717: clearing per-note curves asks first. */
+/** Clearing per-note curves asks first. */
 export function confirmClearNotes(lane: string, notes: number, run: () => void): void {
   useConfirm.getState().ask({
     title: t("expression.confirm.clear_title", { lane }),

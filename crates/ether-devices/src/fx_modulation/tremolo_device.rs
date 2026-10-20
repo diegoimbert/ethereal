@@ -33,7 +33,7 @@ pub(super) struct Tremolo {
     /// Smoothed per-channel modulation gains.
     smoothed: [f32; 2],
     edge_coef: f32,
-    /// Silence reporting (perf audit #5).
+    /// Silence reporting.
     tail: crate::util::Tail,
 }
 
@@ -157,7 +157,7 @@ impl Node for Tremolo {
         audio: &mut AudioBuffers<'_, '_>,
     ) -> ProcessStatus {
         let c: &ProcessContext<'_> = ctx;
-        // Asleep for a while (perf audit #5): the LFO goes on as if it had run, and the
+        // Asleep for a while: the LFO goes on as if it had run, and the
         // edge smoothing starts from its gains there (silence came through either way).
         let skipped = self.tail.skipped(c);
         if skipped > 0 {

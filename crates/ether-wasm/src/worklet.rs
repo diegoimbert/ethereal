@@ -11,10 +11,10 @@
 //! 3. every [`REPORT_INTERVAL_BLOCKS`] blocks, poll the handle and write an
 //!    [`EngineReport`] to the report ring (dropped if the ring is full),
 //! 4. every [`crate::latency::REPORT_INTERVAL_MS`], send a [`crate::latency::LatencyReport`]
-//!    of the nodes whose latency changed (`web-latency`; pre-sized buffer, no allocation),
+//!    of the nodes whose latency changed (pre-sized buffer, no allocation),
 //! 5. run the `GarbageCollector`.
 //!
-//! A convolution reverb's new IR (#514; from the user's media too, #529, whose audio the
+//! A convolution reverb's new IR (from the user's media too, whose audio the
 //! Worker asks the controller for again) is read, normalized and FFT-partitioned on the
 //! Worker (`ether_devices::fx_space::PreparedIr`) and arrives as [`Frame::IrBegin`] +
 //! [`Frame::IrChunk`]s; the host copies them into a `ConvolverAssembly` (within the control
@@ -194,13 +194,13 @@ pub struct EngineHost<M: RingMemory> {
     errors: Vec<String>,
     /// `media-preview`: a natural preview end not yet delivered (reports are lossy).
     preview_ended: Option<u64>,
-    /// `audio-streaming`: streamed media caches ([`crate::media_stream`]).
+    /// Streamed media caches ([`crate::media_stream`]).
     streams: crate::media_stream::WorkletStreams,
-    /// `web-latency`: node latency changes reported to the Worker (PDC republish).
+    /// Node latency changes reported to the Worker (PDC republish).
     latency: LatencyTracker,
     /// Engine rate (node data built here, e.g. convolution IRs, is made at this rate).
     sample_rate: u32,
-    /// #514: convolution IRs prepared by the Worker being assembled, by virtual node key.
+    /// Convolution IRs prepared by the Worker being assembled, by virtual node key.
     irs: BTreeMap<NodeKey, ether_devices::fx_space::ConvolverAssembly>,
     /// `keyboard-midi`: the engine's live MIDI ring (`EngineMsg::LiveMidi`). The rest of the
     /// recording rings is dropped: the web build captures nothing.
@@ -464,7 +464,7 @@ impl<M: RingMemory> EngineHost<M> {
         heavy
     }
 
-    /// #514: start assembling a prepared IR for `key` (supersedes one in flight).
+    /// Start assembling a prepared IR for `key` (supersedes one in flight).
     fn begin_ir(
         &mut self,
         key: NodeKey,
@@ -488,7 +488,7 @@ impl<M: RingMemory> EngineHost<M> {
         Ok(())
     }
 
-    /// #514: zero-fill a prepared IR whose stream has arrived (bounded); once complete,
+    /// Zero-fill a prepared IR whose stream has arrived (bounded); once complete,
     /// hand its convolver to the node, which crossfades to it.
     fn assemble_ir(&mut self) {
         let Some((&key, asm)) = self.irs.iter_mut().find(|(_, a)| a.received()) else {
@@ -683,7 +683,7 @@ impl<M: RingMemory> EngineHost<M> {
         });
     }
 
-    /// **RT.** `web-latency`: every report interval, send the latencies that changed since
+    /// **RT.** every report interval, send the latencies that changed since
     /// the last delivered report. Lossy like the other reports, but never lost: an
     /// undelivered change is still a change at the next scan.
     fn send_latency(&mut self) {

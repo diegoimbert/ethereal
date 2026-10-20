@@ -1,4 +1,4 @@
-// Multi-clip editing (base-143, owner request, Ableton-style) on the web build, through the
+// Multi-clip editing (owner request, Ableton-style) on the web build, through the
 // UI, against the real engine (WasmTransport → controller Worker). Two MIDI clips on two
 // tracks, a note drawn in each; selecting both clips (click, shift-click) opens them together
 // in the piano roll on the song timeline (a band per clip). ⌘A selects the notes of both,

@@ -1,4 +1,4 @@
-//! Roadmap v2 (contracts-2) wire shapes: pins the JSON the TS side relies on and exercises
+//! Roadmap v2 wire shapes: pins the JSON the TS side relies on and exercises
 //! every new internally-tagged enum that wraps data.
 
 use ether_protocol::clips::ClipCommand;

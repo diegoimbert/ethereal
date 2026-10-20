@@ -45,7 +45,7 @@ pub enum ProcessStatus {
     Continue,
     /// Outputs are silent and will stay silent until new input/events arrive. The engine
     /// then skips the node (silent output) while its input stays digital silence and no
-    /// event reaches it (perf audit #5; `Engine::set_silence_skipping`), so only return it
+    /// event reaches it (`Engine::set_silence_skipping`), so only return it
     /// once nothing the node holds (delay lines, reverb tails, LFO-driven sound) can still
     /// come out, and never from a node that makes sound or events out of nothing.
     Silent,
@@ -92,7 +92,7 @@ pub trait Node: Send {
     }
 
     /// RT. Polled while the engine skips this node (it returned [`ProcessStatus::Silent`],
-    /// its input stays silent and no event reaches it; perf audit #5), once per block:
+    /// its input stays silent and no event reaches it), once per block:
     /// `true` processes it anyway (e.g. a CLAP plugin's `request_process`). Default: no.
     fn wake_requested(&mut self) -> bool {
         false

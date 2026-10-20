@@ -1,5 +1,5 @@
 //! Sample-accurate automation and exact tempo ramps (CONTRACTS.md §12.7, node
-//! `sample-accurate-automation`):
+//! sample-accurate automation):
 //! - an offline render with automation (lanes, clip envelopes, volume/pan/send/node params)
 //!   and tempo ramps is the same (±1e-6) with blocks of 64 and 512; with neither it is
 //!   bit-identical;

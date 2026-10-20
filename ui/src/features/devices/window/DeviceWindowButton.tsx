@@ -12,7 +12,7 @@ export interface DeviceWindowButtonProps {
 }
 
 /**
- * The "open window" toggle of a device header (base-153): the plugin's editor window, or
+ * The "open window" toggle of a device header: the plugin's editor window, or
  * the factory device's window. Highlighted (pressed) while the window is open.
  */
 export function DeviceWindowButton({ device, control, className }: DeviceWindowButtonProps) {

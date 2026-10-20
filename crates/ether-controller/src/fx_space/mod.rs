@@ -11,7 +11,7 @@
 //!   (references in place), go missing and relink like samples. A reverb is rebuilt when its
 //!   IR media finishes loading ([`uses_media`], `handlers.rs`, next to samplers); while the
 //!   media is missing the reverb passes the dry signal through. A bridge that builds IRs
-//!   itself (the web's Worker, #529) asks for an IR media's audio again
+//!   itself (the web's Worker) asks for an IR media's audio again
 //!   (`EngineBridge::take_ir_media_requests`): the media pipeline decodes its first
 //!   `MAX_IR_SECONDS` and hands it over (`EngineBridge::ir_media`) without keeping it.
 

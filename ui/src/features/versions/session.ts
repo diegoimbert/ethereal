@@ -1,4 +1,4 @@
-// base-131: did the previous session close cleanly? Read by "Reopen last project on
+// Did the previous session close cleanly? Read by "Reopen last project on
 // launch" (never after a crash) and the crash dialog.
 //
 // - Natively (and on a remote engine), the engine knows: opening a project writes its
@@ -35,12 +35,12 @@ function write(key: string, value: string): void {
 /**
  * How the previous browser session ended: read when the page loads, and again when this
  * session starts (the first `trackWebSession`: the tab that had the store before may have
- * handed it over since, #563).
+ * handed it over since).
  */
 let previousWebSession = read(WEB_SESSION_KEY);
 let sessionStarted = false;
 
-/** This tab handed the store to another one (#563) after saving: a clean close. */
+/** This tab handed the store to another one after saving: a clean close. */
 export function markWebSessionClosed(): void {
   write(WEB_SESSION_KEY, "closed");
 }

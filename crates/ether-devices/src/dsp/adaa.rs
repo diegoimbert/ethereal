@@ -1,5 +1,5 @@
 //! First-order antiderivative anti-aliasing (ADAA; Parker, Zavalishin & Le Bivic, DAFx
-//! 2016) for static waveshapers (#520).
+//! 2016) for static waveshapers.
 //!
 //! Instead of `f(x[n])`, output the mean of `f` over the segment from `x[n-1]` to `x[n]`:
 //! `(F(x[n]) - F(x[n-1])) / (x[n] - x[n-1])` with `F` the antiderivative of `f` (falling

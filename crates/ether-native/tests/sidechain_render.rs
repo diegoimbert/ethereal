@@ -474,7 +474,7 @@ fn a_latent_source_keeps_the_sidechain_sample_aligned() {
         latent_kick: true,
         ..Setup::default()
     });
-    // The limiter's latency: its lookahead plus the true-peak detector's (#520).
+    // The limiter's latency: its lookahead plus the true-peak detector's.
     let lat = limiter::lookahead_samples(SR as f32) as usize + limiter::ISP_DELAY;
     // The pad (and its ducking) comes out exactly `lat` later: its main signal was delayed
     // to meet the latent sidechain.

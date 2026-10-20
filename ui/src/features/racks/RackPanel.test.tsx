@@ -30,9 +30,9 @@ afterEach(() => {
 
 const region = (name: string) => screen.getByRole("region", { name });
 
-/** base-153: a device's own UI (layout, macros, modulation targets) is in its window. */
+/** A device's own UI (layout, macros, modulation targets) is in its window. */
 async function openWindow(name: string): Promise<HTMLElement> {
-  // base-154: a device just added from the menu has its window open already.
+  // A device just added from the menu has its window open already.
   const toggle = within(region(name)).getByRole("button", { name: `open ${name} window` });
   if (toggle.getAttribute("aria-pressed") !== "true") fireEvent.click(toggle);
   const win = await screen.findByRole("dialog", { name: `${name} window` });

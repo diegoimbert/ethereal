@@ -1,4 +1,4 @@
-/* groups-buses: VCA lane, mixer routing controls, ungroup confirmation. Tokens only. */
+/* VCA lane, mixer routing controls, ungroup confirmation. Tokens only. */
 
 .eth-groups-vca-lane {
   display: flex;

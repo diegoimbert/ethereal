@@ -1,5 +1,5 @@
 /**
- * One tab owns the web project store (#563). Every tab of the web app runs its own engine on
+ * One tab owns the web project store. Every tab of the web app runs its own engine on
  * the same OPFS folder and the same draft list (localStorage): a second tab would delete the
  * first tab's untouched draft on launch (`deleteStaleDrafts`) and both would overwrite each
  * other's saves. So the engine starts only in the tab holding the `ethereal-store` Web Lock.

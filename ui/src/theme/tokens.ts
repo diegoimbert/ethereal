@@ -308,7 +308,7 @@ export const opacity = {
  * inside a menu, or under one, keeps its ring visible) and its bubble above that.
  */
 export const zIndex = {
-  /** base-153: floating device windows (above the panes, below dialogs and popovers). */
+  /** Floating device windows (above the panes, below dialogs and popovers). */
   window: "50",
   dialog: "100",
   tourDim: "150",
@@ -389,12 +389,12 @@ export const size = {
   paramListRowHeight: "34px",
   paramListHeight: "420px",
   paramListDialogWidth: "560px",
-  /** base-153: a device card's inline parameter list scrolls past this height. */
+  /** A device card's inline parameter list scrolls past this height. */
   deviceParamsMaxHeight: "240px",
-  /** base-153: a factory device window: default width, and its inset from the viewport. */
+  /** A factory device window: default width, and its inset from the viewport. */
   deviceWindowWidth: "560px",
   deviceWindowInset: "12px",
-  /** base-154: the smallest a floating window (kit `FloatingWindow`) can be resized to. */
+  /** The smallest a floating window (kit `FloatingWindow`) can be resized to. */
   windowMinWidth: "240px",
   windowMinHeight: "120px",
   dialogWidth: "420px",
@@ -412,7 +412,7 @@ export const size = {
   recordDot: "8px",
   /** What a dialog's chrome (title bar, margins) takes from the viewport height (the news frame's max height). */
   dialogChrome: "12rem",
-  // Mobile (#522, `features/mobile`).
+  // Mobile (`features/mobile`).
   /** The smallest touch target (Apple HIG 44 pt; Android 48 dp). */
   touchTarget: "44px",
   /** Mobile bars: the top bar, the transport row and the slim status row above it. */

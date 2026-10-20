@@ -1,5 +1,5 @@
 /**
- * Precision drags (#793): while the precision modifier (⌥ / Option) is held, a point drag moves
+ * Precision drags: while the precision modifier (⌥ / Option) is held, a point drag moves
  * at a fraction of the pointer's motion, for values a pixel is too coarse for. Shared by the
  * automation lanes (and clip envelopes), the tempo lane and the expression lanes.
  */

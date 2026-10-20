@@ -1,4 +1,4 @@
-// The mobile shell looks like the desktop editor (#781): the desktop's tokens and kit surfaces,
+// The mobile shell looks like the desktop editor: the desktop's tokens and kit surfaces,
 // at touch size. No decoration of its own: gradients, glows, colored stripes or edges on cards,
 // accent-filled buttons, its own blur.
 import { readFileSync } from "node:fs";

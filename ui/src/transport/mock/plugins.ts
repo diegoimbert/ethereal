@@ -1,5 +1,5 @@
 /**
- * Fake plugins of the mock engine (base-132): not listed by `Plugin::List` (the mock still
+ * Fake plugins of the mock engine: not listed by `Plugin::List` (the mock still
  * has no plugin browser), but `Device::Insert` with one of these ids adds a plugin device
  * and `Device::GetDescriptor` describes it. "Mock Mega" has 10,000 params, for the capped
  * device card and the windowed parameter lists (tests, e2e, `?mock` web build).

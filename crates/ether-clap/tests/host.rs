@@ -172,7 +172,7 @@ fn process_params_notes_transport() {
         plugin.activate(&config()),
         Err(PluginError::Activation(_))
     ));
-    // Reported once active: the fixture sets it in `activate` (#570).
+    // Reported once active: the fixture sets it in `activate`.
     assert_eq!(node.latency(), 64);
     assert_eq!(node.channels(), (2, 2));
     assert_eq!(node.param(GAIN), Some(1.0));
@@ -302,7 +302,7 @@ fn state_roundtrip_and_inactive_set() {
     c.deactivate(node);
 }
 
-/// base-148: an all-notes-off and a note-on on one sample reach the plugin as off then on,
+/// An all-notes-off and a note-on on one sample reach the plugin as off then on,
 /// whatever order they were pushed in (the engine's sort puts ending events first and the
 /// CLAP input event list keeps the order): the new note keeps sounding.
 #[test]

@@ -77,10 +77,10 @@ export interface ChatSession {
    * response was cut off: continue". Never shown in the panel.
    */
   addNote(text: string): void;
-  /** The native history (saved per project, #717; tests). */
+  /** The native history (saved per project; tests). */
   readonly history: ReadonlyArray<unknown>;
   /**
-   * #717: continue a saved conversation: `history` is what `history` held (minus anything
+   * Continue a saved conversation: `history` is what `history` held (minus anything
    * the session builds itself, like the system message), appended as is.
    */
   restore(history: ReadonlyArray<unknown>): void;

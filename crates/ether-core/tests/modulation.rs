@@ -1,4 +1,4 @@
-//! Engine-side modulation (`racks-modulation`): `base + Σ depth·m` on the automation grid,
+//! Engine-side modulation: `base + Σ depth·m` on the automation grid,
 //! automation and live changes set the base (sample-accurate, block-size independent),
 //! macros, note-triggered envelopes, restore on unmap, readback frames.
 

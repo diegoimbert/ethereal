@@ -1,5 +1,5 @@
 //! `ether-mcp`: a stdio [MCP](https://modelcontextprotocol.io) server that lets LLM clients
-//! (Claude Code, Claude Desktop, ...) drive Ethereal (`agent-api`; docs/MCP.md).
+//! (Claude Code, Claude Desktop, ...) drive Ethereal (docs/MCP.md).
 //!
 //! It holds no tool logic: `tools/list` and `tools/call` are proxied to the agent API of an
 //! Ethereal engine (`Command::Agent { ListTools, CallTool }`, implemented by the controller),

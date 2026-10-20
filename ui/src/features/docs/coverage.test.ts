@@ -1,5 +1,5 @@
 // @vitest-environment node
-// Coverage of the explain inventory by the user docs (#665): every item that still applies has
+// Coverage of the explain inventory by the user docs: every item that still applies has
 // a page and a heading (`covers:`), and docs-site/coverage.json is the current report.
 // After changing pages, `pending.txt` or the inventory, refresh the report with
 //   ETHER_DOCS_UPDATE=1 pnpm --filter @ethereal/ui exec vitest run src/features/docs/coverage.test.ts

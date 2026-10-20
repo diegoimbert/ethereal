@@ -58,7 +58,7 @@ test("save a track as a template and insert it (one undo step), across a reload"
   await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByRole("status", { name: "unsaved changes" })).toBeHidden();
   await page.reload();
-  // base-131: nothing opens on launch; reopen the project from Recents.
+  // Nothing opens on launch; reopen the project from Recents.
   await openOnLaunch(page);
   await expect.poll(async () => (await project(page))?.tracks[lead.id] !== undefined, { timeout: 15_000 }).toBe(true);
   const before = await project(page);

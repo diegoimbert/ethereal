@@ -1,5 +1,5 @@
 // eth-allow-case-file: the rules themselves (the term lists).
-// The UI's own text is lowercase (#524): menus, buttons, dialogs, tooltips, toasts, labels,
+// The UI's own text is lowercase: menus, buttons, dialogs, tooltips, toasts, labels,
 // placeholders, empty states, aria-labels, readouts. No exceptions for words (owner: "lowercase
 // everything"): acronyms, formats and units too ("midi", "vst3", "lfo", "-6.0 db", "440 hz"),
 // product and platform names ("ableton live", "macos"). What isn't a word keeps its case: key

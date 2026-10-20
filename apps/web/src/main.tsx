@@ -1,6 +1,6 @@
 // Browser host entry: a tiny gate. Everything loads ./app.tsx (the editor, or the mobile UI
-// on phones and touch tablets (./mobile.ts), and the wasm engine). The user docs (`/docs/…`,
-// #665) are their own small bundle too, and so is any page an extension serves (`@/ext`
+// on phones and touch tablets (./mobile.ts), and the wasm engine). The user docs (`/docs/…`)
+// are their own small bundle too, and so is any page an extension serves (`@/ext`
 // "web.route", registered before this module runs; docs/EXTENSIONS.md).
 import { contributions } from "@/ext";
 import { isDocsPage } from "@/features/docs/route";

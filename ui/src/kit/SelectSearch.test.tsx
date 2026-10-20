@@ -1,4 +1,4 @@
-// base-132: a Select with thousands of options (e.g. every param of a plugin, in the
+// A Select with thousands of options (e.g. every param of a plugin, in the
 // automation lane picker) is searchable and windowed: never more than VIRTUAL_MAX_ROWS rows.
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";

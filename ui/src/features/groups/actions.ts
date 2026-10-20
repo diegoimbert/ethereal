@@ -1,5 +1,5 @@
 /**
- * Grouping, VCA and routing actions (v0.2, `groups-buses`), shared by the arrangement
+ * Grouping, VCA and routing actions (v0.2), shared by the arrangement
  * (Cmd+G, context menu) and the inspector. Callers pass the selection; nothing here reads a
  * view's store.
  */

@@ -7,7 +7,7 @@
  *   created by the stroke's first command if the clip has none of this kind yet.
  * - Drag a point: move it (time snaps to the grid, alt = free). Double-click a point:
  *   delete it. Double-click the background: add a point.
- * - Right-click: clear or remove the lane, after a confirmation when it has points (#717).
+ * - Right-click: clear or remove the lane, after a confirmation when it has points.
  */
 
 import { useMemo, useRef } from "react";
@@ -114,7 +114,7 @@ export function ExpressionLaneView({ clip, kind, lane, vp, widthPx, height, step
     const p = orig[index]!;
     const x0 = toX(p.time);
     const y0 = toY(p.value);
-    // Alt: precision, 1/10 of the pointer's motion and off the grid (#793).
+    // Alt: precision, 1/10 of the pointer's motion and off the grid.
     const offset = precisionDrag({ x: 0, y: 0 });
     windowDrag(
       transport,

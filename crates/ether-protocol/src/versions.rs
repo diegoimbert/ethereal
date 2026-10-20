@@ -1,4 +1,4 @@
-//! Project versions and crash recovery (v0.3, `project-versions`; CONTRACTS.md §13.11).
+//! Project versions and crash recovery (v0.3; CONTRACTS.md §13.11).
 //!
 //! The controller keeps rolling snapshots of the open project in its store folder
 //! (`<project>/versions/<id>.ether`, through `ProjectStore::{write, read, list_dir,
@@ -135,7 +135,7 @@ pub enum VersionCommand {
     DiscardRecovery {
         project: ProjectId,
     },
-    /// base-131: how the previous session ended, for "Reopen last project on launch" and
+    /// How the previous session ended, for "Reopen last project on launch" and
     /// the crash dialog. Replies `SessionStatus`.
     SessionStatus,
 }

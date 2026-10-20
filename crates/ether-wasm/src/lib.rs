@@ -12,7 +12,7 @@
 //! media) Worker → Worklet, and reports (playhead, meters, diagnostics) Worklet → Worker.
 //! The Worker turns reports into `Playhead`/`Meters` messages for the UI in `tick`.
 //! Messages to/from the UI are JSON-encoded `ClientMessage`/`ServerMessage`. Requires
-//! COOP/COEP (`apps/web` sets them). No plugins on the web. Owned by the `wasm-host` node.
+//! COOP/COEP (`apps/web` sets them). No plugins on the web.
 
 pub mod bridge;
 pub mod latency;

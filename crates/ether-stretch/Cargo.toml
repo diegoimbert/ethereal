@@ -16,7 +16,7 @@ publish.workspace = true
 # enabling the feature on wasm32 is a no-op (trait only, no C++).
 default = ["signalsmith", "rust-stretch"]
 # Signalsmith Stretch (C++, MIT) is vendored in `csrc/` and built by `build.rs` with a
-# small C ABI wrapper (perf audit #8: split computation, planar buffers).
+# small C ABI wrapper (split computation, planar buffers).
 signalsmith = []
 # Pure-Rust port of Signalsmith Stretch (`src/rust/`): builds everywhere, including wasm32,
 # where it is the only stretcher (the web host's Complex warp).

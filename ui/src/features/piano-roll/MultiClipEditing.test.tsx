@@ -1,4 +1,4 @@
-// Multi-clip editing (base-143): two MIDI clips on two tracks, selected together and edited
+// Multi-clip editing: two MIDI clips on two tracks, selected together and edited
 // in one piano roll on the song timeline.
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

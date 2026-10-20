@@ -38,7 +38,7 @@ import { useT } from "@/i18n";
  */
 /** Autosave delay after the last change (ms). */
 export const AUTOSAVE_MS = 1000;
-/** How long a closing browser tab waits for its last save (#565). */
+/** How long a closing browser tab waits for its last save. */
 const PAGEHIDE_SAVE_MS = 1500;
 
 export function ProjectMenu() {
@@ -69,12 +69,12 @@ export function ProjectMenu() {
     saveRef.current = disabled ? () => undefined : save;
   });
 
-  // The picker in the app's first paint when launch is known to show it (#646): the engine
+  // The picker in the app's first paint when launch is known to show it: the engine
   // goes on loading behind it.
   useLayoutEffect(() => {
     if (transport) showPickerEarly(transport);
   }, [transport]);
-  // Launch (base-131): hosts open nothing, so once connected with no project, open the one in
+  // Launch: hosts open nothing, so once connected with no project, open the one in
   // the address bar (`/p/<slug>/<id>`), else reopen the last one if the setting allows it,
   // else show the project screen. An engine that
   // already has a project open (a remote engine, the mock) shows the screen over it.
@@ -106,7 +106,7 @@ export function ProjectMenu() {
     const timer = setTimeout(() => saveRef.current(true), AUTOSAVE_MS);
     return () => clearTimeout(timer);
   }, [dirty, disabled, revision]);
-  // In the browser, a hidden or closed tab saves at once (#565); a closing one waits for the
+  // In the browser, a hidden or closed tab saves at once; a closing one waits for the
   // write (at most PAGEHIDE_SAVE_MS): its engine dies with it.
   useEffect(() => {
     if (!(transport instanceof WasmTransport)) return;
@@ -188,7 +188,7 @@ export function ProjectMenu() {
         </span>
       )}
       <SafeModeBanner />
-      {/* import-resolver: anything missing stays reachable after the dialog. */}
+      {/* anything missing stays reachable after the dialog. */}
       <MissingItemsBadge />
       {error && !open && (
         <DismissibleError className="eth-project__error" onDismiss={clearError}>

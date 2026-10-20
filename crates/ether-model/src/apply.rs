@@ -1816,7 +1816,7 @@ impl Project {
         if !(finite(c.length.0) && c.length.0 > 0.0) {
             return Err(invalid("clip length must be > 0"));
         }
-        // A negative offset is a leading gap (base-142): the clip starts before its
+        // A negative offset is a leading gap: the clip starts before its
         // content, which plays from clip-relative `-offset`.
         if !finite(c.offset.0) {
             return Err(invalid("clip offset must be finite"));
@@ -1998,7 +1998,7 @@ impl Project {
     }
 
     /// Some entity that references `key` (so `key` cannot be removed), if any.
-    /// Uses the parent → children indexes when they are usable (perf audit #23).
+    /// Uses the parent → children indexes when they are usable.
     pub(crate) fn first_dependent(&self, key: EntityKey) -> Option<EntityKey> {
         let ix = self.index();
         match key {

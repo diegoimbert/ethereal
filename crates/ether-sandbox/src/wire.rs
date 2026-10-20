@@ -269,7 +269,7 @@ mod tests {
             value: 0.5,
         };
         assert_eq!(PluginNotification::from(Notification::from(n.clone())), n);
-        // transport-keys: editor keys cross the helper boundary unchanged.
+        // Editor keys cross the helper boundary unchanged.
         let k = PluginNotification::EditorKey(PluginWindowKey {
             key: " ".into(),
             code: "Space".into(),

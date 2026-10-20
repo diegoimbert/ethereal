@@ -714,7 +714,7 @@ fn nodes_in_drum_pads_and_rack_chains_are_mapped_to_real_keys() {
     );
 }
 
-/// #435: drum pad audition (`Recording::PreviewNote` on the rack's track with the pad's
+/// Drum pad audition (`Recording::PreviewNote` on the rack's track with the pad's
 /// note) plays through the pad's own chain in the real graph, with the transport stopped
 /// and the track neither armed nor monitored: an effect on the pad (a muting Utility on
 /// the second pad) changes what is heard, and a note with no pad stays silent.

@@ -1,4 +1,4 @@
-// #717: `ether-server` isn't in any release, so Settings > Advanced shows the engine server
+// `ether-server` isn't in any release, so Settings > Advanced shows the engine server
 // form only to those who turned it on: the palette's "Engine server…", `?engine-server` in
 // the web app's address, or an address already used (`URL_KEY`). Kept on this computer.
 import { create } from "zustand";

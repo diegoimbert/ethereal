@@ -22,9 +22,9 @@
  * - Sections (section-edit): a marquee or a drag on the strip under the ruler selects a time
  *   range; cmd-C / X / V / D copy, cut, paste and duplicate notes with the section's exact
  *   length, gaps included (see `section.ts`). The desktop Edit menu's copy/cut/paste too.
- * - Stretch (base-109): a bar on the ruler spans the selection; drag its edges to time-scale
+ * - Stretch: a bar on the ruler spans the selection; drag its edges to time-scale
  *   the notes, its body to move them; ×2 / ÷2 in the toolbar (see `stretch.ts`).
- * - Multi-clip editing (base-143, Ableton-style): with several MIDI clips selected in the
+ * - Multi-clip editing (Ableton-style): with several MIDI clips selected in the
  *   arrangement, opening one of them edits them all at once on the song timeline, as if they
  *   were one clip (see `multiClip.ts`). A strip under the ruler shows each clip's band (name,
  *   loop); a click on a band or a note focuses its clip (the toolbar, scale and expression
@@ -312,7 +312,7 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
   useTimelineWheel(laneRef, view);
   useMiddleButtonPan(bodyRef, view);
   useMiddleButtonPan(laneRef, view);
-  // The mobile UI (#522): pan, pinch, taps and note drags on touch screens.
+  // The mobile UI: pan, pinch, taps and note drags on touch screens.
   useTouchPianoRoll(bodyRef, view, KEYBOARD_WIDTH, onVerticalZoom);
   // Folding rows keeps the pitch at the middle of the view in place.
   const previousRows = useRef(rows);
