@@ -148,7 +148,7 @@ pub struct MediaState {
     /// `audio-streaming`: engine underruns not reported yet, and the last report (ms).
     pub underruns_pending: u32,
     pub underruns_at: u64,
-    /// "No engine" (docs/COLLAB.md §15): nothing is decoded or handed to the engine.
+    /// "No engine": nothing is decoded or handed to the engine.
     engine_off: bool,
     /// Project files still on their way (an extension fills them in later). Their media are
     /// not read (nor reported missing) until [`Self::reload_file`].

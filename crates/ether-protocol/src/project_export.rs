@@ -1,4 +1,4 @@
-//! Exporting a project to other DAWs (`Project::ExportTo`, `project-export`; docs/EXPORT-DAW.md).
+//! Exporting a project to other DAWs (`Project::ExportTo`, `project-export`).
 //!
 //! `Project::ExportTo` converts a stored project (the open one: its current state) into a
 //! project file of another application, with its audio files, and replies

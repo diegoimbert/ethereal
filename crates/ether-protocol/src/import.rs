@@ -20,7 +20,7 @@ use crate::model::ProjectId;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 pub enum ImportFormat {
     /// The open DAWproject exchange format (`.dawproject`): Bitwig Studio, Studio One,
-    /// Cubase, Nuendo, Cubasis, VST Live, n-Track Studio, Waveform, ... (docs/IMPORT.md).
+    /// Cubase, Nuendo, Cubasis, VST Live, n-Track Studio, Waveform, ...
     DawProject,
     /// Ableton Live set (`.als`).
     Ableton,

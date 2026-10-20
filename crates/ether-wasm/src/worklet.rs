@@ -23,7 +23,7 @@
 //! builds an IR.
 //!
 //! The engine's stream tap (`ether_core::stream_tap`: master + metronome/count-in, minus the
-//! preview voice; "listen on <peer>", docs/COLLAB.md §9.1) is installed once at construction
+//! preview voice; "listen on <peer>") is installed once at construction
 //! and drained after every render into [`EngineHost::tap_output`] (the worklet's second
 //! output, fed to a `MediaStreamAudioDestinationNode` by the web sender), with the transport
 //! state of the rendered sub-blocks in [`EngineHost::tap_clock`] (layout [`tap_clock`]).

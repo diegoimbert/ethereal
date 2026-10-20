@@ -1449,7 +1449,7 @@ fn best_shift(a: &[f32], b: &[f32], max: isize) -> isize {
         .unwrap()
 }
 
-/// What static sharing renders (docs/SHARING.md §14): the mix and stems as MP3 for
+/// What static sharing renders: the mix and stems as MP3 for
 /// listening, the same render as FLAC for downloads (`extra_formats`). The MP3s decode to
 /// the FLAC's length rounded up to the codec frame grid, after a lead the listener page
 /// skips (`decoded - trimmed`, the same for every file), and then the mix, the stems and

@@ -39,7 +39,7 @@ class HighRateStore {
   }
 
   /**
-   * Listen on a peer (docs/COLLAB.md §9.4): show `frame` (what is heard from the host)
+   * Listen on a peer: show `frame` (what is heard from the host)
    * and ignore the local engine's frames until `setOverride(null)`.
    */
   setOverride(frame: PlayheadFrame | null): void {

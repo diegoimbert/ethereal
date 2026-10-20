@@ -20,13 +20,13 @@ name: string | null,
 /**
  * Keep the results engine-side as downloads (`ExportResult::Download`) even on a host
  * that would write them into the project folder. Used by static sharing
- * (docs/SHARING.md §14), which uploads the bytes. Omitted = the host's default.
+ *, which uploads the bytes. Omitted = the host's default.
  */
 in_memory?: boolean, 
 /**
  * Also encode every file in these formats, from the same render (no second pass). The
  * results list the files in `format` first (in request order), then each extra
- * format's files in turn. Used by static sharing (docs/SHARING.md §14) for the
+ * format's files in turn. Used by static sharing for the
  * lossless downloads next to the lossy listening files. At most
  * [`MAX_EXTRA_FORMATS`]. Omitted = none.
  */

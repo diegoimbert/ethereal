@@ -825,7 +825,7 @@ where
         self.engine.graph_dirty = true;
         self.publish_if_due(now, true, out);
         // base-115: hosting/joined sessions of another project pause; this one resumes
-        // sharing or reconnects (docs/SHARING.md §7).
+        // sharing or reconnects.
         let pid = self.doc.as_ref().expect("just set").project.id;
         self.ext_project_loaded(pid, out);
     }

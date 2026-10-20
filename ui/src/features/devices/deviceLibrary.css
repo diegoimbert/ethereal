@@ -43,7 +43,7 @@
   padding: var(--eth-space-sm);
   border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
 }
-/* "plugins on Diego's computer" (docs/COLLAB.md §18). */
+/* "plugins on Diego's computer". */
 .eth-devlib__remote {
   display: flex;
   align-items: center;

@@ -12,7 +12,7 @@ use ts_rs::TS;
 
 /// Where the app looks for the default pack's signed manifest (overridable for testing:
 /// `Samples::Open { url }`, `ETHER_SAMPLES_URL` natively). Nothing is published there until
-/// the owner publishes a pack (scripts/samples/README.md): until then the app shows the
+/// a pack is published (docs/SAMPLES.md): until then the app shows the
 /// built-in kit and "more samples coming soon".
 pub const DEFAULT_SAMPLES_URL: &str = "https://samples.ethereal.ws/packs/default/manifest.json";
 

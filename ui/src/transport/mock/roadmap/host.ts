@@ -17,7 +17,7 @@ export interface MockHost {
   execute(command: Command): void;
   /**
    * Apply a transaction and emit its patch WITHOUT an undo step (collab-social: chat is a
-   * journal, never undone; docs/COLLAB.md §12.1). Rolled back if `body` throws. Optional so
+   * journal, never undone). Rolled back if `body` throws. Optional so
    * test hosts need not stub it (`MockTransport` implements it).
    */
   applyUntracked?(body: (tx: Tx) => void): void;

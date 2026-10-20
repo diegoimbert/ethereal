@@ -103,7 +103,7 @@ pub struct EngineState {
     /// Plugin devices instantiated since the last [`Self::take_created_plugins`] (the save
     /// path's state cache must read them again: `crate::saving`).
     created_plugins: Vec<DeviceId>,
-    /// "No engine" (docs/COLLAB.md §15): the document is open but no node is created and no
+    /// "No engine": the document is open but no node is created and no
     /// graph is compiled or published.
     pub off: bool,
     /// The project the engine was turned off for (another project opens with the engine on).
