@@ -3,7 +3,7 @@
 //! across a restart; the defaults switch; remove → the plugin is gone; full rescan.
 #![cfg(any(target_os = "macos", target_os = "linux"))]
 
-mod common;
+use crate::common;
 
 use std::path::{Path, PathBuf};
 

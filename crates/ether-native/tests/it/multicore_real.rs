@@ -3,7 +3,7 @@
 //! compressors, a drum rack of samplers) and a render loop that can use the worker pool.
 #![allow(dead_code)]
 
-#[path = "../../ether-core/tests/it/parallel_graphs.rs"]
+#[path = "../../../ether-core/tests/it/parallel_graphs.rs"]
 pub mod graphs;
 
 use std::sync::Arc;

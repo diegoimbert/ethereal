@@ -8,7 +8,7 @@
 //! plugin's sidechain source the impulse comes out of FX; without a source, silence.
 #![cfg(any(target_os = "macos", target_os = "linux"))]
 
-mod common;
+use crate::common;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};

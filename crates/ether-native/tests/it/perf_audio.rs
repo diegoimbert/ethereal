@@ -7,7 +7,7 @@
 //!
 //! Only public API, so the same file measures the code before and after.
 
-mod multicore_real;
+use crate::multicore_real;
 
 use std::sync::Arc;
 use std::time::Instant;
