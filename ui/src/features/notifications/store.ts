@@ -17,8 +17,10 @@ export interface Notice {
   onClick?: () => void;
 }
 
-/** Info toasts disappear after this long (paused while hovered); warnings and errors stay. */
+/** Info toasts disappear after this long (paused while hovered). */
 export const INFO_TOAST_MS = 6000;
+/** Warning and error toasts disappear after this long (paused while hovered): longer, to read. */
+export const ALERT_TOAST_MS = 10_000;
 /** At most this many notices are kept (the oldest go first). */
 export const MAX_NOTICES = 3;
 
@@ -36,9 +38,9 @@ export function toastLook(level: NotificationLevel): {
         timeoutMs: INFO_TOAST_MS,
       };
     case "Warning":
-      return { title: t("shell.notice.warning"), accent: cssVar("warn"), timeoutMs: undefined };
+      return { title: t("shell.notice.warning"), accent: cssVar("warn"), timeoutMs: ALERT_TOAST_MS };
     case "Error":
-      return { title: t("shell.notice.error"), accent: cssVar("danger"), timeoutMs: undefined };
+      return { title: t("shell.notice.error"), accent: cssVar("danger"), timeoutMs: ALERT_TOAST_MS };
   }
 }
 

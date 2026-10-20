@@ -2,7 +2,7 @@ import { Toast } from "@/kit";
 import { toastLook, useNotices } from "./store";
 
 /**
- * The notices as kit toasts (Info auto-dismissed, Warning/Error kept until dismissed). Render
+ * The notices as kit toasts (auto-dismissed: Info after a few seconds, Warning/Error a little later). Render
  * inside the app's one `ToastStack` (the collab chat toasts share it, so they never overlap).
  */
 export function NotificationToastItems() {
