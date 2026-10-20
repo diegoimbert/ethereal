@@ -23,7 +23,7 @@ thiserror.workspace = true
 wasm-bindgen.workspace = true
 js-sys.workspace = true
 console_error_panic_hook.workspace = true
-# The share port. Replaced by the private overlay.
+# The share port (`MessagePort`).
 web-sys = { workspace = true, features = ["MessagePort"] }
 # Complex warp (feature `warp-complex`): the pure-Rust Signalsmith Stretch port.
 ether-stretch = { workspace = true, optional = true }
