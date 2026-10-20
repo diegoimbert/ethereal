@@ -5,6 +5,10 @@
 //   ETHER_WASM_PROFILE=release|dev   cargo profile (default: release; the engine is DSP code)
 //   ETHER_WASM_SKIP=1                skip (use the existing pkg)
 //   ETHER_WASM_FEATURES=...          cargo features (default: full; "" = the dev core)
+//   ETHER_WASM_PACKAGE=... or --package <name>
+//                                    the module's cargo package (default: ether-wasm; a
+//                                    product's own module crate over ether-wasm, docs/EXTENSIONS.md)
+//   ETHER_WASM_WORKSPACE=...         the cargo workspace it is in (default: this repository)
 //
 // wasm-bindgen-cli must match the `wasm-bindgen` version in Cargo.lock:
 //   cargo install wasm-bindgen-cli --version <version>
@@ -23,7 +27,13 @@ if (process.env.ETHER_WASM_SKIP === "1" && existsSync(join(outDir, "ether_wasm_b
 }
 
 const profile = process.env.ETHER_WASM_PROFILE === "dev" ? "dev" : "release";
-const lock = readFileSync(join(repo, "Cargo.lock"), "utf8");
+const arg = (name) => {
+  const i = process.argv.indexOf(name);
+  return i >= 0 ? process.argv[i + 1] : undefined;
+};
+const pkg = arg("--package") || process.env.ETHER_WASM_PACKAGE || "ether-wasm";
+const workspace = process.env.ETHER_WASM_WORKSPACE ? resolve(process.env.ETHER_WASM_WORKSPACE) : repo;
+const lock = readFileSync(join(workspace, "Cargo.lock"), "utf8");
 const want = /name = "wasm-bindgen"\nversion = "([^"]+)"/.exec(lock)?.[1];
 
 let have = null;
@@ -40,14 +50,14 @@ if (!have || (want && have !== want)) {
   process.exit(1);
 }
 
-const run = (cmd, args) => execFileSync(cmd, args, { cwd: repo, stdio: "inherit" });
+const run = (cmd, args) => execFileSync(cmd, args, { cwd: workspace, stdio: "inherit" });
 
 // Cargo features (docs/ARCHITECTURE.md "Cargo features"): everything (`full`) unless
 // ETHER_WASM_FEATURES lists others ("" = the dev core).
 const features = process.env.ETHER_WASM_FEATURES ?? "full";
-run("cargo", ["build", "-p", "ether-wasm", "--target", "wasm32-unknown-unknown", "--profile", profile, ...(features ? ["--features", features] : [])]);
-const targetDir = JSON.parse(execFileSync("cargo", ["metadata", "--format-version", "1", "--no-deps"], { cwd: repo, encoding: "utf8" })).target_directory;
+run("cargo", ["build", "-p", pkg, "--target", "wasm32-unknown-unknown", "--profile", profile, ...(features ? ["--features", features] : [])]);
+const targetDir = JSON.parse(execFileSync("cargo", ["metadata", "--format-version", "1", "--no-deps"], { cwd: workspace, encoding: "utf8" })).target_directory;
 const dir = profile === "dev" ? "debug" : "release";
-const wasm = join(targetDir, "wasm32-unknown-unknown", dir, "ether_wasm.wasm");
+const wasm = join(targetDir, "wasm32-unknown-unknown", dir, `${pkg.replaceAll("-", "_")}.wasm`);
 run("wasm-bindgen", ["--target", "web", "--out-dir", outDir, "--out-name", "ether_wasm", wasm]);
-console.log(`ether-wasm: built (${profile}) → ${outDir}`);
+console.log(`ether-wasm: built ${pkg} (${profile}) → ${outDir}`);
