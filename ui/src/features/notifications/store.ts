@@ -1,4 +1,4 @@
-// User-facing notices as toasts (base-114): the engine's `Event::Notification` ("your local
+// User-facing notices as toasts: the engine's `Event::Notification` ("your local
 // version was kept as …", "left the collaboration session …", export warnings) and the
 // app's own short confirmations (project exported, imported, …).
 import { create } from "zustand";
@@ -42,7 +42,7 @@ export function toastLook(level: NotificationLevel): {
   }
 }
 
-/** Engine messages are lowercase sentence fragments, shown as they are (the UI is lowercase, #524). */
+/** Engine messages are lowercase sentence fragments, shown as they are (the UI is lowercase). */
 export function sentence(message: string): string {
   return message.trim();
 }

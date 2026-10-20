@@ -1,5 +1,5 @@
 /**
- * Mock of `AudioToMidi::*` (v0.3, contracts-4). Owned by `audio-to-midi`. Like the Rust
+ * Mock of `AudioToMidi::*` (v0.3). Owned by `audio-to-midi`. Like the Rust
  * controller (`ether-controller/src/audio_to_midi`): `Start` checks the clip (audio, media
  * present), the new ids and the options, and replies `Unit`; the job then reports
  * `Progress` every [`STEP_MS`] and applies one undo step (a MIDI track right below the

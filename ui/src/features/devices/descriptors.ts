@@ -64,7 +64,7 @@ type Loaded<T> = { key: string; value: T } | { key: string; error: unknown };
  */
 export function useDescriptor(device: Device): { descriptor: DeviceDescriptor | null; error: unknown } {
   const transport = useTransport();
-  // base-131: a plugin held as a safe-mode placeholder has no instance (nor descriptor) yet;
+  // A plugin held as a safe-mode placeholder has no instance (nor descriptor) yet;
   // it is fetched once loaded.
   const held = useProjectStore((s) => s.safeMode.includes(device.id));
   // A plugin played on another computer's engine: its descriptor comes from there, maybe later.
@@ -121,7 +121,7 @@ export function builtinDevice(type: BuiltinDeviceType): BuiltinDevice {
   if (type === "ExternalInstrument" || type === "ExternalAudioEffect") {
     return { type, routing: { midi_out: null, midi_channel: 1, audio_send: null, audio_return: null } };
   }
-  // A new convolution reverb starts on the factory hall (Rust `DEFAULT_CONVOLUTION_IR`, #520).
+  // A new convolution reverb starts on the factory hall (Rust `DEFAULT_CONVOLUTION_IR`).
   if (type === "ConvolutionReverb") return { type, ir: { type: "Factory", id: "hall" } };
   if (type === "VolumeLfo") return { type, curve: DEFAULT_LFO_CURVE };
   return { type } as BuiltinDevice;

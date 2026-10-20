@@ -1,5 +1,5 @@
 /**
- * Undo / redo bring the sections back (owner request): undoing an edit restores the
+ * Undo / redo bring the sections back: undoing an edit restores the
  * arrangement's time selection and the piano-roll section as they were when the edit was
  * made; redoing it restores them as they were when it was undone.
  *

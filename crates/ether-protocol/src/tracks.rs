@@ -40,7 +40,7 @@ pub enum TrackCommand {
         color: Color,
     },
     /// Reorder / regroup: `parent` = the destination group (`None` = top level), `before` a
-    /// sibling there. Moving into/out of a group is this command (v0.2 `groups-buses` keeps
+    /// sibling there. Moving into/out of a group is this command (v0.2 groups and buses keeps
     /// it; the model rejects cycles and master/return/VCA tracks inside groups). Explicit
     /// outputs (`TrackOutput::Track`) are kept; `Default` follows the new parent.
     Move {
@@ -53,7 +53,7 @@ pub enum TrackCommand {
         id: TrackId,
         scale: crate::model::TrackScale,
     },
-    // --- v0.2 (`groups-buses`, CONTRACTS.md §12.10) ---
+    // --- v0.2 (CONTRACTS.md §12.10) ---
     /// Cmd+G: create group track `group` around `ids` (all with the same parent; nested
     /// groups allowed; master/return/VCA rejected). The group takes the position of the
     /// first of `ids` in track order; the tracks move inside it in their current order.

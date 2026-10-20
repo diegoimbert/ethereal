@@ -1,7 +1,7 @@
 import type { Track } from "@/generated";
 
 /**
- * #911: a volume change alone doesn't re-render the row: the header's fader reads the level
+ * A volume change alone doesn't re-render the row: the header's fader reads the level
  * from the store itself (`HeaderVolume`), nothing else in the row shows it. A volume drag
  * over many selected tracks otherwise re-rendered every one of their headers and lanes per
  * frame. A patch replaces the whole track (new nested objects too), hence the deep compare.

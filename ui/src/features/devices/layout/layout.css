@@ -69,7 +69,7 @@
   border-radius: var(--eth-radius-round);
   background: var(--eth-color-accent);
 }
-/* Modulation slot (racks-modulation fills it with depth rings / drop targets). */
+/* Modulation slot (racks and modulation fills it with depth rings / drop targets). */
 .eth-param__mod {
   display: none;
 }
@@ -366,7 +366,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ---- devices-pass-effects: table sections (a column per band / voice, e.g. the EQ's
+/* ---- table sections (a column per band / voice, e.g. the EQ's
    bands) keep their declared columns in stacked cards and windows, shrinking instead of
    wrapping, so each column stays one band; choices don't take two cells there. ---- */
 .eth-device--stack .eth-layout__section--table {
@@ -380,7 +380,7 @@
   min-width: 0;
 }
 
-/* ---- devices-pass-effects: effect-window visualisations (widgets/effects.tsx) ---- */
+/* ---- effect-window visualisations (widgets/effects.tsx) ---- */
 .eth-plot__marker--dim {
   stroke: var(--eth-color-accent-dim);
   stroke-width: var(--eth-border-width);

@@ -1,6 +1,6 @@
 /**
  * The pixel ratio the timeline canvases (the arranger, the ruler, the piano roll) render at: the
- * device's, capped on mobile (#522, the design's §11): a DPR 3 phone would fill 2.25× the pixels
+ * device's, capped on mobile (the design's §11): a DPR 3 phone would fill 2.25× the pixels
  * of DPR 2 for no visible gain. The mobile UI sets the cap (`setRenderDprCap`); the desktop has
  * none.
  */

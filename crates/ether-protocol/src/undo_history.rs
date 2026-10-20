@@ -3,9 +3,9 @@
 //!
 //! The list is the controller's `ether_model::History` (undo stack oldest first, then the
 //! redo stack): steps are labelled like the Undo menu. In a collab session it lists **this
-//! site's own steps only** (per-site undo, docs/COLLAB.md): jumping undoes/redoes own steps,
+//! site's own steps only** (per-site undo): jumping undoes/redoes own steps,
 //! peers' later edits stay. Runtime only: never saved (a new history starts on open), not
-//! undoable; checkpoint names are kept for the session (`project-versions` can snapshot one
+//! undoable; checkpoint names are kept for the session (project versions can snapshot one
 //! as a named version).
 
 use serde::{Deserialize, Serialize};

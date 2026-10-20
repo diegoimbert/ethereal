@@ -1,4 +1,4 @@
-// graphical-eq: the interactive EQ curve on the real web engine (CONTRACTS.md §12.15).
+// The interactive EQ curve on the real web engine (CONTRACTS.md §12.15).
 // A handle drag edits frequency + gain as one undo step; the handle's context menu sets the
 // band type. With `GRAPHICAL_EQ_SHOTS=<dir>` it also captures the PR screenshots (dark and
 // light, mid-drag) with a synthetic pre/post spectrum fed through the controller's message
@@ -40,7 +40,7 @@ async function openEq(page: Page, theme = "dark"): Promise<{ card: Locator; plot
       return id !== "";
     })
     .toBe(true);
-  // base-153: the device's UI is in its window.
+  // The device's UI is in its window.
   const card = await openDeviceWindow(page, id);
   const plot = card.getByTestId("widget-eq-curve");
   await expect(plot.locator('[data-band="7"]')).toBeVisible();

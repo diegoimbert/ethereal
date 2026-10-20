@@ -1,5 +1,5 @@
 /**
- * Typed positions and lengths (#522, the design's §6 "Numeric entry"): the clip sheet's fields.
+ * Typed positions and lengths (the design's §6 "Numeric entry"): the clip sheet's fields.
  * Pure. A position is "bar.beat.sixteenth" (1-based, as `formatBarBeat` shows it); a length is
  * "bars.beats.sixteenths" (0-based, as `formatDuration`). Trailing parts may be left out
  * ("3" is bar 3, "0.2" two beats).

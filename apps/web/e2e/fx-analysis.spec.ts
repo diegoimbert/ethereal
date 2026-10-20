@@ -71,7 +71,7 @@ for (const theme of shots ? ["dark", "light"] : ["dark"]) {
     const chain = await chainOf();
     const spectrum = chain[0]!;
     const tuner = chain[1]!;
-    // base-153: a factory device's UI is in its window (opened, and raised, on use).
+    // A factory device's UI is in its window (opened, and raised, on use).
     const panel = (id: string) => openDeviceWindow(page, id);
     const plot = (await panel(spectrum.id)).getByTestId("widget-spectrum");
     const tunerWidget = (await panel(tuner.id)).getByTestId("widget-tuner");

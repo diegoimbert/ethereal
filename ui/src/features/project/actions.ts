@@ -1,4 +1,4 @@
-// Project actions shared by the project screen and the command palette (base-114): save,
+// Project actions shared by the project screen and the command palette: save,
 // save as, duplicate, export / import a `.ether` bundle, delete (or close and delete the open
 // project). Every file operation is engine-side (`Command::Project`); the desktop passes the
 // OS dialog's path to the engine, the web build downloads / uploads the bundle.

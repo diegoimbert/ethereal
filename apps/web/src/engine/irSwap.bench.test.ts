@@ -1,7 +1,7 @@
 // Worklet cost of switching a playing convolution reverb to the longest factory IR, in real
 // wasm (V8, as in the AudioWorklet), through the real path (WebBridge::update_builtin →
 // ring → EngineHost; crates/ether-wasm/src/perf.rs `measure_ir_swap`). The IR is prepared
-// on the controller Worker and only assembled in bounded steps on the Worklet (#514). Needs
+// on the controller Worker and only assembled in bounded steps on the Worklet. Needs
 // a wasm build with the `bench` feature (`just bench-wasm`); skipped without it. Prints the
 // numbers used in the PR.
 import { existsSync, readFileSync } from "node:fs";
@@ -37,7 +37,7 @@ describe.skipIf(!built)("IR swap in wasm", () => {
     expect(c.swap_quantum_ms).toBeLessThan(c.quantum_budget_ms / 2);
   }, 120_000);
 
-  // #529: a user's own IR (media), prepared on the Worker from its audio, vs built by the
+  // A user's own IR (media), prepared on the Worker from its audio, vs built by the
   // Worklet in one go as before (`measure_media_ir_swap`).
   it("switching to a 6 s user IR stays within the quantum budget", async () => {
     const wasm = await import(/* @vite-ignore */ `${pkg}ether_wasm.js`);

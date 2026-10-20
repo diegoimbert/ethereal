@@ -85,7 +85,7 @@ async function send(page: Page, command: Command): Promise<{ status: string; err
 async function open(page: Page, theme: string) {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.addInitScript((t) => localStorage.setItem("eth-theme", t), theme);
-  // Nothing is open on launch (base-131): create a project from the launch screen.
+  // Nothing is open on launch: create a project from the launch screen.
   await launch(page, `External ${theme}`);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await installProbe(page);
@@ -107,7 +107,7 @@ async function insert(page: Page, kind: "Midi" | "Audio", name: string, type: st
       return device !== "";
     })
     .toBe(true);
-  // base-153: a factory device's UI (its layout: the routing panel) is in its window.
+  // A factory device's UI (its layout: the routing panel) is in its window.
   const card = await openDeviceWindow(page, device);
   return { track, device, card };
 }

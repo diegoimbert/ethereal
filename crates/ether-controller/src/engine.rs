@@ -70,7 +70,7 @@ pub struct EngineState {
     /// Plugins to re-create from the document's `plugin.state` rather than their live state
     /// (collab: a peer replicated a new state).
     reload_from_doc: BTreeSet<DeviceId>,
-    /// base-131 safe mode: plugin devices held as bypassed placeholders (no node, so they
+    /// Safe mode: plugin devices held as bypassed placeholders (no node, so they
     /// are skipped from chains and their document state is what gets saved).
     deferred: BTreeSet<DeviceId>,
     /// Safe mode is on (the project was opened with `OpenSafe`, plugins not loaded yet).
@@ -97,13 +97,13 @@ pub struct EngineState {
     pub audition: BTreeMap<TrackId, TakeLaneId>,
     /// v0.2 (`midi-fx`): scale last pushed to each Scale Quantize / Random node.
     midi_fx_scales: BTreeMap<DeviceId, MusicalScale>,
-    /// Node latencies as read just before the last publish (`latency-republish`). Reused
+    /// Node latencies as read just before the last publish. Reused
     /// across publishes; compared with the live values by [`Self::check_latencies`].
     published_latency: Vec<(NodeKey, Option<u32>)>,
     /// Plugin devices instantiated since the last [`Self::take_created_plugins`] (the save
     /// path's state cache must read them again: `crate::saving`).
     created_plugins: Vec<DeviceId>,
-    /// "No engine" (docs/COLLAB.md §15): the document is open but no node is created and no
+    /// "No engine": the document is open but no node is created and no
     /// graph is compiled or published.
     pub off: bool,
     /// The project the engine was turned off for (another project opens with the engine on).
@@ -285,7 +285,7 @@ impl EngineState {
         std::mem::take(&mut self.created_plugins)
     }
 
-    /// Safe mode (base-131): hold `project`'s plugin devices as placeholders. Call right
+    /// Safe mode: hold `project`'s plugin devices as placeholders. Call right
     /// after [`Self::reset`], before the first sync. Returns them.
     pub fn defer_plugins(&mut self, project: &Project) -> Vec<DeviceId> {
         self.safe_mode = true;
@@ -386,7 +386,7 @@ impl EngineState {
         self.plugins_pending = false;
         let empty = BTreeMap::new();
         let all = project.map_or(&empty, |p| &p.devices);
-        // v0.2 (`freeze-bounce`): frozen devices get no node (their CPU is saved; the track
+        // v0.2: frozen devices get no node (their CPU is saved; the track
         // plays its render, then a partial freeze's live tail). Their plugin state is in the
         // document (kept at freeze), so unfreezing re-creates them as they were.
         let live: BTreeMap<DeviceId, Device>;
@@ -614,7 +614,7 @@ impl EngineState {
         problems
     }
 
-    /// Controller tick (`latency-republish`): mark the graph dirty when a node's latency
+    /// Controller tick: mark the graph dirty when a node's latency
     /// differs from the value the last publish used for PDC, at most every
     /// [`LATENCY_REPUBLISH_MS`] after a publish. Never allocates; no-op while the graph is
     /// already dirty or before the first publish.
@@ -726,7 +726,7 @@ impl EngineState {
                         _ => continue,
                     }
                 }
-                // v0.2 (`racks-modulation`): live modulator params.
+                // v0.2: live modulator params.
                 Op::Update {
                     update:
                         EntityUpdate::Modulator {

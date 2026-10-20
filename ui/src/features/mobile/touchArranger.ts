@@ -1,5 +1,5 @@
 /**
- * Touch on the arrangement (#522, the design's §4), in the mobile UI only (the desktop, touch
+ * Touch on the arrangement (the design's §4), in the mobile UI only (the desktop, touch
  * laptops included, keeps its pointer handling):
  *
  *   - one-finger drag: pans, locked to an axis when it starts mostly along one (time through

@@ -1,6 +1,6 @@
-//! MIDI expression (v0.3, contracts-4; CONTRACTS.md §13.2): clip expression lanes (CC, pitch
-//! bend, channel pressure; owned by `midi-expression`), per-note expressions (poly pressure
-//! by `midi-expression`; pitch and timbre by `mpe`) and a track's MPE settings (`mpe`).
+//! MIDI expression (v0.3; CONTRACTS.md §13.2): clip expression lanes (CC, pitch
+//! bend, channel pressure), per-note expressions (poly pressure
+//! by MIDI expression; pitch and timbre by `mpe`) and a track's MPE settings (`mpe`).
 //!
 //! # Model
 //! - An [`ExpressionLane`] belongs to one **MIDI clip** and holds one channel-wide curve:
@@ -76,7 +76,7 @@ impl ExpressionKind {
 pub enum NoteExpressionKind {
     /// Pitch offset in semitones (`mpe`), ±[`MAX_NOTE_PITCH_OFFSET`].
     Pitch,
-    /// Pressure / poly aftertouch, 0..=1 (`midi-expression`).
+    /// Pressure / poly aftertouch, 0..=1.
     Pressure,
     /// Timbre ("slide", MPE CC 74, CLAP brightness), 0..=1 (`mpe`).
     Timbre,

@@ -1,4 +1,4 @@
-// freeze-bounce on the web build (real wasm controller in the Worker, engine in the worklet):
+// Freeze and bounce on the web build (real wasm controller in the Worker, engine in the worklet):
 // freeze a MIDI track from its header menu (progress in the header, then the frozen
 // toggle), its clips are locked, unfreeze with the toggle, freeze again and flatten it into
 // an audio track, bounce that clip to a new track, consolidate.
@@ -125,7 +125,7 @@ test("freeze, unfreeze, flatten, bounce and consolidate from the arrangement", a
   // Its clips are locked: the engine rejects edits (the lane stays as it was).
   const clipId = Object.values(frozen.clips).find((c) => c.track === bass.id)!.id;
   await clipMenu(page, clipId);
-  // base-147 added "Delete Time" to the clip menu: pick the clip delete.
+  // The clip menu also has "Delete Time": pick the clip delete.
   await page.getByRole("menuitem", { name: /^delete(?! time)/ }).click();
   await expect.poll(async () => (await doc(page)).clips[clipId]).toBeDefined();
 
@@ -141,7 +141,7 @@ test("freeze, unfreeze, flatten, bounce and consolidate from the arrangement", a
 
   // --- Flatten keys (still frozen) into an audio track -----------------------------------
   await trackMenu(page, keys, "flatten track");
-  // #717: flatten asks first.
+  // Flatten asks first.
   await page.getByRole("dialog").getByRole("button", { name: "flatten", exact: true }).click();
   await expect.poll(async () => (await doc(page)).tracks[keys.id]).toBeUndefined();
   const flat = Object.values((await doc(page)).tracks).find((t) => t.name === keys.name && t.kind === "Audio")!;
@@ -156,7 +156,7 @@ test("freeze, unfreeze, flatten, bounce and consolidate from the arrangement", a
   await expect.poll(async () => Object.values((await doc(page)).tracks).some((t) => t.name === `${flat.name} Bounce`), { timeout: 60_000 }).toBe(true);
   expect((await doc(page)).tracks[flat.id]!.mixer.mute).toBe(true);
 
-  // --- Consolidate the bass clip (MIDI: instant) with Ctrl/Cmd+J (#870) -------------------
+  // --- Consolidate the bass clip (MIDI: instant) with Ctrl/Cmd+J -------------------
   const bassNow = (await doc(page)).clips[bassClip.id]!;
   // The clip menu's entry shows the chord.
   await clipMenu(page, bassClip.id);

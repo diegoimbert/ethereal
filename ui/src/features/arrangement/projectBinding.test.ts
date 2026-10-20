@@ -1,4 +1,4 @@
-// #589: the time selection, the selected tracks and the clip clipboard follow the open project.
+// The time selection, the selected tracks and the clip clipboard follow the open project.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Project, ProjectId } from "@/generated";
 import { useNotices } from "@/features/notifications";

@@ -137,7 +137,7 @@ impl DocCtx<'_, '_> {
     /// Write plugin device `id`'s running state into the document directly, outside the
     /// transaction's ops (like a save, never undone; see `keep_live_state` for preset load
     /// and Replace). The undo of an edit that removes or unloads the instance then puts back
-    /// what was running, not the last saved state (#471). Returns the state if it changed.
+    /// what was running, not the last saved state. Returns the state if it changed.
     pub fn keep_running_plugin_state(&mut self, id: DeviceId) -> Option<Base64Bytes> {
         let state = self.host.plugin_state(id)?;
         match self.tx.project.devices.get_mut(&id).map(|d| &mut d.kind) {
@@ -174,11 +174,11 @@ impl DocCtx<'_, '_> {
     }
 
     pub fn delete_clip(&mut self, id: ClipId) -> CmdResult<()> {
-        // Indexed lookups (perf audit #23): a clip's children without scanning the tables.
+        // Indexed lookups: a clip's children without scanning the tables.
         for n in self.p().note_ids_of(id) {
             self.delete_note(n)?;
         }
-        // v0.3: expression lanes (`midi-expression`).
+        // v0.3: expression lanes.
         for l in self.p().expression_lane_ids_of(id) {
             self.tx.remove(EntityKey::ExpressionLane(l))?;
         }
@@ -713,13 +713,13 @@ pub fn is_document_command(command: &Command, current: Option<ProjectId>) -> boo
         | Command::DrumRack(_)
         | Command::Slice(_) => true,
         Command::MidiMap(c) => !matches!(c, M::Learn { .. } | M::List),
-        // v0.2 (contracts-3).
+        // v0.2.
         Command::Take(_) | Command::Rack(_) => true,
         Command::Modulation(c) => !matches!(
             c,
             ether_core::protocol::racks::ModulationCommand::ListModulatorKinds
         ),
-        // v0.3 (contracts-4).
+        // v0.3.
         Command::Expression(_) => true,
         Command::External(c) => matches!(
             c,
@@ -773,7 +773,7 @@ pub fn apply(ctx: &mut DocCtx, command: &Command) -> CmdResult<ReplyValue> {
         Command::Take(c) => crate::comping::take_command(ctx, c),
         Command::Rack(c) => crate::racks::rack_command(ctx, c),
         Command::Modulation(c) => crate::racks::modulation_command(ctx, c),
-        // v0.3 (contracts-4).
+        // v0.3.
         Command::Expression(c) => crate::expression::expression_command(ctx, c),
         Command::External(ether_core::protocol::external::ExternalCommand::SetRouting {
             device,

@@ -805,7 +805,7 @@ pub fn output_available(settings: &AudioSettings) -> bool {
 mod tests {
     use super::*;
 
-    /// Issue #567: a vanished device is flagged (stream dead) and logged once; other
+    /// Issue a vanished device is flagged (stream dead) and logged once; other
     /// errors only count a dropout.
     #[test]
     fn device_not_available_flags_the_device_lost() {

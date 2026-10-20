@@ -16,12 +16,12 @@ export interface EditorState {
   openClip(id: ClipId): void;
   /**
    * A double-click on a clip: `openClip`, and the shell force-expands the editor drawer and
-   * the inspector if they are collapsed (#758). A plain click only opens the clip. A toggle:
+   * the inspector if they are collapsed. A plain click only opens the clip. A toggle:
    * on the clip already open with both expanded, the shell collapses both instead.
    */
   revealClip(id: ClipId): void;
   /**
-   * Focus another clip of the open editor (multi-clip editing, base-143: a click on a clip's
+   * Focus another clip of the open editor (multi-clip editing, a click on a clip's
    * band or note): changes `clip` without re-opening the editor.
    */
   focusClip(id: ClipId): void;

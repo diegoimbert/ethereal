@@ -1,4 +1,4 @@
-//! `HostServices::http_get` for the sample pack (#519, docs/SAMPLES.md): one short-lived
+//! `HostServices::http_get` for the sample pack (docs/SAMPLES.md): one short-lived
 //! thread per request (blocking reqwest, rustls), body read in chunks with progress and a
 //! hard cap, answers handed to the controller through a channel it drains every tick.
 //! Feature `net`; without it downloads are unsupported (the built-in kit only).

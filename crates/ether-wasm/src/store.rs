@@ -13,8 +13,8 @@
 //!                        /cache/
 //! library/                            the web sample library root
 //! user-library/                       the writable user library (v0.2: `Presets/`, ...)
-//! imported/<folder>/                  folders imported from the user's computer (base-136)
-//! samples/                            the sample pack cache (#519, docs/SAMPLES.md)
+//! imported/<folder>/                  folders imported from the user's computer
+//! samples/                            the sample pack cache (docs/SAMPLES.md)
 //! ```
 
 use std::collections::BTreeMap;
@@ -36,10 +36,10 @@ pub const LIBRARY_ID: &str = "browser";
 pub const USER_LIBRARY_ROOT: &str = "user-library";
 /// v0.2 (`presets`): root id of the user library (not listed in `roots()`).
 pub const USER_LIBRARY_ID: &str = "user";
-/// `base-136`: OPFS folder of the folders imported from the user's computer, one sub-folder
+/// OPFS folder of the folders imported from the user's computer, one sub-folder
 /// each (`Library::create_import_folder`; their engine-side path is `imported/<folder>`).
 pub const IMPORTED_ROOT: &str = "imported";
-/// #519: OPFS folder of the sample pack cache (`Library::sample_cache_*`).
+/// OPFS folder of the sample pack cache (`Library::sample_cache_*`).
 pub const SAMPLES_ROOT: &str = "samples";
 pub const PROJECT_FILE: &str = "project.ether";
 pub const MEDIA_DIR: &str = "media";
@@ -336,7 +336,7 @@ impl<F: Fs> ProjectStore for WebStore<F> {
         if self.exists(to)? {
             return Err(StoreError::AlreadyExists(to.to_string()));
         }
-        // #564: copy into a temp folder, then move the files into place (the document last),
+        // Copy into a temp folder, then move the files into place (the document last),
         // so a failed copy (a full quota) leaves no half project behind: on any error both
         // folders are removed.
         let (tmp, dst) = (Self::dup_dir(to), Self::dir(to));
@@ -381,7 +381,7 @@ impl<F: Fs> ProjectStore for WebStore<F> {
         self.fs.write(&join(&Self::dir(id), rel), bytes)
     }
 
-    /// v0.3 (`project-versions`): delete one file (never a folder); missing = `Ok`.
+    /// v0.3: delete one file (never a folder); missing = `Ok`.
     fn remove(&mut self, id: ProjectId, rel_path: &str) -> Result<(), StoreError> {
         let rel = relative(rel_path)?;
         if rel.is_empty() {
@@ -511,7 +511,7 @@ pub fn ensure_demo_samples<F: Fs>(fs: &mut F) -> Result<(), StoreError> {
 }
 
 /// The browser's sample library: one OPFS folder (`library/`) holding the generated demo
-/// samples ([`ensure_demo_samples`]), the writable user library, and (`base-136`) the
+/// samples ([`ensure_demo_samples`]), the writable user library, and the
 /// folders imported from the user's computer (`imported/<folder>/`, user folders added by
 /// the controller with their OPFS path; the controller remembers them).
 pub struct WebLibrary<F: Fs> {
@@ -574,7 +574,7 @@ impl<F: Fs> WebLibrary<F> {
 }
 
 impl<F: Fs> Library for WebLibrary<F> {
-    // #519: the sample pack cache, OPFS `samples/`.
+    // The sample pack cache, OPFS `samples/`.
     fn sample_cache_read(&mut self, rel: &str) -> Result<Vec<u8>, StoreError> {
         self.fs.read(&join(SAMPLES_ROOT, relative(rel)?))
     }
@@ -687,7 +687,7 @@ impl<F: Fs> Library for WebLibrary<F> {
         Some(USER_LIBRARY_ID.to_string())
     }
 
-    /// `base-136`: only imported folders (`imported/<folder>`, existing) can be added: the
+    /// Only imported folders (`imported/<folder>`, existing) can be added: the
     /// web has no other folders. Id: [`user_folder_id`] of the OPFS path.
     fn add_folder(&mut self, path: &str) -> Result<String, StoreError> {
         if Self::imported_folder(path).is_none() {
@@ -707,7 +707,7 @@ impl<F: Fs> Library for WebLibrary<F> {
         Ok(id)
     }
 
-    /// `base-136`: forget an imported folder and delete its copy.
+    /// Forget an imported folder and delete its copy.
     fn remove_folder(&mut self, root: &str) -> Result<(), StoreError> {
         if !root.starts_with(USER_FOLDER_PREFIX) {
             return Err(StoreError::InvalidPath(format!(
@@ -724,7 +724,7 @@ impl<F: Fs> Library for WebLibrary<F> {
         }
     }
 
-    /// `base-136`: `imported/<name>` (de-duplicated, case-insensitively), created empty.
+    /// `imported/<name>` (de-duplicated, case-insensitively), created empty.
     fn create_import_folder(&mut self, name: &str) -> Result<String, StoreError> {
         let base = import_folder_name(name)
             .ok_or_else(|| StoreError::InvalidPath(format!("bad folder name {name:?}")))?;
@@ -1105,7 +1105,7 @@ mod tests {
         ));
     }
 
-    /// #564: a duplicate that fails at any write or move (a full quota) leaves nothing
+    /// A duplicate that fails at any write or move (a full quota) leaves nothing
     /// behind: no `projects/<to>`, no temp folder, the same list.
     #[test]
     fn a_failed_duplicate_leaves_nothing_behind() {

@@ -1,4 +1,4 @@
-//! `tap-recording`: an armed audio track whose input is another track records that track's
+//! An armed audio track whose input is another track records that track's
 //! tap; loop passes become take lanes exactly like hardware takes (`comping`).
 
 use super::*;

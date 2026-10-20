@@ -85,7 +85,7 @@ test("chorus, phaser, flanger and tremolo on an audio track", async ({ page }) =
     await expect.poll(async () => (await chainOf()).length).toBe(i + 1);
   }
   const [chorus, phaser, flanger, tremolo] = (await chainOf()).map((d) => d.id) as [string, string, string, string];
-  // base-153: a factory device's UI is in its window (opened, and raised, on use).
+  // A factory device's UI is in its window (opened, and raised, on use).
   const panel = (id: string) => openDeviceWindow(page, id);
 
   // Declarative panels: hero knobs, sync controls, the tremolo's LFO display.

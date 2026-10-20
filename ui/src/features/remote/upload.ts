@@ -71,7 +71,7 @@ export async function uploadFile(
 }
 
 /**
- * Upload `file` engine-side, then run `consume` with the staged upload id (base-114: project
+ * Upload `file` engine-side, then run `consume` with the staged upload id (project
  * bundles are imported with `Project::ImportBundle { source: Upload }`). A failure anywhere
  * cancels the upload.
  */

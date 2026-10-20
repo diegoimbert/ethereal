@@ -1,4 +1,4 @@
-/* ---- Knob center value (ux-followups) ---------------------------------------------------
+/* ---- Knob center value ---------------------------------------------------
  * Large rings show the number in the middle and its unit in the gap at the bottom of the
  * arc; Knob.tsx measures both and shrinks their font to fit (`--knob-center-scale`, applied
  * to the font size so the text stays crisp). The middle box itself is `.eth-knob__center`

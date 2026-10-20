@@ -1,4 +1,4 @@
-// #563: shown instead of the editor while another tab owns the project store (`storeLock.ts`).
+// Shown instead of the editor while another tab owns the project store (`storeLock.ts`).
 import { Copy } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/kit";

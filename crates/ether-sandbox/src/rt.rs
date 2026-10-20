@@ -1,4 +1,4 @@
-//! Real-time setup of the helper's audio thread (perf-plugins, audit #9): flush-to-zero
+//! Real-time setup of the helper's audio thread: flush-to-zero
 //! and real-time scheduling, like the engine's own audio and worker threads.
 //!
 //! Mirrors `ether_native::rt::enable_flush_denormals` and the worker promotion of

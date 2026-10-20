@@ -143,14 +143,13 @@ where
                 source,
                 name,
             } => self.import_bundle(*new_id, source, name.as_deref(), out),
-            // import-dawproject: runs from the tick (`import` module).
+            // Runs from the tick (`import` module).
             ProjectCommand::Import {
                 new_id,
                 source,
                 name,
             } => self.import_command(*new_id, source, name.as_deref(), out),
             ProjectCommand::CancelImport { id } => self.cancel_import(*id, out),
-            // project-export.
             ProjectCommand::ExportTo { id, format, path } => {
                 self.export_to(*id, *format, path.as_deref())
             }
@@ -358,7 +357,7 @@ where
 
     /// Wait for the background autosaves (`ProjectStore::save_in_background`) and report
     /// those that failed: a failure for the open project makes it dirty again, so the
-    /// caller's save writes it (#561: the routine save already said `Saved`).
+    /// caller's save writes it (the routine save already said `Saved`).
     pub fn settle_background_saves(&mut self, out: &mut dyn MessageSink) {
         self.store.flush_saves();
         while let Some((id, e)) = self.store.take_save_error() {
@@ -368,7 +367,7 @@ where
     }
 
     /// Before the open project is closed (another one opens, a session is adopted, the
-    /// host quits): finish a running recording (its takes go into this project, #717),
+    /// host quits): finish a running recording (its takes go into this project),
     /// wait for the background autosaves, then save every unsaved change with every
     /// plugin's live state, synchronously. An error means the project is NOT safely on
     /// disk: the caller must not drop the document.
@@ -453,7 +452,7 @@ where
         })
     }
 
-    /// base-131: open `id` with its plugin devices held as bypassed placeholders.
+    /// Open `id` with its plugin devices held as bypassed placeholders.
     fn open_safe(
         &mut self,
         id: ProjectId,
@@ -507,7 +506,7 @@ where
         self.ext_each(|e, ctl| e.project_copied(ctl, new_id));
         project.id = new_id;
         project.settings.name = name;
-        // #564: the copy still holds the old document until this lands: remove it on failure.
+        // The copy still holds the old document until this lands: remove it on failure.
         let summary = self.save_copy(new_id, &project)?;
         // Same content: the engine keeps its nodes and media; only identity/name/history change.
         let doc = self.doc.as_mut().expect("checked");
@@ -536,11 +535,11 @@ where
             );
         }
         // Clients leave safe mode on `ProjectLoaded`; the engine still holds the plugins as
-        // placeholders, so say so again (#588).
+        // placeholders, so say so again.
         if self.engine.safe_mode() {
             self.emit_safe_mode(out);
         }
-        // project-versions: the session moves to the new folder.
+        // The session moves to the new folder.
         let now = self.host.now_ms();
         self.versions_on_identity_change(now);
         self.emit_list_changed(out);
@@ -565,7 +564,7 @@ where
         self.ext_each(|e, ctl| e.project_copied(ctl, new_id));
         // A duplicate is a private project: `duplicate` never copies the original's
         // `share.json`.
-        // project-versions: the copy is not open anywhere.
+        // The copy is not open anywhere.
         self.versions_forget_marker(new_id);
         let current = self
             .doc
@@ -596,7 +595,7 @@ where
     }
 
     /// Write the document of a copy `ProjectStore::duplicate` just made. On failure the copy
-    /// is deleted (#564): it would list as a second project with the old name and content.
+    /// is deleted: it would list as a second project with the old name and content.
     fn save_copy(&mut self, id: ProjectId, project: &Project) -> CmdResult<ProjectSummary> {
         let saved = self
             .serialize(project)
@@ -764,7 +763,7 @@ where
         self.load_project_with(project, now, false, out);
     }
 
-    /// `safe`: plugin devices are held as placeholders (base-131 safe mode).
+    /// `safe`: plugin devices are held as placeholders (safe mode).
     fn load_project_with(
         &mut self,
         project: Project,
@@ -816,16 +815,16 @@ where
         if safe {
             self.emit_safe_mode(out);
         }
-        // project-versions: session marker and version clock. Written BEFORE the devices
+        // Session marker and version clock. Written BEFORE the devices
         // (plugins) are instantiated, so a crash while loading them counts as a crash
-        // (base-131: no reopen on launch, recovery offered).
+        // (no reopen on launch, recovery offered).
         self.versions_on_load(now);
         let doc = self.doc.as_ref().expect("just set");
         self.media.sync(&mut self.bridge, Some(&doc.project));
         self.engine.graph_dirty = true;
         self.publish_if_due(now, true, out);
-        // base-115: hosting/joined sessions of another project pause; this one resumes
-        // sharing or reconnects (docs/SHARING.md §7).
+        // Hosting/joined sessions of another project pause; this one resumes
+        // sharing or reconnects.
         let pid = self.doc.as_ref().expect("just set").project.id;
         self.ext_project_loaded(pid, out);
     }

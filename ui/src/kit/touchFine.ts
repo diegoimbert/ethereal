@@ -1,5 +1,5 @@
 /**
- * Fine control on touch screens (#522, the design's §4 "Faders, knobs, numbers"), like iOS's
+ * Fine control on touch screens (the design's §4 "Faders, knobs, numbers"), like iOS's
  * scrubbing sliders: there is no Shift key, so moving the finger away from the control's axis
  * slows the drag down. Found by accident, nothing to learn.
  */

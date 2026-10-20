@@ -1,4 +1,4 @@
-//! v0.3 device contracts (contracts-4): descriptor ↔ mock parity, placeholder behaviour and
+//! v0.3 device contracts: descriptor ↔ mock parity, placeholder behaviour and
 //! RT safety of the convolution reverb (`fx-space`) and the external devices
 //! (`external-instrument`). Device nodes keep these passing (update the mock JSON with
 //! `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v03_descriptors`, never by

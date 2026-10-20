@@ -29,9 +29,9 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
   Limiter: V01.Limiter,
   Utility: V01.Utility,
   DrumRack: V01.DrumRack,
-  // v0.2 (contracts-3): generated from Rust, one JSON file per device node (`./devices`).
+  // v0.2: generated from Rust, one JSON file per device node (`./devices`).
   ...V02_DESCRIPTORS,
-  // v0.3 (contracts-4): fx-space and external-instrument, generated from Rust.
+  // v0.3: fx-space and external-instrument, generated from Rust.
   ...V03_DESCRIPTORS,
   // fm-synth, generated from Rust.
   FmSynth: FM_SYNTH_DESCRIPTOR,
@@ -41,7 +41,7 @@ export const BUILTIN_DESCRIPTORS: Readonly<Record<BuiltinDeviceType, DeviceDescr
 export function newBuiltinDevice(type: BuiltinDeviceType): BuiltinDevice {
   if (type === "Sampler") return { type: "Sampler", sample: null, slices: { enabled: false, base_note: 36, markers: [] } };
   if (type === "MultiSampler") return { type: "MultiSampler", zones: [] };
-  // A new convolution reverb starts on the factory hall (`DEFAULT_CONVOLUTION_IR`, #520).
+  // A new convolution reverb starts on the factory hall (`DEFAULT_CONVOLUTION_IR`).
   if (type === "ConvolutionReverb") return { type: "ConvolutionReverb", ir: { type: "Factory", id: "hall" } };
   if (type === "ExternalInstrument" || type === "ExternalAudioEffect") {
     return { type, routing: { midi_out: null, midi_channel: 1, audio_send: null, audio_return: null } };

@@ -2,7 +2,7 @@
  * Mock of `Template::*` (v0.3, owned by `templates`; CONTRACTS.md §13.10), same rules as the
  * engine (`crates/ether-controller/src/templates`):
  * - factory track templates `"factory/<slug>"` (read-only, the same four as the engine); the
- *   engine's example projects (`"factory/example-…"`, #518) need its devices and presets and
+ *   engine's example projects (`"factory/example-…"`) need its devices and presets and
  *   aren't mocked (opening one fails as an unknown template);
  * - user templates in an in-memory library per MockTransport, ids `"projects/<name>"` /
  *   `"tracks/<name>"`, names unique per kind (case-insensitive), saves replace only with

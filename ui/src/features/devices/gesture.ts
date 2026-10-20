@@ -7,8 +7,8 @@
  * drag (keyboard, double-click reset) are sent without a gesture, one undo step each.
  *
  * During a drag, `Device::SetParam`s and the mixer's continuous levels (volume, pan, send
- * level) are coalesced to one per target per animation frame, last value wins (perf-plugins,
- * audit #4; #911): pointer events can outpace the display, and each command is a
+ * level) are coalesced to one per target per animation frame, last value wins:
+ * pointer events can outpace the display, and each command is a
  * transaction, a patch and a collab message. A caller can coalesce other commands under its
  * own key (`send(command, { coalesce })`, e.g. a multi-track `Edit::Batch`). `end` sends
  * what is pending before closing the gesture.

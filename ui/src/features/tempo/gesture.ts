@@ -36,7 +36,7 @@ export class TempoGesture {
   }
 
   /**
-   * Escape (#717): take back everything this gesture applied and leave no undo step
+   * Escape: take back everything this gesture applied and leave no undo step
    * (`Edit::CancelGesture` once the last command is through; a queued one is dropped).
    */
   cancel(): void {

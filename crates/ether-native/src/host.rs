@@ -57,8 +57,8 @@ pub const METER_INTERVAL: Duration = Duration::from_millis(33);
 /// GC thread period.
 pub const GC_INTERVAL: Duration = Duration::from_millis(20);
 
-/// How long quitting waits for the open project to be saved while the plugins still answer
-/// (#566). Past it, plugin calls fail and the save goes on with their last known states.
+/// How long quitting waits for the open project to be saved while the plugins still answer.
+/// Past it, plugin calls fail and the save goes on with their last known states.
 pub const QUIT_SAVE_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Receives every `ServerMessage` for the UI (called on the controller thread).
@@ -109,7 +109,7 @@ impl<X: 'static> HostedController
     for EtherController<NativeBridge, NativeServices, DiskStore, DiskStore, X>
 {
     fn before_shutdown(&mut self, out: &mut dyn MessageSink) -> Option<UnsavedProject> {
-        // Waits for background autosaves first and saves again one that failed (#561).
+        // Waits for background autosaves first and saves again one that failed.
         match self.save_before_close(out) {
             Ok(unread) => {
                 for w in unread {
@@ -158,7 +158,7 @@ pub fn ether_controller() -> ControllerFactory {
     ether_controller_with(PatchCompat::default())
 }
 
-/// [`ether_controller`] whose patch shapes follow `patch_compat` (audit #4: a remote
+/// [`ether_controller`] whose patch shapes follow `patch_compat` (a remote
 /// server registers clients that predate `PatchChange::DeviceParam` there).
 pub fn ether_controller_with(patch_compat: PatchCompat) -> ControllerFactory {
     Box::new(move |bridge, services, store, library| {
@@ -257,7 +257,7 @@ enum HostMsg {
     Emit(ServerMessage),
     /// [`NativeHost::ui_disconnected`].
     UiDisconnected,
-    /// Quitting: save now, while the plugins still answer, then reply (#566).
+    /// Quitting: save now, while the plugins still answer, then reply.
     SaveBeforeQuit(Sender<()>),
     Shutdown,
 }
@@ -603,7 +603,7 @@ impl NativeHost {
         })
     }
 
-    /// Where remote clients that predate `PatchChange::DeviceParam` register (audit #4).
+    /// Where remote clients that predate `PatchChange::DeviceParam` register.
     pub fn patch_compat(&self) -> &PatchCompat {
         &self.patch_compat
     }
@@ -657,7 +657,7 @@ impl NativeHost {
     fn stop(&mut self) {
         // Saving on quit may take a while: not a stall worth reporting.
         drop(self.watchdog.take());
-        // Save first, while the plugins still answer (#566): their live states are read on
+        // Save first, while the plugins still answer: their live states are read on
         // the main thread, and `stop` may run ON it (Tauri's exit), so it serves those calls
         // while it waits. (Already stopped: the send fails.)
         let (done_tx, done_rx) = bounded(1);
@@ -843,7 +843,7 @@ struct AudioState {
     data_dir: PathBuf,
     instance: String,
     last_xruns: u32,
-    /// The device is closed while the local engine is off (docs/COLLAB.md §15): the engine
+    /// The device is closed while the local engine is off: the engine
     /// runs on the null backend, which holds no device and keeps draining its queues (the
     /// controller's teardown graph, transport commands), until the engine is on again.
     released: bool,

@@ -291,7 +291,7 @@ export function TransferCurveWidget({ widget: w, size, label }: TypedProps<"Tran
   const k = driveGain(drive);
   const c = curve ? curve.normalized : 0;
   const bi = bias ? bias.normalized * 2 - 1 : 0;
-  // devices-pass-effects: a curve enum whose label names a saturator shape draws that exact
+  // A curve enum whose label names a saturator shape draws that exact
   // shape (Tube, Tape, Fold, Rectify...), not the soft/hard blend.
   const named = curve?.info.labels ? saturatorCurve(currentLabel(curve)) : null;
   const f = named ? saturatorTransfer(named, k, bi) : (x: number) => transfer(x, k, c, bi);

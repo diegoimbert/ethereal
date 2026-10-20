@@ -2,11 +2,11 @@
 //! example, built with clack's plugin-side crates), so tests never depend on installed plugins.
 //!
 //! - Stereo in/out audio effect with one CLAP note input port and 64 samples of latency, set
-//!   in `activate` like real lookahead plugins (0 before the first activation, #570).
+//!   in `activate` like real lookahead plugins (0 before the first activation).
 //! - Params: `1` Gain (0..2, default 1), `2` Mode (stepped 0..2: Clean/Warm/Hot), `3` Tempo
 //!   (read-only, hidden: the last transport tempo it saw).
 //! - Output = input * gain, plus 0.25 DC while any note is held, plus the sidechain.
-//! - A second, non-main stereo input port `sidechain` (the aux bus of `plugin-sidechain`,
+//! - A second, non-main stereo input port `sidechain` (the aux bus of plugin sidechains,
 //!   CONTRACTS §12.14): added to the output channel by channel. Hosts feed it silence when
 //!   there's no sidechain source, so the output is unchanged then.
 //! - MIDI CC 7 sets the gain *from the plugin side* (as a GUI would): it emits gesture begin,

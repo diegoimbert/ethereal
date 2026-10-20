@@ -10,7 +10,7 @@ const allowed = (e: SyntheticEvent) => e.target instanceof Element && e.target.c
 
 /**
  * An editing surface (piano roll, automation lanes, device views, inspector, marker lane) that,
- * while the app shows a shared project read-only (docs/SHARING.md §14.6), edits nothing: its
+ * while the app shows a shared project read-only, edits nothing: its
  * drags, draws, double-clicks and drops never start, and its buttons are dimmed and inert.
  * Scrolling and the wheel still work, its kit value controls are disabled on their own
  * (`useDisabled`), and what is marked `data-viewer-allow` (view settings) keeps working.

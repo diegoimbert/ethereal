@@ -1,4 +1,4 @@
-// transport-keys: Space always plays / stops, Shift+Space returns to the selection, the Stop
+// Space always plays / stops, Shift+Space returns to the selection, the Stop
 // button's double press, keys forwarded from plugin editor windows.
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

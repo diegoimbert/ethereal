@@ -7,7 +7,7 @@ export type ConnectionStatus = { status: "connecting" } | { status: "connected" 
 export interface TransportContextValue {
   transport: EngineTransport;
   connection: ConnectionStatus;
-  /** After an `error`: connect again (#597: "retry" on the engine error screen). */
+  /** After an `error`: connect again ("retry" on the engine error screen). */
   retry?(): void;
 }
 

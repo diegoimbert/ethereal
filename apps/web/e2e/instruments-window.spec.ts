@@ -1,4 +1,4 @@
-// devices-pass-instruments: every built-in instrument in its own window (base-153/154) on the
+// Every built-in instrument in its own window on the
 // real wasm engine. Each opens at its own default width with nothing clipped or scrolling
 // sideways, and keeps fitting when the window is made narrow. The Poly Synth's unison
 // controls (voices, detune in cents, blend) and drift drive the engine and the mirror.

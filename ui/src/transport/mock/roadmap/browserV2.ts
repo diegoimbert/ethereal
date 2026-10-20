@@ -1,5 +1,5 @@
 /**
- * Mock of `Browser::*` (v0.2, owned by `browser-v2`; CONTRACTS.md §12.8): an in-memory index
+ * Mock of `Browser::*` (v0.2; CONTRACTS.md §12.8): an in-memory index
  * over the mock library (`library.ts`) plus the factory presets, with the engine's query
  * rules (`crates/ether-controller/src/browser`):
  * - ids `"<root>/<path>"`; roots: the library (`LIBRARY_ID`), its sample packs (top-level
@@ -11,13 +11,13 @@
  *   `IndexProgress` then `IndexChanged` (synchronously);
  * - `Preview` plays `item.source` through `Media::Preview` (the mock ignores `sync`);
  * - `AddFolder` is native only: `Unsupported`; projects aren't indexed by the mock.
- * - `base-136`: `ImportFolder` adds an empty user folder (`Folder` root, unique name),
+ * - `ImportFolder` adds an empty user folder (`Folder` root, unique name),
  *   `ImportFile` consumes a completed upload into it (an audio item at once: the mock's
  *   `Rescan` is synchronous anyway), `RenameFolder` renames it, `RemoveFolder` drops it
  *   with its items. Imported folders are browse locations like the engine's user folders
  *   (`folderLocations` / `listFolder`: listed from their items; `LocationsChanged` on
  *   import and removal), but not importable onto lanes.
- * - `base-145`: the file filter (`./fileFilter.ts`); queries skip library items it hides.
+ * - the file filter (`./fileFilter.ts`); queries skip library items it hides.
  */
 
 import type { BrowseRoot, BrowserCommand, BrowserQuery, BrowserRoot, DirectoryEntry, Event, LibraryItem, PresetDevice, ReplyValue } from "@/generated";
@@ -198,10 +198,10 @@ export class MockBrowser {
   private readonly favourites = new Set<string>();
   /** User tags by item id (replacing the item's default tags). */
   private readonly tags = new Map<string, string[]>();
-  /** `base-136`: imported folders (in creation order). */
+  /** Imported folders (in creation order). */
   private readonly folders: BrowserRoot[] = [];
   private nextFolder = 1;
-  /** `base-145`: also filters `Media::ListDirectory` (MockTransport). */
+  /** Also filters `Media::ListDirectory` (MockTransport). */
   readonly fileFilter = new MockFileFilter((filter) => {
     this.emit({ type: "Browser", event: { type: "FileFilterChanged", filter } });
     this.emit({ type: "Browser", event: { type: "IndexChanged" } });

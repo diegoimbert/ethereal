@@ -29,7 +29,7 @@ pub fn wav_unknown_length(src: &[Vec<f32>]) -> Vec<u8> {
     bytes
 }
 
-/// #554: the header's frame count is not trusted for the up-front reservation (it used to
+/// The header's frame count is not trusted for the up-front reservation (it used to
 /// reserve 1 GiB per channel here).
 #[test]
 fn a_lying_length_does_not_reserve_the_claimed_frames() {

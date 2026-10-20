@@ -197,7 +197,7 @@ describe("EqCurve", () => {
     await act(async () => {
       wrap.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: h.x, clientY: h.y, bubbles: true, cancelable: true }));
     });
-    // Params changed inside a gesture go out once per animation frame (perf-plugins).
+    // Params changed inside a gesture go out once per animation frame.
     await act(() => new Promise((r) => setTimeout(r, 50)));
     await flush();
     expect(param(id(3, Q))).toBeGreaterThan(0.9);

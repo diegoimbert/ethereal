@@ -156,7 +156,7 @@ test("web UI drives a remote ether-server", async ({ page }) => {
   // --- Connect: the UI now mirrors the server's project.
   await connect(page, TOKEN);
   await expect(page.getByTestId("remote-button")).toHaveText(/e2e-server/);
-  // base-131: the server has no project open: the project screen shows, and a project
+  // The server has no project open: the project screen shows, and a project
   // is created there. Wait for that before asking the server for it.
   await createOnLaunch(page, "Remote song");
   await expect.poll(async () => (await project(page))?.id ?? localId, { timeout: 20_000 }).not.toBe(localId);

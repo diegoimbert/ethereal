@@ -1,4 +1,4 @@
-//! Track input from another track (v0.2, `groups-buses`; CONTRACTS.md
+//! Track input from another track (v0.2; CONTRACTS.md
 //! §12.10): `TrackInput::Track { track, tap }` → `TrackDesc::input_tap`.
 //!
 //! # Contract
@@ -111,7 +111,7 @@ impl InputTapRt {
 
     /// RT. The aligned tapped signal of the current sub-block (`None` before the consumer's
     /// job gathered it, or without a source): what recording from a tap captures
-    /// (`crate::recording`, `tap-recording`).
+    /// (`crate::recording`).
     pub(crate) fn signal(&self, frames: usize) -> Option<[&[f32]; 2]> {
         (self.ready && self.buf[0].len() >= frames)
             .then(|| [&self.buf[0][..frames], &self.buf[1][..frames]])
@@ -130,7 +130,7 @@ impl InputTapRt {
 /// input: the source's output latency plus that connection's PDC delay; else the input tap:
 /// its latency (`in_lat(source)` for `PreFx`, else `out_lat(source)`) plus
 /// [`InputTapRt::delay`]; else 0. Recording from a tap compensates the consumer's latency
-/// (`crate::recording`, `tap-recording`).
+/// (`crate::recording`).
 pub(crate) fn input_latency(tracks: &[TrackRt], i: usize) -> u32 {
     let mut i = i;
     let mut extra = 0u32;

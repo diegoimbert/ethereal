@@ -37,7 +37,7 @@
   font: inherit;
   cursor: pointer;
 }
-/* Settings > Advanced > Engine server (base-115). */
+/* Settings > Advanced > Engine server. */
 .eth-remote__heading {
   margin: 0;
   font-size: var(--eth-fs-md);

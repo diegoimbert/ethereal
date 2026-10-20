@@ -23,7 +23,7 @@
   cursor: help;
 }
 
-/* Settings > Plugins (base-129): plugin folders. */
+/* Settings > Plugins: plugin folders. */
 .eth-plugin-folders {
   display: flex;
   flex-direction: column;

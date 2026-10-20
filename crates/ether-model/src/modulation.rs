@@ -1,4 +1,4 @@
-//! Modulation (v0.2, Bitwig-style; `racks-modulation`; CONTRACTS.md §12.6).
+//! Modulation (v0.2, Bitwig-style; CONTRACTS.md §12.6).
 //!
 //! # Model
 //! - A [`Modulator`] lives **inside a device** of a track chain (`Modulator::device`: built-in,

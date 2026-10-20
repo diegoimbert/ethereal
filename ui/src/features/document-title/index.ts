@@ -1,4 +1,4 @@
-// The tab title follows the open project (#740): `ethereal - <name>`, `• ` in front while it
+// The tab title follows the open project: `ethereal - <name>`, `• ` in front while it
 // has unsaved changes; the shared project's name in the viewer (`/s/<id>`); plain `ethereal`
 // on the project picker (at launch it shows over the launch draft: not what the user opened).
 // Renames (here or a collaborator's), switches and Back / Forward (`/p/<slug>/<id>`) all land

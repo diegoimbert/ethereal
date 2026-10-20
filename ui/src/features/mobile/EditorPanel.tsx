@@ -1,5 +1,5 @@
 /**
- * The clip editor on touch screens (#522, the design's §7): the desktop drawer's editors (piano
+ * The clip editor on touch screens (the design's §7): the desktop drawer's editors (piano
  * roll, audio clip editor, automation) in a panel over the arrangement, under the top bar and
  * above the transport, so you can play while editing. Full height on phones, the lower part on
  * tablets. Opened by a double-tap on a clip or the action bar's "edit"; the close button and the

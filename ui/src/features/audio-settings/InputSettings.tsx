@@ -15,7 +15,7 @@ import { openKeymapEditor } from "@/features/keymap";
 import { useAudioSettings } from "./store";
 
 /**
- * Settings > Input (base-135): how the mouse wheel and buttons drive zoom and scrolling in
+ * Settings > Input: how the mouse wheel and buttons drive zoom and scrolling in
  * every timeline (arrangement, piano roll, automation), value axes and wheel-adjusted
  * controls. Kept on this device (`useInputSettings`); defaults depend on the platform.
  */
@@ -121,7 +121,7 @@ export function InputSettings() {
         </div>
       </section>
 
-      {/* #717: the shortcuts editor was only in the command palette. */}
+      {/* the shortcuts editor was only in the command palette. */}
       <section className="eth-settings__section" aria-label={t("settings.input.shortcuts")} data-testid="settings-shortcuts">
         <h3 className="eth-settings__heading">{t("settings.input.shortcuts")}</h3>
         <p className="eth-settings__hint">{t("settings.input.shortcuts_hint")}</p>

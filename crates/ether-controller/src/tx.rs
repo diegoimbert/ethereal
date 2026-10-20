@@ -69,7 +69,7 @@ pub struct Tx<'a> {
 
 impl<'a> Tx<'a> {
     pub fn new(project: &'a mut Project) -> Self {
-        // Commands read children through the parent → children indexes (perf audit #23).
+        // Commands read children through the parent → children indexes.
         project.ensure_index();
         Self {
             project,

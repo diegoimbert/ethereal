@@ -1,4 +1,4 @@
-//! Groups, buses, track input taps and VCAs (v0.2, `groups-buses`,
+//! Groups, buses, track input taps and VCAs (v0.2,
 //! priority 1; CONTRACTS.md §12.10).
 //!
 //! - [`track_command`]: `Track::{GroupSelected, Ungroup, SetVca}` (document commands,
@@ -9,7 +9,7 @@
 //! - Solo rules (CONTRACTS.md §12.10) are compiled in `ether-core/src/graph.rs` (solo_ok);
 //!   [`fold_vca_solo`] folds VCA solo into the assigned tracks' `TrackDesc::solo`.
 //! - Mute and solo of groups and VCAs are the tracks' own `TrackMixer::{mute, solo}`, so in
-//!   collab they are per-user like every other track's (site-local, COLLAB.md §2.1).
+//!   collab they are per-user like every other track's (site-local).
 //! - Deleting a VCA unassigns its tracks (`doc/mod.rs`).
 
 use std::collections::BTreeSet;

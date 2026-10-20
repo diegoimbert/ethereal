@@ -1,4 +1,4 @@
-//! Stuck notes (audit #558–#560), rendered through the engine: a device switched on or off
+//! Stuck notes, rendered through the engine: a device switched on or off
 //! (static switch or On/Off automation; on a track chain, a rack chain or a drum pad), a
 //! track that stops monitoring live MIDI, and a drum pad whose note changes while it
 //! sounds all release the notes they would otherwise strand.
@@ -226,7 +226,7 @@ fn sounds_after(p: &mut ether_core::EngineParts, beats: f64) -> bool {
 
 #[test]
 fn an_instrument_switched_off_mid_note_releases_it_when_back_on() {
-    // #558 (a): synth off during the note, back on after it ended.
+    // (a): synth off during the note, back on after it ended.
     let mut p = create(config());
     let synth = p.handle.add_node(voices()).unwrap();
     let notes = [(0.0, 2.0, 60)];
@@ -250,7 +250,7 @@ fn an_instrument_switched_off_mid_note_releases_it_when_back_on() {
 
 #[test]
 fn a_midi_effect_switched_off_by_automation_releases_its_notes() {
-    // #558 (b): Octaver → synth, its On/Off lane drops to 0 at beat 1 mid-note.
+    // (b): Octaver → synth, its On/Off lane drops to 0 at beat 1 mid-note.
     let mut p = create(config());
     let fx = p.handle.add_node(Box::new(Octaver)).unwrap();
     let synth = p.handle.add_node(voices()).unwrap();
@@ -269,7 +269,7 @@ fn a_midi_effect_switched_off_by_automation_releases_its_notes() {
 
 #[test]
 fn a_midi_effect_switched_off_before_a_rack_releases_notes_inside_it() {
-    // #558 (c): Octaver → instrument rack [synth] / drum rack [pad on 72: synth].
+    // (c): Octaver → instrument rack [synth] / drum rack [pad on 72: synth].
     for drums in [false, true] {
         let mut p = create(config());
         let fx = p.handle.add_node(Box::new(Octaver)).unwrap();
@@ -300,7 +300,7 @@ fn a_midi_effect_switched_off_before_a_rack_releases_notes_inside_it() {
 
 #[test]
 fn devices_switched_inside_rack_chains_and_pads_release_their_notes() {
-    // #558: Octaver → synth inside an instrument rack chain (static switch) and on a drum pad
+    // Octaver → synth inside an instrument rack chain (static switch) and on a drum pad
     // (On/Off automation).
     for drums in [false, true] {
         let mut p = create(config());
@@ -336,7 +336,7 @@ fn devices_switched_inside_rack_chains_and_pads_release_their_notes() {
 
 #[test]
 fn a_track_that_stops_monitoring_releases_its_live_notes() {
-    // #559: a held live note, then the track is disarmed before the key is released.
+    // A held live note, then the track is disarmed before the key is released.
     let mut p = create(config());
     let mut io = p.handle.take_recording_io().unwrap();
     let synth = p.handle.add_node(voices()).unwrap();
@@ -364,7 +364,7 @@ fn a_track_that_stops_monitoring_releases_its_live_notes() {
 
 #[test]
 fn stop_while_stopped_releases_every_note() {
-    // #559: Stop is a panic even while stopped (a live note held by an instrument).
+    // Stop is a panic even while stopped (a live note held by an instrument).
     let mut p = create(config());
     let mut io = p.handle.take_recording_io().unwrap();
     let synth = p.handle.add_node(voices()).unwrap();
@@ -386,7 +386,7 @@ fn stop_while_stopped_releases_every_note() {
 
 #[test]
 fn a_note_off_reaches_the_pad_its_note_on_went_to() {
-    // #560: a pad's note changes from 36 to 37 while its note 36 sounds.
+    // A pad's note changes from 36 to 37 while its note 36 sounds.
     let mut p = create(config());
     let rack = p.handle.add_node(Box::new(RackNode)).unwrap();
     let synth = p.handle.add_node(voices()).unwrap();

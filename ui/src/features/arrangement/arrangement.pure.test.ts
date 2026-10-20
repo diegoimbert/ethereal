@@ -266,7 +266,7 @@ describe("dragPreview", () => {
 
   it("resizes the start keeping the end and shifting the offset", () => {
     expect(dragPreview(input, "resize-start", 1.2).get("a")).toEqual({ track: "m1", start: 5, length: 3, offset: 1 });
-    // base-142: extending past the content start adds a leading gap (negative offset).
+    // Extending past the content start adds a leading gap (negative offset).
     expect(dragPreview(input, "resize-start", -2).get("a")).toEqual({ track: "m1", start: 2, length: 6, offset: -2 });
     // Never before beat 0.
     expect(dragPreview(input, "resize-start", -10).get("a")).toEqual({ track: "m1", start: 0, length: 8, offset: -4 });
@@ -527,7 +527,7 @@ describe("keys and drops", () => {
     expect(k("d", { metaKey: true })).toBe("duplicate");
     expect(k("L", { metaKey: true, shiftKey: true })).toBe("loop");
     expect(k("a", { ctrlKey: true })).toBe("select-all");
-    // #870: Ctrl/Cmd+J consolidates the selected clips.
+    // Ctrl/Cmd+J consolidates the selected clips.
     expect(k("j", { ctrlKey: true })).toBe("consolidate");
     expect(k("j", { metaKey: true })).toBe("consolidate");
     expect(k("j")).toBeNull();

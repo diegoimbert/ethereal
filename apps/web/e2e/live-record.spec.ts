@@ -101,7 +101,7 @@ test("live recording clip grows while recording, then becomes the real clip", as
   await page.getByLabel("token").fill(TOKEN);
   await page.getByRole("button", { name: "connect", exact: true }).click();
   await expect(page.getByTestId("remote-button")).toHaveText(/e2e-rec/);
-  // base-131: the server has no project open; the project screen creates one there.
+  // The server has no project open; the project screen creates one there.
   await createOnLaunch(page, "Remote song");
   await expect.poll(async () => (await project(page)).id).not.toBe(localId);
   await peerSend("Engine", {

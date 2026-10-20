@@ -310,7 +310,7 @@ function useDiskDropouts(playing: boolean) {
 }
 
 /**
- * Disk-streaming dropouts (#441): a warning light next to the CPU meter, only once streamed
+ * Disk-streaming dropouts: a warning light next to the CPU meter, only once streamed
  * media dropped out (hosts or projects that don't stream never show it). Click to reset.
  */
 function DiskIndicator() {

@@ -146,7 +146,7 @@ struct Segment {
 enum Source {
     /// The hardware input channels (every `AudioTarget` of the session).
     Hardware,
-    /// The aligned input tap of this armed track (`tap-recording`).
+    /// The aligned input tap of this armed track.
     Tap(TrackId),
 }
 

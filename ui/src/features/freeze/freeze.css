@@ -1,4 +1,4 @@
-/* Freeze / bounce (v0.2, `freeze-bounce`): track-header status and frozen rows. */
+/* Freeze / bounce (v0.2): track-header status and frozen rows. */
 
 /* A frozen track's toggle stays visible, tinted like ice. */
 .eth-arr-header__toggle.eth-freeze__toggle {

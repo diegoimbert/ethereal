@@ -76,7 +76,7 @@ export function createWebEndpoint(extensions: ReadonlyArray<WebEngineExtension> 
     }
   };
 
-  // A failed start leaves nothing running, and can be tried again (#597).
+  // A failed start leaves nothing running, and can be tried again.
   const start = async (): Promise<void> => {
     teardown();
     dead = false;

@@ -1,5 +1,5 @@
 //! Post-processing and file encoding of a rendered export, fed a block at a time so a long
-//! file never blocks a controller tick nor sits whole in memory (#434): peak scan for
+//! file never blocks a controller tick nor sits whole in memory: peak scan for
 //! normalization ([`PeakScan`]; the gain is applied while encoding), TPDF dither for 16-bit,
 //! WAV (`hound`), FLAC (`flacenc`) and MP3 (`rusty_mp3`, 320 kbps CBR with a gapless tag:
 //! [`Mp3Encoder`]), each written into a [`Sink`] as it is encoded (a file streamed to disk,
@@ -99,7 +99,7 @@ pub fn quantize(x: f32, bits: u32, dither: Option<&mut Dither>) -> i32 {
 /// Seed of the 16-bit dither (fixed: identical renders give identical files).
 pub const DITHER_SEED: u64 = 0x9E37_79B9_7F4A_7C15;
 
-/// Where an encoder writes a file (#434): memory (downloads, and stores that only take
+/// Where an encoder writes a file: memory (downloads, and stores that only take
 /// whole files) or a file the store streams to disk ([`ProjectStore::create_export`]).
 /// Seekable: WAV, FLAC and MP3 headers are filled in once the file is done.
 ///
@@ -468,7 +468,7 @@ fn crc16(crc: u16, bytes: &[u8]) -> u16 {
 /// `mp3_trimmed_frames(n)` samples; one that does not outputs the delay (and maybe a silent
 /// frame for the Info frame) first, then the same samples. Either way the extra samples are
 /// at the start: `decoded length - mp3_trimmed_frames(n)` is the lead to skip, which is how
-/// the static share listener aligns the files (docs/SHARING.md §14.6).
+/// the static share listener aligns the files.
 ///
 /// The audio frames are written as they are encoded, after room for the Info frame, which
 /// is written last (its counts and CRC cover the whole file).

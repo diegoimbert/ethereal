@@ -685,7 +685,7 @@ mod tests {
 
     #[test]
     fn leading_gap_piece() {
-        // base-142: offset -2 = 2 beats of empty content before content 0.
+        // Offset -2 = 2 beats of empty content before content 0.
         let c = clip(8.0, 4.0, -2.0, None);
         assert_eq!(pieces(&c, 0.0, 100.0), vec![(8.0, 12.0, -2.0, 12.0)]);
         assert_eq!(content_at(&c, 10.0), Some(0.0));

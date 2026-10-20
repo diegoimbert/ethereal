@@ -1,4 +1,4 @@
-//! The desktop app's agent bridge (`agent-api`; docs/MCP.md): an opt-in loopback listener
+//! The desktop app's agent bridge (docs/MCP.md): an opt-in loopback listener
 //! that speaks the remote-engine protocol against the controller the UI already uses, so
 //! `ether-mcp` (and any other remote-engine client holding the token) can drive the
 //! running app.

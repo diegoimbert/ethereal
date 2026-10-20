@@ -1,4 +1,4 @@
-//! Sound quality of the built-in devices (#520): objective, render-based measurements.
+//! Sound quality of the built-in devices: objective, render-based measurements.
 //!
 //! `audit` (ignored; run it in release:
 //! `cargo test --release -p ether-devices --test sound_quality -- --ignored --nocapture`)
@@ -987,7 +987,7 @@ fn audio_effects() -> Vec<T> {
 }
 
 /// A knob jump on any continuous param of any audio effect adds no audible broadband burst
-/// (#520: the v0.2 effects ramped every change over 32 samples, delay-time jumps swept the
+/// (the v0.2 effects ramped every change over 32 samples, delay-time jumps swept the
 /// echoes' pitch by octaves, lookahead changes jumped the audio tap).
 #[test]
 fn effect_knob_jumps_do_not_zipper() {
@@ -1013,7 +1013,7 @@ fn sample_alias_db(ty: T, key: u8) -> f64 {
     alias_db(&out[secs(0.1)..secs(0.1) + 16384], hz(key), 18_000.0)
 }
 
-/// A sample pitched up 2, 3 and 4 octaves doesn't alias (#520: linear / Hermite reads
+/// A sample pitched up 2, 3 and 4 octaves doesn't alias (linear / Hermite reads
 /// aliased at -19, -15 and -5 dB).
 #[test]
 fn pitched_samples_do_not_alias() {
@@ -1027,7 +1027,7 @@ fn pitched_samples_do_not_alias() {
 }
 
 /// The multisampler's 24 dB low-pass at full resonance boosts like one resonant stage, not
-/// two (#520: +24 dB, a sweep peaked at +21 dBFS).
+/// two (+24 dB, a sweep peaked at +21 dBFS).
 #[test]
 fn multisampler_resonance_is_bounded() {
     // Low-pass 24 (type 1), cutoff 1 kHz, a C2 saw sample.
@@ -1060,7 +1060,7 @@ fn multisampler_resonance_is_bounded() {
     assert!(finite(&out) && peak(&out) < 1.0, "{}", db(peak(&out)));
 }
 
-/// Saturator aliasing at 24 dB of drive on a 4987 Hz sine (#520: 2x aliased at -30 to -35
+/// Saturator aliasing at 24 dB of drive on a 4987 Hz sine (2x aliased at -30 to -35
 /// dB, 4x hard clipping at -39 and rectify at -19, before ADAA; the default is now 4x).
 #[test]
 fn saturator_oversampled_curves_alias_little() {
@@ -1091,7 +1091,7 @@ fn saturator_oversampled_curves_alias_little() {
     assert_eq!(d.param(ether_core::protocol::model::ParamId(4)), Some(2.0));
 }
 
-/// A fresh instrument's chord doesn't clip (#520: the FM synth's five-note chord at velocity
+/// A fresh instrument's chord doesn't clip (the FM synth's five-note chord at velocity
 /// 100 peaked at +5.6 dBFS).
 #[test]
 fn fresh_synth_chords_do_not_clip() {
@@ -1108,7 +1108,7 @@ fn fresh_synth_chords_do_not_clip() {
     }
 }
 
-/// A fresh convolution reverb is a reverb (#520: it had no impulse response and passed
+/// A fresh convolution reverb is a reverb (it had no impulse response and passed
 /// audio through untouched).
 #[test]
 fn fresh_convolution_reverb_reverberates() {
@@ -1124,11 +1124,11 @@ fn fresh_convolution_reverb_reverberates() {
     );
 }
 
-/// Bound of the poly synth's aliasing with the filter open (#845: its filter's saturating
+/// Bound of the poly synth's aliasing with the filter open (its filter's saturating
 /// input aliased at -48 to -52 dB before it ran 2x oversampled).
 const POLY_ALIAS_DB: f64 = -57.0;
 
-/// The virtual-analog oscillators alias little on high notes with the filter open (#520:
+/// The virtual-analog oscillators alias little on high notes with the filter open (
 /// 2-point polyBLEP left -35 to -42 dB).
 #[test]
 fn analog_oscillators_alias_little() {
@@ -1157,7 +1157,7 @@ fn analog_oscillators_alias_little() {
     }
 }
 
-/// The limiter holds true (inter-sample) peaks under the ceiling (#520: sample-peak
+/// The limiter holds true (inter-sample) peaks under the ceiling (sample-peak
 /// detection let them 0.8 dB over at +12 dB of drive).
 #[test]
 fn limiter_true_peaks_stay_under_the_ceiling() {
@@ -1167,7 +1167,7 @@ fn limiter_true_peaks_stay_under_the_ceiling() {
     assert!(over < 0.2, "{over:.2} dB over the ceiling");
 }
 
-/// A stolen sample voice fades out instead of being cut (#520: a hard cut, -42 dB click).
+/// A stolen sample voice fades out instead of being cut (a hard cut, -42 dB click).
 /// The new notes attack in 10 ms, so a click can only come from the stolen voice.
 #[test]
 fn stolen_sample_voices_fade_out() {
@@ -1181,7 +1181,7 @@ fn stolen_sample_voices_fade_out() {
     }
 }
 
-/// The auto filter's drive stage, oversampled 4x, folds little back (#520: -17 dB at 1x),
+/// The auto filter's drive stage, oversampled 4x, folds little back (-17 dB at 1x),
 /// and its dry path stays aligned with the oversampled wet one (no comb at 50 % mix).
 #[test]
 fn auto_filter_drive_aliases_little_and_mix_stays_aligned() {
@@ -1213,7 +1213,7 @@ fn preset_params(json: &str) -> Vec<(u32, f64)> {
 }
 
 /// Every factory preset of the synths and the (non-rack) audio effects sounds sane on a
-/// fresh instance (#520): finite, no clipping, audible, and an effect's level within a few
+/// fresh instance: finite, no clipping, audible, and an effect's level within a few
 /// dB of its input (presets that deliberately change the level aside).
 #[test]
 fn factory_presets_render_sanely() {
@@ -1329,7 +1329,7 @@ fn render_rack_preset(json: &str, input: &[Vec<f32>; 2]) -> [Vec<f32>; 2] {
     sum
 }
 
-/// The compressors' steady-state reduction on a sine follows their static curve (#845: the
+/// The compressors' steady-state reduction on a sine follows their static curve (the
 /// branching attack/release smoother sagged between the sine's peaks, 1.0 / 1.7 dB short of
 /// 4:1 / 3:1 at 0 dBFS).
 #[test]
@@ -1345,7 +1345,7 @@ fn compressors_reach_their_static_curve() {
     assert!(bad.is_empty(), "{bad:#?}");
 }
 
-/// The transient shaper's `Clip` is oversampled (#845: -41 dB of aliasing at +12 dB on a
+/// The transient shaper's `Clip` is oversampled (-41 dB of aliasing at +12 dB on a
 /// 5 kHz sine), and reports latency only while it is on.
 #[test]
 fn transient_shaper_clip_aliases_little() {
@@ -1356,7 +1356,7 @@ fn transient_shaper_clip_aliases_little() {
     assert!(make(T::TransientShaper, &[(4, 1.0)]).latency() > 0);
 }
 
-/// A new note in mono mode doesn't click (#845: the pitch jumped at once, so a sine's slope
+/// A new note in mono mode doesn't click (the pitch jumped at once, so a sine's slope
 /// broke: -50 dB on the synth, poly synth and FM synth; what is left is the envelope's
 /// retrigger, as on any retriggered note).
 #[test]
@@ -1372,7 +1372,7 @@ fn mono_note_changes_do_not_click() {
     assert!(bad.is_empty(), "{bad:#?}");
 }
 
-/// A cutoff jump on the samplers glides per sample (#845: per render chunk, 8 kHz -> 200 Hz
+/// A cutoff jump on the samplers glides per sample (per render chunk, 8 kHz -> 200 Hz
 /// zippered at -47 / -57 dB).
 #[test]
 fn sampler_cutoff_jumps_do_not_zipper() {
@@ -1406,7 +1406,7 @@ fn reverb_ir_quality(params: &[(u32, f64)]) -> (f64, f64, f64) {
     )
 }
 
-/// The algorithmic reverb's early tail is dense at every size, and its tank smooth (#845:
+/// The algorithmic reverb's early tail is dense at every size, and its tank smooth (
 /// at size 100 the tank's first echoes came 60 to 117 ms apart: an echo density of 0.23
 /// 50 ms in and 0.59 100 ms in, 0.67 50 ms in at the defaults; undamped, a 0.83 dB rough
 /// tail). Damped tails are left out of the roughness bound: they darken as they decay, and

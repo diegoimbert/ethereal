@@ -12,7 +12,7 @@
 //! The gain in dB is `Attack · (level - slow) + Sustain · (tail - level)` (amounts
 //! -100..=100 % = -1..=1), clamped to ±[`MAX_GAIN_DB`]: steady signals pass unchanged and
 //! the effect doesn't depend on the input level. `Clip` soft-clips the output at 0 dBFS
-//! (tanh), 4x oversampled with first-order ADAA like the saturator's default path (#845: at
+//! (tanh), 4x oversampled with first-order ADAA like the saturator's default path (at
 //! 1x it aliased at -41 dB on a 5 kHz sine driven 12 dB into it); only then does the device
 //! report latency ([`CLIP_LATENCY`] samples). `Mix` is a parallel blend. The applied shaping gain (dB, the largest
 //! |gain| since the last read, sign kept) is published as `AnalysisKind::Levels [gain dB]`
@@ -123,7 +123,7 @@ pub struct TransientShaper {
     clippers: [Clipper; 2],
     /// Largest |gain| (dB, sign kept) since the last analysis read.
     meter_db: f32,
-    /// Silence reporting (perf audit #5).
+    /// Silence reporting.
     silence: crate::util::Tail,
 }
 

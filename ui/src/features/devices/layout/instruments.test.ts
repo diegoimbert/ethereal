@@ -1,4 +1,4 @@
-// devices-pass-instruments: the built-in instruments' declared layouts as the renderer
+// The built-in instruments' declared layouts as the renderer
 // resolves them (mock descriptors = the Rust ones, `v02_descriptors.rs` keeps them equal),
 // their window widths, and the cents unit.
 import { describe, expect, it } from "vitest";

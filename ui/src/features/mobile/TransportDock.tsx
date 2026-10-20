@@ -1,5 +1,5 @@
 /**
- * The mobile transport (#522): a thumb-reach bar at the bottom of the screen. The same
+ * The mobile transport: a thumb-reach bar at the bottom of the screen. The same
  * commands as the desktop transport bar (`features/transport-bar`), with touch-sized
  * buttons: stop, play/pause, record, loop, metronome, plus the position, the tempo and the
  * follow-playhead toggle on a slim status row above (one row in phone landscape). A read-only
@@ -27,7 +27,7 @@ export function TransportDock() {
   const follow = useTimelineView(arrangementView, (s) => s.followPlayhead);
   const disabled = !transport || !hasProject;
   const readOnly = useReadOnly();
-  // The browser has no audio or MIDI inputs: no recording there (#717), like the desktop bar.
+  // The browser has no audio or MIDI inputs: no recording there, like the desktop bar.
   const noRecording = useRecordingUnsupported(transport ?? null, !disabled && !readOnly);
   const playing = state?.playing ?? false;
   const recording = state?.recording ?? false;

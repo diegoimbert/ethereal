@@ -1,4 +1,4 @@
-//! Touching notes (base-148): a note ending on the sample the next one starts must reach
+//! Touching notes: a note ending on the sample the next one starts must reach
 //! the instrument as note-off *then* note-on (no false legato / overlap in mono synths, and
 //! a same-pitch repeat retriggers), whatever the block size, and across clip boundaries,
 //! content loops and the transport loop wrap.

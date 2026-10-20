@@ -1,4 +1,4 @@
-//! Native e2e of the library file filters (`base-145`, CONTRACTS.md §12.8) on the real
+//! Native e2e of the library file filters (CONTRACTS.md §12.8) on the real
 //! desktop host (`DiskLibrary` over a real folder): the folder view lists only supported
 //! files by default, a whitelist rule shows a new type, a bad rule is refused, and the
 //! filter survives a restart.

@@ -1,4 +1,4 @@
-// Mobile performance and memory (#522, the design's §9 and §11), on the Pixel 7 profile with the
+// Mobile performance and memory (the design's §9 and §11), on the Pixel 7 profile with the
 // CPU throttled 4× (a mid-range phone), a 16-track project:
 // - a 2 s one-finger pan and a 2 s pinch through real touch input (CDP): frame intervals
 //   (median, p95) and long tasks during the gesture. The budgets (p95 ≤ 20 ms on WebGL, no
@@ -17,7 +17,7 @@ import { arrangementViewState, IPHONE, launchMobile, PIXEL, touchscreen } from "
 test.use({ trace: "off" });
 
 /**
- * The tab with 20 minutes of mono audio open (#640). Measured 555 MB on 2026-10-13 (the
+ * The tab with 20 minutes of mono audio open. Measured 555 MB on 2026-10-13 (the
  * 16-track MIDI project: 338 MB): the decoded samples (32-bit float, 2× the 16-bit files)
  * dominate. The budget leaves about a quarter of headroom.
  */

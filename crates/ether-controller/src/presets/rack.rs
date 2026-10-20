@@ -1,4 +1,4 @@
-//! Rack presets (v0.3, `rack-presets`; file format `ether_model::preset::PresetRack`,
+//! Rack presets (v0.3; file format `ether_model::preset::PresetRack`,
 //! CONTRACTS.md §13.9).
 //!
 //! - [`snapshot`] (`Save` of a rack device): the rack's chains in order with their devices
@@ -15,7 +15,7 @@
 //!   A mapping the target no longer accepts (param gone, not automatable) is skipped with a
 //!   warning; content the rack refuses (an instrument on an audio effect rack chain) fails
 //!   the whole load.
-//! - Drum racks (#761): [`snapshot`] stores the pads sorted by note (note, name, color,
+//! - Drum racks: [`snapshot`] stores the pads sorted by note (note, name, color,
 //!   choke group, mix) with their chains' devices instead of chains (the rack's modulators
 //!   only map onto the rack itself: they don't reach pad devices); [`rebuild`] also removes the rack's pads (with their chains) and creates the
 //!   preset's pads, then each pad's devices, after the (empty) chains and before the

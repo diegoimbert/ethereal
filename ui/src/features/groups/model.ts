@@ -1,5 +1,5 @@
 /**
- * Pure helpers for groups, buses, track input taps and VCAs (v0.2, `groups-buses`;
+ * Pure helpers for groups, buses, track input taps and VCAs (v0.2;
  * CONTRACTS.md §12.10). No stores, no transport: the actions and views feed them the
  * project's track table.
  */

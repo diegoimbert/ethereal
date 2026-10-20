@@ -1,4 +1,4 @@
-//! Project versions and crash recovery (v0.3, `project-versions`;
+//! Project versions and crash recovery (v0.3;
 //! protocol `ether_protocol::versions`, CONTRACTS.md §13.11).
 //!
 //! - [`EtherController::version_command`]: every `Version` command (from `handlers.rs`).

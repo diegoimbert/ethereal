@@ -1,4 +1,4 @@
-//! `audio-streaming`: chunked decoding matches the whole-file path, and a cache filled by
+//! Chunked decoding matches the whole-file path, and a cache filled by
 //! the policy serves a played-through stream without underruns.
 
 mod common;

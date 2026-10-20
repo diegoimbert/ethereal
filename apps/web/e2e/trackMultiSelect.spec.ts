@@ -1,4 +1,4 @@
-// base-151: track multi-selection on the web build. Select two tracks (click, then
+// Track multi-selection on the web build. Select two tracks (click, then
 // shift-click their headers): ⌘D duplicates both (with their clips) as one undo step, and
 // the right-click menu acts on the whole selection ("Delete 2 Tracks").
 //

@@ -1,12 +1,12 @@
 /**
- * Per-note expression lane (`NoteExpressionKind`; `midi-expression` edits `Pressure`, the
+ * Per-note expression lane (`NoteExpressionKind`; MIDI expression edits `Pressure`, the
  * `mpe` adds `Pitch` / `Timbre` with the same component): each note's curve is drawn
  * over the note's span (times are beats from the note start).
  *
  * - Drag: pencil over the selected notes (all shown notes when none is selected). Every
  *   note under the stroke gets its curve's stroke range replaced (`SetNoteExpression` per
  *   note, batched per pointer move, one gesture = one undo step).
- * - Right-click: clear the curves of the selected (or all shown) notes, after a confirmation (#717).
+ * - Right-click: clear the curves of the selected (or all shown) notes, after a confirmation.
  */
 
 import { useMemo, useRef } from "react";

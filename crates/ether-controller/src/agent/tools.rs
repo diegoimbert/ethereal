@@ -666,7 +666,7 @@ pub fn is_read_only(name: &str) -> bool {
     READ_ONLY.contains(&name)
 }
 
-/// #583: tools that never edit the shared document (the read-only ones, plus local playback,
+/// Tools that never edit the shared document (the read-only ones, plus local playback,
 /// saving and exporting the local copy): the only ones available on a listen (view-only) link.
 pub fn allowed_view_only(name: &str) -> bool {
     is_read_only(name) || matches!(name, "transport" | "save_project" | "export_audio")

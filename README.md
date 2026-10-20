@@ -41,7 +41,7 @@ regenerated with `just notices` (the license policy gate is `deny.toml`).
 | Tool | Version | Install |
 |---|---|---|
 | Rust | stable (pinned by `rust-toolchain.toml`) | [rustup](https://rustup.rs); the toolchain file installs `rustfmt`, `clippy` and the `wasm32-unknown-unknown` target automatically on first `cargo` run (or `rustup target add wasm32-unknown-unknown`). |
-| wasm-bindgen CLI | must match the `wasm-bindgen` crate version in `Cargo.lock` | `cargo install wasm-bindgen-cli --version <x.y.z>`. Only needed to build the browser engine (wasm-host work), not for checks. |
+| wasm-bindgen CLI | must match the `wasm-bindgen` crate version in `Cargo.lock` | `cargo install wasm-bindgen-cli --version <x.y.z>`. Only needed to build the browser engine (browser engine work), not for checks. |
 | Node.js | >= 20 (CI uses 24) | [nodejs.org](https://nodejs.org) or `fnm`/`nvm` |
 | pnpm | as pinned in `package.json` `packageManager` | `corepack enable` (or `npm i -g pnpm`) |
 | just | any recent | `brew install just` / `cargo install just` / [just.systems](https://just.systems) |

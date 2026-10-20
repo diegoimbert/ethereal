@@ -1,4 +1,4 @@
-// The desktop app's macOS menu bar (#573; the shell's side: apps/desktop/src-tauri/src/app_menu.rs).
+// The desktop app's macOS menu bar (the shell's side: apps/desktop/src-tauri/src/app_menu.rs).
 // Its File, Edit (undo / redo / select all) and Help items emit `MENU_ACTION_EVENT` with a
 // keymap action id or a command palette id; `runMenuAction` runs it as its shortcut or palette
 // row would. Undo / redo / select all in a text field go back to AppKit (the field's own

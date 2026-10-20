@@ -1,4 +1,4 @@
-//! Render-graph fixtures for the codec tests and benchmarks (`web-perf`).
+//! Render-graph fixtures for the codec tests and benchmarks.
 //!
 //! Also included by `crates/ether-wasm/tests/web_perf*.rs` via `#[path]`, so keep it
 //! dependency-free beyond `ether-core`.
@@ -582,7 +582,7 @@ pub fn all_variants() -> RenderGraphDesc {
     }
 }
 
-/// Fill the v0.2 track fields (contracts-3) and `vcas` of `d`, covering every variant and
+/// Fill the v0.2 track fields and `vcas` of `d`, covering every variant and
 /// `Option` state. Only finite floats (`frozen` still travels as a JSON blob).
 pub fn fill_v02(d: &mut RenderGraphDesc) {
     use ether_core::InputTapDesc;

@@ -6,7 +6,7 @@
 //! cargo test --release -p ether-core --test perf_engine -- --ignored --nocapture
 //! ```
 //!
-//! The non-ignored test checks the property the audit's fix (#7) relies on: rendering late
+//! The non-ignored test checks the property the audit's fix relies on: rendering late
 //! in a long song after a locate is the same, bit for bit, as reaching it by playing.
 
 mod common;

@@ -118,7 +118,7 @@ export function PadSettings({ pad }: { pad: DrumPad }) {
 const SAMPLER_TRANSPOSE = 2;
 
 /**
- * devices-pass-instruments: the pad's sample at a glance: its first sampler's tune
+ * The pad's sample at a glance: its first sampler's tune
  * (transpose, as "Tune") (the preview is on the pad). Nothing for a pad without a sampler.
  */
 function PadSampleControls({ pad }: { pad: DrumPad }) {

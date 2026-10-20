@@ -310,7 +310,7 @@ function Workspace() {
   );
 }
 
-/** The mobile shell (#522), its own chunk: desktops never load it. */
+/** The mobile shell, its own chunk: desktops never load it. */
 const MobileShell = lazy(() => import("@/features/mobile/MobileShell").then((m) => ({ default: m.MobileShell })));
 /** The read-only shell on a touch screen, from the same chunk. */
 const MobileViewerShell = lazy(() => import("@/features/mobile/MobileShell").then((m) => ({ default: m.MobileViewerShell })));
@@ -336,7 +336,7 @@ function Shell() {
   const mobile = useMobileUi((s) => s.enabled);
   const connection = useContext(TransportContext);
   const usingRemote = useTransportSwitch()?.remote != null;
-  // The tab (and desktop window) title: `ethereal - <project>` (#740).
+  // The tab (and desktop window) title: `ethereal - <project>`.
   useDocumentTitle();
   // Extensions (`@/ext` "app.init").
   useExtensionInit();
@@ -353,7 +353,7 @@ function Shell() {
     ) : (
       <ViewerShell />
     );
-  // #597: the local engine didn't start: say why (the editor would stay blank), with retry.
+  // The local engine didn't start: say why (the editor would stay blank), with retry.
   if (connection?.connection.status === "error" && !usingRemote) return <EngineErrorScreen error={connection.connection.error} onRetry={connection.retry} />;
   if (mobile)
     return (
@@ -397,7 +397,7 @@ function ViewerShell() {
 
 function EditorShell() {
   const t = useT();
-  // #717: arms and punch come back when a project opens again.
+  // Arms and punch come back when a project opens again.
   useKeepRecordingSetup();
   return (
     <div className="eth-shell">
@@ -445,12 +445,12 @@ function EditorShell() {
         <Workspace />
       </PanelBoundary>
       <ExtensionRoots shell="editor" slot="status-bar" />
-      {/* base-153: factory device windows, floating above the workspace. */}
+      {/* factory device windows, floating above the workspace. */}
       <PanelBoundary name="device windows" variant="overlay">
         <DeviceWindowsRoot />
         <ExtensionRoots shell="editor" slot="device-windows" bare />
       </PanelBoundary>
-      {/* base-154: the open debug panels (features/debug), floating windows. */}
+      {/* the open debug panels (features/debug), floating windows. */}
       <PanelBoundary name="debug panels" variant="overlay">
         <DebugPanelsRoot />
       </PanelBoundary>
@@ -495,7 +495,7 @@ function EditorShell() {
       <PanelBoundary name="news" variant="overlay">
         <NewsRoot />
       </PanelBoundary>
-      {/* docs (#665): the user documentation over the app (desktop; the web opens /docs). */}
+      {/* docs: the user documentation over the app (desktop; the web opens /docs). */}
       <PanelBoundary name="documentation" variant="overlay">
         <DocsRoot />
       </PanelBoundary>

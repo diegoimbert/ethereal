@@ -1,4 +1,4 @@
-// #424: a plugin's knobs show the plugin's own display text (`Plugin::ParamTexts`: VST2
+// A plugin's knobs show the plugin's own display text (`Plugin::ParamTexts`: VST2
 // `effGetParamDisplay` + label, CLAP `value_to_text`, VST3 `getParamStringByValue` + units),
 // and the formatted number when the host has none.
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";

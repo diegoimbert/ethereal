@@ -154,7 +154,7 @@ test("ai-chat: a scripted tool-using conversation edits the arrangement", async 
   await expect(panel).toBeVisible();
   await panel.getByLabel("API key").fill(KEY);
   await panel.getByRole("button", { name: "save key" }).click();
-  // #717: agree once to send the project to this provider.
+  // Agree once to send the project to this provider.
   await panel.getByTestId("ai-consent-accept").click();
 
   await panel.getByTestId("ai-input").fill("Create a track called Bass and add a C minor arpeggio");

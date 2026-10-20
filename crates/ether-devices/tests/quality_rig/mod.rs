@@ -1,4 +1,4 @@
-//! Shared rig of the sound-quality tests (#520): offline rendering of any built-in device
+//! Shared rig of the sound-quality tests: offline rendering of any built-in device
 //! and the objective measurements (aliasing, clicks, zipper noise, DC, levels, reverb
 //! density / smoothness, CPU). Used by `sound_quality.rs` (regression tests) and its
 //! `audit` report (`cargo test --release -p ether-devices --test sound_quality -- --ignored

@@ -12,7 +12,7 @@ use crate::lfo_curve::LfoCurve;
 use crate::multisampler::SampleZone;
 use crate::value::{Base64Bytes, OrderKey, ParamId};
 
-/// The factory impulse response a new convolution reverb starts on (#520: with none it
+/// The factory impulse response a new convolution reverb starts on (with none it
 /// passed audio through untouched). The UI's `builtinDevice` mirrors it.
 pub const DEFAULT_CONVOLUTION_IR: &str = "hall";
 
@@ -47,7 +47,7 @@ pub struct Device {
     /// the track's own chain. Pad devices keep `track` = the rack's track; chain order is
     /// `order` among devices with the same `(track, pad)`.
     pub pad: Option<DrumPadId>,
-    /// Rack chain this device is on (v0.2, `racks-modulation`; see [`crate::rack`]). `None` =
+    /// Rack chain this device is on (v0.2; see [`crate::rack`]). `None` =
     /// not in a rack. Mutually exclusive with `pad`; `track` = the rack's track. Omitted from
     /// JSON when `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -205,10 +205,10 @@ impl MissingParam {
 /// Parameters are *not* here (they are `Device::params`, described by the device type's
 /// `DeviceDescriptor` from `ether-devices`). Variants after `Delay` are roadmap v2: their
 /// parameter lists are defined in `ether-devices` (docs/DEVICES.md); ids are
-/// append-only, never renumbered once released. Variants after `DrumRack` are v0.2
-/// (contracts-3): their param tables are frozen in their `ether-devices` module (append-only)
-/// and implemented there (docs/DEVICES.md). Variants after `MidiEffectRack` are v0.3
-/// (contracts-4), same rules.
+/// append-only, never renumbered once released. Variants after `DrumRack` are v0.2:
+/// their param tables are frozen in their `ether-devices` module (append-only)
+/// and implemented there (docs/DEVICES.md). Variants after `MidiEffectRack` are v0.3,
+/// same rules.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum BuiltinDevice {
@@ -221,18 +221,18 @@ pub enum BuiltinDevice {
     },
     Compressor,
     Delay,
-    /// Parametric EQ with a fixed number of bands (`devices-2`).
+    /// Parametric EQ with a fixed number of bands.
     Eq,
-    /// Algorithmic reverb (`devices-2`).
+    /// Algorithmic reverb.
     Reverb,
-    /// Brickwall/lookahead limiter (`devices-2`).
+    /// Brickwall/lookahead limiter.
     Limiter,
-    /// Gain, pan, stereo width, phase invert, mono (`devices-2`).
+    /// Gain, pan, stereo width, phase invert, mono.
     Utility,
     /// Instrument hosting [`crate::drum_rack::DrumPad`]s, each with its own chain
     /// (`drum-rack`).
     DrumRack,
-    // --- v0.2 (contracts-3); work item in parentheses ---
+    // --- v0.2 ---
     /// Polyphonic subtractive/wavetable synth (`synth-2`).
     PolySynth,
     /// Key/velocity-zoned sampler with round robin (`multisampler`).
@@ -277,13 +277,13 @@ pub enum BuiltinDevice {
     Randomizer,
     /// Transpose by semitones within a note range, MIDI effect (`midi-fx`).
     Pitch,
-    /// Rack of parallel instrument chains (`racks-modulation`, [`crate::rack`]).
+    /// Rack of parallel instrument chains ([`crate::rack`]).
     InstrumentRack,
-    /// Rack of parallel audio effect chains (`racks-modulation`).
+    /// Rack of parallel audio effect chains.
     AudioEffectRack,
-    /// Rack of parallel MIDI effect chains (`racks-modulation`).
+    /// Rack of parallel MIDI effect chains.
     MidiEffectRack,
-    // --- v0.3 (contracts-4); work item in parentheses ---
+    // --- v0.3 ---
     /// Partitioned convolution reverb (`fx-space`). `ir: None` = no IR loaded (dry only); a
     /// new one ([`BuiltinDevice::new`]) starts on the factory [`DEFAULT_CONVOLUTION_IR`].
     ConvolutionReverb {
@@ -297,7 +297,7 @@ pub enum BuiltinDevice {
     ExternalAudioEffect {
         routing: ExternalRouting,
     },
-    // --- after v0.3; work item in parentheses ---
+    // --- after v0.3 ---
     /// Four-operator FM synth with 11 algorithms (`fm-synth`).
     FmSynth,
     /// Pitch wobble: LFO-modulated delay line (vibrato, wow and flutter; `fx-modulation`).
@@ -347,7 +347,7 @@ pub enum BuiltinDeviceType {
     InstrumentRack,
     AudioEffectRack,
     MidiEffectRack,
-    // --- v0.3 (contracts-4) ---
+    // --- v0.3 ---
     ConvolutionReverb,
     ExternalInstrument,
     ExternalAudioEffect,

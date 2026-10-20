@@ -1,4 +1,4 @@
-// #622: the web app asks the browser to keep its storage (the projects in OPFS) permanently,
+// The web app asks the browser to keep its storage (the projects in OPFS) permanently,
 // says once when it won't, and Settings > General shows the state and the usage.
 import { expect, test, type Page } from "@playwright/test";
 import { launch } from "./ui";

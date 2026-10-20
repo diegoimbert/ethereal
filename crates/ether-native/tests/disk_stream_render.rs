@@ -1,4 +1,4 @@
-//! `audio-streaming` on the native bridge, rendered by the real engine on the test thread
+//! Audio streaming on the native bridge, rendered by the real engine on the test thread
 //! (the "audio thread"), with the real controller and disk store.
 //!
 //! The same project is rendered twice: media decoded whole (v0.2) and streamed from disk

@@ -1,4 +1,4 @@
-//! Band-limited fractional reads for sample playback (sampler, multisampler; #520).
+//! Band-limited fractional reads for sample playback (sampler, multisampler).
 //!
 //! A sample played `rate` times faster (pitched up) must lose everything above
 //! `Nyquist / rate` before it is read, or that content folds back as aliasing: plain linear

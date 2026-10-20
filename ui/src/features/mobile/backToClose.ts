@@ -1,4 +1,4 @@
-/** The system back (button or gesture) closes the open sheet or panel (#522, the design's §7). */
+/** The system back (button or gesture) closes the open sheet or panel (the design's §7). */
 import { useEffect, useRef } from "react";
 
 let nextEntry = 1;

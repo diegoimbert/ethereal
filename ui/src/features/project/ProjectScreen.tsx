@@ -23,15 +23,15 @@ import { t as translate, Trans, useT } from "@/i18n";
 import { contributions, useContributions, type ProjectRowAction } from "@/ext";
 
 /**
- * The project picker ("Open project", owner request): a modal listing the stored projects to
+ * The project picker ("Open project"): a modal listing the stored projects to
  * open (open without plugins, rename, duplicate, export or delete from a row's menu), with a
- * "New project" button. It is shown on launch (nothing opens by itself, base-131) and from
+ * "New project" button. It is shown on launch (nothing opens by itself) and from
  * the project menu; dismissing it with no project open lands in a new draft project
  * (`drafts.ts`: named after today's date, kept only once changed). The project's own actions
  * live in the top bar's project menu (`index.tsx`). It also hosts the "New project" form
  * (templates) and "Save as" (command palette). The crash-recovery dialog goes first.
  *
- * At launch it can show before the engine is up (#646, `launch.ts`): its actions are disabled
+ * At launch it can show before the engine is up (`launch.ts`): its actions are disabled
  * and the recent projects are placeholder rows (as many as last time) until launch is done.
  */
 export function ProjectScreen({ commands }: { commands: EngineCommands }) {
@@ -146,7 +146,7 @@ function writeRecentCount(n: number): void {
 function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(): void; onClose(): void }) {
   const t = useT();
   const { send, transport } = commands;
-  // Launch isn't done (the engine is loading, #646): the actions wait, the list is placeholders.
+  // Launch isn't done (the engine is loading): the actions wait, the list is placeholders.
   const ready = !useProjectScreen((s) => s.launching);
   const engineFailed = useOptionalConnection()?.status === "error";
   const [bones] = useState(readRecentCount);
@@ -255,7 +255,7 @@ function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(
     const extra = contributions("project.rowActions").flatMap((f) => [...f(p)]);
     const entries: ContextMenuEntry[] = [
       { label: t("project.actions.open"), onSelect: () => void openProject(p.id) },
-      // base-131: plugin devices stay bypassed placeholders until "Load plugins".
+      // Plugin devices stay bypassed placeholders until "Load plugins".
       { label: t("project.actions.open_safe"), onSelect: () => void openProject(p.id, true) },
       { label: t("project.actions.rename"), onSelect: () => setRenaming({ id: p.id, name: p.name }) },
       {

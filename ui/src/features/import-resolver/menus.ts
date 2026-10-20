@@ -1,5 +1,5 @@
 /**
- * Right-click "Resolve…" entries for missing items, wherever they appear (owner request):
+ * Right-click "Resolve…" entries for missing items, wherever they appear:
  * a missing plugin's device card / header and its "missing" badge, a missing audio clip
  * (arranger and audio editor), the missing-sample notice and Relink rows, and the import
  * report's plugin and audio file lines. Each opens the resolver focused on that item.

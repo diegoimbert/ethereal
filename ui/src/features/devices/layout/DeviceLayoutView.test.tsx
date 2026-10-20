@@ -57,7 +57,7 @@ const EVERY_WIDGET: DeviceLayout = {
         it_({ type: "Slider", param: 8, vertical: true }),
         it_({ type: "Choice", param: 0 }),
         it_({ type: "Number", param: 1 }, "Small"),
-        // devices-pass-instruments: fine, glide, velocity, filter env, key tracking.
+        // Fine, glide, velocity, filter env, key tracking.
         ...[9, 10, 11, 12, 13].map((param) => it_({ type: "Knob", param }, "Small")),
         // The voice mode (Poly / Mono / Legato).
         it_({ type: "Choice", param: 14 }),

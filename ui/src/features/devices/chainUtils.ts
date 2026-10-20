@@ -37,7 +37,7 @@ export function deviceCategory(d: Device, builtins: ReadonlyArray<DeviceDescript
 /**
  * Whether a built-in type is offered (device browser, insert menus, command palette, import
  * resolver): `implemented: false` marks a type whose engine node is still a contract
- * placeholder (#438). `ListBuiltin` still returns those (flagged) so a document holding one
+ * placeholder. `ListBuiltin` still returns those (flagged) so a document holding one
  * shows it; only the places that offer devices filter here.
  */
 export function isOffered(d: DeviceDescriptor): boolean {

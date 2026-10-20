@@ -1,4 +1,4 @@
-//! `devices-pass-effects`: params appended to the built-in effects default to the sound the
+//! Params appended to the built-in effects default to the sound the
 //! effects had before them. Each case renders a fixed stereo signal (tones, noise bursts,
 //! silence; transport playing at 120 BPM) through a fresh device, with only pre-existing
 //! params set, and compares a hash of the output bits with the one recorded before the pass.
@@ -121,7 +121,7 @@ type Case = (&'static str, BuiltinDevice, Vec<(u32, f64)>, u64);
 fn cases() -> Vec<Case> {
     use BuiltinDevice as B;
     vec![
-        // Re-recorded for #845: decoupled peak ballistics (the static curve's reduction).
+        // Re-recorded for decoupled peak ballistics (the static curve's reduction).
         ("compressor", B::Compressor, vec![], 0xd797_c73d_d217_1d94),
         (
             "compressor-rms",
@@ -142,7 +142,7 @@ fn cases() -> Vec<Case> {
             vec![(0, 1.0), (2, 5.0), (5, 1.0), (3, 80.0)],
             0x57ca_a269_3471_a4dd,
         ),
-        // Re-recorded for #845: the multichannel diffuser in front of the tank.
+        // Re-recorded for the multichannel diffuser in front of the tank.
         ("reverb", B::Reverb, vec![], 0x6bdb_535a_e42f_6f0a),
         (
             "reverb-big",
@@ -150,7 +150,7 @@ fn cases() -> Vec<Case> {
             vec![(1, 90.0), (2, 8.0), (3, 10.0), (0, 80.0)],
             0x712b_0d0d_009b_a228,
         ),
-        // Re-recorded for #520: true-peak detection (8 more samples of latency).
+        // Re-recorded for true-peak detection (8 more samples of latency).
         (
             "limiter",
             B::Limiter,
@@ -199,9 +199,9 @@ fn cases() -> Vec<Case> {
         ),
         ("tremolo", B::Tremolo, vec![], 0x1f7e_a3a7_37f9_a12b),
         ("gate", B::Gate, vec![(0, -20.0)], 0x7b57_873b_c802_8553),
-        // Re-recorded for #520: ADAA on the oversampled curve, 4x by default.
+        // Re-recorded for ADAA on the oversampled curve, 4x by default.
         ("saturator", B::Saturator, vec![], 0x7739_a71b_6f51_4864),
-        // Re-recorded for #520: 4x oversampled (29 samples of latency).
+        // Re-recorded for 4x oversampled (29 samples of latency).
         (
             "auto-filter",
             B::AutoFilter,
@@ -209,7 +209,7 @@ fn cases() -> Vec<Case> {
             0x2d63_dc22_e462_5110,
         ),
         ("bitcrusher", B::Bitcrusher, vec![], 0x7b73_faaa_d35b_f139),
-        // Re-recorded for #845: decoupled peak ballistics.
+        // Re-recorded for decoupled peak ballistics.
         (
             "multiband",
             B::MultibandCompressor,

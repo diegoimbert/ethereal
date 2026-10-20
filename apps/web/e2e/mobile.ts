@@ -1,4 +1,4 @@
-// Helpers of the mobile UI specs (`mobile-*.spec.ts`, #522): device profiles (on Chromium, the
+// Helpers of the mobile UI specs (`mobile-*.spec.ts`): device profiles (on Chromium, the
 // only browser installed: the iPhone and iPad profiles keep their viewport, touch and user
 // agent, not WebKit) and booting the mobile shell.
 import { devices, expect, type Page } from "@playwright/test";

@@ -1,4 +1,4 @@
-//! Rack device nodes (`racks-modulation`): audio through for instrument/audio effect
+//! Rack device nodes: audio through for instrument/audio effect
 //! racks, MIDI-thru (never params) for MIDI effect racks, macro/selector values clamped and
 //! read back, no allocation; layouts carry the macro bank and the selector.
 

@@ -51,7 +51,7 @@ tauri = { workspace = true, features = ["test"] }
 [lints]
 workspace = true
 
-# Cargo features (feature-flags; docs/ARCHITECTURE.md "Cargo features"). The default is the
+# Cargo features (docs/ARCHITECTURE.md "Cargo features"). The default is the
 # fast dev core (`just dev-desktop`); releases build `full` (`pnpm tauri build --features
 # full`, release.yml) and so do `just dev-desktop-full`, `just check-all` and `just test-all`.
 [features]

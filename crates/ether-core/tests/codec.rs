@@ -1,4 +1,4 @@
-//! `BinaryCodec` (web-perf): exact round trips (vectors + proptest over every desc type),
+//! `BinaryCodec`: exact round trips (vectors + proptest over every desc type),
 //! versioning and malformed input.
 
 #[path = "codec_fixture.rs"]
@@ -58,7 +58,7 @@ fn every_variant_roundtrips() {
     }
 }
 
-/// The v0.2 fields (contracts-3; `input_tap`, `vca` and `vcas` binary since codec v3,
+/// The v0.2 fields (`input_tap`, `vca` and `vcas` binary since codec v3,
 /// `chain_racks` and `modulation` since v4, `frozen` a JSON blob): every variant and
 /// `Option` state.
 #[test]
@@ -69,7 +69,7 @@ fn v02_fields_roundtrip() {
     roundtrip(&fixture::large_v02_project());
 }
 
-/// MIDI input filters (#433, in the `TrackExt` blob): every port / channel state.
+/// MIDI input filters (in the `TrackExt` blob): every port / channel state.
 #[test]
 fn midi_input_filters_roundtrip() {
     use ether_core::recording::{MidiInputFilter, port_key};
@@ -571,7 +571,7 @@ type TrackExt = (
     Option<TrackId>,
 );
 
-/// The v0.2 track fields (contracts-3).
+/// The v0.2 track fields.
 fn track_ext() -> impl Strategy<Value = TrackExt> {
     let frozen = (ulid(), finite64()).prop_map(|(m, start_seconds)| FrozenDesc {
         media: MediaId(m),
@@ -668,7 +668,7 @@ fn track_ext() -> impl Strategy<Value = TrackExt> {
     )
 }
 
-/// VCAs (binary since codec v3, `groups-buses`: NaN payloads round-trip too).
+/// VCAs (binary since codec v3, NaN payloads round-trip too).
 fn vca(nan: bool) -> impl Strategy<Value = VcaDesc> {
     (
         track_id(),

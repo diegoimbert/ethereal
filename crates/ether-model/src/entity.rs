@@ -49,10 +49,10 @@ pub enum Entity {
     RackChain(RackChain),
     Modulator(Modulator),
     ModMapping(ModMapping),
-    // --- base-62 (`collab-social`, pre-release `.ether` v4) ---
+    // --- (pre-release `.ether` v4) ---
     ChatMessage(ChatMessage),
     PinnedNote(PinnedNote),
-    // --- v0.3 (pre-release `.ether` v5, contracts-4) ---
+    // --- v0.3 (pre-release `.ether` v5) ---
     ExpressionLane(ExpressionLane),
     NoteExpression(NoteExpression),
 }

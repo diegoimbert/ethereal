@@ -1,4 +1,4 @@
-// #621: the tempo lane's multi-point edits (pure).
+// The tempo lane's multi-point edits (pure).
 import { describe, expect, it } from "vitest";
 import type { Command, TempoPoint } from "@/generated";
 import { clipOfPoints, clipOfRange, deletePointsCommand, deleteRangeCommand, movePointsCommand, pasteCommand, pointsIn, setCurvesCommand } from "./tempoEdits";

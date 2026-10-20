@@ -1,6 +1,6 @@
 /**
  * Mock of `Marker::*` and the v2 clip commands (`SetFadeCurves`, `SetReversed`,
- * `Crossfade`; `SetCrossfade` from `crossfades`; `clip-editing`).
+ * `Crossfade`; `SetCrossfade` from `crossfades`).
  */
 
 import type { Clip, ClipCommand, FadeCurve, MarkerCommand } from "@/generated";
@@ -108,7 +108,7 @@ function mediaBeats(ctx: ReducerContext, clip: Clip): number {
 /**
  * Mirror of Rust `ether_model::reverse::mirror` for an unwarped clip (the mock ignores warp
  * markers): offset and loop region mirrored over the file, so the reversed clip plays the
- * same material backwards (#442).
+ * same material backwards.
  */
 function mirrorReversed(ctx: ReducerContext, clip: Clip): Pick<Clip, "offset" | "looping"> {
   if (clip.content.type !== "Audio") return clip;

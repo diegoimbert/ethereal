@@ -37,12 +37,12 @@ const EMPTY_PROJECTS = { name: "eth.project.empty", value: "1" };
  */
 const NO_BLOBS = { name: "eth-color-blobs", value: "off" };
 /**
- * Playwright's Chromium refuses persistent storage (#622): the one-time "projects may be
+ * Playwright's Chromium refuses persistent storage: the one-time "projects may be
  * cleared" notice is marked as shown, so it doesn't cover the page in every spec
  * (storage-persist.spec.ts tests it).
  */
 const PERSIST_NOTICE_SHOWN = { name: "eth.storage.persist-notice", value: "1" };
-/** #717: Settings > Advanced shows the engine server form only once turned on; specs use it. */
+/** Settings > Advanced shows the engine server form only once turned on; specs use it. */
 const ENGINE_SERVER_SHOWN = { name: "eth.engine-server", value: "on" };
 const storage = (extra: Array<{ name: string; value: string }> = []) => ({
   cookies: [],

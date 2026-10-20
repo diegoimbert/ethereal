@@ -23,7 +23,7 @@ thiserror.workspace = true
 wasm-bindgen.workspace = true
 js-sys.workspace = true
 console_error_panic_hook.workspace = true
-# The share port (docs/SHARING.md §6.2). Replaced by the private overlay.
+# The share port (`MessagePort`).
 web-sys = { workspace = true, features = ["MessagePort"] }
 # Complex warp (feature `warp-complex`): the pure-Rust Signalsmith Stretch port.
 ether-stretch = { workspace = true, optional = true }
@@ -31,7 +31,7 @@ ether-stretch = { workspace = true, optional = true }
 [lints]
 workspace = true
 
-# Cargo features (feature-flags; docs/ARCHITECTURE.md "Cargo features"). The web build
+# Cargo features (docs/ARCHITECTURE.md "Cargo features"). The web build
 # (apps/web/scripts/build-wasm.mjs) uses `full` unless ETHER_WASM_FEATURES says otherwise.
 [features]
 default = []

@@ -36,7 +36,7 @@ pub struct Bitcrusher {
     rng: Rng,
     output: Smoother,
     mix: Smoother,
-    /// Silence reporting (perf audit #5).
+    /// Silence reporting.
     tail: crate::util::Tail,
 }
 

@@ -1,4 +1,4 @@
-// The master's Tempo lane edits like the automation lanes and the arranger (#621), against the
+// The master's Tempo lane edits like the automation lanes and the arranger, against the
 // real engine: a drag on empty space selects tempo points in a box, Delete removes them (one
 // undo step), copy then paste at the cursor (a click on the lane) adds the copy there.
 //

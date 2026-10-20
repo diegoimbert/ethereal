@@ -1,5 +1,5 @@
 /**
- * The selection's actions on touch screens (#522, the design's §5), a floating bar at the bottom
+ * The selection's actions on touch screens (the design's §5), a floating bar at the bottom
  * of the arrangement (no Shift or Ctrl, no keyboard shortcuts):
  *   - clips: select more (taps then toggle, a drag on empty space draws a box), edit, split,
  *     duplicate, copy, paste, nudge one grid step earlier / later, position (the clip sheet:

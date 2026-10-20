@@ -63,14 +63,14 @@ pub enum MediaCommand {
     CancelUpload {
         upload: String,
     },
-    /// #717: read a Standard MIDI File (type 0, 1 or 2) from any source (a library file, an
+    /// Read a Standard MIDI File (type 0, 1 or 2) from any source (a library file, an
     /// upload, a desktop path; not `Project`). Nothing is added to the project: the UI
     /// turns the reply into tracks and clips with ordinary commands (one undo step).
     /// Replies `MidiFile`; `Decode` when the bytes aren't a MIDI file.
     ReadMidiFile {
         source: MediaSource,
     },
-    /// #717: write MIDI clips of the open project as a Standard MIDI File (type 1: a tempo
+    /// Write MIDI clips of the open project as a Standard MIDI File (type 1: a tempo
     /// track, then one track per project track, in display order). Replies `MidiFileWritten`.
     WriteMidiFile {
         request: MidiExportRequest,
@@ -170,7 +170,7 @@ pub enum MediaSource {
     /// file dialog or dropped from the OS (desktop shell only: the Tauri dialog and dropped
     /// file paths). The one explicit OS-file handoff: the UI passes the path, never reads the
     /// file. The engine validates it (absolute, a regular readable file with an audio
-    /// extension) and imports it as an external reference in place (`media-references`).
+    /// extension) and imports it as an external reference in place.
     /// Hosts where the UI is not on the engine
     /// machine (web, remote) reply `Unsupported`: they upload the bytes instead
     /// (`BeginUpload`/`UploadChunk`, then `Upload`, copied into the project).
@@ -275,7 +275,7 @@ pub enum MediaEvent {
         source: MediaSource,
         reason: PreviewEndReason,
     },
-    /// v0.3 (`audio-streaming`): media streamed from disk could not be read in time
+    /// v0.3: media streamed from disk could not be read in time
     /// `count` times since the last report (silence was played instead). Throttled to
     /// about one per second while it happens.
     StreamUnderruns {

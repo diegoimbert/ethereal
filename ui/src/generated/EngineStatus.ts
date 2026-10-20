@@ -15,7 +15,7 @@ xruns: number,
 instance: string, 
 /**
  * The audio device is closed because the local engine is off ("Play with: no engine"
- * or a participant's engine, docs/COLLAB.md §15): other applications can use it, and
+ * or a participant's engine): other applications can use it, and
  * it opens again (with the saved settings) when the engine comes back.
  */
 device_released: boolean, };

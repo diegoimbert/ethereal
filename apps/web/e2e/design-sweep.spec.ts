@@ -87,7 +87,7 @@ test("theme switch and MIDI learn targets", async ({ page }) => {
     target: { type: "TrackPan", track: midi.id },
   });
   expect(await targetOf(page, '[data-testid="inspector"] .eth-inspector__mute')).toEqual({ type: "TrackMute", track: midi.id });
-  // base-153: the card's inline parameter list (the header's "Parameters" toggle).
+  // The card's inline parameter list (the header's "Parameters" toggle).
   await showDeviceParams(page, synth.id);
   const params = inspector.locator(`[data-device="${synth.id}"] [data-param]`);
   await expect(params.first()).toBeVisible();

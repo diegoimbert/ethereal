@@ -1,4 +1,4 @@
-// devices-pass-effects: the effect-window visualisations render from their params and drag
+// The effect-window visualisations render from their params and drag
 // them (one gesture). Bound to the demo Synth's params, which the mock accepts.
 import { act, fireEvent, screen, within } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";

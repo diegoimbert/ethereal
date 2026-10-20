@@ -1,4 +1,4 @@
-// base-135: configurable wheel zoom/scroll. Windows-like mouse-wheel notches (deltaMode =
+// Configurable wheel zoom/scroll. Windows-like mouse-wheel notches (deltaMode =
 // LINE, deltaY = ±3, as Firefox reports them; Chromium's 100 px + wheelDelta 120 notches are
 // normalized the same way) zoom the arrangement by the fixed per-notch factor, whatever the
 // platform; Settings > Input flips the direction and scales it, and the settings persist.
@@ -102,7 +102,7 @@ test("mouse-wheel notches zoom by the configured per-notch factor; inversion fli
 
   // Kept on this device across reloads.
   await page.reload();
-  // base-131: nothing opens on launch; reopen the project from Recents.
+  // Nothing opens on launch; reopen the project from Recents.
   await openOnLaunch(page);
   dialog = await openInputSettings(page);
   await expect(dialog.getByRole("switch", { name: "invert zoom direction" })).toHaveAttribute("aria-checked", "true");

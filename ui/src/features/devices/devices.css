@@ -173,7 +173,7 @@
   color: var(--eth-color-text-dim);
 }
 
-/* base-153: the card body under the header: the parameter list (the header's "Parameters"
+/* The card body under the header: the parameter list (the header's "Parameters"
    toggle), a rack's chains, the modulators. The device's own UI is in its window. */
 .eth-device__inline:empty {
   display: none;

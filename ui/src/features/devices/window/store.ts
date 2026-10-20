@@ -1,5 +1,5 @@
 /**
- * base-153: factory (built-in) device windows. A built-in device's editor (its declared
+ * Factory (built-in) device windows. A built-in device's editor (its declared
  * layout, sample slot) opens in a floating window, like a plugin's editor window; the device
  * card in the chain only shows its header (and, on demand, the generic parameter list).
  *
@@ -7,7 +7,7 @@
  * machine (localStorage `eth.devices.windows`), per device id, never in the project document:
  * like plugin editor windows, opening one is not an edit (no undo step, not shared in collab).
  * Where each window sits (and its size) is the kit `FloatingWindow`'s geometry under the window
- * id `deviceWindowId(device)` (base-154; positions saved here before are moved there once).
+ * id `deviceWindowId(device)` (positions saved here before are moved there once).
  * Device ids are unique across projects, so a project opened again brings its windows back
  * where they were.
  */
@@ -39,7 +39,7 @@ function load(): DeviceId[] {
   try {
     const v = JSON.parse(localStorage.getItem(KEY) ?? "{}") as { open?: unknown; positions?: Record<string, { x?: unknown; y?: unknown } | null> } | null;
     const open = Array.isArray(v?.open) ? v.open.filter((x): x is string => typeof x === "string") : [];
-    // Positions remembered before base-154 move to the kit's window geometry, once.
+    // Positions remembered by older versions move to the kit's window geometry, once.
     if (v?.positions && typeof v.positions === "object") {
       const kit = useFloatingWindows.getState();
       for (const [id, p] of Object.entries(v.positions)) {

@@ -1,4 +1,4 @@
-//! Resolving missing plugins and audio files (`import-resolver`, owner request; protocol
+//! Resolving missing plugins and audio files (protocol
 //! `ether_protocol::resolver`, CONTRACTS.md §14.2). Always compiled (not only with the
 //! `import` feature): the resolver also serves projects opened later.
 //!

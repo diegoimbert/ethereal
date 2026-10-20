@@ -1,4 +1,4 @@
-//! Engine-side rack chains (`racks-modulation`): key/velocity/selector routing, chain mix,
+//! Engine-side rack chains: key/velocity/selector routing, chain mix,
 //! PDC inside a rack, audio effect racks (parallel chains of the input), MIDI effect racks
 //! (merged chain output replaces the rack's MIDI-thru), state across snapshot swaps, racks
 //! on drum pad chains.

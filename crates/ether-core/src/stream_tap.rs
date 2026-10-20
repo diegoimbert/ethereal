@@ -1,4 +1,4 @@
-//! Stream tap (base-53; docs/COLLAB.md §9.1): a copy of what the engine renders **after
+//! Stream tap: a copy of what the engine renders **after
 //! master, the metronome and the count-in, and before the browser preview voice**, for
 //! "listen on <peer>" (the host streams it to its listeners over WebRTC). Previews stay
 //! private to each site.
@@ -30,7 +30,7 @@ pub struct StreamBlock {
     pub bpm: f64,
     /// Output latency (samples, PDC) of the published graph: the timeline rendered at
     /// `sample_time` (at `position`) reaches the tap `latency` samples later; the audio of
-    /// this block is the timeline rendered `latency` samples earlier (docs/COLLAB.md §9.4).
+    /// this block is the timeline rendered `latency` samples earlier.
     pub latency: u32,
     /// The timeline jumped to `position` at this block's first frame: playback started
     /// from stopped, a locate, or a loop wrap. Set on the first sub-block after the jump

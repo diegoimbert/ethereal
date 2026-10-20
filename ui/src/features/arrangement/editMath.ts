@@ -80,7 +80,7 @@ export function dragPreview(input: DragInput, mode: DragMode, deltaBeats: Beats,
   }
 
   // resize-start: the end stays put, the content offset follows the start. Dragging past
-  // the content start is allowed (base-142): see `shiftedOffset`.
+  // the content start is allowed: see `shiftedOffset`.
   const a = startOf(anchor);
   const d = snap(a + deltaBeats) - a;
   for (const c of clips) {

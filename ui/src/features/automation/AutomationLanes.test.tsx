@@ -219,7 +219,7 @@ describe("TrackAutomationLanes", () => {
     const [, mid] = lanePoints(volumeLane(track).id);
     const circle = document.querySelector(`circle[data-point="${mid!.id}"]`)!;
     await drag(circle, [80, y(0.9)], [83, y(0.9)], { altKey: true });
-    // ⌥: off the grid, and a precision drag (1/10 of the 3 px, #793).
+    // ⌥: off the grid, and a precision drag (1/10 of the 3 px).
     expect(project().automation_points[mid!.id]!.time).toBeCloseTo(8.03, 6);
   });
 

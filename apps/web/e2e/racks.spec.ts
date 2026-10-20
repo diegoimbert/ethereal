@@ -1,4 +1,4 @@
-// racks-modulation on the web build, through the UI, against the real engine (WasmTransport →
+// Racks and modulation on the web build, through the UI, against the real engine (WasmTransport →
 // controller Worker → AudioWorklet).
 //
 // MIDI track → Instrument Rack → "+ Add instrument" twice (a chain with a Synth, one with a
@@ -95,7 +95,7 @@ test("racks: chains, a modulator and a macro mapped onto a synth", async ({ page
   await addRackChain(panel, "Synth");
   const synth = await newDevice(page, (d) => d.chain != null, before);
   await addRackChain(panel, "Poly Synth");
-  // The synth's card is in its expanded chain. base-153: a device's own UI (knobs) is in its
+  // The synth's card is in its expanded chain. A device's own UI (knobs) is in its
   // window; the rack's card keeps its chains, macros and modulators.
   await expandRackChain(panel, "chain 1");
   const synthCard = await openDeviceWindow(page, synth.id);

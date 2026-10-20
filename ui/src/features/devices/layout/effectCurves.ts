@@ -1,5 +1,5 @@
 /**
- * Pure math of the effect windows' visualisations (`devices-pass-effects`): the dynamics
+ * Pure math of the effect windows' visualisations: the dynamics
  * transfer curve (compressor / gate / expander / limiter), delay echo taps, reverb decay
  * and the MIDI velocity curve. The dynamics and velocity curves follow the devices' own
  * static formulas (`ether_devices::compressor::gain_reduction_knee_db`, the gate's

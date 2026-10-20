@@ -1,6 +1,6 @@
-// The open project in the address bar (#457): `/p/<slug>/<id>`. A rename updates the slug, a
+// The open project in the address bar: `/p/<slug>/<id>`. A rename updates the slug, a
 // reload reopens the project, a wrong slug is corrected, Back opens the previous project, and
-// an id this browser doesn't have shows the picker with a notice. The tab title follows (#740).
+// an id this browser doesn't have shows the picker with a notice. The tab title follows.
 import { expect, test, type Page } from "@playwright/test";
 import { launch, newProject, projectScreen, renameProject } from "./ui";
 
@@ -16,7 +16,7 @@ test("the project's URL: rename, reload, wrong slug, Back", async ({ page }) => 
   await launch(page, "First Song");
   const first = (await projectId(page))!;
   await expect.poll(() => path(page)).toBe(`/p/first-song/${first}`);
-  // The tab title is the project's name (#740), `• ` in front while unsaved.
+  // The tab title is the project's name, `• ` in front while unsaved.
   await expect(page).toHaveTitle(/^(• )?ethereal - First Song$/);
 
   // Rename: the slug follows, in place.

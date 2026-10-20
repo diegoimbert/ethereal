@@ -28,7 +28,7 @@ export type ToController =
       /** AudioContext sample rate (the engine's rate). */
       sampleRate: number;
       /**
-       * One Int32: how many `client` messages the Worker has handled (#565: a closing page
+       * One Int32: how many `client` messages the Worker has handled (a closing page
        * waits for its last save, `WasmEndpoint.drain`).
        */
       handled: SharedArrayBuffer;
@@ -56,7 +56,7 @@ export interface FsRequest {
   to?: string;
   /** `write` payload. */
   bytes?: Uint8Array;
-  /** `readRange`: byte offset and length (audio-streaming reads media in chunks). */
+  /** `readRange`: byte offset and length (audio streaming reads media in chunks). */
   offset?: number;
   length?: number;
   /** Echoed in the reply (see ./fsWire.ts). */

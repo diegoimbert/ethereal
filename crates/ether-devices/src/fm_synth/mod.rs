@@ -1,4 +1,4 @@
-//! The FM Synth (`BuiltinDeviceType::FmSynth`, node `fm-synth`): four operators A–D in one
+//! The FM Synth (`BuiltinDeviceType::FmSynth`): four operators A–D in one
 //! of 11 algorithms ([`algorithms`]), each a band-limited oscillator (sine, triangle, saw,
 //! square, noise) at a frequency ratio of the note (or a fixed frequency) with its own ADSR,
 //! level, velocity sensitivity and self-feedback; a voice filter with its own envelope, one
@@ -382,7 +382,7 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
         "Volume",
         "Output",
         ParamUnit::Decibels,
-        // -14 dB (#520): at -6 a fresh five-note chord peaked at +5.6 dBFS; now -2.4,
+        // -14 dB: at -6 a fresh five-note chord peaked at +5.6 dBFS; now -2.4,
         // level with the synth and the poly synth.
         (-70.0, 6.0, -14.0),
         ParamScale::Fader,

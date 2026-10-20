@@ -21,12 +21,12 @@ const SET_VOLUME = keyedStep("undo.mixer.set_volume", "set volume");
  * dB value shows while hovering or dragging. When this track is part of a multi-track
  * selection, dragging or stepping moves every selected track by the same dB amount (their
  * balance is kept, see `groupVolumes`), as one `Edit::Batch` per move, coalesced to one per
- * animation frame during a drag (#911: one command per track per move lagged with many).
+ * animation frame during a drag (one command per track per move lagged with many).
  */
 export function HeaderVolume({ track }: { track: Track }) {
   const t = useT();
   const sender = useGestureSender();
-  // From the store, not `track`: the row doesn't re-render for a volume change (#911).
+  // From the store, not `track`: the row doesn't re-render for a volume change.
   const base = useProjectStore((s) => s.project?.tracks[track.id]?.mixer.volume ?? track.mixer.volume);
   // Volume automation: the fader follows what the engine plays.
   const live = useLiveAutomation({ type: "TrackVolume", track: track.id });

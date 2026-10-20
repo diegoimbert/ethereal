@@ -1,4 +1,4 @@
-//! Engine block-time harness for perf audit #2, #5 and #8 with real devices and the real
+//! Engine block-time harness (silence skipping, warp voices) with real devices and the real
 //! worker pool. Ignored by default; run in release:
 //!
 //! ```text
@@ -47,7 +47,7 @@ fn blocks(seconds: f64) -> usize {
     (seconds * SR as f64 / BLOCK as f64) as usize
 }
 
-/// #2 / #5: 32 tracks of synth → EQ → compressor → reverb/delay (+ groups, returns, a
+/// 32 tracks of synth → EQ → compressor → reverb/delay (+ groups, returns, a
 /// drum rack, sidechains), 4 workers: playing, right after Stop (tails ringing), and
 /// stopped once everything is quiet.
 #[test]
@@ -91,7 +91,7 @@ impl AudioSource for Tone {
     }
 }
 
-/// #8: 8 audio tracks, each 24 back-to-back Complex-warped clips of 2 beats (played 1.25x
+/// 8 audio tracks, each 24 back-to-back Complex-warped clips of 2 beats (played 1.25x
 /// faster than recorded) and an EQ, 4 workers.
 #[test]
 #[ignore = "perf harness: run in release with --ignored --nocapture"]

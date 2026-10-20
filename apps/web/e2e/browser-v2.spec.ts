@@ -1,4 +1,4 @@
-// The indexed library browser (browser-v2) on the web build, against the real engine
+// The indexed library browser on the web build, against the real engine
 // (WasmTransport → controller Worker → library index): search the index, filter by kind,
 // preview a result (tempo-synced), stop it; screenshots of the panel in both themes.
 //

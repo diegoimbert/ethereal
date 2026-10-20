@@ -22,8 +22,8 @@ const INSET = parseFloat(size.deviceWindowInset);
 const CASCADE = 2 * parseFloat(size.controlMd);
 
 /**
- * The open factory device windows (base-153), above the workspace, in kit `FloatingWindow`s
- * (base-154: moved, resized, kept on screen, geometry remembered per device). Mounted once by
+ * The open factory device windows, above the workspace, in kit `FloatingWindow`s
+ * (moved, resized, kept on screen, geometry remembered per device). Mounted once by
  * the app shell. A window whose device is removed (deleted, its track deleted) closes; windows
  * of devices of another project stay remembered but aren't shown.
  */

@@ -1,4 +1,4 @@
-// Timeline navigation on touch screens (#522): one-finger pan (axis-locked, with momentum),
+// Timeline navigation on touch screens: one-finger pan (axis-locked, with momentum),
 // pinch zoom of time and of track height, tap to select, a drag on the ruler scrubs, panning
 // while playing stops following the playhead, long-press opens the context menu.
 import { expect, test, type Page } from "@playwright/test";

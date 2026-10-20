@@ -1,4 +1,4 @@
-// #790: a device card's header hides its presets menu and "+" (modulator) until hovered, and
+// A device card's header hides its presets menu and "+" (modulator) until hovered, and
 // then they take no room: the name uses the whole width. Hovering shows them right after
 // the name, so only the name shrinks: the power button and the controls on the right stay put.
 // Checked on an instrument, an audio effect, a rack and a MIDI effect.

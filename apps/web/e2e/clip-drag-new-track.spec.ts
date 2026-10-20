@@ -1,4 +1,4 @@
-// base-106 on the web build (real wasm controller): dragging a MIDI clip and an audio clip
+// On the web build (real wasm controller): dragging a MIDI clip and an audio clip
 // below the last track (the empty canvas above the pinned master) shows a ghost "new track"
 // lane, and the drop creates a track of the clip's kind with the clip on it. Each drop is
 // ONE undo step. A sample dragged from the browser below the last track makes an audio track.
@@ -28,7 +28,7 @@ const count = (r: Record<string, unknown>) => Object.keys(r).length;
 async function dragBelowLastTrack(page: Page, clipId: string, kind: "Midi" | "Audio", shot?: string): Promise<void> {
   const title = await clipPart(page, clipId, "header");
   const area = (await page.locator(".eth-arr__drop-area").boundingBox())!;
-  // Grab the middle of the title bar: its corners belong to the fade handles (base-112).
+  // Grab the middle of the title bar: its corners belong to the fade handles.
   const x = title.x + title.width / 2;
   const y = title.y + title.height / 2;
   await page.mouse.move(x, y);

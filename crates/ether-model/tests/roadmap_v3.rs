@@ -1,4 +1,4 @@
-//! v0.2 model contracts (contracts-3): take lanes and comp regions, rack chains,
+//! v0.2 model contracts: take lanes and comp regions, rack chains,
 //! modulators and mappings, freeze, external media, VCAs and input taps, `.ether` v4.
 
 use ether_model::*;

@@ -5,7 +5,7 @@
 //!
 //! Peak mipmaps are cached in the project's `cache/` folder, keyed by `MediaRef.hash`.
 //!
-//! **Resolution** (`media-references`, CONTRACTS.md §12.9; [`read_media_bytes`]): an
+//! **Resolution** (CONTRACTS.md §12.9; [`read_media_bytes`]): an
 //! `External` path whose content hash matches → the project copy at `MediaRef::file` →
 //! missing (`MediaEvent::Missing`, silence until relinked). The pipeline remembers what it
 //! loaded (by hash) and what was missing (by location and hash), so a relink, an undo of
@@ -110,14 +110,14 @@ struct Job {
     report: bool,
     /// The chained-Ogg warning was already given (at import).
     warned: bool,
-    /// `audio-streaming`: the host streams this media from disk; the job only builds the
+    /// The host streams this media from disk; the job only builds the
     /// peaks (the decoder runs in peaks-only mode).
     streamed: bool,
     /// Streaming was considered (at the start of the decode stage).
     stream_checked: bool,
     /// The external file the bytes were read from (`None` = the project copy).
     external_path: Option<String>,
-    /// #529: decoded again only for the bridge to build a convolution IR from
+    /// Decoded again only for the bridge to build a convolution IR from
     /// (`EngineBridge::ir_media`): the first `MAX_IR_SECONDS`, no peaks, not loaded.
     ir: bool,
 }
@@ -130,7 +130,7 @@ pub struct MediaState {
     jobs: VecDeque<Job>,
     /// Lengths learned by decoding media whose header had none (`MediaRef.frames == 0`).
     frame_fixups: Vec<(MediaId, u64)>,
-    /// Unresolved media (`media-references`), with the location and hash that failed: a
+    /// Unresolved media, with the location and hash that failed: a
     /// change of either (relink, undo, collect) retries.
     missing: BTreeMap<MediaId, (MediaLocation, Option<String>)>,
     /// Media reported missing since the project opened: loading one again reports
@@ -143,12 +143,12 @@ pub struct MediaState {
     /// Media handed to the engine during the current [`Self::step`] (streamed media are
     /// available before their job ends: the job still builds the peaks).
     just_loaded: Vec<MediaId>,
-    /// `audio-streaming`: media the host streams from disk (vs decoded into memory).
+    /// Media the host streams from disk (vs decoded into memory).
     streamed: BTreeSet<MediaId>,
-    /// `audio-streaming`: engine underruns not reported yet, and the last report (ms).
+    /// Engine underruns not reported yet, and the last report (ms).
     pub underruns_pending: u32,
     pub underruns_at: u64,
-    /// "No engine" (docs/COLLAB.md §15): nothing is decoded or handed to the engine.
+    /// "No engine": nothing is decoded or handed to the engine.
     engine_off: bool,
     /// Project files still on their way (an extension fills them in later). Their media are
     /// not read (nor reported missing) until [`Self::reload_file`].
@@ -175,7 +175,7 @@ impl MediaState {
         self.jobs.iter().any(|j| j.media.id == media && !j.ir)
     }
 
-    /// #529: queue a decode of the media the bridge asked for to build convolution IRs
+    /// Queue a decode of the media the bridge asked for to build convolution IRs
     /// (`EngineBridge::take_ir_media_requests`); handed over with `EngineBridge::ir_media`.
     /// The audio isn't kept here: a later need decodes it again.
     pub fn queue_ir_decodes<B: EngineBridge + ?Sized>(
@@ -212,7 +212,7 @@ impl MediaState {
         !self.jobs.is_empty()
     }
 
-    /// `audio-streaming`: are any media of the project streamed?
+    /// Are any media of the project streamed?
     pub fn any_streamed(&self) -> bool {
         !self.streamed.is_empty()
     }
@@ -414,7 +414,7 @@ impl MediaState {
             );
             loaded.append(&mut self.just_loaded);
             match res {
-                // #529: a decode for an IR only; failures leave the IR as it was.
+                // A decode for an IR only; failures leave the IR as it was.
                 Ok(true) | Err(_) if job.ir => {}
                 Ok(false) if job.ir => self.jobs.push_front(job),
                 Ok(true) => {
@@ -535,7 +535,7 @@ impl MediaState {
                     job.stage = Stage::Decode(Box::new(decoder));
                 }
                 Stage::Decode(dec) => {
-                    // `audio-streaming`: long media stream from disk when the host can (once
+                    // Long media stream from disk when the host can (once
                     // per job, before decoding: imports arrive here directly).
                     if !job.stream_checked {
                         job.stream_checked = true;

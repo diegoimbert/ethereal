@@ -1,5 +1,5 @@
-//! IRs prepared on one thread and assembled into a [`Convolver`] on another in bounded steps
-//! (#514): the web's controller Worker reads, normalizes and partitions the IR
+//! IRs prepared on one thread and assembled into a [`Convolver`] on another in bounded steps:
+//! the web's controller Worker reads, normalizes and partitions the IR
 //! ([`PreparedIr`], the expensive part), streams it to the AudioWorklet as flat `f32`
 //! segments, and the Worklet copies them into a [`ConvolverAssembly`] and zero-fills the
 //! rest, a bounded amount per render quantum, so no quantum does more than a copy of a few

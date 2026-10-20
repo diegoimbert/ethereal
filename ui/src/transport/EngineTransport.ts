@@ -5,7 +5,7 @@
  *
  * Contract (all hosts):
  * - `connect()` resolves with the full current `Project`, or `null` when the engine has none
- *   open (base-131: no host opens a project on launch; the project screen picks one); the
+ *   open (no host opens a project on launch; the project screen picks one); the
  *   host then emits the current `TransportState` as `Event::Transport`. Subscribe to
  *   `onEvent` BEFORE calling it.
  * - `send()` resolves once the engine applied the command. Every `Event::Patch` caused by

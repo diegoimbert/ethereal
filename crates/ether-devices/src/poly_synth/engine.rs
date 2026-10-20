@@ -8,7 +8,7 @@
 //! every gain run per sample, with cutoff (`g`), phase increments and gains interpolated
 //! linearly across the chunk so modulation and automation never step. The filter (and its
 //! saturating input) runs 2x oversampled through IIR half-bands
-//! ([`crate::dsp::halfband_iir`], #845). Everything is pre-allocated: `process`
+//! ([`crate::dsp::halfband_iir`]). Everything is pre-allocated: `process`
 //! never allocates, locks or blocks.
 
 use std::f32::consts::FRAC_PI_4;
@@ -44,7 +44,7 @@ const RAMP_FAST: u32 = 2 * ether_core::automation_rt::PARAM_GRID as u32;
 /// Ramp of gain params (ms): long enough that a knob jump never clicks.
 const RAMP_GAIN_MS: f32 = 5.0;
 /// Time constant of the pitch change of a sounding mono / legato voice that doesn't glide
-/// (ms): fast enough to read as a jump, slow enough that a sine doesn't kink (#845: the
+/// (ms): fast enough to read as a jump, slow enough that a sine doesn't kink (the
 /// instant jump of a 220 Hz sine to 330 Hz was a -50 dB click).
 const DECLICK_MS: f32 = 0.5;
 /// Fade-out of a stolen or choked voice (ms).
@@ -276,7 +276,7 @@ struct Voice {
     phase2: [f32; MAX_UNISON],
     sub_phase: f32,
     rng: Rng,
-    /// Drift (`devices-pass-instruments`): per-oscillator offset (-1..1) gliding toward
+    /// Drift: per-oscillator offset (-1..1) gliding toward
     /// `drift_target`, a new target every `drift_left` chunks. Its own generator, so the
     /// noise and the other random sources play the same with or without drift.
     drift: [f32; 2],
@@ -285,7 +285,7 @@ struct Voice {
     drift_rng: Rng,
     noise_z: f32,
     filt: [FilterState; 2],
-    /// The filter stage's 2x oversampling per channel (#845).
+    /// The filter stage's 2x oversampling per channel.
     os: [Oversampler2x; 2],
     /// The pitch moves to `target` with [`DECLICK_MS`] (a mono note change without glide).
     declick: bool,
@@ -1331,7 +1331,7 @@ fn render_voice(
     let pw1 = (c.pw1 + pw_mod + c.lfo.pw).clamp(0.02, 0.98);
     let pw2 = (c.pw2 + pw_mod + c.lfo.pw).clamp(0.02, 0.98);
     // Phase increments ramp linearly across the chunk from where the last one ended, so
-    // glides, vibrato and bends don't step every chunk (#845).
+    // glides, vibrato and bends don't step every chunk.
     let (dt1_0, dt2_0) = if v.fresh { (dt1, dt2) } else { v.dt };
     v.dt = (dt1, dt2);
     let inv_n = 1.0 / n as f32;
@@ -1364,7 +1364,7 @@ fn render_voice(
         + cut_mod
         + v.pressure * PRESSURE_CUTOFF_OCTAVES
         + (v.timbre - TIMBRE_NEUTRAL) * TIMBRE_CUTOFF_OCTAVES;
-    // The filter runs at 2x (its saturator aliased on high notes, #845), the cutoff
+    // The filter runs at 2x (its saturator aliased on high notes), the cutoff
     // still capped just under the base rate's Nyquist.
     let fc = dsp::exp2(cutoff.clamp(3.0, 15.0)).min(c.sr * 0.46);
     let g_end = dsp::prewarp(fc, 2.0 * c.sr);
@@ -1518,7 +1518,7 @@ impl Node for PolySynth {
             for r in self.ramps.iter_mut() {
                 r.advance(u32::MAX);
             }
-            // So does the pitch bend (v0.3 `midi-expression`: bend lanes move while no
+            // So does the pitch bend (v0.3 bend lanes move while no
             // note sounds; the render must not depend on where blocks fall).
             self.bend = self.bend_target;
             audio.clear_outputs();

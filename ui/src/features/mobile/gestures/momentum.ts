@@ -1,5 +1,5 @@
 /**
- * Momentum (#522): the release speed of a pan (`VelocityTracker`, over the last
+ * Momentum: the release speed of a pan (`VelocityTracker`, over the last
  * `VELOCITY_WINDOW_MS`) and the fling that continues it with exponential decay (`flingStep`,
  * pure; `startFling` runs it on animation frames).
  */

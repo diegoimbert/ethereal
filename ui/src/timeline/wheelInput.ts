@@ -1,5 +1,5 @@
 /**
- * Wheel input normalization and the per-device input settings (base-135).
+ * Wheel input normalization and the per-device input settings.
  *
  * Browsers report wheels very differently:
  * - macOS trackpads (and macOS mice, which the OS smooths) send many small pixel deltas;

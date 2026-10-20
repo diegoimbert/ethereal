@@ -1,5 +1,5 @@
 /**
- * Mock of `ClipCommand::SetTranspose` (base-144), mirroring
+ * Mock of `ClipCommand::SetTranspose`, mirroring
  * `ether-controller` `clip_editing::transpose`: when the transpose changes the playback
  * speed (unwarped or Repitch), the clip keeps its audio and its length and loop region
  * follow (positions past the pivot `max(offset, 0)` move to where they read the same source

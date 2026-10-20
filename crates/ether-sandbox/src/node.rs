@@ -6,7 +6,7 @@
 //! *previous* call. With variable sub-block sizes the delay stays exactly `L` samples as
 //! long as no call is longer than `L`.
 //!
-//! `L` (perf-plugins, audit #9) starts at `max_block_size` (the engine's maximum, 1024 by
+//! `L` starts at `max_block_size` (the engine's maximum, 1024 by
 //! default, +21 ms) and, on the first call from a thread that renders device buffers
 //! (`ether_core::period`), drops to the device period (128 frames: +2.7 ms) by discarding
 //! prefilled zeros, before any audio went through. A later call longer than `L` (the
@@ -614,7 +614,7 @@ mod tests {
         node.region.header().done.store(seq, Ordering::Release);
     }
 
-    /// perf-plugins (audit #9): late helpers share one deadline per device buffer, so N of
+    /// Late helpers share one deadline per device buffer, so N of
     /// them cost one budget (half a period), not N × a quarter of a max block.
     #[test]
     fn late_helpers_share_one_deadline_per_device_buffer() {

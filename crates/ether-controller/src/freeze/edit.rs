@@ -103,7 +103,7 @@ pub fn place_render(
 
 /// Keep the live state of the track's plugins in the document (their nodes are destroyed
 /// while frozen; unfreezing re-creates them from it). Written outside the history first, so
-/// undoing the freeze keeps it instead of restoring the last saved state (#471); the step
+/// undoing the freeze keeps it instead of restoring the last saved state; the step
 /// still carries it (a no-op here) so peers in a session get it with the freeze.
 fn keep_plugin_states(ctx: &mut DocCtx, track: TrackId) -> CmdResult<()> {
     // A group freeze also silences every descendant (their nodes are destroyed too).
@@ -444,7 +444,7 @@ pub struct PlayedNote {
     pub pitch: u8,
     pub velocity: f32,
     pub muted: bool,
-    /// v0.3 (`midi-expression`): the clip note it plays (its expressions follow it).
+    /// v0.3: the clip note it plays (its expressions follow it).
     pub source: NoteId,
 }
 
@@ -543,7 +543,7 @@ pub fn consolidate_midi(
         return Ok(());
     }
     let notes = played_notes(ctx.p(), track, start.0, end.0);
-    // v0.3 (`midi-expression`): read the expression before the new clip replaces the
+    // v0.3: read the expression before the new clip replaces the
     // sources.
     let note_exprs: Vec<Vec<NoteExpression>> = notes
         .iter()
@@ -618,7 +618,7 @@ pub fn consolidate_midi(
     if !muted.is_empty() {
         doc::apply(ctx, &Command::Note(NoteCommand::Edit { edits: muted }))?;
     }
-    // v0.3 (`midi-expression`): note expressions follow their notes, lanes are unrolled
+    // v0.3: note expressions follow their notes, lanes are unrolled
     // into the new clip's content time (ids derived from the new clip / note).
     for (exprs, &to) in note_exprs.into_iter().zip(&specs_ids) {
         for (k, e) in exprs.into_iter().enumerate() {
@@ -676,7 +676,7 @@ mod tests {
         }
     }
 
-    /// #471: undoing a freeze keeps what the plugin was running when it was frozen (the
+    /// Undoing a freeze keeps what the plugin was running when it was frozen (the
     /// freeze step used to record the capture, so its undo put the last saved state back).
     #[test]
     fn undoing_a_freeze_keeps_the_running_plugin_state() {

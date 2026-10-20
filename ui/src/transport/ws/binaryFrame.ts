@@ -45,7 +45,7 @@ export const PROTOCOL_VERSION = 1;
 
 /**
  * `ether_protocol::remote::FEATURE_DEVICE_PARAM_PATCH`: this UI applies `DeviceParam`
- * patch changes (perf-plugins, audit #4), announced in `ClientHello.features`.
+ * patch changes, announced in `ClientHello.features`.
  */
 export const FEATURE_DEVICE_PARAM_PATCH = "device_param_patch";
 

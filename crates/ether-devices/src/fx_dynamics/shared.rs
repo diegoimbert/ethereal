@@ -194,7 +194,7 @@ impl GainRamp {
 const LEVEL_MARGIN: f32 = 1e-3;
 
 /// `amp_to_db(peak) >= db`, with `amp = db_to_amp(db)` precomputed: decided on the
-/// linear peak when it is clearly above or below (perf audit #17: no `log10` per sample),
+/// linear peak when it is clearly above or below (no `log10` per sample),
 /// exactly otherwise, so the result is the same as the dB comparison.
 #[inline]
 pub(super) fn level_at_least(peak: f32, db: f32, amp: f32) -> bool {

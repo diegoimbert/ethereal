@@ -1,4 +1,4 @@
-// The example beats (#518, docs/TUTORIALS.md "Example beats"): short loops made only of
+// The example beats (docs/TUTORIALS.md "Example beats"): short loops made only of
 // built-in devices and their factory presets, as factory project templates
 // (`factory/example-…`, `crates/ether-controller/src/templates/examples.rs`). The welcome
 // screen opens one, or walks through it with its tour: the tour makes the example's project,

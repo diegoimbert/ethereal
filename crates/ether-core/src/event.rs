@@ -35,7 +35,7 @@ pub enum EventKind {
     Param { param: ParamId, value: f64 },
     /// Raw short MIDI message (CC, pitch bend, aftertouch) for instruments/plugins.
     Midi { data: [u8; 3] },
-    /// v0.3 (`midi-expression` / `mpe`, CONTRACTS.md §13.2): per-note expression of a
+    /// v0.3 (MIDI expression / `mpe`, CONTRACTS.md §13.2): per-note expression of a
     /// sounding note (CLAP note expression model). `value` is in the kind's range
     /// (`ether_model::NoteExpressionKind::range`: pitch in semitones, pressure/timbre 0..=1).
     /// Nodes that don't support it ignore it; MIDI effects forward it with the note.

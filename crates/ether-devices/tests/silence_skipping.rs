@@ -1,4 +1,4 @@
-//! Silence skipping (perf audit #5) with the real devices in the real engine: a synth note,
+//! Silence skipping with the real devices in the real engine: a synth note,
 //! a long silence, another note, through each effect, rendered with skipping on and off.
 //!
 //! - tails are not cut: reverb, delay, convolution reverb, chorus, compressor release ring

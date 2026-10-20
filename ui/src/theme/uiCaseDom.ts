@@ -1,4 +1,4 @@
-// The rendered side of the lowercase rule (#524): text the UI shows on screen. A text node is
+// The rendered side of the lowercase rule: text the UI shows on screen. A text node is
 // the UI's own unless it sits in user content (`.eth-user-text`: names of tracks, clips,
 // devices, presets, files, people...) or in a field. `vitest.setup.ts` checks every test's
 // final DOM with it, which catches what the source scan can't see (an enum value rendered

@@ -20,7 +20,7 @@ export function MissingMediaNotice() {
       className="eth-media-refs__notice"
       role="status"
       data-testid="missing-media-notice"
-      // import-resolver: right-click "Resolve…" every missing item.
+      // Right-click "Resolve…" every missing item.
       onContextMenu={(e) => openContextMenu(e, [{ label: resolveLabel(), onSelect: () => void openResolver() }])}
     >
       <AlertTriangle className="eth-media-refs__notice-icon" aria-hidden />

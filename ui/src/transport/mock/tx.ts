@@ -62,7 +62,7 @@ export class Tx {
   }
 
   /**
-   * `changes()` as the real controller sends them (perf-plugins, audit #4): a device whose
+   * `changes()` as the real controller sends them: a device whose
    * only difference is its params becomes one `DeviceParam` per changed param, and plugin
    * state blobs are stripped (`state: null`).
    */

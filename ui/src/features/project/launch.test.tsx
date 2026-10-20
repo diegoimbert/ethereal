@@ -1,4 +1,4 @@
-// base-131: launch with no project open (the project screen first), "Reopen last project
+// Launch with no project open (the project screen first), "Reopen last project
 // on launch" (only after a clean close), and "open without plugins" (safe mode).
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -107,7 +107,7 @@ describe("launch", () => {
     );
     expect(screen.queryByRole("button", { name: "open a project" })).toBeNull();
     await screen.findByRole("dialog", { name: "open project" });
-    // The picker comes before the launch draft (#646): launch is done once that is open.
+    // The picker comes before the launch draft: launch is done once that is open.
     await waitFor(() => expect(useProjectScreen.getState().launching).toBe(false));
   });
 

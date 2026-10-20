@@ -29,7 +29,7 @@ describe("UI text is lowercase (#524)", () => {
     const findings = sources().flatMap((f) => {
       const src = readFileSync(f, "utf8");
       const lines = src.split("\n");
-      // Command palette and shortcut groups are English ids, shown through their messages (#667).
+      // Command palette and shortcut groups are English ids, shown through their messages.
       return scanCase(relative(repo, f), src).filter((x) => {
         const id = /\bgroup: "([^"]+)"/.exec(lines[x.line - 1] ?? "")?.[1];
         return !(id !== undefined && isGroupId(id));

@@ -1,4 +1,4 @@
-//! Browser v2 (v0.2, `browser-v2`; CONTRACTS.md §12.8): an engine-side library index with
+//! Browser v2 (v0.2; CONTRACTS.md §12.8): an engine-side library index with
 //! search, tags, favourites, sample packs and user folders, paged queries, and tempo-synced
 //! preview. v0.1's `Media::{ListLocations, ListDirectory}` keep working (folder view).
 //!
@@ -8,13 +8,13 @@
 //! path; web and remote reply `Unsupported`). Indexing runs in the background (bounded work
 //! per tick) and reports `BrowserEvent::IndexProgress`.
 //!
-//! Folders from the UI machine (`base-136`, additive): where the engine can't see the user's
+//! Folders from the UI machine (additive): where the engine can't see the user's
 //! folder (web: OPFS; a remote engine), the UI copies it: `ImportFolder { name }` creates an
 //! empty, engine-owned user folder, `ImportFile` writes each uploaded audio file into it
 //! (`Media::BeginUpload`/`UploadChunk` first), then `Rescan` indexes it. Removing an imported
 //! folder deletes the copy. `RenameFolder` renames any user folder (display only).
 //!
-//! File filters (`base-145`, additive): which files the library shows, as regex rules on the
+//! File filters (additive): which files the library shows, as regex rules on the
 //! file name ([`FileFilter`]); applied engine-side to `Media::ListDirectory`, the index and
 //! folder imports. `GetFileFilter` / `SetFileFilter` / `ResetFileFilter` /
 //! `CheckFileFilter`; stored with the user's settings (`<user library>/Settings/
@@ -43,12 +43,12 @@ pub enum BrowserCommand {
     /// Remove a user folder from the index (files untouched; an imported folder's copy is
     /// deleted).
     RemoveFolder { root: String },
-    /// `base-136`: create an empty user folder for files copied from the UI machine, named
+    /// Create an empty user folder for files copied from the UI machine, named
     /// after `name` (made unique; web: an OPFS folder, native: under the app data). Fill it
     /// with `ImportFile`, then `Rescan` it. Replies `BrowserRoots` (the new root is the
     /// `Folder` root that was not listed before).
     ImportFolder { name: String },
-    /// `base-136`: write a completed upload (`Media::BeginUpload`/`UploadChunk`) to `path`
+    /// Write a completed upload (`Media::BeginUpload`/`UploadChunk`) to `path`
     /// (relative; an audio or MIDI file name; parents created) inside an imported folder
     /// `root`, replacing an existing file. The upload is consumed either way.
     ImportFile {
@@ -56,7 +56,7 @@ pub enum BrowserCommand {
         path: String,
         upload: String,
     },
-    /// `base-136`: rename a user folder (display only, persisted; files untouched). An empty
+    /// Rename a user folder (display only, persisted; files untouched). An empty
     /// name restores the folder's own name. Replies `BrowserRoots`.
     RenameFolder { root: String, name: String },
     /// Re-scan one root (`None` = all).
@@ -65,17 +65,17 @@ pub enum BrowserCommand {
     /// events). `sync`: repitch to the project tempo using the item's detected bpm (no-op
     /// without one) and, while the transport plays, start on the next beat.
     Preview { item: String, sync: bool },
-    /// `base-145`: replies `BrowserFileFilter` (the stored filter, or the defaults).
+    /// Replies `BrowserFileFilter` (the stored filter, or the defaults).
     GetFileFilter,
-    /// `base-145`: store the file filter (every rule must compile, limits
+    /// Store the file filter (every rule must compile, limits
     /// [`MAX_FILE_FILTER_RULES`] / [`MAX_FILE_FILTER_RULE_LEN`]; `InvalidArgument` naming
     /// the first bad rule otherwise). The index drops the files it now hides and rescans to
     /// pick up the ones it now shows. Emits `FileFilterChanged`; replies `BrowserFileFilter`.
     SetFileFilter { filter: FileFilter },
-    /// `base-145`: back to the defaults (removes the stored filter). Emits
+    /// Back to the defaults (removes the stored filter). Emits
     /// `FileFilterChanged`; replies `BrowserFileFilter`.
     ResetFileFilter,
-    /// `base-145`: evaluate `filter` (`None` = the current one) without storing it. Replies
+    /// Evaluate `filter` (`None` = the current one) without storing it. Replies
     /// `BrowserFileFilterCheck`: the rules that don't compile, which of `paths` (relative
     /// file paths, e.g. a folder about to be imported) it shows, and how many of the files
     /// the library index has seen it would show.
@@ -90,7 +90,7 @@ pub const MAX_FILE_FILTER_RULES: usize = 64;
 /// Longest rule (bytes).
 pub const MAX_FILE_FILTER_RULE_LEN: usize = 256;
 
-/// `base-145`: which files the library browser shows. Rules are regular expressions (Rust
+/// Which files the library browser shows. Rules are regular expressions (Rust
 /// `regex` syntax) matched case-insensitively against a file's name (not its folder), unanchored
 /// unless the rule anchors itself (`^`, `$`).
 ///
@@ -262,7 +262,7 @@ pub enum BrowserEvent {
     },
     /// The index changed (scan finished, favourites/tags edited): re-query visible pages.
     IndexChanged,
-    /// `base-145`: the file filter changed (`SetFileFilter`, `ResetFileFilter`, another
+    /// The file filter changed (`SetFileFilter`, `ResetFileFilter`, another
     /// window): re-list folders.
     FileFilterChanged { filter: FileFilter },
 }
