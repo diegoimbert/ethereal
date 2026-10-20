@@ -3,7 +3,8 @@ import { pickOption } from "@/kit/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Device, DeviceId } from "@/generated";
 import { devicesOfTrack, useProjectStore } from "@/state";
-import { cmd, deriveId, newId, type MockTransport } from "@/transport";
+import { cmd, deriveId, newId } from "@/transport";
+import { type MockTransport } from "@/transport/mock";
 import { flush, renderWithMock, resetStores, store, trackByName } from "@/features/devices/testUtils";
 import { SidechainSelector } from "./index";
 

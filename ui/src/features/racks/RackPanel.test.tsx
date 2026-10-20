@@ -7,7 +7,8 @@ import { DeviceWindowsRoot, resetDeviceWindows } from "@/features/devices/window
 import { flush, renderWithMock, resetStores, stubPointerCapture, store } from "@/features/devices/testUtils";
 import { useContextMenuStore } from "@/kit";
 import { pickDevice } from "@/features/devices/testing";
-import { cmd, type MockTransport } from "@/transport";
+import { cmd } from "@/transport";
+import { type MockTransport } from "@/transport/mock";
 
 /** Names of the rows the open picker offers (its list has loaded). */
 async function offeredDevices(trigger: HTMLElement): Promise<string[]> {

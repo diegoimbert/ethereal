@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Clip, Command, GestureId, WarpMarker } from "@/generated";
 import { useEditorStore, useProjectStore, warpMarkersOfClip } from "@/state";
-import { cmd, MockTransport, TransportProvider } from "@/transport";
+import { cmd, TransportProvider } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { itemSelection } from "@/timeline";
 import { WarpEditor } from "./index";
 import { pickOption } from "@/kit/testing";

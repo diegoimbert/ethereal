@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, describe, expect, it } from "vitest";
 import type { Command, ReplyValue } from "@/generated";
 import { playheadStore, useProjectStore } from "@/state";
-import { MockTransport, TransportProvider, type SendOptions } from "@/transport";
+import { TransportProvider, type SendOptions } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { mockNotice, webNotice } from "./host";
 import { MidiLearnPanel, MidiLearnRoot } from "./index";
 import { useMidiLearnStore } from "./store";

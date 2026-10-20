@@ -59,7 +59,7 @@ contribute("shell.root", { name: "my feature", Component: MyRoot }, /* order */ 
 | web | `web.boot`, `web.transport`, `web.debug` | at boot: a listener, a transport wrapper, and debug handles |
 | web | `web.downloadUrl` | the desktop download page the web band offers |
 | web | `web.engine` | the web engine: a worklet and controller worker of its own, init fields, messages and methods (`WasmTransport.endpointMethod`) |
-| tests | `mock.domain`, `mock.docDomain`, `e2e.arrangement` | command domains of the mock engine, and extra arranger test handles |
+| tests | `mock.load`, `mock.domain`, `mock.docDomain`, `e2e.arrangement` | command domains of the mock engine (or a loader that contributes them, awaited before the app's mock engine starts), and extra arranger test handles |
 
 i18n: an extension ships its own catalogs, merged at build time (`i18nCatalogPlugin({ extraDirs })`).
 Its keys type-check through the `ExtensionMessages` interface (`ui/src/i18n/types.ts`). The engine

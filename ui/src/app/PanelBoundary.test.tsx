@@ -4,7 +4,8 @@ import { resetStores } from "@/features/transport-bar/testUtils";
 import { useMobileUi } from "@/features/mobile/mode";
 import { useProjectStore } from "@/state";
 import { resetShell } from "@/state/shell";
-import { cmd, MockTransport, TransportProvider } from "@/transport";
+import { cmd, TransportProvider } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { App } from "./App";
 import { isChunkLoadError, saveAndReload } from "./crashRecovery";
 

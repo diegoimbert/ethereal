@@ -3,7 +3,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import type { DeviceId, MediaId, SampleZone } from "@/generated";
 import { BROWSER_DRAG_MIME } from "@/features/browser/dragPayload";
 import { useProjectStore } from "@/state";
-import { BUILTIN_DESCRIPTORS, cmd, newId, type MockTransport } from "@/transport";
+import { BUILTIN_DESCRIPTORS, cmd, newId } from "@/transport";
+import { type MockTransport } from "@/transport/mock";
 import { LIBRARY_ID } from "@/transport/mock/library";
 import { flush, renderWithMock, resetStores, store, stubPointerCapture, trackByName } from "@/features/devices/testUtils";
 import { useGestureSender } from "../../gesture";

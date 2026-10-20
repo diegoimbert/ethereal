@@ -109,6 +109,7 @@ import type {
   PluginCommand,
   Project,
   ProjectCommand,
+  PluginDescriptor,
   ProjectId,
   ProjectSummary,
   RecordingCommand,
@@ -141,7 +142,7 @@ import { MockAnalysis } from "./roadmap/analysis";
 import { MockBrowser } from "./roadmap/browserV2";
 import { MockFreeze } from "./roadmap/freezeBounce";
 import { libraryPath, MockMediaRefs } from "./roadmap/mediaReferences";
-import { MockResolver } from "./roadmap/resolver";
+import { MOCK_INSTALLED_PLUGINS, MockResolver } from "./roadmap/resolver";
 import { MockPresets } from "./roadmap/presets";
 import { listModulatorKinds } from "./roadmap/racksModulation";
 import { MockTimeEdits } from "./roadmap/timeEdits";
@@ -229,6 +230,10 @@ const dbToLinear = (db: number) => (db <= -144 ? 0 : Math.pow(10, db / 20));
 
 export class MockTransport implements EngineTransport {
   readonly kind = "mock" as const;
+  /** The fake installed plugins the import resolver matches against (`import-resolver/catalog.ts`). */
+  installedPlugins(): PluginDescriptor[] {
+    return MOCK_INSTALLED_PLUGINS;
+  }
 
   private project: Project;
   /** Plugin devices held as placeholders (`OpenSafe`). */

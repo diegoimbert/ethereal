@@ -2,7 +2,8 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest";
 import type { Device, DeviceId } from "@/generated";
 import { useProjectStore } from "@/state";
-import { cmd, type MockTransport } from "@/transport";
+import { cmd } from "@/transport";
+import { type MockTransport } from "@/transport/mock";
 import { ContextMenuHost } from "@/kit";
 import { renderWithMock, resetStores, store } from "@/features/devices/testUtils";
 import { PresetMenu } from "./index";

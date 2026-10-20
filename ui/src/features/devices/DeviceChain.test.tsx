@@ -2,7 +2,8 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Device } from "@/generated";
 import { devicesOfTrack, useProjectStore, useSelectionStore } from "@/state";
-import { cmd, newId, type MockTransport } from "@/transport";
+import { cmd, newId } from "@/transport";
+import { type MockTransport } from "@/transport/mock";
 import { addTrackCommand } from "@/features/arrangement/actions";
 import { dragUp, flush, renderWithMock, resetStores, store, stubPointerCapture, trackByName } from "@/features/devices/testUtils";
 import { groupParams, insertableTypes, splitMainParams } from "./chainUtils";

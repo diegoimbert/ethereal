@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, screen, within } from "@testing-library/react";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import type { MockTransport } from "@/transport";
+import type { MockTransport } from "@/transport/mock";
 import { renderWithMock, resetStores, stubPointerCapture } from "@/features/devices/testUtils";
 import { DeviceChain } from "./index";
 import { resetCollapsed } from "./collapsed";

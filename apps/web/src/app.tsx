@@ -9,7 +9,17 @@
 // Extensions (`@/ext`, docs/EXTENSIONS.md) see the boot ("web.boot", with the invite a web route
 // started it for), may wrap the transport ("web.transport") and add to the debug handle
 // ("web.debug").
-import { App, cmd, enableMobileUi, MockTransport, playheadStore, TransportProvider, useProjectStore, WasmTransport, type EngineTransport } from "@ethereal/ui";
+import {
+  App,
+  cmd,
+  enableMobileUi,
+  loadMockTransport,
+  playheadStore,
+  TransportProvider,
+  useProjectStore,
+  WasmTransport,
+  type EngineTransport,
+} from "@ethereal/ui";
 import { StrictMode } from "react";
 import { DesktopBandFrame } from "@/features/desktop-band";
 import { markWebSessionClosed } from "@/features/versions/session";
@@ -48,6 +58,8 @@ async function boot(invite: string | null): Promise<void> {
 
   let transport: EngineTransport;
   if (new URLSearchParams(window.location.search).has("mock")) {
+    // The mock engine, from its own chunk (not loaded otherwise), with the extensions' domains.
+    const { MockTransport } = await loadMockTransport();
     const m = new MockTransport();
     // e2e handle: send commands the UI has no button for (e.g. insert a mock plugin).
     (window as unknown as { __etherMock?: unknown }).__etherMock = m;
@@ -76,7 +88,7 @@ async function boot(invite: string | null): Promise<void> {
       showMoved();
     });
   }
-  for (const wrap of contributions("web.transport")) transport = wrap(transport) ?? transport;
+  for (const wrap of contributions("web.transport")) transport = (await wrap(transport)) ?? transport;
   // Read-only e2e/debug view of the UI mirror: the project document, history, dirty flag,
   // the latest meter readings and playhead (apps/web/e2e reads these to check state across
   // reloads, and to pace meter checks by transport time).

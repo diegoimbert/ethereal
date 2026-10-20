@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, describe, expect, it } from "vitest";
 import type { Command, Event, ReplyValue } from "@/generated";
 import { playheadStore, tracksOrdered, useProjectStore } from "@/state";
-import { cmd, CommandFailedError, MockTransport, TransportProvider, type SendOptions, type Unsubscribe } from "@/transport";
+import { cmd, CommandFailedError, TransportProvider, type SendOptions, type Unsubscribe } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { pickOption } from "@/kit/testing";
 import { RecordingControls, unsupportedTooltip } from "./index";
 

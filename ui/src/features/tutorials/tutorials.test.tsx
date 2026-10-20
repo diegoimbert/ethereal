@@ -10,7 +10,7 @@ import type { EngineCommands } from "@/features/transport-bar/engine";
 import { GetStarted } from "@/features/project/GetStarted";
 import { zIndex } from "@/theme/tokens";
 import { useProjectScreen } from "@/features/project/screenStore";
-import { MockTransport } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { dimPath, holes, placeBubble } from "./geometry";
 import { isTourDone, markTourDone, resetTutorialProgress } from "./progress";
 import { backStep, canAdvance, finishTour, MISSING_GRACE_MS, nextStep, resetTour, startTour, tickTour, useTour } from "./store";

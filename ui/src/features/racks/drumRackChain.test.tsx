@@ -6,7 +6,7 @@ import { DeviceChain } from "@/features/devices";
 import { DeviceWindowsRoot, resetDeviceWindows } from "@/features/devices/window";
 import { flush, renderWithMock, resetStores, stubPointerCapture, store } from "@/features/devices/testUtils";
 import { pickDevice } from "@/features/devices/testing";
-import type { MockTransport } from "@/transport";
+import type { MockTransport } from "@/transport/mock";
 
 let mock: MockTransport | undefined;
 beforeAll(stubPointerCapture);

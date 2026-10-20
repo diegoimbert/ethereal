@@ -5,7 +5,7 @@ import { useNotices } from "@/features/notifications";
 import { resetTimeSelection, useTimeSelection } from "@/features/time-edits/store";
 import { useProjectStore } from "@/state";
 import { itemSelection } from "@/timeline";
-import { MockTransport } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { clearClipboard, copyClips, hasClipboard, pasteClips } from "./clipboard";
 import { resetArrangementUi, useArrangementUi } from "./uiStore";
 

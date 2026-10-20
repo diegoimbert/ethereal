@@ -4,7 +4,8 @@ import type { AudioToMidiCommand, Clip, Command, Event, Project, ReplyValue } fr
 import type { ContextMenuEntry, ContextMenuItem } from "@/kit";
 import { useProjectStore } from "@/state";
 import { itemSelection } from "@/timeline";
-import { CommandFailedError, createDemoProject, type EngineTransport } from "@/transport";
+import { CommandFailedError, type EngineTransport } from "@/transport";
+import { createDemoProject } from "@/transport/mock";
 import { AudioToMidiClipStatus } from "./ClipStatus";
 import { audioToMidiClipEntries, withAudioToMidiEntries } from "./menus";
 import { DEFAULT_OPTIONS, resetAudioToMidi, useAudioToMidi } from "./store";

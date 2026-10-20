@@ -3,7 +3,8 @@
 import { render, waitFor, type RenderResult } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { playheadStore, useProjectStore } from "@/state";
-import { MockTransport, TransportProvider, type MockTransportOptions } from "@/transport";
+import { TransportProvider } from "@/transport";
+import { MockTransport, type MockTransportOptions } from "@/transport/mock";
 import { resetDiskStore } from "./disk";
 
 export interface MockRender extends RenderResult {

@@ -25,18 +25,18 @@ test.use({ trace: "off" });
 const BUDGET_LONG_AUDIO_MB = 700;
 /**
  * The tab with the 16-track MIDI project, after a garbage collection of the page: the memory it
- * holds. 280 MB: 236-241 MB measured (median 239, 7 runs) on 2026-10-20 (242 MB at 92a33e13,
- * 250 MB before the fixes that day). Single runs vary by a few MB. A build with more of its own
- * UI sets its budget with `ETHER_E2E_MOBILE_MEMORY_MB`.
+ * holds. 260 MB: 227-237 MB measured (median 234, 7 runs, alternating with main's 244) on
+ * 2026-10-20, once the mock engine stopped loading at launch (#170). Single runs vary by a few
+ * MB. A build with more of its own UI sets its budget with `ETHER_E2E_MOBILE_MEMORY_MB`.
  */
-const BUDGET_MB = Number(process.env.ETHER_E2E_MOBILE_MEMORY_MB ?? 280);
+const BUDGET_MB = Number(process.env.ETHER_E2E_MOBILE_MEMORY_MB ?? 260);
 /**
  * The same tab before that collection: what it holds plus the garbage the gestures left, which
  * depends on when the collector last ran (a loaded host runs it later, so this varies by ±30 MB
- * and more on CI). 400 MB: 287-329 MB measured (median 293) on 2026-10-20. A build with more of
- * its own UI sets it with `ETHER_E2E_MOBILE_MEMORY_UNCOLLECTED_MB`.
+ * and more on CI). 380 MB: 280-341 MB measured (median 311; main 318) on 2026-10-20. A build
+ * with more of its own UI sets it with `ETHER_E2E_MOBILE_MEMORY_UNCOLLECTED_MB`.
  */
-const BUDGET_UNCOLLECTED_MB = Number(process.env.ETHER_E2E_MOBILE_MEMORY_UNCOLLECTED_MB ?? 400);
+const BUDGET_UNCOLLECTED_MB = Number(process.env.ETHER_E2E_MOBILE_MEMORY_UNCOLLECTED_MB ?? 380);
 
 /** The lanes' box (right of the header column). */
 async function lanes(page: Page) {

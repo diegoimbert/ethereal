@@ -3,7 +3,7 @@
  * plugin catalog (the host scans plugins), so the UI passes it with `Resolve::Propose`:
  *
  * - desktop (`tauri`): the scanned list (`Plugin::List`, shared with the plugin store);
- * - mock engine: its fake plugins ([`MOCK_INSTALLED_PLUGINS`]);
+ * - mock engine: its fake plugins (`MockTransport.installedPlugins`);
  * - another computer's engine plays the project (`usePluginStore.remote`): that computer's list;
  * - web / remote: no plugin host. The e2e suite can stand in an installed list with
  *   `window.__etherResolverPlugins` (set by an init script) to exercise the real engine's
@@ -11,8 +11,10 @@
  */
 import type { Device, PluginDescriptor } from "@/generated";
 import { usePluginStore } from "@/features/plugins/pluginStore";
-import { MOCK_INSTALLED_PLUGINS } from "@/transport/mock/roadmap/resolver";
 import { cmd, type EngineTransport } from "@/transport";
+
+/** The mock engine's fake installed plugins (`MockTransport.installedPlugins`; the app doesn't load the mock otherwise). */
+const mockPlugins = (t: EngineTransport) => (t as EngineTransport & { installedPlugins?(): PluginDescriptor[] }).installedPlugins?.() ?? [];
 
 /** e2e seam (see the module comment). */
 function seeded(): PluginDescriptor[] | null {
@@ -26,7 +28,7 @@ export function catalogNow(transport: EngineTransport | null | undefined): Plugi
   const remote = usePluginStore.getState().remote;
   if (remote) return remote.plugins;
   if (transport.kind === "tauri") return usePluginStore.getState().plugins;
-  if (transport.kind === "mock") return MOCK_INSTALLED_PLUGINS;
+  if (transport.kind === "mock") return mockPlugins(transport);
   return seeded();
 }
 
