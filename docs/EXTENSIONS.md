@@ -147,3 +147,5 @@ hosts), `f` returning a controller made with `with_state`.
   Dropping the `DedicatedEngine` stops it.
 - Feature `test-support`: fake plugins (`plugins::fake`) and `test_util::fake_bridge` for
   another crate's tests.
+- `health::set_watchdog_observer(f)` (once, at startup): `f` is also told every stall event
+  the engine watchdog reports (from the watchdog thread).
