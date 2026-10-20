@@ -1,4 +1,4 @@
-//! The FM Synth (`BuiltinDeviceType::FmSynth`, node `fm-synth`): four operators A–D in one
+//! The FM Synth (`BuiltinDeviceType::FmSynth`): four operators A–D in one
 //! of 11 algorithms ([`algorithms`]), each a band-limited oscillator (sine, triangle, saw,
 //! square, noise) at a frequency ratio of the note (or a fixed frequency) with its own ADSR,
 //! level, velocity sensitivity and self-feedback; a voice filter with its own envelope, one
