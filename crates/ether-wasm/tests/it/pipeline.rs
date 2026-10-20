@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use crate::fake;
 use ether_controller::{Controller, EngineBridge, HostServices};
 use ether_core::graph::{ClipContentDesc, ClipDesc, TrackDesc};
 use ether_core::protocol::message::{Command, Event, ReplyResult, ReplyValue};
@@ -14,7 +15,6 @@ use ether_core::protocol::{ClientMessage, ServerMessage};
 use ether_core::{EngineOutputs, RenderGraphDesc, TransportControl};
 use ether_media::DecodedAudio;
 use ether_wasm::bridge::{self, WebBridge};
-mod fake;
 use ether_wasm::ring::HeapMemory;
 use ether_wasm::store::{MemFs, WebStore};
 use ether_wasm::worklet::{EngineHost, RENDER_QUANTUM};

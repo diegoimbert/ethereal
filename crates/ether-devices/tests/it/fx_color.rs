@@ -1,7 +1,7 @@
 //! fx-color devices (Saturator, Bitcrusher, Auto Filter): render tests. Every `process`
 //! call runs under `assert_no_alloc` (debug builds abort on allocation on the audio path).
 //!
-//! CPU cost per instance: `cargo test --release -p ether-devices --test fx_color -- --ignored
+//! CPU cost per instance: `cargo test --release -p ether-devices --test it fx_color:: -- --ignored
 //! --nocapture cpu_cost`.
 
 use assert_no_alloc::assert_no_alloc;

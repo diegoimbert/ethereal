@@ -4,7 +4,7 @@
 //! binary one ([`ether_wasm::perf`]; the same code runs in V8 via `bench_graph_snapshot`).
 //!
 //! Feature `bench`. Native numbers:
-//! `cargo test -p ether-wasm --release --features bench --test web_perf -- --nocapture`.
+//! `cargo test -p ether-wasm --release --features bench --test it web_perf:: -- --nocapture`.
 
 use std::sync::LazyLock;
 use std::time::{Duration, Instant};

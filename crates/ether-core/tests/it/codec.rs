@@ -199,7 +199,7 @@ fn huge_counts_do_not_allocate() {
 /// (`tests/golden/graph_codec_v<VERSION>.bin`). A layout change (a new field or variant,
 /// a reordered field, a wider integer) changes these bytes, so it fails here until
 /// `VERSION` is bumped and the golden file of the new version is recorded:
-/// `UPDATE_GOLDEN=1 cargo test -p ether-core --test codec golden`. Recording refuses to
+/// `UPDATE_GOLDEN=1 cargo test -p ether-core --test it codec::golden`. Recording refuses to
 /// overwrite the golden file of the same version when the current decoder can't read it
 /// back (the layout changed: bump `VERSION`), and removes the files of other versions.
 #[test]
@@ -235,7 +235,7 @@ fn golden_bytes_pin_the_layout() {
     let golden = std::fs::read(&path).unwrap_or_else(|_| {
         panic!(
             "no golden file for BinaryCodec::VERSION {}: record it with \
-             `UPDATE_GOLDEN=1 cargo test -p ether-core --test codec golden`",
+             `UPDATE_GOLDEN=1 cargo test -p ether-core --test it codec::golden`",
             BinaryCodec::VERSION
         )
     });
@@ -248,8 +248,8 @@ fn golden_bytes_pin_the_layout() {
         panic!(
             "the binary encoding of v02_filled changed (first difference at byte {at}; {} \
              bytes, golden {}) but BinaryCodec::VERSION is still {}. A layout change must \
-             bump VERSION, then `UPDATE_GOLDEN=1 cargo test -p ether-core --test codec \
-             golden`. If only the fixture changed, the same command re-records {name}.",
+             bump VERSION, then `UPDATE_GOLDEN=1 cargo test -p ether-core --test it \
+             codec::golden`. If only the fixture changed, the same command re-records {name}.",
             bytes.len(),
             golden.len(),
             BinaryCodec::VERSION
