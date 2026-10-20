@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { AutomationPoint, DeviceDescriptor, Project } from "@/generated";
-import { createDemoProject } from "@/transport";
+import { createDemoProject } from "@/transport/mock";
 import { curveFraction, type CurvePoint } from "./curve";
 import { addPointCommand, bendTension, moveEdits, removePointsCommand, setCurveCommand, TENSION_DRAG_PX, TIE_NUDGE } from "./edit";
 import { LANE_PAD, lanePath, pointRect, segmentAt, timeToX, valueToY, xToTime, yToValue, type LaneGeometry } from "./geometry";

@@ -1,7 +1,8 @@
 import { act, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { useProjectStore } from "@/state";
-import { cmd, MockTransport, TransportProvider } from "@/transport";
+import { cmd, TransportProvider } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { loadRecordingSetup, recordingSetupKey, useKeepRecordingSetup } from "./keep";
 
 const store = () => useProjectStore.getState();

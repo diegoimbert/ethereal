@@ -3,7 +3,8 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import type { Device, DeviceId, Event } from "@/generated";
 import { ContextMenuHost } from "@/kit";
 import { useProjectStore } from "@/state";
-import { BUILTIN_DESCRIPTORS, cmd, newId, type MockTransport } from "@/transport";
+import { BUILTIN_DESCRIPTORS, cmd, newId } from "@/transport";
+import { type MockTransport } from "@/transport/mock";
 import { flush, renderWithMock, resetStores, store, stubPointerCapture, trackByName } from "@/features/devices/testUtils";
 import { useGestureSender } from "../../gesture";
 import { DeviceLayoutView } from "../DeviceLayoutView";

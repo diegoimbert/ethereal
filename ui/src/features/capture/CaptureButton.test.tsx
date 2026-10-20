@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { createEmptyProject, newId, newProjectId } from "@/transport";
+import { newId, newProjectId } from "@/transport";
+import { createEmptyProject } from "@/transport/mock";
 import { tracksOrdered, useProjectStore, useSelectionStore } from "@/state";
 import { itemSelection } from "@/timeline/selection";
 import { useArrangementUi } from "@/features/arrangement/state";

@@ -3,7 +3,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Command, Note } from "@/generated";
 import { useProjectStore } from "@/state";
-import { cmd, MockTransport, TransportProvider } from "@/transport";
+import { cmd, TransportProvider } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { GrooveControls } from "./GrooveControls";
 import { GroovePanel } from "./GroovePanel";
 import {

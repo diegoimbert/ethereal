@@ -1,6 +1,6 @@
 import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { createDemoProject } from "@/transport";
+import { createDemoProject } from "@/transport/mock";
 import { useProjectStore } from "@/state/projectStore";
 import { marqueeHits, rectFromPoints, rectsIntersect, useMarquee, type Rect } from "./marquee";
 import { bindSelectionToProject, combineSelection, createItemSelectionStore, selectModeFromEvent, type ItemSelectionStore } from "./selection";

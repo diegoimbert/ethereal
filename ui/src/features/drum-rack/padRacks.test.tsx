@@ -3,7 +3,8 @@ import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { pickDevice } from "@/features/devices/testing";
 import { flush, renderWithMock, resetStores, store, stubPointerCapture, trackByName } from "@/features/devices/testUtils";
 import { devicesOfPad, useSelectionStore } from "@/state";
-import { cmd, type MockTransport } from "@/transport";
+import { cmd } from "@/transport";
+import { type MockTransport } from "@/transport/mock";
 import { DrumRackView } from "./index";
 import { noteName } from "./padUtils";
 

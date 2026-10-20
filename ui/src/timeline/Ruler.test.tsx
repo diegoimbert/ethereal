@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it } from "vitest";
 import { playheadStore } from "@/state/playhead";
 import { useProjectStore } from "@/state/projectStore";
-import { cmd, MockTransport, TransportProvider } from "@/transport";
+import { cmd, TransportProvider } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { PlayheadLine } from "./PlayheadLine";
 import { Ruler } from "./Ruler";
 import { createTimelineViewStore } from "./viewStore";

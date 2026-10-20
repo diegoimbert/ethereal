@@ -3,7 +3,8 @@
 // desktop host as seen by the UI.
 import { act } from "@testing-library/react";
 import type { Command, Event, PluginDescriptor, PluginEvent, ReplyValue } from "@/generated";
-import { Emitter, MockTransport, type EngineTransport, type SendOptions, type Unsubscribe } from "@/transport";
+import { Emitter, type EngineTransport, type SendOptions, type Unsubscribe } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 
 export const plugin = (
   id: string,

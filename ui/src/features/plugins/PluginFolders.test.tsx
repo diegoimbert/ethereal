@@ -4,7 +4,8 @@ import type { Command, Event, PluginCommand, PluginEvent, PluginFolders, ReplyVa
 import { ContextMenuHost } from "@/kit";
 import { pickOption } from "@/kit/testing";
 import { useProjectStore } from "@/state";
-import { Emitter, MockTransport, TransportProvider, type EngineTransport, type SendOptions, type Unsubscribe } from "@/transport";
+import { Emitter, TransportProvider, type EngineTransport, type SendOptions, type Unsubscribe } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { PluginFoldersPanel } from "./index";
 import { usePluginStore } from "./pluginStore";
 

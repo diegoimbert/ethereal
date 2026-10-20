@@ -10,7 +10,7 @@ import { createDefaultTransport, TransportProvider } from "./transport";
 import { initI18n } from "./i18n";
 
 // MockTransport standalone; TauriTransport inside the desktop shell (see createDefaultTransport).
-const transport = createDefaultTransport();
+const transport = await createDefaultTransport();
 // `?kit` shows the design-system gallery instead of the app (docs/DESIGN-SYSTEM.md).
 const showKit = new URLSearchParams(location.search).has("kit");
 const root = document.getElementById("root");

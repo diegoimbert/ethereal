@@ -3,7 +3,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AudioContent, Clip, Command } from "@/generated";
 import { useProjectStore } from "@/state";
-import { cmd, MockTransport, newId, TransportProvider } from "@/transport";
+import { cmd, newId, TransportProvider } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { ContextMenuHost } from "@/kit";
 import { ArrangementView } from "@/features/arrangement";
 import { resetArrangementUi, useArrangementUi } from "@/features/arrangement/uiStore";

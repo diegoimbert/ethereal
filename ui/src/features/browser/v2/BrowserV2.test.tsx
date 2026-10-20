@@ -4,7 +4,8 @@ import type { Command } from "@/generated";
 import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
 import { ContextMenuHost } from "@/kit";
 import { useProjectStore } from "@/state";
-import { CommandFailedError, MockTransport, TransportProvider } from "@/transport";
+import { CommandFailedError, TransportProvider } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { BROWSER_DRAG_MIME, readBrowserDrag } from "../dragPayload";
 import { Browser } from "../index";
 

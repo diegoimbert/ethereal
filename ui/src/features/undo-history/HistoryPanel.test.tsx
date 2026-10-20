@@ -1,7 +1,8 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { playheadStore, useProjectStore } from "@/state";
-import { cmd, MockTransport, TransportProvider } from "@/transport";
+import { cmd, TransportProvider } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { HistoryPanel, nameCurrentCheckpoint, useUndoHistoryUi } from "./index";
 
 const store = () => useProjectStore.getState();

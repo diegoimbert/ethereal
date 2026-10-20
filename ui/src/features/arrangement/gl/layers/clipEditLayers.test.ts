@@ -1,7 +1,7 @@
 /** The clip-editing layers' build output (instances per clip state) and hit tests, without GL. */
 import { describe, expect, it } from "vitest";
 import type { AudioContent, Clip, ClipId } from "@/generated";
-import { MockTransport } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { CLIP_INSET, CLIP_RADIUS, CLIP_TITLE } from "../../laneBodyGeometry";
 import { stableBoundsOf, type LaneItem } from "../../laneItems";
 import type { LaneLayerContext, LayerOutput } from "../layers";

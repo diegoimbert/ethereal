@@ -2,7 +2,8 @@
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import type { Project, Track } from "@/generated";
 import { useProjectStore, useSelectionStore } from "@/state";
-import { MockTransport, TransportProvider } from "@/transport";
+import { TransportProvider } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import type { ReactNode } from "react";
 import { expect } from "vitest";
 

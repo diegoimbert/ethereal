@@ -3,7 +3,8 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import type { Device, MissingPlugin, PluginDescriptor } from "@/generated";
 import { useContextMenuStore, type ContextMenuItem } from "@/kit";
 import { useEditorStore, useProjectStore, useSelectionStore } from "@/state";
-import { cmd, MockTransport, newId, TransportProvider, type EngineTransport } from "@/transport";
+import { cmd, newId, TransportProvider, type EngineTransport } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { libraryPath } from "@/transport/mock/roadmap/mediaReferences";
 import type { ChatSession, LoopEvent } from "@/features/ai-chat/providers";
 import { reloadAiSettings, useAiSettings } from "@/features/ai-chat/settings";

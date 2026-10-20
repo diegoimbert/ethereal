@@ -6,7 +6,8 @@ import type { BuiltinDevice, DeviceId, RackChainId } from "@/generated";
 import { DeviceChain } from "@/features/devices";
 import { flush, renderWithMock, resetStores, stubPointerCapture, store, trackByName } from "@/features/devices/testUtils";
 import { useContextMenuStore } from "@/kit";
-import { cmd, newId, type MockTransport } from "@/transport";
+import { cmd, newId } from "@/transport";
+import { type MockTransport } from "@/transport/mock";
 import { chainsOf, dropIndex, useChainClipboard, useChainDrag } from "./chainClipboard";
 
 let mock: MockTransport | undefined;

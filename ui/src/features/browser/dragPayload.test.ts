@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { MediaRef } from "@/generated";
 import { useProjectStore } from "@/state";
-import { isCommandFailed, MockTransport } from "@/transport";
+import { isCommandFailed } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { formatSize, parentPath, pathSegments, sameLocation, sourceOf } from "./paths";
 import {
   BROWSER_DRAG_MIME,

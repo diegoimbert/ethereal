@@ -11,7 +11,7 @@
  *   └────┴───────────────────────────────────────────────────────────────────────────────┘
  *
  * Engine access: entries (`ui/src/main.tsx`, `apps/web/src/main.tsx`) wrap `<App />` in
- * `<TransportProvider transport={createDefaultTransport()}>` from `@/transport`; features
+ * `<TransportProvider transport={await createDefaultTransport()}>` from `@/transport`; features
  * use `useTransport()` and read the document from `@/state`.
  */
 import { lazy, memo, Suspense, useContext, useEffect, useRef } from "react";

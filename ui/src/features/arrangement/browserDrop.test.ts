@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Command, Event, GestureId, MediaId, MediaRef, ReplyValue } from "@/generated";
 import { useProjectStore } from "@/state";
-import { cmd, CommandFailedError, Emitter, MockTransport, type EngineTransport, type SendOptions } from "@/transport";
+import { cmd, CommandFailedError, Emitter, type EngineTransport, type SendOptions } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { dropBrowserMedia, type BrowserDragPayload } from "./browserDrop";
 import { resetArrangementUi, useArrangementUi } from "./uiStore";
 

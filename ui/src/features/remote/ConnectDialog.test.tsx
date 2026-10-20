@@ -2,7 +2,8 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ClientHello, ClientMessage, ServerMessage } from "@/generated";
 import { useProjectStore } from "@/state/projectStore";
-import { cmd, CommandFailedError, MockTransport, TransportProvider, useTransport } from "@/transport";
+import { cmd, CommandFailedError, TransportProvider, useTransport } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { ConnectDialog, ENGINE_SERVER_SHOWN_KEY, reloadEngineServerShown, RemoteEngineSettings, useEngineServerShown } from ".";
 import { URL_KEY } from "./engineServer";
 import { buildCommands } from "@/app/shell/commands";

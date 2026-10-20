@@ -4,7 +4,8 @@ import type { Command } from "@/generated";
 import { pickOption } from "@/kit/testing";
 import { useEditorStore, useProjectStore } from "@/state";
 import { itemSelection } from "@/timeline";
-import { cmd, MockTransport, TransportProvider } from "@/transport";
+import { cmd, TransportProvider } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { PianoRoll } from "@/features/piano-roll";
 import { ConfirmDialog, ContextMenuHost, useConfirm } from "@/kit";
 

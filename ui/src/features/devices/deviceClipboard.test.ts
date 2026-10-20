@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { BuiltinDevice, Device, DeviceCategory, DeviceId, Project, TrackId, TrackKind } from "@/generated";
 import { useNotices } from "@/features/notifications";
 import { useProjectStore } from "@/state";
-import { cmd, MockTransport, newId } from "@/transport";
+import { cmd, newId } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { pasteDevice, pasteTarget, useDeviceClipboard } from "./deviceClipboard";
 
 let mock: MockTransport;

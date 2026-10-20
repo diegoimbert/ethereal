@@ -4,7 +4,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Command, PluginParamValue, ReplyValue } from "@/generated";
-import { cmd, CommandFailedError, MOCK_MEGA_PLUGIN_ID, MockTransport, newId, TransportProvider, type EngineTransport, type SendOptions } from "@/transport";
+import { cmd, CommandFailedError, newId, TransportProvider, type EngineTransport, type SendOptions } from "@/transport";
+import { MOCK_MEGA_PLUGIN_ID, MockTransport } from "@/transport/mock";
 import { mockParamText } from "@/transport/mock/plugins";
 import { flush, resetStores, store, stubPointerCapture } from "./testUtils";
 import { DeviceChain } from "./index";

@@ -343,8 +343,8 @@ export interface ExtensionPoints {
   "web.route": WebRoute;
   /** The web editor starts (before its engine), with the invite a `web.route` started it for. */
   "web.boot": (invite: string | null) => void;
-  /** Wrap the web editor's transport (e2e fakes); `void`: keep it. */
-  "web.transport": (transport: EngineTransport) => EngineTransport | void;
+  /** Wrap the web editor's transport (e2e fakes; may load the wrapper first); `void`: keep it. */
+  "web.transport": (transport: EngineTransport) => EngineTransport | void | Promise<EngineTransport | void>;
   /** Entries added to the web build's read-only debug handle (`window.__ether`). */
   "web.debug": (transport: EngineTransport) => Record<string, unknown>;
   /**
@@ -387,6 +387,11 @@ export interface ExtensionPoints {
   "e2e.arrangement": () => Record<string, unknown>;
   /** The web engine (`apps/web/src/engine/endpoint.ts`). */
   "web.engine": WebEngineExtension;
+  /**
+   * Loads an extension's mock domains (it contributes them when loaded): awaited before the app
+   * creates its mock engine (`loadMockTransport`), which it loads only when it runs against it.
+   */
+  "mock.load": () => Promise<unknown>;
   /** Mock engine domains (`transport/mock/MockTransport.ts`). */
   "mock.domain": ExtMockDomain;
   /** Mock document command domains (`transport/mock/roadmap`). */

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { DeviceDescriptor, Project, Track } from "@/generated";
 import { devicesOfTrack, tracksOrdered } from "@/state";
 import { fetchBuiltinTypes } from "@/features/devices/descriptors";
-import { MockTransport } from "@/transport";
+import { MockTransport } from "@/transport/mock";
 import { canInsert } from "@/features/devices/chainUtils";
 import { insertDeviceCommand } from "./deviceInsert";
 
