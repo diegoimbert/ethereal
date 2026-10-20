@@ -8,7 +8,7 @@ export const DEV_ONLY_PATHS: readonly string[] = ["src/features/kit-gallery", "s
  * The ratchet (docs/LOCALIZATION.md): paths (relative to ui/) whose UI text all goes through
  * the catalogs. catalogs.test.ts fails on any hard-coded text in them, and pseudo.test.tsx
  * renders their surfaces in the pseudo-locale. Each area's localization PR adds its paths.
- * The lowercase sweep (#524) can skip these: catalog text is lowercase already.
+ * The lowercase sweep can skip these: catalog text is lowercase already.
  */
 export const LOCALIZED_PATHS: readonly string[] = [
   "src/kit",

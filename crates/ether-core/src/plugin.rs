@@ -57,7 +57,7 @@ pub trait PluginController {
     fn close_editor(&mut self);
 
     /// The open editor's top-level native window (for capturing it and injecting input into
-    /// it, #853). `None` while no editor is open, or when the window isn't known (yet): a
+    /// it). `None` while no editor is open, or when the window isn't known (yet): a
     /// plugin's own floating window (CLAP) is discovered best-effort after it opens, so this
     /// may turn `Some` a few polls later. Main thread.
     fn editor_window(&self) -> Option<NativeWindow> {

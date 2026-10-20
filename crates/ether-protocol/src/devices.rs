@@ -183,7 +183,7 @@ pub struct DeviceDescriptor {
     /// Roadmap v2 (`sidechain`): channels of the sidechain input (0 = none; the UI shows a
     /// sidechain source selector when > 0).
     pub sidechain_inputs: u16,
-    /// v0.2 (`device-ui`): declarative panel layout rendered by the shared renderer
+    /// v0.2: declarative panel layout rendered by the shared renderer
     /// ([`crate::layout`]). `None` = the generic layout. Omitted from JSON when `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
@@ -234,7 +234,7 @@ pub struct ParamInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub step: Option<f64>,
-    /// base-132: position of this param among the plugin's own quick controls (CLAP
+    /// Position of this param among the plugin's own quick controls (CLAP
     /// remote-controls pages: `page index · 8 + slot`, first occurrence). The device card
     /// shows these right after the params the user pinned. Omitted from JSON when `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -254,8 +254,7 @@ pub enum ParamUnit {
     Ratio,
     Pan,
     Toggle,
-    /// Hundredths of a semitone (unison detune, fine tuning). Appended by
-    /// `devices-pass-instruments`.
+    /// Hundredths of a semitone (unison detune, fine tuning). Appended.
     Cents,
 }
 

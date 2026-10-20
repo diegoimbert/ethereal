@@ -1,4 +1,4 @@
-// Screenshots of the mobile UI (#522) for design review and the gate PR: the arrangement with a
+// Screenshots of the mobile UI for design review and the gate PR: the arrangement with a
 // selected clip (its action bar), the track sheet, the mixer and the piano roll, on a phone in
 // portrait and landscape and on a tablet, in the dark and light themes.
 //

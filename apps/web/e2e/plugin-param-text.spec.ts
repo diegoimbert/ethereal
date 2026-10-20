@@ -1,4 +1,4 @@
-// #424: a plugin's knobs show the plugin's own display text (`Plugin::ParamTexts`; on the
+// A plugin's knobs show the plugin's own display text (`Plugin::ParamTexts`; on the
 // desktop: CLAP `value_to_text`, VST3
 // `getParamStringByValue` + units). Runs the web build on the mock transport (`?mock`), whose
 // "Mock Mega" plugin reads its Cutoff params as Hz; params without a text keep the UI's own

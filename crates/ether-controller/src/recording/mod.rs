@@ -19,7 +19,7 @@
 //!   port / channel, accepts it: `ether_core::recording::MidiInputFilter`). Clips are placed where the
 //!   host's latency compensation put them (see `ether-native`'s recording module for the
 //!   formula). `RecordingEvent::Stopped` lists the new clips.
-//! - **Track input taps** (`tap-recording`, resampling): an armed audio track whose input is
+//! - **Track input taps** (resampling): an armed audio track whose input is
 //!   another track (`TrackInput::Track`) records that track's aligned signal
 //!   ([`RecordSession::taps`]); its takes are committed like hardware takes. Hosts without
 //!   capture (web) cannot record it: the UI disables arming such a track there.
@@ -75,8 +75,8 @@ pub struct RecordSession {
     /// Unique per session: hosts name take files `media/rec-<tag>-<track>-<take>.wav`.
     pub tag: String,
     pub audio: Vec<AudioTarget>,
-    /// Armed audio tracks whose input is another track (`TrackInput::Track`,
-    /// `tap-recording`): each records its aligned input tap (stereo), placed with its own
+    /// Armed audio tracks whose input is another track (`TrackInput::Track`):
+    /// each records its aligned input tap (stereo), placed with its own
     /// PDC input latency instead of the round-trip latency. Takes are `AudioTake`s like
     /// hardware ones (loop passes become take lanes, `comping`).
     pub taps: Vec<TrackId>,
@@ -360,7 +360,7 @@ fn midi_passes(
             }
         };
         let notes = notes_from_midi(events, from, until);
-        // v0.3 (`midi-expression`): CC / bend / pressure become lanes and note pressure.
+        // v0.3: CC / bend / pressure become lanes and note pressure.
         let gap = crate::expression::record::THIN_SECONDS * map.bpm_at(Beats(from.max(0.0))) / 60.0;
         let expression = crate::expression::record::recorded_expression(events, from, &notes, gap);
         if notes.is_empty() && expression.is_empty() {
@@ -781,7 +781,7 @@ where
         };
         if doc.project.id != active.session.project {
             // The project was switched while recording without finishing it first (every
-            // switch does, `autosave_before_switch`, #717): the files stay in the old one.
+            // switch does, `autosave_before_switch`): the files stay in the old one.
             return Ok(Vec::new());
         }
         let s = &active.session;

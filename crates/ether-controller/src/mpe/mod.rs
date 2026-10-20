@@ -1,4 +1,4 @@
-//! MPE (v0.3, `mpe`; builds on `midi-expression`; CONTRACTS.md §13.3).
+//! MPE (v0.3, `mpe`; builds on MIDI expression; CONTRACTS.md §13.3).
 //!
 //! - [`set_track_mpe`]: `Expression::SetTrackMpe` (document command, `TrackChange::Mpe`;
 //!   MIDI tracks only, settings checked by `ether_model::check_mpe`; idempotent).

@@ -1,4 +1,4 @@
-/** A touch drag in progress (#522): where the finger is and what it does (the drag badge). */
+/** A touch drag in progress: where the finger is and what it does (the drag badge). */
 import { create } from "zustand";
 import type { ClipGrab } from "./clipTouch";
 

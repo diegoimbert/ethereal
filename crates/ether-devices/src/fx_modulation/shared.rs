@@ -327,7 +327,7 @@ impl Lfo {
         self.phase + step.inc * n as f64
     }
 
-    /// Catch up on `samples` the engine skipped while the device slept (perf audit #5), so
+    /// Catch up on `samples` the engine skipped while the device slept, so
     /// a free-running LFO keeps its phase as if it had run; a song-locked one jumps onto the
     /// song position (it would have been there).
     pub(super) fn skip(&mut self, step: &LfoStep, samples: u64) {
@@ -339,7 +339,7 @@ impl Lfo {
     }
 }
 
-/// Control-rate chunk of the modulation effects (perf audit #17): LFO shapes, filter
+/// Control-rate chunk of the modulation effects: LFO shapes, filter
 /// coefficients and other transcendental functions of the modulation are evaluated once
 /// per chunk and ramped linearly in between (as `poly_synth` does).
 pub(super) const CONTROL: usize = 16;

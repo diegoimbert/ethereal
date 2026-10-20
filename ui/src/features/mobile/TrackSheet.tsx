@@ -1,5 +1,5 @@
 /**
- * The Track sheet (#522, the design's §4 "Track headers"): everything a track header does on
+ * The Track sheet (the design's §4 "Track headers"): everything a track header does on
  * desktop, at touch size, opened by tapping a selected track's header. Mute / solo / arm,
  * volume and pan (the header's own fader and knob, larger), rename, move up / down, and the
  * track menu's actions (cut, copy, paste, duplicate, delete). The device chain is listed

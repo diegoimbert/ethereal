@@ -7,7 +7,7 @@
 //!   hosts without it re-create the node).
 //! - Zone media load like the sampler's sample: multisamplers whose zones use newly loaded
 //!   media are rebuilt (`handlers.rs::tick_impl`, next to samplers). Zone media may be
-//!   external references (`media-references`); missing media play silent until relinked.
+//!   external references; missing media play silent until relinked.
 
 use ether_core::protocol::model::{
     BuiltinDevice, DeviceChange, DeviceId, DeviceKind, MAX_ZONES, MediaId, SampleZone,

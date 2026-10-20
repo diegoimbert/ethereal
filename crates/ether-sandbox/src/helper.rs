@@ -330,7 +330,7 @@ fn run_audio(
 ) -> Box<dyn PluginNode> {
     let layout = *region.layout();
     let max = layout.max_frames;
-    // Audit #9: like the engine's audio threads, flush denormals and run at real-time
+    // Like the engine's audio threads, flush denormals and run at real-time
     // priority (the period of a max-size block; best effort).
     crate::rt::enable_flush_denormals();
     crate::rt::promote_current_thread(std::time::Duration::from_secs_f64(

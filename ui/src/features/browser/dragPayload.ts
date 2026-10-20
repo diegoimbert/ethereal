@@ -39,7 +39,7 @@ import { t } from "@/i18n";
 
 export const BROWSER_DRAG_MIME = "application/x-ethereal-media+json";
 /**
- * #717: also set (empty) on a MIDI file's drag, so drop targets can tell a MIDI file during
+ * Also set (empty) on a MIDI file's drag, so drop targets can tell a MIDI file during
  * `dragover` (only the types are readable then).
  */
 export const BROWSER_MIDI_DRAG_MIME = "application/x-ethereal-midi";

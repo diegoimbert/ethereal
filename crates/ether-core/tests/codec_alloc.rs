@@ -1,10 +1,10 @@
-//! `BinaryCodec::decode` is cheap and bounded (web-perf): it allocates exactly once per
+//! `BinaryCodec::decode` is cheap and bounded: it allocates exactly once per
 //! non-empty `Vec` of the desc, and decoding the large fixture (64 tracks, 500 clips,
 //! automation) stays under [`DECODE_BOUND`].
 //!
 //! Own test binary: it installs a counting global allocator.
 
-#[path = "codec_fixture.rs"]
+#[path = "it/codec_fixture.rs"]
 mod fixture;
 
 use std::alloc::{GlobalAlloc, Layout, System};
@@ -144,8 +144,8 @@ fn large_fixture_decodes_within_bound() {
 }
 
 /// The same bound with every v0.2 field filled on all 64 tracks (a JSON blob for the fields
-/// still in it; `groups-buses` moved `input_tap`, `vca` and `vcas` into the binary layout in
-/// codec v3, `chain_racks` and `modulation` since v4 (`racks-modulation`); `frozen` is
+/// still in it; groups and buses moved `input_tap`, `vca` and `vcas` into the binary layout in
+/// codec v3, `chain_racks` and `modulation` since v4; `frozen` is
 /// the last field in the blob).
 #[test]
 fn large_v02_fixture_decodes_within_bound() {

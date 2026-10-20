@@ -1,4 +1,4 @@
-// Project actions on the web build (base-114): Save as, Duplicate, a `.ether` bundle export
+// Project actions on the web build: Save as, Duplicate, a `.ether` bundle export
 // (browser download) imported back (browser upload) with its media.
 //
 // No sleeps: every step waits on UI or engine state.
@@ -40,7 +40,7 @@ function sineWav(seconds: number): Buffer {
 
 async function boot(page: Page) {
   await page.goto("/");
-  // base-131: the app launches with no project, on the project screen.
+  // The app launches with no project, on the project screen.
   await expect(projectScreen(page)).toBeVisible({ timeout: 30_000 });
 }
 

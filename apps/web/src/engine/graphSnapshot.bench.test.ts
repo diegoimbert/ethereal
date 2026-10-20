@@ -2,7 +2,7 @@
 // tracks, 500 clips, automation) through the binary `Publish` path, next to the old JSON
 // decode (crates/ether-wasm/src/perf.rs). Needs a wasm build with the `bench` feature
 // (`just bench-wasm`; release builds leave it out); skipped without it. Prints the numbers
-// used in the web-perf PR.
+// used in the web perf PR.
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";

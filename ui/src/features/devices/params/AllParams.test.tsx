@@ -1,8 +1,8 @@
-// base-132: a plugin with 10,000 params never renders all of them. A generic layout card
+// A plugin with 10,000 params never renders all of them. A generic layout card
 // shows at most PARAM_CARD_CAP controls (pins → the plugin's quick controls → first
 // automatable params); "Show all N parameters…" opens a searchable list that mounts only the
 // rows in view; pins persist per plugin in UI settings.
-// base-153: in the device chain, a plugin's card is its header; its "Parameters" toggle
+// In the device chain, a plugin's card is its header; its "Parameters" toggle
 // shows the same windowed, searchable list inline (capped height).
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";

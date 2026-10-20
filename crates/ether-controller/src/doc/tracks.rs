@@ -205,7 +205,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &TrackCommand) -> CmdResult<()> {
             ctx.track(*id)?;
             ctx.set_track(*id, TrackChange::Name(name.clone()))
         }
-        // v0.2 (`groups-buses`).
+        // v0.2.
         TrackCommand::GroupSelected { .. }
         | TrackCommand::Ungroup { .. }
         | TrackCommand::SetVca { .. } => crate::groups::track_command(ctx, c),
@@ -266,7 +266,7 @@ fn duplicate(
         // Drum racks come with their pads and pad chains.
         ctx.copy_rack_pads(d.id, new_device, new_id, &mut device_ids)?;
     }
-    // v0.2 (`racks-modulation`): rack chains, modulators and mappings.
+    // v0.2: rack chains, modulators and mappings.
     crate::racks::copy_for_track(ctx, &mut device_ids)?;
     let mut send_ids = BTreeMap::new();
     let sends: Vec<TrackSend> = ctx
@@ -311,7 +311,7 @@ fn duplicate(
             other => other,
         })
     };
-    // v0.2 (`comping`): take lanes first, so the take clips can move onto the copies (#581).
+    // v0.2 (`comping`): take lanes first, so the take clips can move onto the copies.
     let mut lane_ids: BTreeMap<TakeLaneId, TakeLaneId> = BTreeMap::new();
     let take_lanes: Vec<TakeLane> = ctx.p().lanes_of(t.id).into_iter().cloned().collect();
     for l in take_lanes {

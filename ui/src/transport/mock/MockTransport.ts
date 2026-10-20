@@ -32,7 +32,7 @@
  * - **Media**: browsed through engine-visible locations (`Media::ListLocations`: a fake
  *   "Library" of wav files and the current project's `media/` folder) with relative
  *   paths. `Media::Import` of a library file references it in place
- *   (`MediaLocation::External`, `media-references`; uploads are "copied" into the project:
+ *   (`MediaLocation::External`; uploads are "copied" into the project:
  *   `MediaRef.file` = `media/<id>-<name>`), delivered as an undoable `Media` upsert patch.
  *   `mediaRefs.setOffline(path)` simulates a moved sample (missing on the next open).
  * - **Record-arm** is runtime state, not document: `Recording::Arm` is not undoable and is
@@ -50,7 +50,7 @@
  * - **New audio clips are unwarped** (`warp.enabled = false`, Repitch), like the real
  *   controller.
  *
- * ## Roadmap v2 (contracts-2) simulations (one file per feature in `./roadmap/`)
+ * ## Roadmap v2 simulations (one file per feature in `./roadmap/`)
  * - Undoable document commands: `Tempo::*` (tempo/signature CRUD; the points at beat 0
  *   can't be removed or moved; metronome settings), `Marker::*`, `Clip::{SetFadeCurves,
  *   SetReversed, Crossfade}` (the crossfade just extends the first clip), `Device::
@@ -136,7 +136,7 @@ import { MockMidiLearn } from "./roadmap/midiLearn";
 import { MockLiveRecord } from "./roadmap/liveRecord";
 import { MockUploads } from "./roadmap/remote";
 import { readMockMidiFile, writeMockMidiFile } from "./roadmap/midiFile";
-// v0.2 (contracts-3) runtime simulations, one file per node.
+// v0.2 runtime simulations, one file per node.
 import { MockAnalysis } from "./roadmap/analysis";
 import { MockBrowser } from "./roadmap/browserV2";
 import { MockFreeze } from "./roadmap/freezeBounce";
@@ -145,7 +145,7 @@ import { MockResolver } from "./roadmap/resolver";
 import { MockPresets } from "./roadmap/presets";
 import { listModulatorKinds } from "./roadmap/racksModulation";
 import { MockTimeEdits } from "./roadmap/timeEdits";
-// v0.3 (contracts-4): one file per node (`./roadmap/index.ts`).
+// v0.3: one file per node (`./roadmap/index.ts`).
 import { audioToMidiCommand } from "./roadmap/audioToMidi";
 import { MockCapture } from "./roadmap/capture";
 import { externalCommand } from "./roadmap/external";
@@ -231,7 +231,7 @@ export class MockTransport implements EngineTransport {
   readonly kind = "mock" as const;
 
   private project: Project;
-  /** base-131: plugin devices held as placeholders (`OpenSafe`). */
+  /** Plugin devices held as placeholders (`OpenSafe`). */
   private safeMode: DeviceId[] = [];
   private safe = false;
   private revision = 0;
@@ -326,7 +326,7 @@ export class MockTransport implements EngineTransport {
     truncated: () => this.historyTruncated,
     move: (n) => this.moveHistory(n),
   });
-  /** `media-references`: missing media, relink, collect (`setOffline` for tests). */
+  /** Missing media, relink, collect (`setOffline` for tests). */
   readonly mediaRefs = new MockMediaRefs({
     project: () => this.project,
     emit: (event) => this.emit(event),
@@ -338,7 +338,7 @@ export class MockTransport implements EngineTransport {
     save: () => void this.saveCurrent(),
     libraryHash: (rel) => hashHex(`library:${normalize(rel)}`),
   });
-  /** `import-resolver`: missing plugins / audio files (`roadmap/resolver.ts`). */
+  /** Missing plugins / audio files (`roadmap/resolver.ts`). */
   readonly resolver = new MockResolver({
     project: () => this.project,
     emit: (event) => this.emit(event),
@@ -393,7 +393,7 @@ export class MockTransport implements EngineTransport {
   /** `keyboard-midi`: every `Recording::LiveMidi` message received, in order (tests). */
   readonly liveMidi: Array<[number, number, number]> = [];
 
-  /** base-150: every `Recording::PreviewNote` received, in order (tests). */
+  /** Every `Recording::PreviewNote` received, in order (tests). */
   readonly previewNotes: Array<{ track: string; data: [number, number, number] }> = [];
 
   /** `capture-midi`: the always-on MIDI capture buffer (fed by `simulateMidiInput`). */
@@ -410,7 +410,7 @@ export class MockTransport implements EngineTransport {
         return UNIT;
       }),
   });
-  /** `project-versions`: rolling versions and crash recovery (`simulateCrash` for tests). */
+  /** Rolling versions and crash recovery (`simulateCrash` for tests). */
   readonly versions = new MockVersions(
     {
       project: () => this.project,
@@ -621,7 +621,7 @@ export class MockTransport implements EngineTransport {
         return this.exports.command(command.command);
       case "MidiMap":
         return this.midiLearn.command(command.command);
-      // v0.2 (contracts-3).
+      // v0.2.
       case "Freeze":
         return this.freeze.command(command.command);
       case "TimeEdit":
@@ -636,7 +636,7 @@ export class MockTransport implements EngineTransport {
         return this.mediaRefs.command(command.command);
       case "Modulation":
         return listModulatorKinds();
-      // v0.3 (contracts-4). Document commands (`Expression::*`, `External::SetRouting`,
+      // v0.3. Document commands (`Expression::*`, `External::SetRouting`,
       // `Template::Insert`) went through `applyDocument` above.
       case "Capture":
         return this.capture.command(command.command);
@@ -659,7 +659,6 @@ export class MockTransport implements EngineTransport {
       // The mock names new things in English.
       case "Settings":
         return { type: "Unit" };
-      // `import-resolver`.
       case "Resolve":
         return this.resolver.command(command.command);
       default:
@@ -782,7 +781,7 @@ export class MockTransport implements EngineTransport {
         if (this.openGesture === c.gesture) this.openGesture = null;
         return UNIT;
       case "CancelGesture": {
-        // #717: take back the open gesture's step and forget it (nothing to redo).
+        // Take back the open gesture's step and forget it (nothing to redo).
         if (this.openGesture !== c.gesture) return UNIT;
         this.openGesture = null;
         const entry = this.undoStack.pop();
@@ -812,7 +811,7 @@ export class MockTransport implements EngineTransport {
     this.revision += 1;
     this.emit({ type: "Patch", patch: { revision: this.revision, changes, history: this.historyState() } });
     this.setDirty(true);
-    // `media-references`: a relink (or its undo) may resolve or lose media.
+    // A relink (or its undo) may resolve or lose media.
     if (changes.some((c) => (c.type === "Upsert" && c.entity.type === "Media") || (c.type === "Remove" && c.key.type === "Media"))) {
       this.mediaRefs.mediaChanged();
     }
@@ -952,7 +951,7 @@ export class MockTransport implements EngineTransport {
         if (this.dirty) this.saveCurrent();
         // Re-read after a possible autosave (opening the current project reloads it).
         this.loadProject(parseEtherFile(this.store.get(c.id)?.json ?? entry.json));
-        // base-131 safe mode: the mock hosts no plugins; it reports their devices as held.
+        // Safe mode: the mock hosts no plugins; it reports their devices as held.
         if (c.type === "OpenSafe") {
           this.safeMode = Object.values(this.project.devices)
             .filter((d) => d.kind.type === "Plugin")
@@ -972,7 +971,7 @@ export class MockTransport implements EngineTransport {
       case "Save":
         return { type: "Saved", project: this.saveCurrent() };
       case "SaveAs": {
-        // As the controller (#596): the open document takes the new id and name; playback,
+        // As the controller: the open document takes the new id and name; playback,
         // the playhead, armed tracks and safe mode go on; only the history starts over.
         if (c.new_id === this.project.id) return { type: "Project", project: this.project };
         const name = this.checkNewProject(c.new_id, c.name);
@@ -1024,7 +1023,7 @@ export class MockTransport implements EngineTransport {
       case "SetScale":
         // A document edit (applied by `documentReducer`).
         return this.applyDocument([{ domain: "Project", command: c }], "set scale", gesture);
-      // base-114: the mock's bundle is the bare `.ether` document (no media, no archive;
+      // The mock's bundle is the bare `.ether` document (no media, no archive;
       // the engine accepts both). OS paths are desktop-only.
       case "ExportBundle": {
         if (c.path !== null) fail("Unsupported", "bundles are delivered as downloads on this host");
@@ -1038,7 +1037,7 @@ export class MockTransport implements EngineTransport {
         this.exports.addDownload(download, bytes);
         return { type: "Bundle", download };
       }
-      // project-export: the conversion needs the engine (`ether-export`).
+      // The conversion needs the engine (`ether-export`).
       case "ExportTo":
         return fail("Unsupported", "exporting to other DAWs needs the engine");
       case "ImportBundle": {
@@ -1180,7 +1179,7 @@ export class MockTransport implements EngineTransport {
       return UNIT;
     }
     if (c.type === "PreviewNote") {
-      // base-150: piano-roll note preview. Logged for tests; never captured or recorded.
+      // Piano-roll note preview. Logged for tests; never captured or recorded.
       const [status, d1, d2] = c.data;
       if (status < 0x80 || status >= 0xf0 || d1 > 0x7f || d2 > 0x7f) fail("InvalidArgument", "not a channel voice message");
       if (!this.project.tracks[c.track]) fail("NotFound", `track ${c.track}`);
@@ -1204,7 +1203,7 @@ export class MockTransport implements EngineTransport {
           listing: {
             location: c.location,
             path: normalize(c.path),
-            // `base-145`: the user's file filter.
+            // The user's file filter.
             entries: this.listDirectory(c.location, c.path).filter((e) =>
               e.kind === "Directory" ? this.browser.fileFilter.allowsDir(e.name) : this.browser.fileFilter.allowsFile(e.name),
             ),
@@ -1229,7 +1228,7 @@ export class MockTransport implements EngineTransport {
       case "UploadChunk":
       case "CancelUpload":
         return this.uploads.command(c);
-      // #717: MIDI files (no SMF codec here: see roadmap/midiFile.ts).
+      // MIDI files (no SMF codec here: see roadmap/midiFile.ts).
       case "ReadMidiFile": {
         const s = c.source;
         if (s.type === "Location" && s.location.type === "Library" && s.location.id === LIBRARY_ID && !findLibraryFile(s.path))
@@ -1308,7 +1307,7 @@ export class MockTransport implements EngineTransport {
       channels: f.channels,
       frames: f.frames,
       hash,
-      // `media-references`: library files are referenced in place (like the desktop).
+      // Library files are referenced in place (like the desktop).
       location: { type: "External", path: libraryPath(path) },
     };
   }

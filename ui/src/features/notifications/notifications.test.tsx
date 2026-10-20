@@ -25,7 +25,7 @@ describe("engine notifications and errors in the user's language (#667)", () => 
     const output = { id: "notice.audio.output_named", args: { name: "Démo" } };
     onNotificationEvent({ type: "Notification", level: "Info", message: 'audio output "Démo"', key: output });
     onNotificationEvent({ type: "Notification", level: "Warning", message: "plain engine text" });
-    // (Compared lowercased: the toast's sentence case is the lowercase sweep's, #524.)
+    // (Compared lowercased: the toast's sentence case is the lowercase sweep's.)
     const shown = () => useNotices.getState().notices.map((n) => n.message.toLowerCase());
     expect(shown()).toEqual(["la sortie audio «\u00a0démo\u00a0»", "plain engine text"]);
     const autosave = { id: "notice.project.autosave_failed", args: { error: { id: "error.project.none_open", args: {} } } };

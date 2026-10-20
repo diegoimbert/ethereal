@@ -1,4 +1,4 @@
-// Extending a clip to the left past its start (base-142) on the web build, through the UI,
+// Extending a clip to the left past its start on the web build, through the UI,
 // against the real engine (WasmTransport → controller Worker → AudioWorklet). A MIDI clip
 // with notes, moved to bar 3; its left edge dragged 2 bars left:
 // - unlooped: the clip starts 2 bars earlier with empty space before the content (offset
@@ -112,7 +112,7 @@ for (const theme of ["dark", "light"] as const) {
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
 
-    // Nothing is open on launch (base-131): create the project on the launch screen.
+    // Nothing is open on launch: create the project on the launch screen.
     await launch(page, `Extend left ${theme} ${Date.now()}`);
     await pickOption(page.locator('[data-feature="arrangement"]'), "grid", "1/4");
 

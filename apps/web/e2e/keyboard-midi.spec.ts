@@ -34,7 +34,7 @@ test("keyboard-midi: the computer keyboard plays the armed track's instrument", 
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  // Nothing is open on launch (base-131): create the project on the launch screen.
+  // Nothing is open on launch: create the project on the launch screen.
   await launch(page, `Keys ${Date.now()}`);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
 

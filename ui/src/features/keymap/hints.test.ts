@@ -1,5 +1,5 @@
 // @vitest-environment node
-// #574: every shortcut hint comes from the keymap (`shortcutLabel` / `useShortcutLabel` /
+// Every shortcut hint comes from the keymap (`shortcutLabel` / `useShortcutLabel` /
 // `<ShortcutHint>`), so a rebind or a preset switch shows everywhere. No hard-coded chords.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";

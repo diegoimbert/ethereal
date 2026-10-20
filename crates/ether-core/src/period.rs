@@ -1,4 +1,4 @@
-//! The audio device's period, as the real-time callback sees it (perf-plugins, audit #9).
+//! The audio device's period, as the real-time callback sees it.
 //!
 //! Nodes that wait on something outside the engine (the plugin sandbox's helper process)
 //! must bound that wait by what the *device* allows, not by the engine's max block size:

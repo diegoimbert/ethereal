@@ -56,7 +56,7 @@ pub(super) struct ClipBundle {
     pub notes: Vec<Note>,
     pub warp_markers: Vec<WarpMarker>,
     pub envelopes: Vec<(AutomationLane, Vec<AutomationPoint>)>,
-    /// v0.3 (`midi-expression`): clip expression lanes and the notes' expressions.
+    /// v0.3: clip expression lanes and the notes' expressions.
     pub expression_lanes: Vec<ExpressionLane>,
     pub note_expressions: Vec<NoteExpression>,
 }
@@ -85,7 +85,7 @@ pub(super) fn bundle_of(p: &Project, c: &Clip) -> ClipBundle {
 }
 
 /// `c` restricted to the timeline range `[s, e)` (inside the clip): the content keeps
-/// playing at the same song positions (the offset wraps into the loop, #580); fades are kept only on the clip's own edges.
+/// playing at the same song positions (the offset wraps into the loop); fades are kept only on the clip's own edges.
 pub(super) fn piece(c: &Clip, s: f64, e: f64) -> Clip {
     let mut out = c.clone();
     let len = e - s;
@@ -152,7 +152,7 @@ pub(super) fn insert_bundle(
             ctx.tx.insert(Entity::AutomationPoint(p))?;
         }
     }
-    // v0.3 (`midi-expression`): lanes and note expressions (ids after every other child).
+    // v0.3: lanes and note expressions (ids after every other child).
     for l in &b.expression_lanes {
         ctx.tx.insert(Entity::ExpressionLane(ExpressionLane {
             id: ids.next(),

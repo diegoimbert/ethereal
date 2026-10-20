@@ -26,5 +26,5 @@ export const useSnapshotPrompt = create<VersionsDialogState>((set) => ({
 /** Ask for a name and save the open project as a named version (a snapshot). */
 export const openSnapshotPrompt = () => useSnapshotPrompt.getState().show();
 
-/** base-131: the crash-recovery dialog is up (the project screen waits behind it). */
+/** The crash-recovery dialog is up (the project screen waits behind it). */
 export const useRecoveryShown = create<{ shown: boolean }>(() => ({ shown: false }));

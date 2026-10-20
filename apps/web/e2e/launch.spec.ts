@@ -1,4 +1,4 @@
-// base-131: crash-safe launch. Nothing is opened on launch (a plugin that crashed the app
+// Crash-safe launch. Nothing is opened on launch (a plugin that crashed the app
 // can't take the next launch down with it): the project screen comes first, and a project
 // (with its devices and plugins) loads only once picked. "Reopen last project on launch"
 // (Settings > General, off by default) reopens it only after a clean close. "Open without
@@ -67,7 +67,7 @@ test("launch opens a draft under the project screen; Recents opens a project", a
   await page.goto("/");
   const screen = projectScreen(page);
   await expect(screen).toBeVisible({ timeout: 30_000 });
-  // Behind it, a draft project named after today's date (#268) is open, so the arranger is
+  // Behind it, a draft project named after today's date is open, so the arranger is
   // there from the start. Untouched, a draft is left out of the project lists.
   await expect.poll(() => draftOpen(page), { timeout: 10_000 }).toBe(true);
   await expect(page.getByTestId("project-name")).not.toHaveText("no project");
@@ -111,7 +111,7 @@ test("reopen last project on launch: only after a clean close", async ({ page })
   await page.goto("/");
   await createOnLaunch(page, "Reopen me");
   const id = await projectId(page);
-  // A new project is named after the date, then renamed (#268): the rename is a document
+  // A new project is named after the date, then renamed: the rename is a document
   // edit, saved by the autosave a moment later. Wait for it before closing.
   await expect(page.getByRole("status", { name: "unsaved changes" })).toHaveCount(0, { timeout: 10_000 });
   await setReopenLast(page, true);

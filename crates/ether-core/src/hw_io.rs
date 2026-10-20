@@ -1,4 +1,4 @@
-//! Hardware I/O inside the graph (v0.3, contracts-4; owned by the `external-instrument`
+//! Hardware I/O inside the graph (v0.3; owned by the `external-instrument`
 //! node; CONTRACTS.md §13.7): External Instrument (MIDI out + audio return) and External
 //! Audio Effect (audio send + return).
 //!

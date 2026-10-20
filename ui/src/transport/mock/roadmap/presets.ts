@@ -7,12 +7,12 @@
  *   `"<device-key>/<name>.etherpreset"` (plugins: `plugins/<format>/<id>/…`);
  * - `Load` is one undo step (every descriptor param set: the preset's value clamped, or the
  *   default when missing); plugins get the param mirror (the mock has no plugin state);
- * - rack presets (v0.3, `rack-presets`, CONTRACTS.md §13.9): `Save` of a rack stores its
+ * - rack presets (v0.3, CONTRACTS.md §13.9): `Save` of a rack stores its
  *   chains, chain devices, the rack's modulators and the mappings inside it (`rack`); `Load`
  *   of such a preset needs `seed` and replaces them in the same undo step, ids
  *   `deriveId(seed, i)` in the engine's order (chains, each chain's devices, modulators,
  *   mappings), through the mock's `Rack::*` / `Modulation::*` reducers;
- * - drum rack presets (#761): `Save` of a drum rack stores its pads (sorted by note) with
+ * - drum rack presets: `Save` of a drum rack stores its pads (sorted by note) with
  *   their chains in `rack.pads`; `Load` replaces the pads the same way (pad ids after the
  *   chain devices, then each pad's devices, before the modulators);
  * - `Save`/`Rename`/`Delete`/`SetMeta` are runtime and emit `PresetEvent::Changed`; names
@@ -88,7 +88,7 @@ export interface PresetRack {
   chains: PresetChain[];
   modulators: { name: string; kind: ModulatorKind; params: Record<number, number> }[];
   mappings: PresetModMapping[];
-  /** Drum rack pads (#761); absent for chain racks. */
+  /** Drum rack pads; absent for chain racks. */
   pads?: PresetPad[];
 }
 
@@ -341,7 +341,7 @@ export class MockPresets {
   }
 }
 
-// ─── Rack presets (v0.3, `rack-presets`) ────────────────────────────────────────────────
+// ─── Rack presets (v0.3) ────────────────────────────────────────────────
 
 const targetKey = (m: PresetModMapping) =>
   m.target.type === "Rack"

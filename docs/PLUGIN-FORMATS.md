@@ -14,7 +14,7 @@ ether-plugin-host     PluginFormatHost trait, Formats registry, ScanRunner, bund
   ├─ ether-vst3       Vst3Format
   └─ ether-au         AuFormat    (macOS only; Unsupported elsewhere)
 users: ether-plugin-scanner (protocol + --scan-all), ether-sandbox helper (--format),
-       ether-native (formats-integration)
+       ether-native
 ```
 
 `PluginFormatHost` (`crates/ether-plugin-host/src/lib.rs`) has these methods:
@@ -39,7 +39,7 @@ Scanning stays out-of-process and crash-safe:
 - One scan target per child process. A `ScanRequest` carries an optional `format`; without one, the scanner infers the format from the path.
 - A timeout kills hung scans.
 - The pipe drain is bounded (`ScanRunner::drain_timeout`), so a daemon left behind by a plugin can't hang a scan.
-- Children run in a bounded pool (`ScanRunner::jobs`, base-129): `min(cores / 2, 8)`, at least 1, overridable with `ETHER_SCAN_JOBS`. Each child still scans one target with its own timeout. The report lists results in input order, whatever order the children finish in. Every format runs in parallel, AU included: each AU is loaded in its own scanner process, so there is no shared in-process registry state to lock. If a format ever needs serializing, give it its own one-job pass.
+- Children run in a bounded pool (`ScanRunner::jobs`): `min(cores / 2, 8)`, at least 1, overridable with `ETHER_SCAN_JOBS`. Each child still scans one target with its own timeout. The report lists results in input order, whatever order the children finish in. Every format runs in parallel, AU included: each AU is loaded in its own scanner process, so there is no shared in-process registry state to lock. If a format ever needs serializing, give it its own one-job pass.
 - Scans are incremental (`ScanCache`, `<data>/plugin-db/scan-cache.json`, next to `plugins.json`). Each target's result is cached, failures included, keyed by format + canonical path. It is validated by a fingerprint: the newest mtime, total size and entry count of the bundle tree. The whole cache is dropped when the crate version or the scanner binary changes. A rescan runs the scanner only on new or changed targets, and drops removed ones. `Plugin::Rescan { full: true }` ("Full rescan") ignores the cache and retries failures. A timed-out target is cached (so it stays listed as failed) but every rescan tries it again, since a slow plugin may just have lost a race with a busy machine. If the scanner fails to start, that failure isn't cached.
 - Param display text: `Plugin::ParamTexts { device, values }` (host-handled) replies the plugin's own text for each plain value (`PluginController::param_text`: CLAP `value_to_text`; VST3 `getParamStringByValue` plus the param's `units`; AU none, its params carry real units), from the live instance, else the GUI mirror, through the sandbox too. The generic device UI's knobs (`ParamControl`, `features/devices/pluginParamText.ts`) show it: batched per device, throttled while dragging, cached per value, asked again once when missing, and the UI's own formatting when there is none (web, AU).
 - Failed targets: `Plugin::ListScanFailures` lists them (path, format, reason), known after a restart from the scan cache. `Plugin::RetryScan { path, format, timeout_ms }` scans one again in its own child, off the controller thread (90 s by default, clamped to 1 s to 10 min); it replies `ScanRetried` when done, records the result in the scan cache and `plugins.json`, and emits `ScanFinished` with the updated list. The UI is Settings > Plugins > "Failed plugins": right-click a row, then Retry. AU component ids have nothing on disk to fingerprint, so an updated AU keeps its old descriptor until a full rescan. New and removed AUs are still picked up.
@@ -86,7 +86,7 @@ Documented on `ether_model::PluginFormat`. `.ether` tags are `"Clap"`, `"Vst3"`,
     - Params: normalized↔plain via `IEditController::normalizedParamToPlain`, `ParamScale` as appropriate.
     - `IAudioProcessor` setup/activation goes in `PluginNode`: parameter changes as `IParameterChanges` (sample-accurate), notes as `IEventList`, and `ProcessContext` from `TransportInfo`. Keep this RT-safe: preallocate everything, no allocation in `process`.
     - State is the component state plus the controller state, both packed into one blob with your own versioned framing.
-    - Editor: `IPlugView` in a floating window (reuse the approach in `ether-clap/src/gui.rs`). Linux (#424): an X11 host window (`ether_plugin_host::x11_window`, Xlib loaded at runtime, own connection, transient for the app's window) whose id is the `X11EmbedWindowID` parent; the `IPlugFrame` also implements `Linux::IRunLoop` (the plugin's X connection fd and timers, served from the editor poll: `poll(2)` with no timeout, then due timers). Without an X display, no editor.
+    - Editor: `IPlugView` in a floating window (reuse the approach in `ether-clap/src/gui.rs`). Linux: an X11 host window (`ether_plugin_host::x11_window`, Xlib loaded at runtime, own connection, transient for the app's window) whose id is the `X11EmbedWindowID` parent; the `IPlugFrame` also implements `Linux::IRunLoop` (the plugin's X connection fd and timers, served from the editor poll: `poll(2)` with no timeout, then due timers). Without an X display, no editor.
 - **Plain values.** This is what goes into `Device.params` (`.ether`), `ProcessEvent::Param` and automation. `IEditController::normalizedParamToPlain` is main-thread-only, so it can't be used on the audio thread. Define plain values without it:
   - Continuous params (`ParameterInfo.stepCount == 0`): plain = the normalized value, 0..1. Expose `ParamInfo { min: 0, max: 1, scale: Linear }`, with `default` = `defaultNormalizedValue`.
   - Discrete params (`stepCount = n > 0`): plain = the step index, 0..=n. Expose `ParamInfo { min: 0, max: n, steps: n, scale: Linear }`, with `default` = `round(defaultNormalizedValue * n)`.
@@ -127,7 +127,7 @@ Documented on `ether_model::PluginFormat`. `.ether` tags are `"Clap"`, `"Vst3"`,
 
   Gate the tests with `#[cfg(target_os = "macos")]`.
 
-### `formats-integration`
+### Integration
 
 1. **Native instantiation.** `ether-native/src/plugins.rs` + `bridge.rs`:
    - Make `Instantiate` format-aware: `Fn(PluginFormat, &Path, &str)`.

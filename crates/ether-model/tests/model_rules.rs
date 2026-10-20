@@ -451,7 +451,7 @@ fn param_op(id: DeviceId, param: u32, value: Option<f64>) -> Op {
     )
 }
 
-/// perf-plugins (audit #4): param-only edits of a device patch one field, not the device.
+/// Param-only edits of a device patch one field, not the device.
 #[test]
 fn param_only_device_edits_patch_device_params() {
     let mut f = Fx::new();

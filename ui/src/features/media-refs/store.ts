@@ -1,5 +1,5 @@
 /**
- * Media references from the UI (`media-references`, CONTRACTS.md §12.9): which media of the
+ * Media references from the UI (CONTRACTS.md §12.9): which media of the
  * open project are missing, the Relink dialog's state, a running search and "Collect All".
  *
  * The engine reports missing media (`Media::Missing`) while it checks every media of a

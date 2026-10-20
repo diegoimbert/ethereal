@@ -25,7 +25,7 @@ pub enum ParamTarget {
         node: NodeKey,
         param: ParamId,
     },
-    /// v0.2 (`racks-modulation`): a modulator's param (plain), `crate::modulation`.
+    /// v0.2: a modulator's param (plain), `crate::modulation`.
     Modulator {
         modulator: ModulatorId,
         param: ParamId,
@@ -105,7 +105,7 @@ impl Smoother {
     /// grid-spaced automation (rendered as the exact piecewise-linear curve), longer for a
     /// jump (a knob click, a step in automation, a preset load): the ramp lasts at least
     /// `|Δ| / max(|from|, |to|, 1)` · [`PARAM_JUMP_SAMPLES`] ticks, so no param moves
-    /// faster than its full scale in ~20 ms (zipper noise and clicks, #520).
+    /// faster than its full scale in ~20 ms (zipper noise and clicks).
     pub fn ramp_param(&mut self, target: f32, grid: u32) {
         let from = self.current;
         let rel = (target - from).abs() / from.abs().max(target.abs()).max(1.0);

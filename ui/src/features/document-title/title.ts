@@ -1,8 +1,8 @@
-// The browser tab's title (and the desktop window's): `ethereal - <what's shown>` (#740, lowercase #776). No
+// The browser tab's title (and the desktop window's): `ethereal - <what's shown>` (lowercase). No
 // store or engine imports: the docs page and the join landing use it before the app loads.
 import { useEffect } from "react";
 
-/** The brand, lowercase in the title like the rest of the UI (#776). */
+/** The brand, lowercase in the title like the rest of the UI. */
 export const BRAND = "ethereal";
 /** Marks unsaved changes, in front of the title. */
 export const DIRTY_MARK = "• ";

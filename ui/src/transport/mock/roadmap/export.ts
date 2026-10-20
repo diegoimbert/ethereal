@@ -66,7 +66,7 @@ export class MockExports {
     }
   }
 
-  /** Keep `bytes` as a download (base-114: `Project::ExportBundle`). */
+  /** Keep `bytes` as a download (`Project::ExportBundle`). */
   addDownload(info: ExportDownload, bytes: Uint8Array): void {
     this.downloads.set(info.token, { info, bytes });
   }

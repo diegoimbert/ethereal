@@ -1,6 +1,6 @@
-//! Device → UI analysis channel (v0.2, implemented and frozen by contracts-3; CONTRACTS.md
+//! Device → UI analysis channel (v0.2, implemented and frozen by the v0.2 contracts; CONTRACTS.md
 //! §12.4.3). Users: `fx-analysis` (spectrum, tuner), `fx-dynamics` (gain-reduction meters),
-//! `racks-modulation` (modulated-value readback, [`crate::modulation::readback`]).
+//! racks and modulation (modulated-value readback, [`crate::modulation::readback`]).
 //!
 //! # Contract
 //! - A node opts in with [`crate::Node::has_analysis`] (queried once when it is added to the
@@ -21,7 +21,7 @@
 //! # Frame encoding per [`AnalysisKind`] (`data[..len]`)
 //! - `Spectrum`: `[min_hz, max_hz, bin_0_db, ..., bin_{n-1}_db]`, `n <= 256`, bins log-spaced
 //!   (the device's output); `SpectrumPre`: the same, measured at its input (EQ pre/post
-//!   overlay, `graphical-eq`).
+//!   overlay).
 //! - `Tuner`: `[hz (0 = none), note (-1 = none), cents, confidence 0..1, level_db]`.
 //! - `Levels`: device-defined values (e.g. per-band gain reduction in dB).
 //! - `Modulation`: triples `[f32::from_bits(param id), base, effective]` (normalized).
@@ -48,7 +48,7 @@ pub enum AnalysisKind {
     Tuner,
     Levels,
     Modulation,
-    /// v0.2 (`graphical-eq`): input spectrum.
+    /// v0.2: input spectrum.
     SpectrumPre,
 }
 

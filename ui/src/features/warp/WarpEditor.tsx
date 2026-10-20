@@ -123,7 +123,7 @@ function WarpClipEditor({ clip, content }: { clip: Clip; content: AudioContent }
   const envTempo = useMemo(() => clipTempoMap(tempo, clip), [tempo, clip]);
 
   // With several audio clips selected (this one among them), warp and transpose edits apply
-  // to all of them (base-150).
+  // to all of them.
   const targets = useEditTargets(clip);
   const setWarp = (patch: Partial<typeof warp>) => {
     const c = setAllWarp(targets, patch);
@@ -203,7 +203,7 @@ function WarpClipEditor({ clip, content }: { clip: Clip; content: AudioContent }
       data-feature="warp"
       data-testid="warp-editor"
       data-clip-id={clip.id}
-      // import-resolver: "Resolve…" when the clip's sample is missing.
+      // "Resolve…" when the clip's sample is missing.
       onContextMenu={(e) => {
         const entries = resolveClipEntries(clip);
         if (entries.length > 0) openContextMenu(e, entries);

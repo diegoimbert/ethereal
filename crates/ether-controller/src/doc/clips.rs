@@ -94,7 +94,7 @@ fn resolve_overlaps(ctx: &mut DocCtx, keep: ClipId, ignore: &BTreeSet<ClipId>) -
         if oe <= s + EPS || os >= e - EPS {
             continue;
         }
-        // Crossfade overlaps (roadmap v2, `clip-editing`) are kept.
+        // Crossfade overlaps (roadmap v2) are kept.
         if crate::clip_editing::is_crossfade(&k, &o) {
             continue;
         }
@@ -296,7 +296,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
                 |c| {
                     set_start(c, *at);
                     c.length = Beats(e - at.0);
-                    // Wrapped into the loop (#580): the right part plays on as before.
+                    // Wrapped into the loop: the right part plays on as before.
                     c.offset = Beats(cl.content_at(at.0 - s));
                 },
                 &same_target,

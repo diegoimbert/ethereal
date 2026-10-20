@@ -1,4 +1,4 @@
-//! Importing projects from other DAWs (`Project::Import`, `import-dawproject`; CONTRACTS.md
+//! Importing projects from other DAWs (`Project::Import`; CONTRACTS.md
 //! §14.1).
 //!
 //! `Project::Import` reads a project file of another application (DAWproject, Ableton Live
@@ -20,7 +20,7 @@ use crate::model::ProjectId;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 pub enum ImportFormat {
     /// The open DAWproject exchange format (`.dawproject`): Bitwig Studio, Studio One,
-    /// Cubase, Nuendo, Cubasis, VST Live, n-Track Studio, Waveform, ... (docs/IMPORT.md).
+    /// Cubase, Nuendo, Cubasis, VST Live, n-Track Studio, Waveform, ...
     DawProject,
     /// Ableton Live set (`.als`).
     Ableton,

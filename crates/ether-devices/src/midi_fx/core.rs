@@ -489,7 +489,7 @@ macro_rules! midi_fx_node {
                 $crate::midi_fx::core::run(self, ctx);
                 // No audio, but never asleep: an arpeggiator (or a note-length effect)
                 // emits notes in blocks without input events (the engine skips asleep
-                // nodes that get no events, perf audit #5).
+                // nodes that get no events).
                 ether_core::ProcessStatus::Continue
             }
             fn channels(&self) -> (u16, u16) {

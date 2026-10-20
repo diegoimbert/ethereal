@@ -6,7 +6,7 @@
 //! `[offset, offset + length)` of its content; with looping enabled it plays from `offset`
 //! and then repeats `[loop.start, loop.end)` until `length` is reached.
 //!
-//! `offset` may be negative (base-142): content positions before 0 are empty (silence
+//! `offset` may be negative: content positions before 0 are empty (silence
 //! before the audio's first sample; no notes until some are put there), so a negative
 //! offset is a *leading gap* of `-offset` beats before the content starts. A MIDI clip's
 //! notes may start in that gap (down to `min(offset, 0)`): the piano roll shows and edits
@@ -15,7 +15,7 @@
 //! region (the loop's tail plays before the loop start). Repitch transposition scales
 //! around `max(offset, 0)`, so the content still starts right after the gap.
 //!
-//! # Overlaps and crossfades (roadmap v2, `clip-editing`)
+//! # Overlaps and crossfades (roadmap v2)
 //! Clip edits (`Move`, `SetBounds`, ...) keep clips on a track from overlapping by trimming
 //! the covered clip, except where the overlap is a **crossfade**: the earlier clip `A`
 //! ends inside the later clip `B`, and the overlap `A.end - B.start` is at most both
@@ -65,7 +65,7 @@ impl Clip {
     /// the engine (`ether_core::sched::for_each_piece`), which loops only when the loop is at
     /// least [`MIN_CLIP_LOOP`] long and `offset < loop end`. Positions past the loop end wrap
     /// into `[loop start, loop end)`. Splitting or trimming a clip at `d` gives the remaining
-    /// part this offset, so it keeps playing what the whole clip played there (#580).
+    /// part this offset, so it keeps playing what the whole clip played there.
     pub fn content_at(&self, d: f64) -> f64 {
         let pos = self.offset.0 + d;
         let (ls, le) = (self.looping.start.0, self.looping.end.0);
@@ -103,11 +103,11 @@ pub struct AudioContent {
     pub fade_out: Beats,
     /// Warp settings; markers are separate `WarpMarker` entities.
     pub warp: WarpSettings,
-    /// Shape of the fade-in (roadmap v2, `clip-editing`; pre-release `.ether` v3).
+    /// Shape of the fade-in (roadmap v2; pre-release `.ether` v3).
     pub fade_in_curve: FadeCurve,
-    /// Shape of the fade-out (roadmap v2, `clip-editing`; pre-release `.ether` v3).
+    /// Shape of the fade-out (roadmap v2; pre-release `.ether` v3).
     pub fade_out_curve: FadeCurve,
-    /// Play the source backwards (roadmap v2, `clip-editing`; pre-release `.ether` v3). The clip then
+    /// Play the source backwards (roadmap v2; pre-release `.ether` v3). The clip then
     /// behaves as if its media file were reversed (frame `i` reads the media's frame
     /// `N - 1 - i`), and `offset`, the loop region and warp markers are all expressed on that
     /// reversed timeline. The flag alone does not move them; the controller's reverse

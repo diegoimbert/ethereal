@@ -107,7 +107,7 @@ async function insertPolySynth(page: Page): Promise<{ track: string; device: str
       return device !== "";
     })
     .toBe(true);
-  // base-153: the device's UI is in its window.
+  // The device's UI is in its window.
   const card = await openDeviceWindow(page, device);
   return { track: track.id, device, card };
 }

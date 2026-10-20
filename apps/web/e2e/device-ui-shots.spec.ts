@@ -1,4 +1,4 @@
-// device-ui: screenshots of built-in device panels (the shared renderer), for PR review
+// Screenshots of built-in device panels (the shared renderer), for PR review
 // and the owner's UX pass. Skipped unless `DEVICE_UI_SHOTS=<dir>` is set:
 //   DEVICE_UI_SHOTS=/tmp/shots DEVICE_UI_THEME=dark npx playwright test device-ui-shots
 // One bounded test per device (60 s each), so a stuck capture fails alone instead of hanging
@@ -12,7 +12,7 @@ const theme = process.env.DEVICE_UI_THEME ?? "dark";
 
 /** The v0.1 built-ins (all have declared layouts); v0.2 devices bring their own shots. */
 const V01: BuiltinDeviceType[] = ["Synth", "Sampler", "DrumRack", "Compressor", "Delay", "Eq", "Reverb", "Limiter", "Utility"];
-/** devices-pass-effects: every built-in audio and MIDI effect (`DEVICE_UI_ONLY=effects`). */
+/** Every built-in audio and MIDI effect (`DEVICE_UI_ONLY=effects`). */
 const EFFECTS: BuiltinDeviceType[] = [
   "Compressor",
   "Gate",
@@ -77,7 +77,7 @@ for (const type of types) {
         return id !== "";
       })
       .toBe(true);
-    // base-153: the device's UI is in its window (open once its descriptor is in).
+    // The device's UI is in its window (open once its descriptor is in).
     const card = await openDeviceWindow(page, id);
     await card.scrollIntoViewIfNeeded();
     await page.mouse.move(0, 0);

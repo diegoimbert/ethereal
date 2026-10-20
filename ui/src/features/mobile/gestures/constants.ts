@@ -1,5 +1,5 @@
 /**
- * Touch gesture tuning (#522, the design's §4). One place, so every surface (arranger, ruler,
+ * Touch gesture tuning (the design's §4). One place, so every surface (arranger, ruler,
  * piano roll) behaves alike; `recognizer.test.ts` checks each rule.
  */
 

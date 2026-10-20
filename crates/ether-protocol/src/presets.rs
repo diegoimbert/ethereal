@@ -28,7 +28,7 @@ pub enum PresetCommand {
     /// Apply a preset to an existing device of the same type (params, kind data, plugin
     /// state). Undoable. `InvalidArgument` for a preset of another type.
     ///
-    /// v0.3 (`rack-presets`): loading a rack preset that stores its structure
+    /// v0.3: loading a rack preset that stores its structure
     /// (`Preset::rack`) replaces the rack's chains, chain devices, the rack's modulators and
     /// the mappings inside it; every new entity gets `derive_id(seed, i)` in preset order
     /// (chains, then each chain's devices, then modulators, then mappings) so collab replays

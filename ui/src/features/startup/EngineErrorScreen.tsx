@@ -1,4 +1,4 @@
-// #597: the engine didn't start (no cross-origin isolation, no AudioWorklet, the wasm didn't
+// The engine didn't start (no cross-origin isolation, no AudioWorklet, the wasm didn't
 // load, a worker failed): shown in place of the editor, which would stay blank, with the
 // reason, "retry" and "reload". A part of the app that failed to load (a page left open
 // across a deploy) says a new version is out instead.

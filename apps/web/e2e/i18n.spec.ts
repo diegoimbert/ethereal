@@ -1,4 +1,4 @@
-// #667: localization. Switching to French in Settings > general > language applies at once
+// Localization. Switching to French in Settings > general > language applies at once
 // (no reload), survives a reload, and the French text fits (no clipped labels). French
 // number fields read "1,5" and "1.5". The pseudo-locale (`?locale=en-XA`, ~35 % longer,
 // bracketed) shows that the settings take longer text without overflow.

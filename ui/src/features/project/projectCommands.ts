@@ -1,7 +1,7 @@
 /**
  * The project actions, once: the project menu (`ProjectMenuPanel`) and the command palette
  * (`ui/src/app/shell/commands.ts`) both list these, so the two show the same actions under the
- * same labels (#577), and every one of them is a palette command, so the keymap can bind it.
+ * same labels, and every one of them is a palette command, so the keymap can bind it.
  *
  * The menu decides its layout (groups, submenus, the scale picker, the in-place delete
  * confirmation); the labels and what an action does live here.
@@ -154,7 +154,7 @@ export function openProjectCommands(transport: EngineTransport, project: { id: s
       keywords: "versions history backups autosave restore snapshots recover",
       run: () => openVersions(),
     },
-    // project-versions: a named version now (the keymap's `project.snapshot`).
+    // A named version now (the keymap's `project.snapshot`).
     {
       id: "project:snapshot",
       group: "Project",

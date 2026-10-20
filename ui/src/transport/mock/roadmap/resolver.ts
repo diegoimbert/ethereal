@@ -1,5 +1,5 @@
 /**
- * Mock of `Resolve::*` (`import-resolver`, CONTRACTS.md §14.2), owned by `import-resolver`.
+ * Mock of `Resolve::*` (CONTRACTS.md §14.2).
  *
  * The mock engine's "installed" plugins are its fake plugins ([`MOCK_INSTALLED_PLUGINS`]:
  * "Mock Mega"). Matching is a small subset of the engine's rules (same id, then the same

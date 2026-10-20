@@ -112,7 +112,7 @@ Which builds use what:
 
 ## Content-Security-Policy
 
-Both hosts ship one (hardening, #455). Scripts are strict: same-origin files only, plus
+Both hosts ship one (hardening). Scripts are strict: same-origin files only, plus
 `'wasm-unsafe-eval'` on the web (the engine) and index.html's inline theme script by its
 hash. Styles allow `'unsafe-inline'` (React style attributes, injected `<style>`).
 `connect-src` stays wide (`https:`, `wss:`, and on the desktop `http:`/`ws:` too): the

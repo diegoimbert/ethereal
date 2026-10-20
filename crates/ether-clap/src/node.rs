@@ -272,7 +272,7 @@ impl ClapNode {
                 ));
             }
             EventKind::Midi { data } => self.push_in(&MidiEvent::new(t, 0, data)),
-            // v0.3 (`midi-expression`): without MPE, `Pressure` goes out as poly aftertouch
+            // v0.3: without MPE, `Pressure` goes out as poly aftertouch
             // on the note's channel/key (CONTRACTS.md §13.2).
             EventKind::NoteExpression {
                 channel,
@@ -611,7 +611,7 @@ impl ClapNode {
         }
 
         // `Sleep`: the engine skips the node while its input stays silent and no event
-        // comes (perf audit #5); `ContinueIfNotQuiet`: the same once the output is quiet
+        // comes; `ContinueIfNotQuiet`: the same once the output is quiet
         // (-120 dBFS). `Tail` and `Continue` keep it running.
         match status {
             clack_host::process::ProcessStatus::Sleep => ProcessStatus::Silent,
@@ -679,7 +679,7 @@ mod tests {
 
     /// `bar_number` counts the partial bars before mid-bar signature changes, as the
     /// bar/beat display does (dividing the bar start by the bar length did not), and
-    /// `tempo_inc` carries the sub-block's tempo ramp (#428).
+    /// `tempo_inc` carries the sub-block's tempo ramp.
     #[test]
     fn transport_bar_number_and_tempo_inc() {
         let sig = |beat, numerator, denominator| TimeSignatureDesc {

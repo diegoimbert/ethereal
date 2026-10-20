@@ -1,7 +1,7 @@
-//! Native e2e of the library index (`browser-v2`, CONTRACTS.md §12.8) on the real desktop
+//! Native e2e of the library index (CONTRACTS.md §12.8) on the real desktop
 //! host (null audio backend, `DiskStore`): a user folder added by path (as the desktop folder
 //! picker sends it) is indexed in the background and searchable; a dropped item imports as an
-//! in-place reference (`media-references`); a synced preview starts; and user folders,
+//! in-place reference; a synced preview starts; and user folders,
 //! favourites and tags survive a restart.
 
 mod common;
@@ -155,7 +155,7 @@ fn user_folder_index_import_preview_and_restart() {
     c.quit();
 }
 
-/// `base-136`: a folder imported from a remote UI (uploads, as the web UI sends them) is
+/// A folder imported from a remote UI (uploads, as the web UI sends them) is
 /// copied under `Imported Folders/`, indexed, renamed, restored after a restart, and deleted
 /// with its folder.
 #[test]

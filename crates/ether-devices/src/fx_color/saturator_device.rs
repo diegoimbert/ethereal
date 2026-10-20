@@ -8,7 +8,7 @@
 //! **Oversampling** runs the curve at 2x or 4x through linear-phase half-band filters
 //! ([`super::oversample`]), with first-order antiderivative anti-aliasing
 //! ([`crate::dsp::adaa`]) on the curve: at 24 dB of drive on a 5 kHz sine, 2x aliases at
-//! -51 to -56 dB and 4x (the default) at -64 to -89 dB, rectify aside (#520). The device always reports the 4x latency
+//! -51 to -56 dB and 4x (the default) at -64 to -89 dB, rectify aside. The device always reports the 4x latency
 //! ([`LATENCY`] samples) and pads the Off/2x paths to it, so switching modes never moves the
 //! track in time (no PDC republish) and the dry path of `Mix` stays aligned. A mode change
 //! crossfades the old and new paths over 5 ms.
@@ -172,7 +172,7 @@ impl Shape {
         self.curve.apply(self.drive * (x + self.bias)) - self.offset
     }
 
-    /// [`Self::apply`] through first-order ADAA (the oversampled paths, #520).
+    /// [`Self::apply`] through first-order ADAA (the oversampled paths).
     #[inline]
     fn apply_adaa(&self, st: &mut Adaa, x: f32) -> f32 {
         let u = f64::from(self.drive) * f64::from(x + self.bias);
@@ -292,7 +292,7 @@ pub struct Saturator {
     dc_r: f32,
     tilt_a: f32,
     ch: [Channel; 2],
-    /// Silence reporting (perf audit #5).
+    /// Silence reporting.
     tail: crate::util::Tail,
 }
 

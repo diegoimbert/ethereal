@@ -1,7 +1,7 @@
 /**
- * base-154: a device the user adds from a library or a menu (the chain's add buttons, the
+ * A device the user adds from a library or a menu (the chain's add buttons, the
  * command palette) opens its window: a plugin's editor, or a factory device's floating window
- * (before base-153 the new card expanded, which opened the plugin's editor). An insert that
+ * (the new card used to expand, which opened the plugin's editor). An insert that
  * can't happen or fails says so in a toast instead of doing nothing.
  *
  * Only for inserts the user asked for: not on load, undo / redo, duplicate, nor the agent's

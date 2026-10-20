@@ -398,7 +398,7 @@ fn plugins_in_the_device_chain() {
     rig.settle();
     let dev = rig.device(&pa);
     assert_eq!(dev["kind"]["plugin"]["sandboxed"], false);
-    // Whole-project replies carry no state blobs (#270): read the saved file.
+    // Whole-project replies carry no state blobs: read the saved file.
     rig.ok("Project", json!({"type": "Save"}));
     let saved = saved_file(&rig, &pid);
     assert_eq!(state_gain(&saved["project"]["devices"][&pa]), Some(0.5));

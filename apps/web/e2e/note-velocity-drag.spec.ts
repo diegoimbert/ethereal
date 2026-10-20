@@ -1,4 +1,4 @@
-// Alt/Option-drag on a note changes its velocity (base-141, owner request, Ableton-style) on
+// Alt/Option-drag on a note changes its velocity (owner request, Ableton-style) on
 // the web build, through the UI, against the real engine (WasmTransport → controller Worker →
 // AudioWorklet). A MIDI clip with two notes, both selected; Alt-drag one of them up: both
 // get louder by the same amount (a badge shows the value while dragging), nothing moves, and
@@ -42,7 +42,7 @@ test("alt-drag on a selected note changes the selection's velocity as one undo s
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
-  // Nothing is open on launch (base-131): create the project on the launch screen.
+  // Nothing is open on launch: create the project on the launch screen.
   await launch(page, `Velocity drag ${Date.now()}`);
 
   // --- A MIDI clip with two notes ---------------------------------------------------------------
@@ -117,7 +117,7 @@ test("alt-drag on a selected note changes the selection's velocity as one undo s
   expect(errors).toEqual([]);
 });
 
-// #954: Alt/Option is the snap bypass of every drag. Alt held at the press on a note body edits
+// Alt/Option is the snap bypass of every drag. Alt held at the press on a note body edits
 // velocity (above), so a note move is freed by Alt pressed once it is moving; Shift no longer
 // frees it.
 test("alt pressed mid-move moves a note off the grid; shift doesn't", async ({ page }) => {

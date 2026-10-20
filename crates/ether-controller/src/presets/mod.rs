@@ -22,12 +22,12 @@
 //!   references for sampler types (project copies are written to `Samples/` in the user
 //!   library so the preset stays usable in other projects; library/external files keep
 //!   their library location), plugin state read from the live instance.
-//! - Rack devices (v0.3, `rack-presets`, CONTRACTS.md §13.9): `Save` also stores the rack's
+//! - Rack devices (v0.3, CONTRACTS.md §13.9): `Save` also stores the rack's
 //!   chains with their devices, its modulators and the mappings inside it (`Preset::rack`,
 //!   `rack::snapshot`); `Load` of such a preset needs the command's `seed` and rebuilds
 //!   the structure in the same undo step (`rack::rebuild`, ids `derive_id(seed, i)`).
 //!   Version-1 rack presets (no `rack`) set macros and params only.
-//! - Drum racks (#761): `Save` stores the pads (note, name, color, choke group, mix) and
+//! - Drum racks: `Save` stores the pads (note, name, color, choke group, mix) and
 //!   their chains' devices in `Preset::rack` (samples copied like a sampler preset's);
 //!   `Load` replaces the rack's pads in the same undo step. Older drum rack presets (no
 //!   `rack`) set params only and keep the pads.
@@ -88,7 +88,7 @@ fn preset_kind(kind: &BuiltinDevice) -> Option<BuiltinDevice> {
 }
 
 /// Devices whose presets store their structure in `Preset::rack`: chain racks (chains)
-/// and drum racks (pads, #761).
+/// and drum racks (pads).
 fn stores_structure(kind: &BuiltinDevice) -> bool {
     kind.device_type().is_rack() || matches!(kind, BuiltinDevice::DrumRack)
 }
@@ -380,7 +380,7 @@ where
                     preset.kind = Some(k);
                 }
                 // v0.3: a rack stores its chains, their devices and its modulation; a drum
-                // rack its pads and their devices (#761).
+                // rack its pads and their devices.
                 if stores_structure(kind) {
                     let project = &self.doc.as_ref().ok_or_else(no_project)?.project;
                     let (bridge, engine) = (&mut self.bridge, &self.engine);

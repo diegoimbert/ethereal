@@ -1,4 +1,4 @@
-// #573: the macOS menu bar's items run the UI's own actions; their key equivalents follow the keymap.
+// The macOS menu bar's items run the UI's own actions; their key equivalents follow the keymap.
 import { act, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { matchesAction, pauseDispatch, setPaletteSource } from "@/features/keymap";

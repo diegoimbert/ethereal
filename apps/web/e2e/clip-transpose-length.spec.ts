@@ -1,4 +1,4 @@
-// base-144 on the web build, through the UI, against the real engine: transposing an
+// On the web build, through the UI, against the real engine: transposing an
 // unwarped audio clip in the Inspector resizes it in the arranger (an octave up plays twice
 // as fast: half as long), and a clip that gets longer stops at the next clip on its track.
 //

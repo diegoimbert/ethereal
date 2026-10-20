@@ -5,8 +5,8 @@ use crate::memory::MemoryLibrary;
 
 const LOCAL: &str = "http://127.0.0.1:4100/packs/default/manifest.json";
 
-/// The publish script (Node, `scripts/samples/publish.test.mjs`) signs the same bytes: Ed25519
-/// is deterministic, so both sides pin the same signature and dev public key.
+/// The pack publishing tooling signs the same bytes: Ed25519 is deterministic, so both sides
+/// pin the same signature and dev public key.
 #[test]
 fn signatures_match_the_publish_script() {
     use base64::Engine as _;

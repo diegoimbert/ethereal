@@ -10,11 +10,11 @@
  * - `invoke("ether_send_batch", { messages })` queues `ClientMessage`s in order; each reply arrives on
  *   `messages`, matched by `id`.
  * - `invoke("ether_disconnect")` drops the channels (on `dispose`).
- * - `ethereal://` deep links (docs/SHARING.md §5): the shell emits `DEEP_LINK_EVENT` when one
+ * - `ethereal://` deep links: the shell emits `DEEP_LINK_EVENT` when one
  *   arrives and `invoke("take_deep_links")` drains them (`onDeepLink`).
  *
  * `connect()` resolves with the current project, or `null` when the engine has none open
- * (fresh start: base-131, nothing is opened on launch, the project screen picks one).
+ * (fresh start: nothing is opened on launch, the project screen picks one).
  */
 
 import { Channel, invoke as tauriInvoke } from "@tauri-apps/api/core";
@@ -215,7 +215,7 @@ export class TauriTransport implements EngineTransport {
     };
   }
 
-  // ─── `join-flow`: `ethereal://` deep links (docs/SHARING.md §5) ─────────────────────────
+  // ─── `ethereal://` deep links ─────────────────────────
 
   /**
    * `ethereal://` links opened with the app: the one it was started with (cold start) and
@@ -269,7 +269,7 @@ export class TauriTransport implements EngineTransport {
   }
 
   /**
-   * base-114: the OS save dialog for a project bundle: an absolute path ending in `.ether`
+   * The OS save dialog for a project bundle: an absolute path ending in `.ether`
    * (added when the dialog leaves it out), or `null` when dismissed. The engine writes it.
    */
   async pickBundleSavePath(defaultName: string): Promise<string | null> {
@@ -282,7 +282,7 @@ export class TauriTransport implements EngineTransport {
     return /\.ether$/i.test(path) ? path : `${path}.ether`;
   }
 
-  /** #717: the OS save dialog for a MIDI file: an absolute path ending in `.mid`, or `null`. */
+  /** The OS save dialog for a MIDI file: an absolute path ending in `.mid`, or `null`. */
   async pickMidiSavePath(defaultName: string): Promise<string | null> {
     const path = await this.saveDialog({
       title: t("transport.dialog.export_midi"),
@@ -293,7 +293,7 @@ export class TauriTransport implements EngineTransport {
     return /\.midi?$/i.test(path) ? path : `${path}.mid`;
   }
 
-  /** project-export: the OS save dialog for a project of another DAW (absolute path), or `null`. */
+  /** The OS save dialog for a project of another DAW (absolute path), or `null`. */
   async pickProjectExportPath(defaultName: string, extension: string, filterName: string): Promise<string | null> {
     const path = await this.saveDialog({
       title: t("files.dialog.export_daw"),
@@ -304,7 +304,7 @@ export class TauriTransport implements EngineTransport {
     return path.toLowerCase().endsWith(`.${extension}`) ? path : `${path}.${extension}`;
   }
 
-  /** base-114: the OS open dialog for a project bundle (absolute path), or `null`. */
+  /** The OS open dialog for a project bundle (absolute path), or `null`. */
   async pickBundleFile(): Promise<string | null> {
     const picked = await this.openDialog({
       multiple: false,
@@ -317,7 +317,7 @@ export class TauriTransport implements EngineTransport {
   }
 
   /**
-   * import-dawproject: the OS open dialog for a project of another DAW (`Project::Import {
+   * The OS open dialog for a project of another DAW (`Project::Import {
    * source: Path }`): an absolute path, or `null` when dismissed.
    */
   async pickImportFile(extensions: readonly string[] = ["dawproject", "als", "flp", "rpp", "rpp-bak"]): Promise<string | null> {
@@ -331,7 +331,7 @@ export class TauriTransport implements EngineTransport {
     return typeof path === "string" ? path : null;
   }
 
-  /** base-114: the remembered collaboration token (app data dir, owner-only file). */
+  /** The remembered collaboration token (app data dir, owner-only file). */
   async loadCollabToken(): Promise<string | null> {
     const token = await this.invoke("collab_token_load");
     return typeof token === "string" && token ? token : null;

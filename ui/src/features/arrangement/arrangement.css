@@ -1055,7 +1055,7 @@
   font-size: var(--eth-fs-sm);
 }
 
-/* base-106: clips dragged below the last track: the tracks the drop creates, as ghost rows
+/* Clips dragged below the last track: the tracks the drop creates, as ghost rows
    in the draft row's look, over the drop area (whose own hint steps aside meanwhile). */
 .eth-arr__ghost-rows {
   position: absolute;
@@ -1099,7 +1099,7 @@
   --clip-lift: var(--eth-mix-black);
 }
 
-/* base-131: no project open (launch): a calm empty state with a way back to the project screen. */
+/* No project open (launch): a calm empty state with a way back to the project screen. */
 .eth-arr--no-project {
   align-items: center;
   justify-content: center;

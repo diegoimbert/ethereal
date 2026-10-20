@@ -27,7 +27,7 @@ export interface WasmEndpoint {
   onFatal(listener: (error: Error) => void): Unsubscribe;
   /**
    * Block until the Worker has handled every message posted so far, or `timeoutMs` passed;
-   * returns whether it has (#565: a closing page waits for its last save, its Worker dies
+   * returns whether it has (a closing page waits for its last save, its Worker dies
    * with it). Optional: endpoints without it never wait.
    */
   drain?(timeoutMs: number): boolean;
@@ -83,7 +83,7 @@ export class WasmTransport implements EngineTransport {
 
   /**
    * Boot the engine and return the current project, or `null` when none is open (a fresh
-   * Worker: base-131, nothing is opened on launch; the project screen picks one).
+   * Worker: nothing is opened on launch; the project screen picks one).
    */
   async connect(): Promise<Project | null> {
     await this.start();
@@ -158,7 +158,7 @@ export class WasmTransport implements EngineTransport {
       );
       const started = endpoint.start();
       this.started = started;
-      // A failed start can be tried again (#597: "retry"): forget it, and the fatal error a
+      // A failed start can be tried again ("retry"): forget it, and the fatal error a
       // failing boot reports, once the commands waiting on it are rejected.
       started.catch(() => {
         if (this.started !== started) return;

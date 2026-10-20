@@ -1,4 +1,4 @@
-// Disk-streaming dropouts (#441): long media stream from disk (native) or OPFS (web); when
+// Disk-streaming dropouts: long media stream from disk (native) or OPFS (web); when
 // the reader can't keep up the engine plays silence and the controller reports
 // `MediaEvent::StreamUnderruns` (throttled to about one per second). The transport bar shows
 // a warning light next to the CPU meter while there are dropouts (click to reset), and the

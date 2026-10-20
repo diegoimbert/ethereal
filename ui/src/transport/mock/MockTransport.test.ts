@@ -219,7 +219,7 @@ describe("MockTransport documents", () => {
     const sent = env.patches().length;
     await env.mock.send(cmd("Device", { type: "SetParam", device: synth.id, param: 6, value: 99999 }));
     expect(env.p().devices[synth.id]!.params[6]).toBe(20000);
-    // perf-plugins (audit #4): a param edit patches one field, like the real controller.
+    // A param edit patches one field, like the real controller.
     expect(
       env
         .patches()

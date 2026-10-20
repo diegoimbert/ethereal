@@ -263,7 +263,7 @@ impl OrderKey {
     }
 }
 
-/// Port of the `fractional-indexing` npm package (base-62), identical to
+/// Port of the `fractional-indexing` npm package, identical to
 /// `ui/src/state/orderKey.ts` so UI- and engine-minted keys interleave.
 mod order_key {
     const DIGITS: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";

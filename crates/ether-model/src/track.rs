@@ -18,7 +18,7 @@ pub enum TrackKind {
     Return,
     /// The single master bus. Exactly one per project; cannot be deleted.
     Master,
-    /// v0.2 (`groups-buses`): a VCA fader. No audio, clips, devices or sends: its fader
+    /// v0.2: a VCA fader. No audio, clips, devices or sends: its fader
     /// (`mixer.volume`, dB), mute and solo apply to the tracks assigned to it
     /// (`Track::vca`). Top-level only. See [`Track::vca`].
     Vca,
@@ -50,12 +50,12 @@ pub struct Track {
     /// as `FollowProject`.
     #[serde(default)]
     pub scale: crate::scale::TrackScale,
-    /// Freeze state (v0.2, `freeze-bounce`; CONTRACTS.md §12.3). `Some` = the track plays
+    /// Freeze state (v0.2; CONTRACTS.md §12.3). `Some` = the track plays
     /// `freeze.media` instead of its clips and device chain. Omitted from JSON when `None`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub freeze: Option<TrackFreeze>,
-    /// VCA assignment (v0.2, `groups-buses`; CONTRACTS.md §12.10): a `TrackKind::Vca` track.
+    /// VCA assignment (v0.2; CONTRACTS.md §12.10): a `TrackKind::Vca` track.
     /// Effective fader gain = own volume (dB) + the VCA's volume (dB) + its own VCA's, and so
     /// on up the VCA chain (VCAs can be assigned to VCAs; no cycles). A muted VCA mutes its
     /// tracks; a soloed VCA solos them. Master cannot be assigned. Omitted when `None`.
@@ -69,7 +69,7 @@ pub struct Track {
     pub mpe: Option<crate::expression::MpeSettings>,
 }
 
-/// A frozen track's render (v0.2, `freeze-bounce`).
+/// A frozen track's render (v0.2).
 ///
 /// While frozen, an audio or MIDI track plays `media` (the track's **post-chain, pre-fader**
 /// signal rendered offline with `OfflineRenderer`, latency removed) at song time: frame `f`
@@ -139,7 +139,7 @@ pub enum TrackInput {
         port: Option<String>,
         channel: Option<u8>,
     },
-    /// Output of another track or bus (resampling; v0.2 `groups-buses` adds the tap point).
+    /// Output of another track or bus (resampling; v0.2 groups and buses adds the tap point).
     /// A routing edge `track → this` (no cycles). The tapped signal is aligned to this track's
     /// input latency like a bus input (CONTRACTS.md §12.10).
     Track {
@@ -150,7 +150,7 @@ pub enum TrackInput {
     },
 }
 
-/// Where a track input taps its source track (v0.2, `groups-buses`).
+/// Where a track input taps its source track (v0.2).
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, TS,
 )]

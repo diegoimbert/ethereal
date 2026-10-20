@@ -13,7 +13,7 @@
 //! | input events   | `max_in_events` [`WireEvent`]s                         |
 //! | output events  | `max_out_events` [`WireEvent`]s                        |
 //!
-//! Version history: 2 = before sidechains; 3 = `plugin-sidechain` (the `sc_channels` header
+//! Version history: 2 = before sidechains; 3 = plugin sidechains (the `sc_channels` header
 //! field in the former padding, the `Block::sidechain` flag, the sidechain audio array).
 //!
 //! Protocol (one block in flight at most):
@@ -133,7 +133,7 @@ const E_CHOKE: u32 = 3;
 const E_ALL_OFF: u32 = 4;
 const E_PARAM: u32 = 5;
 const E_MIDI: u32 = 6;
-/// v0.3 (`midi-expression`/`mpe`): `a` = note id, `b` = channel | key << 8 | kind << 16
+/// v0.3 (MIDI expression/`mpe`): `a` = note id, `b` = channel | key << 8 | kind << 16
 /// (`NoteExpressionKind`: 0 pitch, 1 pressure, 2 timbre), `value` = the value. A new kind
 /// code, not a layout change (both ends come from one build).
 const E_NOTE_EXPRESSION: u32 = 7;

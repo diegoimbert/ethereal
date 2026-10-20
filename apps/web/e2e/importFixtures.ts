@@ -1,4 +1,4 @@
-// Project files of other DAWs for the import e2e (import-dawproject), built from the
+// Project files of other DAWs for the import e2e, built from the
 // importer's test fixtures (crates/ether-import/tests/fixtures): no bundled third-party samples.
 
 /** CRC-32 (ZIP). */

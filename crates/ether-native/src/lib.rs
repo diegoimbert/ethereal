@@ -2,7 +2,7 @@
 //!
 //! Wires `ether-core` (engine), `ether-controller` (document), `ether-media` (decode) and
 //! plugins (`ether-clap`, `ether-sandbox`) behind a thread-safe [`NativeHost`] that the
-//! Tauri app (`apps/desktop`) drives. Owned by the `native-host` node.
+//! Tauri app (`apps/desktop`) drives.
 //!
 //! # Threads
 //! - audio: the cpal callback, or the `null`/`offline` render thread ([`audio`], [`rt`]);

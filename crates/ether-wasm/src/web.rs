@@ -101,7 +101,7 @@ extern "C" {
     /// JSON entry or `null`.
     #[wasm_bindgen(method, catch)]
     fn stat(this: &JsFsHost, path: &str) -> Result<String, JsValue>;
-    /// `audio-streaming`: `length` bytes of a file from `offset` (fewer at the end).
+    /// `length` bytes of a file from `offset` (fewer at the end).
     #[wasm_bindgen(method, catch, js_name = readRange)]
     fn read_range(
         this: &JsFsHost,
@@ -180,7 +180,7 @@ impl Fs for JsFs {
     }
 }
 
-/// `audio-streaming`: ranged reads of OPFS media ([`crate::media_stream`]).
+/// Ranged reads of OPFS media ([`crate::media_stream`]).
 impl crate::media_stream::RangeFs for JsFs {
     fn size(&mut self, path: &str) -> Result<u64, String> {
         match self.stat(path) {
@@ -197,7 +197,7 @@ impl crate::media_stream::RangeFs for JsFs {
     }
 }
 
-/// #519: HTTP requests of the sample pack, run by the controller Worker's JS
+/// HTTP requests of the sample pack, run by the controller Worker's JS
 /// (`WasmController::take_http_requests` → `fetch` → `http_progress` / `http_done`).
 #[derive(Default)]
 pub struct HttpQueue {
@@ -347,7 +347,7 @@ impl WasmController {
         })
     }
 
-    /// #519: the HTTP GETs the controller asked for since the last call, as a JSON array of
+    /// The HTTP GETs the controller asked for since the last call, as a JSON array of
     /// `{id, url, max}`; the Worker runs each with `fetch` and answers with
     /// [`Self::http_progress`] and [`Self::http_done`].
     pub fn take_http_requests(&mut self) -> String {
@@ -359,7 +359,7 @@ impl WasmController {
         serde_json::Value::Array(list).to_string()
     }
 
-    /// #519: body bytes received so far for request `id` (`total` < 0: unknown).
+    /// Body bytes received so far for request `id` (`total` < 0: unknown).
     pub fn http_progress(&mut self, id: f64, received: f64, total: f64) {
         self.http
             .borrow_mut()
@@ -371,7 +371,7 @@ impl WasmController {
             });
     }
 
-    /// #519: request `id` finished: an HTTP `status` and `body`, or (`error` set) a network
+    /// Request `id` finished: an HTTP `status` and `body`, or (`error` set) a network
     /// failure.
     pub fn http_done(&mut self, id: f64, status: u16, body: &[u8], error: Option<String>) {
         let result = match error {
@@ -510,7 +510,7 @@ fn performance_now() -> f64 {
         .expect("performance.now() returns a number")
 }
 
-/// Graph snapshot costs of the large fixture, measured in wasm (web-perf): JSON of
+/// Graph snapshot costs of the large fixture, measured in wasm: JSON of
 /// [`crate::perf::SnapshotCosts`], fastest of `runs`. Diagnostics only, not used by the app
 /// (feature `bench`, not in release builds).
 #[cfg(feature = "bench")]
@@ -520,7 +520,7 @@ pub fn bench_graph_snapshot(runs: u32) -> String {
     serde_json::to_string(&costs).expect("costs serialize")
 }
 
-/// Worklet quanta while a playing reverb switches to the longest factory IR (#514), in
+/// Worklet quanta while a playing reverb switches to the longest factory IR, in
 /// wasm: JSON of [`crate::perf::IrSwapCosts`], fastest of `runs`. Diagnostics only
 /// (feature `bench`, not in release builds).
 #[cfg(feature = "bench")]
@@ -530,7 +530,7 @@ pub fn bench_ir_swap(runs: u32) -> String {
     serde_json::to_string(&costs).expect("costs serialize")
 }
 
-/// Worklet quanta while a playing reverb switches to a 6 s stereo user IR (#529), built by
+/// Worklet quanta while a playing reverb switches to a 6 s stereo user IR, built by
 /// the Worklet as before and prepared by the Worker: JSON of
 /// [`crate::perf::MediaIrSwapCosts`], fastest of `runs`. Diagnostics only (feature `bench`).
 #[cfg(feature = "bench")]

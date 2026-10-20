@@ -9,7 +9,7 @@ repository.workspace = true
 authors.workspace = true
 publish.workspace = true
 
-# `agent-api` (docs/MCP.md). Native only. The MCP side is the official Rust SDK (`rmcp`,
+# The agent API (docs/MCP.md). Native only. The MCP side is the official Rust SDK (`rmcp`,
 # stdio transport); the Ethereal side is the remote-engine protocol (`ether-server`'s frames
 # over a blocking tungstenite client) or an embedded headless engine (`ether-native`).
 [dependencies]
@@ -28,7 +28,7 @@ tungstenite.workspace = true
 [lints]
 workspace = true
 
-# Cargo features (feature-flags; docs/ARCHITECTURE.md "Cargo features"): the in-process
+# Cargo features (docs/ARCHITECTURE.md "Cargo features"): the in-process
 # host's features (`--project`), passed through. `full` is everything.
 [features]
 default = []

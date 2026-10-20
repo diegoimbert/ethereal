@@ -47,9 +47,9 @@ pub struct BridgeShared<M: RingMemory> {
     pub blocks: u64,
     /// Analysis frames received since the last `EngineBridge::poll_analysis` (virtual keys).
     pub analysis: Vec<AnalysisFrame>,
-    /// `audio-streaming`: stream reports (cursors, misses) since the last poll.
+    /// Stream reports (cursors, misses) since the last poll.
     pub stream_reports: Vec<crate::media_stream::StreamReport>,
-    /// `web-latency`: latest node latencies reported by the Worklet (virtual keys), read by
+    /// Latest node latencies reported by the Worklet (virtual keys), read by
     /// `EngineBridge::node_latency`.
     pub latencies: LatencyTable,
 }
@@ -131,7 +131,7 @@ impl<M: RingMemory> BridgeShared<M> {
 
 pub type Shared<M> = Rc<RefCell<BridgeShared<M>>>;
 
-/// #514/#529: a live convolution reverb, as the Worker last sent it.
+/// A live convolution reverb, as the Worker last sent it.
 struct Reverb {
     /// `Decay`, `Size` and `Reverse`, so its IR is prepared for the shaping it plays with.
     shaping: [f64; 3],
@@ -171,19 +171,19 @@ pub struct WebBridge<M: RingMemory> {
     shared: Shared<M>,
     next_node: u32,
     devices: BTreeMap<DeviceId, (NodeKey, BuiltinDeviceType)>,
-    /// `audio-streaming`: long media streamed from OPFS ([`crate::media_stream`]).
+    /// Long media streamed from OPFS ([`crate::media_stream`]).
     streams: crate::media_stream::WebStreams,
     /// Last known playhead beat (where `Play` starts).
     playhead_beat: f64,
     /// The Worklet's engine rate (factory IRs are prepared at it).
     sample_rate: u32,
-    /// #514: the live convolution reverbs.
+    /// The live convolution reverbs.
     reverbs: BTreeMap<NodeKey, Reverb>,
-    /// #529: media the Worklet has (loaded or streamed): IRs from those are prepared here.
+    /// Media the Worklet has (loaded or streamed): IRs from those are prepared here.
     worklet_media: BTreeSet<MediaId>,
-    /// #529: audio of media IRs, kept only while a reverb waits for it.
+    /// Audio of media IRs, kept only while a reverb waits for it.
     ir_audio: BTreeMap<MediaId, Arc<DecodedAudio>>,
-    /// #529: media whose audio is to be asked of the controller.
+    /// Media whose audio is to be asked of the controller.
     ir_requests: Vec<MediaId>,
 }
 
@@ -208,7 +208,7 @@ impl<M: RingMemory> WebBridge<M> {
         self.sample_rate = rate;
     }
 
-    /// #514/#529: how the IR `ir` of the live reverb `key` gets to the Worklet. Factory
+    /// How the IR `ir` of the live reverb `key` gets to the Worklet. Factory
     /// IRs and media IRs whose audio is here are prepared here (read, normalized and
     /// FFT-partitioned: the expensive part) as the frames that stream them; the Worklet
     /// assembles them in bounded steps and swaps them in (crossfade). The audio of a media
@@ -275,14 +275,14 @@ impl<M: RingMemory> WebBridge<M> {
         }
     }
 
-    /// #529: drop the media IR audio no reverb waits for any more.
+    /// Drop the media IR audio no reverb waits for any more.
     fn release_ir_audio(&mut self) {
         let reverbs = &self.reverbs;
         self.ir_audio
             .retain(|m, _| reverbs.values().any(|r| r.waiting == Some(*m)));
     }
 
-    /// #529: deliver the IRs waiting for `media`, whose audio just arrived.
+    /// Deliver the IRs waiting for `media`, whose audio just arrived.
     fn deliver_waiting(&mut self, media: MediaId) {
         let keys: Vec<NodeKey> = self
             .reverbs
@@ -308,13 +308,13 @@ impl<M: RingMemory> WebBridge<M> {
         self.ir_audio.len()
     }
 
-    /// `audio-streaming`: how the Worker opens media files for streaming (the host's
+    /// How the Worker opens media files for streaming (the host's
     /// OPFS, by byte ranges). Without one, `stream_media` declines (whole-file loads).
     pub fn set_stream_opener(&mut self, opener: crate::media_stream::Opener) {
         self.streams.set_opener(opener);
     }
 
-    /// `audio-streaming`: is `media` streamed (tests/diagnostics)?
+    /// Is `media` streamed (tests/diagnostics)?
     pub fn is_streamed(&self, media: MediaId) -> bool {
         self.streams.contains(media)
     }
@@ -359,7 +359,7 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
         self.devices.insert(device, (key, kind.device_type()));
         self.shared.borrow_mut().latencies.track(key);
         if let BuiltinDevice::ConvolutionReverb { ir } = kind {
-            // #514: created without its IR, which follows prepared (faded in).
+            // Created without its IR, which follows prepared (faded in).
             let mut shaping = REVERB_DEFAULTS;
             for &(id, v) in params {
                 if let Some(i) = REVERB_SHAPING.iter().position(|&p| p == id) {
@@ -479,7 +479,7 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
         audio: Arc<DecodedAudio>,
     ) -> Result<(), BridgeError> {
         self.worklet_media.insert(media.id);
-        // #529: kept for the reverbs waiting for it (the controller re-creates them now).
+        // Kept for the reverbs waiting for it (the controller re-creates them now).
         if self.reverbs.values().any(|r| r.waiting == Some(media.id)) {
             self.ir_audio.insert(media.id, audio.clone());
         }
@@ -518,7 +518,7 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
     }
 
     fn transport(&mut self, control: TransportControl) -> Result<(), BridgeError> {
-        // `audio-streaming`: the jump target's chunks go first (the ring is FIFO).
+        // The jump target's chunks go first (the ring is FIFO).
         if !self.streams.is_empty() {
             let now = crate::media_stream::now_ms();
             match &control {
@@ -574,7 +574,7 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
         if let Some(p) = &out.playhead {
             self.playhead_beat = p.position.0;
         }
-        // `audio-streaming`: follow the worklet's cursors, keep the read-ahead filled.
+        // Follow the worklet's cursors, keep the read-ahead filled.
         if !self.streams.is_empty() {
             let now = crate::media_stream::now_ms();
             for r in reports {
@@ -588,7 +588,7 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
         }
     }
 
-    /// `audio-streaming` (CONTRACTS.md §13.1): stream long media from OPFS through the
+    /// Audio streaming (CONTRACTS.md §13.1): stream long media from OPFS through the
     /// worklet's chunk cache ([`crate::media_stream`]).
     fn stream_media(
         &mut self,
@@ -617,7 +617,7 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
         std::mem::take(&mut self.ir_requests)
     }
 
-    /// #529: prepares the IRs waiting for `media` from its audio, then drops it.
+    /// Prepares the IRs waiting for `media` from its audio, then drops it.
     fn ir_media(&mut self, media: MediaId, audio: Arc<DecodedAudio>) -> Result<(), BridgeError> {
         if !self.worklet_media.contains(&media) || audio.sample_rate != self.sample_rate {
             return Ok(());
@@ -644,7 +644,7 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
         Ok(())
     }
 
-    /// `web-latency`: the latest latency the Worklet reported for `key` (drained by
+    /// The latest latency the Worklet reported for `key` (drained by
     /// [`EngineBridge::poll`]); `None` while it still has the latency it was created with,
     /// which the Worklet's engine already compiles PDC with.
     fn node_latency(&self, key: NodeKey) -> Option<u32> {
@@ -1059,7 +1059,7 @@ mod live_midi_tests {
         assert_eq!(peak(&mut bridge, &mut host, midi, 40), 0.0);
     }
 
-    /// base-150: a preview note plays the track's instrument even unmonitored, then stops.
+    /// A preview note plays the track's instrument even unmonitored, then stops.
     #[test]
     fn preview_notes_play_an_unmonitored_tracks_instrument() {
         let (mut bridge, mut host, midi) = setup(false);

@@ -1,4 +1,4 @@
-// base-150: click a piano-roll note to hear it (Ableton's MIDI editor preview), on the web
+// Click a piano-roll note to hear it (Ableton's MIDI editor preview), on the web
 // build against the real wasm engine (WasmTransport → controller Worker → AudioWorklet). A
 // MIDI track with the Poly Synth, not armed: holding the mouse on a note sounds on the track
 // meter, releasing it goes silent again (no stuck note); with the toolbar's headphones toggle

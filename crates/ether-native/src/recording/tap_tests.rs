@@ -1,4 +1,4 @@
-//! `tap-recording`: takes recorded from a track input tap (resampling) through the real
+//! Takes recorded from a track input tap (resampling) through the real
 //! engine, capture ring and writer thread (offline backend, no input device).
 
 use ether_core::graph::{ChainEntry, TrackDesc};

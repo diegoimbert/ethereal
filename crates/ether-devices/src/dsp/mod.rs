@@ -1,4 +1,4 @@
-//! DSP building blocks for the roadmap v2 effects (`devices-2`): a TPT state-variable
+//! DSP building blocks for the roadmap v2 effects: a TPT state-variable
 //! filter with smoothable coefficients, a fractional delay line and a sliding-window
 //! minimum. All buffers are allocated outside `process` (in `prepare`/`new`).
 

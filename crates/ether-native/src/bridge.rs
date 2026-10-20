@@ -81,7 +81,7 @@ pub struct NativeBridge {
     sample_rate: u32,
     plugins: PluginHost,
     catalog: PluginCatalog,
-    /// `agent-plugins`: the host's "a plugin scan is running" flag (`set_scan_flag`).
+    /// The host's "a plugin scan is running" flag (`set_scan_flag`).
     scanning: Option<Arc<std::sync::atomic::AtomicBool>>,
     instantiate: Instantiate,
     audio: Arc<AudioShared>,
@@ -91,21 +91,21 @@ pub struct NativeBridge {
     offline_seq: u64,
     /// An extension's part of the bridge ([`set_bridge_ext`]).
     ext: Option<Box<dyn BridgeExt>>,
-    /// GUI-only plugin mirrors while listening (`plugin-mirror`; [`crate::plugin_mirror`]).
+    /// GUI-only plugin mirrors while listening ([`crate::plugin_mirror`]).
     mirrors: crate::plugin_mirror::Mirrors,
     /// External Instruments' MIDI (`external-instrument`, [`hw_midi`]): the engine ring until
     /// a graph routes MIDI to hardware, then the output thread.
     hw_midi_io: Option<ether_core::hw_io::HwIoIo>,
     hw_midi: Option<hw_midi::HwMidiOut>,
     hw_routes: Arc<hw_midi::Routes>,
-    /// `audio-streaming`: the shared disk reader thread (started with the first stream).
+    /// The shared disk reader thread (started with the first stream).
     disk: Option<crate::disk_stream::DiskStreams>,
-    /// `audio-streaming`: the last published graph while media are streamed (anchors,
+    /// The last published graph while media are streamed (anchors,
     /// locate targets), and a `SetLoop` override of its loop.
     stream_graph: Option<RenderGraphDesc>,
-    /// `audio-streaming` on (default; `ETHER_DISK_STREAMING=0` turns it off).
+    /// Audio streaming on (default; `ETHER_DISK_STREAMING=0` turns it off).
     disk_streaming: bool,
-    /// 0 = the main engine; otherwise a dedicated engine (docs/COLLAB.md §16) whose plugin
+    /// 0 = the main engine; otherwise a dedicated engine whose plugin
     /// instances are registered under salted ids ([`Self::reg`]).
     registry_salt: u16,
     /// This engine started dedicated engines (their plugin notifications are drained here).
@@ -157,7 +157,7 @@ type DedicatedNotes = Arc<std::sync::Mutex<HashMap<u16, Vec<(DeviceId, PluginNot
 const MAX_DEDICATED_NOTES: usize = 4096;
 
 impl NativeBridge {
-    /// `agent-plugins`: share the host's "a plugin scan is running" flag, reported by
+    /// Share the host's "a plugin scan is running" flag, reported by
     /// [`EngineBridge::plugin_catalog`].
     pub fn set_scan_flag(&mut self, scanning: Arc<std::sync::atomic::AtomicBool>) {
         self.scanning = Some(scanning);
@@ -251,13 +251,13 @@ impl NativeBridge {
         }
     }
 
-    /// `audio-streaming`: stream long media from disk (on by default) or decode them whole
+    /// Stream long media from disk (on by default) or decode them whole
     /// (v0.2). Applies to media loaded from now on.
     pub fn set_disk_streaming(&mut self, enabled: bool) {
         self.disk_streaming = enabled;
     }
 
-    /// `audio-streaming`: media currently streamed from disk (tests/diagnostics).
+    /// Media currently streamed from disk (tests/diagnostics).
     pub fn streamed_media(&self) -> Vec<MediaId> {
         self.disk.as_ref().map_or_else(Vec::new, |d| {
             self.sources
@@ -268,12 +268,12 @@ impl NativeBridge {
         })
     }
 
-    /// `audio-streaming`: the stream cache of `media`, if streamed (tests/diagnostics).
+    /// The stream cache of `media`, if streamed (tests/diagnostics).
     pub fn stream_cache(&self, media: MediaId) -> Option<Arc<ether_media::stream::StreamCache>> {
         self.disk.as_ref()?.get(media).map(|s| s.cache.clone())
     }
 
-    /// `audio-streaming`: re-derive the anchors of every stream from the last graph.
+    /// Re-derive the anchors of every stream from the last graph.
     fn update_stream_anchors(&mut self) {
         let (Some(disk), Some(graph)) = (self.disk.as_mut(), self.stream_graph.as_ref()) else {
             return;
@@ -283,7 +283,7 @@ impl NativeBridge {
         disk.set_anchors(anchors);
     }
 
-    /// `audio-streaming`: make sure what plays at `beat` is decoded before the engine jumps
+    /// Make sure what plays at `beat` is decoded before the engine jumps
     /// there (bounded wait on the controller thread).
     fn prime_streams_at(&mut self, beat: f64) {
         let (Some(disk), Some(graph)) = (self.disk.as_ref(), self.stream_graph.as_ref()) else {
@@ -300,7 +300,7 @@ impl NativeBridge {
         }
     }
 
-    /// A second, independent engine for a participant (docs/COLLAB.md §16): its own
+    /// A second, independent engine for a participant: its own
     /// `ether_core` engine on the paced `null` backend (no audio device), its own bridge
     /// (own stream sender and tap), the same plugin host (plugins registered under ids of
     /// their own). The result is dropped to stop it.
@@ -466,7 +466,7 @@ fn is_offline_id(device: DeviceId) -> bool {
     device.0.0 >> 112 == OFFLINE_DEVICE_PREFIX >> 112
 }
 
-/// Registry ids of a dedicated engine's plugins (docs/COLLAB.md §16): its devices are the
+/// Registry ids of a dedicated engine's plugins: its devices are the
 /// document's, so they share the main thread's registry with the host's own instances
 /// only through ids of this form (a 16-bit prefix, the engine's 16-bit salt, the low 96 bits
 /// of the device id).
@@ -879,7 +879,7 @@ impl EngineBridge for NativeBridge {
         if let Some(ext) = self.ext.as_deref_mut() {
             ext.observe_transport(&control);
         }
-        // `audio-streaming`: decode the jump target first; keep the loop anchor current.
+        // Decode the jump target first; keep the loop anchor current.
         match &control {
             TransportControl::Locate { position } => self.prime_streams_at(position.0),
             TransportControl::Play => {
@@ -899,7 +899,7 @@ impl EngineBridge for NativeBridge {
         self.handle.transport(control).map_err(engine_err)
     }
 
-    /// `audio-streaming` (CONTRACTS.md §13.1): stream long media from disk
+    /// Audio streaming (CONTRACTS.md §13.1): stream long media from disk
     /// ([`crate::disk_stream`]). `ETHER_DISK_STREAMING=0` turns it off (whole-file decode,
     /// as v0.2).
     fn stream_media(
@@ -934,7 +934,7 @@ impl EngineBridge for NativeBridge {
         out.cpu_load = self.audio.cpu_load();
     }
 
-    /// v0.2 analysis channel (contracts-3): device frames straight from the engine handle.
+    /// v0.2 analysis channel: device frames straight from the engine handle.
     fn poll_analysis(&mut self, out: &mut Vec<ether_core::AnalysisFrame>) {
         self.handle.poll_analysis(|f| out.push(*f));
     }
@@ -943,7 +943,7 @@ impl EngineBridge for NativeBridge {
         self.handle.watch_analysis(node, on).map_err(engine_err)
     }
 
-    /// `latency-republish`: node latency as last observed by the audio thread.
+    /// Node latency as last observed by the audio thread.
     fn node_latency(&self, key: NodeKey) -> Option<u32> {
         self.handle.node_latency(key)
     }
@@ -974,7 +974,7 @@ impl EngineBridge for NativeBridge {
             // Offline (export) instances are private to the export, and a dedicated engine's
             // belong to its requester, not to the document: their notifications (state dirty,
             // GUI edits, latency) must not reach it here. A dedicated engine's go to its own
-            // poll (its requester commits the edits, docs/PLUGIN_VIEW.md §8).
+            // poll (its requester commits the edits).
             let mut dedicated = Vec::new();
             let mut i = from;
             while i < out.len() {
@@ -1004,7 +1004,7 @@ impl EngineBridge for NativeBridge {
     }
 
     fn plugin_state(&mut self, device: DeviceId) -> Result<Option<Base64Bytes>, BridgeError> {
-        // A mirrored device's state is its mirror's (COLLAB.md §9.6), or the last state of
+        // A mirrored device's state is its mirror's, or the last state of
         // a dropped mirror until the live instance replacing it exists.
         if self.mirrors.contains(device) {
             return Ok(self
@@ -1156,7 +1156,7 @@ impl EngineBridge for NativeBridge {
         self.handle.preview_note(track, data).map_err(engine_err)
     }
 
-    // Plugin GUI mirrors (`plugin-mirror`): delegated to `crate::plugin_mirror`.
+    // Plugin GUI mirrors: delegated to `crate::plugin_mirror`.
 
     fn create_plugin_mirror(
         &mut self,
@@ -1982,7 +1982,7 @@ mod tests {
         assert!(b.dedicated_notes.lock().unwrap().is_empty());
     }
 
-    /// #971: a replicated state (the host's preset) is loaded into a dedicated engine's
+    /// A replicated state (the host's preset) is loaded into a dedicated engine's
     /// instance in place: same instance, its open editor stays open, the host's own
     /// instance untouched.
     #[test]
@@ -2021,7 +2021,7 @@ mod tests {
         assert_eq!(none.ok(), Some(false));
     }
 
-    /// Dedicated remote engines (docs/COLLAB.md §16): a second engine beside the main one,
+    /// Dedicated remote engines: a second engine beside the main one,
     /// with its own plugin instances of the same devices, running headless.
     #[test]
     fn a_dedicated_engine_runs_beside_the_main_one() {
@@ -2049,8 +2049,15 @@ mod tests {
         assert_eq!(b.plugin_state(d).unwrap(), Some(mine.clone()));
         assert_eq!(e.plugin_state(d).unwrap(), Some(theirs));
         // Its notifications never reach the document through the main bridge.
+        // The main instance's notification can arrive after the first poll on a loaded machine.
         let mut notes = Vec::new();
-        b.poll_plugins(&mut notes);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while notes.is_empty() && std::time::Instant::now() < deadline {
+            b.poll_plugins(&mut notes);
+            if notes.is_empty() {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        }
         assert!(notes.iter().all(|(dev, _)| *dev == d), "{notes:?}");
         assert_eq!(notes.len(), 1, "only the main instance's: {notes:?}");
 

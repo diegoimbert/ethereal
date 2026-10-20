@@ -1,5 +1,5 @@
 //! 4-point polyBLEP / polyBLAMP residuals for the virtual-analog oscillators (synth, poly
-//! synth; #520).
+//! synth).
 //!
 //! A naive saw or pulse jumps at its wrap: the jump's harmonics run past Nyquist and fold
 //! back as aliasing. A BLEP replaces the jump with a band-limited step by adding a residual

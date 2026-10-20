@@ -7,7 +7,7 @@ import type { SpectrumStage } from "./SpectrumStage";
  */
 export type AnalysisData = { "type": "Spectrum", min_hz: number, max_hz: number, bins_db: Array<number>, 
 /**
- * v0.2 (`graphical-eq`): input (`Pre`) or output (`Post`, the default) of the
+ * v0.2: input (`Pre`) or output (`Post`, the default) of the
  * device. Analyzers send `Post`.
  */
 stage: SpectrumStage, } | { "type": "Tuner", hz: number | null, 

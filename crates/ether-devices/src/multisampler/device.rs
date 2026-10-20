@@ -6,7 +6,7 @@
 //!   releasing ones first.
 //! - **Pitch**: `key - root_key + tune_cents/100 + Transpose + Fine` semitones (+ glide from
 //!   the previous note), read band-limited ([`crate::dsp::resample`]: a windowed sinc whose
-//!   cutoff follows the rate, so a zone pitched up doesn't alias, #520; rate capped at 4
+//!   cutoff follows the rate, so a zone pitched up doesn't alias; rate capped at 4
 //!   octaves up).
 //! - **Loops**: while held and `looping`, a voice wraps `[loop_start, loop_end)`; with a
 //!   crossfade `X` the last `X` frames before `loop_end` blend linearly into the `X` frames
@@ -75,7 +75,7 @@ struct Voice {
     dying: u32,
     filter: [[Svf; 2]; 2],
     /// The filter's `g` at the end of the last chunk (negative: none yet); each chunk ramps
-    /// from it per sample (#845: per-chunk coefficients stepped a cutoff jump audibly).
+    /// from it per sample (per-chunk coefficients stepped a cutoff jump audibly).
     g: f64,
     /// Reads the previous zone set's source (its media left the set: fading out).
     from_prev: bool,
@@ -319,7 +319,7 @@ impl MultiSampler {
     }
 
     /// The slot for a new voice. `Voices` limits the sounding voices; a stolen one fades out
-    /// in a free slot rather than being cut (a click, #520).
+    /// in a free slot rather than being cut (a click).
     fn free_slot(&mut self) -> usize {
         let limit = self.max_voices();
         let sounding = self
@@ -530,7 +530,7 @@ impl MultiSampler {
                 };
                 // Filter coefficients for this chunk (envelope sampled at chunk start). The
                 // 24 dB low-pass resonates in its first stage only: two resonant stages
-                // squared the peak (+24 dB at full resonance, #520).
+                // squared the peak (+24 dB at full resonance).
                 let (mut coefs, mut coefs2) = (None, None);
                 // `g` ramps per sample from `g0` by `g_step` (0: constant).
                 let (mut g, mut g_step) = (0.0, 0.0);

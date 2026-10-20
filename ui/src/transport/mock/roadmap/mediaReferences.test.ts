@@ -1,4 +1,4 @@
-/** MockTransport: `MediaRef` (v0.2, media-references). */
+/** MockTransport: `MediaRef` (v0.2). */
 import { describe, expect, it } from "vitest";
 import type { MediaRef, MediaSource } from "@/generated";
 import { cmd } from "../../cmd";

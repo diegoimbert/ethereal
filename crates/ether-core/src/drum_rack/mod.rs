@@ -1,6 +1,6 @@
 //! Engine-side drum racks (roadmap v2; see CONTRACTS.md §11.12).
 //!
-//! Wired into `graph.rs`/`engine.rs`/`mixer.rs` (base-17/base-24), so this node only edits
+//! Wired into `graph.rs`/`engine.rs`/`mixer.rs`, so this node only edits
 //! this module:
 //! - `graph::compile_with` builds a [`RacksRt`] per track from `TrackDesc::racks`
 //!   ([`RacksRt::compile`]), indexes every pad-chain node (`SnapshotRt::pad_index`) and adds
@@ -17,9 +17,9 @@
 //!   dropped), raw MIDI the same way (note-on/off and poly aftertouch by key; channel-wide
 //!   messages such as CC, pitch bend and channel pressure go to every pad). A note-off or
 //!   choke goes to the pad its note-on went to, even if the pad's note changed meanwhile
-//!   (#560; remembered per rack, [`MAX_HELD`] notes, else routed by key). `AllNotesOff`
+//!   (remembered per rack, [`MAX_HELD`] notes, else routed by key). `AllNotesOff`
 //!   reaches every pad chain, from [`RacksRt::begin_block`] (transport) and from the rack
-//!   entry's events (a device before the rack switched on or off, #558). A device switched
+//!   entry's events (a device before the rack switched on or off). A device switched
 //!   on or off on a pad releases its notes like on a track chain (`ChainRt::switch_notes`). Pad chains are processed like a
 //!   track chain (bypass, reset, note/MIDI output feeding the next device). A pad entry may
 //!   be a chain rack (instrument / audio effect / MIDI effect rack, listed in the track's
@@ -104,7 +104,7 @@ pub(crate) fn nested_pad_latency(
         .unwrap_or(0)
 }
 
-/// Sounding notes remembered per rack, so their note-offs find their pad (#560).
+/// Sounding notes remembered per rack, so their note-offs find their pad.
 pub const MAX_HELD: usize = 128;
 /// Note id under which raw MIDI note-ons (which have none) are remembered.
 const RAW_NOTE_ID: u32 = u32::MAX;
@@ -279,7 +279,7 @@ struct RackRt {
     input_delay: DelayLine,
     /// Any pad has a choke group (skip the choke bookkeeping otherwise).
     has_groups: bool,
-    /// Sounding notes and the pad each note-on went to (#560).
+    /// Sounding notes and the pad each note-on went to.
     held: HeldNotes<DrumPadId>,
 }
 

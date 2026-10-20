@@ -298,7 +298,7 @@ impl Node for SpectrumAnalyzer {
             self.since_hop = (self.since_hop - self.hop).min(self.hop);
             self.compute();
         }
-        // A pass-through: silent in, silent out (perf audit #5). While its analysis is
+        // A pass-through: silent in, silent out. While its analysis is
         // watched the engine processes it anyway.
         if crate::util::all_zero(audio.inputs, frames) {
             ProcessStatus::Silent

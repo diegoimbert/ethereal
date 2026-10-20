@@ -1,4 +1,4 @@
-//! The compiler as it was before the one-pass group-bys (perf audit #1), kept verbatim
+//! The compiler as it was before the one-pass group-bys, kept verbatim
 //! as the reference of the equivalence test: every table is scanned per clip / track /
 //! lane. Only the comp clips are inlined (they call the new `clip_desc`).
 
@@ -149,7 +149,7 @@ pub(super) fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGra
                 clip_descs.extend(comp);
                 clip_descs.sort_by(|a, b| a.start.total_cmp(&b.start).then(a.id.cmp(&b.id)));
             }
-            // v0.2 (`freeze-bounce`): a frozen track plays its render instead of its clips and
+            // v0.2: a frozen track plays its render instead of its clips and
             // chain.
             let frozen = crate::freeze::frozen_desc(p, t);
             if frozen.is_some() {
@@ -207,7 +207,7 @@ pub(super) fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGra
                 } else {
                     crate::drum_rack::racks_desc(p, t.id, ctx)
                 },
-                // --- v0.2 (contracts-3) ---
+                // --- v0.2 ---
                 chain_racks: if frozen.is_some() {
                     Vec::new()
                 } else {
@@ -225,7 +225,7 @@ pub(super) fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGra
                     _ => None,
                 },
                 vca: t.vca,
-                // --- v0.3 (contracts-4) ---
+                // --- v0.3 ---
                 expression: if frozen.is_some() {
                     Default::default()
                 } else {
@@ -267,7 +267,7 @@ pub(super) fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGra
         }
     }
 
-    // v0.2 (`groups-buses`): soloing a VCA solos its tracks.
+    // v0.2: soloing a VCA solos its tracks.
     crate::freeze::apply_inert(p, &mut tracks);
     crate::groups::fold_vca_solo(p, &mut tracks);
     RenderGraphDesc {

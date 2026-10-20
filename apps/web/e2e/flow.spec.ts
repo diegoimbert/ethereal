@@ -40,7 +40,7 @@ async function doc(page: Page): Promise<Project> {
 
 const count = (o: object) => Object.keys(o).length;
 
-// WORKAROUND for an app layout bug (reported by base-46, for the user to fix): at the
+// WORKAROUND for an app layout bug (reported by for the user to fix): at the
 // default 1280 px width the transport bar's right side (.eth-tb__side--end: undo/redo, CPU,
 // engine status) overflows onto the Loop/Metronome buttons and takes their clicks. A wider
 // window keeps them clickable. Drop this once the transport bar fits at 1280 px.
@@ -197,7 +197,7 @@ test("full flow: build a song, play it, edit, save, reload", async ({ page }) =>
   await expect(page.getByRole("status", { name: "unsaved changes" })).toHaveCount(0);
   const saved = await doc(page);
 
-  // base-131: nothing reopens on launch; the project screen's Recents opens it.
+  // Nothing reopens on launch; the project screen's Recents opens it.
   await page.reload();
   await openOnLaunch(page, name);
   await expect.poll(() => project(page).then((p) => p?.id), { timeout: 30_000 }).toBe(projectId);

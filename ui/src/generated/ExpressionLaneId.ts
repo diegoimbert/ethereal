@@ -2,6 +2,6 @@
 
 /**
  * A channel-wide expression lane (CC, pitch bend, channel pressure) of a MIDI clip
- * (v0.3, `midi-expression`).
+ * (v0.3).
  */
 export type ExpressionLaneId = string;

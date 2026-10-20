@@ -1,4 +1,4 @@
-//! v0.2 dynamics devices (contracts-3 froze the param tables; see docs/DEVICES.md).
+//! v0.2 dynamics devices (the v0.2 contracts froze the param tables; see docs/DEVICES.md).
 //!
 //! Dynamics: gate/expander, 3-band multiband compressor, transient shaper.
 //!
@@ -183,7 +183,7 @@ fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
     match ty {
         BuiltinDeviceType::Gate => {
             use gate::*;
-            // devices-pass-effects: the transfer curve (threshold, ratio, mode, floor; live
+            // The transfer curve (threshold, ratio, mode, floor; live
             // detector dot) beside the gain meter.
             let mut gr = meter(0, -60.0, 0.0, "GR");
             gr.size = Medium;
@@ -334,7 +334,7 @@ fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
     }
 }
 
-/// Param table of a type (frozen by contracts-3, append-only).
+/// Param table of a type (frozen by the v0.2 contracts, append-only).
 fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
     match ty {
         BuiltinDeviceType::Gate => build(

@@ -1,4 +1,4 @@
-//! Racks, macros and modulation (v0.2, `racks-modulation`; model
+//! Racks, macros and modulation (v0.2; model
 //! `ether_model::{rack, modulation}`, protocol `ether_protocol::racks`, CONTRACTS.md §12.6).
 //!
 //! - [`rack_command`], [`modulation_command`]: document commands (dispatched from
@@ -560,7 +560,7 @@ pub fn rack_command(ctx: &mut DocCtx, command: &RackCommand) -> CmdResult<()> {
     }
 }
 
-/// Rack presets (`rack-presets`, CONTRACTS.md §13.9): append a device of `kind` to the end
+/// Rack presets (CONTRACTS.md §13.9): append a device of `kind` to the end
 /// of `chain_id` with the content rules of `Rack::InsertDevice` (no nested racks, chain
 /// fit). Built-ins get their default params, plugins are instantiated with `kind`'s state.
 /// Returns the inserted device.

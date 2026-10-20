@@ -104,7 +104,7 @@ function PadCell({ rack, note, pad, active, selected, onSelect }: PadCellProps) 
   const send = (c: Parameters<typeof transport.send>[0]) => void reportFailure(transport.send(c));
 
   /**
-   * Audition (#435): the pad's note as a live note on the rack's track, held until the
+   * Audition: the pad's note as a live note on the rack's track, held until the
    * pointer / key is released. It goes through the track's chain to the rack and the pad's
    * own chain (sampler slice, effects, choke group, pad mix) exactly like playback, armed
    * or not, transport stopped or not (`Recording::PreviewNote`, never recorded).

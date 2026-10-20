@@ -51,7 +51,7 @@ windows-sys = { workspace = true, features = ["Win32_System_Com", "Win32_Media"]
 [lints]
 workspace = true
 
-# Cargo features (feature-flags; docs/ARCHITECTURE.md "Cargo features"). The default is the
+# Cargo features (docs/ARCHITECTURE.md "Cargo features"). The default is the
 # fast dev core (`just dev-desktop`, `cargo test -p ether-native`); the shipped apps, the
 # gates and `just test-all` / `just check-all` build `full`. A feature that is off compiles
 # its code out; its commands reply `Unsupported` (the paths the web host already takes).

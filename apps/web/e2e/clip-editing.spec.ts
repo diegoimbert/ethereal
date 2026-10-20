@@ -1,6 +1,6 @@
 // Clip editing on the web build, through the UI, against the real engine (WasmTransport →
 // controller Worker → AudioWorklet): drag an audio clip's fade-in handle (SetFades), reverse
-// it from the clip menu (badge), reverse a trimmed clip (its offset mirrored, #442), then
+// it from the clip menu (badge), reverse a trimmed clip (its offset mirrored), then
 // add, rename and delete an arrangement marker.
 //
 // No sleeps: every step waits on UI or engine state. The mirror is read through
@@ -105,7 +105,7 @@ test("clip editing: fade drag, reverse, markers", async ({ page }) => {
   await page.keyboard.press("r");
   await expect.poll(async () => (await audioOf(page, clip.id)).reversed).toBe(true);
 
-  // --- A trimmed clip reversed plays the same material backwards (#442) ----------------------
+  // --- A trimmed clip reversed plays the same material backwards ----------------------
   // Its offset is mirrored over the file (K = the file's length in beats): content 1 .. 3
   // becomes K - 3 .. K - 1 of the reversed file; reversing back restores it.
   await page.keyboard.press("r");

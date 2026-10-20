@@ -1,5 +1,5 @@
 /**
- * Note stretch (base-109, owner request, Ableton-style): a bar on the piano roll's ruler
+ * Note stretch (owner request, Ableton-style): a bar on the piano roll's ruler
  * spans the selection: the section (section-edit) when there is one with notes, else the
  * selected notes from the earliest start to the latest end.
  *

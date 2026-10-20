@@ -45,7 +45,7 @@ export const LIBRARY_FILES: ReadonlyArray<LibraryFile> = [
   wav("Vocals/Phrase 2.wav", 4),
   { path: "MIDI/Groove 1.mid", kind: "Midi", sample_rate: 0, channels: 0, frames: 0 },
   { path: "Readme.txt", kind: "Other", sample_rate: 0, channels: 0, frames: 0 },
-  // base-145: hidden by the default file filter (a DAW project, an Ableton analysis file).
+  // Hidden by the default file filter (a DAW project, an Ableton analysis file).
   { path: "Drums/Kit.als", kind: "Other", sample_rate: 0, channels: 0, frames: 0 },
   { path: "Drums/Kick.wav.asd", kind: "Other", sample_rate: 0, channels: 0, frames: 0 },
 ];

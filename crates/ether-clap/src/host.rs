@@ -53,7 +53,7 @@ pub(crate) struct HostShared {
     pub flush_requested: AtomicBool,
     pub gui_closed: AtomicBool,
     /// `request_process`: the plugin wants processing again after it slept (shared with
-    /// its node, which asks the engine to wake it; perf audit #5).
+    /// its node, which asks the engine to wake it).
     pub process_requested: std::sync::Arc<AtomicBool>,
     /// Pending editor resize request (`GuiSize::pack_to_u64`), 0 = none.
     pub gui_resize: AtomicU64,

@@ -1,4 +1,4 @@
-//! The default sample pack (#519; docs/SAMPLES.md; protocol `ether_protocol::samples`).
+//! The default sample pack (docs/SAMPLES.md; protocol `ether_protocol::samples`).
 //!
 //! - **Source.** `Samples::Open { url }` (sent by the UI on first use) picks the manifest URL:
 //!   the command's, else the host's ([`HostServices::samples_url`], natively
@@ -535,7 +535,7 @@ where
     }
 
     /// The bytes of a cached (or built-in) sample, by qualified id.
-    #[allow(dead_code)] // used by previews and imports (#519 part b)
+    #[allow(dead_code)] // used by previews and imports 
     pub fn sample_bytes(&mut self, sample: &str) -> Result<Vec<u8>, StoreError> {
         let not_found = || StoreError::NotFound(sample.to_string());
         let (pack, id) = split(sample).ok_or_else(not_found)?;

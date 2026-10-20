@@ -1,5 +1,5 @@
 /**
- * Tempo lane editing of several points (#621), pure: moving a selection, deleting, the
+ * Tempo lane editing of several points, pure: moving a selection, deleting, the
  * tempo clipboard (points or a time section) and pasting it. Every edit is ONE command (an
  * `Edit::Batch` of the existing tempo commands when it takes several), so one undo step,
  * and collab-safe. The controller's rules hold: the point at beat 0 never moves or goes, two

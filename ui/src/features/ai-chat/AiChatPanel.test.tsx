@@ -26,7 +26,7 @@ beforeEach(() => {
   localStorage.clear();
   reloadAiSettings();
   resetAiChat();
-  // The consent screen has its own tests (#717): the others start agreed.
+  // The consent screen has its own tests: the others start agreed.
   for (const p of PROVIDER_IDS) useAiSettings.getState().consent(p);
 });
 afterEach(() => {

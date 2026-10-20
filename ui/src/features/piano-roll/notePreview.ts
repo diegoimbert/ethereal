@@ -85,7 +85,7 @@ export function playPreview(transport: EngineTransport, track: TrackId, pitch: n
 
 /**
  * Play `pitch` at MIDI `velocity` (1..127) on `track` until the pointer is released (or
- * `stopPreview`), whatever the piano roll's toggle says: drum pad audition (#435), whose
+ * `stopPreview`), whatever the piano roll's toggle says: drum pad audition, whose
  * note goes through the track's chain to the pad like playback does.
  */
 export function holdNote(transport: EngineTransport, track: TrackId, pitch: number, velocity: number): void {

@@ -65,7 +65,7 @@ const KIND_ICON: Record<DirectoryEntry["kind"], ReactNode> = {
 };
 
 /**
- * The library browser. Engines with the library index (`Browser::*`, v0.2 `browser-v2`)
+ * The library browser. Engines with the library index (`Browser::*`, v0.2 browser v2)
  * get the indexed browser (`./v2`: search, filters, favourites, tags, packs, folders);
  * older or remote engines that reply `Unsupported`, and the project-media scope, get the
  * folder browser below.
@@ -131,7 +131,7 @@ export function FolderBrowser({ scope = "all" }: { scope?: BrowserScope } = {}) 
     };
   }, [ready, send, scope]);
 
-  // `base-145`: the file filter changed: list the folder again.
+  // The file filter changed: list the folder again.
   const [filterVersion, setFilterVersion] = useState(0);
   useEngineEvent((event) => {
     if (event.type === "Media" && event.event.type === "LocationsChanged") setLocations(event.event.locations.filter(inScope(scope)));

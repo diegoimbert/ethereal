@@ -77,7 +77,7 @@
   }
 }
 
-/* base-115: Settings tabs (Audio | Sharing | Advanced, docs/SHARING.md §8.6). */
+/* Settings tabs (Audio | Sharing | Advanced). */
 .eth-settings {
   display: flex;
   flex-direction: column;
@@ -129,7 +129,7 @@
   width: calc(var(--eth-size-control-lg) * 3);
 }
 
-/* base-135: Settings > Input. */
+/* Settings > Input. */
 .eth-input-settings__toggles {
   display: flex;
   flex-direction: column;

@@ -1,4 +1,4 @@
-// Automation on touch screens (#522): the track sheet shows a track's automation lanes; on a
+// Automation on touch screens: the track sheet shows a track's automation lanes; on a
 // lane a double-tap adds a point, long-press then drag moves it, a double-tap on it deletes it;
 // a plain drag on the lane pans.
 import { expect, test, type Page } from "@playwright/test";

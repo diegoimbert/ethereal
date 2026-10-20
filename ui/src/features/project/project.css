@@ -115,7 +115,7 @@
   gap: var(--eth-space-xl);
   align-items: start;
 }
-/* The left column: get started, then the example beats (#518). */
+/* The left column: get started, then the example beats. */
 .eth-welcome__guides {
   display: flex;
   flex-direction: column;
@@ -389,7 +389,7 @@
   gap: var(--eth-space-sm);
 }
 
-/* base-114: the open project's actions, badges and hints. */
+/* The open project's actions, badges and hints. */
 .eth-project-screen__heading {
   display: flex;
   align-items: center;
@@ -420,7 +420,7 @@
   line-height: var(--eth-lh-normal);
 }
 
-/* project-versions: the "Versions…" entry under the open project. */
+/* The "Versions…" entry under the open project. */
 .eth-project-screen__versions {
   grid-column: 1 / -1;
   justify-self: start;
@@ -432,7 +432,7 @@
   justify-self: end;
 }
 
-/* base-131 safe mode: plugins held as placeholders until "Load plugins". */
+/* Safe mode: plugins held as placeholders until "Load plugins". */
 .eth-safe-mode {
   display: flex;
   align-items: center;
@@ -525,7 +525,7 @@
   animation: eth-context-menu-in var(--context-menu-enter-duration) var(--context-menu-enter-ease) both;
 }
 
-/* #646: shown before the engine is up. A quiet line by the version; the recent projects are
+/* Shown before the engine is up. A quiet line by the version; the recent projects are
    placeholder rows of the real rows' height (as many as last time: nothing moves when the
    list arrives). */
 .eth-welcome__loading {

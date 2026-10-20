@@ -1,4 +1,4 @@
-//! The macOS menu bar's app actions (#573): File, Edit's undo / redo / select all, Help.
+//! The macOS menu bar's app actions: File, Edit's undo / redo / select all, Help.
 //!
 //! Each item is a keymap action or a command palette entry of the UI. Choosing it emits
 //! [`MENU_ACTION_EVENT`] with that id to the main window, which runs it exactly as its

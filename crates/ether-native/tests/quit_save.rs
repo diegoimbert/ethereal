@@ -1,4 +1,4 @@
-//! #566: quitting saves the live state of every plugin, even when the host is shut down ON
+//! Quitting saves the live state of every plugin, even when the host is shut down ON
 //! the plugins' main thread (the desktop app stops the host from Tauri's exit handler, on
 //! the process main thread): the save runs before plugin calls are closed, and the
 //! stopping thread serves the main-thread calls while it waits.

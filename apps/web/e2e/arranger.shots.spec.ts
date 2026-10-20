@@ -1,4 +1,4 @@
-// Arranger clip rendering screenshots (perf-arranger, audit #3): MIDI previews, looped,
+// Arranger clip rendering screenshots: MIDI previews, looped,
 // muted, overlapping and selected clips, audio waveforms with gain and fades, and a
 // copy-drag in progress, and clips extended left (leading gap, wrapped loop), in the dark
 // and light themes. Used to check that drawing clip bodies on one canvas per lane looks the
@@ -61,7 +61,7 @@ async function buildScene(page: Page): Promise<void> {
       },
     });
   }
-  // Clips extended left past their content start (base-142): an unlooped one with a
+  // Clips extended left past their content start: an unlooped one with a
   // leading gap (negative offset), and a looped one whose offset wraps into the loop.
   for (const [c, start, offset, loop] of [
     [4, 24, -2, false],

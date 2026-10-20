@@ -386,7 +386,7 @@ describe("section-edit: plain ⌘C/X/V/D and ⌫ act on the time selection", () 
     const playhead = playheadBeats();
     await plain("v");
     expect(timeEdits().at(-1)).toMatchObject({ type: "Paste", at: 16, insert: false });
-    // Pasting never moves the playhead (insert marker, owner request).
+    // Pasting never moves the playhead (insert marker).
     expect(playheadBeats()).toBe(playhead);
     // A clip copy after that: ⌘V is the clip paste again.
     act(() => itemSelection.getState().select("clip", [keys.id], "replace"));

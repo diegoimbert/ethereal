@@ -17,7 +17,7 @@ function overlay(runnerOs, extraEnv = {}) {
   return JSON.parse(readFileSync(out, "utf8"));
 }
 
-// #431: the release ships ether-mcp next to the app binary on every platform.
+// The release ships ether-mcp next to the app binary on every platform.
 test("macOS and Linux bundles install ether-mcp next to the app (tauri.conf.json files)", () => {
   assert.equal(baseConf.bundle.macOS.files["MacOS/ether-mcp"], "binaries/ether-mcp");
   for (const fmt of ["deb", "rpm", "appimage"]) assert.equal(baseConf.bundle.linux[fmt].files["/usr/bin/ether-mcp"], "binaries/ether-mcp", fmt);

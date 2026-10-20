@@ -132,7 +132,7 @@ export const BUILTIN_ACTIONS: ReadonlyArray<KeymapAction> = [
     handled: true,
     keywords: "backwards mirror flip retrograde audio midi",
   },
-  // #870: Mod+J (owner request; it used to toggle the editor drawer, now Mod+Alt+L).
+  // Mod+J (it used to toggle the editor drawer, now Mod+Alt+L).
   {
     id: "clip.consolidate",
     labelKey: "shell.action.clip_consolidate",
@@ -352,7 +352,7 @@ export const BUILTIN_ACTIONS: ReadonlyArray<KeymapAction> = [
     labelKey: "shell.action.view_editor",
     group: "View",
     scopes: G,
-    // Ableton's Toggle Detail View chord; Mod+J consolidates clips since #870.
+    // Ableton's Toggle Detail View chord; Mod+J consolidates clips since.
     chords: ["Mod+Alt+L"],
     palette: "panel:drawer",
     handled: true,

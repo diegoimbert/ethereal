@@ -1,4 +1,4 @@
-//! Graph snapshot cost measurements (web-perf), shared by the native test
+//! Graph snapshot cost measurements, shared by the native test
 //! (`tests/web_perf.rs`) and the wasm export [`crate::web::bench_graph_snapshot`] (run
 //! in V8 by `apps/web/src/engine/graphSnapshot.bench.test.ts`), so the numbers come from
 //! the real `Publish` path: `EngineMsg::encode` (Worker) → ring → `EngineHost` (Worklet:
@@ -18,7 +18,7 @@ use crate::worklet::{EngineHost, RENDER_QUANTUM, web_engine_config};
 
 /// Test fixtures (the large project: 64 tracks, 500 clips, automation). Shared with the
 /// codec tests in `ether-core`.
-#[path = "../../ether-core/tests/codec_fixture.rs"]
+#[path = "../../ether-core/tests/it/codec_fixture.rs"]
 pub mod fixture;
 
 /// Fastest-of-N timings in milliseconds.
@@ -231,7 +231,7 @@ impl ether_devices::SampleResolver for NoSamples {
     }
 }
 
-/// IR swap cost on the Worklet (#514): a convolution reverb behind a playing synth is
+/// IR swap cost on the Worklet: a convolution reverb behind a playing synth is
 /// switched to the longest factory IR through the real path (`WebBridge::update_builtin` →
 /// ring → `EngineHost`), and every render quantum until the swap has settled is timed.
 #[derive(Clone, Debug, Serialize)]
@@ -396,12 +396,12 @@ pub fn measure_ir_swap(runs: usize, now: impl Fn() -> f64) -> IrSwapCosts {
     }
 }
 
-/// Fastest-of-N worst quanta (ms) of switching a playing reverb to a user's media IR (#529).
+/// Fastest-of-N worst quanta (ms) of switching a playing reverb to a user's media IR.
 #[derive(Clone, Debug, Serialize)]
 pub struct MediaIrSwapCosts {
     /// The media IR's length (stereo, 48 kHz).
     pub ir_seconds: f64,
-    /// Built by the Worklet in one go (before #529: `UpdateBuiltin` with the media IR).
+    /// Built by the Worklet in one go (before `UpdateBuiltin` with the media IR).
     pub before_quantum_ms: f64,
     /// Prepared on the Worker from its audio, assembled by the Worklet.
     pub swap_quantum_ms: f64,

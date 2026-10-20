@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Fails when tracked paths collide on case-insensitive file systems (macOS, Windows), which
-// Linux checks can't see (#811; v0.6.0 broke with TS1149 on Markdown.tsx vs markdown.ts):
+// Linux checks can't see (v0.6.0 broke with TS1149 on Markdown.tsx vs markdown.ts):
 // - paths (files or directories) equal ignoring case but not exactly;
 // - files in one directory whose names minus the extension match ignoring case but not
 //   exactly (Markdown.tsx vs markdown.ts: module resolution sees both as "./markdown").

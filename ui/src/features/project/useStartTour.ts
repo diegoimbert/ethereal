@@ -15,7 +15,7 @@ export function useStartTour(commands: EngineCommands, onStarted: () => void) {
   const t = useT();
   const [busy, setBusy] = useState(false);
   const transport = commands.transport;
-  // Launch isn't done (the engine is loading, #646): the tours wait (shown, disabled).
+  // Launch isn't done (the engine is loading): the tours wait (shown, disabled).
   const ready = !useProjectScreen((s) => s.launching);
   const start = (tour: TourDef) => {
     if (!transport || !canStartTutorial()) return;

@@ -1,4 +1,4 @@
-//! Plugin-GUI param edits (perf-plugins, audit #6).
+//! Plugin-GUI param edits.
 //!
 //! A plugin reports every knob move of its own GUI as `ParamEdited`; a preset switch may
 //! report every param at once, and many plugins never wrap edits in begin/end gestures.

@@ -1,4 +1,4 @@
-# AI agents and MCP (`agent-api`)
+# AI agents and MCP
 
 Ethereal exposes a set of **agent tools** that an LLM can call to read and edit the open
 project: create tracks, write MIDI, add devices, set parameters, mix, transport, undo,
@@ -87,7 +87,7 @@ in-app AI chat ─────────────────────�
 | `transport` | `play`, `stop`, `seek` (`position_beats`), `loop` (region and on/off). |
 | `undo`, `redo` | The app's shared history. |
 | `save_project` | Save (headless mode: also writes the `--project` file). |
-| `search_browser`, `load_browser_item` | Search the sound library and load a sample or preset. These need the browser index (`browser-v2`); without it they return an error. |
+| `search_browser`, `load_browser_item` | Search the sound library and load a sample or preset. These need the browser index; without it they return an error. |
 | `export_audio`, `get_export_status` | Start a background render (returns a job id) and poll it. |
 
 The authoritative list, with full descriptions and schemas, is `tools/list` (or
@@ -293,7 +293,7 @@ agents) and deletes the file.
 ## Follow-ups
 
 - Package `ether-mcp` in the release bundle (next to the app binary) and show the
-  `claude mcp add` command in the app (out of scope for `agent-api`).
+  `claude mcp add` command in the app (out of scope for the agent API).
 - `search_browser` and `load_browser_item` light up once the browser index is available on
   the host.
 - AI chat: carry a conversation over when the provider changes. Today the new provider

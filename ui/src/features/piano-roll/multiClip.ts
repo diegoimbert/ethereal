@@ -1,5 +1,5 @@
 /**
- * Multi-clip editing (base-143, owner request, Ableton Live 11 style): with several MIDI
+ * Multi-clip editing (owner request, Ableton Live 11 style): with several MIDI
  * clips selected in the arrangement, the piano roll shows all their notes on one pitch grid
  * on the ARRANGEMENT timeline (song beats), and edits them as if they were one clip.
  *

@@ -31,8 +31,8 @@ use ts_rs::TS;
 /// Wire protocol version. Bumped on any breaking change of this crate's JSON shapes.
 pub const PROTOCOL_VERSION: u32 = 1;
 
-/// [`ClientHello::features`]: the client applies `PatchChange::DeviceParam` (perf-plugins,
-/// audit #4). While any connected client lacks it, the engine sends whole-device upserts
+/// [`ClientHello::features`]: the client applies `PatchChange::DeviceParam`.
+/// While any connected client lacks it, the engine sends whole-device upserts
 /// instead, so clients that predate it stay in sync.
 pub const FEATURE_DEVICE_PARAM_PATCH: &str = "device_param_patch";
 

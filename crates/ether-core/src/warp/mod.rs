@@ -10,16 +10,16 @@
 //!   without the stretch feature, the voice limit reached, or not provisioned yet) Complex
 //!   falls back to Repitch. Where the mapping plays the source at its own speed (ratio 1) and the clip
 //!   isn't transposed, there is nothing to stretch: the clip plays like Repitch, which is
-//!   then exact, and needs no stretcher (perf audit #8).
+//!   then exact, and needs no stretcher.
 //! - **Transposition envelope** (`AutomationTarget::ClipTranspose`, semitones added to the
 //!   clip transpose): Complex sets the stretcher's transposition at every chunk it renders
 //!   (≤ the stretcher's output block, a few ms); Repitch integrates the varying playback
 //!   rate along the mapping ([`RateIntegral`]), so positions stay exact after any jump.
-//! - **Reverse** and **fades** (clip-editing): both paths read the source through
+//! - **Reverse** and **fades**: both paths read the source through
 //!   [`sched::read_frames`] (reversed clips see the reversed media, so offset, loop and warp
 //!   markers are on the reversed timeline) and apply [`sched::ClipEnvelope`].
 //!
-//! # Stretcher voices (perf audit #8)
+//! # Stretcher voices
 //! Stretchers belong to tracks, pooled by concurrency: a track gets as many *voices* as
 //! Complex clips can play on it at once ([`voices_needed`]: their overlaps, with a beat of
 //! margin so a clip ending and the next one starting in the same sub-block both have one),

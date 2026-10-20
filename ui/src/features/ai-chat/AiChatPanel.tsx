@@ -85,7 +85,7 @@ function Toolbar({ settings, onSettings }: { settings: boolean; onSettings(): vo
   );
 }
 
-/** #743: the assistant is in alpha; always shown in the toolbar, the notice as its tooltip. */
+/** The assistant is in alpha; always shown in the toolbar, the notice as its tooltip. */
 function AlphaBadge() {
   const t = useT();
   return (
@@ -96,7 +96,7 @@ function AlphaBadge() {
 }
 
 /**
- * #743: what "alpha" means. In the first-use card and the empty conversation; above a
+ * What "alpha" means. In the first-use card and the empty conversation; above a
  * conversation, `dismissible` (remembered with the AI settings: per user, not per project).
  */
 function AlphaNotice({ dismissible }: { dismissible?: boolean }) {
@@ -119,7 +119,7 @@ function AlphaNotice({ dismissible }: { dismissible?: boolean }) {
 }
 
 /**
- * #717: before the first message to a provider, say what leaves the machine. Asked once per
+ * Before the first message to a provider, say what leaves the machine. Asked once per
  * provider (`useAiSettings().consented`, kept with the AI settings).
  */
 function Consent() {
@@ -263,7 +263,7 @@ function ToolChip({ item }: { item: Extract<ChatItem, { kind: "tool" }> }) {
 function Composer() {
   const t = useT();
   const transport = useContext(TransportContext)?.transport ?? null;
-  // base-131: nothing to edit before a project is open (the app launches with none).
+  // Nothing to edit before a project is open (the app launches with none).
   const hasProject = useProjectStore((s) => s.project !== null);
   const running = useAiChat((s) => s.running);
   const [text, setText] = useState("");

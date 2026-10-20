@@ -1,5 +1,5 @@
 /**
- * Routing controls of `groups-buses` for the inspector: track-to-track input (source +
+ * Routing controls of groups and buses for the inspector: track-to-track input (source +
  * tap point) and VCA assignment. Kit components and tokens only.
  */
 

@@ -8,10 +8,10 @@ import { useEngineServerShown } from "./visibility";
 import { normalizeServerUrl } from "./url";
 
 /**
- * Settings > Advanced > Engine server (base-115, docs/SHARING.md §8.6; base-114 naming): run
+ * Settings > Advanced > Engine server: run
  * this window on an engine server (`ether-server`) on another machine instead of the built-in
  * engine. While connected the whole UI runs against it (the local engine resumes on
- * disconnect); the top bar shows "● <server>". Hidden until turned on (#717, `visibility.ts`):
+ * disconnect); the top bar shows "● <server>". Hidden until turned on (`visibility.ts`):
  * `ether-server` isn't in any release.
  */
 /** Command names, not translated. */

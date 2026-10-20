@@ -63,7 +63,7 @@ import type { WarpMarkerId } from "./WarpMarkerId";
  */
 export type Project = { id: ProjectId, settings: ProjectSettings, tracks: { [key in TrackId]: Track }, clips: { [key in ClipId]: Clip }, notes: { [key in NoteId]: Note }, devices: { [key in DeviceId]: Device }, sends: { [key in SendId]: TrackSend }, automation_lanes: { [key in AutomationLaneId]: AutomationLane }, automation_points: { [key in AutomationPointId]: AutomationPoint }, tempo_points: { [key in TempoPointId]: TempoPoint }, time_signatures: { [key in TimeSignatureId]: TimeSignaturePoint }, warp_markers: { [key in WarpMarkerId]: WarpMarker }, media: { [key in MediaId]: MediaRef }, 
 /**
- * Arrangement markers (roadmap v2, `clip-editing`; pre-release `.ether` v3).
+ * Arrangement markers (roadmap v2; pre-release `.ether` v3).
  */
 markers: { [key in MarkerId]: Marker }, 
 /**
@@ -83,30 +83,30 @@ take_lanes: { [key in TakeLaneId]: TakeLane },
  */
 comp_regions: { [key in CompRegionId]: CompRegion }, 
 /**
- * Rack chains (`racks-modulation`).
+ * Rack chains.
  */
 rack_chains: { [key in RackChainId]: RackChain }, 
 /**
- * Modulators inside devices (`racks-modulation`).
+ * Modulators inside devices.
  */
 modulators: { [key in ModulatorId]: Modulator }, 
 /**
- * Modulation mappings (`racks-modulation`).
+ * Modulation mappings.
  */
 mod_mappings: { [key in ModMappingId]: ModMapping }, 
 /**
- * Chat journal (base-62, `collab-social`; pre-release `.ether` v4).
+ * Chat journal (pre-release `.ether` v4).
  */
 chat: { [key in ChatMessageId]: ChatMessage }, 
 /**
- * Notes pinned on the arrangement (base-62, `collab-social`; pre-release `.ether` v4).
+ * Notes pinned on the arrangement (pre-release `.ether` v4).
  */
 pinned_notes: { [key in PinnedNoteId]: PinnedNote }, 
 /**
- * Clip expression lanes: CC, pitch bend, channel pressure (`midi-expression`).
+ * Clip expression lanes: CC, pitch bend, channel pressure.
  */
 expression_lanes: { [key in ExpressionLaneId]: ExpressionLane }, 
 /**
- * Per-note expressions: pitch, pressure, timbre (`midi-expression`, `mpe`).
+ * Per-note expressions: pitch, pressure, timbre (`mpe`).
  */
 note_expressions: { [key in NoteExpressionId]: NoteExpression }, };

@@ -1,5 +1,5 @@
 /**
- * Mock of `MediaRef::*` (v0.2, contracts-3). Owned by `media-references`: missing media,
+ * Mock of `MediaRef::*` (v0.2).: missing media,
  * relink, search and collect-all over the mock library (CONTRACTS.md §12.9).
  *
  * Library imports are referenced in place (`MediaLocation::External` at

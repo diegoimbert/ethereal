@@ -1,4 +1,4 @@
-//! Standard MIDI Files (#717), via `midly`: [`read`] turns a file into notes in beats
+//! Standard MIDI Files, via `midly`: [`read`] turns a file into notes in beats
 //! (`Media::ReadMidiFile`), [`write`] makes a type 1 file from notes (`Media::WriteMidiFile`).
 //!
 //! Times are beats (quarter notes): ticks / PPQ for metrical files, so positions follow

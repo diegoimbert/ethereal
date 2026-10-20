@@ -1,5 +1,5 @@
 // Desktop only: the opt-in loopback bridge external AI agents (the `ether-mcp` server) attach
-// to. Tauri commands from the agent contract (implemented by `agent-api`).
+// to. Tauri commands from the agent contract (implemented by the agent API).
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 
 export interface BridgeStatus {

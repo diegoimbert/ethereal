@@ -1,6 +1,6 @@
 /**
  * The piano roll's time axis and edit targets: one clip (its content timeline, as always) or
- * several clips (multi-clip editing, base-143: the song timeline; see `multiClip.ts`). The
+ * several clips (multi-clip editing, the song timeline; see `multiClip.ts`). The
  * editor's components work in "editor beats" and ask the space where things go.
  */
 

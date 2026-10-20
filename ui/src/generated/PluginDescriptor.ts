@@ -24,7 +24,7 @@ features: Array<string>, category: DeviceCategory,
  */
 path: string, 
 /**
- * v0.2 (`plugin-sidechain`): channels of the plugin's aux/sidechain input bus found at
+ * v0.2: channels of the plugin's aux/sidechain input bus found at
  * scan (CLAP second input audio port, VST3 `kAux` input bus, AU input bus 1); 0 = none.
  * The instance's `DeviceDescriptor::sidechain_inputs` (from the bus layout at
  * instantiation) is authoritative. Older catalogs omit it (= 0).

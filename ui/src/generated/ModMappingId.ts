@@ -2,6 +2,6 @@
 
 /**
  * A modulation mapping: source (modulator or macro) → device param, with a depth (v0.2,
- * `racks-modulation`).
+ * racks and modulation).
  */
 export type ModMappingId = string;

@@ -143,7 +143,7 @@ function TakeLaneRow({ track, lane, headerWidth }: RowProps) {
 
   /**
    * A double-click on a take's clip selects it and opens it in the editor, expanding the
-   * collapsed drawer and inspector (#758), like a double-click on an arrangement clip.
+   * collapsed drawer and inspector, like a double-click on an arrangement clip.
    */
   const onDoubleClick = (e: MouseEvent<HTMLDivElement>) => {
     const clip = clipAt(e.clientX, e.currentTarget);

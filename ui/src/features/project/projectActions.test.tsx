@@ -1,4 +1,4 @@
-// base-114: the open project's actions (save as, duplicate, export/import, close and delete,
+// The open project's actions (save as, duplicate, export/import, close and delete,
 // rename) and the recents badges, against the mock engine.
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

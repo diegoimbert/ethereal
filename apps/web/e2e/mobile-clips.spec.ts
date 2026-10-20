@@ -1,4 +1,4 @@
-// Clips on touch screens (#522): a double-tap on an empty MIDI lane makes a clip; a tap selects
+// Clips on touch screens: a double-tap on an empty MIDI lane makes a clip; a tap selects
 // (the action bar and the trim grips appear); a drag on a selected clip moves it at once, on an
 // unselected one it pans (a long-press first moves it); wide trim handles; split / duplicate /
 // copy / paste / delete from the bar; a second finger cancels a drag; edge auto-scroll.

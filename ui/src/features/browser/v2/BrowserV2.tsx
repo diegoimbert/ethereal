@@ -1,5 +1,5 @@
 /**
- * The indexed library browser (v0.2 `browser-v2`, CONTRACTS.md §12.8), in the folder
+ * The indexed library browser (v0.2 browser v2, CONTRACTS.md §12.8), in the folder
  * browser's visual language (`../index.tsx`, `../browser.css`):
  * - kind chips (Samples, MIDI, Presets, Projects), favourites, sort and tempo-synced preview
  *   ("Sync", remembered);
@@ -103,7 +103,7 @@ export function BrowserV2({ initialRoots }: BrowserV2Props) {
   const [reveal, setReveal] = useState<{ root: string; path: string; n: number } | null>(null);
   const [editing, setEditing] = useState<LibraryItem | null>(null);
   const [renaming, setRenaming] = useState<BrowserRoot | null>(null);
-  /** A folder whose removal waits for its confirmation (#571: it may delete files). */
+  /** A folder whose removal waits for its confirmation (it may delete files). */
   const [removing, setRemoving] = useState<BrowserRoot | null>(null);
   const [dropOnPlaces, setDropOnPlaces] = useState(false);
   const preview = useItemPreview(transport, send, sync, setOwnError);
@@ -712,7 +712,7 @@ function TagsDialog({ item, onClose, onSave }: { item: LibraryItem | null; onClo
 }
 
 /**
- * "remove folder…" asks first (#571), like every other delete that can't be undone: an
+ * "remove folder…" asks first, like every other delete that can't be undone: an
  * imported folder's copy of the files is deleted (always on the web), and clips using
  * them lose their audio; a folder used in place is only forgotten.
  */

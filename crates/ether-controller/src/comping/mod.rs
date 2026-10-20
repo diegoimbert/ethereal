@@ -576,12 +576,12 @@ fn flatten(
                 clip: id,
                 ..n
             }))?;
-            // v0.3 (`midi-expression`): the note's expressions follow it.
+            // v0.3: the note's expressions follow it.
             crate::expression::copy::copy_note_expressions(ctx, from, nid, |_, k| {
                 derive_id(nid, k as u32)
             })?;
         }
-        // v0.3 (`midi-expression`): clip expression lanes (content times are unchanged).
+        // v0.3: clip expression lanes (content times are unchanged).
         crate::expression::copy::copy_lanes(ctx, src.id, id, |_, k| {
             derive_id(id, 20_000 + k as u32)
         })?;

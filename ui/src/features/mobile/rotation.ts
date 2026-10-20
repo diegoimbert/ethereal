@@ -1,5 +1,5 @@
 /**
- * Rotation keeps the timeline's centre (#522, the design's §3): when the window's width changes
+ * Rotation keeps the timeline's centre (the design's §3): when the window's width changes
  * (a phone or tablet turning), the beat at the centre of the lanes stays at the centre, where
  * the view would otherwise keep its left edge (and the playhead or the clip you were looking at
  * could end up off screen). Other width changes (the header column resized) keep the left edge.

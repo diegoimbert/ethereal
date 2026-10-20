@@ -2,7 +2,7 @@
 //! [`OfflineRenderer`] a few nodes at a time, then render it block by block, each block
 //! streamed through every file of the render (resampled per output rate, encoded once per
 //! requested format, `ExportRequest::extra_formats`) into a file the store writes as it
-//! goes, or into memory (#434). Every step is a bounded unit of work.
+//! goes, or into memory. Every step is a bounded unit of work.
 //!
 //! Normalizing needs a file's peak before its first sample is encoded: those signals are
 //! held whole (at each output rate) until the render is done, then encoded at their gain.
@@ -332,7 +332,7 @@ fn used_media(p: &Project) -> Vec<MediaRef> {
             ids.insert(*m);
         }
     }
-    // v0.2 (`freeze-bounce`): frozen tracks play their render.
+    // v0.2: frozen tracks play their render.
     for t in p.tracks.values() {
         if let Some(f) = &t.freeze {
             ids.insert(f.media);
@@ -784,7 +784,7 @@ impl Job {
             .values()
             // Master chain excluded from stems.
             .filter(|d| !(is_stem && Some(d.track) == master))
-            // Frozen devices: their track plays its render (`freeze-bounce`), no nodes.
+            // Frozen devices: their track plays its render, no nodes.
             .filter(|d| !frozen.contains(&d.id))
             // Disabled plugins are bypassed anyway: no instance needed.
             .filter(|d| d.enabled || !matches!(d.kind, DeviceKind::Plugin { .. }))

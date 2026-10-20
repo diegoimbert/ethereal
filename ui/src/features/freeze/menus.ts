@@ -1,7 +1,7 @@
 /**
  * Freeze entries of the arrangement's context menus, inserted before the menu's last group
  * (the destructive "Delete" entries), like the clip-editing entries.
- * - Track header: Freeze / Unfreeze / Flatten (the selected tracks; Flatten asks first, #717),
+ * - Track header: Freeze / Unfreeze / Flatten (the selected tracks; Flatten asks first),
  *   Cancel while rendering.
  * - Clip: Bounce to New Track, Bounce in Place (audio), Consolidate (the selected clips).
  * - Device: freeze up to here (#25: partial chain freeze), unfreeze on a frozen device.
@@ -44,7 +44,7 @@ const freezable = (t: Track) => t.kind === "Audio" || t.kind === "Midi" || t.kin
 const noun = (tracks: ReadonlyArray<Track>) => (tracks.length > 0 && tracks.every((t) => t.kind === "Group") ? "group" : "track");
 
 /**
- * #717: flatten replaces the tracks' clips and devices with their render, for good once the
+ * Flatten replaces the tracks' clips and devices with their render, for good once the
  * undo history no longer reaches it: ask first.
  */
 export function confirmFlatten(transport: EngineTransport, tracks: ReadonlyArray<Track>): void {
@@ -174,7 +174,7 @@ function consolidateState(clips: ReadonlyArray<Clip>): "kind" | "blocked" | null
 }
 
 /**
- * #870: consolidate `clips` (the arrangement's `clip.consolidate`, Mod+J), when the clip menu
+ * Consolidate `clips` (the arrangement's `clip.consolidate`, Mod+J), when the clip menu
  * would let you. Returns whether it ran.
  */
 export function consolidateIfAllowed(transport: EngineTransport, clips: ReadonlyArray<Clip>): boolean {

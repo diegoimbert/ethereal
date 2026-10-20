@@ -1,4 +1,4 @@
-//! The default sample pack (#519; docs/SAMPLES.md): a signed, versioned manifest on our R2
+//! The default sample pack (docs/SAMPLES.md): a signed, versioned manifest on our R2
 //! storage, downloaded on first use, its files fetched lazily and cached engine-side (the
 //! app data folder natively, OPFS on the web), plus a tiny built-in kit synthesized in code
 //! for offline use.
@@ -12,7 +12,7 @@ use ts_rs::TS;
 
 /// Where the app looks for the default pack's signed manifest (overridable for testing:
 /// `Samples::Open { url }`, `ETHER_SAMPLES_URL` natively). Nothing is published there until
-/// the owner publishes a pack (scripts/samples/README.md): until then the app shows the
+/// a pack is published (docs/SAMPLES.md): until then the app shows the
 /// built-in kit and "more samples coming soon".
 pub const DEFAULT_SAMPLES_URL: &str = "https://samples.ethereal.ws/packs/default/manifest.json";
 
@@ -73,7 +73,7 @@ pub enum SampleCategory {
     Instrument,
 }
 
-/// The license of a pack file. Only CC0 and our own recordings are accepted (#519).
+/// The license of a pack file. Only CC0 and our own recordings are accepted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum SampleLicense {

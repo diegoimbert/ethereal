@@ -1,4 +1,4 @@
-//! Built-in `Reverb` device (roadmap v2, `devices-2`).
+//! Built-in `Reverb` device (roadmap v2).
 //!
 //! Algorithmic stereo reverb: stereo pre-delay → two series allpass diffusers per channel
 //! → a multichannel diffuser per channel → an 8-line feedback delay network (FDN) with a
@@ -8,7 +8,7 @@
 //! The matrix is orthogonal and every loop gain is < 1, so the network is stable at every
 //! setting (20 s decay, zero damping included).
 //!
-//! The multichannel diffuser (#845: at large sizes the tank's first echoes came 60 to 117 ms
+//! The multichannel diffuser (at large sizes the tank's first echoes came 60 to 117 ms
 //! apart, an early tail of 0.23 echo density 50 ms in) splits each channel into 4, then
 //! [`DIFF_STAGES`] times delays the 4 by spread lengths (scaled with `Size`) and mixes them
 //! with an orthogonal rotation (a Hadamard-like matrix at full `Diffusion`, the identity at
@@ -28,7 +28,7 @@
 //! | 3  | `Damping`   | 0 ..= 100 %            |
 //! | 4  | `Width`     | 0 ..= 100 %            |
 //! | 5  | `Mix`       | 0 ..= 100 %            |
-//! | 6  | `Low Cut`   | 20 ..= 20000 Hz (log), 20 = off (`devices-pass-effects`) |
+//! | 6  | `Low Cut`   | 20 ..= 20000 Hz (log), 20 = off |
 //! | 7  | `High Cut`  | 20 ..= 20000 Hz (log), 20000 = off |
 //! | 8  | `Diffusion` | 0 ..= 100 %, default 60 (the former fixed allpass gain 0.6) |
 //! | 9  | `Freeze`    | toggle: the tank stops taking input and sustains (unity loop gain, no damping) |
@@ -59,13 +59,13 @@ pub mod params {
     pub const DAMPING: ParamId = ParamId(3);
     pub const WIDTH: ParamId = ParamId(4);
     pub const MIX: ParamId = ParamId(5);
-    /// `devices-pass-effects`: input low cut (Hz, 20 = off).
+    /// Input low cut (Hz, 20 = off).
     pub const LOW_CUT: ParamId = ParamId(6);
-    /// `devices-pass-effects`: input high cut (Hz, 20000 = off).
+    /// Input high cut (Hz, 20000 = off).
     pub const HIGH_CUT: ParamId = ParamId(7);
-    /// `devices-pass-effects`: allpass diffusion (percent).
+    /// Allpass diffusion (percent).
     pub const DIFFUSION: ParamId = ParamId(8);
-    /// `devices-pass-effects`: freeze (toggle).
+    /// Freeze (toggle).
     pub const FREEZE: ParamId = ParamId(9);
     /// Wet level trim (dB, 0 = the reverb's level before it existed). Level-matches imported
     /// reverbs (Ableton's Reflect / Diffuse levels).
@@ -173,7 +173,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
             (0.0, 100.0, 30.0),
             ParamScale::Linear,
         ),
-        // --- devices-pass-effects ---
+        // --- devices pass effects ---
         param(
             6,
             "Low Cut",
@@ -401,7 +401,7 @@ pub struct Reverb {
     diffusion: Smoother,
     freeze: Smoother,
     filter: CutFilter,
-    /// Silence reporting (perf audit #5): the tank or the diffusers carried signal above
+    /// Silence reporting: the tank or the diffusers carried signal above
     /// the floor in this block.
     loud: bool,
     /// Samples a signal can stay inside the delays before it reaches the output.

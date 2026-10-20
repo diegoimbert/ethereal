@@ -82,7 +82,7 @@ export function trackDropTarget(rows: ReadonlyArray<Row>, y: number, dragged: Tr
   const draggedKind = kind ?? rows.find((r) => r.track.id === dragged)?.track.kind;
   if (draggedKind === "Return") return returnDropTarget(rows, y, dragged);
   const self = (t: Track) => t.id === dragged || isInside(rows, t.id, dragged);
-  // groups-buses: VCA tracks stay top-level (never into a group).
+  // VCA tracks stay top-level (never into a group).
   const topOnly = draggedKind === "Vca";
   // Into a group: over the middle half of its lane.
   const over = rows.find((r) => y >= r.y && y < r.y + r.laneHeight);

@@ -1,4 +1,4 @@
-/** MockTransport: markers and v2 clip commands (clip-editing). */
+/** MockTransport: markers and v2 clip commands. */
 import { describe, expect, it } from "vitest";
 import { cmd } from "../../cmd";
 import { newId } from "../../ids";

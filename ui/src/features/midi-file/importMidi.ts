@@ -1,5 +1,5 @@
 /**
- * MIDI file import (#717): a `.mid` dropped from the browser or the OS onto the arrangement.
+ * MIDI file import: a `.mid` dropped from the browser or the OS onto the arrangement.
  *
  * The engine reads the file (`Media::ReadMidiFile`: a library file, an upload or a desktop
  * path; notes in beats, so they follow the file's tempo map musically). The UI turns it into

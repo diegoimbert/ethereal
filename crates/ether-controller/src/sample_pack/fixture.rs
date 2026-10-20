@@ -1,6 +1,6 @@
 //! A dev pack built in code (synthesized audio, signed with [`manifest::DEV_SEED`]) for tests
-//! (`scripts/samples/dev-pack.mjs` builds the same shape for the e2e tests). Never shipped as
-//! content: the owner selects the real samples (#519).
+//! (`cargo run -p ether-controller --example sample_pack -- dev <out>` writes it to disk).
+//! Never shipped as content.
 
 use std::f64::consts::TAU;
 

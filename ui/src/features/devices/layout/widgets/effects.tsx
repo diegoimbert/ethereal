@@ -1,5 +1,5 @@
 /**
- * Effect-window visualisations (`devices-pass-effects`, catalog widgets appended to
+ * Effect-window visualisations (catalog widgets appended to
  * `ether_protocol::layout::Widget`): DynamicsCurve (compressor / gate / limiter transfer
  * curve with the live detector level), DelayTaps (echoes), ReverbDecay (tail) and
  * VelocityCurve (MIDI velocity mapping). Each is a plot over the controls of the params it

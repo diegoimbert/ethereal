@@ -1,0 +1,1050 @@
+//! End-to-end command handling: ordering, patches, undo/redo, gestures, batches,
+//! idempotency, cascades.
+
+use crate::common;
+
+use common::*;
+use ether_core::protocol::automation::{AutomationCommand, PointSpec};
+use ether_core::protocol::clips::{ClipCommand, ClipMove};
+use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
+use ether_core::protocol::mixer::MixerCommand;
+use ether_core::protocol::model::*;
+use ether_core::protocol::notes::{NoteCommand, NoteCopy, NoteEdit, NoteSpec};
+use ether_core::protocol::project::{EditCommand, ProjectCommand, ProjectEvent};
+use ether_core::protocol::tracks::TrackCommand;
+use ether_core::protocol::transport::TransportCommand;
+use ether_core::protocol::*;
+
+fn create_track(h: &mut Harness, kind: TrackKind) -> TrackId {
+    let id = h.id();
+    h.ok(Command::Track(TrackCommand::Create {
+        id,
+        kind,
+        name: None,
+        color: None,
+        parent: None,
+        before: None,
+    }));
+    id
+}
+
+fn midi_clip(h: &mut Harness, track: TrackId, start: f64, length: f64) -> ClipId {
+    let id = h.id();
+    h.ok(Command::Clip(ClipCommand::CreateMidi {
+        id,
+        track,
+        start: Beats(start),
+        length: Beats(length),
+        name: None,
+    }));
+    id
+}
+
+#[test]
+fn scales_are_undoable_metadata_and_never_restrict_notes() {
+    let mut h = Harness::with_project();
+    let track = create_track(&mut h, TrackKind::Midi);
+    let clip = midi_clip(&mut h, track, 0.0, 4.0);
+    assert_eq!(h.project().settings.scale, MusicalScale::default());
+    assert_eq!(h.project().tracks[&track].scale, TrackScale::FollowProject);
+    let minor = MusicalScale {
+        root: 0,
+        kind: ScaleKind::Minor,
+    };
+    let out = h.send(Command::Project(ProjectCommand::SetScale { scale: minor }));
+    ok(&out);
+    assert!(
+        matches!(&patches(&out)[0].changes[0], PatchChange::Settings { settings } if settings.scale == minor)
+    );
+    let custom = TrackScale::Custom {
+        scale: MusicalScale {
+            root: 9,
+            kind: ScaleKind::Dorian,
+        },
+    };
+    h.ok(Command::Track(TrackCommand::SetScale {
+        id: track,
+        scale: custom,
+    }));
+    assert_eq!(h.project().tracks[&track].scale, custom);
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert_eq!(h.project().tracks[&track].scale, TrackScale::FollowProject);
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert_eq!(h.project().settings.scale, MusicalScale::default());
+    h.ok(Command::Edit(EditCommand::Redo));
+    h.ok(Command::Edit(EditCommand::Redo));
+    let note = h.id();
+    h.ok(Command::Note(NoteCommand::Add {
+        clip,
+        notes: vec![NoteSpec {
+            id: note,
+            pitch: 61,
+            velocity: 0.8,
+            start: Beats::ZERO,
+            duration: Beats(1.0),
+        }],
+    }));
+    assert_eq!(h.project().notes[&note].pitch, 61);
+    let copy = h.id();
+    h.ok(Command::Track(TrackCommand::Duplicate {
+        id: track,
+        new_id: copy,
+    }));
+    assert_eq!(h.project().tracks[&copy].scale, custom);
+    let original = h.project().clone();
+    h.ok(Command::Project(ProjectCommand::Save { autosave: false }));
+    h.create_project("Other");
+    h.ok(Command::Project(ProjectCommand::Open { id: original.id }));
+    assert_eq!(h.project(), &original);
+    for scale in [TrackScale::Chromatic, TrackScale::FollowProject] {
+        h.ok(Command::Track(TrackCommand::SetScale { id: track, scale }));
+        assert_eq!(h.project().tracks[&track].scale, scale);
+        assert_eq!(h.project().notes[&note].pitch, 61);
+    }
+}
+
+#[test]
+fn invalid_scales_are_rejected_atomically() {
+    let mut h = Harness::with_project();
+    let track = create_track(&mut h, TrackKind::Midi);
+    let audio = create_track(&mut h, TrackKind::Audio);
+    let original = h.project().clone();
+    let invalid = MusicalScale {
+        root: 12,
+        kind: ScaleKind::Major,
+    };
+    for command in [
+        Command::Project(ProjectCommand::SetScale { scale: invalid }),
+        Command::Track(TrackCommand::SetScale {
+            id: track,
+            scale: TrackScale::Custom { scale: invalid },
+        }),
+        Command::Track(TrackCommand::SetScale {
+            id: audio,
+            scale: TrackScale::Chromatic,
+        }),
+    ] {
+        let out = h.send(command);
+        assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+        assert!(patches(&out).is_empty());
+        assert_eq!(h.project(), &original);
+    }
+}
+
+#[test]
+fn patch_then_reply_and_monotonic_revisions() {
+    let mut h = Harness::with_project();
+    let id: TrackId = h.id();
+    let out = h.send(Command::Track(TrackCommand::Create {
+        id,
+        kind: TrackKind::Audio,
+        name: Some("Drums".into()),
+        color: None,
+        parent: None,
+        before: None,
+    }));
+    // Patch first, reply last; the dirty flag flips.
+    assert!(matches!(out[0], ServerMessage::Event(Event::Patch { .. })));
+    let evs = events(&out);
+    assert!(evs.contains(&Event::Project {
+        event: ProjectEvent::DirtyChanged { dirty: true }
+    }));
+    let p1 = patches(&out);
+    assert_eq!(p1.len(), 1);
+    assert!(
+        matches!(&p1[0].changes[0], PatchChange::Upsert { entity: Entity::Track(t) } if t.id == id && t.name == "Drums")
+    );
+    assert!(p1[0].history.can_undo);
+    assert_eq!(p1[0].history.undo_label.as_deref(), Some("add audio track"));
+
+    let out = h.send(Command::Track(TrackCommand::Rename {
+        id,
+        name: "Beat".into(),
+    }));
+    let p2 = patches(&out);
+    assert_eq!(p2[0].revision, p1[0].revision + 1);
+
+    // The UI mirror, fed only with patches, equals the document.
+    let mut mirror = h.project().clone();
+    mirror.tracks.remove(&id);
+    mirror.apply_patch_changes(&p1[0].changes);
+    mirror.apply_patch_changes(&p2[0].changes);
+    assert_eq!(&mirror, h.project());
+}
+
+#[test]
+fn errors_change_nothing() {
+    let mut h = Harness::with_project();
+    let before = h.project().clone();
+    let missing: TrackId = h.id();
+    let out = h.send(Command::Mixer(MixerCommand::SetVolume {
+        track: missing,
+        volume: Decibels(-6.0),
+    }));
+    assert_eq!(err(&out).code, ErrorCode::NotFound);
+    assert!(patches(&out).is_empty());
+    assert_eq!(h.project(), &before);
+
+    // A batch fails as a whole.
+    let a: TrackId = h.id();
+    let out = h.send(Command::Edit(EditCommand::Batch {
+        key: None,
+        label: "Two".into(),
+        commands: vec![
+            Command::Track(TrackCommand::Create {
+                id: a,
+                kind: TrackKind::Midi,
+                name: None,
+                color: None,
+                parent: None,
+                before: None,
+            }),
+            Command::Mixer(MixerCommand::SetPan {
+                track: missing,
+                pan: Pan(0.5),
+            }),
+        ],
+    }));
+    assert_eq!(err(&out).code, ErrorCode::NotFound);
+    assert_eq!(h.project(), &before);
+}
+
+#[test]
+fn no_project_is_invalid_state() {
+    let mut h = Harness::new();
+    let t: TrackId = h.id();
+    let out = h.send(Command::Track(TrackCommand::Delete { id: t }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidState);
+}
+
+#[test]
+fn idempotent_creates() {
+    let mut h = Harness::with_project();
+    let t = create_track(&mut h, TrackKind::Midi);
+    let cmd = Command::Track(TrackCommand::Create {
+        id: t,
+        kind: TrackKind::Midi,
+        name: None,
+        color: None,
+        parent: None,
+        before: None,
+    });
+    let out = h.send(cmd);
+    ok(&out);
+    assert!(patches(&out).is_empty(), "a retried create changes nothing");
+
+    let c = midi_clip(&mut h, t, 0.0, 4.0);
+    let out = h.send(Command::Clip(ClipCommand::CreateMidi {
+        id: c,
+        track: t,
+        start: Beats(8.0),
+        length: Beats(4.0),
+        name: None,
+    }));
+    ok(&out);
+    assert!(patches(&out).is_empty());
+    assert_eq!(h.project().clips[&c].start, Beats(0.0));
+}
+
+#[test]
+fn gestures_merge_into_one_undo_step() {
+    let mut h = Harness::with_project();
+    let t = create_track(&mut h, TrackKind::Audio);
+    let g = GestureId(5);
+    for v in [-1.0, -2.0, -3.0] {
+        let out = h.send_with(
+            Command::Mixer(MixerCommand::SetVolume {
+                track: t,
+                volume: Decibels(v),
+            }),
+            Some(g),
+        );
+        ok(&out);
+    }
+    h.ok(Command::Edit(EditCommand::EndGesture { gesture: g }));
+    // A new gesture with the same id after EndGesture is a new step.
+    h.send_with(
+        Command::Mixer(MixerCommand::SetVolume {
+            track: t,
+            volume: Decibels(-4.0),
+        }),
+        Some(g),
+    );
+    assert_eq!(h.project().tracks[&t].mixer.volume, Decibels(-4.0));
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert_eq!(h.project().tracks[&t].mixer.volume, Decibels(-3.0));
+    let out = h.send(Command::Edit(EditCommand::Undo));
+    let p = patches(&out);
+    assert_eq!(p.len(), 1);
+    assert_eq!(h.project().tracks[&t].mixer.volume, Decibels(0.0));
+    assert_eq!(p[0].history.redo_label.as_deref(), Some("set volume"));
+    h.ok(Command::Edit(EditCommand::Redo));
+    assert_eq!(h.project().tracks[&t].mixer.volume, Decibels(-3.0));
+    // Undo the track creation, then nothing is left.
+    h.ok(Command::Edit(EditCommand::Undo));
+    h.ok(Command::Edit(EditCommand::Undo));
+    let out = h.send(Command::Edit(EditCommand::Undo));
+    assert_eq!(err(&out).code, ErrorCode::InvalidState);
+}
+
+#[test]
+fn multi_track_volume_batches_are_one_patch_each_and_one_undo_step() {
+    // A volume drag over many selected tracks sends one `Edit::Batch` per frame.
+    let mut h = Harness::with_project();
+    let tracks: Vec<TrackId> = (0..32)
+        .map(|_| create_track(&mut h, TrackKind::Midi))
+        .collect();
+    let g = GestureId(11);
+    for v in [-1.0, -2.0, -3.0] {
+        let out = h.send_with(
+            Command::Edit(EditCommand::Batch {
+                key: None,
+                label: "set volume".into(),
+                commands: tracks
+                    .iter()
+                    .map(|&track| {
+                        Command::Mixer(MixerCommand::SetVolume {
+                            track,
+                            volume: Decibels(v),
+                        })
+                    })
+                    .collect(),
+            }),
+            Some(g),
+        );
+        ok(&out);
+        let p = patches(&out);
+        assert_eq!(p.len(), 1, "one patch for the whole selection");
+        assert_eq!(p[0].changes.len(), tracks.len());
+    }
+    h.ok(Command::Edit(EditCommand::EndGesture { gesture: g }));
+    for t in &tracks {
+        assert_eq!(h.project().tracks[t].mixer.volume, Decibels(-3.0));
+    }
+    let out = h.send(Command::Edit(EditCommand::Undo));
+    assert_eq!(patches(&out).len(), 1);
+    for t in &tracks {
+        assert_eq!(h.project().tracks[t].mixer.volume, Decibels(0.0));
+    }
+    assert_eq!(
+        patches(&out)[0].history.redo_label.as_deref(),
+        Some("set volume")
+    );
+}
+
+#[test]
+fn cancel_gesture_takes_back_its_step_and_leaves_none() {
+    // A drag cancelled with Escape leaves no (no-op) undo step behind.
+    let mut h = Harness::with_project();
+    let t = create_track(&mut h, TrackKind::Audio);
+    h.ok(Command::Mixer(MixerCommand::SetVolume {
+        track: t,
+        volume: Decibels(-1.0),
+    }));
+    let g = GestureId(9);
+    for v in [-2.0, -3.0] {
+        ok(&h.send_with(
+            Command::Mixer(MixerCommand::SetVolume {
+                track: t,
+                volume: Decibels(v),
+            }),
+            Some(g),
+        ));
+    }
+    let out = h.send(Command::Edit(EditCommand::CancelGesture { gesture: g }));
+    ok(&out);
+    assert_eq!(h.project().tracks[&t].mixer.volume, Decibels(-1.0));
+    let p = patches(&out);
+    assert_eq!(
+        p.last().unwrap().history.undo_label.as_deref(),
+        Some("set volume")
+    );
+    assert!(!p.last().unwrap().history.can_redo, "nothing to redo");
+    // Cancelling again (or a gesture that isn't open) changes nothing.
+    let out = h.send(Command::Edit(EditCommand::CancelGesture { gesture: g }));
+    ok(&out);
+    assert!(patches(&out).is_empty());
+    assert_eq!(h.project().tracks[&t].mixer.volume, Decibels(-1.0));
+    // The step before the gesture is the one undo takes back.
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert_eq!(h.project().tracks[&t].mixer.volume, Decibels(0.0));
+}
+
+#[test]
+fn batch_is_one_undo_step_and_rejects_non_document_commands() {
+    let mut h = Harness::with_project();
+    let t: TrackId = h.id();
+    let d: DeviceId = h.id();
+    let out = h.send(Command::Edit(EditCommand::Batch {
+        key: None,
+        label: "New MIDI track".into(),
+        commands: vec![
+            Command::Track(TrackCommand::Create {
+                id: t,
+                kind: TrackKind::Midi,
+                name: None,
+                color: None,
+                parent: None,
+                before: None,
+            }),
+            Command::Device(DeviceCommand::Insert {
+                id: d,
+                track: t,
+                device: DeviceSpec::Builtin {
+                    device: BuiltinDevice::Synth,
+                },
+                before: None,
+            }),
+        ],
+    }));
+    let p = patches(&out);
+    assert_eq!(p.len(), 1);
+    assert_eq!(p[0].changes.len(), 2);
+    assert_eq!(p[0].history.undo_label.as_deref(), Some("New MIDI track"));
+    assert!(h.project().devices.contains_key(&d));
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert!(!h.project().tracks.contains_key(&t));
+    assert!(!h.project().devices.contains_key(&d));
+
+    let out = h.send(Command::Edit(EditCommand::Batch {
+        key: None,
+        label: "x".into(),
+        commands: vec![Command::Transport(TransportCommand::Play)],
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+}
+
+#[test]
+fn instruments_only_on_midi_tracks() {
+    let mut h = Harness::with_project();
+    let t = create_track(&mut h, TrackKind::Audio);
+    let d: DeviceId = h.id();
+    let out = h.send(Command::Device(DeviceCommand::Insert {
+        id: d,
+        track: t,
+        device: DeviceSpec::Builtin {
+            device: BuiltinDevice::Synth,
+        },
+        before: None,
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+}
+
+#[test]
+fn delete_track_cascades_and_undo_restores() {
+    let mut h = Harness::with_project();
+    let group = create_track(&mut h, TrackKind::Group);
+    let ret = create_track(&mut h, TrackKind::Return);
+    let t: TrackId = h.id();
+    h.ok(Command::Track(TrackCommand::Create {
+        id: t,
+        kind: TrackKind::Midi,
+        name: None,
+        color: None,
+        parent: Some(group),
+        before: None,
+    }));
+    let d: DeviceId = h.id();
+    h.ok(Command::Device(DeviceCommand::Insert {
+        id: d,
+        track: t,
+        device: DeviceSpec::Builtin {
+            device: BuiltinDevice::Synth,
+        },
+        before: None,
+    }));
+    let c = midi_clip(&mut h, t, 0.0, 4.0);
+    let n: NoteId = h.id();
+    h.ok(Command::Note(NoteCommand::Add {
+        clip: c,
+        notes: vec![NoteSpec {
+            id: n,
+            pitch: 60,
+            velocity: 0.8,
+            start: Beats(0.0),
+            duration: Beats(1.0),
+        }],
+    }));
+    let s: SendId = h.id();
+    h.ok(Command::Mixer(MixerCommand::CreateSend {
+        id: s,
+        from: t,
+        to: ret,
+        level: Decibels(-6.0),
+        pre_fader: false,
+    }));
+    let lane: AutomationLaneId = h.id();
+    h.ok(Command::Automation(AutomationCommand::CreateLane {
+        id: lane,
+        owner: AutomationOwner::Track { track: t },
+        target: AutomationTarget::DeviceParam {
+            device: d,
+            param: ParamId(0),
+        },
+    }));
+    let pt: AutomationPointId = h.id();
+    h.ok(Command::Automation(AutomationCommand::AddPoints {
+        lane,
+        points: vec![PointSpec {
+            id: pt,
+            time: Beats(0.0),
+            value: 0.5,
+            curve: CurveShape::Linear,
+        }],
+    }));
+    let before = h.project().clone();
+
+    // Deleting the group deletes its child and everything on it.
+    h.ok(Command::Track(TrackCommand::Delete { id: group }));
+    let p = h.project();
+    assert!(!p.tracks.contains_key(&group) && !p.tracks.contains_key(&t));
+    assert!(p.clips.is_empty() && p.notes.is_empty() && p.devices.is_empty());
+    assert!(p.sends.is_empty() && p.automation_lanes.is_empty() && p.automation_points.is_empty());
+    assert!(p.tracks.contains_key(&ret));
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert_eq!(h.project(), &before);
+}
+
+/// The top-level order of the returns.
+fn return_order(h: &Harness) -> Vec<TrackId> {
+    h.project()
+        .tracks_ordered()
+        .into_iter()
+        .filter(|t| t.kind == TrackKind::Return)
+        .map(|t| t.id)
+        .collect()
+}
+
+#[test]
+fn reordering_returns_keeps_sends_and_is_one_undo_step() {
+    let mut h = Harness::with_project();
+    let t = create_track(&mut h, TrackKind::Audio);
+    let (a, b, c) = (
+        create_track(&mut h, TrackKind::Return),
+        create_track(&mut h, TrackKind::Return),
+        create_track(&mut h, TrackKind::Return),
+    );
+    assert_eq!(return_order(&h), vec![a, b, c]);
+    let mut sends = Vec::new();
+    for (i, r) in [a, b, c].into_iter().enumerate() {
+        let s: SendId = h.id();
+        h.ok(Command::Mixer(MixerCommand::CreateSend {
+            id: s,
+            from: t,
+            to: r,
+            level: Decibels(-(i as f32) - 1.0),
+            pre_fader: i == 1,
+        }));
+        sends.push((s, r));
+    }
+    let before = h.project().clone();
+
+    // c between a and b.
+    h.ok(Command::Track(TrackCommand::Move {
+        id: c,
+        parent: None,
+        before: Some(b),
+    }));
+    assert_eq!(return_order(&h), vec![a, c, b]);
+    // Sends are keyed by return id: each still goes to its return, with its level.
+    for (i, (s, r)) in sends.iter().enumerate() {
+        let send = &h.project().sends[s];
+        assert_eq!(send.to, *r);
+        assert_eq!(send.level, Decibels(-(i as f32) - 1.0));
+    }
+    // Returns stay above master and below the regular tracks.
+    let kinds: Vec<TrackKind> = h
+        .project()
+        .tracks_ordered()
+        .iter()
+        .map(|t| t.kind)
+        .collect();
+    assert_eq!(
+        kinds,
+        vec![
+            TrackKind::Audio,
+            TrackKind::Return,
+            TrackKind::Return,
+            TrackKind::Return,
+            TrackKind::Master
+        ]
+    );
+    // `before: None` puts a return at the end of the returns (before master).
+    h.ok(Command::Track(TrackCommand::Move {
+        id: a,
+        parent: None,
+        before: None,
+    }));
+    assert_eq!(return_order(&h), vec![c, b, a]);
+
+    // One undo step per move.
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert_eq!(return_order(&h), vec![a, c, b]);
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert_eq!(h.project(), &before);
+}
+
+#[test]
+fn returns_cannot_be_placed_among_regular_tracks() {
+    let mut h = Harness::with_project();
+    let t = create_track(&mut h, TrackKind::Audio);
+    let r = create_track(&mut h, TrackKind::Return);
+    let before = h.project().clone();
+    let out = h.send(Command::Track(TrackCommand::Move {
+        id: r,
+        parent: None,
+        before: Some(t),
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    let id: TrackId = h.id();
+    let out = h.send(Command::Track(TrackCommand::Create {
+        id,
+        kind: TrackKind::Return,
+        name: None,
+        color: None,
+        parent: None,
+        before: Some(t),
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    assert_eq!(h.project(), &before);
+    // A new return can be created right before another one.
+    h.ok(Command::Track(TrackCommand::Create {
+        id,
+        kind: TrackKind::Return,
+        name: None,
+        color: None,
+        parent: None,
+        before: Some(r),
+    }));
+    assert_eq!(return_order(&h), vec![id, r]);
+}
+
+#[test]
+fn duplicate_send_route_is_a_noop() {
+    let mut h = Harness::with_project();
+    let t = create_track(&mut h, TrackKind::Audio);
+    let r = create_track(&mut h, TrackKind::Return);
+    let (s1, s2): (SendId, SendId) = (h.id(), h.id());
+    for s in [s1, s2] {
+        let out = h.send(Command::Mixer(MixerCommand::CreateSend {
+            id: s,
+            from: t,
+            to: r,
+            level: Decibels(0.0),
+            pre_fader: false,
+        }));
+        ok(&out);
+    }
+    assert_eq!(h.project().sends.len(), 1);
+    assert!(h.project().sends.contains_key(&s1));
+}
+
+#[test]
+fn clip_move_trims_overlaps_and_split_keeps_content() {
+    let mut h = Harness::with_project();
+    let t = create_track(&mut h, TrackKind::Midi);
+    let a = midi_clip(&mut h, t, 0.0, 8.0);
+    let b = midi_clip(&mut h, t, 16.0, 4.0);
+    // Move b into the middle of a: a is split around it.
+    h.ok(Command::Clip(ClipCommand::Move {
+        moves: vec![ClipMove {
+            id: b,
+            track: t,
+            start: Beats(2.0),
+        }],
+    }));
+    let p = h.project();
+    assert_eq!(p.clips.len(), 3);
+    assert_eq!(p.clips[&a].length, Beats(2.0));
+    let right = p.clips.values().find(|c| c.id != a && c.id != b).unwrap();
+    assert_eq!(right.start, Beats(6.0));
+    assert_eq!(right.length, Beats(2.0));
+    assert_eq!(right.offset, Beats(6.0));
+
+    // Split.
+    let r: ClipId = h.id();
+    h.ok(Command::Clip(ClipCommand::Split {
+        id: b,
+        at: Beats(3.0),
+        new_id: r,
+    }));
+    assert_eq!(h.project().clips[&b].length, Beats(1.0));
+    assert_eq!(h.project().clips[&r].start, Beats(3.0));
+    assert_eq!(h.project().clips[&r].offset, Beats(1.0));
+
+    // Creating a clip that covers everything removes the others.
+    midi_clip(&mut h, t, 0.0, 32.0);
+    assert_eq!(h.project().clips.len(), 1);
+}
+
+#[test]
+fn note_editing_and_quantize() {
+    let mut h = Harness::with_project();
+    let t = create_track(&mut h, TrackKind::Midi);
+    let c = midi_clip(&mut h, t, 0.0, 4.0);
+    let (n1, n2): (NoteId, NoteId) = (h.id(), h.id());
+    h.ok(Command::Note(NoteCommand::Add {
+        clip: c,
+        notes: vec![
+            NoteSpec {
+                id: n1,
+                pitch: 60,
+                velocity: 2.0,
+                start: Beats(0.1),
+                duration: Beats(0.5),
+            },
+            NoteSpec {
+                id: n2,
+                pitch: 64,
+                velocity: 0.5,
+                start: Beats(1.9),
+                duration: Beats(1.0),
+            },
+        ],
+    }));
+    assert_eq!(h.project().notes[&n1].velocity, 1.0);
+    let out = h.send(Command::Note(NoteCommand::Quantize {
+        clip: c,
+        notes: None,
+        grid: Beats(1.0),
+        strength: 1.0,
+        ends: false,
+        swing: 0.0,
+    }));
+    ok(&out);
+    assert!(h.project().notes[&n1].start.approx_eq(Beats(0.0)));
+    assert!(h.project().notes[&n2].start.approx_eq(Beats(2.0)));
+    let bad_id: NoteId = h.id();
+    let bad = h.send(Command::Note(NoteCommand::Add {
+        clip: c,
+        notes: vec![NoteSpec {
+            id: bad_id,
+            pitch: 200,
+            velocity: 0.5,
+            start: Beats(0.0),
+            duration: Beats(1.0),
+        }],
+    }));
+    assert_eq!(err(&bad).code, ErrorCode::InvalidArgument);
+}
+
+#[test]
+fn track_duplicate_deep_copies_and_retargets_lanes() {
+    let mut h = Harness::with_project();
+    let t = create_track(&mut h, TrackKind::Midi);
+    let d: DeviceId = h.id();
+    h.ok(Command::Device(DeviceCommand::Insert {
+        id: d,
+        track: t,
+        device: DeviceSpec::Builtin {
+            device: BuiltinDevice::Synth,
+        },
+        before: None,
+    }));
+    let c = midi_clip(&mut h, t, 0.0, 4.0);
+    let nid: NoteId = h.id();
+    h.ok(Command::Note(NoteCommand::Add {
+        clip: c,
+        notes: vec![NoteSpec {
+            id: nid,
+            pitch: 60,
+            velocity: 0.5,
+            start: Beats(0.0),
+            duration: Beats(1.0),
+        }],
+    }));
+    let lane: AutomationLaneId = h.id();
+    h.ok(Command::Automation(AutomationCommand::CreateLane {
+        id: lane,
+        owner: AutomationOwner::Track { track: t },
+        target: AutomationTarget::DeviceParam {
+            device: d,
+            param: ParamId(1),
+        },
+    }));
+    let copy: TrackId = h.id();
+    h.ok(Command::Track(TrackCommand::Duplicate {
+        id: t,
+        new_id: copy,
+    }));
+    let p = h.project();
+    assert_eq!(p.tracks.len(), 3);
+    let new_dev = p.devices_of(copy)[0].id;
+    assert_ne!(new_dev, d);
+    assert_eq!(p.clips.values().filter(|c| c.track == copy).count(), 1);
+    assert_eq!(p.notes.len(), 2);
+    let lanes: Vec<_> = p
+        .automation_lanes
+        .values()
+        .filter(|l| l.owner == AutomationOwner::Track { track: copy })
+        .collect();
+    assert_eq!(lanes.len(), 1);
+    assert_eq!(
+        lanes[0].target,
+        AutomationTarget::DeviceParam {
+            device: new_dev,
+            param: ParamId(1)
+        }
+    );
+    // Order: right after the original.
+    let top: Vec<TrackId> = p.tracks_ordered().iter().map(|t| t.id).collect();
+    let i = top.iter().position(|x| *x == t).unwrap();
+    assert_eq!(top[i + 1], copy);
+}
+
+#[test]
+fn set_tempo_and_loop_are_undoable_and_emit_transport() {
+    let mut h = Harness::with_project();
+    let out = h.send(Command::Transport(TransportCommand::SetTempo { bpm: 90.0 }));
+    let evs = events(&out);
+    assert!(matches!(evs[0], Event::Patch { .. }));
+    assert!(
+        evs.iter()
+            .any(|e| matches!(e, Event::Transport { state } if state.bpm == 90.0))
+    );
+    h.ok(Command::Transport(TransportCommand::SetLoopRegion {
+        region: BeatRange {
+            start: Beats(4.0),
+            end: Beats(8.0),
+        },
+    }));
+    h.ok(Command::Edit(EditCommand::Undo));
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert_eq!(h.project().tempo_map().bpm_at(Beats(0.0)), 120.0);
+}
+
+#[test]
+fn host_handled_and_unsupported_commands() {
+    use ether_core::protocol::engine::EngineCommand;
+    use ether_core::protocol::media::MediaCommand;
+    use ether_core::protocol::plugins::PluginCommand;
+    use ether_core::protocol::recording::RecordingCommand;
+    let mut h = Harness::with_project();
+    for c in [
+        Command::Engine(EngineCommand::GetStatus),
+        Command::Plugin(PluginCommand::Rescan { full: false }),
+        Command::Plugin(PluginCommand::List),
+        Command::Plugin(PluginCommand::ListFolders),
+        Command::Media(MediaCommand::StopPreview),
+        Command::Recording(RecordingCommand::ListInputs),
+    ] {
+        let out = h.send(c);
+        assert_eq!(err(&out).code, ErrorCode::Unsupported);
+    }
+}
+
+#[test]
+fn rename_current_project_is_undoable() {
+    use ether_core::protocol::project::ProjectCommand;
+    let mut h = Harness::with_project();
+    let id = h.project().id;
+    let out = h.send(Command::Project(ProjectCommand::Rename {
+        id,
+        name: "Song".into(),
+    }));
+    ok(&out);
+    assert!(events(&out).iter().any(|e| matches!(e, Event::Project { event: ProjectEvent::ListChanged { projects } } if projects[0].name == "Song")));
+    assert_eq!(h.project().settings.name, "Song");
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert_eq!(h.project().settings.name, "Test");
+}
+
+/// Dragging clips below the last track creates the new tracks (a MIDI one with
+/// the built-in synth, like "New track") and moves or copies the clips onto them, as ONE
+/// `Edit::Batch`: a single undo restores the original arrangement.
+#[test]
+fn drag_below_last_track_creates_tracks_and_moves_clips_in_one_undo_step() {
+    let mut h = Harness::with_project();
+    let a = create_track(&mut h, TrackKind::Midi);
+    let b = create_track(&mut h, TrackKind::Midi);
+    let ca = midi_clip(&mut h, a, 0.0, 4.0);
+    let cb = midi_clip(&mut h, b, 2.0, 4.0);
+    let tracks_before = h.project().tracks.len();
+
+    let new_midi = |id: TrackId, device: DeviceId| {
+        vec![
+            Command::Track(TrackCommand::Create {
+                id,
+                kind: TrackKind::Midi,
+                name: None,
+                color: None,
+                parent: None,
+                before: None,
+            }),
+            Command::Device(DeviceCommand::Insert {
+                id: device,
+                track: id,
+                device: DeviceSpec::Builtin {
+                    device: BuiltinDevice::Synth,
+                },
+                before: None,
+            }),
+        ]
+    };
+
+    // Move: two source tracks, two new tracks in order.
+    let (na, nb): (TrackId, TrackId) = (h.id(), h.id());
+    let (da, db): (DeviceId, DeviceId) = (h.id(), h.id());
+    let mut commands = new_midi(na, da);
+    commands.extend(new_midi(nb, db));
+    commands.push(Command::Clip(ClipCommand::Move {
+        moves: vec![
+            ClipMove {
+                id: ca,
+                track: na,
+                start: Beats(8.0),
+            },
+            ClipMove {
+                id: cb,
+                track: nb,
+                start: Beats(10.0),
+            },
+        ],
+    }));
+    let out = h.send(Command::Edit(EditCommand::Batch {
+        key: None,
+        label: "Move Clips to New Tracks".into(),
+        commands,
+    }));
+    let p = patches(&out);
+    assert_eq!(p.len(), 1, "one patch, one undo step");
+    assert_eq!(
+        p[0].history.undo_label.as_deref(),
+        Some("Move Clips to New Tracks")
+    );
+    let pr = h.project();
+    assert_eq!(pr.tracks.len(), tracks_before + 2);
+    assert_eq!(pr.tracks[&na].kind, TrackKind::Midi);
+    assert!(pr.devices.contains_key(&da) && pr.devices.contains_key(&db));
+    assert_eq!(pr.clips[&ca].track, na);
+    assert_eq!(pr.clips[&ca].start, Beats(8.0));
+    assert_eq!(pr.clips[&cb].track, nb);
+    assert_eq!(pr.clips[&cb].start, Beats(10.0));
+
+    h.ok(Command::Edit(EditCommand::Undo));
+    let pr = h.project();
+    assert_eq!(pr.tracks.len(), tracks_before);
+    assert!(!pr.tracks.contains_key(&na) && !pr.tracks.contains_key(&nb));
+    assert!(!pr.devices.contains_key(&da));
+    assert_eq!(pr.clips[&ca].track, a);
+    assert_eq!(pr.clips[&ca].start, Beats(0.0));
+    assert_eq!(pr.clips[&cb].track, b);
+    assert_eq!(pr.clips[&cb].start, Beats(2.0));
+
+    // Copy: duplicate (parked after the source track's clips), then move onto the new track.
+    let nc: TrackId = h.id();
+    let dc: DeviceId = h.id();
+    let copy: ClipId = h.id();
+    let mut commands = new_midi(nc, dc);
+    commands.push(Command::Clip(ClipCommand::Duplicate {
+        id: ca,
+        new_id: copy,
+        start: Some(Beats(5.0)),
+    }));
+    commands.push(Command::Clip(ClipCommand::Move {
+        moves: vec![ClipMove {
+            id: copy,
+            track: nc,
+            start: Beats(0.0),
+        }],
+    }));
+    let out = h.send(Command::Edit(EditCommand::Batch {
+        key: None,
+        label: "Copy Clips to New Tracks".into(),
+        commands,
+    }));
+    assert_eq!(patches(&out).len(), 1);
+    let pr = h.project();
+    assert_eq!(pr.clips[&copy].track, nc);
+    assert_eq!(pr.clips[&copy].start, Beats(0.0));
+    assert_eq!(pr.clips[&ca].track, a, "the original stays");
+    assert_eq!(pr.clips[&ca].start, Beats(0.0));
+    h.ok(Command::Edit(EditCommand::Undo));
+    let pr = h.project();
+    assert!(!pr.clips.contains_key(&copy));
+    assert!(!pr.tracks.contains_key(&nc));
+    assert_eq!(pr.tracks.len(), tracks_before);
+}
+
+#[test]
+fn notes_may_start_in_a_left_extended_clips_leading_gap() {
+    // A MIDI clip extended to the left past its content start (offset -2): notes can be
+    // put in that gap (down to the offset) and the engine gets them.
+    let mut h = Harness::with_project();
+    let t = create_track(&mut h, TrackKind::Midi);
+    let c = midi_clip(&mut h, t, 4.0, 4.0);
+    let add = |h: &mut Harness, start: f64| {
+        let id: NoteId = h.id();
+        let out = h.send(Command::Note(NoteCommand::Add {
+            clip: c,
+            notes: vec![NoteSpec {
+                id,
+                pitch: 60,
+                velocity: 0.8,
+                start: Beats(start),
+                duration: Beats(0.5),
+            }],
+        }));
+        (id, out)
+    };
+    let edit_start = |h: &mut Harness, id: NoteId, start: f64| {
+        h.ok(Command::Note(NoteCommand::Edit {
+            edits: vec![NoteEdit {
+                id,
+                pitch: None,
+                velocity: None,
+                start: Some(Beats(start)),
+                duration: None,
+                muted: None,
+            }],
+        }));
+    };
+    // Before the extension a negative start is still invalid.
+    let (_, out) = add(&mut h, -1.0);
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    h.ok(Command::Clip(ClipCommand::SetBounds {
+        id: c,
+        start: Beats(2.0),
+        length: Beats(6.0),
+        offset: Beats(-2.0),
+    }));
+    let (n, out) = add(&mut h, -1.0);
+    ok(&out);
+    assert_eq!(h.project().notes[&n].start, Beats(-1.0));
+    // Before the clip start: rejected on add, clamped on edit / duplicate.
+    let (_, out) = add(&mut h, -3.0);
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    edit_start(&mut h, n, -5.0);
+    assert_eq!(h.project().notes[&n].start, Beats(-2.0));
+    let copy: NoteId = h.id();
+    h.ok(Command::Note(NoteCommand::Duplicate {
+        copies: vec![NoteCopy {
+            from: n,
+            new_id: copy,
+        }],
+        offset: Beats(-1.0),
+        transpose: 0,
+    }));
+    assert_eq!(h.project().notes[&copy].start, Beats(-2.0));
+    // Quantize keeps a note in the gap there.
+    edit_start(&mut h, n, -1.1);
+    h.ok(Command::Note(NoteCommand::Quantize {
+        clip: c,
+        notes: Some(vec![n]),
+        grid: Beats(0.5),
+        strength: 1.0,
+        ends: false,
+        swing: 0.0,
+    }));
+    assert!(h.project().notes[&n].start.approx_eq(Beats(-1.0)));
+    // The engine gets the note (it plays at song beat 2 + (-1 - -2) = 3).
+    h.advance(100);
+    h.tick();
+    let g = h.ctl.bridge.last_graph();
+    let cd = &g.tracks.iter().find(|x| x.id == t).unwrap().clips[0];
+    let ether_core::graph::ClipContentDesc::Midi { notes } = &cd.content else {
+        panic!("midi")
+    };
+    assert!(notes.iter().any(|x| (x.start + 1.0).abs() < 1e-9));
+    assert_eq!(cd.offset, -2.0);
+}

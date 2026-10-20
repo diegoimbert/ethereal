@@ -1,4 +1,4 @@
-// base-154: debug panels in floating windows (README.md).
+// Debug panels in floating windows (README.md).
 export { DebugPanelsRoot, DebugPanelsSettings } from "./DebugPanelsRoot";
 export {
   closeDebugPanel,

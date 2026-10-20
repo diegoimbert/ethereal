@@ -1,7 +1,7 @@
 // The inspector's and the bottom pane's x collapse them to a thin floating bar (not close
 // them). The choice is remembered: a panel that opens again (a new selection, a clip) and a
-// reload keep it, except a double-click on a clip, which expands both (#758), or collapses both
-// when both are expanded on that clip (#787). `COLLAPSE_SHOTS=<dir>` also captures dark + light screenshots.
+// reload keep it, except a double-click on a clip, which expands both, or collapses both
+// when both are expanded on that clip. `COLLAPSE_SHOTS=<dir>` also captures dark + light screenshots.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
 import { openClip, selectClip } from "./clips";
@@ -90,7 +90,7 @@ for (const theme of ["dark", "light"] as const) {
     await settled(page);
     await expect(page.locator(".eth-float--closing")).toHaveCount(0);
 
-    // A double-click on the clip expands both collapsed panels, at their last size (#758).
+    // A double-click on the clip expands both collapsed panels, at their last size.
     const height = (await page.locator('[data-pane="bottom"]').boundingBox())!.height;
     await page.getByRole("button", { name: "collapse the editor panel" }).click();
     await page.getByRole("button", { name: "collapse the inspector panel" }).click();
@@ -105,7 +105,7 @@ for (const theme of ["dark", "light"] as const) {
     await settled(page);
     expect((await page.locator('[data-pane="bottom"]').boundingBox())!.height).toBeCloseTo(height, 0);
 
-    // Both expanded: a double-click on the open clip collapses both (#787); another expands them
+    // Both expanded: a double-click on the open clip collapses both; another expands them
     // back at the same size.
     await openClip(page, clip);
     await expect(page.getByRole("button", { name: "expand the editor panel" })).toBeVisible();

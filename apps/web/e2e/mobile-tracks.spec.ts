@@ -1,4 +1,4 @@
-// Tracks on touch screens (#522): the headers' mute / solo / arm are always shown (no hover)
+// Tracks on touch screens: the headers' mute / solo / arm are always shown (no hover)
 // and work by tap; a tap on the selected header opens the track sheet (volume, pan, rename,
 // move, the track menu's actions, the device chain read-only), which the system back closes;
 // long-press opens the track menu at touch size; long-press then drag reorders; Add track by tap.

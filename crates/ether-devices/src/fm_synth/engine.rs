@@ -38,7 +38,7 @@ const SLOTS: usize = MAX_POLYPHONY + 8;
 /// Control-rate chunk (base-rate samples).
 const CTRL: usize = 16;
 /// Time constant of the pitch change of a sounding mono / legato voice that doesn't glide
-/// (ms): reads as a jump, but a sine doesn't kink (#845: a -50 dB click on a 220 → 330 Hz
+/// (ms): reads as a jump, but a sine doesn't kink (a -50 dB click on a 220 → 330 Hz
 /// jump).
 const DECLICK_MS: f32 = 0.5;
 /// Oversampling factor with `Antialias` on.
@@ -200,7 +200,7 @@ struct Voice {
     /// Chunk-start filter coefficient (`fresh` = none yet).
     g: f32,
     fresh: bool,
-    /// Chunk-start phase increments of the operators (ramped across each chunk, #845).
+    /// Chunk-start phase increments of the operators (ramped across each chunk).
     dt: [f32; OPS],
     /// The pitch moves to `target` with [`DECLICK_MS`] (a mono note change without glide).
     declick: bool,
@@ -927,7 +927,7 @@ fn render_voice(v: &mut Voice, c: &Chunk, sine: &SineTable, buf: &mut [f32]) {
     for (o, op) in c.ops.iter().enumerate() {
         let hz = op.fixed.unwrap_or(base_hz * op.ratio);
         dt[o] = (hz / c.isr).clamp(0.0, MAX_DT);
-        // Ramp from the last chunk's increment: glides and vibrato don't step (#845).
+        // Ramp from the last chunk's increment: glides and vibrato don't step.
         let start = if v.fresh { dt[o] } else { v.dt[o] };
         dt_step[o] = (dt[o] - start) * inv_ni;
         v.dt[o] = dt[o];

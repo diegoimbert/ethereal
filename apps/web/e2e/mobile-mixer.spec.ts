@@ -1,4 +1,4 @@
-// The mixer on touch screens (#522): the transport's view switch shows channel strips (the
+// The mixer on touch screens: the transport's view switch shows channel strips (the
 // master pinned right); a drag on a fader changes the volume relative to where it was, slower
 // with the finger off to the side (fine mode); mute / solo by tap; back to the tracks.
 import { expect, test, type Page } from "@playwright/test";

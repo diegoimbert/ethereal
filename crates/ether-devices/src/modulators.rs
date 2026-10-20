@@ -1,4 +1,4 @@
-//! Modulator param tables (v0.2, `racks-modulation`; model
+//! Modulator param tables (v0.2; model
 //! `ether_model::modulation`). The engine runs modulators (`ether_core::modulation`); this
 //! module only describes them (`Modulation::ListModulatorKinds`). **Param ids are stable and
 //! append-only.**

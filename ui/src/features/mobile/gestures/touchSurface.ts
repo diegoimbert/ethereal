@@ -1,5 +1,5 @@
 /**
- * Binds the gesture recognizer to an element's touches (#522). Mouse and pen input never come
+ * Binds the gesture recognizer to an element's touches. Mouse and pen input never come
  * here; the desktop handlers see it as before.
  *
  * Every touch that starts on the surface gets one of three policies (`policy`):

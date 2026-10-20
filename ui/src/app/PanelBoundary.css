@@ -1,4 +1,4 @@
-/* A crashed region (#590): in place of the region, as a floating card (dialog roots), or
+/* A crashed region: in place of the region, as a floating card (dialog roots), or
    over the whole window (the app). */
 .eth-crash {
   display: flex;

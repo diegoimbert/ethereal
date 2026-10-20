@@ -1,5 +1,5 @@
 /**
- * Touch in the piano roll (#522, the design's §4 "Piano roll"), mobile UI only. Two modes, the
+ * Touch in the piano roll (the design's §4 "Piano roll"), mobile UI only. Two modes, the
  * toolbar's Draw toggle (a finger can't mean both drawing and selecting without a modifier key):
  *
  *   - select (default): a tap selects a note, or on empty space deselects and places the

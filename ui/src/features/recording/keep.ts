@@ -1,4 +1,4 @@
-// #717: which tracks are armed and whether punch is on are engine runtime state (not in the
+// Which tracks are armed and whether punch is on are engine runtime state (not in the
 // project, not undoable, and they differ per computer in a live session). They are kept on
 // this computer per project (localStorage `eth.rec.<project id>`) and set again when the
 // project opens: a reopen or a reload finds the same arms and punch.

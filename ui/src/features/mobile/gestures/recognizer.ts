@@ -1,5 +1,5 @@
 /**
- * The touch gesture recognizer (#522): a pure state machine fed the touches of one surface
+ * The touch gesture recognizer: a pure state machine fed the touches of one surface
  * (`down` / `move` / `up` / `cancel`, plus `timer` when the long-press delay is due) that
  * reports gestures. No DOM and no clock of its own: `touchSurface.ts` binds it to pointer
  * events and a timeout; the tests drive it directly.

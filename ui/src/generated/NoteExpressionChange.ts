@@ -2,6 +2,6 @@
 import type { ExpressionPoint } from "./ExpressionPoint";
 
 /**
- * v0.3 (`midi-expression` / `mpe`): a note expression's whole curve.
+ * v0.3 (MIDI expression / `mpe`): a note expression's whole curve.
  */
 export type NoteExpressionChange = { "field": "Points", "value": Array<ExpressionPoint> };
