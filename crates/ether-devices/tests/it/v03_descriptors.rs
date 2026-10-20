@@ -1,7 +1,7 @@
 //! v0.3 device contracts: descriptor ↔ mock parity, placeholder behaviour and
 //! RT safety of the convolution reverb (`fx-space`) and the external devices
 //! (`external-instrument`). Device nodes keep these passing (update the mock JSON with
-//! `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v03_descriptors`, never by
+//! `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test it v03_descriptors::`, never by
 //! hand) and add their own behaviour tests (`tests/fx_space*.rs`, `tests/external*.rs`).
 
 use std::collections::BTreeMap;
@@ -45,7 +45,7 @@ fn check_file(name: &str, expected: &serde_json::Value) {
     assert_eq!(
         &found,
         expected,
-        "{} is stale: run `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v03_descriptors`",
+        "{} is stale: run `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test it v03_descriptors::`",
         path.display()
     );
 }

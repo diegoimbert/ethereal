@@ -4,7 +4,7 @@
 //! references it in place (CONTRACTS.md §12.9: nothing is copied into
 //! the project); bad paths reply with clear errors and change nothing.
 
-mod common;
+use crate::common;
 
 use common::{Client, Paths, sine, wav};
 use serde_json::{Value, json};

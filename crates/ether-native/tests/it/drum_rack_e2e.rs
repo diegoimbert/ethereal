@@ -3,7 +3,7 @@
 //! group) plays through the rack; a sampler is sliced while playing (in-place slice
 //! updates) and turned into a rack; everything survives save → quit → reopen.
 
-mod common;
+use crate::common;
 
 use common::{Client, Paths, wav};
 use ether_core::protocol::media::MediaEvent;

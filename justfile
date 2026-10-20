@@ -107,7 +107,7 @@ bench-wasm:
 
 # Native smoke test: the desktop host (null audio backend) driven through the full user flow.
 e2e-native:
-    ETHER_WORKERS="${ETHER_WORKERS:-1}" ETHER_AUDIO=null cargo test -p ether-native --test e2e_flow --test null_host
+    ETHER_WORKERS="${ETHER_WORKERS:-1}" ETHER_AUDIO=null cargo test -p ether-native --test it -- e2e_flow:: null_host::
 
 # Regenerate ui/src/theme/tokens.css from tokens.ts (the dev server also does this on save).
 gen-tokens:

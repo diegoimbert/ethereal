@@ -3,7 +3,7 @@
 //! files by default, a whitelist rule shows a new type, a bad rule is refused, and the
 //! filter survives a restart.
 
-mod common;
+use crate::common;
 
 use common::{Client, Paths, sine, wav};
 use serde_json::{Value, json};

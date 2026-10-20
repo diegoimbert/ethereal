@@ -8,7 +8,7 @@
 //! a resampled (44.1 kHz) file matches within resampler rounding. Every block renders under
 //! `assert_no_alloc` (the streaming `AudioSource::read` included).
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -26,10 +26,6 @@ use ether_native::store::DiskStore;
 use ether_native::test_util::TempDir;
 use ether_native::{DedicatedThread, LibraryRoot, NativeBridge, NativeServices};
 use serde_json::{Value, json};
-
-#[cfg(debug_assertions)]
-#[global_allocator]
-static ALLOC: assert_no_alloc::AllocDisabler = assert_no_alloc::AllocDisabler;
 
 const SR: u32 = 48_000;
 const BLOCK: usize = 256;
@@ -398,7 +394,7 @@ fn stream_memory_is_bounded() {
     assert!(cache.memory_bytes() * 3 < whole);
 }
 
-/// `cargo test --release -p ether-native --test disk_stream_render -- --ignored --nocapture`:
+/// `cargo test --release -p ether-native --test it disk_stream_render:: -- --ignored --nocapture`:
 /// resident memory after loading a 5-minute stereo 48 kHz file, decoded whole vs streamed.
 #[test]
 #[ignore = "measurement (prints RSS); slow in debug"]

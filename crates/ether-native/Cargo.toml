@@ -74,29 +74,5 @@ warp-complex = ["ether-stretch/signalsmith"]
 test-support = []
 
 [[test]]
-name = "formats_e2e"
-required-features = ["plugins-clap", "plugins-vst3", "sandbox"]
-
-[[test]]
-name = "plugins_e2e"
-required-features = ["plugins-clap", "sandbox"]
-
-[[test]]
-name = "plugin_folders_e2e"
-required-features = ["plugins-clap"]
-
-[[test]]
-name = "agent_plugins_e2e"
-required-features = ["plugins-clap"]
-
-[[test]]
-name = "plugin_sidechain"
-required-features = ["plugins-clap", "plugins-vst3", "sandbox"]
-
-[[test]]
-name = "disk_stream_render"
-required-features = ["warp-complex"]
-
-[[test]]
 name = "multicore_no_alloc"
 required-features = ["warp-complex"]

@@ -1,12 +1,12 @@
 //! Multicore benchmark (ignored by default; short and bounded):
-//! `cargo test -p ether-native --release --test multicore_bench -- --ignored --nocapture`.
+//! `cargo test -p ether-native --release --test it multicore_bench:: -- --ignored --nocapture`.
 //!
 //! 64 MIDI tracks (synth or sampler drum rack → EQ → compressor, some sidechained →
 //! reverb/delay), 4 groups, 2 returns, limiter on master; 2 s of audio at 256-frame blocks
 //! per worker count. Prints the time spent in `Engine::process` and the speedup over the
 //! sequential engine, and checks every run is bit-identical to the sequential one.
 
-mod multicore_real;
+use crate::multicore_real;
 
 use ether_core::parallel::SequentialExecutor;
 use ether_native::rt::enable_flush_denormals;

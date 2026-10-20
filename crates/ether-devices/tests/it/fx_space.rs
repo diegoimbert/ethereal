@@ -2,7 +2,7 @@
 //! pre-delay, shaping, mix, missing IR), click-free IR swaps and shaping changes, and RT
 //! safety (`process` and `set_data` under `assert_no_alloc`, swaps and rebuilds included).
 //!
-//! `cargo test --release -p ether-devices --test fx_space -- --ignored --nocapture cpu`
+//! `cargo test --release -p ether-devices --test it fx_space:: -- --ignored --nocapture cpu`
 //! prints the CPU cost for 1 s and 5 s IRs at 48 kHz.
 
 use std::sync::Arc;

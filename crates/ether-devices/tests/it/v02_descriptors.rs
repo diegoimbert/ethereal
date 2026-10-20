@@ -1,6 +1,6 @@
 //! v0.2 device contracts: descriptor ↔ mock parity, placeholder behaviour, RT
 //! safety and factory presets. Device nodes keep these passing (update the mock JSON with
-//! `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v02_descriptors`, never
+//! `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test it v02_descriptors::`, never
 //! by hand) and add their own behaviour tests next to them.
 
 use std::collections::BTreeMap;
@@ -99,7 +99,7 @@ fn check_file(name: &str, expected: &serde_json::Value) {
     assert_eq!(
         &found,
         expected,
-        "{} is stale: run `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v02_descriptors`",
+        "{} is stale: run `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test it v02_descriptors::`",
         path.display()
     );
 }

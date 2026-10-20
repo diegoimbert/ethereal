@@ -222,7 +222,7 @@ fn mock_descriptor_matches_rust_and_ids_are_dense() {
     assert_eq!(
         found,
         expected,
-        "{} is stale: run `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test fm_synth`",
+        "{} is stale: run `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test it fm_synth::`",
         path.display()
     );
 }

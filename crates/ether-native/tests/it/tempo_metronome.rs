@@ -3,7 +3,7 @@
 //! (the playhead's BPM follows it) while the metronome clicks, and each edit is one undo
 //! step.
 
-mod common;
+use crate::common;
 
 use common::{Client, Paths};
 use ether_native::test_util::TempDir;

@@ -945,6 +945,35 @@ mod tests {
         assert_eq!(best_offset(&s[1], &raw[1], 4000), lead);
     }
 
+    /// A gapless MP3 (encoder delay in its Info tag, so its first packets carry negative
+    /// timestamps) streams chunk by chunk, in any order, exactly as it decodes whole: the
+    /// streaming decoder places decoded audio by timestamp plus trimmed delay.
+    #[test]
+    fn gapless_mp3_streams_like_the_whole_file() {
+        use ether_media::stream::{BytesSource, CHUNK_FRAMES, ChunkDecoder};
+        let rate = 44_100;
+        let s = chirp_and_noise(5 * CHUNK_FRAMES + 1234, rate);
+        let (bytes, _) = encode_mp3(&s, rate, 4096);
+        let whole = decode(&bytes, "mp3");
+        let frames = whole.frames() as u64;
+        let mut dec = ChunkDecoder::new(
+            Box::new(BytesSource::new(bytes.into())),
+            Some("mp3"),
+            frames,
+            rate,
+        )
+        .unwrap();
+        let mut buf = Vec::new();
+        for chunk in [3, 0, 5, 1, 4, 2, 0] {
+            dec.decode_chunk(chunk, &mut buf).unwrap();
+            let start = chunk as usize * CHUNK_FRAMES;
+            let end = (start + CHUNK_FRAMES).min(frames as usize);
+            for (got, want) in buf.iter().zip(&whole.channels) {
+                assert_eq!(&got[..end - start], &want[start..end], "chunk {chunk}");
+            }
+        }
+    }
+
     /// The Info frame: Xing fields and the LAME-format gapless tag with valid CRCs.
     #[test]
     fn mp3_info_tag() {

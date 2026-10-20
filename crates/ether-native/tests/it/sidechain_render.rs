@@ -42,10 +42,6 @@ use ether_core::{
 use ether_devices::{compressor, limiter, synth};
 use ether_media::{DecodedAudio, InMemorySource};
 
-#[cfg(debug_assertions)]
-#[global_allocator]
-static ALLOC: assert_no_alloc::AllocDisabler = assert_no_alloc::AllocDisabler;
-
 const SR: u32 = 48_000;
 const BLOCK: usize = 256;
 /// Samples per beat at the default 120 bpm.

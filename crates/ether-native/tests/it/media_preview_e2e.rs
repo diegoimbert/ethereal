@@ -4,7 +4,7 @@
 //! (`Replaced`, then the new one starts and finishes) and another is stopped (`Stopped`).
 //! Every preview gets exactly one `PreviewEnded`.
 
-mod common;
+use crate::common;
 
 use common::{Client, Paths, Received, sine, wav};
 use ether_core::protocol::Event;
