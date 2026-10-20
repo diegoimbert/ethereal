@@ -7,7 +7,7 @@ test("tracked files and their directories below each base (not the bases)", () =
     ["/w", "a/b/c.rs\0top.toml\0"],
     ["/w/ee", "pkg/src/lib.rs\0"],
   ]).sort();
-  assert.deepEqual(got, ["/w/a", "/w/a/b", "/w/a/b/c.rs", "/w/ee/crates", "/w/ee/crates/x", "/w/ee/crates/x/src", "/w/ee/pkg/src/lib.rs", "/w/top.toml"]);
+  assert.deepEqual(got, ["/w/a", "/w/a/b", "/w/a/b/c.rs", "/w/ee/pkg", "/w/ee/pkg/src", "/w/ee/pkg/src/lib.rs", "/w/top.toml"]);
 });
 
 test("a stamp matches only the same commits", () => {
