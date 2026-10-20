@@ -17,7 +17,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ether_core::protocol::devices::DeviceDescriptor;
+use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, DeviceTypeRef};
 use ether_core::protocol::model::*;
 use ether_core::protocol::{ErrorCode, NotificationLevel};
 use ether_core::{NodeKey, ParamChange, ParamTarget};
@@ -115,12 +115,56 @@ pub struct EngineState {
     pub refused: Option<String>,
     /// Why the last switch to "my engine" failed (kept until the next switch).
     pub switch_error: Option<String>,
+    /// Plugins of an engine running elsewhere (an extension's, e.g. another computer's
+    /// engine playing this project): empty in the app.
+    pub remote: RemotePlugins,
+}
+
+/// The plugins of an engine that plays this project elsewhere, and the descriptors of plugin
+/// devices as that engine instantiated them (filled by the extension that runs it). Used for
+/// plugin devices this engine has no instance of (off, or the plugin is not installed here):
+/// they keep their descriptor, can be inserted, and failing to load them here is no news.
+/// Not cleared by [`EngineState::reset`] (the engine goes off when the remote one starts).
+#[derive(Debug, Default)]
+pub struct RemotePlugins {
+    /// The remote engine's plugins by (format, id): their category and name.
+    pub plugins: BTreeMap<(PluginFormat, String), (DeviceCategory, String)>,
+    /// Descriptors of plugin devices as the remote engine instantiated them.
+    pub descriptors: BTreeMap<DeviceId, DeviceDescriptor>,
+}
+
+impl RemotePlugins {
+    /// A short descriptor for inserting `plugin` from the remote engine's list (its name and
+    /// category; no params: that engine reports them once it instantiated it).
+    pub fn insert_descriptor(&self, plugin: &PluginInstance) -> Option<DeviceDescriptor> {
+        let (category, name) = self
+            .plugins
+            .get(&(plugin.format, plugin.plugin_id.clone()))?;
+        let instrument = *category == DeviceCategory::Instrument;
+        let audio = if *category == DeviceCategory::NoteEffect {
+            0
+        } else {
+            2
+        };
+        Some(DeviceDescriptor {
+            device_type: DeviceTypeRef::Plugin {
+                plugin_id: plugin.plugin_id.clone(),
+            },
+            name: name.clone(),
+            category: *category,
+            params: Vec::new(),
+            audio_inputs: if instrument { 0 } else { audio },
+            audio_outputs: audio,
+            midi_input: *category != DeviceCategory::AudioEffect,
+            sidechain_inputs: 0,
+            layout: None,
+            implemented: true,
+        })
+    }
 }
 
 /// Devices built with media that just became available to the engine (samplers, multisamplers,
-/// FX-space impulse responses): they are re-created to pick it up. (Also the private overlay's
-/// collab engine mirror; unused in the OSS build.)
-#[allow(dead_code)]
+/// FX-space impulse responses): they are re-created to pick it up.
 pub fn samplers_using(project: &Project, loaded: &[MediaId]) -> Vec<DeviceId> {
     project
         .devices
@@ -290,9 +334,19 @@ impl EngineState {
     pub fn descriptor(&self, device: &Device) -> Option<DeviceDescriptor> {
         match &device.kind {
             DeviceKind::Builtin { device } => Some(builtin_descriptor(device)),
-            DeviceKind::Plugin { .. } => self.plugin_descriptors.get(&device.id).cloned(),
+            DeviceKind::Plugin { .. } => self
+                .plugin_descriptors
+                .get(&device.id)
+                .or_else(|| self.remote.descriptors.get(&device.id))
+                .cloned(),
             DeviceKind::Missing { missing } => Some(missing_descriptor(missing)),
         }
+    }
+
+    /// The descriptor of this engine's own instance of a plugin device (never a remote
+    /// one).
+    pub fn instance_descriptor(&self, device: DeviceId) -> Option<&DeviceDescriptor> {
+        self.plugin_descriptors.get(&device)
     }
 
     fn create<B: EngineBridge + ?Sized>(
@@ -450,12 +504,18 @@ impl EngineState {
                     self.midi_fx_scales.remove(&device.id);
                 }
                 Err(e) => {
-                    errors.push(
-                        crate::text::msg("notice.engine.device_failed")
-                            .arg("device", device.name.as_str())
-                            .arg("error", e.to_string())
-                            .into(),
-                    );
+                    // A plugin the remote engine has is heard from there: not having it
+                    // here is no news.
+                    let remote = matches!(&device.kind, DeviceKind::Plugin { plugin }
+                        if self.remote.plugins.contains_key(&(plugin.format, plugin.plugin_id.clone())));
+                    if !remote {
+                        errors.push(
+                            crate::text::msg("notice.engine.device_failed")
+                                .arg("device", device.name.as_str())
+                                .arg("error", e.to_string())
+                                .into(),
+                        );
+                    }
                     self.failed.insert(device.id, sig);
                 }
             }
@@ -746,7 +806,8 @@ impl<B: EngineBridge> DocHost for EngineCtx<'_, B> {
                 if d.is_some() {
                     self.eng.set_plugin_descriptor(device, d.clone());
                 }
-                d
+                // The remote engine's: no instance here.
+                d.or_else(|| self.eng.remote.descriptors.get(&device).cloned())
             }
             DeviceKind::Missing { missing } => Some(missing_descriptor(missing)),
         }
@@ -762,10 +823,19 @@ impl<B: EngineBridge> DocHost for EngineCtx<'_, B> {
         device: DeviceId,
         plugin: &PluginInstance,
     ) -> CmdResult<Option<DeviceDescriptor>> {
-        let key = self
-            .bridge
-            .create_plugin(device, plugin, None)
-            .map_err(bridge_err)?;
+        // A remote engine plays the project: with this engine off nothing is instantiated
+        // here (the remote engine instantiates it from the document); a plugin from its list
+        // goes in even when it is not installed here.
+        if self.eng.off {
+            return Ok(self.eng.remote.insert_descriptor(plugin));
+        }
+        let key = match self.bridge.create_plugin(device, plugin, None) {
+            Ok(key) => key,
+            Err(e) => match self.eng.remote.insert_descriptor(plugin) {
+                Some(d) => return Ok(Some(d)),
+                None => return Err(bridge_err(e)),
+            },
+        };
         if let Some(old) = self.eng.nodes.insert(
             device,
             NodeEntry {
@@ -790,4 +860,53 @@ pub fn capacity_message(engine_error: &str) -> crate::text::Msg {
     crate::text::msg("notice.engine.too_large")
         .arg("error", engine_error)
         .into()
+}
+
+#[cfg(test)]
+mod remote_plugins_tests {
+    use super::*;
+
+    fn plugin(id: &str) -> PluginInstance {
+        PluginInstance {
+            format: PluginFormat::Clap,
+            plugin_id: id.into(),
+            name: String::new(),
+            vendor: String::new(),
+            version: String::new(),
+            sandboxed: false,
+            state: None,
+        }
+    }
+
+    #[test]
+    fn a_remote_plugin_inserts_with_its_listed_name_and_category() {
+        let mut remote = RemotePlugins::default();
+        assert!(remote.insert_descriptor(&plugin("synth")).is_none());
+        for (id, category, name) in [
+            ("synth", DeviceCategory::Instrument, "Synth"),
+            ("arp", DeviceCategory::NoteEffect, "Arp"),
+            ("verb", DeviceCategory::AudioEffect, "Verb"),
+        ] {
+            remote
+                .plugins
+                .insert((PluginFormat::Clap, id.into()), (category, name.into()));
+        }
+        let synth = remote.insert_descriptor(&plugin("synth")).unwrap();
+        assert_eq!(synth.name, "Synth");
+        assert_eq!(
+            (synth.audio_inputs, synth.audio_outputs, synth.midi_input),
+            (0, 2, true)
+        );
+        let arp = remote.insert_descriptor(&plugin("arp")).unwrap();
+        assert_eq!(
+            (arp.audio_inputs, arp.audio_outputs, arp.midi_input),
+            (0, 0, true)
+        );
+        let verb = remote.insert_descriptor(&plugin("verb")).unwrap();
+        assert_eq!(
+            (verb.audio_inputs, verb.audio_outputs, verb.midi_input),
+            (2, 2, false)
+        );
+        assert!(verb.params.is_empty(), "the remote engine reports them");
+    }
 }
