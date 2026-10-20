@@ -1,11 +1,12 @@
 /**
  * Where missing items stay reachable after the dialog (owner request: "the list must also be
- * reachable later"): the top bar's "N missing" badge, and a missing device's header badge
- * with its "Resolve…" button. Both open the resolver.
+ * reachable later"): the status bar's "N plugins are missing" (the samples have their own
+ * item), and a missing device's header badge with its "Resolve…" button. Both open the resolver.
  */
 import { AlertTriangle } from "lucide-react";
 import type { Device } from "@/generated";
 import { Badge, Button, openContextMenu } from "@/kit";
+import { StatusButton } from "@/features/status-bar/StatusButton";
 import { useContext } from "react";
 import { TransportContext } from "@/transport";
 import { useT } from "@/i18n";
@@ -13,24 +14,22 @@ import { resolveLabel } from "./menus";
 import { useMissingCount } from "./missingCount";
 import { openResolver } from "./store";
 
-/** Top bar: "3 missing" while anything is missing; opens the resolver. */
-export function MissingItemsBadge() {
+/** Status bar: "3 plugins are missing" (plugins and devices) while any is; opens the resolver. */
+export function MissingPluginsStatus() {
   const t = useT();
   const transport = useContext(TransportContext)?.transport;
-  const n = useMissingCount();
+  const n = useMissingCount({ media: false });
   if (n === 0) return null;
   return (
-    <Button
-      size="sm"
-      tone="ghost"
-      className="eth-missing-badge"
+    <StatusButton
+      tone="warn"
+      icon={<AlertTriangle aria-hidden />}
       data-testid="missing-items-badge"
       title={t("resolver.badge.title")}
       onClick={() => void openResolver(undefined, transport)}
     >
-      <AlertTriangle aria-hidden className="eth-missing-badge__icon" />
       {t("resolver.badge.count", { count: n })}
-    </Button>
+    </StatusButton>
   );
 }
 

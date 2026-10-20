@@ -26,13 +26,29 @@
   pointer-events: auto;
   animation: eth-context-menu-in var(--context-menu-enter-duration) var(--context-menu-enter-ease) both;
 }
-/* The accent stripe (e.g. the author's colour). */
-.eth-toast::before {
-  content: "";
-  flex: none;
-  align-self: stretch;
-  width: var(--eth-border-width-strong);
+/* Time left before it goes: a thin bar along the bottom in the accent (e.g. the author's
+   colour), shrinking to nothing; paused while hovered, like the timer (Toast.tsx). */
+.eth-toast__life {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--eth-border-width-strong);
   background: var(--eth-toast-accent);
+  transform-origin: left;
+  animation: eth-toast-life var(--eth-toast-life) linear both;
+  pointer-events: none;
+}
+.eth-toast:hover .eth-toast__life {
+  animation-play-state: paused;
+}
+@keyframes eth-toast-life {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
 }
 .eth-toast__body {
   display: flex;
@@ -97,6 +113,10 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .eth-toast {
+    animation: none;
+  }
+  /* No shrinking bar: a still one in the accent. */
+  .eth-toast__life {
     animation: none;
   }
 }

@@ -39,7 +39,6 @@ export interface TakeLanesProps {
  */
 export const TakeLanes = memo(function TakeLanes({ track, headerWidth }: TakeLanesProps) {
   const lanes = useShownLanes(track);
-  const error = useCompingUi((s) => (s.error?.track === track.id ? s.error.message : null));
   if (lanes.length === 0) return null;
   return (
     <div
@@ -53,11 +52,6 @@ export const TakeLanes = memo(function TakeLanes({ track, headerWidth }: TakeLan
       {lanes.map((lane) => (
         <TakeLaneRow key={lane.id} track={track} lane={lane} headerWidth={headerWidth} />
       ))}
-      {error && (
-        <div className="eth-takes__error" role="alert" style={{ left: headerWidth }}>
-          {error}
-        </div>
-      )}
     </div>
   );
 });

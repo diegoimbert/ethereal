@@ -34,10 +34,10 @@ import { RemoteEngineSettings, useEngineServerShown } from "@/features/remote";
 import { MissingDeviceControls, ResolverDialog, resetResolver, useResolver } from "@/features/import-resolver";
 import { ExportDialog } from "@/features/export";
 import { useExportAudio } from "@/features/export/store";
-import { MissingMediaNotice } from "@/features/media-refs/MediaRefsRoot";
+import { MissingMediaStatus } from "@/features/media-refs/MediaRefsRoot";
 import { RelinkDialog } from "@/features/media-refs/RelinkDialog";
 import { applyMediaRefEvent, openRelink, resetMediaRefs } from "@/features/media-refs/store";
-import { ImportStatus } from "@/features/import/ImportRoot";
+import { ImportList } from "@/features/import/ImportStatus";
 import { useImportStore } from "@/features/import/importStore";
 import type { Device } from "@/generated";
 import { useProjectStore } from "@/state";
@@ -422,7 +422,7 @@ describe("the pseudo-locale finds no untranslated text", () => {
     act(() => useExportAudio.getState().hide());
 
     act(() => applyMediaRefEvent({ type: "Media", event: { type: "Missing", media } }));
-    const notice = render(<MissingMediaNotice />);
+    const notice = render(<MissingMediaStatus />);
     expect(untranslated(notice.container)).toEqual([]);
     notice.unmount();
     act(() => openRelink());
@@ -441,7 +441,7 @@ describe("the pseudo-locale finds no untranslated text", () => {
         ],
       }),
     );
-    const { container, unmount } = render(<ImportStatus />);
+    const { container, unmount } = render(<ImportList />);
     // A failed import's row shows its error (the file name and the engine's reason).
     for (const el of container.querySelectorAll('[data-phase="error"] .eth-import__text')) el.setAttribute("data-i18n-exempt", "");
     expect(untranslated(container)).toEqual([]);

@@ -97,7 +97,8 @@ export interface ShellRoot {
   /**
    * Where: `overlay` (dialogs and runtimes, after the app's; default), `device-windows` (with
    * the floating device windows), `top-bar` (the top bar's end, before settings),
-   * `status-bar` (below the workspace).
+   * `status-bar` (items at the end of the status bar below the workspace: a `StatusButton`,
+   * with any details in a popover above it; the UI has no floating cards but toasts).
    */
   slot?: "overlay" | "device-windows" | "top-bar" | "status-bar";
   /** `top-bar`: its wrapper's `data-slot` (default: `name`). */
@@ -304,7 +305,7 @@ export interface ExtensionPoints {
   "project.leaveGuard": (action: () => void | Promise<unknown>, confirm: string | undefined) => Promise<boolean> | null;
   /** Badges after a project's name in the project picker (`ProjectScreen`). */
   "project.badges": ComponentType<{ project: ProjectSummary }>;
-  /** Buttons on the project picker's welcome row (after "new project"; `onDone` closes the picker). */
+  /** Buttons on the project picker's welcome row (before "new project"; `onDone` closes the picker). */
   "project.welcomeActions": ComponentType<{ busy: boolean; ready: boolean; onDone(): void }>;
   /** Entries of a stored project's menu in the picker (before "delete"). */
   "project.rowActions": (project: ProjectSummary) => ReadonlyArray<ProjectRowAction>;

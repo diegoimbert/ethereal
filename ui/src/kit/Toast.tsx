@@ -14,7 +14,7 @@ export interface ToastProps {
   /** Click on the toast body (e.g. open what it is about). */
   onClick?: () => void;
   onDismiss?: () => void;
-  /** Auto-dismiss after this many ms (paused while hovered); omit to keep it. */
+  /** Auto-dismiss after this many ms (paused while hovered; a bar shows the time left); omit to keep it. */
   timeoutMs?: number;
   className?: string;
 }
@@ -58,6 +58,9 @@ export function Toast({ title, children, accent, onClick, onDismiss, timeoutMs, 
         <button type="button" className="eth-toast__close" aria-label={t("common.dismiss")} title={t("common.dismiss")} onClick={onDismiss}>
           <X aria-hidden />
         </button>
+      )}
+      {timeoutMs !== undefined && (
+        <span className="eth-toast__life" style={{ "--eth-toast-life": `${timeoutMs}ms` } as CSSProperties} aria-hidden data-testid="toast-life" />
       )}
     </div>
   );

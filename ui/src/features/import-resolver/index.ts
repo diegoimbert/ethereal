@@ -34,5 +34,5 @@ export {
   type Focus,
   type Section,
 } from "./store";
-export { MissingDeviceControls, MissingItemsBadge } from "./MissingItems";
+export { MissingDeviceControls, MissingPluginsStatus } from "./MissingItems";
 export { missingCount, useMissingCount } from "./missingCount";

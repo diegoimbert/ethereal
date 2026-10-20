@@ -28,7 +28,6 @@ import { handleTakeKey, useTakesHeight } from "@/features/comping";
 import {
   clipboardAction,
   runTimeAction,
-  TimeEditNotice,
   bindPlayFrom,
   isTimeTrack,
   placeInsertMarker,
@@ -563,7 +562,6 @@ function ConnectedArrangementView() {
           <Layer key={i} rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
         ))}
         <HeaderColumnResizer />
-        <TimeEditNotice />
         <UngroupConfirmDialog />
       </div>
     </ArrangementContext.Provider>

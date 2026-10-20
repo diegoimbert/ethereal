@@ -261,7 +261,7 @@ describe("comping", () => {
     window: win(0, 10),
   });
 
-  beforeEach(() => useCompingUi.setState({ expanded: new Set(["t"]), selected: { track: "t", region: "r2" }, swipe: null, audition: new Map(), error: null }));
+  beforeEach(() => useCompingUi.setState({ expanded: new Set(["t"]), selected: { track: "t", region: "r2" }, swipe: null, audition: new Map() }));
   afterEach(() => useCompingUi.setState({ expanded: new Set(), selected: null, swipe: null, audition: new Map() }));
 
   it("shapes the comp's pieces from their take clips, named after the take", () => {

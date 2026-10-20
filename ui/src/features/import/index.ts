@@ -1,5 +1,6 @@
 /** Importing audio from the user's computer: ⌘I, OS drops, status (CONTRACTS.md §12.13). */
-export { ImportRoot, ImportStatus } from "./ImportRoot";
+export { ImportRoot } from "./ImportRoot";
+export { ImportList, ImportStatus } from "./ImportStatus";
 export { importAudio, commandTarget, type ImportOutcome, type ImportTarget } from "./importAudio";
 export { useImportStore, type ImportItem } from "./importStore";
 export { deliverPathDrop, droppedFiles, hasOsFiles, isPathDropHost, noteHover, type DropPoint, type PathDropHost, type ZoneHandler } from "./osDrop";

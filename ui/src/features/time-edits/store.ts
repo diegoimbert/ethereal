@@ -1,7 +1,7 @@
 /**
- * The arrangement's time selection (a beat range over some tracks) and the time-edit
- * notice (the last refused edit, e.g. a frozen track). UI state only: the time clipboard
- * lives in the engine (`TimeEdit::Copy`); `clipboard` only remembers its shape.
+ * The arrangement's time selection (a beat range over some tracks). UI state only: the time
+ * clipboard lives in the engine (`TimeEdit::Copy`); `clipboard` only remembers its shape
+ * (a refused edit, e.g. on a frozen track, is a warning toast).
  *
  * The range is mirrored into `itemSelection.timeRange` so other views (export "selection")
  * see it.
@@ -49,16 +49,10 @@ export function trackRangeOf(sel: TimeRangeSelection | null): TimeRangeSelection
   return range && range.automationLane === undefined ? range : null;
 }
 
-export interface TimeEditNotice {
-  id: number;
-  message: string;
-}
-
 export interface TimeSelectionState {
   selection: TimeRangeSelection | null;
   /** The last time copy/cut (the engine holds the material): its track count and length. */
   clipboard: { tracks: number; length: Beats } | null;
-  notice: TimeEditNotice | null;
   /**
    * Song position the insert marker was placed at while playing: the next stop locates the
    * playhead there, so Play starts from the marker (clicks never move a playing playhead).
@@ -74,15 +68,11 @@ export interface TimeSelectionState {
   cursor: Beats;
   setSelection(selection: TimeRangeSelection | null): void;
   setClipboard(clipboard: TimeSelectionState["clipboard"]): void;
-  notify(message: string | null): void;
 }
-
-let nextNotice = 1;
 
 export const useTimeSelection = create<TimeSelectionState>()((set, get) => ({
   selection: null,
   clipboard: null,
-  notice: null,
   playFrom: null,
   cursor: 0,
   setSelection: (selection) => {
@@ -92,7 +82,6 @@ export const useTimeSelection = create<TimeSelectionState>()((set, get) => ({
     itemSelection.getState().setTimeRange(range ? { start: range.start, end: range.end } : null);
   },
   setClipboard: (clipboard) => set({ clipboard }),
-  notify: (message) => set({ notice: message === null ? null : { id: nextNotice++, message } }),
 }));
 
 /**
@@ -126,5 +115,5 @@ export function clearTimeSelection(): void {
 
 /** Reset (tests). */
 export function resetTimeSelection(): void {
-  useTimeSelection.setState({ selection: null, clipboard: null, notice: null, playFrom: null, cursor: 0 });
+  useTimeSelection.setState({ selection: null, clipboard: null, playFrom: null, cursor: 0 });
 }

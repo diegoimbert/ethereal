@@ -62,6 +62,7 @@ import { EngineErrorScreen } from "@/features/startup";
 import { TransportContext } from "@/transport";
 import { useTransportSwitch } from "@/transport/createDefaultTransport";
 import { PanelBoundary } from "./PanelBoundary";
+import { StatusBar } from "@/features/status-bar";
 import { ExtensionRoots, useExtensionInit } from "./ExtensionRoots";
 import { useContributions } from "@/ext";
 import { useAgentSelectionSync } from "@/features/ai-chat/selectionSync";
@@ -444,7 +445,7 @@ function EditorShell() {
       <PanelBoundary name="workspace">
         <Workspace />
       </PanelBoundary>
-      <ExtensionRoots shell="editor" slot="status-bar" />
+      <StatusBar />
       {/* factory device windows, floating above the workspace. */}
       <PanelBoundary name="device windows" variant="overlay">
         <DeviceWindowsRoot />

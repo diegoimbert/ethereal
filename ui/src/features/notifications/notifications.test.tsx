@@ -67,6 +67,12 @@ describe("engine notifications as toasts", () => {
     expect(screen.queryByText("warning")).toBeNull();
   });
 
+  it("shows the time left as a bar that lasts as long as the toast", () => {
+    renderToasts();
+    act(() => notify("Error", "export failed"));
+    expect(screen.getByTestId("toast-life").style.getPropertyValue("--eth-toast-life")).toBe(`${ALERT_TOAST_MS}ms`);
+  });
+
   it("closes a toast early with its close button", () => {
     renderToasts();
     act(() => notify("Warning", "export: a plugin could not render offline"));

@@ -336,6 +336,8 @@ export interface MessageArgs {
   "import_audio.phase.uploading": { name: string | number };
   "import_audio.reject.extension": { ext: string | number };
   "import_audio.reject.too_large": { limit: string | number; size: string | number };
+  "import_audio.status.failed": { count: number };
+  "import_audio.status.importing": { count: number };
   "keyboard_midi.octave_down_title": { key: string | number };
   "keyboard_midi.octave_up_title": { key: string | number };
   "keyboard_midi.plays_on": { track: string | number };
@@ -499,10 +501,6 @@ export interface MessageArgs {
   "project.actions.open_named": { name: string | number };
   "project.actions.rename_input": { name: string | number };
   "project.duplicated": { name: string | number };
-  "project.examples.failed": { error: string | number };
-  "project.examples.guide_done_named": { title: string | number };
-  "project.examples.guide_named": { title: string | number };
-  "project.examples.open_named": { title: string | number };
   "project.export.done_file": { file: string | number; name: string | number };
   "project.export.done_path": { name: string | number; path: string | number };
   "project.menu.delete_confirm": { name: string | number };
@@ -549,7 +547,7 @@ export interface MessageArgs {
   "resolver.apply": { count: number };
   "resolver.apply_file": { name: string | number };
   "resolver.apply_replacement": { name: string | number };
-  "resolver.badge.count": { count: string | number };
+  "resolver.badge.count": { count: number };
   "resolver.choose_device_for": { name: string | number };
   "resolver.choose_plugin_for": { name: string | number };
   "resolver.count.devices": { count: number };
@@ -660,14 +658,6 @@ export interface MessageArgs {
   "templates.rename.title": { name: string | number };
   "templates.save_tracks.title": { count: number };
   "tempo.menu.delete_points": { count: number };
-  "tutorials.examples.bassline.bass": { b: Tag };
-  "tutorials.examples.drums.body": { b: Tag; sounds: string | number };
-  "tutorials.examples.hip_hop.beat": { b: Tag };
-  "tutorials.examples.hip_hop.keys": { b: Tag };
-  "tutorials.examples.house.bass": { b: Tag };
-  "tutorials.examples.lofi.keys": { b: Tag };
-  "tutorials.examples.tempo.body": { bars: number; bpm: string | number };
-  "tutorials.examples.tracks.body": { b: Tag };
   "tutorials.first_track.add_track.body": { b: Tag };
   "tutorials.first_track.clip.body": { b: Tag };
   "tutorials.first_track.instrument.p1": { b: Tag };

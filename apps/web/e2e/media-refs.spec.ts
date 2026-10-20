@@ -108,7 +108,7 @@ test("a sample deleted from the project is reported missing and relinked", async
   await expect(page.getByRole("menuitem", { name: "relink sample…" })).toBeVisible();
   await page.keyboard.press("Escape");
 
-  await notice.getByRole("button", { name: "relink…" }).click();
+  await notice.click();
   const dialog = page.getByRole("dialog", { name: "missing samples" });
   const row = dialog.getByTestId("relink-row");
   await expect(row).toContainText("Kick.wav");

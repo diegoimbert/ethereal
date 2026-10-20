@@ -1,4 +1,5 @@
 /** Take lanes in the arrangement (v0.2, comping), against the MockTransport. */
+import { useNotices } from "@/features/notifications";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Command, Track } from "@/generated";
@@ -65,7 +66,7 @@ async function setup(): Promise<{ bass: Track; a: string; b: string }> {
 beforeEach(async () => {
   resetArrangementUi();
   resetAutomationUi();
-  useCompingUi.setState({ expanded: new Set(), selected: null, swipe: null, audition: new Map(), error: null });
+  useCompingUi.setState({ expanded: new Set(), selected: null, swipe: null, audition: new Map() });
   useArrangementUi.getState().setGrid({ type: "Fixed", step: { kind: "beats", beats: 1 }, triplet: false });
   stubCanvas();
   mock = new MockTransport({ timers: "manual", seed: 1 });
@@ -218,7 +219,7 @@ describe("take lanes", () => {
     expect(lanesOf(project(), bass.id).map((l) => l.id)).toEqual([a]);
   });
 
-  it("new take lanes from the track menu; rejected edits (a frozen track) are shown", async () => {
+  it("new take lanes from the track menu; rejected edits (a frozen track) are a warning toast", async () => {
     const bass = track("Bass");
     fireEvent.contextMenu(screen.getByRole("group", { name: "Bass track" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "new take lane" }));
@@ -237,7 +238,8 @@ describe("take lanes", () => {
       fireEvent.pointerUp(window, { pointerId: 1, clientX: 3 * PX, clientY: 5 });
     });
     await flush();
-    expect((await screen.findByRole("alert")).textContent).toContain("frozen");
+    // A warning toast says why.
+    await waitFor(() => expect(useNotices.getState().notices.at(-1)).toMatchObject({ level: "Warning", message: expect.stringContaining("frozen") }));
   });
 });
 

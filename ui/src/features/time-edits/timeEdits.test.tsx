@@ -1,4 +1,5 @@
 /** Time selection and time-edit shortcuts/menu in the arrangement (time-edits). */
+import { useNotices } from "@/features/notifications";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Clip, Command, Project, Track } from "@/generated";
@@ -269,7 +270,8 @@ describe("time selection", () => {
     );
     await selectTime(4, 20);
     await key("Backspace", { shift: true });
-    expect(screen.getByTestId("time-edit-notice").textContent).toContain("frozen");
+    // The engine's refusal is a warning toast.
+    expect(useNotices.getState().notices.at(-1)).toMatchObject({ level: "Warning", message: expect.stringContaining("frozen") });
     // The selection stays (nothing happened).
     expect(useTimeSelection.getState().selection).not.toBeNull();
   });

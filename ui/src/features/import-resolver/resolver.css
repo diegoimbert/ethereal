@@ -237,15 +237,3 @@
 .eth-resolver__autoshow {
   margin-right: auto;
 }
-
-/* The top bar's "N missing": reachable after the dialog. */
-.eth-missing-badge {
-  color: var(--eth-color-warn);
-  gap: var(--eth-space-xs);
-  white-space: nowrap;
-}
-
-.eth-missing-badge__icon {
-  width: var(--eth-size-icon-md);
-  height: var(--eth-size-icon-md);
-}
