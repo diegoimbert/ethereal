@@ -23,10 +23,11 @@ test.use({ trace: "off" });
  */
 const BUDGET_LONG_AUDIO_MB = 700;
 /**
- * The tab with the 16-track MIDI project: 350 MB (332-350 MB measured on 2026-10-19). A build
- * with more of its own UI sets its budget with `ETHER_E2E_MOBILE_MEMORY_MB`.
+ * The tab with the 16-track MIDI project: 420 MB (296-350 MB measured locally and 334-389 MB on
+ * main's CI on 2026-10-20; it grew after #47, #136 tracks bringing it back down). A build with more
+ * of its own UI sets its budget with `ETHER_E2E_MOBILE_MEMORY_MB`.
  */
-const BUDGET_MB = Number(process.env.ETHER_E2E_MOBILE_MEMORY_MB ?? 350);
+const BUDGET_MB = Number(process.env.ETHER_E2E_MOBILE_MEMORY_MB ?? 420);
 
 /** The lanes' box (right of the header column). */
 async function lanes(page: Page) {
