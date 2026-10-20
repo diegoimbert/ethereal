@@ -26,8 +26,9 @@ use x11_dl::xlib::{self, Xlib};
 
 use crate::editor_owner::{self, OwnerWindow};
 
-/// Xlib, loaded once (`None`: libX11 is not installed).
-pub(crate) fn xlib() -> Option<&'static Xlib> {
+/// Xlib, loaded once (`None`: libX11 is not installed). Shared with other X11 code of the
+/// process (an extension capturing or driving editor windows).
+pub fn xlib() -> Option<&'static Xlib> {
     static XLIB: OnceLock<Option<Xlib>> = OnceLock::new();
     XLIB.get_or_init(|| match Xlib::open() {
         Ok(x) => Some(x),
@@ -77,8 +78,13 @@ unsafe extern "C" fn on_error(d: *mut xlib::Display, e: *mut xlib::XErrorEvent) 
 /// fatal (Xlib's default handler exits the process on a `BadWindow`); the first error's
 /// code (0: none). One handler is installed process-wide and never removed (setting and
 /// restoring it per call raced between threads: capture, injection, window lookup); the
-/// trap state is per thread. Nested calls are fine. Used by every X11 caller in this crate.
-pub(crate) fn trapped<T>(x: &Xlib, display: *mut xlib::Display, f: impl FnOnce() -> T) -> (T, u8) {
+/// trap state is per thread. Nested calls are fine. Used by every X11 caller in this crate,
+/// and to be used by any other X11 code of the process.
+///
+/// # Safety
+///
+/// `display` is an open connection of `x` (it is synced after `f`).
+pub unsafe fn trapped<T>(x: &Xlib, display: *mut xlib::Display, f: impl FnOnce() -> T) -> (T, u8) {
     // SAFETY: installing a valid handler; reinstalled when something replaced it (a plugin
     // in the same process), whose handler is then chained.
     unsafe {
