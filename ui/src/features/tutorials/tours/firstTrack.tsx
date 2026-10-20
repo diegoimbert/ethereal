@@ -152,7 +152,7 @@ export const FIRST_TRACK_TOUR: TourDef = {
           <P k="tutorials.first_track.done.p2" />
         </>
       ),
-      actions: [{ id: "open-guide", label: "tutorials.examples.done.open_guide", run: () => openDocs("welcome/first-beat") }],
+      actions: [{ id: "open-guide", label: "tutorials.first_track.done.open_guide", run: () => openDocs("welcome/first-beat") }],
     },
   ],
 };

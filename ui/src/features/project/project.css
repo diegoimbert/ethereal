@@ -115,28 +115,12 @@
   gap: var(--eth-space-xl);
   align-items: start;
 }
-/* The left column: get started, then the example beats. */
-.eth-welcome__guides {
-  display: flex;
-  flex-direction: column;
-  gap: var(--eth-space-lg);
-  min-width: 0;
-}
-/* An example: the row opens it, "show me how" next to it starts its tour. */
-.eth-welcome__example {
-  align-items: center;
-  gap: var(--eth-space-xs);
-}
-.eth-welcome__example-guide {
-  flex: none;
-}
-.eth-welcome__example-guide[data-done] .lucide {
-  color: var(--eth-color-ok);
-}
+/* The left column: get started. */
 .eth-welcome__start {
   display: flex;
   flex-direction: column;
   gap: var(--eth-space-xs);
+  min-width: 0;
 }
 .eth-welcome__articles {
   display: flex;

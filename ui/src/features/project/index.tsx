@@ -16,7 +16,6 @@ import { bindSaveOnHide } from "./saveOnHide";
 import { ProjectMenuPanel } from "./ProjectMenuPanel";
 import { ProjectScreen } from "./ProjectScreen";
 import { SafeModeBanner } from "./SafeModeBanner";
-import { MissingItemsBadge } from "@/features/import-resolver";
 import { useProjectScreen } from "./screenStore";
 import { useT } from "@/i18n";
 
@@ -188,8 +187,6 @@ export function ProjectMenu() {
         </span>
       )}
       <SafeModeBanner />
-      {/* anything missing stays reachable after the dialog. */}
-      <MissingItemsBadge />
       {error && !open && (
         <DismissibleError className="eth-project__error" onDismiss={clearError}>
           {error}

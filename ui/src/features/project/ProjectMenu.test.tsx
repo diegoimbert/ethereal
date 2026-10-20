@@ -127,13 +127,16 @@ describe("ProjectMenu", () => {
     expect(useProjectScreen.getState().launchPending).toBe(false);
   });
 
-  it("the welcome screen has a visible close next to its actions (#578)", async () => {
+  it('the welcome screen has no close button: Escape leaves it, "new project" ends its row', async () => {
     useProjectScreen.setState({ launchPending: true });
     await renderWithMock(<ProjectMenu />);
     const dialog = await screen.findByRole("dialog", { name: "open project" });
-    // One close: the welcome's own (its kit header is visually hidden).
-    expect(within(dialog).getAllByRole("button", { name: "close" })).toHaveLength(1);
-    fireEvent.click(within(dialog).getByRole("button", { name: "close" }));
+    expect(within(dialog).queryByRole("button", { name: "close" })).toBeNull();
+    // The header's actions: "join discord" first, "new project" at the very right.
+    const actions = within(dialog).getByTestId("welcome-new-project").parentElement!;
+    expect(actions.lastElementChild).toBe(within(dialog).getByTestId("welcome-new-project"));
+    expect(actions.firstElementChild).toBe(within(dialog).getByRole("button", { name: "join discord" }));
+    fireEvent.keyDown(dialog, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(screen.getByTestId("project-name").textContent).toBe("Demo");
   });

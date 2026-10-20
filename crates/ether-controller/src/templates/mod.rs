@@ -27,7 +27,6 @@
 //!   project template, or an empty project when there is none (or it is gone).
 
 mod collect;
-mod examples;
 mod factory;
 mod files;
 mod insert;
@@ -58,7 +57,7 @@ use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 use files::{Location, file_stem, info, locate, normalize_meta, user_id, user_path};
 pub use insert::Prepared;
 
-/// A [`crate::doc::DocHost`] with no engine: templates and examples build a document from
+/// A [`crate::doc::DocHost`] with no engine: templates build a document from
 /// commands only (ids), so plugin instantiation and live plugin state are never needed.
 pub struct NullHost;
 

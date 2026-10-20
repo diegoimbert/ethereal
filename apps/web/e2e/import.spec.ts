@@ -1,5 +1,5 @@
 // "Import from another DAW…" on the web build (real wasm engine): a
-// DAWproject exported by Bitwig Studio and a REAPER project, each picked (project screen,
+// DAWproject exported by Bitwig Studio and a REAPER project, each picked (project menu,
 // command palette) and dropped on the window, become new projects that open, with the
 // import report.
 import { readFileSync } from "node:fs";
@@ -9,7 +9,7 @@ import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
 import { importFixtures } from "./importFixtures";
 import { HAS_IMPORTER, NO_IMPORTER } from "./importer";
-import { launch, projectScreen, resolveLater } from "./ui";
+import { importFromAnotherDaw, launch, projectScreen, resolveLater } from "./ui";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 test.skip(!HAS_IMPORTER, NO_IMPORTER);
@@ -46,10 +46,10 @@ async function dropFile(page: Page, name: string, type: string, bytes: Buffer) {
   );
 }
 
-test("import a DAWproject from Bitwig Studio through the project screen", async ({ page }) => {
+test("import a DAWproject from Bitwig Studio through the project menu", async ({ page }) => {
   await boot(page);
   const chooser = page.waitForEvent("filechooser");
-  await projectScreen(page).getByRole("button", { name: "import from another DAW…" }).click();
+  await importFromAnotherDaw(page, "dawproject…");
   await (await chooser).setFiles([{ name: "Canon.dawproject", mimeType: "application/zip", buffer: fixtures.canon }]);
 
   const report = page.getByRole("dialog", { name: "imported “Canon”" });
@@ -134,13 +134,14 @@ test("import a REAPER project from the command palette", async ({ page }) => {
 });
 
 test("a file that is not a project fails cleanly", async ({ page }) => {
-  await boot(page);
+  await launch(page, "Before");
   const chooser = page.waitForEvent("filechooser");
-  await projectScreen(page).getByRole("button", { name: "import from another DAW…" }).click();
+  await importFromAnotherDaw(page, "dawproject…");
   await (await chooser).setFiles([{ name: "Broken.dawproject", mimeType: "application/zip", buffer: Buffer.from("not a zip at all") }]);
   const dialog = page.getByRole("dialog", { name: "Couldn’t import “Broken.dawproject”" });
   await expect(dialog).toBeVisible({ timeout: 20_000 });
   await expect(dialog).toContainText("not a supported project file");
   await dialog.getByRole("button", { name: "close" }).click();
-  await expect(projectScreen(page)).toBeVisible();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByTestId("project-name")).toHaveText("Before");
 });

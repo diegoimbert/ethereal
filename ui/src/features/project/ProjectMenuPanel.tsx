@@ -263,8 +263,8 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
         <Separator />
         {/* docs: the user documentation (in the app on desktop, /docs in a new tab on the web). */}
         {item("app:docs")}
-        {/* the example beats, on the welcome screen. */}
-        {item("app:examples")}
+        {/* tutorials: the guided tours, the welcome screen's "get started". */}
+        {item("app:tutorials")}
         {/* news: past announcements (docs/NEWS.md). */}
         {item("app:news")}
         {extra("app")}

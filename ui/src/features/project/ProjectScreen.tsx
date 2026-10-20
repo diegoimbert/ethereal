@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from "react";
-import { MoreHorizontal, Plus, Search, X } from "lucide-react";
+import { MoreHorizontal, Plus, Search } from "lucide-react";
 import type { ProjectSummary } from "@/generated";
 import { errorMessage, useOptionalConnection, type EngineCommands } from "@/features/transport-bar/engine";
 import { Badge, Button, Dialog, DismissibleError, IconButton, openContextMenu, TextInput, type ContextMenuEntry } from "@/kit";
@@ -16,7 +16,6 @@ import { copyName, dateName, formatModified, sortProjects, uniqueName } from "./
 import { createDraftProject, isDraft } from "./drafts";
 import { useProjectScreen } from "./screenStore";
 import { GetStarted } from "./GetStarted";
-import { Examples } from "./Examples";
 import { APP_VERSION } from "@/config/version";
 import { splitLocalCopy } from "./sessionMarks";
 import { t as translate, Trans, useT } from "@/i18n";
@@ -54,8 +53,8 @@ export function ProjectScreen({ commands }: { commands: EngineCommands }) {
       open={open}
       onClose={dismiss}
       title={mode === "saveAs" ? t("project.screen.save_as") : mode === "new" ? t("project.new_project") : t("project.screen.open")}
-      // Home is the welcome screen: wide, its own header (the dialog title stays its name)
-      // with its own × next to its actions.
+      // Home is the welcome screen: wide, its own header (the dialog title stays its name), no
+      // close button (Escape or a click outside leaves it).
       closeButton={mode !== "home"}
       className={mode === "home" ? "eth-project-screen eth-project-screen--welcome" : "eth-project-screen"}
     >
@@ -74,7 +73,7 @@ export function ProjectScreen({ commands }: { commands: EngineCommands }) {
           onDone={hide}
         />
       ) : (
-        <Home commands={commands} onDone={hide} onClose={dismiss} />
+        <Home commands={commands} onDone={hide} />
       )}
     </Dialog>
   );
@@ -143,7 +142,7 @@ function writeRecentCount(n: number): void {
   }
 }
 
-function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(): void; onClose(): void }) {
+function Home({ commands, onDone }: { commands: EngineCommands; onDone(): void }) {
   const t = useT();
   const { send, transport } = commands;
   // Launch isn't done (the engine is loading): the actions wait, the list is placeholders.
@@ -177,7 +176,7 @@ function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(
   // A pending extension row action's confirmation (`@/ext` "project.rowActions").
   const [confirmAction, setConfirmAction] = useState<{ id: string; action: ProjectRowAction } | null>(null);
   const welcomeActions = useContributions("project.welcomeActions");
-  // Failures of actions run outside `send` (export, import, duplicate, close and delete).
+  // Failures of actions run outside `send` (new project, extensions' row actions).
   const [error, setError] = useState<string | null>(null);
 
   // How many rows to hold for the list next launch.
@@ -290,8 +289,8 @@ function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(
     openContextMenu(e, entries);
   };
 
-  // The welcome screen: the wordmark and version with the two actions, then Get started |
-  // the recent projects.
+  // The welcome screen: the wordmark and version with its actions (discord, extensions', then
+  // "new project" at the very right), then Get started | the recent projects.
   return (
     <div className="eth-welcome">
       <header className="eth-welcome__brand">
@@ -310,7 +309,12 @@ function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(
           </span>
         )}
         <span className="eth-welcome__actions">
-          <DiscordLink variant="icon" />
+          <DiscordLink variant="button" />
+          {/* Extensions' buttons (`@/ext` "project.welcomeActions"). */}
+          {welcomeActions.map((Action, i) => (
+            <Action key={i} busy={busy} ready={ready} onDone={onDone} />
+          ))}
+          {/* The main action, at the very end of the row. */}
           <Button
             size="sm"
             tone="accent"
@@ -325,11 +329,6 @@ function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(
             <Plus aria-hidden />
             {t("project.new_project")}
           </Button>
-          {/* Extensions' buttons (`@/ext` "project.welcomeActions"). */}
-          {welcomeActions.map((Action, i) => (
-            <Action key={i} busy={busy} ready={ready} onDone={onDone} />
-          ))}
-          <IconButton size="sm" tone="ghost" label={t("common.close")} icon={<X />} onClick={onClose} />
         </span>
       </header>
       {notice && (
@@ -338,10 +337,7 @@ function Home({ commands, onDone, onClose }: { commands: EngineCommands; onDone(
         </p>
       )}
       <div className="eth-welcome__columns">
-        <div className="eth-welcome__guides">
-          <GetStarted commands={commands} onStarted={onDone} />
-          <Examples commands={commands} onStarted={onDone} />
-        </div>
+        <GetStarted commands={commands} onStarted={onDone} />
         <div className="eth-project-screen__body">
           <ErrorLine commands={commands} extra={error} clearExtra={() => setError(null)} />
 

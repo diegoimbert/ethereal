@@ -494,6 +494,23 @@ export async function openProjectScreen(page: Page): Promise<Locator> {
   return screen;
 }
 
+/**
+ * Picks `source` ("dawproject…", "reaper…", …) in the project menu's "Import from another DAW"
+ * submenu (the file chooser follows). On the launch project screen, Escape first: the draft
+ * behind it opens. Retries the hover and click (a re-render can close the submenu between them).
+ */
+export async function importFromAnotherDaw(page: Page, source: string): Promise<void> {
+  if (await projectScreen(page).isVisible()) {
+    await page.keyboard.press("Escape");
+    await expect(projectScreen(page)).toHaveCount(0);
+  }
+  await page.getByRole("button", { name: "projects" }).click();
+  await expect(async () => {
+    await page.getByRole("menu", { name: "project" }).getByRole("menuitem", { name: "import from another DAW" }).hover();
+    await page.getByRole("menu", { name: "import from another DAW" }).getByRole("menuitem", { name: source }).click({ timeout: 3000 });
+  }).toPass({ timeout: 20_000 });
+}
+
 /** Runs a command palette entry by its label (⌘K, search, pick the matching option). */
 export async function paletteCommand(page: Page, label: string): Promise<void> {
   await page.getByRole("button", { name: "command palette" }).click();

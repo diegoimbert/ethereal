@@ -99,7 +99,7 @@ export interface TourDef {
   projectName: MessageKey;
   /**
    * "starter": the default new project (a synth track); "empty": no tracks; `{ template }`: a
-   * project made from that project template (the example beats: `factory/example-…`).
+   * project made from that project template.
    */
   project: "starter" | "empty" | { template: string };
   steps: ReadonlyArray<TourStep>;

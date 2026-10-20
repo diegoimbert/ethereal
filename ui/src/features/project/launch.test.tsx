@@ -92,7 +92,7 @@ describe("launch", () => {
     const open = vi.spyOn(window, "open").mockReturnValue(null);
     launchWith();
     const dialog = await screen.findByRole("dialog", { name: "open project" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "join the ethereal discord" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "join discord" }));
     expect(open).toHaveBeenCalledWith(DISCORD_INVITE_URL, "_blank", "noopener,noreferrer");
     open.mockRestore();
   });
