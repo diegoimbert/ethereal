@@ -250,7 +250,11 @@ jobs:
       - name: build
         run: |
           echo "t0=$(( $(date +%s) - 2 ))" >> "$GITHUB_ENV"
-          node scripts/ci/private-step.mjs e2e-build -- "node apps/web/scripts/build-wasm.mjs --package ether-ee-wasm --workspace ee && cd ee/app/web && ETHER_E2E_PREBUILD=1 node --input-type=module -e 'const m = await import(\"./e2e/ee-global-setup.ts\"); m.default();'"
+          # The wasm build (its own target triple, so its own cargo lock) runs beside the native
+          # ones (cold: ~8 min of ~24).
+          node scripts/ci/private-step.mjs e2e-build -- "node apps/web/scripts/build-wasm.mjs --package ether-ee-wasm --workspace ee & wasm=\$!;
+            (cd ee/app/web && ETHER_E2E_PREBUILD=1 node --input-type=module -e 'const m = await import(\"./e2e/ee-global-setup.ts\"); m.default();'); native=\$?;
+            wait \$wasm; w=\$?; echo \"e2e build: native \$native, wasm \$w\"; [ \$native = 0 ] && [ \$w = 0 ]"
       - id: share
         run: node scripts/ci/e2e-shared-target.mjs publish "$t0"
       - uses: ./.github/actions/full-logs
