@@ -105,7 +105,7 @@ pub struct NativeBridge {
     stream_graph: Option<RenderGraphDesc>,
     /// `audio-streaming` on (default; `ETHER_DISK_STREAMING=0` turns it off).
     disk_streaming: bool,
-    /// 0 = the main engine; otherwise a dedicated engine (docs/COLLAB.md §16) whose plugin
+    /// 0 = the main engine; otherwise a dedicated engine whose plugin
     /// instances are registered under salted ids ([`Self::reg`]).
     registry_salt: u16,
     /// This engine started dedicated engines (their plugin notifications are drained here).
@@ -300,7 +300,7 @@ impl NativeBridge {
         }
     }
 
-    /// A second, independent engine for a participant (docs/COLLAB.md §16): its own
+    /// A second, independent engine for a participant: its own
     /// `ether_core` engine on the paced `null` backend (no audio device), its own bridge
     /// (own stream sender and tap), the same plugin host (plugins registered under ids of
     /// their own). The result is dropped to stop it.
@@ -466,7 +466,7 @@ fn is_offline_id(device: DeviceId) -> bool {
     device.0.0 >> 112 == OFFLINE_DEVICE_PREFIX >> 112
 }
 
-/// Registry ids of a dedicated engine's plugins (docs/COLLAB.md §16): its devices are the
+/// Registry ids of a dedicated engine's plugins: its devices are the
 /// document's, so they share the main thread's registry with the host's own instances
 /// only through ids of this form (a 16-bit prefix, the engine's 16-bit salt, the low 96 bits
 /// of the device id).
@@ -974,7 +974,7 @@ impl EngineBridge for NativeBridge {
             // Offline (export) instances are private to the export, and a dedicated engine's
             // belong to its requester, not to the document: their notifications (state dirty,
             // GUI edits, latency) must not reach it here. A dedicated engine's go to its own
-            // poll (its requester commits the edits, docs/PLUGIN_VIEW.md §8).
+            // poll (its requester commits the edits).
             let mut dedicated = Vec::new();
             let mut i = from;
             while i < out.len() {
@@ -1004,7 +1004,7 @@ impl EngineBridge for NativeBridge {
     }
 
     fn plugin_state(&mut self, device: DeviceId) -> Result<Option<Base64Bytes>, BridgeError> {
-        // A mirrored device's state is its mirror's (COLLAB.md §9.6), or the last state of
+        // A mirrored device's state is its mirror's, or the last state of
         // a dropped mirror until the live instance replacing it exists.
         if self.mirrors.contains(device) {
             return Ok(self
@@ -2021,7 +2021,7 @@ mod tests {
         assert_eq!(none.ok(), Some(false));
     }
 
-    /// Dedicated remote engines (docs/COLLAB.md §16): a second engine beside the main one,
+    /// Dedicated remote engines: a second engine beside the main one,
     /// with its own plugin instances of the same devices, running headless.
     #[test]
     fn a_dedicated_engine_runs_beside_the_main_one() {

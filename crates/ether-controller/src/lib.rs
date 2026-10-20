@@ -453,7 +453,7 @@ pub trait EngineBridge {
         None
     }
 
-    // ─── base-53: plugin GUI mirrors (`plugin-mirror`; docs/COLLAB.md §9.6) ───
+    // ─── base-53: plugin GUI mirrors (`plugin-mirror`) ───
 
     /// Instantiate a GUI-only instance of a plugin device: never routed, never processes
     /// audio, not in any graph. Its GUI edits come back through `poll_plugins` as

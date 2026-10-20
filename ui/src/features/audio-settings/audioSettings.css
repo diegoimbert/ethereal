@@ -77,7 +77,7 @@
   }
 }
 
-/* base-115: Settings tabs (Audio | Sharing | Advanced, docs/SHARING.md §8.6). */
+/* base-115: Settings tabs (Audio | Sharing | Advanced). */
 .eth-settings {
   display: flex;
   flex-direction: column;

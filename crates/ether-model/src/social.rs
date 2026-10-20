@@ -1,4 +1,4 @@
-//! Social layer of the document (base-62, node `collab-social`; docs/COLLAB.md §12).
+//! Social layer of the document (base-62, node `collab-social`).
 //!
 //! - [`ChatMessage`]: the session chat, **saved with the project** as a journal. Replicated
 //!   like any op but **never undoable**: [`crate::History`] applies chat ops without

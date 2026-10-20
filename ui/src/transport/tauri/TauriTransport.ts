@@ -10,7 +10,7 @@
  * - `invoke("ether_send_batch", { messages })` queues `ClientMessage`s in order; each reply arrives on
  *   `messages`, matched by `id`.
  * - `invoke("ether_disconnect")` drops the channels (on `dispose`).
- * - `ethereal://` deep links (docs/SHARING.md §5): the shell emits `DEEP_LINK_EVENT` when one
+ * - `ethereal://` deep links: the shell emits `DEEP_LINK_EVENT` when one
  *   arrives and `invoke("take_deep_links")` drains them (`onDeepLink`).
  *
  * `connect()` resolves with the current project, or `null` when the engine has none open
@@ -215,7 +215,7 @@ export class TauriTransport implements EngineTransport {
     };
   }
 
-  // ─── `join-flow`: `ethereal://` deep links (docs/SHARING.md §5) ─────────────────────────
+  // ─── `join-flow`: `ethereal://` deep links ─────────────────────────
 
   /**
    * `ethereal://` links opened with the app: the one it was started with (cold start) and

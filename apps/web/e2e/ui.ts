@@ -421,7 +421,7 @@ export const playingButton = (page: Page): Locator =>
  */
 export const stopButton = (page: Page): Locator => page.getByTestId("transport-stop");
 
-/** Opens Settings (top-bar gear) on the Advanced tab (base-115, docs/SHARING.md §8.6). */
+/** Opens Settings (top-bar gear) on the Advanced tab (base-115). */
 export async function openAdvancedSettings(page: Page): Promise<void> {
   await page.getByRole("button", { name: "settings", exact: true }).click();
   await page.getByRole("dialog", { name: "settings" }).getByRole("tab", { name: "advanced" }).click();

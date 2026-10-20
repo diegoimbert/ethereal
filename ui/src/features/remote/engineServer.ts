@@ -1,5 +1,5 @@
 // Connecting to an engine server (ether-server): the form state shared by Settings > Advanced
-// (base-115 moved the form there, docs/SHARING.md §8.6). The top bar keeps an indicator while
+// (base-115 moved the form there). The top bar keeps an indicator while
 // connected (`ConnectDialog`).
 import { useState } from "react";
 import type { HelloRejection } from "@/generated";

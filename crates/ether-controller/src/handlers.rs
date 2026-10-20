@@ -164,7 +164,7 @@ fn share_edits(command: &Command, current: Option<ProjectId>) -> bool {
     use ether_core::protocol::undo_history::HistoryCommand;
     match command {
         Command::Transport(_) | Command::Recording(_) => false,
-        // #418: mute and solo are per site (COLLAB.md §2.1): never sent, so a listener can
+        // #418: mute and solo are per site: never sent, so a listener can
         // solo and mute tracks of its read-only copy to hear them on their own. While it
         // listens to the host they are the host's (§9.8: the host applies them only with
         // remote control on).
@@ -222,7 +222,7 @@ where
         // base-62: a note added by this command is authored by our session identity (a no-op
         // in the OSS build: the private overlay's session tracks it).
         self.ext_before_command(command);
-        // base-115: a listen link is view only (docs/SHARING.md §2.3).
+        // base-115: a listen link is view only.
         if self.ext_view_only() && share_edits(command, current) {
             return Err(crate::tx::keyed_err(
                 ether_core::protocol::ErrorCode::InvalidState,
@@ -451,7 +451,7 @@ where
         if touches_media {
             self.media.sync(&mut self.bridge, Some(&doc.project));
         }
-        // Dedicated engines run for other sites follow the document too (docs/COLLAB.md §16).
+        // Dedicated engines run for other sites follow the document too.
         self.ext_applied(applied);
         self.set_dirty(true, out);
         if renamed {

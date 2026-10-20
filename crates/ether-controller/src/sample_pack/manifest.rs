@@ -20,8 +20,8 @@ pub const SIGNING_CONTEXT: &[u8] = b"ethereal sample pack v1\n";
 /// (`PLUGIN_CATALOG_SIGNING_KEY` in sops; `ether_plugin_store::CATALOG_PUBLIC_KEY`).
 pub const PUBLIC_KEY: &str = "zulFanzJ9EYe322beZnZE3sx6dx65ekPxcL7qLmD67E=";
 
-/// The seed of the dev fixture key (public on purpose: tests and `scripts/samples/
-/// dev-pack.mjs` sign with it). Accepted only for manifests served from a loopback address.
+/// The seed of the dev fixture key (public on purpose: tests and the `sample_pack` example's
+/// `dev` pack sign with it). Accepted only for manifests served from a loopback address.
 pub const DEV_SEED: [u8; 32] = *b"ethereal-dev-sample-pack-seed-v1";
 
 /// A manifest bigger than this is refused before parsing.

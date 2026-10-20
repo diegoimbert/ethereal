@@ -246,7 +246,7 @@ impl Project {
     /// Remove every device and plugin chain, and everything that only exists for them: rack
     /// chains, drum pads, modulators and their mappings, automation of device parameters
     /// (lanes and points), MIDI mappings to them. Tracks, clips, notes, media, mixer and
-    /// routing stay. For "Hide devices" (docs/SHARING.md §14.7): the static project copy and
+    /// routing stay. For "Hide devices": the static project copy and
     /// view, and what a live listener receives.
     pub fn strip_devices(&mut self) {
         self.devices.clear();

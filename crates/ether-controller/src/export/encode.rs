@@ -468,7 +468,7 @@ fn crc16(crc: u16, bytes: &[u8]) -> u16 {
 /// `mp3_trimmed_frames(n)` samples; one that does not outputs the delay (and maybe a silent
 /// frame for the Info frame) first, then the same samples. Either way the extra samples are
 /// at the start: `decoded length - mp3_trimmed_frames(n)` is the lead to skip, which is how
-/// the static share listener aligns the files (docs/SHARING.md §14.6).
+/// the static share listener aligns the files.
 ///
 /// The audio frames are written as they are encoded, after room for the Info frame, which
 /// is written last (its counts and CRC cover the whole file).

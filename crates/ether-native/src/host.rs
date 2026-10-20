@@ -843,7 +843,7 @@ struct AudioState {
     data_dir: PathBuf,
     instance: String,
     last_xruns: u32,
-    /// The device is closed while the local engine is off (docs/COLLAB.md §15): the engine
+    /// The device is closed while the local engine is off: the engine
     /// runs on the null backend, which holds no device and keeps draining its queues (the
     /// controller's teardown graph, transport commands), until the engine is on again.
     released: bool,
