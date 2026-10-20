@@ -89,6 +89,8 @@ pub struct NativeBridge {
     devices: HashMap<DeviceId, DeviceEntry>,
     /// Instances created for offline export so far (their private registry ids).
     offline_seq: u64,
+    /// An extension's part of the bridge ([`set_bridge_ext`]).
+    ext: Option<Box<dyn BridgeExt>>,
     /// GUI-only plugin mirrors while listening (`plugin-mirror`; [`crate::plugin_mirror`]).
     mirrors: crate::plugin_mirror::Mirrors,
     /// External Instruments' MIDI (`external-instrument`, [`hw_midi`]): the engine ring until
@@ -108,7 +110,51 @@ pub struct NativeBridge {
     registry_salt: u16,
     /// This engine started dedicated engines (their plugin notifications are drained here).
     spawned_engines: bool,
+    /// Dedicated engines' plugin notifications, by registry salt: the main bridge drains the
+    /// registry's one queue and files theirs here; each dedicated bridge takes its own.
+    dedicated_notes: DedicatedNotes,
 }
+
+/// An extension's part of the native bridge (docs/EXTENSIONS.md): made for every bridge (the
+/// main engine's and each dedicated engine's) by the factory set with [`set_bridge_ext`], it
+/// sees what the bridge sends the engine. The extension reaches it, and the engine handle for
+/// taps of its own, with [`NativeBridge::ext_mut`] / [`NativeBridge::ext_and_handle`]. It is
+/// dropped before the bridge's plugin instances.
+pub trait BridgeExt: std::any::Any + Send {
+    /// A graph the bridge published.
+    fn observe_graph(&mut self, graph: &RenderGraphDesc) {
+        let _ = graph;
+    }
+
+    /// A transport control the bridge sent.
+    fn observe_transport(&mut self, control: &TransportControl) {
+        let _ = control;
+    }
+
+    /// A dedicated engine was spawned from this bridge: `child` is its bridge's extension;
+    /// `plugins` and `salt` name its plugin instances ([`dedicated_device_id`]).
+    fn spawned(&mut self, child: &mut dyn BridgeExt, plugins: &PluginHost, salt: u16) {
+        let _ = (child, plugins, salt);
+    }
+}
+
+/// Makes a bridge's [`BridgeExt`] (it may read the bridge: its plugin host, sample rate).
+pub type BridgeExtFactory = fn(&NativeBridge) -> Box<dyn BridgeExt>;
+
+static BRIDGE_EXT: std::sync::OnceLock<BridgeExtFactory> = std::sync::OnceLock::new();
+
+/// Extension point: the extension part of every native bridge made from now on (set once,
+/// at start).
+pub fn set_bridge_ext(factory: BridgeExtFactory) {
+    let _ = BRIDGE_EXT.set(factory);
+}
+
+/// Plugin notifications of dedicated engines waiting for their bridge's poll, by registry
+/// salt (registry ids). A salt is present while its engine exists.
+type DedicatedNotes = Arc<std::sync::Mutex<HashMap<u16, Vec<(DeviceId, PluginNotification)>>>>;
+
+/// At most this many notifications wait for a dedicated engine's poll (oldest dropped).
+const MAX_DEDICATED_NOTES: usize = 4096;
 
 impl NativeBridge {
     /// `agent-plugins`: share the host's "a plugin scan is running" flag, reported by
@@ -128,7 +174,7 @@ impl NativeBridge {
         let mut handle = handle;
         crate::recording::attach(&mut handle, &audio);
         let hw_midi_io = handle.take_hw_io();
-        Self {
+        let mut bridge = Self {
             handle,
             sample_rate: prepare.sample_rate as u32,
             prepare,
@@ -140,6 +186,7 @@ impl NativeBridge {
             sources: HashMap::new(),
             devices: HashMap::new(),
             offline_seq: 0,
+            ext: None,
             mirrors: Default::default(),
             hw_midi_io,
             hw_midi: None,
@@ -148,9 +195,30 @@ impl NativeBridge {
             stream_graph: None,
             registry_salt: 0,
             spawned_engines: false,
+            dedicated_notes: Default::default(),
             disk_streaming: !std::env::var("ETHER_DISK_STREAMING")
                 .is_ok_and(|v| v == "0" || v == "off"),
-        }
+        };
+        bridge.ext = BRIDGE_EXT.get().map(|make| make(&bridge));
+        bridge
+    }
+
+    /// The extension part of this bridge ([`set_bridge_ext`]), when it is a `T`.
+    pub fn ext_mut<T: BridgeExt>(&mut self) -> Option<&mut T> {
+        let ext: &mut dyn std::any::Any = self.ext.as_deref_mut()?;
+        ext.downcast_mut()
+    }
+
+    /// The extension part of this bridge ([`set_bridge_ext`]), when it is a `T`.
+    pub fn ext_ref<T: BridgeExt>(&self) -> Option<&T> {
+        let ext: &dyn std::any::Any = self.ext.as_deref()?;
+        ext.downcast_ref()
+    }
+
+    /// The extension part and the engine handle (an extension's own taps of the engine).
+    pub fn ext_and_handle<T: BridgeExt>(&mut self) -> Option<(&mut T, &mut EngineHandle)> {
+        let ext: &mut dyn std::any::Any = self.ext.as_deref_mut()?;
+        Some((ext.downcast_mut()?, &mut self.handle))
     }
 
     /// `external-instrument`: the MIDI routes of `graph` (node → port); starts the MIDI
@@ -232,16 +300,122 @@ impl NativeBridge {
         }
     }
 
+    /// A second, independent engine for a participant (docs/COLLAB.md §16): its own
+    /// `ether_core` engine on the paced `null` backend (no audio device), its own bridge
+    /// (own stream sender and tap), the same plugin host (plugins registered under ids of
+    /// their own). The result is dropped to stop it.
+    pub fn spawn_dedicated(&mut self) -> Result<crate::dedicated::DedicatedEngine, BridgeError> {
+        use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
+        static SALT: AtomicU16 = AtomicU16::new(1);
+        // Never 0 (the main engine's).
+        let mut salt = SALT.fetch_add(1, Ordering::Relaxed);
+        if salt == 0 {
+            salt = SALT.fetch_add(1, Ordering::Relaxed);
+        }
+        let config = ether_core::EngineConfig {
+            sample_rate: self.prepare.sample_rate as u32,
+            max_block_size: self.prepare.max_block_size,
+            max_events_per_block: self.prepare.max_events_per_block,
+            // One thread renders it: it must not take cores from the host's own engine.
+            worker_threads: 0,
+            ..Default::default()
+        };
+        #[allow(unused_mut)] // the stretcher needs it with `warp-complex`
+        let mut parts = ether_core::create(config);
+        #[cfg(feature = "warp-complex")]
+        parts
+            .handle
+            .set_stretcher_factory(Arc::new(ether_stretch::SignalsmithFactory::default()));
+        let shared = Arc::new(AudioShared::default());
+        if let Some(root) = self.audio.recording.projects_root() {
+            shared.recording.set_projects_root(root);
+        }
+        let settings = crate::audio::AudioSettings {
+            backend: crate::audio::AudioBackendKind::Null,
+            sample_rate: Some(self.sample_rate),
+            max_block_size: self.prepare.max_block_size,
+            ..Default::default()
+        };
+        let output =
+            crate::audio::AudioOutput::start(Box::new(parts.engine), &settings, shared.clone())
+                .map_err(|(e, _)| {
+                    BridgeError::Other(format!("could not start another engine: {e}"))
+                })?;
+        let gc_stop = Arc::new(AtomicBool::new(false));
+        let gc_thread = {
+            let stop = gc_stop.clone();
+            let mut gc = parts.gc;
+            std::thread::Builder::new()
+                .name("ether-gc-dedicated".into())
+                .spawn(move || {
+                    while !stop.load(Ordering::Relaxed) {
+                        gc.collect();
+                        std::thread::sleep(crate::host::GC_INTERVAL);
+                    }
+                    gc.collect();
+                })
+                .map_err(|e| BridgeError::Other(e.to_string()))?
+        };
+        let mut bridge = NativeBridge::new(
+            parts.handle,
+            self.prepare,
+            self.plugins.clone(),
+            self.catalog.clone(),
+            self.instantiate.clone(),
+            shared,
+        );
+        bridge.registry_salt = salt;
+        bridge.dedicated_notes = self.dedicated_notes.clone();
+        if let Ok(mut notes) = self.dedicated_notes.lock() {
+            notes.insert(salt, Vec::new());
+        }
+        if let (Some(ext), Some(child)) = (self.ext.as_deref_mut(), bridge.ext.as_deref_mut()) {
+            ext.spawned(child, &self.plugins, salt);
+        }
+        self.spawned_engines = true;
+        Ok(crate::dedicated::DedicatedEngine::new(
+            bridge,
+            crate::dedicated::Runner::new(output, gc_stop, gc_thread),
+        ))
+    }
+
     /// The plugin registry id of `device`: itself for the main engine; for a dedicated one an
     /// id of its own, so its instance never retires the host's instance of the same device.
     fn reg(&self, device: DeviceId) -> DeviceId {
         if self.registry_salt == 0 {
             return device;
         }
-        let low = device.0.0 & ((1u128 << 96) - 1);
-        DeviceId(ether_core::protocol::model::Ulid(
-            DEDICATED_DEVICE_PREFIX << 112 | u128::from(self.registry_salt) << 96 | low,
-        ))
+        dedicated_device_id(self.registry_salt, device)
+    }
+
+    /// The registry salt of this bridge: 0 for the main engine, else a dedicated engine's.
+    pub fn registry_salt(&self) -> u16 {
+        self.registry_salt
+    }
+
+    /// A dedicated engine's notifications, filed by the main bridge, with document ids.
+    fn take_dedicated_notes(&mut self, out: &mut Vec<(DeviceId, PluginNotification)>) {
+        let notes = match self.dedicated_notes.lock() {
+            Ok(mut m) => m
+                .get_mut(&self.registry_salt)
+                .map(std::mem::take)
+                .unwrap_or_default(),
+            Err(_) => return,
+        };
+        if notes.is_empty() {
+            return;
+        }
+        let devices: HashMap<DeviceId, DeviceId> = self
+            .devices
+            .iter()
+            .filter(|(_, e)| matches!(e.kind, DeviceKind::Plugin(_)))
+            .map(|(d, _)| (self.reg(*d), *d))
+            .collect();
+        out.extend(
+            notes
+                .into_iter()
+                .filter_map(|(reg, n)| Some((*devices.get(&reg)?, n))),
+        );
     }
 
     pub fn sample_rate(&self) -> u32 {
@@ -301,6 +475,20 @@ const DEDICATED_DEVICE_PREFIX: u128 = 0xD3D1;
 /// A registry id minted for a dedicated engine's plugin ([`NativeBridge::reg`]).
 fn is_dedicated_id(device: DeviceId) -> bool {
     device.0.0 >> 112 == DEDICATED_DEVICE_PREFIX
+}
+
+/// The registry id of `device`'s instance on the dedicated engine of `salt`.
+pub fn dedicated_device_id(salt: u16, device: DeviceId) -> DeviceId {
+    let low = device.0.0 & ((1u128 << 96) - 1);
+    DeviceId(ether_core::protocol::model::Ulid(
+        DEDICATED_DEVICE_PREFIX << 112 | u128::from(salt) << 96 | low,
+    ))
+}
+
+/// A registry id of the main engine's own plugin instances (never an export's or a
+/// dedicated engine's).
+pub fn is_main_instance_id(device: DeviceId) -> bool {
+    !is_dedicated_id(device) && !is_offline_id(device)
 }
 
 /// An offline plugin instance (export): the hosted node plus the registry entry it owns,
@@ -670,6 +858,9 @@ impl EngineBridge for NativeBridge {
     }
 
     fn publish(&mut self, graph: RenderGraphDesc) -> Result<(), BridgeError> {
+        if let Some(ext) = self.ext.as_deref_mut() {
+            ext.observe_graph(&graph);
+        }
         self.route_hw_midi(&graph);
         if self.disk.as_ref().is_some_and(|d| !d.is_empty()) {
             self.stream_graph = Some(graph.clone());
@@ -685,6 +876,9 @@ impl EngineBridge for NativeBridge {
     }
 
     fn transport(&mut self, control: TransportControl) -> Result<(), BridgeError> {
+        if let Some(ext) = self.ext.as_deref_mut() {
+            ext.observe_transport(&control);
+        }
         // `audio-streaming`: decode the jump target first; keep the loop anchor current.
         match &control {
             TransportControl::Locate { position } => self.prime_streams_at(position.0),
@@ -762,10 +956,10 @@ impl EngineBridge for NativeBridge {
     }
 
     fn poll_plugins(&mut self, out: &mut Vec<(DeviceId, PluginNotification)>) {
-        // The registry has one notification queue: the main engine's bridge drains it (and
-        // drops a dedicated engine's notifications, below); a dedicated engine never polls.
+        // The registry has one notification queue: the main engine's bridge drains it and
+        // files a dedicated engine's notifications for that engine's own poll (below).
         if self.registry_salt != 0 {
-            return;
+            return self.take_dedicated_notes(out);
         }
         if !self.mirrors.is_empty()
             || self.spawned_engines
@@ -779,13 +973,30 @@ impl EngineBridge for NativeBridge {
             self.plugins.poll_nonblocking(out);
             // Offline (export) instances are private to the export, and a dedicated engine's
             // belong to its requester, not to the document: their notifications (state dirty,
-            // GUI edits, latency) must not reach it.
+            // GUI edits, latency) must not reach it here. A dedicated engine's go to its own
+            // poll (its requester commits the edits, docs/PLUGIN_VIEW.md §8).
+            let mut dedicated = Vec::new();
             let mut i = from;
             while i < out.len() {
-                if is_offline_id(out[i].0) || is_dedicated_id(out[i].0) {
+                if is_offline_id(out[i].0) {
                     out.remove(i);
+                } else if is_dedicated_id(out[i].0) {
+                    dedicated.push(out.remove(i));
                 } else {
                     i += 1;
+                }
+            }
+            if !dedicated.is_empty()
+                && let Ok(mut notes) = self.dedicated_notes.lock()
+            {
+                for (reg, n) in dedicated {
+                    let salt = (reg.0.0 >> 96) as u16;
+                    if let Some(q) = notes.get_mut(&salt) {
+                        if q.len() >= MAX_DEDICATED_NOTES {
+                            q.remove(0);
+                        }
+                        q.push((reg, n));
+                    }
                 }
             }
             self.mirrors.observe(&out[from..]);
@@ -812,6 +1023,24 @@ impl EngineBridge for NativeBridge {
                 .map_err(plugin_err)?
                 .map(Base64Bytes)),
             _ => Ok(None),
+        }
+    }
+
+    fn set_plugin_state(
+        &mut self,
+        device: DeviceId,
+        state: &Base64Bytes,
+    ) -> Result<bool, BridgeError> {
+        // A listening site's GUI mirror is re-created from the document instead.
+        if self.mirrors.contains(device) {
+            return Ok(false);
+        }
+        match self.devices.get(&device).map(|d| &d.kind) {
+            Some(DeviceKind::Plugin(_)) => self
+                .plugins
+                .load_state_live(self.reg(device), state.0.clone())
+                .map_err(plugin_err),
+            _ => Ok(false),
         }
     }
 
@@ -998,6 +1227,12 @@ impl Drop for NativeBridge {
         // engine's are the host's to release at shutdown.
         if self.registry_salt == 0 {
             return;
+        }
+        // The extension first (what it opened stops with it), then the instances, whose open
+        // editors close with them (`PluginHost::destroy`).
+        self.ext = None;
+        if let Ok(mut notes) = self.dedicated_notes.lock() {
+            notes.remove(&self.registry_salt);
         }
         let plugins: Vec<DeviceId> = self
             .devices
@@ -1326,37 +1561,7 @@ mod tests {
     }
 
     fn bridge_with(instantiate: Instantiate) -> (NativeBridge, ether_core::Engine) {
-        let ether_core::EngineParts { engine, handle, .. } =
-            ether_core::create(ether_core::EngineConfig {
-                max_block_size: 128,
-                ..Default::default()
-            });
-        let catalog = PluginCatalog::default();
-        catalog.replace(vec![PluginDescriptor {
-            sidechain_inputs: Default::default(),
-            format: PluginFormat::Clap,
-            id: "fake".into(),
-            name: "Fake".into(),
-            vendor: "T".into(),
-            version: "1".into(),
-            description: String::new(),
-            features: vec![],
-            category: ether_core::protocol::devices::DeviceCategory::AudioEffect,
-            path: "/fake.clap".into(),
-        }]);
-        let b = NativeBridge::new(
-            handle,
-            PrepareConfig {
-                sample_rate: 48_000.0,
-                max_block_size: 128,
-                max_events_per_block: 64,
-            },
-            PluginHost::new(Arc::new(DedicatedThread::new())),
-            catalog,
-            instantiate,
-            Arc::new(AudioShared::default()),
-        );
-        (b, engine)
+        crate::test_util::fake_bridge(instantiate)
     }
 
     fn media_ref(id: u128) -> MediaRef {
@@ -1693,6 +1898,199 @@ mod tests {
             Err(BridgeError::Other(m)) => assert!(m.contains("is not installed"), "{m}"),
             other => panic!("{:?}", other.map(|_| ())),
         }
+    }
+
+    /// A dedicated engine's instances report their edits from its own poll, with document
+    /// ids (never from the main engine's); tearing it down closes the editor it opened and
+    /// leaves the host's instance alone.
+    #[test]
+    fn a_dedicated_engines_editor_edits_come_from_its_own_poll() {
+        let (make, probe) = fake::editor_plugins();
+        let (mut b, _engine) = bridge_with(make);
+        let d = DeviceId(Ulid(5));
+        let inst = PluginInstance {
+            format: PluginFormat::Clap,
+            plugin_id: "fake".into(),
+            name: "Fake".into(),
+            vendor: "T".into(),
+            version: "1".into(),
+            sandboxed: false,
+            state: None,
+        };
+        b.create_plugin(d, &inst, None).unwrap(); // editor instance 1
+        let mut e = b.spawn_dedicated().unwrap();
+        e.create_plugin(d, &inst, None).unwrap(); // instance 2
+        let salt = e.bridge().registry_salt();
+        assert_ne!(salt, 0);
+        b.plugins()
+            .open_editor(dedicated_device_id(salt, d))
+            .unwrap();
+        assert_eq!(fake::take_log(&probe), ["2 open"]);
+        assert!(!is_main_instance_id(dedicated_device_id(salt, d)));
+        assert!(is_main_instance_id(d));
+
+        // Edits in its editor: from its own poll, with the document's id.
+        probe.notes.lock().unwrap().extend([
+            PluginNotification::GestureBegin { param: ParamId(1) },
+            PluginNotification::ParamEdited {
+                param: ParamId(1),
+                value: 0.25,
+            },
+        ]);
+        let mut theirs = Vec::new();
+        for _ in 0..200 {
+            let mut main = Vec::new();
+            b.poll_plugins(&mut main);
+            assert!(
+                main.iter().all(|(_, n)| !matches!(
+                    n,
+                    PluginNotification::ParamEdited { .. }
+                        | PluginNotification::GestureBegin { .. }
+                )),
+                "{main:?}"
+            );
+            e.poll_plugins(&mut theirs);
+            if theirs.len() >= 2 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(
+            theirs,
+            [
+                (d, PluginNotification::GestureBegin { param: ParamId(1) }),
+                (
+                    d,
+                    PluginNotification::ParamEdited {
+                        param: ParamId(1),
+                        value: 0.25
+                    }
+                ),
+            ]
+        );
+
+        // Tearing the engine down closes the editor; the host's instance is untouched.
+        let live = b.plugins().live_count();
+        drop(e);
+        for _ in 0..200 {
+            if b.plugins().live_count() < live {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert_eq!(fake::take_log(&probe), ["2 close"]);
+        assert!(b.dedicated_notes.lock().unwrap().is_empty());
+    }
+
+    /// #971: a replicated state (the host's preset) is loaded into a dedicated engine's
+    /// instance in place: same instance, its open editor stays open, the host's own
+    /// instance untouched.
+    #[test]
+    fn a_dedicated_engines_instance_loads_a_state_live_with_its_editor_open() {
+        let (make, probe) = fake::editor_plugins();
+        let (mut b, _engine) = bridge_with(make);
+        let d = DeviceId(Ulid(5));
+        let inst = PluginInstance {
+            format: PluginFormat::Clap,
+            plugin_id: "fake".into(),
+            name: "Fake".into(),
+            vendor: "T".into(),
+            version: "1".into(),
+            sandboxed: false,
+            state: None,
+        };
+        let mine = Base64Bytes(b"host".to_vec());
+        b.create_plugin(d, &inst, Some(&mine)).unwrap(); // instance 1
+        let mut e = b.spawn_dedicated().unwrap();
+        e.create_plugin(d, &inst, None).unwrap(); // instance 2
+        let salt = e.bridge().registry_salt();
+        b.plugins()
+            .open_editor(dedicated_device_id(salt, d))
+            .unwrap();
+        assert_eq!(fake::take_log(&probe), ["2 open"]);
+        let live = b.plugins().live_count();
+
+        let preset = Base64Bytes(b"preset".to_vec());
+        assert_eq!(e.set_plugin_state(d, &preset).ok(), Some(true));
+        assert_eq!(e.plugin_state(d).unwrap(), Some(preset));
+        assert!(fake::take_log(&probe).is_empty(), "the editor stayed open");
+        assert_eq!(b.plugins().live_count(), live, "not re-created");
+        assert_eq!(b.plugin_state(d).unwrap(), Some(mine));
+        // No instance: the caller re-creates from the document.
+        let none = e.set_plugin_state(DeviceId(Ulid(6)), &Base64Bytes(Vec::new()));
+        assert_eq!(none.ok(), Some(false));
+    }
+
+    /// Dedicated remote engines (docs/COLLAB.md §16): a second engine beside the main one,
+    /// with its own plugin instances of the same devices, running headless.
+    #[test]
+    fn a_dedicated_engine_runs_beside_the_main_one() {
+        let (mut b, _engine) = bridge();
+        let d = DeviceId(Ulid(5));
+        let inst = PluginInstance {
+            format: PluginFormat::Clap,
+            plugin_id: "fake".into(),
+            name: "Fake".into(),
+            vendor: "T".into(),
+            version: "1".into(),
+            sandboxed: false,
+            state: None,
+        };
+        let mine = Base64Bytes(b"main".to_vec());
+        let theirs = Base64Bytes(b"remote".to_vec());
+        let main_key = b.create_plugin(d, &inst, Some(&mine)).unwrap();
+        let live = b.plugins().live_count();
+
+        let mut e = b.spawn_dedicated().expect("a second engine starts");
+        // The same device: a second instance with its own state; the main one stays.
+        let k = e.create_plugin(d, &inst, Some(&theirs)).unwrap();
+        assert_eq!(b.plugins().live_count(), live + 1);
+        assert_eq!(b.node_of(d), Some(main_key));
+        assert_eq!(b.plugin_state(d).unwrap(), Some(mine.clone()));
+        assert_eq!(e.plugin_state(d).unwrap(), Some(theirs));
+        // Its notifications never reach the document through the main bridge.
+        let mut notes = Vec::new();
+        b.poll_plugins(&mut notes);
+        assert!(notes.iter().all(|(dev, _)| *dev == d), "{notes:?}");
+        assert_eq!(notes.len(), 1, "only the main instance's: {notes:?}");
+
+        // It renders on its own (paced, no audio device): its playhead moves, the main
+        // engine's (never started here) does not.
+        e.publish(RenderGraphDesc {
+            version: 1,
+            ..Default::default()
+        })
+        .unwrap();
+        e.transport(TransportControl::Play).unwrap();
+        let mut moved = false;
+        for _ in 0..200 {
+            let mut out = EngineOutputs::default();
+            e.poll(&mut out);
+            if out
+                .playhead
+                .is_some_and(|p| p.playing && p.position.0 > 0.0)
+            {
+                moved = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(moved, "the dedicated engine's playhead advanced");
+        let mut main = EngineOutputs::default();
+        b.poll(&mut main);
+        assert!(!main.playhead.is_some_and(|p| p.playing));
+        e.destroy_node(k).unwrap();
+
+        // Dropping it stops the engine and releases its plugins; the main one is untouched.
+        drop(e);
+        for _ in 0..200 {
+            if b.plugins().live_count() == live {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert_eq!(b.plugins().live_count(), live);
+        assert_eq!(b.plugin_state(d).unwrap(), Some(mine));
     }
 
     // ─── external-instrument ───

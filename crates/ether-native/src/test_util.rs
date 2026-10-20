@@ -30,3 +30,47 @@ impl Drop for TempDir {
         let _ = std::fs::remove_dir_all(&self.0);
     }
 }
+
+/// A bridge over a fresh engine (not running) whose plugins are `instantiate`'s, with one
+/// catalog entry: the fake CLAP effect `fake` (feature `test-support`; [`crate::plugins::fake`]).
+#[cfg(any(test, feature = "test-support"))]
+pub fn fake_bridge(
+    instantiate: crate::plugins::Instantiate,
+) -> (crate::bridge::NativeBridge, ether_core::Engine) {
+    use std::sync::Arc;
+
+    use ether_core::protocol::model::PluginFormat;
+    use ether_core::protocol::plugins::PluginDescriptor;
+
+    let ether_core::EngineParts { engine, handle, .. } =
+        ether_core::create(ether_core::EngineConfig {
+            max_block_size: 128,
+            ..Default::default()
+        });
+    let catalog = crate::plugins::PluginCatalog::default();
+    catalog.replace(vec![PluginDescriptor {
+        sidechain_inputs: Default::default(),
+        format: PluginFormat::Clap,
+        id: "fake".into(),
+        name: "Fake".into(),
+        vendor: "T".into(),
+        version: "1".into(),
+        description: String::new(),
+        features: vec![],
+        category: ether_core::protocol::devices::DeviceCategory::AudioEffect,
+        path: "/fake.clap".into(),
+    }]);
+    let b = crate::bridge::NativeBridge::new(
+        handle,
+        ether_core::PrepareConfig {
+            sample_rate: 48_000.0,
+            max_block_size: 128,
+            max_events_per_block: 64,
+        },
+        crate::plugins::PluginHost::new(Arc::new(crate::plugins::DedicatedThread::new())),
+        catalog,
+        instantiate,
+        Arc::new(crate::rt::AudioShared::default()),
+    );
+    (b, engine)
+}

@@ -1227,9 +1227,11 @@ impl PluginCatalog {
     }
 }
 
-#[cfg(test)]
-pub(crate) mod fake {
-    //! A fake plugin controller for tests (no CLAP binary needed).
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub mod fake {
+    //! A fake plugin controller for tests (no CLAP binary needed; feature `test-support`
+    //! for other crates' tests).
     use super::*;
     use ether_core::protocol::devices::{DeviceCategory, DeviceTypeRef};
     use std::sync::atomic::{AtomicU32, Ordering};
