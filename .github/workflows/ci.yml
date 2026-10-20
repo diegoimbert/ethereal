@@ -365,7 +365,7 @@ jobs:
     # (UI + helpers + MCP server staged by build-sandbox-helper.mjs --bundle), the release
     # config overlay (tauri-config.mjs: version, Windows `externalBin`), the bundler, and
     # collect.mjs's checks that the helpers are inside the package. Open-source build only
-    # (the official one adds the private overlay); unsigned. Release builds use LTO and one
+    # (the official one is the full product, built from the private repository); unsigned. Release builds use LTO and one
     # codegen unit; here only the packaging is under test, so both are off to keep it fast.
     name: Package (${{ matrix.name }})
     needs: changes

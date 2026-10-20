@@ -56,7 +56,6 @@ Rules:
 | `sync [--dry-run] [--pr N] [--build]` | The reconcile the private-side bot runs (needs write access to both repos). |
 | `check <pr>` | Dry-run the pointer guard for one OSS PR. |
 | `hooks` | Install a pre-push hook that refuses OSS commits pointing at unpushed EE commits. |
-| `tree <dir>` | A throwaway full-product tree (copy of this checkout, `ee/` included, + the EE Rust overlay) to build locally. The full UI needs no tree: it is `ee/app`, a package over `ui/` through the extension points (docs/EXTENSIONS.md). |
 
 Typical paired feature:
 
@@ -138,7 +137,7 @@ All CI runs in this repository, on GitHub-hosted runners; the private repository
   PR's pointer on its EE branch tip (or EE `main` once that merged), merges `main` into a PR
   whose only conflict is the gitlink, and posts the **`ee/pointer`** status on OSS PRs. Its API
   commits touch nothing but `ee` and are fast-forward only, retried when the branch moved.
-- **Release** (`.github/workflows/release.yml`; docs/RELEASING.md): the same overlay and
+- **Release** (`.github/workflows/release.yml`; docs/RELEASING.md): the same `ee/` fetch and
   encrypted logs; the signing and Cloudflare secrets live in the protected `release`
   environment (`main` only, and the owner's approval).
 - **EE-only changes** (no OSS PR): `feat ship` merges them on the gating checks like any other;

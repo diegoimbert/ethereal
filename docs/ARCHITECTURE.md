@@ -2,7 +2,7 @@
 
 A DAW with a single arrangement view. Rust engine, React/TS UI. This repository holds the core; some features
 (other-DAW import/export, collab and live sharing, the plugin catalog, telemetry/news and
-the self-updater) are added on top from a private overlay (`ethereal-private`).
+the self-updater) are added on top by the private repository (`ethereal-private`), built over this one through its extension points (docs/EXTENSIONS.md).
 The UI runs unchanged in Tauri (desktop) and in a browser; the engine core compiles natively (macOS/Windows/Linux) and to `wasm32`.
 
 ## Locked decisions
@@ -17,7 +17,7 @@ The UI runs unchanged in Tauri (desktop) and in a browser; the engine core compi
 | Storage | **All file handling is engine-side**; the UI may run on another machine and never reads/writes files or sends paths. A `ProjectStore` (native: folders on disk; web: OPFS inside the engine Worker) keeps `<projects_root>/<project-uuid>/{project.ether, media/, cache/}`; imported audio is copied into `media/` (self-contained projects); the display name lives in the file. `projects_root` from engine config: `~/Documents/Ethereal/Projects`, or `<data_dir>/ethereal-dev/<instance>/projects` in dev. The sample browser lists engine-visible locations only (library folders + project media). |
 | Protocol | All UI↔engine traffic is serializable commands/events in `ether-protocol`. TS types generated from Rust (`ts-rs`), never hand-written. |
 | UI | React + TS. `EngineTransport` interface with `TauriTransport`, `WasmTransport`, `MockTransport`. SVG for automation, `<canvas>` per clip for waveforms (peak mipmaps computed in Rust). Visual polish/perf later. |
-| Plugins | CLAP, VST3 and AU (macOS), each behind the format-agnostic `PluginFormatHost` trait (`ether-plugin-host`; see docs/PLUGIN-FORMATS.md). Floating plugin windows (no embedding). Scanner always out-of-process (one target per child, a bounded pool of children, incremental via a per-target scan cache; system + user plugin folders). Plugin state blob is authoritative on load; params are mirrored in the document for UI/automation. VST2 is not in this build (private overlay). |
+| Plugins | CLAP, VST3 and AU (macOS), each behind the format-agnostic `PluginFormatHost` trait (`ether-plugin-host`; see docs/PLUGIN-FORMATS.md). Floating plugin windows (no embedding). Scanner always out-of-process (one target per child, a bounded pool of children, incremental via a per-target scan cache; system + user plugin folders). Plugin state blob is authoritative on load; params are mirrored in the document for UI/automation. VST2 is not in this build (the private repository registers it). |
 | Built-in devices | Sampler, basic-shape synth, compressor, delay. Minimal. |
 | Time-stretch | Signalsmith Stretch behind a `Stretcher` trait: the vendored C++ natively, a pure-Rust port of it on the web (`ether-stretch` `rust-stretch`; cheaper `Web` preset, at most 12 voices in the AudioWorklet). Warp modes: Repitch + Complex (Signalsmith) only. |
 | Automation | Enabled lanes always drive their target; no "manual move overrides automation / re-enable" in v0.1. |
@@ -91,7 +91,7 @@ removes a whole node (a plugin format or a stretcher) or a bridge hook.
 
 The features listed above as absent (other-DAW import/export, collab and live sharing, the
 "explore plugins" catalog, telemetry/news and the self-updater) are **not in this
-repository**: they live in the private overlay (`ethereal-private`), which is applied on top
+repository**: they live in the private repository (`ethereal-private`), which builds on top
 of this tree.
 
 Leaf crates (`ether-collab`, `ether-stretch`) enable their feature by default, so

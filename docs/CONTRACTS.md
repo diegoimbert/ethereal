@@ -340,7 +340,7 @@ v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with sl
 - **Plugin formats.** `PluginFormat { Clap, Vst3, Au, Vst2 }` (serde tags
   `"Clap"`/`"Vst3"`/`"Au"`/`"Vst2"`, stable, additive; CLI names `clap`/`vst3`/`au`/`vst2`).
   `Vst2` is a gap in the open-source build: the tag stays for `.ether` compatibility, but the
-  host (`ether-vst2`) is in the private overlay, so this build does not register it. Each
+  host (`ether-vst2`) is in the private repository, so this build does not register it. Each
   hosted format implements
   `ether_plugin_host::PluginFormatHost` (`scan` in the scanner process only, `instantiate`
   on the plugin main thread) in its own crate (`ether-clap`, `ether-vst3`, `ether-au`); the

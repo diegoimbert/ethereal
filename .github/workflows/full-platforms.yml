@@ -25,7 +25,7 @@ on:
         description: OSS ref to build (e.g. refs/pull/N/head after reading the diff)
         default: main
       ee_ref:
-        description: Private ref to overlay (empty = the ref's ee pointer, else EE main)
+        description: Private ref to build (empty = the ref's ee pointer, else EE main)
         default: ""
 
 permissions:
@@ -82,7 +82,7 @@ jobs:
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-nextest@0.9.148
-      - uses: ./.github/actions/ee-overlay
+      - uses: ./.github/actions/ee-fetch
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
@@ -118,7 +118,7 @@ jobs:
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-nextest@0.9.148
-      - uses: ./.github/actions/ee-overlay
+      - uses: ./.github/actions/ee-fetch
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}

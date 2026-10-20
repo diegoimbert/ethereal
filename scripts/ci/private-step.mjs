@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Runs one step of the full-product CI (this repo + the private `ee/` overlay) without leaking
+// Runs one step of the full-product CI (this repo + the private `ee/` repository) without leaking
 // private code into the public Actions log: the command's output goes to a log file only
 // (uploaded age-encrypted by .github/actions/full-logs), and the log shows a summary: the step's
 // result and duration, and the names of what failed (tests, crates, specs, files).

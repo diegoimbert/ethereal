@@ -22,7 +22,6 @@
 //   just feat sync [--dry-run] [--ci] [--pr N]      the reconcile the EE-side bot runs
 //   just feat check <oss-pr>                        dry-run the pointer guard for one OSS PR
 //   just feat hooks                                 install the pre-push pointer guard
-//   just feat tree <dir>                            full-product throwaway tree (ee/overlay.mjs)
 //
 // Invariants (docs/EE-WORKFLOW.md): OSS branch x pairs with EE branch x; an OSS PR either
 // leaves the `ee` gitlink untouched or points it at the tip of EE x; OSS main points at EE
@@ -1418,14 +1417,6 @@ function cmdPrePush(args) {
   }
 }
 
-function cmdTree(args) {
-  const dir = args[0] ?? die("usage: feat tree <dir>");
-  if (!existsSync(join(EE_DIR, "overlay.mjs"))) die("ee/ is not initialised (`just feat ee`)");
-  eeSubmodules();
-  run(process.execPath, [join(EE_DIR, "overlay.mjs"), "--make", resolve(dir), "--from", ROOT], { cwd: ROOT });
-  log(`full-product tree in ${resolve(dir)} (throwaway; delete it when done)`);
-}
-
 const commands = {
   start: cmdStart,
   ee: cmdEe,
@@ -1438,7 +1429,6 @@ const commands = {
   check: cmdCheck,
   hooks: cmdHooks,
   "pre-push": cmdPrePush,
-  tree: cmdTree,
 };
 
 const [name, ...rest] = process.argv.slice(2);
