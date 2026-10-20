@@ -67,6 +67,10 @@ sends some messages itself (undo labels, notices, errors): a build that sets
 `ETHER_EXTRA_LOCALES` to a directory of `<code>.json` catalogs merges them into the engine's
 (`crates/ether-controller/build.rs`).
 
+Docs pages: `extendDocs(ext)` adds pages to the in-app docs (`ui/src/features/docs/extensions.ts`);
+`extendDocsLazily(() => import(...))` adds them from a chunk loaded only when the docs first show,
+so their Markdown (every language's) isn't in memory before.
+
 ## Desktop (`apps/desktop/src-tauri`)
 
 The macOS Help menu shows only items the app handles. An extension adds its groups with
@@ -90,6 +94,10 @@ the protocol keeps it as JSON in the `Ext` variant (`Command::Ext`, `Event::Ext`
 `ReplyValue::Ext`), and the extension reads it with its own types (`ExtCommand::parse`,
 `ExtValue::parse`). Without an extension the engine replies `Unsupported`. The generated
 TypeScript types leave `Ext` out: an extension generates its own and joins them to the app's.
+
+`parse::<T>` is generic: every crate that calls it for `T` compiles its own copy of `T`'s
+deserializers into the engine (the wasm engine loads them all). Parse each of the extension's
+types in one function of its protocol crate, and call that one everywhere else.
 
 In the controller (`crates/ether-controller`):
 

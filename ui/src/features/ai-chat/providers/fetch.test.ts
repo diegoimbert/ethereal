@@ -2,7 +2,7 @@
 // web through the browser's fetch.
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock, type MockInstance } from "vitest";
 import { createSession, ProviderError, testConnection, toolDefs, type LoopEvent } from ".";
-import { clientFactory } from "./anthropic";
+import { clientFactory, loadAnthropicSdk } from "./anthropic";
 import { desktopHttp, resetDesktopFetch } from "./fetch";
 import { OpenAiSession } from "./openai";
 
@@ -65,6 +65,7 @@ describe("provider fetch", () => {
   it("desktop: the Anthropic SDK uses the Tauri fetch too", async () => {
     setTauri(true);
     tauriFetch.mockImplementation(async () => Response.json({ type: "model", id: "claude-sonnet-5-5", display_name: "Claude Sonnet 5.5" }));
+    await loadAnthropicSdk();
     const client = clientFactory.create(KEY);
     await expect(client.models.retrieve("claude-sonnet-5-5")).resolves.toMatchObject({ id: "claude-sonnet-5-5" });
     expect(browserFetch).not.toHaveBeenCalled();

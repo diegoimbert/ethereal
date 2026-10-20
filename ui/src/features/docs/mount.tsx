@@ -7,6 +7,7 @@ import "@/kit/kit.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { DocsApp } from "./DocsApp";
+import { loadDocsExtensions } from "./extensions";
 import { useUrlRouter } from "./router";
 import { initI18n, t } from "@/i18n";
 import { setTabTitle, tabTitle } from "@/features/document-title/title";
@@ -33,6 +34,8 @@ export async function mountDocsPage(root: HTMLElement): Promise<void> {
   applyTheme();
   // The app's language (Settings > general), else the system's.
   await initI18n();
+  // The pages a build adds lazily (`extendDocsLazily`).
+  await loadDocsExtensions();
   setTabTitle(tabTitle(t("docs.tab_title")));
   createRoot(root).render(
     <StrictMode>
