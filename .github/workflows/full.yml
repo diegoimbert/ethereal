@@ -243,10 +243,14 @@ jobs:
         if: steps.wb.outputs.have != 'true'
         with:
           tool: wasm-bindgen@${{ steps.wb.outputs.version }}
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
+      # For the shards' plan below (Playwright lists the tests).
+      - name: install
+        run: node scripts/ci/private-step.mjs install -- "pnpm install --frozen-lockfile && pnpm --dir ee install --frozen-lockfile && node ee/app/link.mjs"
       - name: build
         run: |
           echo "t0=$(( $(date +%s) - 2 ))" >> "$GITHUB_ENV"
@@ -257,6 +261,14 @@ jobs:
             wait \$wasm; w=\$?; echo \"e2e build: native \$native, wasm \$w\"; [ \$native = 0 ] && [ \$w = 0 ]"
       - id: share
         run: node scripts/ci/e2e-shared-target.mjs publish "$t0"
+      # The shards by time (scripts/ci/e2e-shard-plan.mjs): from the last runs' times on this
+      # machine; the same list as the shards' (ETHEREAL_TOURS, --grep-invert).
+      - name: plan the shards
+        if: steps.share.outputs.dir != ''
+        env:
+          ETHEREAL_TOURS: "1"
+          DIR: ${{ steps.share.outputs.dir }}
+        run: node scripts/ci/e2e-shard-plan.mjs plan 4 "$(dirname "$CI_POOL_TARGETS")/cache/e2e-times/full" "$DIR/e2e-plan" ee/app/web -- --grep-invert '@frames|@pixels'
       - uses: ./.github/actions/full-logs
         if: always()
         with:
@@ -333,7 +345,13 @@ jobs:
         run: >-
           node scripts/ci/e2e-shared-target.mjs run "$SHARED_TARGET" --
           node scripts/ci/private-step.mjs e2e -- "cd ee/app && npm run test:e2e --
-          --workers=2 --shard=$SHARD/4 --grep-invert '@frames|@pixels' --retries=1 --reporter=list"
+          --workers=2 \$(node ../../scripts/ci/e2e-shard-plan.mjs select $SHARD 4) --grep-invert '@frames|@pixels' --retries=1 --reporter=list"
+      - name: Record the shard's times (self-hosted)
+        if: ${{ !cancelled() && runner.environment != 'github-hosted' }}
+        continue-on-error: true
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: node scripts/ci/e2e-shard-plan.mjs record "$RUNNER_TEMP/full-logs/e2e.log" "$(dirname "$CI_POOL_TARGETS")/cache/e2e-times/full/$SHARD.json"
       - uses: ./.github/actions/full-logs
         if: always()
         with:
