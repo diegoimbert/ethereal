@@ -5,7 +5,7 @@
  *   `ParamInfo` (`ether_controller::compile::track_param_info`: volume and send level =
  *   Fader over -144..+6 dB, pan = linear -1..1). Also checked by
  *   `crates/ether-protocol/tests/param_scale_vectors.rs` and
- *   `crates/ether-controller/tests/contract_vectors.rs`.
+ *   `crates/ether-controller/tests/it/contract_vectors.rs`.
  * - Tempo vectors are checked in `ui/src/timeline/tempoVectors.test.ts`.
  */
 import { readFileSync } from "node:fs";

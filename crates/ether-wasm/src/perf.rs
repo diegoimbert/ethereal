@@ -18,7 +18,7 @@ use crate::worklet::{EngineHost, RENDER_QUANTUM, web_engine_config};
 
 /// Test fixtures (the large project: 64 tracks, 500 clips, automation). Shared with the
 /// codec tests in `ether-core`.
-#[path = "../../ether-core/tests/codec_fixture.rs"]
+#[path = "../../ether-core/tests/it/codec_fixture.rs"]
 pub mod fixture;
 
 /// Fastest-of-N timings in milliseconds.
