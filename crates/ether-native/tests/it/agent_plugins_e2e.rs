@@ -5,7 +5,7 @@
 //! rendered audio (the fixture's output = input × Gain).
 #![cfg(any(target_os = "macos", target_os = "linux"))]
 
-mod common;
+use crate::common;
 
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};

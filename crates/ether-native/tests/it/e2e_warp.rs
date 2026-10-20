@@ -6,7 +6,7 @@
 //! (one gesture, one undo) → Complex + transpose → play: signal on the track meter →
 //! locate mid-clip: signal again → save → reopen: markers identical.
 
-mod common;
+use crate::common;
 
 use common::{Client, Paths, sine, wav};
 use serde_json::{Value, json};

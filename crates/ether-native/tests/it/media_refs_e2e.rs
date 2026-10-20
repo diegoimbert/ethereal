@@ -3,7 +3,7 @@
 //! file moved while the app was closed is reported missing when the project opens; a
 //! folder search finds and relinks it; "collect all" copies it into the project folder.
 
-mod common;
+use crate::common;
 
 use common::{Client, Paths, sine, wav};
 use ether_core::protocol::message::Event;

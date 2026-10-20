@@ -4,7 +4,7 @@
 //! track. After stop the take is one undoable clip whose click sits exactly where the
 //! original plays on the timeline (latency compensation).
 
-mod common;
+use crate::common;
 
 use common::{Client, Paths, wav};
 use ether_core::protocol::message::Event;

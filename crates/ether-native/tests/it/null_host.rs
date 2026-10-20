@@ -3,7 +3,7 @@
 //! (~60 Hz) and meter (~30 Hz) streams, replies and host-handled commands reach the
 //! subscriber.
 
-mod common;
+use crate::common;
 
 use std::time::Duration;
 

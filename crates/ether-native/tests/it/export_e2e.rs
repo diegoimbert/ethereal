@@ -1,7 +1,7 @@
 //! Native export end to end: the real host (null audio, real controller, disk store)
 //! renders a mix and stems while "playing", and writes them under `<project>/exports/`.
 
-mod common;
+use crate::common;
 
 use common::Client;
 use common::Paths;

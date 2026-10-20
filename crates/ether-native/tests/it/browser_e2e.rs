@@ -4,7 +4,7 @@
 //! in-place reference; a synced preview starts; and user folders,
 //! favourites and tags survive a restart.
 
-mod common;
+use crate::common;
 
 use common::{Client, Paths, sine, wav};
 use ether_core::protocol::Event;

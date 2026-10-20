@@ -8,7 +8,7 @@
 //!
 //! No sleeps: every step waits on a reply or an event.
 
-mod common;
+use crate::common;
 
 use common::{Client, Paths, sine, wav};
 use ether_core::protocol::message::Event;
