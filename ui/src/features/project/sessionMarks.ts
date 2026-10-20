@@ -1,6 +1,6 @@
 // Recents "Local copy" badge (base-114): the backup the engine keeps when a collaboration
 // session replaced a differing stored copy (`collab_backup`: the name gets a " (local copy)"
-// suffix). Sharing marks ("Shared", "From …") come from the engine (`ProjectSummary.share`,
+// suffix). Sharing marks ("Shared", "From …") come from the engine (`ProjectSummary.ext`,
 // read from `share.json`; recents-shared), not from this device.
 
 /** Suffix the engine gives the backup it keeps of a local version (collab/mod.rs). */

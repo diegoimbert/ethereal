@@ -1669,7 +1669,7 @@ mod tests {
     }
 
     /// base-115 (`recents-shared`): `duplicate` (SaveAs) makes a private project, never
-    /// copying `share.json`. Reading it into `ProjectSummary.share` is part of the private
+    /// copying `share.json`. Reading it into `ProjectSummary.ext` is part of the private
     /// sharing overlay, so the list never carries share info in this build.
     #[test]
     fn duplicate_never_copies_the_share_file() {

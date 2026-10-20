@@ -103,8 +103,8 @@ pub fn wire_changes(
     }
 }
 
-pub fn event(out: &mut dyn MessageSink, e: Event) {
-    out.send(ServerMessage::Event(e));
+pub fn event(out: &mut dyn MessageSink, e: impl Into<Event>) {
+    out.send(ServerMessage::Event(e.into()));
 }
 
 /// A toast. `message` is a catalog message (`TextKey`, shown in the user's language) or, for
