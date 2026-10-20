@@ -3,7 +3,7 @@
 //! math against the file.
 //!
 //! Regenerate after an intentional semantic change:
-//! `ETHER_UPDATE_TEMPO_VECTORS=1 cargo test -p ether-model --test tempo_vectors`
+//! `ETHER_UPDATE_TEMPO_VECTORS=1 cargo test -p ether-model --test it tempo_vectors::`
 
 use std::path::PathBuf;
 
@@ -183,7 +183,7 @@ fn generate() -> Value {
         .collect();
     json!({
         "description": "Shared tempo-map test vectors, generated from ether_model::TempoMap by \
-            crates/ether-model/tests/tempo_vectors.rs (do not edit by hand). Seconds are measured \
+            crates/ether-model/tests/it/tempo_vectors.rs (do not edit by hand). Seconds are measured \
             from beat 0. Step = constant until the next point; Linear = BPM ramps linearly over \
             beats to the next point's BPM (only when the segment is longer than 1e-6 beats); the \
             first tempo holds before the first point and the last one after it. bar_beat: bar 1 \
@@ -233,7 +233,7 @@ fn tempo_vectors_file_is_up_to_date() {
     assert!(
         approx_eq(&generated, &on_disk),
         "tests/tempo_vectors.json is stale: run \
-         ETHER_UPDATE_TEMPO_VECTORS=1 cargo test -p ether-model --test tempo_vectors"
+         ETHER_UPDATE_TEMPO_VECTORS=1 cargo test -p ether-model --test it tempo_vectors::"
     );
 }
 
@@ -377,7 +377,7 @@ fn legacy_bar_beat(sigs: &[(f64, u8, u8)], b: f64) -> (i32, u32, f64) {
 #[test]
 fn old_projects_keep_their_numbering() {
     // A saved project (full fixture: 4/4, then 7/8 at bar 5) loads unchanged.
-    let p = file::load(include_str!("fixtures/v1_full.ether")).expect("fixture loads");
+    let p = file::load(include_str!("../fixtures/v1_full.ether")).expect("fixture loads");
     let map = p.tempo_map();
     let sigs: Vec<(f64, u8, u8)> = map
         .signatures

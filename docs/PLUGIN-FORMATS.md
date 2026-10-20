@@ -65,7 +65,7 @@ Documented on `ether_model::PluginFormat`. `.ether` tags are `"Clap"`, `"Vst3"`,
 | VST2 (model only) | `AEffect::uniqueID` as 8 uppercase hex digits of its 32-bit value (a shell sub-plugin has its own). The tag is kept so a project that references one still parses; the host is not in this build | — |
 | AU | `type:subtype:manufacturer` four-char codes, e.g. `aufx:dely:appl`. Printable ASCII is kept verbatim; other bytes, `:` and `\` become `\xHH`. Use `ether_au::AuComponentId` | the id itself (AUs load from the component registry) |
 
-**Decision: `PluginInstance` has no location field.** Documents store `(format, plugin_id)` only. The host resolves the bundle from its scanned catalog (`PluginCatalog`), so a project opens on any machine that has the plugin installed. Because nothing in the `.ether` format changed, no migration was needed. `crates/ether-model/tests/plugin_formats.rs` has a fixture test showing that a pre-VST3 file still loads, and that every format round-trips.
+**Decision: `PluginInstance` has no location field.** Documents store `(format, plugin_id)` only. The host resolves the bundle from its scanned catalog (`PluginCatalog`), so a project opens on any machine that has the plugin installed. Because nothing in the `.ether` format changed, no migration was needed. `crates/ether-model/tests/it/plugin_formats.rs` has a fixture test showing that a pre-VST3 file still loads, and that every format round-trips.
 
 `DeviceSpec::Plugin` gained an optional `format`. When it is omitted, the format is CLAP.
 

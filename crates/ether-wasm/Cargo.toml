@@ -45,6 +45,3 @@ warp-complex = ["dep:ether-stretch", "ether-stretch/rust-stretch"]
 # `just bench-wasm` (ETHER_WASM_FEATURES=full,bench).
 bench = []
 
-[[test]]
-name = "web_perf"
-required-features = ["bench"]

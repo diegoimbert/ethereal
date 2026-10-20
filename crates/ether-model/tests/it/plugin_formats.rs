@@ -3,12 +3,12 @@
 //!
 //! `fixtures/v1_clap_plugin.ether` is a format-1 document with one CLAP plugin. Regenerate it
 //! (only if format 1 itself changes, which it must not after release) with
-//! `ETHER_BLESS=1 cargo test -p ether-model --test plugin_formats`.
+//! `ETHER_BLESS=1 cargo test -p ether-model --test it plugin_formats::`.
 
 use ether_model::*;
 use serde_json::Value;
 
-const CLAP: &str = include_str!("fixtures/v1_clap_plugin.ether");
+const CLAP: &str = include_str!("../fixtures/v1_clap_plugin.ether");
 
 fn plugin(format: PluginFormat, plugin_id: &str) -> PluginInstance {
     PluginInstance {

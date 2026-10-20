@@ -7207,6 +7207,6 @@
       ]
     }
   ],
-  "description": "Shared tempo-map test vectors, generated from ether_model::TempoMap by crates/ether-model/tests/tempo_vectors.rs (do not edit by hand). Seconds are measured from beat 0. Step = constant until the next point; Linear = BPM ramps linearly over beats to the next point's BPM (only when the segment is longer than 1e-6 beats); the first tempo holds before the first point and the last one after it. bar_beat: bar 1 beat 1 = beat 0, beats in denominator units, a partial bar before an off-bar signature change counts as one bar.",
+  "description": "Shared tempo-map test vectors, generated from ether_model::TempoMap by crates/ether-model/tests/it/tempo_vectors.rs (do not edit by hand). Seconds are measured from beat 0. Step = constant until the next point; Linear = BPM ramps linearly over beats to the next point's BPM (only when the segment is longer than 1e-6 beats); the first tempo holds before the first point and the last one after it. bar_beat: bar 1 beat 1 = beat 0, beats in denominator units, a partial bar before an off-bar signature change counts as one bar.",
   "tolerance": 1e-9
 }
