@@ -2,7 +2,7 @@
 //! sequential processing on randomized projects and on a project of real built-in devices,
 //! across worker counts 0/1/2/4/8 and block sizes; more threads than cores never deadlock.
 
-mod multicore_real;
+use crate::multicore_real;
 
 use std::time::{Duration, Instant};
 

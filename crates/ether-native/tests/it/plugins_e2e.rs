@@ -13,7 +13,7 @@
 //! assertions account for that explicitly.
 #![cfg(any(target_os = "macos", target_os = "linux"))]
 
-mod common;
+use crate::common;
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};

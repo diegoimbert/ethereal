@@ -7,6 +7,7 @@
 //! every allocation process-wide while a block renders. This file holds a single test so
 //! no other test thread allocates meanwhile.
 
+#[path = "it/multicore_real.rs"]
 mod multicore_real;
 
 use std::alloc::{GlobalAlloc, Layout};

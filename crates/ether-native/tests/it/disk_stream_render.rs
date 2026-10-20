@@ -8,7 +8,7 @@
 //! a resampled (44.1 kHz) file matches within resampler rounding. Every block renders under
 //! `assert_no_alloc` (the streaming `AudioSource::read` included).
 
-mod common;
+use crate::common;
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -26,10 +26,6 @@ use ether_native::store::DiskStore;
 use ether_native::test_util::TempDir;
 use ether_native::{DedicatedThread, LibraryRoot, NativeBridge, NativeServices};
 use serde_json::{Value, json};
-
-#[cfg(debug_assertions)]
-#[global_allocator]
-static ALLOC: assert_no_alloc::AllocDisabler = assert_no_alloc::AllocDisabler;
 
 const SR: u32 = 48_000;
 const BLOCK: usize = 256;

@@ -6,7 +6,7 @@
 //! per worker count. Prints the time spent in `Engine::process` and the speedup over the
 //! sequential engine, and checks every run is bit-identical to the sequential one.
 
-mod multicore_real;
+use crate::multicore_real;
 
 use ether_core::parallel::SequentialExecutor;
 use ether_native::rt::enable_flush_denormals;
