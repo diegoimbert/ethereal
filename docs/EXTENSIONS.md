@@ -191,6 +191,12 @@ it), with a `#[wasm_bindgen(start)]` function that sets them, and exports of its
 `--workspace <its workspace>` when it lives in another one); the output keeps the
 app's name (`ether_wasm.js`), so the UI loads it the same way.
 
+A module whose controller always comes from its factory depends on `ether-wasm` with
+`default-features = false`: without the `app-controller` feature, the app's own controller
+(`WebController`, and `set_controller_setup`) is not compiled in, so the module holds one
+controller's code instead of two (each is ~2 MB of wasm; creating a controller with no factory
+set then fails).
+
 ## The engine server (`crates/ether-server`)
 
 The `ether-server` process is `ether_server::app::main(hooks)`: its binary passes the default
