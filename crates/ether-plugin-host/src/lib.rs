@@ -125,6 +125,18 @@ pub struct Formats {
     hosts: Vec<Arc<dyn PluginFormatHost>>,
 }
 
+/// The plugin formats an extension adds to the app's (docs/EXTENSIONS.md).
+pub type ExtraFormats = fn() -> Vec<Arc<dyn PluginFormatHost>>;
+
+static EXTRA_FORMATS: std::sync::OnceLock<ExtraFormats> = std::sync::OnceLock::new();
+
+/// Extension point: plugin formats of an extension, hosted after the app's by every
+/// [`Formats::with_extras`] registry of this process (the native host, the scanner, the
+/// sandbox helper). Set once, at start, before the first registry is made.
+pub fn set_extra_formats(extra: ExtraFormats) {
+    let _ = EXTRA_FORMATS.set(extra);
+}
+
 impl std::fmt::Debug for Formats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_list()
@@ -137,6 +149,14 @@ impl Formats {
     /// A registry of `hosts`. If two hosts claim the same format the first one wins.
     pub fn new(hosts: Vec<Arc<dyn PluginFormatHost>>) -> Self {
         Self { hosts }
+    }
+
+    /// `hosts`, then the formats an extension adds ([`set_extra_formats`]).
+    pub fn with_extras(mut hosts: Vec<Arc<dyn PluginFormatHost>>) -> Self {
+        if let Some(extra) = EXTRA_FORMATS.get() {
+            hosts.extend(extra());
+        }
+        Self::new(hosts)
     }
 
     /// Registered formats, in registration order.
@@ -352,6 +372,29 @@ mod tests {
                 registry: vec![PathBuf::from("aufx:dely:appl")],
             }),
         ])
+    }
+
+    /// An extension's formats come after the app's (`set_extra_formats`).
+    #[test]
+    fn extra_formats_follow_the_apps() {
+        set_extra_formats(|| {
+            vec![Arc::new(Fake {
+                format: PluginFormat::Vst2,
+                ext: "vst",
+                registry: Vec::new(),
+            })]
+        });
+        let app: Vec<Arc<dyn PluginFormatHost>> = vec![Arc::new(Fake {
+            format: PluginFormat::Clap,
+            ext: "clap",
+            registry: Vec::new(),
+        })];
+        let formats = Formats::with_extras(app);
+        assert_eq!(formats.formats(), [PluginFormat::Clap, PluginFormat::Vst2]);
+        assert_eq!(
+            formats.infer(Path::new("/p/a.vst")),
+            Some(PluginFormat::Vst2)
+        );
     }
 
     #[test]

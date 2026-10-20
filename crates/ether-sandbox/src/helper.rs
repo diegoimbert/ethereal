@@ -60,9 +60,10 @@ impl Active {
     }
 }
 
-/// Every plugin format the helper can host.
+/// Every plugin format the helper can host (an extension's too:
+/// `ether_plugin_host::set_extra_formats`, set by the helper binary that hosts them).
 pub fn formats() -> ether_plugin_host::Formats {
-    ether_plugin_host::Formats::new(vec![
+    ether_plugin_host::Formats::with_extras(vec![
         Arc::new(ether_clap::ClapFormat),
         Arc::new(ether_vst3::Vst3Format),
         Arc::new(ether_au::AuFormat),

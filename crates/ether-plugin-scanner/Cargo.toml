@@ -1,6 +1,6 @@
 [package]
 name = "ether-plugin-scanner"
-description = "Out-of-process plugin scanner binary (CLAP, VST3, AU)."
+description = "Out-of-process plugin scanner (CLAP, VST3, AU, and an extension's formats): the binary and its library."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
