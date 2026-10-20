@@ -2,7 +2,7 @@
 //! built-in ships a layout, and the MockTransport's v0.1 descriptors are generated from the
 //! Rust ones (`ui/src/transport/mock/devices/v01Layouts.json`), so the shared renderer shows
 //! the same panels on the mock and on the real engine. Regenerate with
-//! `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test device_ui_layouts`.
+//! `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test it device_ui_layouts::`.
 
 use std::collections::BTreeMap;
 
@@ -51,7 +51,7 @@ fn v01_mock_descriptors_match_rust() {
     assert_eq!(
         found,
         expected,
-        "{} is stale: run `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test device_ui_layouts`",
+        "{} is stale: run `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test it device_ui_layouts::`",
         path.display()
     );
 }

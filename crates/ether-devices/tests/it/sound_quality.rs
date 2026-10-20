@@ -1,7 +1,7 @@
 //! Sound quality of the built-in devices: objective, render-based measurements.
 //!
 //! `audit` (ignored; run it in release:
-//! `cargo test --release -p ether-devices --test sound_quality -- --ignored --nocapture`)
+//! `cargo test --release -p ether-devices --test it sound_quality:: -- --ignored --nocapture`)
 //! prints a markdown table of every instrument and audio effect: levels and DC at the
 //! defaults, oscillator aliasing, envelope and voice-steal clicks, zipper noise on every
 //! continuous param, filter resonance, compressor / limiter accuracy, saturation aliasing,

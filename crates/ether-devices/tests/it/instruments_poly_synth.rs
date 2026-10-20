@@ -2,7 +2,7 @@
 //! blend), drift, the legacy unison params of old documents, and that patches written before
 //! this pass render as they did (fingerprints recorded on the engine before the change).
 //!
-//! `cargo test -p ether-devices --test instruments_poly_synth -- --nocapture` also prints the
+//! `cargo test -p ether-devices --test it instruments_poly_synth:: -- --nocapture` also prints the
 //! CPU cost of 16 voices × 16 unison.
 
 use assert_no_alloc::assert_no_alloc;

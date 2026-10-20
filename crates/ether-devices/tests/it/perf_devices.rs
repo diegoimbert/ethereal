@@ -1,7 +1,7 @@
 //! Built-in effect harness. Ignored by default; run in release:
 //!
 //! ```text
-//! cargo test --release -p ether-devices --test perf_devices -- --ignored --nocapture
+//! cargo test --release -p ether-devices --test it perf_devices:: -- --ignored --nocapture
 //! ```
 //!
 //! - `effect_costs`: ns per stereo sample of every built-in effect on a busy signal, with

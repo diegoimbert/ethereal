@@ -6,7 +6,7 @@
 //! audit comes from a release run with more sizes:
 //!
 //! ```text
-//! ETHER_PERF_NOTES=16,64,256 cargo test --release -p ether-controller --test compile_perf -- --nocapture
+//! ETHER_PERF_NOTES=16,64,256 cargo test --release -p ether-controller --test it compile_perf:: -- --nocapture
 //! ```
 //!
 //! (`ETHER_PERF_NOTES` = notes per clip; 32 tracks × 32 clips, so 16 → 16k notes, 64 → 65k,

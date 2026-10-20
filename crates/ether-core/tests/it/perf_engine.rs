@@ -3,7 +3,7 @@
 //! song. Ignored by default; run in release:
 //!
 //! ```text
-//! cargo test --release -p ether-core --test perf_engine -- --ignored --nocapture
+//! cargo test --release -p ether-core --test it perf_engine:: -- --ignored --nocapture
 //! ```
 //!
 //! The non-ignored test checks the property the audit's fix relies on: rendering late

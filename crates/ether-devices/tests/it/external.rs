@@ -181,7 +181,7 @@ fn reset_clears_the_dry_line() {
     assert!(out[0].iter().all(|s| *s == 0.0));
 }
 
-/// CPU cost (`cargo test -p ether-devices --test external -- --ignored --nocapture`):
+/// CPU cost (`cargo test -p ether-devices --test it external:: -- --ignored --nocapture`):
 /// the effect with a 500 ms dry line, Mix 50 %, 128-sample blocks.
 #[test]
 #[ignore]

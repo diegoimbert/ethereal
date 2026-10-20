@@ -3,7 +3,7 @@
 //! The engine keeps them in English (agents, MCP, logs); the UI shows each one through its
 //! catalog (`engine.*` keys, `ui/src/i18n/engineText.ts`), in lowercase English or the user's
 //! language. This test keeps the list the UI reads, `ui/src/i18n/engine-text.json`, in sync:
-//! run `UPDATE_ENGINE_TEXT=1 cargo test -p ether-devices --test engine_text`, then
+//! run `UPDATE_ENGINE_TEXT=1 cargo test -p ether-devices --test it engine_text::`, then
 //! `pnpm i18n gen` (which adds the new `engine.*` keys to `en.json`) and translate them.
 
 use std::collections::BTreeSet;
@@ -69,7 +69,7 @@ fn ui_engine_text_list_is_current() {
     let found = std::fs::read_to_string(&path).unwrap_or_default();
     assert!(
         found == expected,
-        "{} is stale: run `UPDATE_ENGINE_TEXT=1 cargo test -p ether-devices --test engine_text`, \
+        "{} is stale: run `UPDATE_ENGINE_TEXT=1 cargo test -p ether-devices --test it engine_text::`, \
          then `pnpm i18n gen` and translate the new `engine.*` keys",
         path.display()
     );

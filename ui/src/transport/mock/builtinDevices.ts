@@ -3,7 +3,7 @@
  * (`ether_devices::descriptor`, layouts included): the v0.1 built-ins in
  * `devices/v01Layouts.json` (`crates/ether-devices/tests/device_ui_layouts.rs`), the EQ and
  * the v0.2 / v0.3 devices and the FM Synth in `devices/*.json`. Regenerate with `UPDATE_MOCK_DESCRIPTORS=1 cargo
- * test -p ether-devices --test device_ui_layouts` (and `--test v02_descriptors`); never
+ * test -p ether-devices --test it device_ui_layouts::` (and `v02_descriptors::`); never
  * edit them by hand. UI code must read descriptors from the engine, never hardcode param ids.
  */
 
