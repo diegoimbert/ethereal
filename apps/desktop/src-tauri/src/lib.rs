@@ -337,11 +337,19 @@ fn collab_token_save(
         .map_err(|_| "could not remember the token".to_string())
 }
 
-fn init_tracing() {
+/// The log's level filter ([`DesktopExt::log_filter`]).
+pub type LogFilter = Box<dyn tracing_subscriber::Layer<tracing_subscriber::Registry> + Send + Sync>;
+
+fn init_tracing(filter: Option<fn() -> LogFilter>) {
     use tracing_subscriber::prelude::*;
     use tracing_subscriber::{EnvFilter, fmt};
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-    // stdout (the dev terminal) and the log file (`log_file`, once the data dir is known).
+    let filter = match filter {
+        Some(make) => make(),
+        None => {
+            Box::new(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        }
+    };
+    // stdout (the dev terminal) and the log file (`log_file`, once the logs dir is known).
     // `try_init` so tests / repeated init don't panic.
     let _ = tracing_subscriber::registry()
         .with(filter)
@@ -434,11 +442,63 @@ fn open_in_browser(url: &str) -> std::io::Result<()> {
     c.arg(url).spawn().map(drop)
 }
 
+/// An extension's part of the desktop shell (docs/EXTENSIONS.md), given to [`run_with`] by a
+/// desktop app of its own (its binary, its `tauri.conf.json`). Every hook defaults to
+/// nothing.
+#[derive(Clone, Copy)]
+pub struct DesktopExt {
+    /// First thing in the process (after the main thread is known): the extension's
+    /// process-wide points (help menu items, controller factory, bridge extension, plugin
+    /// formats).
+    pub startup: fn(),
+    /// The log's level filter (default: `RUST_LOG`, else info).
+    pub log_filter: Option<fn() -> LogFilter>,
+    /// The extension's Tauri plugins and managed state.
+    pub builder: fn(tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry>,
+    /// Where the log files go (default: `<data dir>/logs`).
+    pub logs_dir: Option<fn(&AppHandle, &std::path::Path) -> PathBuf>,
+    /// In setup, once the log file is open and before the engine starts (`data_dir`: the
+    /// instance's).
+    pub before_engine: fn(&tauri::App, &std::path::Path),
+    /// At the end of setup: the main window, the host ([`HostSlot`]) and [`AppPaths`] are
+    /// there.
+    pub setup: fn(&mut tauri::App) -> Result<(), Box<dyn std::error::Error>>,
+    /// The extension's IPC commands: their names, and the handler for them
+    /// (`tauri::generate_handler!`).
+    pub commands: &'static [&'static str],
+    pub invoke: fn(tauri::ipc::Invoke<tauri::Wry>) -> bool,
+    /// After the orderly [`shutdown`] on exit.
+    pub exited: fn(),
+}
+
+impl Default for DesktopExt {
+    fn default() -> Self {
+        Self {
+            startup: || {},
+            log_filter: None,
+            builder: |b| b,
+            logs_dir: None,
+            before_engine: |_, _| {},
+            setup: |_| Ok(()),
+            commands: &[],
+            invoke: |_| false,
+            exited: || {},
+        }
+    }
+}
+
 /// Entry point shared by the binary (and mobile targets, should they ever exist).
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    run_with(tauri::generate_context!(), DesktopExt::default());
+}
+
+/// The desktop app with `context` (`tauri::generate_context!()` of the app's crate) and an
+/// extension's part ([`DesktopExt`]).
+pub fn run_with(context: tauri::Context<tauri::Wry>, ext: DesktopExt) {
     let _ = MAIN_THREAD.set(std::thread::current().id());
-    init_tracing();
+    init_tracing(ext.log_filter);
+    (ext.startup)();
     // `app-identity`: an install made under an earlier bundle identifier (`dev.ethereal.app`)
     // has its data, logs and WebView storage moved to this identifier's directories, before
     // Tauri or the WebView open them. Release builds only (dev instances have their own dirs).
@@ -447,7 +507,7 @@ pub fn run() {
     }
 
     #[allow(unused_mut)]
-    let mut builder = tauri::Builder::default();
+    let mut builder = (ext.builder)(tauri::Builder::default());
     // `quit`: ⌘Q asks first; ⌘W closes the key plugin editor, never the main window.
     #[cfg(target_os = "macos")]
     {
@@ -463,13 +523,18 @@ pub fn run() {
         .manage(ai_http::AiHttpScope::default())
         .manage(HostSlot::default())
         .manage(quit::QuitGate::default())
-        .setup(|app| {
+        .setup(move |app| {
             create_main_window(app)?;
             let instance = instance::instance_id();
             let data_dir = instance::app_data_dir(app.handle())?;
-            if let Err(e) = log_file::open(&data_dir.join("logs")) {
+            let logs_dir = match ext.logs_dir {
+                Some(dir) => dir(app.handle(), &data_dir),
+                None => data_dir.join("logs"),
+            };
+            if let Err(e) = log_file::open(&logs_dir) {
                 tracing::warn!(%e, "could not create the log file");
             }
+            (ext.before_engine)(app, &data_dir);
             let projects_root =
                 ether_native::default_projects_root(cfg!(debug_assertions), &data_dir);
             std::fs::create_dir_all(&projects_root)?;
@@ -522,7 +587,7 @@ pub fn run() {
                 editor_owner::set_owner(owner);
                 path_drop::install(app.handle(), &window);
             }
-            Ok(())
+            (ext.setup)(app)
         })
         .on_window_event(|window, event| {
             if window.label() != "main" {
@@ -544,29 +609,32 @@ pub fn run() {
                 _ => {}
             }
         })
-        .invoke_handler(tauri::generate_handler![
-            engine_info,
-            ether_connect,
-            ether_send,
-            ether_send_batch,
-            ether_disconnect,
-            collab_token_load,
-            collab_token_save,
-            agent_bridge_status,
-            agent_bridge_set_enabled,
-            ai_http::ai_http_allow,
-            log_file::open_engine_log,
-            quit::app_quit_guard,
-            quit::app_quit,
-            quit::app_quit_cancel,
-            app_menu::menu_set_shortcuts,
-            app_menu::menu_native_edit,
-            app_menu::menu_set_labels
-        ])
-        .build(tauri::generate_context!())
+        .invoke_handler(invoke_handler(
+            ext,
+            tauri::generate_handler![
+                engine_info,
+                ether_connect,
+                ether_send,
+                ether_send_batch,
+                ether_disconnect,
+                collab_token_load,
+                collab_token_save,
+                agent_bridge_status,
+                agent_bridge_set_enabled,
+                ai_http::ai_http_allow,
+                log_file::open_engine_log,
+                quit::app_quit_guard,
+                quit::app_quit,
+                quit::app_quit_cancel,
+                app_menu::menu_set_shortcuts,
+                app_menu::menu_native_edit,
+                app_menu::menu_set_labels
+            ],
+        ))
+        .build(context)
         .expect("error while building the Ethereal desktop app");
 
-    app.run(|app, event| match event {
+    app.run(move |app, event| match event {
         // `quit`: the last window closing is asked about; exits with a code (`app_quit`,
         // the updater's restart) are not.
         RunEvent::ExitRequested { code, api, .. } => {
@@ -578,14 +646,31 @@ pub fn run() {
                 quit::ask(app);
             }
         }
-        RunEvent::Exit => shutdown(app),
+        RunEvent::Exit => {
+            shutdown(app);
+            (ext.exited)();
+        }
         _ => {}
     });
 }
 
-/// Orderly shutdown (on exit, on restart, and before the Windows update installer takes
-/// over): stop the agent bridge, then the engine. Idempotent.
-pub(crate) fn shutdown(app: &AppHandle) {
+/// The app's commands and an extension's ([`DesktopExt::commands`]), by name.
+fn invoke_handler(
+    ext: DesktopExt,
+    app: impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static,
+) -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
+    move |invoke| {
+        if ext.commands.contains(&invoke.message.command()) {
+            (ext.invoke)(invoke)
+        } else {
+            app(invoke)
+        }
+    }
+}
+
+/// Orderly shutdown (on exit, on restart, and before an update installer takes over): stop
+/// the agent bridge, then the engine. Idempotent.
+pub fn shutdown(app: &AppHandle) {
     // Stop the agent bridge first (deletes its runtime file, releases the host), without
     // changing the persisted setting.
     if let Some(bridge) = app.try_state::<AgentBridgeState>()
