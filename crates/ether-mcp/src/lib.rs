@@ -13,6 +13,7 @@
 //! - **headless**: an engine embedded in this process on a project file (`--project`),
 //!   without audio output (the null backend); `save_project` writes the file.
 
+pub mod app;
 pub mod backend;
 pub mod cli;
 pub mod headless;

@@ -119,27 +119,21 @@ jobs:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
           drift-check: "true"
-      # Self-hosted runners keep their own target dirs: no Actions cache there.
-      - uses: ./.github/actions/chef-cache
-        if: runner.environment == 'github-hosted'
-        with:
-          name: full-linux
-          clippy: "true"
+      # The full product's crates are ee/'s own Cargo workspace (the app's crates are its path
+      # dependencies, tested by ci.yml): every cargo step runs there.
       - name: fmt
-        run: node scripts/ci/private-step.mjs fmt -- cargo fmt --all --check
+        run: node scripts/ci/private-step.mjs fmt -- "cd ee && cargo fmt --all --check"
       - name: clippy
-        run: node scripts/ci/private-step.mjs clippy -- cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: node scripts/ci/private-step.mjs clippy -- "cd ee && cargo clippy --workspace --all-targets --all-features -- -D warnings"
       - name: test
-        run: >-
-          node scripts/ci/private-step.mjs test -- cargo nextest run --profile ci --workspace --all-features
-          -E 'not (test(=appended_params_keep_the_default_sound) | test(=patches_from_before_render_as_before))'
+        run: node scripts/ci/private-step.mjs test -- "cd ee && cargo nextest run --profile ci --workspace --all-features"
       - name: Sweep stale test binaries (self-hosted target dir)
         if: ${{ !cancelled() && runner.environment != 'github-hosted' }}
         continue-on-error: true
         timeout-minutes: 5
-        run: node scripts/ci/private-step.mjs sweep -- node scripts/ci/sweep-test-binaries.mjs -- --workspace --all-features
+        run: node scripts/ci/private-step.mjs sweep -- "cd ee && node ../scripts/ci/sweep-test-binaries.mjs -- --workspace --all-features"
       - name: wasm32 check
-        run: node scripts/ci/private-step.mjs wasm32 -- cargo check --target wasm32-unknown-unknown -p ether-protocol -p ether-model -p ether-core -p ether-devices -p ether-media -p ether-controller -p ether-stretch -p ether-wasm --all-features
+        run: node scripts/ci/private-step.mjs wasm32 -- "cd ee && cargo check --target wasm32-unknown-unknown -p ether-ee-wasm -p ether-ee -p ether-ee-protocol -p ether-ee-stream --all-features"
       - uses: ./.github/actions/full-logs
         if: always()
         with:
@@ -163,34 +157,36 @@ jobs:
         with:
           key: web-build
           save-if: "false"
-      - name: wasm-bindgen version (from Cargo.lock)
-        id: wb
-        run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
-      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
-        with:
-          tool: wasm-bindgen@${{ steps.wb.outputs.version }}
       - uses: ./.github/actions/ee-overlay
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+      - name: wasm-bindgen version (from ee/Cargo.lock)
+        id: wb
+        run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' ee/Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: wasm-bindgen@${{ steps.wb.outputs.version }}
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       # No setup-node cache: it would save the overlaid tree's package store.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           package-manager-cache: false
+      # The full product's JS: ee/'s packages (its UI layer over the app's, its services) on the
+      # app's installed dependencies (ee/app/link.mjs); the app's own are ci.yml's.
       - name: install
-        run: node scripts/ci/private-step.mjs install -- pnpm install --frozen-lockfile
+        run: node scripts/ci/private-step.mjs install -- "pnpm install --frozen-lockfile && pnpm --dir ee install --frozen-lockfile && node ee/app/link.mjs"
       - name: tsc
-        run: node scripts/ci/private-step.mjs tsc -- pnpm -r typecheck
+        run: node scripts/ci/private-step.mjs tsc -- pnpm --dir ee typecheck
       - name: eslint
-        run: node scripts/ci/private-step.mjs eslint -- pnpm -r lint
+        run: node scripts/ci/private-step.mjs eslint -- pnpm --dir ee lint
       - name: prettier
-        run: node scripts/ci/private-step.mjs prettier -- pnpm format:check
+        run: node scripts/ci/private-step.mjs prettier -- pnpm --dir ee format:check
       - name: vitest
-        run: node scripts/ci/private-step.mjs vitest -- pnpm -r test
+        run: node scripts/ci/private-step.mjs vitest -- pnpm --dir ee test
       - name: build ui + web
-        run: node scripts/ci/private-step.mjs build -- "pnpm --filter @ethereal/ui build && pnpm --filter @ethereal/web build"
+        run: node scripts/ci/private-step.mjs build -- "npm run --prefix ee/app build && npm run --prefix ee/app build:web"
       - uses: ./.github/actions/full-logs
         if: always()
         with:
@@ -230,16 +226,16 @@ jobs:
         with:
           key: web-build
           save-if: "false"
-      - name: wasm-bindgen version (from Cargo.lock)
-        id: wb
-        run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
-      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
-        with:
-          tool: wasm-bindgen@${{ steps.wb.outputs.version }}
       - uses: ./.github/actions/ee-overlay
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+      - name: wasm-bindgen version (from ee/Cargo.lock)
+        id: wb
+        run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' ee/Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: wasm-bindgen@${{ steps.wb.outputs.version }}
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

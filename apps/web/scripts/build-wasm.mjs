@@ -8,7 +8,8 @@
 //   ETHER_WASM_PACKAGE=... or --package <name>
 //                                    the module's cargo package (default: ether-wasm; a
 //                                    product's own module crate over ether-wasm, docs/EXTENSIONS.md)
-//   ETHER_WASM_WORKSPACE=...         the cargo workspace it is in (default: this repository)
+//   ETHER_WASM_WORKSPACE=... or --workspace <dir>
+//                                    the cargo workspace it is in (default: this repository)
 //
 // wasm-bindgen-cli must match the `wasm-bindgen` version in Cargo.lock:
 //   cargo install wasm-bindgen-cli --version <version>
@@ -32,7 +33,8 @@ const arg = (name) => {
   return i >= 0 ? process.argv[i + 1] : undefined;
 };
 const pkg = arg("--package") || process.env.ETHER_WASM_PACKAGE || "ether-wasm";
-const workspace = process.env.ETHER_WASM_WORKSPACE ? resolve(process.env.ETHER_WASM_WORKSPACE) : repo;
+const workspaceArg = arg("--workspace") || process.env.ETHER_WASM_WORKSPACE;
+const workspace = workspaceArg ? resolve(workspaceArg) : repo;
 const lock = readFileSync(join(workspace, "Cargo.lock"), "utf8");
 const want = /name = "wasm-bindgen"\nversion = "([^"]+)"/.exec(lock)?.[1];
 

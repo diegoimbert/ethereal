@@ -86,18 +86,12 @@ jobs:
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
-      # Self-hosted runners keep their own target dirs: no Actions cache there.
-      - uses: ./.github/actions/chef-cache
-        if: runner.environment == 'github-hosted'
-        with:
-          name: full-macos
-          exclude: ether-desktop
       - name: test
-        # ether-desktop's tests run on Linux (its macOS test build cannot link); #45 is the AU
-        # deadlock ci.yml also leaves out.
+        # The full product's crates are ee/'s own Cargo workspace (the app's are ci.yml's). The
+        # desktop app's tests run on Linux (its macOS test build cannot link).
         run: >-
-          node scripts/ci/private-step.mjs test -- cargo nextest run --profile ci --workspace --all-features
-          --exclude ether-desktop -E 'not test(=dropping_without_deactivate_is_safe)'
+          node scripts/ci/private-step.mjs test -- "cd ee && cargo nextest run --profile ci --workspace --all-features
+          --exclude ether-ee-desktop"
       - uses: ./.github/actions/full-logs
         if: always()
         with:
@@ -128,14 +122,8 @@ jobs:
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
-      # Self-hosted runners keep their own target dirs: no Actions cache there.
-      - uses: ./.github/actions/chef-cache
-        if: runner.environment == 'github-hosted'
-        with:
-          name: full-windows
-          exclude: ether-desktop
       - name: test
-        run: node scripts/ci/private-step.mjs test -- cargo nextest run --profile ci --workspace --all-features --exclude ether-desktop
+        run: node scripts/ci/private-step.mjs test -- "cd ee && cargo nextest run --profile ci --workspace --all-features --exclude ether-ee-desktop"
       - uses: ./.github/actions/full-logs
         if: always()
         with:
