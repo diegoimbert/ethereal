@@ -7,7 +7,7 @@
 # encrypted), and the Rust cache is restore-only (ci.yml's open-source `web-build` cache): this
 # public repository's cache never holds private build output.
 name: Web build
-description: Build apps/web and assemble the Cloudflare Pages site
+description: Build the full product's web app (ee/app/web) and assemble the Cloudflare Pages site
 
 inputs:
   out:
@@ -34,7 +34,7 @@ runs:
     - name: wasm-bindgen version (from Cargo.lock)
       id: wb
       shell: bash
-      run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
+      run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' ee/Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
     - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
       with:
         tool: wasm-bindgen@${{ steps.wb.outputs.version }}
@@ -46,20 +46,20 @@ runs:
         package-manager-cache: false
     - name: install
       shell: bash
-      run: node scripts/ci/private-step.mjs web-install -- pnpm install --frozen-lockfile
+      run: node scripts/ci/private-step.mjs web-install -- "pnpm install --frozen-lockfile && pnpm --dir ee install --frozen-lockfile && node ee/app/link.mjs"
     - name: Build (wasm engine + UI)
       shell: bash
       env:
         VITE_ETHER_VERSION: ${{ inputs.version }}
-      run: node scripts/ci/private-step.mjs web-build -- pnpm --filter @ethereal/web build
+      run: node scripts/ci/private-step.mjs web-build -- npm run --prefix ee/app build:web
     - name: Site for Cloudflare Pages (dist + COOP/COEP _headers)
       shell: bash
       env:
         OUT: ${{ inputs.out }}
       run: |
         mkdir -p "$OUT/site"
-        cp -R apps/web/dist/. "$OUT/site/"
+        cp -R ee/app/web/dist/. "$OUT/site/"
         cp scripts/release/web/_headers "$OUT/site/_headers"
-        # The full product's Pages Functions (/signal, /static), from the overlay: wrangler
-        # bundles `functions/` from next to the deployed folder.
-        if [ -d scripts/release/web/functions ]; then cp -R scripts/release/web/functions "$OUT/functions"; fi
+        # The full product's Pages Functions (/signal, /static): wrangler bundles `functions/`
+        # from next to the deployed folder.
+        if [ -d ee/scripts/release/web/functions ]; then cp -R ee/scripts/release/web/functions "$OUT/functions"; fi

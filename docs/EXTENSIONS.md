@@ -168,6 +168,10 @@ process: the native host (`ether_native::plugins::formats`), the scanner
 The scanner and the helper are processes of their own: a product with extra formats builds
 its own `ether-plugin-scanner` and `ether-sandbox-helper` binaries, which register them and
 then run `ether_plugin_scanner::main()` / `ether_sandbox::helper::main()`.
+`scripts/build-sandbox-helper.mjs` builds and stages them from the product's workspace
+(`--workspace`, `--dest`, `--scanner`, `--helper`, `--mcp`, `--mcp-features`). The MCP
+server's process is `ether_mcp::app::main()` (its headless engine hosts the registered
+formats too).
 
 ## The web engine module (`crates/ether-wasm`)
 
@@ -176,7 +180,7 @@ controllers an extension's state and extensions. They run in a module of the pro
 a `cdylib` crate over `ether-wasm` (whose `#[wasm_bindgen]` exports it re-exports by linking
 it), with a `#[wasm_bindgen(start)]` function that sets them, and exports of its own.
 `apps/web/scripts/build-wasm.mjs` builds it with `--package <its package>` (and
-`ETHER_WASM_WORKSPACE=<its workspace>` when it lives in another one); the output keeps the
+`--workspace <its workspace>` when it lives in another one); the output keeps the
 app's name (`ether_wasm.js`), so the UI loads it the same way.
 
 ## The engine server (`crates/ether-server`)

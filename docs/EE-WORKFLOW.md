@@ -18,11 +18,10 @@ From a normal OSS checkout (your uncommitted changes included):
 | `just full-web [args]` | the web app's dev server |
 
 They initialise `ee/` and its submodules when missing (that needs read access to the private
-repository). While the private Rust code still overlays OSS files (`ee/overlay.mjs`), they
-build in a cached copy, `target/full-tree`: this checkout with the overlay applied, refreshed
-on every run by rewriting only the files whose content changed, so its cargo target stays
-warm. `node scripts/full.mjs prepare` only refreshes it. Once `ee/` builds on its own, the
-same commands build there in place. Extra arguments go to the underlying command (e.g.
+repository) and run `ee/`'s recipes in place: `ee/` is a Cargo workspace of its own (its own
+lockfile and `ee/target`; this repository's crates are its path dependencies) and its JS
+packages run on this checkout's installed dependencies. `node scripts/full.mjs prepare` only
+installs the dependencies. Extra arguments go to the underlying command (e.g.
 `just full-desktop --release`).
 
 Rules:
@@ -95,11 +94,11 @@ second worktree and no separate clone of the private repo.
    an existing EE `x`) initialises `ee/`, its nested submodules (libvpx), and puts `ee/` on branch
    `x`. Check with `just feat status`. If `ee/` is detached, run `just feat ee`.
 3. **Commit on both sides**: OSS changes at the root, EE changes with `git -C ee commit`.
-4. **Build the full product** with `just full-*`. It uses `target/full-tree` inside this worktree;
-   nothing outside it.
+4. **Build the full product** with `just full-*`. It builds in `ee/` (target dir `ee/target`)
+   inside this worktree; nothing outside it.
 5. **Scratch files** go under the worktree (e.g. `.scratch/`, git-ignored) or in uniquely named
    paths (prefix them with `<x>-`), never at fixed shared paths.
-6. **After the merge**: delete the build output (`rm -rf <worktree>/target`), then
+6. **After the merge**: delete the build output (`rm -rf <worktree>/target <worktree>/ee/target`), then
    `git worktree remove --force <worktree>` (`--force` because of the submodule) and
    `git branch -D <x>`.
 

@@ -184,7 +184,9 @@ jobs:
           package-manager-cache: false
       - name: install
         shell: bash
-        run: node scripts/ci/private-step.mjs install -- pnpm install --frozen-lockfile
+        # The full product's JS (ee/app, its desktop app's CLI) runs on the app's installed
+        # dependencies (ee/app/link.mjs).
+        run: node scripts/ci/private-step.mjs install -- "pnpm install --frozen-lockfile && pnpm --dir ee install --frozen-lockfile && node ee/app/link.mjs"
 
       # --- Signing: only when the secrets exist; otherwise build unsigned. ---------------
       - name: macOS signing environment
@@ -276,10 +278,11 @@ jobs:
       # --- Build ---------------------------------------------------------------------------
       - name: Release config overlay (version, signing)
         shell: bash
-        run: node scripts/release/tauri-config.mjs "$RUNNER_TEMP/tauri.release.json"
+        run: node ee/scripts/release/tauri-config.mjs "$RUNNER_TEMP/tauri.release.json"
       - name: tauri build
         shell: bash
-        working-directory: apps/desktop
+        # The full product's desktop app: ee/'s Cargo workspace (target dir ee/target).
+        working-directory: ee/apps/desktop
         # The helpers (plugin scanner, sandbox helper on macOS/Linux) and the MCP server are
         # built and staged by tauri.conf.json's beforeBuildCommand and installed next to the app
         # binary; collect.mjs checks they are in the .app and the .deb. `--features full`: every
@@ -288,7 +291,7 @@ jobs:
           TARGET: ${{ matrix.target }}
           BUNDLES: ${{ matrix.bundles }}
         run: >-
-          node ../../scripts/ci/private-step.mjs tauri-build --
+          node ../../../scripts/ci/private-step.mjs tauri-build --
           pnpm tauri build --ci --features full --target "$TARGET" --bundles "$BUNDLES"
           --config "$RUNNER_TEMP/tauri.release.json"
       - name: Collect installers
@@ -298,7 +301,7 @@ jobs:
           NAME: ${{ matrix.name }}
           LABEL: ${{ matrix.label }}
         run: |
-          node scripts/release/collect.mjs desktop "$TARGET" "$RUNNER_TEMP/out"
+          node ee/scripts/release/collect.mjs desktop "$TARGET" "$RUNNER_TEMP/out"
           mkdir -p "$RUNNER_TEMP/meta"
           echo "$LABEL: $SIGNING_STATUS" > "$RUNNER_TEMP/meta/$NAME.txt"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -339,7 +342,7 @@ jobs:
       - name: Zip
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
-        run: node scripts/release/collect.mjs web "$VERSION" "$RUNNER_TEMP/out"
+        run: node ee/scripts/release/collect.mjs web "$VERSION" "$RUNNER_TEMP/out"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: web-site
