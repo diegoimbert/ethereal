@@ -13,6 +13,9 @@
 //   CI_POOL_SLOTS         jobs at once                             (3)
 //   CI_POOL_CPUS          CPUs for the whole pool (slice quota)    (8)
 //   CI_POOL_MEMORY_GB     memory for the whole pool (slice)        (20)
+//   CI_POOL_BUILD_JOBS    CARGO_BUILD_JOBS of a job       (1.5 x CPUS / SLOTS)
+//                         (slots that mostly wait, e2e shards, can outnumber the CPUs: the
+//                         slice's quota still caps them, so a lone build keeps its cores)
 //   CI_POOL_LABELS        runner labels, comma-separated           (devbox-pool)
 //   CI_POOL_MIN_FREE_GB   no new job below this much free disk     (100)
 //   CI_POOL_TARGET_MAX_GB a cargo target dir is emptied above      (60)
@@ -34,6 +37,7 @@ const cfg = {
   slots: Number(env.CI_POOL_SLOTS || 3),
   cpus: Number(env.CI_POOL_CPUS || 8),
   memoryGb: Number(env.CI_POOL_MEMORY_GB || 20),
+  buildJobs: Number(env.CI_POOL_BUILD_JOBS || 0),
   labels: (env.CI_POOL_LABELS || "devbox-pool")
     .split(",")
     .map((s) => s.trim())
@@ -213,7 +217,7 @@ async function start(slot) {
     CARGO_HOME: p("cargo"),
     CARGO_TARGET_DIR: join(job, "cargo-target"),
     CARGO_INCREMENTAL: "0",
-    CARGO_BUILD_JOBS: String(Math.max(2, Math.round((cfg.cpus / cfg.slots) * 1.5))),
+    CARGO_BUILD_JOBS: String(cfg.buildJobs || Math.max(2, Math.round((cfg.cpus / cfg.slots) * 1.5))),
     RUSTC_WRAPPER: p("bin", "sccache"),
     SCCACHE_DIR: p("cache", "sccache"),
     SCCACHE_CACHE_SIZE: "60G",
