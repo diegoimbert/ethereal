@@ -250,7 +250,7 @@ Components: 598 (Rust crates, npm packages and vendored source).
 | `lock_api` | 0.4.14 | MIT OR Apache-2.0 | https://github.com/Amanieu/parking_lot |
 | `log` | 0.4.34 | MIT OR Apache-2.0 | https://github.com/rust-lang/log |
 | `lru-slab` | 0.1.3 | MIT OR Apache-2.0 OR Zlib | https://github.com/Ralith/lru-slab |
-| `lucide-react` | 1.58.0 | ISC | https://lucide.dev |
+| `lucide-react` | 1.59.0 | ISC | https://lucide.dev |
 | `mach2` | 0.5.0 | BSD-2-Clause OR MIT OR Apache-2.0 | https://github.com/JohnTitor/mach2 |
 | `markup5ever` | 0.39.0 | MIT OR Apache-2.0 | https://github.com/servo/html5ever |
 | `matchers` | 0.2.0 | MIT | https://github.com/hawkw/matchers |
