@@ -73,6 +73,15 @@ The macOS Help menu shows only items the app handles. An extension adds its grou
 `app_menu::set_extra_help_items(groups)` before the menu is built, and labels them in the UI with
 `desktopMenu.labels`. Their actions reach the UI like the app's own.
 
+A product with extensions is a desktop app of its own (its binary, `tauri.conf.json`,
+`build.rs`) over this crate's library: its `main` calls
+`ether_desktop_lib::run_with(tauri::generate_context!(), ext)`, where `ext: DesktopExt` holds
+its hooks: `startup` (first thing: process-wide points), `log_filter`, `builder` (Tauri
+plugins, managed state), `logs_dir`, `before_engine` (in setup, before the engine starts),
+`setup` (end of setup), `commands` + `invoke` (its IPC commands, by name, and their
+`tauri::generate_handler!`), `exited` (after the orderly `shutdown`). The log file takes a
+line filter (`log_file::set_line_filter`, e.g. to redact secrets).
+
 ## The engine protocol (`crates/ether-protocol/src/ext.rs`)
 
 A command domain, event or reply value this repository doesn't declare is an extension's. On
