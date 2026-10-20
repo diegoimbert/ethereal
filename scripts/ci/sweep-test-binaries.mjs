@@ -5,6 +5,7 @@
 // main), which then hits the pool's size cap and is emptied, so the next run builds from cold.
 //
 //   node scripts/ci/sweep-test-binaries.mjs -- <the `cargo nextest run` arguments of the job>
+//                                           [--also <the arguments of another run>]...
 //
 // Keeps what `cargo nextest list` (same arguments, so nothing rebuilds) names: the test binaries of
 // this build and the binaries they run. Deletes the other `<name>-<16 hex>` executables of the
@@ -51,17 +52,42 @@ export function stale(list, dirs, fs = { readdirSync, statSync }) {
   return out;
 }
 
+// The argument sets of the job's test runs (`--also` separates them).
+export function splitRuns(args) {
+  const runs = [[]];
+  for (const a of args) a === "--also" ? runs.push([]) : runs.at(-1).push(a);
+  return runs;
+}
+
+// One list keeping what any of the runs uses (same target dir).
+export function mergeLists(lists) {
+  const [first, ...rest] = lists;
+  const meta = { ...(first["rust-build-meta"] ?? {}), "non-test-binaries": {} };
+  const binaries = {};
+  for (const l of lists) {
+    Object.assign(binaries, l["rust-binaries"] ?? {});
+    for (const [k, v] of Object.entries(l["rust-build-meta"]?.["non-test-binaries"] ?? {}))
+      meta["non-test-binaries"][k] = [...(meta["non-test-binaries"][k] ?? []), ...v];
+    meta["base-output-directories"] = [...new Set([...(meta["base-output-directories"] ?? []), ...(l["rust-build-meta"]?.["base-output-directories"] ?? [])])];
+  }
+  return rest.length ? { "rust-build-meta": meta, "rust-binaries": binaries } : first;
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const args = process.argv.slice(process.argv.indexOf("--") + 1);
-  const r = spawnSync("cargo", ["nextest", "list", "--list-type", "binaries-only", "--message-format", "json", ...args], {
-    encoding: "utf8",
-    maxBuffer: 256 << 20,
-    stdio: ["ignore", "pipe", "inherit"],
-  });
+  const runs = splitRuns(process.argv.slice(process.argv.indexOf("--") + 1));
   let list;
   try {
-    if (r.status !== 0) throw new Error(`cargo nextest list exited ${r.status}`);
-    list = JSON.parse(r.stdout);
+    list = mergeLists(
+      runs.map((args) => {
+        const r = spawnSync("cargo", ["nextest", "list", "--list-type", "binaries-only", "--message-format", "json", ...args], {
+          encoding: "utf8",
+          maxBuffer: 256 << 20,
+          stdio: ["ignore", "pipe", "inherit"],
+        });
+        if (r.status !== 0) throw new Error(`cargo nextest list exited ${r.status}`);
+        return JSON.parse(r.stdout);
+      }),
+    );
   } catch (e) {
     console.log(`::warning::sweep skipped: ${e.message}`);
     process.exit(0);

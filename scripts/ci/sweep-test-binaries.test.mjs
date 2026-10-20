@@ -34,3 +34,15 @@ test("keeps the listed binaries (by inode, so hard links count) and deletes the 
   };
   assert.deepEqual(stale(list, ["/t/debug/deps", "/t/missing/deps"], fs), [{ path: "/t/debug/deps/a-0000000000000002", size: 20 }]);
 });
+
+test("several runs: --also splits them, the merged list keeps the binaries of each", async () => {
+  const { splitRuns, mergeLists } = await import("./sweep-test-binaries.mjs");
+  assert.deepEqual(splitRuns(["--workspace", "--all-features", "--also", "-p", "x"]), [["--workspace", "--all-features"], ["-p", "x"]]);
+  const m = mergeLists([
+    { "rust-build-meta": { "target-directory": "/t", "base-output-directories": ["debug"], "non-test-binaries": { a: [{ path: "debug/a" }] } }, "rust-binaries": { a: { "binary-path": "/t/debug/deps/a-1" } } },
+    { "rust-build-meta": { "target-directory": "/t", "base-output-directories": ["debug"], "non-test-binaries": {} }, "rust-binaries": { b: { "binary-path": "/t/debug/deps/b-2" } } },
+  ]);
+  assert.deepEqual(Object.keys(m["rust-binaries"]).sort(), ["a", "b"]);
+  assert.deepEqual(m["rust-build-meta"]["base-output-directories"], ["debug"]);
+  assert.equal(m["rust-build-meta"]["non-test-binaries"].a.length, 1);
+});
