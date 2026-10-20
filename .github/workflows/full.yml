@@ -131,11 +131,16 @@ jobs:
         run: node scripts/ci/private-step.mjs clippy -- "cd ee && cargo clippy --workspace --all-targets --all-features -- -D warnings"
       - name: test
         run: node scripts/ci/private-step.mjs test -- "cd ee && cargo nextest run --profile ci --workspace --all-features"
+      # The app's controller, built by ee/'s workspace, has the full product's messages merged into its
+      # tables (ETHER_EXTRA_LOCALES, ee/.cargo/config.toml): its own tests (catalog keys, labels,
+      # formats, fr) on those tables. ci.yml tests it without them.
+      - name: controller tests with the full product's catalogs
+        run: node scripts/ci/private-step.mjs controller-catalogs -- "cd ee && cargo nextest run --profile ci -p ether-controller"
       - name: Sweep stale test binaries (self-hosted target dir)
         if: ${{ !cancelled() && runner.environment != 'github-hosted' }}
         continue-on-error: true
         timeout-minutes: 5
-        run: node scripts/ci/private-step.mjs sweep -- "cd ee && node ../scripts/ci/sweep-test-binaries.mjs -- --workspace --all-features"
+        run: node scripts/ci/private-step.mjs sweep -- "cd ee && node ../scripts/ci/sweep-test-binaries.mjs -- --workspace --all-features --also -p ether-controller"
       - name: wasm32 check
         run: node scripts/ci/private-step.mjs wasm32 -- "cd ee && cargo check --target wasm32-unknown-unknown -p ether-ee-wasm -p ether-ee -p ether-ee-protocol -p ether-ee-stream --all-features"
       - uses: ./.github/actions/full-logs
