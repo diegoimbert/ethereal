@@ -1,5 +1,5 @@
-//! Open-note bookkeeping for routing decisions that can change while a note sounds (stuck-note
-//! audit #558–#560).
+//! Open-note bookkeeping for routing decisions that can change while a note sounds (stuck
+//! notes).
 //!
 //! A note-off must reach whatever its note-on reached, even when the route changed in
 //! between: a track that stopped monitoring live input (`crate::recording`), a drum pad

@@ -40,7 +40,7 @@ pub struct RenderGraphDesc {
     /// All tracks incl. groups, returns and master. Order is irrelevant: the compiler
     /// topologically sorts by routing (outputs, sends, resampling inputs) and rejects cycles.
     pub tracks: Vec<TrackDesc>,
-    /// v0.2 (`groups-buses`): VCA faders (`TrackKind::Vca` tracks are never in `tracks`).
+    /// v0.2: VCA faders (`TrackKind::Vca` tracks are never in `tracks`).
     #[serde(default)]
     pub vcas: Vec<crate::vca::VcaDesc>,
 }
@@ -86,28 +86,28 @@ pub struct TrackDesc {
     /// rack device, keyed by the rack's node). Empty for tracks without racks.
     #[serde(default)]
     pub racks: Vec<RackDesc>,
-    // --- v0.2 (contracts-3; each field's module owns its semantics) ---
-    /// Frozen track (`freeze-bounce`, [`crate::freeze`]): `clips` are empty, and so is
+    // --- v0.2 (each field's module owns its semantics) ---
+    /// Frozen track ([`crate::freeze`]): `clips` are empty, and so is
     /// `chain` unless the freeze is partial (then it holds the live tail, which processes
     /// the render).
     #[serde(default)]
     pub frozen: Option<crate::freeze::FrozenDesc>,
-    /// Rack chains of the rack devices in `chain` (`racks-modulation`,
+    /// Rack chains of the rack devices in `chain` (
     /// [`crate::rack_chains`]).
     #[serde(default)]
     pub chain_racks: Vec<crate::rack_chains::ChainRackDesc>,
-    /// Modulators and mappings of this track's devices (`racks-modulation`,
+    /// Modulators and mappings of this track's devices (
     /// [`crate::modulation`]).
     #[serde(default)]
     pub modulation: crate::modulation::ModulationDesc,
-    /// Input from another track (`groups-buses`, [`crate::bus_tap`]).
+    /// Input from another track ([`crate::bus_tap`]).
     #[serde(default)]
     pub input_tap: Option<crate::bus_tap::InputTapDesc>,
-    /// VCA assignment (`groups-buses`, [`crate::vca`]): an id in `RenderGraphDesc::vcas`.
+    /// VCA assignment ([`crate::vca`]): an id in `RenderGraphDesc::vcas`.
     #[serde(default)]
     pub vca: Option<TrackId>,
-    // --- v0.3 (contracts-4; each field's module owns its semantics) ---
-    /// MIDI expression lanes, note expressions and MPE (`midi-expression`, `mpe`,
+    // --- v0.3 (each field's module owns its semantics) ---
+    /// MIDI expression lanes, note expressions and MPE (`mpe`,
     /// [`crate::expression`]). Empty = none (v0.2 behaviour).
     #[serde(default)]
     pub expression: crate::expression::TrackExpressionDesc,
@@ -234,7 +234,7 @@ pub enum ClipContentDesc {
         fade_in: f64,
         fade_out: f64,
         warp: Option<WarpDesc>,
-        /// Roadmap v2 (`clip-editing`): fade shapes (`crate::fades::fade_gain`) and reverse
+        /// Roadmap v2: fade shapes (`crate::fades::fade_gain`) and reverse
         /// playback (see `ether_model::AudioContent::reversed`).
         #[serde(default)]
         fade_in_curve: FadeCurve,
@@ -707,7 +707,7 @@ pub fn compile_with(
         }
     }
     // No track is pinned to the audio thread any more: Complex-warped clips play through
-    // their own track's stretcher voices (`crate::warp`, perf audit #8). The pinned-jobs
+    // their own track's stretcher voices (`crate::warp`). The pinned-jobs
     // path of the executor stays for hosts' future needs.
     let pinned = vec![false; n];
     let mut pos = vec![0usize; n];
@@ -882,7 +882,7 @@ pub fn compile_with(
         }
     };
 
-    // --- solo (CONTRACTS.md §12.10, `groups-buses`) ---
+    // --- solo (CONTRACTS.md §12.10) ---
     // While anything is soloed, a track stays audible if it is soloed, inside a soloed
     // group, a group/bus on the output path of a soloed track (solo in place through the
     // bus chain, explicit outputs included), a return, or the master. VCA solo is folded
@@ -1295,7 +1295,7 @@ mod tests {
             .collect()
     }
 
-    /// Issue #569: a node reporting `u32::MAX` latency is clamped to the PDC limit (no
+    /// Issue a node reporting `u32::MAX` latency is clamped to the PDC limit (no
     /// wrapping sum, no debug-overflow panic, no multi-GB delay line).
     #[test]
     fn absurd_node_latency_is_clamped_to_the_pdc_limit() {

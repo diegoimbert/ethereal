@@ -1,5 +1,5 @@
 /**
- * Space always plays / stops (transport-keys, owner rule): "no matter where we are in the
+ * Space always plays / stops: "no matter where we are in the
  * app, unless we are inside a text box". In a web app a clicked button, checkbox or select
  * keeps the focus, and Space would then "press" it instead of playing.
  *

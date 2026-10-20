@@ -24,7 +24,7 @@
 //! Hosts whose bridge doesn't support previews reply `Unsupported` to both commands (the
 //! engine is asked to stop first, which is how support is probed).
 //!
-//! **Tempo sync** (v0.2, `browser-v2` shared touch: `Browser::Preview { sync }`). A
+//! **Tempo sync** (v0.2, `Browser::Preview { sync }`). A
 //! [`PreviewSync`] repitches the preview by `ratio` (project bpm / item bpm): the decode is
 //! resampled to `engine rate / ratio` and handed to the engine labelled with the engine
 //! rate, so it plays `ratio` times faster (repitch, like a warp in Repitch mode). With
@@ -372,7 +372,7 @@ where
                     .get(media)
                     .ok_or_else(|| not_found(format!("media {media}")))?;
                 let (pid, m) = (doc.project.id, m.clone());
-                // External references resolve like playback (`media-references`).
+                // External references resolve like playback.
                 let bytes =
                     crate::media::read_media_bytes(&mut self.store, &mut self.library, pid, &m)
                         .map_err(store_err)?;

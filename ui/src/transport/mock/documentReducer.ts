@@ -198,7 +198,7 @@ function deleteLanesWhere(tx: Tx, pred: (l: AutomationLane) => boolean): void {
 }
 
 export function deleteClipCascade(tx: Tx, id: ClipId): void {
-  // v0.3 (midi-expression): lanes and note expressions go with the clip.
+  // v0.3: lanes and note expressions go with the clip.
   deleteNoteExpressions(
     tx,
     tx
@@ -326,7 +326,7 @@ function validateReturnBefore(ctx: ReducerContext, kind: Track["kind"], before: 
 }
 
 function trackCommand(ctx: ReducerContext, c: TrackCommand): void {
-  // v0.2 (`groups-buses`, `roadmap/groupsBuses.ts`).
+  // v0.2 (`roadmap/groupsBuses.ts`).
   if (groupsTrackCommand(ctx, c, (id) => deleteTrackCascade(ctx, id))) return;
   if (c.type === "SetScale") {
     const t = track(ctx, c.id);
@@ -624,7 +624,7 @@ function deviceCommandInner(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
       if (tx.get("Device", c.new_id)) break; // already duplicated: no-op
       const p = tx.project;
       if (c.track != null && c.track !== d.track) {
-        // Onto another track (#582): at the end of its chain, with its rack chains / pads there.
+        // Onto another track: at the end of its chain, with its rack chains / pads there.
         const t = track(ctx, c.track);
         checkDeviceFits(t, descriptorOf(d.kind)?.category ?? null);
         const last = trackChainOf(p, t.id).at(-1);
@@ -782,7 +782,7 @@ function resolveOverlaps(ctx: ReducerContext, keep: Clip, ignore: ReadonlySet<Cl
     const os = o.start;
     const oe = os + o.length;
     if (oe <= s + EPS || os >= e - EPS) continue; // no overlap
-    if (isCrossfade(keep, o)) continue; // crossfade overlap (clip-editing)
+    if (isCrossfade(keep, o)) continue; // crossfade overlap
     if (os >= s - EPS && oe <= e + EPS) {
       deleteClipCascade(ctx.tx, o.id); // fully covered
     } else if (os < s && oe > e) {
@@ -885,7 +885,7 @@ function clipCommand(ctx: ReducerContext, c: ClipCommand): void {
     case "SetBounds": {
       const cl = clip(ctx, c.id);
       if (!(c.length > 0)) fail("InvalidArgument", "clip length must be > 0");
-      // Negative = a leading gap before the content (base-142).
+      // Negative = a leading gap before the content.
       if (!Number.isFinite(c.offset)) fail("InvalidArgument", "clip offset must be finite");
       checkClipStart(c.start);
       const next = { ...cl, start: c.start, length: c.length, offset: c.offset };

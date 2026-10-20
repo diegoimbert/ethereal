@@ -349,7 +349,7 @@ fn vectors_match_closed_forms() {
     assert_eq!(bbf(13.0), (5, 1, 0.75)); // 3/4 bar 5 from 12.25
 }
 
-/// Pre-partial-bar rule (base-108): every change sat on a bar line of the signature before
+/// Pre-partial-bar rule: every change sat on a bar line of the signature before
 /// it, so bars before a change were all whole. Bar numbers of such maps must not change.
 fn legacy_bar_beat(sigs: &[(f64, u8, u8)], b: f64) -> (i32, u32, f64) {
     let per_bar = |n: u8, d: u8| f64::from(n) * 4.0 / f64::from(d);

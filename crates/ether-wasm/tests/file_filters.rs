@@ -1,4 +1,4 @@
-//! `base-145` on the web: the library file filters through the local wasm controller over
+//! On the web: the library file filters through the local wasm controller over
 //! OPFS (`WebLibrary<MemFs>`): the folder view of the browser library lists only supported
 //! files by default, a whitelist rule shows a new type, and the filter is stored in the
 //! OPFS user library (`user-library/Settings/library-filters.json`) and back after a reload.

@@ -1,4 +1,4 @@
-// #597: when the web engine can't start, the editor isn't left blank: a screen says why, with
+// When the web engine can't start, the editor isn't left blank: a screen says why, with
 // "retry" (which works once the cause is gone) and "reload". (The full product adds "report an
 // issue"; the open-source build has no issue reporter.)
 import { expect, test } from "@playwright/test";

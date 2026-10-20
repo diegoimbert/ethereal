@@ -1,5 +1,5 @@
-// Samples referenced in place: missing media, Relink, Collect All (v0.2, owned by
-// `media-references`; CONTRACTS.md §12.9).
+// Samples referenced in place: missing media, Relink, Collect All (v0.2;
+// CONTRACTS.md §12.9).
 import "./mediaRefs.css";
 
 export { MediaRefsRoot, MissingMediaNotice } from "./MediaRefsRoot";

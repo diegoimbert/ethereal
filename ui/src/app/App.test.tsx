@@ -38,7 +38,7 @@ afterEach(() => {
   resetStores();
   itemSelection.getState().clear();
   useEditorStore.setState({ clip: null, request: 0 });
-  // A dialog left open (the settings) would take the next test's Escape (#578).
+  // A dialog left open (the settings) would take the next test's Escape.
   useAudioSettings.getState().close();
   vi.restoreAllMocks();
 });

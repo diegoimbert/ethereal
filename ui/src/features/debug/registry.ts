@@ -1,5 +1,5 @@
 /**
- * base-154: debug panels. A feature registers a panel once (`registerDebugPanel`); the app
+ * Debug panels. A feature registers a panel once (`registerDebugPanel`); the app
  * shows the open ones in kit `FloatingWindow`s (`DebugPanelsRoot`), lists each in the command
  * palette ("Debug: <title>") and in Settings › Advanced. Which panels are open is remembered on
  * this machine (localStorage `eth.debug.panels`); each window's geometry is the kit's, under

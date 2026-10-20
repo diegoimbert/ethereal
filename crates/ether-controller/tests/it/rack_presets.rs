@@ -1,4 +1,4 @@
-//! Rack presets (v0.3, `rack-presets`; CONTRACTS.md §13.9): saving a rack stores its chains,
+//! Rack presets (v0.3; CONTRACTS.md §13.9): saving a rack stores its chains,
 //! chain devices, modulators and the mappings inside it; `Preset::Load { seed }` replaces
 //! them as one undo step with `derive_id(seed, i)` ids; v1 rack presets load unchanged.
 

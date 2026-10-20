@@ -1,7 +1,7 @@
 //! Native e2e of importing an OS file by path (`file-import`, CONTRACTS.md §12.13): the real
 //! desktop host (null audio backend) gets `Media::Import { source: Path }` like the Tauri
 //! file dialog / OS drop sends it. The engine validates and reads the file itself and
-//! references it in place (`media-references`, CONTRACTS.md §12.9: nothing is copied into
+//! references it in place (CONTRACTS.md §12.9: nothing is copied into
 //! the project); bad paths reply with clear errors and change nothing.
 
 mod common;

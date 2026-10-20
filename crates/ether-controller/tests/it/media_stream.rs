@@ -1,4 +1,4 @@
-//! `audio-streaming` (CONTRACTS.md §13.1) in the controller: long media are handed to a
+//! Audio streaming (CONTRACTS.md §13.1) in the controller: long media are handed to a
 //! streaming host (`EngineBridge::stream_media`) instead of being decoded into memory; one
 //! decode pass still builds the peaks (identical to the whole-file ones); hosts that can't
 //! stream get the v0.2 whole-file load; underruns are reported, throttled.

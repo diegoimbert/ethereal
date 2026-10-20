@@ -1,5 +1,5 @@
 //! Rack chains: parallel device chains inside instrument / audio-effect / MIDI-effect racks
-//! (v0.2, `racks-modulation`; model `ether_model::rack`, CONTRACTS.md §12.6).
+//! (v0.2; model `ether_model::rack`, CONTRACTS.md §12.6).
 //!
 //! Same engine shape as drum-rack pads (`crate::drum_rack`, pre-wired the same way in
 //! `engine.rs`/`graph.rs`): `TrackDesc::chain_racks` lists, per rack node of the track chain,
@@ -14,7 +14,7 @@
 //!   raw MIDI message reach every chain (a note-off always finds its note, so a zone or
 //!   selector change never leaves a note hanging); `AllNotesOff` reaches every chain from
 //!   [`ChainRacksRt::begin_block`] (transport) and from the rack entry's events (a device
-//!   before the rack switched on or off, a MIDI effect change, #558). A device switched on
+//!   before the rack switched on or off, a MIDI effect change). A device switched on
 //!   or off inside a chain releases its notes like on a track chain
 //!   (`ChainRt::switch_notes`). The rack's own `Param` events are not forwarded; the
 //!   selector is read from them at its offset (it may be automated or modulated).
@@ -631,7 +631,7 @@ impl ChainRacksRt {
             for k in 0..chain.entries.len() {
                 let (head, tail) = chain.entries.split_at_mut(k + 1);
                 let entry = &mut head[k];
-                // A switched device releases its notes (#558): at the next entry, or at the
+                // A switched device releases its notes: at the next entry, or at the
                 // rack's output for the last entry of a MIDI effect chain.
                 let next = match tail.first_mut() {
                     Some(e) => Some(&mut e.events),

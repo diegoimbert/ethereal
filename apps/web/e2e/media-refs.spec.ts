@@ -1,4 +1,4 @@
-// Missing samples and Relink (media-references, CONTRACTS.md §12.9) on the web build. The
+// Missing samples and Relink (CONTRACTS.md §12.9) on the web build. The
 // web engine can't reference OS files in place (uploads are copied into the project), but a
 // project file can still go missing: the test deletes an imported sample from the browser's
 // storage (OPFS), reloads, and checks that the engine reports it missing when the project

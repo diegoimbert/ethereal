@@ -1,4 +1,4 @@
-//! Library file filters (`base-145`; CONTRACTS.md §12.8) through the controller with an
+//! Library file filters (CONTRACTS.md §12.8) through the controller with an
 //! in-memory library (the store the web host mirrors): `Media::ListDirectory` and the index
 //! show only supported files by default, `SetFileFilter` / `ResetFileFilter` re-filter both
 //! at once (with `FileFilterChanged`), `CheckFileFilter` reports bad rules, per-path verdicts

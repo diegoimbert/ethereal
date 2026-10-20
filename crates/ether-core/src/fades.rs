@@ -1,7 +1,7 @@
 //! Clip fade shapes (roadmap v2; see CONTRACTS.md §11.4).
 //!
 //! [`fade_gain`] is the one fade law shared by the engine (`sched::render_audio`, which
-//! the clip-editing node switches from its linear ramp to this with a one-line call), the
+//! the clip-editing code switches from its linear ramp to this with a one-line call), the
 //! export renderer and the UI's fade drawing (`ui/src/features/clip-editing` mirrors it).
 //! Reverse playback (`ClipContentDesc::Audio::reversed`) is also implemented by the
 //! clip-editing node in `sched.rs`.

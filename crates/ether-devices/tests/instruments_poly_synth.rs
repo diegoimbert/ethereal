@@ -1,4 +1,4 @@
-//! `devices-pass-instruments`: the Poly Synth's unison (1..=16 voices, detune in cents,
+//! The Poly Synth's unison (1..=16 voices, detune in cents,
 //! blend), drift, the legacy unison params of old documents, and that patches written before
 //! this pass render as they did (fingerprints recorded on the engine before the change).
 //!
@@ -526,7 +526,7 @@ fn golden_cases() -> Vec<(&'static str, Vec<(ParamId, f64)>)> {
 }
 
 /// Recorded on `origin/dev` before this pass (`print_golden_fingerprints`); re-recorded
-/// for the 4-point polyBLEP oscillators (#520) and the 2x oversampled filter (#845).
+/// for the 4-point polyBLEP oscillators and the 2x oversampled filter.
 #[rustfmt::skip]
 const GOLDEN: &[(&str, &[f32], u64)] = &[
     ("default", &[0.3002643, 0.26518026, 0.3389902, 0.31011173, 0.31515813, 0.31706822, 0.28983334, 0.28866914, 0.31129774, 0.26713875, 0.28671327, 0.321584, 0.27498728, 0.32821915, 0.2858537, 0.26539105, 0.30687112, 0.29097077, 0.2702137, 0.29318905, 0.28614786, 0.28948846, 0.3000582, 0.29284236, 0.2840309, 0.28651294, 0.272141, 0.30923036, 0.26799667, 0.25994703, 0.26218393, 0.18486744, 0.17156318, 0.16877808, 0.16692667, 0.16628906, 0.1656809, 0.16499479, 0.16315301, 0.16280055, 0.12491576, 0.06651669, 0.034982793, 0.018247554, 0.009499569, 0.0049574543, 0.0026168479, 0.0014020706], 0x8ae6d7df30e6b62d),

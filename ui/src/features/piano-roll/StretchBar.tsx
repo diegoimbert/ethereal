@@ -1,5 +1,5 @@
 /**
- * The note-stretch bar on the piano roll's ruler and its ×2 / ÷2 buttons (base-109; the
+ * The note-stretch bar on the piano roll's ruler and its ×2 / ÷2 buttons (the
  * math and the behaviour are in `stretch.ts`). Hovering an edge shows a resize cursor, the
  * body a grab cursor (like the arrangement's loop brace). A drag is one undo gesture whose
  * commands are applied live (the preview is the edit itself).

@@ -1,5 +1,5 @@
 /**
- * Default width of a factory device's window, per device type (devices-pass-instruments).
+ * Default width of a factory device's window, per device type.
  * A device whose layout has more sections than fit side by side in the base width
  * (`--eth-size-device-window-width`) opens wider, so its sections sit in rows instead of one
  * long column. The user's own size (kit `FloatingWindow` geometry) always wins.
@@ -13,7 +13,7 @@ import { size } from "@/theme/tokens";
 const BASE = parseFloat(size.deviceWindowWidth);
 
 const FACTOR: Partial<Record<BuiltinDeviceType, number>> = {
-  // --- instruments (devices-pass-instruments) ---
+  // --- instruments ---
   // Osc 1 / Osc 2 / Sub, filter, three envelopes, two LFOs, unison, voice, output.
   PolySynth: 1.75,
   // Sample (waveform), playback, loop, envelope, filter, output.
@@ -24,7 +24,7 @@ const FACTOR: Partial<Record<BuiltinDeviceType, number>> = {
   DrumRack: 1.35,
   // Algorithm picker and the four operators side by side, then pitch / LFO / filter / output.
   FmSynth: 2,
-  // --- effects (devices-pass-effects; widths set with the instruments pass) ---
+  // --- effects (widths set with the instruments pass) ---
   // Eight bands side by side under the curve (~760 px): every band's controls readable.
   Eq: 1.35,
   // Transfer curve and gain-reduction meter, then timing / output / sidechain in one row.

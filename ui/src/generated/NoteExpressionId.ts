@@ -2,6 +2,6 @@
 
 /**
  * A per-note expression curve (pitch, pressure, timbre) of a note (v0.3,
- * `midi-expression` / `mpe`).
+ * MPE).
  */
 export type NoteExpressionId = string;

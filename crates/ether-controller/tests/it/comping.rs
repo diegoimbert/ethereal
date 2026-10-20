@@ -462,7 +462,7 @@ fn midi_comp_cuts_exactly_and_flattens_with_derived_ids() {
 
 #[test]
 fn duplicating_a_track_copies_its_take_lanes_and_comp() {
-    // #581: a MIDI track with two take lanes and a comp region over each.
+    // A MIDI track with two take lanes and a comp region over each.
     let mut f = fx(TrackKind::Midi);
     let a = f.lane(None);
     let b = f.lane(None);
@@ -566,7 +566,7 @@ fn audio_flatten_bakes_the_crossfades_into_clip_fades() {
         c.id = ClipId::NIL;
     }
     assert_eq!(before, after);
-    // The two main-lane clips overlap as a crossfade (clip-editing's rule).
+    // The two main-lane clips overlap as a crossfade (the clip-editing rule).
     let p = f.h.project();
     let main = p.arrangement_clips_of(f.track);
     assert_eq!(main.len(), 2);

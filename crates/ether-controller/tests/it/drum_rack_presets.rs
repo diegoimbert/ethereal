@@ -1,4 +1,4 @@
-//! Drum rack presets (#761): saving a drum rack stores its pads (note, name, color, choke
+//! Drum rack presets: saving a drum rack stores its pads (note, name, color, choke
 //! group, mix) and their chains, with the pads' samples copied into the user library;
 //! `Preset::Load { seed }` replaces the rack's pads in one undo step; drum rack presets
 //! without a structure still load (params only, the pads stay).
@@ -393,7 +393,7 @@ fn older_drum_rack_presets_keep_the_pads_and_structure_needs_a_seed() {
     assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
     assert_eq!(h.project().drum_pads, before.drum_pads);
 
-    // A preset written before #761 (params only) loads without a seed and keeps the pads.
+    // A preset written by older versions (params only) loads without a seed and keeps the pads.
     let old = r#"{"format":"ethereal-preset","version":2,"app_version":"0.6.0",
         "preset":{"name":"Old Kit","device":{"type":"Builtin","device":"DrumRack"},"params":{}}}"#;
     h.ctl

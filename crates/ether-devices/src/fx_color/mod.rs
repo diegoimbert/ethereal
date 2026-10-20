@@ -1,4 +1,4 @@
-//! v0.2 color devices (contracts-3 froze the param tables; see docs/DEVICES.md).
+//! v0.2 color devices (the v0.2 contracts froze the param tables; see docs/DEVICES.md).
 //!
 //! Color effects: saturator (several curves), bitcrusher, auto-filter (multimode + envelope follower + LFO).
 //!
@@ -17,7 +17,7 @@
 //! | 1 | Shape | `Drive` | 0 ..= 36 Decibels, default 6 |
 //! | 2 | Shape | `Bias` | -100 ..= 100 Percent, default 0 |
 //! | 3 | Shape | `Tone` | -100 ..= 100 Percent, default 0 |
-//! | 4 | Quality | `Oversampling` | Off / 2x / 4x (default 4x since #520) |
+//! | 4 | Quality | `Oversampling` | Off / 2x / 4x (default 4x) |
 //! | 5 | Output | `Auto Gain` | toggle, default on |
 //! | 6 | Output | `Output` | -24 ..= 24 Decibels, default 0 |
 //! | 7 | Output | `Mix` | 0 ..= 100 Percent, default 100 |
@@ -37,7 +37,7 @@
 //!
 //! The envelope follower listens to the sidechain input when one is set (`sidechain_inputs = 2`), else to the main input.
 //!
-//! It runs 4x oversampled (#520) and reports that round trip as its latency (29 samples,
+//! It runs 4x oversampled and reports that round trip as its latency (29 samples,
 //! like the saturator).
 //!
 //! | id | group | name | range |

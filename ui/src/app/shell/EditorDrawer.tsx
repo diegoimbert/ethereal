@@ -99,7 +99,7 @@ export function EditorDrawer() {
 }
 
 /**
- * ⌘⌥L / Ctrl+Alt+L (keymap `view.editor`; ⌘J consolidates clips since #870) toggles the editor drawer (anywhere but text fields). Escape that nothing else
+ * ⌘⌥L / Ctrl+Alt+L (keymap `view.editor`; ⌘J consolidates clips) toggles the editor drawer (anywhere but text fields). Escape that nothing else
  * used (not in a text field, dialog or menu) leaves the drawer's fullscreen, else closes an unpinned drawer.
  * Renders nothing.
  */

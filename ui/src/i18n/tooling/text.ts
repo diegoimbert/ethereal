@@ -3,7 +3,7 @@
 /**
  * Terms written the same in every language (formats, protocols, units): a literal made only
  * of these and numbers ("vst3", "48 khz") isn't translatable text. Not a casing exception:
- * app text has none, these are lowercase like every word (#524, owner: "lowercase everything").
+ * app text has none, these are lowercase like every word (owner: "lowercase everything").
  */
 export const SAME_IN_EVERY_LANGUAGE = new Set(
   "aax aiff api asio au clap cors daw dc fm gr hpf lfo pwm rms vca flac gpu id ip ir irs jack lufs mcp midi mp3 mpe ogg osc url usb vst vst2 vst3 wav wasapi dbfs macos ios".split(

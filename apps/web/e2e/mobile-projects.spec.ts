@@ -1,4 +1,4 @@
-// Projects and settings on touch screens (#522): the project screen is a full-screen single
+// Projects and settings on touch screens: the project screen is a full-screen single
 // column (projects first, row actions shown without hover); new / open / rename by touch; the
 // project URL (/p/…) survives a reload, which keeps the mobile UI; Back returns to the
 // previous project; settings are touch-sized.

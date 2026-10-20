@@ -12,7 +12,7 @@
 //!   (`EngineBridge::plugin_param_values`) and mirrored into `Device.params`, so the UI
 //!   and automation see what the restored state actually contains. The mirror is not an
 //!   edit: no undo step, no dirty flag, just a patch.
-//! - **Modulated params** (v0.2, `racks-modulation`): the engine sends a modulated param's
+//! - **Modulated params** (v0.2): the engine sends a modulated param's
 //!   effective value to the plugin while the document keeps the base, so modulated params
 //!   are never mirrored back and their `ParamEdited` echoes are ignored ([`is_modulated`]).
 
@@ -35,7 +35,7 @@ const PARAM_EPSILON: f64 = 1e-9;
 pub struct PluginsState {
     /// Engine node whose params were last mirrored into the document, per plugin device.
     mirrored: BTreeMap<DeviceId, NodeKey>,
-    /// The open "plugin edit" undo step of gesture-less GUI edits (audit #6).
+    /// The open "plugin edit" undo step of gesture-less GUI edits.
     edit_window: Option<edits::EditWindow>,
     /// Recent restart requests per plugin device (ms), for [`PluginsState::allow_restart`].
     restarts: BTreeMap<DeviceId, Vec<u64>>,

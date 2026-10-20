@@ -1,4 +1,4 @@
-//! Shared validator of declarative layouts (contracts-3, CONTRACTS.md §12.4.2): every
+//! Shared validator of declarative layouts (CONTRACTS.md §12.4.2): every
 //! built-in device and modulator layout must reference existing params, fit its grid and use
 //! unique section ids, so the device nodes can't drift from the renderer's assumptions.
 
@@ -81,7 +81,7 @@ fn bound(w: &Widget) -> Vec<ParamId> {
             .flatten()
             .chain(crossovers.iter().copied())
             .collect(),
-        // devices-pass-effects visualisations.
+        // Effect visualisations.
         W::DynamicsCurve {
             threshold,
             ratio,
@@ -245,7 +245,7 @@ fn every_builtin_layout_is_valid() {
             with_layout += 1;
         }
     }
-    // The EQ ships one (graphical-eq); every v0.2 device node adds its own.
+    // The EQ ships one; every v0.2 device node adds its own.
     assert!(with_layout >= 1);
 }
 

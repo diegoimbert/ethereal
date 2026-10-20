@@ -24,7 +24,7 @@ labels: Array<string> | null, automatable: boolean, hidden: boolean,
  */
 step?: number, 
 /**
- * base-132: position of this param among the plugin's own quick controls (CLAP
+ * Position of this param among the plugin's own quick controls (CLAP
  * remote-controls pages: `page index · 8 + slot`, first occurrence). The device card
  * shows these right after the params the user pinned. Omitted from JSON when `None`.
  */

@@ -86,18 +86,18 @@ pub enum ClipCommand {
         fade_in: Beats,
         fade_out: Beats,
     },
-    /// Roadmap v2 (`clip-editing`), audio clips only. `None` = unchanged.
+    /// Roadmap v2, audio clips only. `None` = unchanged.
     SetFadeCurves {
         id: ClipId,
         fade_in: Option<FadeCurve>,
         fade_out: Option<FadeCurve>,
     },
-    /// Roadmap v2 (`clip-editing`), audio clips only. See `AudioContent::reversed`.
+    /// Roadmap v2, audio clips only. See `AudioContent::reversed`.
     SetReversed {
         id: ClipId,
         reversed: bool,
     },
-    /// Roadmap v2 (`clip-editing`): crossfade two audio clips on the same track where
+    /// Roadmap v2: crossfade two audio clips on the same track where
     /// `first` ends at or after `second` starts. Extends them into each other as needed so
     /// they overlap by `length` beats around the boundary (source material permitting) and
     /// sets `first.fade_out = second.fade_in = length` with `curve` on both (see the

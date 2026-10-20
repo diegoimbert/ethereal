@@ -146,7 +146,7 @@ impl Node for Saw {
             self.apply(ctx.events[ev].kind);
             ev += 1;
         }
-        // No voice: silent until the next note (lets the engine skip it, perf audit #5).
+        // No voice: silent until the next note (lets the engine skip it).
         if self.voices.is_empty() {
             ProcessStatus::Silent
         } else {

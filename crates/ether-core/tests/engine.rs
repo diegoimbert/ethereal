@@ -205,7 +205,7 @@ impl ether_core::Node for TransportProbe {
 /// Bar numbers count partial bars before off-bar signature changes (as the bar/beat
 /// display does; the shared vectors' `off_bar_signature_changes` map), and `tempo_inc`
 /// is each sub-block's own ramp: plugin transports (CLAP `bar_number`/`tempo_inc`) use
-/// these as is (#428).
+/// these as is.
 #[test]
 fn transport_bar_numbers_and_tempo_inc() {
     use ether_core::tempo::TimeSignatureDesc;
@@ -1017,7 +1017,7 @@ fn note_ons(clip: ether_core::graph::ClipDesc, frames: usize) -> Vec<(u64, u8)> 
 
 #[test]
 fn leading_gap_delays_the_content() {
-    // base-142: a clip extended 2 beats left past its content (offset -2) plays nothing in
+    // A clip extended 2 beats left past its content (offset -2) plays nothing in
     // the gap and its notes at the same absolute time as before.
     let mut c = midi_clip(cid(1), 1.0, 6.0, &[(0.0, 0.5, 60), (1.0, 0.5, 62)]);
     c.offset = -2.0;

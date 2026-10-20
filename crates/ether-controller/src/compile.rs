@@ -301,7 +301,7 @@ pub fn clip_param_envelopes<'a>(
     (gain, tr)
 }
 
-/// One-pass group-bys of the big tables (perf audit #1). The compiler used to scan every
+/// One-pass group-bys of the big tables. The compiler used to scan every
 /// note per MIDI clip, every lane per clip, every point per lane, every clip, send and
 /// device per track: O(clips × notes). These are built once per compile (O(n log n)) and
 /// give each parent its children in the order the scans produced.
@@ -463,7 +463,7 @@ pub fn clip_desc(
     }
 }
 
-/// Ops that cannot change the compiled graph nor the engine's node set (perf audit #1):
+/// Ops that cannot change the compiled graph nor the engine's node set:
 /// names and colours, arrangement markers, pinned notes, chat and MIDI mappings, none of
 /// which the compiler reads. They don't mark the graph dirty, so renaming a track no longer
 /// recompiles a large project. Anything not listed here republishes.
@@ -510,7 +510,7 @@ fn graph_neutral_table(key: EntityKey) -> bool {
 
 /// Compile the document (see the module docs).
 pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc {
-    // v0.2 (`freeze-bounce`): frozen devices (a frozen track's chain, or the part up to the
+    // v0.2: frozen devices (a frozen track's chain, or the part up to the
     // freeze point of a partial freeze) compile as if they had no node: they are left out of
     // chains, racks, modulation, automation and taps; a partial freeze's live tail stays.
     let frozen_devices = p.frozen_devices();
@@ -557,7 +557,7 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
                 clip_descs.extend(comp);
                 clip_descs.sort_by(|a, b| a.start.total_cmp(&b.start).then(a.id.cmp(&b.id)));
             }
-            // v0.2 (`freeze-bounce`): a frozen track plays its render instead of its clips and
+            // v0.2: a frozen track plays its render instead of its clips and
             // chain (a partial freeze: then its live tail).
             let frozen = crate::freeze::frozen_desc(p, t);
             if frozen.is_some() {
@@ -614,7 +614,7 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
                 } else {
                     crate::drum_rack::racks_desc(p, t.id, ctx)
                 },
-                // --- v0.2 (contracts-3) ---
+                // --- v0.2 ---
                 chain_racks: if whole {
                     Vec::new()
                 } else {
@@ -632,7 +632,7 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
                     _ => None,
                 },
                 vca: t.vca,
-                // --- v0.3 (contracts-4) ---
+                // --- v0.3 ---
                 expression: if frozen.is_some() {
                     Default::default()
                 } else {
@@ -675,7 +675,7 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
         }
     }
 
-    // v0.2 (`groups-buses`): soloing a VCA solos its tracks.
+    // v0.2: soloing a VCA solos its tracks.
     crate::freeze::apply_inert(p, &mut tracks);
     crate::groups::fold_vca_solo(p, &mut tracks);
     RenderGraphDesc {

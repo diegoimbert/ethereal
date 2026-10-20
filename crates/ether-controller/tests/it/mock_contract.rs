@@ -1,4 +1,4 @@
-//! Mock/controller contract (#596): the UI's tests run on `MockTransport`
+//! Mock/controller contract: the UI's tests run on `MockTransport`
 //! (ui/src/transport/mock), so it must behave as the controller does. Each scenario here has
 //! a twin in `ui/src/transport/mock/contract/contract.test.ts`; the transport one is shared
 //! data (`transport.json`).

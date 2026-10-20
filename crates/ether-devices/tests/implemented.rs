@@ -1,4 +1,4 @@
-//! The `implemented` flag (#438): the registry ([`ether_devices::UNIMPLEMENTED`]) is the single
+//! The `implemented` flag: the registry ([`ether_devices::UNIMPLEMENTED`]) is the single
 //! source of `DeviceDescriptor::implemented`; type and instance descriptors agree with it, a
 //! contract placeholder can't pass for a working device, and the wire format keeps old
 //! descriptors (no field) implemented.

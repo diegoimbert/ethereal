@@ -1,4 +1,4 @@
-//! Which patch shapes the controller's receivers understand (perf-plugins, audit #4).
+//! Which patch shapes the controller's receivers understand.
 //!
 //! `PatchChange::DeviceParam` is additive: UIs built with it apply it, older ones would
 //! drop it silently and drift. Embedded UIs (desktop, web) always ship with their engine,

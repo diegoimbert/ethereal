@@ -1,4 +1,4 @@
-/** MockTransport: `Browser` (v0.2, browser-v2). */
+/** MockTransport: `Browser` (v0.2). */
 import { describe, expect, it } from "vitest";
 import type { BrowserCommand, BrowserQuery, Command, Event, LibraryItem, ReplyValue } from "@/generated";
 import type { MockHost } from "./host";

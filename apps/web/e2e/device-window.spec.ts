@@ -1,4 +1,4 @@
-// base-153: factory devices open in their own window, like a plugin's editor; the device
+// Factory devices open in their own window, like a plugin's editor; the device
 // header has two independent toggles: the window ("open window" icon, left) and the inline
 // parameter list ("Parameters", right; capped height). On the real web engine: an EQ's
 // window drives the engine, the inline list too, and neither toggle touches the other's
@@ -153,7 +153,7 @@ test("a factory device: its window and its inline parameters, independent", asyn
   expect(errors).toEqual([]);
 });
 
-// base-154: a device added from the library opens its window (as a plugin opens its editor).
+// A device added from the library opens its window (as a plugin opens its editor).
 test("a factory device added from the library opens its window", async ({ page }) => {
   test.setTimeout(60_000);
   const id = await insertEq(page, "dark", true);
@@ -271,7 +271,7 @@ test("a plugin's header (mock engine): the same two toggles, independent", async
   const header = card.locator(":scope > header");
   const windowToggle = header.getByRole("button", { name: "open Mock Mega window" });
   // No plugin hosting on the web: the plugin's editor can't open here. The toggle says why
-  // (aria-disabled, so its tooltip still shows) instead of doing nothing (#967).
+  // (aria-disabled, so its tooltip still shows) instead of doing nothing.
   await expect(windowToggle).toBeDisabled();
   await expect(windowToggle).toHaveAttribute("aria-disabled", "true");
   await expect(windowToggle).toHaveAttribute("title", /plugins don't run in the browser/);

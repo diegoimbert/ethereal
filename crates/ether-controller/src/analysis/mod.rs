@@ -1,6 +1,6 @@
-//! Device → UI analysis channel, controller side (v0.2, implemented and frozen by
-//! contracts-3; CONTRACTS.md §12.4.3). Producers: `fx-analysis`, `fx-dynamics`,
-//! `graphical-eq`, `racks-modulation` (engine side: `ether_core::analysis`).
+//! Device → UI analysis channel, controller side (v0.2, frozen by the
+//! v0.2 contracts; CONTRACTS.md §12.4.3). Producers: `fx-analysis`, `fx-dynamics`,
+//! the graphical EQ, racks and modulation (engine side: `ether_core::analysis`).
 //!
 //! - Watches are **refcounted**: every `Analysis::Watch` adds one, every `Unwatch` removes
 //!   one. Connections own their watches: the remote server's router sends an `Unwatch` for

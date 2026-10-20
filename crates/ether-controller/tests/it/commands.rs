@@ -289,7 +289,7 @@ fn gestures_merge_into_one_undo_step() {
 
 #[test]
 fn multi_track_volume_batches_are_one_patch_each_and_one_undo_step() {
-    // #911: a volume drag over many selected tracks sends one `Edit::Batch` per frame.
+    // A volume drag over many selected tracks sends one `Edit::Batch` per frame.
     let mut h = Harness::with_project();
     let tracks: Vec<TrackId> = (0..32)
         .map(|_| create_track(&mut h, TrackKind::Midi))
@@ -334,7 +334,7 @@ fn multi_track_volume_batches_are_one_patch_each_and_one_undo_step() {
 
 #[test]
 fn cancel_gesture_takes_back_its_step_and_leaves_none() {
-    // #717: a drag cancelled with Escape leaves no (no-op) undo step behind.
+    // A drag cancelled with Escape leaves no (no-op) undo step behind.
     let mut h = Harness::with_project();
     let t = create_track(&mut h, TrackKind::Audio);
     h.ok(Command::Mixer(MixerCommand::SetVolume {
@@ -849,7 +849,7 @@ fn rename_current_project_is_undoable() {
     assert_eq!(h.project().settings.name, "Test");
 }
 
-/// base-106: dragging clips below the last track creates the new tracks (a MIDI one with
+/// Dragging clips below the last track creates the new tracks (a MIDI one with
 /// the built-in synth, like "New track") and moves or copies the clips onto them, as ONE
 /// `Edit::Batch`: a single undo restores the original arrangement.
 #[test]

@@ -147,7 +147,7 @@ export interface WaveformSource {
   toSeconds: (contentBeat: Beats) => number;
   /** Media length in frames (nothing is drawn past it). */
   frames: number;
-  /** Reversed clip (clip-editing): source times are on the reversed media, frame `f` reads `frames - f`. */
+  /** Reversed clip: source times are on the reversed media, frame `f` reads `frames - f`. */
   reversed?: boolean;
   /** Clip gain in dB (default 0): peaks are scaled at draw time, never recomputed. */
   gainDb?: number;

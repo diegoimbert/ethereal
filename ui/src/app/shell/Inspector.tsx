@@ -268,7 +268,7 @@ function ManyClipsInspector({ clips }: { clips: ReadonlyArray<Clip> }) {
 }
 
 /**
- * The audio fields of several clips (base-150): typing or picking a value sets it on every
+ * The audio fields of several clips: typing or picking a value sets it on every
  * selected audio clip; a drag or an arrow step moves each by the same amount (their
  * differences are kept). Differing values show as mixed ("—"). One undo step per edit
  * (an `Edit::Batch`; a drag is one gesture).
@@ -614,7 +614,7 @@ function TrackMixer({ track, sender }: { track: Track; sender: GestureSender }) 
   const volume = liveVolume === null ? track.mixer.volume : paramToPlain(VOLUME_INFO, liveVolume);
   const pan = livePan === null ? track.mixer.pan : paramToPlain(PAN_INFO, livePan);
   const isMaster = track.kind === "Master";
-  // groups-buses: a VCA carries no audio (no pan, output or sends).
+  // A VCA carries no audio (no pan, output or sends).
   const isVca = track.kind === "Vca";
   const returns = useProjectStore(
     // In the returns' order (the arrangement's): reordering the returns reorders the send knobs.

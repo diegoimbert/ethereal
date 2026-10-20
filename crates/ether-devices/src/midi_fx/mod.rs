@@ -1,4 +1,4 @@
-//! v0.2 MIDI effects (contracts-3 froze the param tables; see docs/DEVICES.md).
+//! v0.2 MIDI effects (the v0.2 contracts froze the param tables; see docs/DEVICES.md).
 //!
 //! MIDI effects (`DeviceCategory::NoteEffect`, CONTRACTS.md §12.4.4): consume `ctx.events`, write the transformed note/MIDI stream to `ctx.out_events` (forward what they don't transform and every `AllNotesOff`, never `Param`); generated notes use note ids from `0x8000_0000 | n`; audio untouched (`channels() == (0, 0)`). Delays only (never earlier than input); a device that holds notes back reports no latency (musical delay).
 //!
@@ -22,7 +22,7 @@
 //! | 6 | Velocity | `Velocity` | As Played / Fixed (default As Played) |
 //! | 7 | Velocity | `Fixed Velocity` | 1 ..= 127 (stepped), default 100 |
 //! | 8 | Arpeggiator | `Retrigger` | Off / Note / Beat (default Off) |
-//! | 9 | Arpeggiator | `Distance` | -24 ..= 24 Semitones (stepped), default 12: transposition of each `Octaves` repeat (appended by `devices-pass-effects`; 12 = octaves, 7 = fifths, negative = downwards) |
+//! | 9 | Arpeggiator | `Distance` | -24 ..= 24 Semitones (stepped), default 12: transposition of each `Octaves` repeat (appended by the effects pass; 12 = octaves, 7 = fifths, negative = downwards) |
 //!
 //! # Chord (`BuiltinDeviceType::Chord`)
 //!
@@ -149,7 +149,7 @@ pub mod arpeggiator {
     pub const VELOCITY_MODE: ParamId = ParamId(6);
     pub const FIXED_VELOCITY: ParamId = ParamId(7);
     pub const RETRIGGER: ParamId = ParamId(8);
-    /// Appended (devices-pass-effects): transposition per repeat (semitones).
+    /// Appended: transposition per repeat (semitones).
     pub const DISTANCE: ParamId = ParamId(9);
     /// Number of params.
     pub const COUNT: usize = 10;
@@ -349,7 +349,7 @@ fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
         BuiltinDeviceType::Velocity => {
             use velocity::*;
             layout(vec![
-                // devices-pass-effects: the mapping curve (its mode / drive / compand /
+                // The mapping curve (its mode / drive / compand /
                 // random controls under it), the ranges beside it.
                 section(
                     "curve",
@@ -433,7 +433,7 @@ fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
     }
 }
 
-/// The param tables (frozen by contracts-3).
+/// The param tables (frozen by the v0.2 contracts).
 fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
     match ty {
         BuiltinDeviceType::Arpeggiator => build(
@@ -488,7 +488,7 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                     100,
                 ),
                 choice(8, "Retrigger", "Arpeggiator", &["Off", "Note", "Beat"], 0),
-                // --- devices-pass-effects ---
+                // --- devices pass effects ---
                 stepped(
                     9,
                     "Distance",
@@ -795,7 +795,7 @@ pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
         BuiltinDeviceType::Chord => {
             presets!(
                 "chord": "major-triad", "minor-seventh", "power-fifths", "slow-strum",
-                // devices-pass-effects: chord memory.
+                // Chord memory.
                 "minor-triad", "major-seventh", "dominant-seventh", "sus4", "sus2", "add9",
                 "diminished", "octaves",
             )
@@ -803,7 +803,7 @@ pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
         BuiltinDeviceType::ScaleQuantize => {
             presets!(
                 "scale-quantize": "follow-track", "c-minor-pentatonic", "octave-up",
-                // devices-pass-effects: common scales.
+                // Common scales.
                 "a-minor", "d-dorian", "e-phrygian", "a-blues", "g-major-pentatonic",
                 "a-harmonic-minor",
             )

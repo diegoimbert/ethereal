@@ -16,7 +16,7 @@
  *   the octave changed meanwhile); window blur, the page being hidden, turning the keyboard
  *   off and a transport change release every held note (no stuck notes).
  * - native plugin editor windows forward their keys (`handleForwardedKey`, from the
- *   `transport-keys` channel) while the keyboard is on, so it keeps playing inside a plugin.
+ *   transport keys channel) while the keyboard is on, so it keeps playing inside a plugin.
  */
 import { create } from "zustand";
 import type { Project, Track, TrackId } from "@/generated";
@@ -298,7 +298,7 @@ function onDomKey(e: KeyboardEvent): void {
 }
 
 /**
- * A key from a native plugin editor window (`transport-keys` forwarding). Same rules as an
+ * A key from a native plugin editor window (transport keys forwarding). Same rules as an
  * app key; returns whether the keyboard used it.
  */
 export function handleForwardedKey(k: KeyInput): boolean {

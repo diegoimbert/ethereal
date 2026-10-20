@@ -1,4 +1,4 @@
-// The piano roll on touch screens (#522): a double-tap on a clip opens its editor in a panel over
+// The piano roll on touch screens: a double-tap on a clip opens its editor in a panel over
 // the arrangement (the transport stays); select mode: a double-tap on empty space adds a note, a
 // drag on a selected note moves it, a drag on empty space pans; draw mode: a tap adds a note;
 // pinch zooms; the close button and the system back close the panel.

@@ -1,5 +1,5 @@
-//! perf-plugins: plugin param edits on the wire (audit #4) and plugin-GUI edit coalescing
-//! (audit #6). The `eprintln!`ed sizes are the numbers quoted in the PR.
+//! Plugin param edits on the wire and plugin-GUI edit coalescing.
+//! The `eprintln!`ed sizes are the numbers quoted in the PR.
 
 use crate::common;
 

@@ -1,4 +1,4 @@
-//! Roadmap v2 model contracts (contracts-2): the invariants of the new entities (markers,
+//! Roadmap v2 model contracts: the invariants of the new entities (markers,
 //! MIDI mappings, drum pads, sidechains, slices, fade curves).
 
 use ether_model::*;

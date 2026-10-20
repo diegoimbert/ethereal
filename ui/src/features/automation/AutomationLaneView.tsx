@@ -2,7 +2,7 @@
  * One automation lane drawn in SVG: the curve (engine formula), breakpoint handles, step
  * gridlines and the editing interactions (see README "Automation editing"):
  *
- * - like the arranger (#621): a drag on the background selects the points in a box
+ * - like the arranger: a drag on the background selects the points in a box
  *   (cmd/ctrl-drag toggles them); on track lanes a click selects the track and the lane and
  *   places the insert marker (like the track's empty clip-lane space), and a shift-drag
  *   selects a time range in the lane (shift-click extends it); a shift-drag ON THE LINE inside
@@ -747,7 +747,7 @@ export function AutomationLaneView({
         return;
       }
     }
-    // Like the arranger (#621): a drag selects points in a box (⌘/Ctrl: toggles them), ⇧+drag
+    // Like the arranger: a drag selects points in a box (⌘/Ctrl: toggles them), ⇧+drag
     // selects a time range of the lane (track lanes; ⇧+click extends it); a click places the
     // cursor (track lanes). Clip envelopes: a drag selects points.
     const owner = live.current.owner;

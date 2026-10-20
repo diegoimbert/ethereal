@@ -1,4 +1,4 @@
-//! v0.2 `midi-fx` engine hooks (base-93): a bypassed MIDI effect is MIDI thru (its
+//! v0.2 `midi-fx` engine hooks: a bypassed MIDI effect is MIDI thru (its
 //! own params stay behind), and adding/removing/(un)bypassing a MIDI effect releases the
 //! track's notes (adding/removing: AllNotesOff to every entry, once per change; a switch:
 //! AllNotesOff to the next device, `ChainRt::switch_notes`), so notes the effect generated

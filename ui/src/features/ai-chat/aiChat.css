@@ -336,7 +336,7 @@
   color: var(--eth-color-ok);
 }
 
-/* ─── Alpha (#743): a quiet accent badge, and what it means ───────────────────────────── */
+/* ─── Alpha: a quiet accent badge, and what it means ───────────────────────────── */
 .eth-ai__alpha {
   display: inline-flex;
   flex: none;

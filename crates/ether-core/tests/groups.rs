@@ -1,4 +1,4 @@
-//! `groups-buses` engine behaviour (CONTRACTS.md §12.10): VCA gain/mute/automation, track
+//! Groups and buses engine behaviour (CONTRACTS.md §12.10): VCA gain/mute/automation, track
 //! input taps (points, monitoring, PDC alignment) and the solo/mute rules of groups and
 //! buses. Everything on the audio thread is checked allocation-free.
 

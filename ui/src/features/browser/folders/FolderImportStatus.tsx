@@ -31,7 +31,7 @@ function text(job: FolderJob, copies: boolean): string {
 }
 
 /**
- * The browser's folder-import rows (`base-136`): progress with Cancel while a folder is read
+ * The browser's folder-import rows: progress with Cancel while a folder is read
  * or copied, then the outcome (skipped files, errors) until dismissed.
  */
 export function FolderImportStatus({ copies }: { copies: boolean }) {

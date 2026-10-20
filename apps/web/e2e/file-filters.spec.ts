@@ -1,8 +1,8 @@
-// Library file filters (base-145) on the web build, against the real engine (WasmTransport →
+// Library file filters on the web build, against the real engine (WasmTransport →
 // controller Worker → OPFS): a library folder holding a mix of files (two samples, an Ableton
 // set and its `.asd`, Windows' `Thumbs.db`, a text file) lists only the samples in the
 // library's folder tree; Settings > General > Library files marks a rule that isn't a regex,
-// and a "Hide" rule takes a sample out of the tree at once. (Since the UX session, #268, the
+// and a "Hide" rule takes a sample out of the tree at once. (Since the UX session, the
 // tree lists only files of the chosen kind, so a "Show" rule for another type, e.g. `.als`,
 // has no visible effect there.) Screenshots in both themes (the filtered folder, the settings
 // section with an invalid rule, the folder after the rule); also written to

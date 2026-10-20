@@ -1,5 +1,5 @@
 /**
- * Mock of `Rack::*` and `Modulation::*` (v0.2, contracts-3). Owned by `racks-modulation`.
+ * Mock of `Rack::*` and `Modulation::*` (v0.2).
  * Rack chains, chain devices, macros (rack params 0..8) and Bitwig-style modulators with
  * mappings (`ether_model::{rack, modulation}`), mirroring
  * `crates/ether-controller/src/racks/mod.rs`: chain content rules (audio effect racks hold

@@ -1,9 +1,9 @@
 /**
  * MockTransport simulations of the roadmap features, one file (and `*.test.ts`) per feature.
  *
- * Roadmap v2 (contracts-2):
+ * Roadmap v2:
  *
- * | file            | node            | commands                                          |
+ * | file            | feature         | commands                                          |
  * |-----------------|-----------------|---------------------------------------------------|
  * | `tempo.ts`      | tempo-metronome | `Tempo::*`                                        |
  * | `clipEditing.ts`| clip-editing    | `Marker::*`, `Clip::{SetFadeCurves, SetReversed, Crossfade}` |
@@ -14,9 +14,9 @@
  * | `export.ts`     | export          | `Export::*` (`MockExports`)                       |
  * | `remote.ts`     | remote-engine   | uploads (simulated)                               |
  *
- * v0.2 (contracts-3, CONTRACTS.md §12):
+ * v0.2 (CONTRACTS.md §12):
  *
- * | file                 | node              | commands                                  |
+ * | file                 | feature           | commands                                  |
  * |----------------------|-------------------|-------------------------------------------|
  * | `comping.ts`         | comping           | `Take::*`                                 |
  * | `freezeBounce.ts`    | freeze-bounce     | `Freeze::*`                               |
@@ -28,9 +28,9 @@
  * | `mediaReferences.ts` | media-references  | `MediaRef::*`                             |
  * | `groupsBuses.ts`     | groups-buses      | `Track::{GroupSelected, Ungroup, SetVca}` |
  *
- * v0.3 (contracts-4, CONTRACTS.md §13):
+ * v0.3 (CONTRACTS.md §13):
  *
- * | file             | node                | commands                                              |
+ * | file             | feature             | commands                                              |
  * |------------------|---------------------|-------------------------------------------------------|
  * | `expression.ts`  | midi-expression     | `Expression::*` (document)                            |
  * | `mpe.ts`         | mpe                 | `Expression::SetTrackMpe` (document)                  |
@@ -57,10 +57,10 @@ import { drumRackCommand, sliceCommand } from "./drumRack";
 import { grooveCommand } from "./groove";
 import { midiMapCommand } from "./midiLearn";
 import { tempoCommand } from "./tempo";
-// v0.2 (contracts-3): one file per node.
+// v0.2: one file per node.
 import { takeCommand } from "./comping";
 import { modulationCommand, rackCommand } from "./racksModulation";
-// v0.3 (contracts-4): one file per node.
+// v0.3: one file per node.
 import { expressionCommand } from "./expression";
 import { setExternalRouting } from "./external";
 import { insertTemplate } from "./templates";
@@ -76,13 +76,13 @@ export function isRoadmapDocumentCommand(command: Command): boolean {
       return true;
     case "MidiMap":
       return command.command.type !== "Learn" && command.command.type !== "List";
-    // v0.2 (contracts-3).
+    // v0.2.
     case "Take":
     case "Rack":
       return true;
     case "Modulation":
       return command.command.type !== "ListModulatorKinds";
-    // v0.3 (contracts-4).
+    // v0.3.
     case "Expression":
       return true;
     case "External":
@@ -124,7 +124,7 @@ export function reduceRoadmapCommand(ctx: ReducerContext, command: Command, dele
     case "MidiMap":
       midiMapCommand(ctx, command.command);
       return true;
-    // v0.2 (contracts-3).
+    // v0.2.
     case "Take":
       takeCommand(ctx, command.command);
       return true;
@@ -134,7 +134,7 @@ export function reduceRoadmapCommand(ctx: ReducerContext, command: Command, dele
     case "Modulation":
       modulationCommand(ctx, command.command);
       return true;
-    // v0.3 (contracts-4).
+    // v0.3.
     case "Expression":
       expressionCommand(ctx, command.command);
       return true;

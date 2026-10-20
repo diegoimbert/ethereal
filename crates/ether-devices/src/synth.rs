@@ -1,6 +1,6 @@
 //! Basic-shape synth: sine/saw/square/triangle oscillator, ADSR, low-pass filter.
 //!
-//! `devices-pass-instruments` appends `Fine` (cents), `Glide`, `Velocity` (sensitivity),
+//! The instruments pass appends `Fine` (cents), `Glide`, `Velocity` (sensitivity),
 //! and the filter's `Env Amount` (the amp envelope sweeps the cutoff, ±6 octaves at
 //! ±100 %) and `Key Tracking`; at their defaults the synth renders exactly as before.
 //!
@@ -11,7 +11,7 @@
 //! key returns to the most recent key still held. Pitch is `Transpose` + `Fine` (global).
 //!
 //! Polyphonic (fixed [`MAX_VOICES`], oldest-voice stealing). Saw, square and triangle are
-//! band-limited with 4-point polyBLEP / polyBLAMP ([`crate::dsp::blep`], #520); the filter is a per-voice TPT state-variable low-pass
+//! band-limited with 4-point polyBLEP / polyBLAMP ([`crate::dsp::blep`]); the filter is a per-voice TPT state-variable low-pass
 //! (stable under fast modulation). All state is pre-allocated: `process` never allocates.
 
 use std::f32::consts::{PI, TAU};
@@ -42,13 +42,13 @@ pub mod params {
     pub const CUTOFF: ParamId = ParamId(6);
     pub const RESONANCE: ParamId = ParamId(7);
     pub const VOLUME: ParamId = ParamId(8);
-    /// Fine tuning, cents (`devices-pass-instruments`).
+    /// Fine tuning, cents.
     pub const FINE: ParamId = ParamId(9);
-    /// Portamento time, ms (`devices-pass-instruments`).
+    /// Portamento time, ms.
     pub const GLIDE: ParamId = ParamId(10);
-    /// Velocity → level, percent (`devices-pass-instruments`; 100 = the original response).
+    /// Velocity → level, percent (100 = the original response).
     pub const VELOCITY: ParamId = ParamId(11);
-    /// Amp envelope → cutoff, percent of ±6 octaves (`devices-pass-instruments`).
+    /// Amp envelope → cutoff, percent of ±6 octaves.
     pub const FILTER_ENV: ParamId = ParamId(12);
     /// Cutoff follows the key, percent (100 = one octave per octave, around C4).
     pub const KEY_TRACKING: ParamId = ParamId(13);
@@ -67,7 +67,7 @@ const ENV_OCTAVES: f32 = 6.0;
 /// Glide and per-voice filter updates run every this many samples.
 const CTRL: usize = 16;
 /// Time constant of the pitch change of a sounding mono / legato voice that doesn't glide
-/// (ms): reads as a jump, but a sine doesn't kink (#845: a -50 dB click on a 220 → 330 Hz
+/// (ms): reads as a jump, but a sine doesn't kink (a -50 dB click on a 220 → 330 Hz
 /// jump).
 const DECLICK_MS: f32 = 0.5;
 
@@ -207,7 +207,7 @@ pub fn descriptor() -> DeviceDescriptor {
     }
 }
 
-/// Declarative panel (v0.2, `device-ui`; drawn by the shared device renderer).
+/// Declarative panel (v0.2; drawn by the shared device renderer).
 pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
     use crate::contract::{item, knob, layout, section};
     use ether_core::protocol::layout::{Widget, WidgetSize::*};
@@ -749,7 +749,7 @@ impl Synth {
                         v.pitch = target;
                         v.declick = false;
                     }
-                    // Ramp to the new increment over this control period (no steps, #845).
+                    // Ramp to the new increment over this control period (no steps).
                     let dt = (util::key_to_hz(v.pitch + transpose + fine) / sr).min(0.49);
                     v.dt_step = (dt - v.dt) / CTRL as f32;
                 }

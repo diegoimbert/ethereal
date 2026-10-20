@@ -487,7 +487,7 @@ fn midi_bytes(kind: &EventKind) -> Option<([u8; 3], usize)> {
             };
             Some((data, n))
         }
-        // v0.3 (`midi-expression`): `Pressure` goes out as poly aftertouch (`mpe` adds MPE).
+        // v0.3: `Pressure` goes out as poly aftertouch (`mpe` adds MPE).
         EventKind::NoteExpression {
             channel,
             key,

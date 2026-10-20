@@ -1,7 +1,7 @@
-//! Device → UI analysis channel (v0.2, frozen by contracts-3; CONTRACTS.md §12.4.3).
+//! Device → UI analysis channel (v0.2, frozen by the v0.2 contracts; CONTRACTS.md §12.4.3).
 //!
 //! Devices such as the spectrum analyzer and tuner (`fx-analysis`), gain-reduction meters
-//! (`fx-dynamics`) and the modulated-value readback of `racks-modulation` push small frames
+//! (`fx-dynamics`) and the modulated-value readback of racks and modulation push small frames
 //! from the audio thread (bounded, throttled, allocation-free: `ether_core::analysis`). The
 //! controller converts them to `Event::Analysis` **only for watched devices**: the UI sends
 //! `Watch` when a device panel becomes visible and `Unwatch` when it goes away (watches are
@@ -45,7 +45,7 @@ pub enum AnalysisData {
         min_hz: f32,
         max_hz: f32,
         bins_db: Vec<f32>,
-        /// v0.2 (`graphical-eq`): input (`Pre`) or output (`Post`, the default) of the
+        /// v0.2: input (`Pre`) or output (`Post`, the default) of the
         /// device. Analyzers send `Post`.
         #[serde(default)]
         stage: SpectrumStage,
@@ -64,7 +64,7 @@ pub enum AnalysisData {
     /// Generic meters (e.g. per-band gain reduction in dB, gate state). Meaning is defined by
     /// the device's layout widget that shows them.
     Levels { values: Vec<f32> },
-    /// Modulated param values of the device (`racks-modulation` readback for depth rings):
+    /// Modulated param values of the device (racks and modulation readback for depth rings):
     /// normalized `base` and `effective` values of every modulated param.
     Modulation { values: Vec<ModulatedValue> },
 }

@@ -10,7 +10,7 @@ const STATE: Record<Persistence, MessageKey> = {
   unsupported: "storage.state.unsupported",
 };
 
-/** Settings > General, in the browser (#622): whether projects are kept, the usage, "request again". */
+/** Settings > General, in the browser: whether projects are kept, the usage, "request again". */
 export function StorageSettings() {
   const { persistence, usage, quota } = useStorageStatus();
   const [asking, setAsking] = useState(false);

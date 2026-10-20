@@ -55,7 +55,7 @@ pub trait MainThread: Send + Sync {
 
     /// Run the queued work now if the caller is the main thread, which is blocked waiting
     /// for something that needs it (the host saving on quit while `NativeHost::shutdown`
-    /// runs on the main thread, #566). Default: nothing (the main thread serves its own
+    /// runs on the main thread). Default: nothing (the main thread serves its own
     /// queue).
     fn run_pending(&self) {}
 }
@@ -554,7 +554,7 @@ impl PluginHost {
             health.name_device(device, name);
         }
         // Set when this call gives up (timeout, shutdown): a load that finishes later on the
-        // main thread then drops its instance instead of registering it (issue #568).
+        // main thread then drops its instance instead of registering it.
         let abandoned = Arc::new(AtomicBool::new(false));
         let gave_up = abandoned.clone();
         let loaded = self.call_as(Work::LoadPlugin, Some(device), move || {
@@ -849,7 +849,7 @@ impl PluginHost {
     }
 
     /// The native window of `device`'s open editor (for capturing it and injecting input
-    /// into it, #853), from any thread without waiting for the main thread: as of its
+    /// into it), from any thread without waiting for the main thread: as of its
     /// opening or the last poll. `None` without an open editor, or while a floating
     /// editor's window isn't found (yet).
     pub fn editor_window_for(&self, device: DeviceId) -> Option<NativeWindow> {
@@ -873,7 +873,7 @@ impl PluginHost {
 /// A loaded instance on its way from the main thread to the caller of
 /// [`PluginHost::instantiate`]. Dropped undelivered (the caller timed out while the load
 /// was finishing), it retires the instance and returns its node, so the controller is
-/// deactivated and dropped instead of lingering as the device's live instance (#568).
+/// deactivated and dropped instead of lingering as the device's live instance.
 struct Loaded {
     device: DeviceId,
     /// `None` once delivered.
@@ -921,7 +921,7 @@ pub struct HostedPluginNode {
     host: PluginHost,
     bypass: BypassDelay,
     /// Most latency the plugin may report ([`ether_core::graph::max_latency_samples`]):
-    /// what it reports beyond is clamped (issue #569: a plugin answering `-1` must not
+    /// what it reports beyond is clamped (issue a plugin answering `-1` must not
     /// size a multi-GB delay line or wrap the engine's PDC sums).
     max_latency: u32,
 }
@@ -1900,7 +1900,7 @@ mod tests {
         assert_eq!(format_label(PluginFormat::Vst3), "VST3");
     }
 
-    /// Two unrelated VST2 plugins sharing a uniqueID (#425): both stay listed, each loads
+    /// Two unrelated VST2 plugins sharing a uniqueID: both stay listed, each loads
     /// (picked by the device's plugin name), and retrying one target leaves the other.
     #[test]
     fn catalog_keeps_vst2_id_collisions_apart() {
@@ -2325,7 +2325,7 @@ mod tests {
         }
     }
 
-    /// Issue #568: a load still running on the main thread when the caller times out is
+    /// Issue a load still running on the main thread when the caller times out is
     /// cleaned up when it finishes (deactivated, dropped, not left as the live instance).
     #[test]
     fn a_load_that_times_out_is_freed_when_it_finishes() {
@@ -2348,7 +2348,7 @@ mod tests {
         assert!(matches!(host.save_state(d), Ok(None)));
     }
 
-    /// Issue #568, the late race: the caller gives up after the load registered its
+    /// Issue the late race: the caller gives up after the load registered its
     /// instance (here: while reopening the editor of the instance it replaces). The
     /// undelivered result retires the orphan and returns its node.
     #[test]
@@ -2375,7 +2375,7 @@ mod tests {
         assert_eq!(counts.dropped.load(Ordering::SeqCst), 2);
     }
 
-    /// Issue #569: a plugin reporting `u32::MAX` latency is clamped to the PDC limit (10 s)
+    /// Issue a plugin reporting `u32::MAX` latency is clamped to the PDC limit (10 s)
     /// instead of sizing a multi-GB bypass delay line.
     #[test]
     fn absurd_plugin_latency_is_clamped() {

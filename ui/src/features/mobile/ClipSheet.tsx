@@ -1,5 +1,5 @@
 /**
- * The clip sheet (#522, the design's §6 "Numeric entry"): a clip's position typed in, where a
+ * The clip sheet (the design's §6 "Numeric entry"): a clip's position typed in, where a
  * finger is too coarse. Start ("bar.beat.sixteenth") and length ("bars.beats.sixteenths"), and
  * each edge nudged by one grid step. Opened from the clip bar's "position". Each change is one
  * undo step, through the same commands as a drag (`editMath.ts`).

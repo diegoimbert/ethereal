@@ -41,7 +41,7 @@ const noAnalysis = (_device: DeviceId): ReadonlyArray<AnalysisData> => EMPTY;
 /** The analysis hook (`fx-analysis`), or a stub returning no frames. */
 export const useDeviceAnalysis: (device: DeviceId) => ReadonlyArray<AnalysisData> = Object.values(analysisModules)[0]?.useDeviceAnalysis ?? noAnalysis;
 
-/** The modulation decoration of param widgets (`racks-modulation`), if any. */
+/** The modulation decoration of param widgets, if any. */
 export const ParamModulation: ComponentType<ParamModulationProps> | null = Object.values(modulationModules)[0]?.ParamModulation ?? null;
 
 /** Target id of a param for modulation drops (`<device>:<param>`). */

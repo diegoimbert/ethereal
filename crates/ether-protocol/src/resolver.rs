@@ -1,4 +1,4 @@
-//! Resolving missing plugins and audio files (`import-resolver`, owner request; CONTRACTS.md
+//! Resolving missing plugins and audio files (CONTRACTS.md
 //! §14.2). Used right after `Project::Import` and at any time later from the project.
 //!
 //! 1. `Resolve::Propose { installed }` replies [`ResolveProposal`]: every plugin device whose

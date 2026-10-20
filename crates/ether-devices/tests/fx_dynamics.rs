@@ -362,7 +362,7 @@ fn gate_output_param_is_sample_accurate() {
     let out = render(&mut g, &x, None, &[(1000, param(gate::OUTPUT, -6.0206))]);
     assert_eq!(out[999], 0.5);
     assert!(out[1000] < 0.5 && out[1000] > 0.49, "{}", out[1000]);
-    // A jump ramps over up to ~20 ms (no zipper, #520), monotonically, then holds.
+    // A jump ramps over up to ~20 ms (no zipper), monotonically, then holds.
     assert!(out[1000..2100].windows(2).all(|w| w[1] <= w[0]));
     assert!(out[1031] > 0.45, "{}", out[1031]);
     assert!(

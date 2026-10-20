@@ -1,4 +1,4 @@
-//! Key forwarding from plugin editor windows to the app (`transport-keys`; CONTRACTS.md
+//! Key forwarding from plugin editor windows to the app (CONTRACTS.md
 //! §13.15).
 //!
 //! A plugin editor lives in a native window the host made (a format's `HostWindow`). While

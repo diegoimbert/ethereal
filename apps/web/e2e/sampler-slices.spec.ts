@@ -1,4 +1,4 @@
-// Sampler slicing (#760) on the web build, through the UI, against the real engine:
+// Sampler slicing on the web build, through the UI, against the real engine:
 // a demo loop dropped in a Sampler → its window's "slice" mode finds the transients (markers
 // on the waveform) → pressing a slice plays it (the track meter moves) → "slice to drum
 // rack" turns it into one pad per slice (one undo step) → a sample dropped on the rack

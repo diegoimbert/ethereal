@@ -1,6 +1,6 @@
 // The AI chat's conversation: what the panel shows (`items`) and what the model sees (the
 // provider session's history, append-only). One turn runs at a time; Stop aborts the stream
-// and the tool loop. #717: the conversation belongs to the open project: kept on this machine
+// and the tool loop. The conversation belongs to the open project: kept on this machine
 // (`persist.ts`) after every turn, restored when the project opens again (a reload too);
 // "clear chat" (`newChat`) forgets it. Nothing is sent before the user agreed, once per
 // provider, to send it the project's contents (`hasConsent`).
@@ -55,7 +55,7 @@ function fresh(): Conversation {
   return { session: null, provider: null, tools: null, overview: null, abort: null, restored: null };
 }
 
-/** Keep the conversation of the open project (#717). */
+/** Keep the conversation of the open project. */
 function save(): void {
   if (!projectId) return;
   const { items } = useAiChat.getState();

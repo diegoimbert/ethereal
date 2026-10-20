@@ -621,7 +621,7 @@ fn node_keeps_the_module_alive_after_the_controller_is_dropped() {
     drop(node);
 }
 
-/// base-148: touching notes (the first ends on the sample the second starts) reach the
+/// Touching notes (the first ends on the sample the second starts) reach the
 /// plugin as note-off then note-on, whatever order they were pushed in: the engine's sort
 /// puts the off first and the `IEventList` keeps it (the instrument fixture's level follows
 /// the last note event, so the reverse order would leave it silent).

@@ -1,4 +1,4 @@
-// devices-pass-effects: every built-in audio and MIDI effect opens in its window with its
+// Every built-in audio and MIDI effect opens in its window with its
 // visualisation and no clipped / missing control, and each new param, changed in the window,
 // reaches the project mirror (the real wasm engine's document).
 import { expect, test, type Locator, type Page } from "@playwright/test";

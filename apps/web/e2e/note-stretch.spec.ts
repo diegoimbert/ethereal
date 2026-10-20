@@ -1,4 +1,4 @@
-// Note stretch (base-109, owner request, Ableton-style) on the web build, through the UI,
+// Note stretch (owner request, Ableton-style) on the web build, through the UI,
 // against the real engine (WasmTransport → controller Worker → AudioWorklet). The owner's
 // steps: a MIDI clip with notes at beats 0 and 2; select the section 0..4 on the strip under
 // the ruler; a bar appears on the ruler over the selection; drag its right edge from 4 to 8:

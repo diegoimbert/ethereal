@@ -1,5 +1,5 @@
 /**
- * Error boundaries around the editor's regions (#590).
+ * Error boundaries around the editor's regions.
  *
  * A render error in one region (the arrangement, a pane, a top-bar control, a dialog root)
  * used to unmount the whole React root: a blank window. Each region now has a

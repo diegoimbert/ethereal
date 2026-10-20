@@ -1,4 +1,4 @@
-// #582: a device paste is all or nothing, and racks with chains paste onto other tracks.
+// A device paste is all or nothing, and racks with chains paste onto other tracks.
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { BuiltinDevice, Device, DeviceCategory, DeviceId, Project, TrackId, TrackKind } from "@/generated";
 import { useNotices } from "@/features/notifications";

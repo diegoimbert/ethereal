@@ -382,7 +382,7 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
         "Volume",
         "Output",
         ParamUnit::Decibels,
-        // -14 dB (#520): at -6 a fresh five-note chord peaked at +5.6 dBFS; now -2.4,
+        // -14 dB: at -6 a fresh five-note chord peaked at +5.6 dBFS; now -2.4,
         // level with the synth and the poly synth.
         (-70.0, 6.0, -14.0),
         ParamScale::Fader,

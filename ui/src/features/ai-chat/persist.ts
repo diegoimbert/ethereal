@@ -1,4 +1,4 @@
-// The AI chat's conversation, kept per project on this machine (#717): localStorage
+// The AI chat's conversation, kept per project on this machine: localStorage
 // `eth.ai.chat.<project id>`, never in the project file (it holds the model's replies and the
 // tool results, which are the user's own business, and may name an API provider). What the
 // panel shows and the model-side history are both kept, so a reload continues the same

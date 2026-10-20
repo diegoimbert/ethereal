@@ -1,4 +1,4 @@
-//! Plugin sidechain end to end (`plugin-sidechain`, CONTRACTS §12.14): the CLAP and VST3
+//! Plugin sidechain end to end (CONTRACTS §12.14): the CLAP and VST3
 //! fixtures (each adds its aux/sidechain input to its output) through the real scanner, the
 //! real controller + native bridge + engine (rendered offline on the test thread), in
 //! process and sandboxed, plus an offline export.

@@ -111,7 +111,7 @@ export function GetStarted({ commands, onStarted }: { commands: EngineCommands; 
             </li>
           );
         })}
-        {/* docs (#665): the user documentation, every feature explained. */}
+        {/* docs: the user documentation, every feature explained. */}
         <li className="eth-welcome__article-item">
           <button type="button" className="eth-welcome__article eth-welcome__article--tour" data-testid="welcome-docs" onClick={() => openDocs()}>
             <span className="eth-welcome__article-icon">

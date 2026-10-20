@@ -125,7 +125,7 @@ export function flattenComp(transport: EngineTransport, track: TrackId, keepLane
   });
 }
 
-/** #717: flattening and deleting the takes throws the other takes away: ask first. */
+/** Flattening and deleting the takes throws the other takes away: ask first. */
 export function confirmFlattenAndDeleteTakes(transport: EngineTransport, track: TrackId, lanes: number): void {
   useConfirm.getState().ask({
     title: t("comping.flatten_confirm.title"),

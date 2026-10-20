@@ -58,7 +58,7 @@ describe("Browser", () => {
     expect(await list.findByRole("button", { name: "Kick.wav" })).toBeInTheDocument();
     fireEvent.click(within(screen.getByRole("navigation", { name: "path" })).getByText("Library"));
     expect(await list.findByRole("button", { name: "Synths" })).toBeInTheDocument();
-    // base-145: unsupported files are hidden by the default file filter...
+    // Unsupported files are hidden by the default file filter...
     expect(list.queryByText("Readme.txt")).toBeNull();
     // ...a whitelist rule lists them (re-listed on `FileFilterChanged`), not actionable.
     const got = await mock.send(cmd("Browser", { type: "GetFileFilter" }));

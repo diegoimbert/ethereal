@@ -1,4 +1,4 @@
-/** MockTransport: `Rack` / `Modulation` (v0.2, racks-modulation). */
+/** MockTransport: `Rack` / `Modulation` (v0.2). */
 import { describe, expect, it } from "vitest";
 import type { Command, Project } from "@/generated";
 import { cmd } from "../../cmd";

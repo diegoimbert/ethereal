@@ -2,8 +2,8 @@
 //!
 //! A patch is a list of whole-entity upserts/removals (plus settings), derived from the ops
 //! that were applied. The UI applies them to its normalized store with no domain logic:
-//! `Upsert` = `table[id] = entity`, `Remove` = `delete table[id]`, and (perf-plugins, audit
-//! #4) the field-level `DeviceParam` = `devices[id].params[param] = value` for the
+//! `Upsert` = `table[id] = entity`, `Remove` = `delete table[id]`, and
+//! the field-level `DeviceParam` = `devices[id].params[param] = value` for the
 //! hottest edit (a knob drag), so it doesn't re-send the whole device.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -48,7 +48,7 @@ pub enum PatchChange {
     Settings {
         settings: ProjectSettings,
     },
-    /// One parameter of an existing device (perf-plugins, audit #4): the receiver sets
+    /// One parameter of an existing device: the receiver sets
     /// `devices[id].params[param] = value` (`None` = reset to default: remove the entry)
     /// and ignores it if it has no such device. Sent only to receivers that support it
     /// (`remote::FEATURE_DEVICE_PARAM_PATCH`); [`upsert_device_params`] turns it back into
@@ -67,7 +67,7 @@ pub enum PatchChange {
 /// current value if it exists after the ops, else `Remove`. Settings yield one `Settings`
 /// change (the whole settings object) at the position of the first settings op.
 ///
-/// Exception (audit #4): a device that exists after the ops and was touched *only* by
+/// Exception: a device that exists after the ops and was touched *only* by
 /// `DeviceChange::Param` updates yields one `DeviceParam` per distinct param instead (its
 /// final value, in first-touch order), so a knob drag on a 2000-param plugin sends ~100
 /// bytes rather than the whole device.
@@ -149,8 +149,8 @@ pub fn full_changes(project: &Project) -> Vec<PatchChange> {
     out
 }
 
-/// Drop every plugin state blob (`PluginInstance.state`) from the entities in `changes`
-/// (audit #4). Patches are a mirror for the UI, which never reads the state; a blob is up
+/// Drop every plugin state blob (`PluginInstance.state`) from the entities in `changes`.
+/// Patches are a mirror for the UI, which never reads the state; a blob is up
 /// to megabytes and would otherwise be re-sent with every edit of its device. Stripped
 /// states arrive as `null`: receivers must not treat that as "fresh instance".
 pub fn strip_plugin_states(changes: &mut [PatchChange]) {

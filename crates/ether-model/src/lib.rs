@@ -5,11 +5,11 @@
 //!   [`tempo`], [`warp`], [`media`], gathered in [`project::Project`].
 //! - Roadmap v2 entities (pre-release `.ether` v3): [`marker`], [`midi_map`], [`drum_rack`]; the
 //!   reserved collaboration envelope is [`collab`].
-//! - v0.2 entities (pre-release `.ether` v4, contracts-3): [`take`] (take lanes, comp regions), [`rack`]
+//! - v0.2 entities (pre-release `.ether` v4): [`take`] (take lanes, comp regions), [`rack`]
 //!   (rack chains), [`modulation`] (modulators, mappings); plus [`multisampler`] zones,
 //!   track freeze, external media references and the [`preset`] file format.
-//! - Chat journal and pinned notes (pre-release `.ether` v4, base-62): [`social`].
-//! - v0.3 (pre-release `.ether` v5, contracts-4): [`expression`] (clip expression lanes, per-note
+//! - Chat journal and pinned notes (pre-release `.ether` v4): [`social`].
+//! - v0.3 (pre-release `.ether` v5): [`expression`] (clip expression lanes, per-note
 //!   expressions, MPE settings), [`external`] (hardware I/O routing, convolution IR source),
 //!   the [`template`] file format and rack presets ([`preset::PresetRack`]).
 //! - [`op`]: the op set (the only way to mutate), [`history`]: undo/redo,

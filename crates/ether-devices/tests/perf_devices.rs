@@ -1,4 +1,4 @@
-//! Built-in effect harness (perf audit #5 / #17). Ignored by default; run in release:
+//! Built-in effect harness. Ignored by default; run in release:
 //!
 //! ```text
 //! cargo test --release -p ether-devices --test perf_devices -- --ignored --nocapture
@@ -51,7 +51,7 @@ fn effects() -> Vec<(BuiltinDeviceType, Vec<(&'static str, f64)>)> {
         (Saturator, vec![]),
         (Bitcrusher, vec![]),
         (ConvolutionReverb, vec![]),
-        // devices-pass-effects: the new stages switched on (the defaults above skip them).
+        // The new stages switched on (the defaults above skip them).
         (
             Compressor,
             vec![

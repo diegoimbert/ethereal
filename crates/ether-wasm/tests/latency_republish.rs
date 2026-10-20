@@ -1,4 +1,4 @@
-//! `web-latency` (CONTRACTS.md §13.13): the native `latency-republish` test ported to the
+//! Web latency (CONTRACTS.md §13.13): the native `latency_republish` test ported to the
 //! web pipeline. The real `EtherController` drives a `WebBridge`; the Worklet's
 //! `EngineHost` renders on the other side of heap-backed rings (the SAB stand-in). When a
 //! built-in's latency changes in the Worklet (the Gate's `Lookahead`), its latency report

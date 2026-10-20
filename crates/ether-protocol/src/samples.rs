@@ -1,4 +1,4 @@
-//! The default sample pack (#519; docs/SAMPLES.md): a signed, versioned manifest on our R2
+//! The default sample pack (docs/SAMPLES.md): a signed, versioned manifest on our R2
 //! storage, downloaded on first use, its files fetched lazily and cached engine-side (the
 //! app data folder natively, OPFS on the web), plus a tiny built-in kit synthesized in code
 //! for offline use.
@@ -73,7 +73,7 @@ pub enum SampleCategory {
     Instrument,
 }
 
-/// The license of a pack file. Only CC0 and our own recordings are accepted (#519).
+/// The license of a pack file. Only CC0 and our own recordings are accepted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
 pub enum SampleLicense {

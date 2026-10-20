@@ -1,4 +1,4 @@
-//! Losing the audio output device mid-session (issue #567).
+//! Losing the audio output device mid-session.
 //!
 //! An unplugged USB interface or Bluetooth headphones switched off kill the cpal stream for
 //! good: CoreAudio and WASAPI report `DeviceNotAvailable` ([`crate::audio::on_stream_error`]),

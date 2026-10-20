@@ -1,7 +1,7 @@
-// transport-keys on the web build (real wasm engine): Space always plays / stops, even with
+// Transport keys on the web build (real wasm engine): Space always plays / stops, even with
 // a clicked button focused (the button is not pressed again) but not while typing; a click on
 // a lane sets the selection cursor and, stopped, the playhead; Space stops and returns there,
-// Shift+Space plays too and stops in place (#268);
+// Shift+Space plays too and stops in place;
 // the Stop button, stopped, goes to the start and back to the selection.
 //
 // No sleeps: every step waits on UI or engine state (`window.__ether`, apps/web/src/main.tsx).
@@ -59,7 +59,7 @@ test("transport keys: Space always plays/stops, Shift+Space and Stop return to t
   await expect.poll(() => position(page)).not.toBe("1.1.1");
   const cursorAt = await position(page);
 
-  // Play, then Space: stop and back to the selection (#268).
+  // Play, then Space: stop and back to the selection.
   await page.keyboard.press("Space");
   await expect.poll(() => playing(page)).toBe(true);
   await expect.poll(() => position(page)).not.toBe(cursorAt);
@@ -67,7 +67,7 @@ test("transport keys: Space always plays/stops, Shift+Space and Stop return to t
   await expect.poll(() => playing(page)).toBe(false);
   await expect.poll(() => position(page)).toBe(cursorAt);
 
-  // Shift+Space plays too; stopping with it stays where playback is (#268).
+  // Shift+Space plays too; stopping with it stays where playback is.
   await page.keyboard.press("Shift+Space");
   await expect.poll(() => playing(page)).toBe(true);
   await expect.poll(() => position(page)).not.toBe(cursorAt);

@@ -40,11 +40,11 @@ pub(super) struct Phaser {
     feedback: Ramp,
     mix: Ramp,
     gain: Ramp,
-    /// Allpass coefficient per channel at control rate (perf audit #17) and the samples
+    /// Allpass coefficient per channel at control rate and the samples
     /// left in the current chunk.
     coef: [CtlRamp; 2],
     ctl_left: usize,
-    /// Silence reporting (perf audit #5).
+    /// Silence reporting.
     tail: crate::util::Tail,
 }
 
@@ -146,7 +146,7 @@ impl Phaser {
             let fb = self.feedback.tick();
             let mix = self.mix.tick();
             let gain = self.gain.tick();
-            // The sweep's sin/exp2/tan once per control chunk (perf audit #17).
+            // The sweep's sin/exp2/tan once per control chunk.
             if self.ctl_left == 0 {
                 self.ctl_left = CONTROL;
                 let coef_at = |phase: f64, ch: usize| {

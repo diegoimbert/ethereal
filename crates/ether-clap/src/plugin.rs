@@ -447,7 +447,7 @@ impl PluginController for ClapPlugin {
             )
             .map_err(|e| PluginError::Activation(e.to_string()))?;
         // CLAP allows `latency.get` only once active: plugins commonly compute it from the
-        // sample rate in `activate` (#570).
+        // sample rate in `activate`.
         let latency = self.query_latency();
 
         let (to_main, from_node) = rtrb::RingBuffer::new(RING_CAPACITY);

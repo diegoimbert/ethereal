@@ -1,4 +1,4 @@
-//! #561: a routine autosave is written in the background and says `Saved` before the write
+//! A routine autosave is written in the background and says `Saved` before the write
 //! lands. When that write fails, the project must not be closed (another project opened,
 //! the host quitting) without saving it again, or without telling the caller.
 
@@ -100,7 +100,7 @@ fn closing_on_quit_reports_a_project_it_cannot_save_and_keeps_a_recovery_copy() 
     assert!(file::load(&json).unwrap().tracks.contains_key(&edit));
 }
 
-/// #564: "save as" and "duplicate" copy the folder, then write the copy's document. When that
+/// "save as" and "duplicate" copy the folder, then write the copy's document. When that
 /// write fails (a full disk or quota), the copy is removed: it would list as a second project
 /// with the old name and content.
 #[test]

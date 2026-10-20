@@ -1,4 +1,4 @@
-//! The factory kit of a drums conversion (#440): a kick, a snare and a closed hi-hat,
+//! The factory kit of a drums conversion: a kick, a snare and a closed hi-hat,
 //! synthesized in code (deterministic, so every site and platform writes the same bytes) as
 //! 16-bit mono WAVs in the project's media, one sampler pad each on the detector's drum keys
 //! (`kick_key` / `snare_key` / `hihat_key`), so the new track plays back at once.

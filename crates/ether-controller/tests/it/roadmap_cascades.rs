@@ -1,4 +1,4 @@
-//! Roadmap v2 cascades and drum-rack structure rules (base-17): deleting a track cuts the
+//! Roadmap v2 cascades and drum-rack structure rules: deleting a track cuts the
 //! sidechains listening to it and removes its MIDI mappings; deleting a rack removes its
 //! pads and pad chains; all of it is one undo step that restores the document exactly.
 //! Device/track duplication copies pads; moving a rack across tracks and moving a pad

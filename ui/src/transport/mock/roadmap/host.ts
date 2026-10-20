@@ -1,6 +1,6 @@
 /**
  * What the roadmap v2 runtime simulations (`MockMidiLearn`, `MockExports`) may use from the
- * MockTransport. Implemented by `MockTransport`; owned by contracts-2 / base.
+ * MockTransport. Implemented by `MockTransport`.
  */
 
 import type { Command, Event, Project } from "@/generated";
@@ -16,7 +16,7 @@ export interface MockHost {
   /** Run any command as if the UI sent it without a gesture. Throws on failure. */
   execute(command: Command): void;
   /**
-   * Apply a transaction and emit its patch WITHOUT an undo step (collab-social: chat is a
+   * Apply a transaction and emit its patch WITHOUT an undo step (chat is a
    * journal, never undone). Rolled back if `body` throws. Optional so
    * test hosts need not stub it (`MockTransport` implements it).
    */

@@ -1,4 +1,4 @@
-/** MockTransport: `Freeze` (v0.2, freeze-bounce). */
+/** MockTransport: `Freeze` (v0.2). */
 import { describe, expect, it } from "vitest";
 import type { Event, Project, ReplyValue, Track } from "@/generated";
 import { newId } from "../../ids";

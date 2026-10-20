@@ -1,4 +1,4 @@
-//! v0.3 external instrument and audio effect (contracts-4 froze the param tables; see
+//! v0.3 external instrument and audio effect (the v0.3 contracts froze the param tables; see
 //! CONTRACTS.md §13.7 and docs/DEVICES.md).
 //!
 //! The nodes read and write hardware through the engine's `ether_core::hw_io` buffers (the

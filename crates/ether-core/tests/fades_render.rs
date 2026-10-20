@@ -292,7 +292,7 @@ fn reverse_is_sample_exact() {
 
 #[test]
 fn leading_gap_is_silent_then_plays_from_the_first_sample() {
-    // base-142: clip at beat 1 with offset -1: a 1-beat gap, then the media from frame 0
+    // Clip at beat 1 with offset -1: a 1-beat gap, then the media from frame 0
     // (forward, transposed an octave up, and reversed), never reading before sample 0.
     let n = 4 * SPB;
     let m = ramp(n);

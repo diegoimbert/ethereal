@@ -22,7 +22,7 @@ export interface SelectableIds {
   clip: ClipId;
   note: NoteId;
   automationPoint: AutomationPointId;
-  /** The tempo lane's points (#621). */
+  /** The tempo lane's points. */
   tempoPoint: TempoPointId;
 }
 export type SelectableKind = keyof SelectableIds;

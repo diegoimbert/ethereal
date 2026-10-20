@@ -1,5 +1,5 @@
 /**
- * The arrangement's clip drag in progress (move, resize, slip), if any (#593).
+ * The arrangement's clip drag in progress (move, resize, slip), if any.
  *
  * Escape cancels it (preview dropped, nothing sent, the selection kept): browsers don't
  * turn Escape into a `pointercancel`, and the arrangement's own Escape (deselect) must not

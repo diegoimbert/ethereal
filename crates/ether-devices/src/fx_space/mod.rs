@@ -1,4 +1,4 @@
-//! v0.3 space devices (contracts-4 froze the param table; see docs/DEVICES.md).
+//! v0.3 space devices (the v0.3 contracts froze the param table; see docs/DEVICES.md).
 //!
 //! # Convolution Reverb (`BuiltinDeviceType::ConvolutionReverb`)
 //!
@@ -93,7 +93,7 @@ pub struct FactoryIrSpec {
     pub channels: u16,
 }
 
-/// The factory IRs (ids frozen by contracts-4; `fx-space` may append and tune the rest).
+/// The factory IRs (ids frozen by the v0.3 contracts; `fx-space` may append and tune the rest).
 pub const FACTORY_IRS: &[FactoryIrSpec] = &[
     FactoryIrSpec {
         id: "room",

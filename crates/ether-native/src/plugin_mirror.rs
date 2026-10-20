@@ -1,4 +1,4 @@
-//! Plugin GUI mirrors (`plugin-mirror`).
+//! Plugin GUI mirrors.
 //!
 //! A **mirror** is a GUI-only instance of a plugin device: instantiated and restored on the
 //! main thread like a live one, but **never activated**, never in the engine, never
@@ -673,7 +673,7 @@ mod tests {
     }
 }
 
-/// The real formats-integration fixtures (CLAP + VST3), headless, through
+/// The real plugin format integration fixtures (CLAP + VST3), headless, through
 /// [`crate::NativeBridge`]: swap a live instance for a mirror and back, push params in, get
 /// GUI edits out.
 #[cfg(all(

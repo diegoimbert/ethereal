@@ -1,4 +1,4 @@
-// Time-signature changes anywhere on the grid (base-108, CONTRACTS.md §11.3), on the web
+// Time-signature changes anywhere on the grid (CONTRACTS.md §11.3), on the web
 // build against the real engine (WasmTransport → controller Worker).
 //
 // The arrangement ruler's context menu adds a change mid bar 1 (beat 3, snapped to a beat);
@@ -86,7 +86,7 @@ test("time signature change mid-bar: partial bar, ruler numbering, Alt places fr
     })
     .toEqual([3, 6.5]);
   // The ruler's signature marker sits on the bar-2 label.
-  // The signature chip lives in the marker lane (#401), under the ruler's numbers.
+  // The signature chip lives in the marker lane, under the ruler's numbers.
   const marker = page.getByTestId("marker-lane").locator(`[data-signature="${mid.id}"]`);
   await expect(marker).toBeVisible();
   expect(Math.abs((await marker.boundingBox())!.x - (await barLabels(ruler)).get("2")!)).toBeLessThan(6);

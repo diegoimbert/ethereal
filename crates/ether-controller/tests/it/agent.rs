@@ -1,4 +1,4 @@
-//! Agent API (`agent-api`): every tool of the registry through `Command::Agent` — happy
+//! Agent API: every tool of the registry through `Command::Agent` — happy
 //! path, bad input (`is_error` results, never `CommandError`s), one undo step per call.
 
 use crate::common;
@@ -145,7 +145,7 @@ fn list_tools_is_the_registry() {
         assert_eq!(schema["type"], "object");
         assert!(!t.description.is_empty());
     }
-    // Pinned shapes (agent-contract "Pinned tool shapes").
+    // Pinned shapes (agent contract "Pinned tool shapes").
     let schema = |name: &str| -> Value {
         let t = tools.iter().find(|t| t.name == name).unwrap();
         serde_json::from_str(&t.input_schema).unwrap()
@@ -303,7 +303,7 @@ fn tracks() {
     assert!(!h.project().tracks.contains_key(&id));
 }
 
-/// base-132: plugins can have thousands of params, so `get_device_params` pages at 64 by
+/// Plugins can have thousands of params, so `get_device_params` pages at 64 by
 /// default, says so in a note, and filters by name/group with `query`.
 #[test]
 fn device_params_are_paged_and_filterable() {
@@ -364,7 +364,7 @@ fn devices_and_params() {
     assert!(list.iter().any(|t| t["type"] == "poly-synth"));
     assert!(list.iter().all(|t| t["category"] == "instrument"));
 
-    // #438: the agent (and MCP, which proxies these tools) lists exactly the built-in types
+    // The agent (and MCP, which proxies these tools) lists exactly the built-in types
     // with a working node (`ether_devices::implemented`), and refuses the others by key.
     let all = ok_call(&mut h, "list_device_types", json!({}));
     let listed: Vec<String> = all["device_types"]
@@ -766,7 +766,7 @@ fn overview_and_track_reads() {
 #[test]
 fn library_and_export() {
     let mut h = Harness::with_project();
-    // The library index exists (browser-v2) but has no roots on this test host: an empty page
+    // The library index exists but has no roots on this test host: an empty page
     // (for a word no factory preset matches: the poly synth has a "Kick").
     let r = call(&mut h, "search_browser", json!({ "text": "crackle" }));
     assert!(!r.is_error, "{}", r.text);
@@ -818,7 +818,7 @@ fn library_and_export() {
     );
 }
 
-/// #584: `transpose` on a frozen track's clip (with or without a range) is rejected with
+/// `transpose` on a frozen track's clip (with or without a range) is rejected with
 /// the freeze message and edits nothing, like every other edit tool.
 #[test]
 fn transpose_rejects_frozen_tracks() {
@@ -887,7 +887,7 @@ fn mp3_without_length(frames: usize) -> Vec<u8> {
     v
 }
 
-/// #585: `load_browser_item` with an audio file whose length is unknown until it is decoded
+/// `load_browser_item` with an audio file whose length is unknown until it is decoded
 /// fails without leaving a media entry or an undo step behind; a file with a known length is
 /// placed.
 #[test]

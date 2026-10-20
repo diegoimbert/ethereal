@@ -1,4 +1,4 @@
-//! Standard MIDI Files (#717): `Media::ReadMidiFile` reads a library file into notes in
+//! Standard MIDI Files: `Media::ReadMidiFile` reads a library file into notes in
 //! beats without touching the project; `Media::WriteMidiFile` writes MIDI clips as they play
 //! (offset, loop, length) into a type 1 file, from the earliest clip or the project start.
 

@@ -155,7 +155,7 @@ describe("registry and presets", () => {
     }
     expect(presetChords(registeredAction("transport.record")!, "AbletonLike")).toEqual(["F9"]);
     expect(presetChords(registeredAction("view.editor")!, "AbletonLike")).toEqual(["Mod+Alt+L"]);
-    // #870: Mod+J consolidates the selected clips (it used to toggle the editor drawer).
+    // Mod+J consolidates the selected clips (it used to toggle the editor drawer).
     expect(presetChords(registeredAction("clip.consolidate")!, "AbletonLike")).toEqual(["Mod+J"]);
   });
 
@@ -177,12 +177,12 @@ describe("lookups", () => {
   });
 
   it("keep the old handlers' lenient forms as default aliases", () => {
-    // transport-keys: Shift+Space is its own action now (stop and return to the selection).
+    // Shift+Space is its own action now (stop and return to the selection).
     expect(matchesAction("transport.stopToSelection", key(" ", { shiftKey: true }))).toBe(true);
     expect(matchesAction("transport.play", key(" ", { shiftKey: true }))).toBe(false);
     expect(matchesAction("edit.deleteModified", key("Backspace", { shiftKey: true }))).toBe(true);
     expect(matchesAction("edit.deleteModified", key("Delete", { altKey: true }))).toBe(true);
-    // Alt+Up nudges notes (a piano-roll alias); in automation lanes it is the precise nudge (#793).
+    // Alt+Up nudges notes (a piano-roll alias); in automation lanes it is the precise nudge.
     expect(matchesAction("pianoRoll.nudgeUpAlt", key("ArrowUp", { altKey: true }))).toBe(true);
     expect(matchesAction("automation.preciseUp", key("ArrowUp", { altKey: true }))).toBe(true);
     expect(matchesAction("nudge.up", key("ArrowUp", { altKey: true }))).toBe(false);

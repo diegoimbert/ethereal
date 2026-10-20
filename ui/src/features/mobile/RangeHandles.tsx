@@ -1,5 +1,5 @@
 /**
- * The time range's handles on touch screens (#522): a grip on each end of the range, drawn over
+ * The time range's handles on touch screens: a grip on each end of the range, drawn over
  * the lanes (the arrangement's overlay, lanes coordinates). Their touch targets are wider than
  * drawn (`rangeTouch.ts`). Mobile UI only; nothing on the desktop.
  */

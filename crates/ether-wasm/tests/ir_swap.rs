@@ -1,6 +1,6 @@
-//! #514: a convolution reverb's factory IR is prepared on the Worker (read, normalized,
+//! A convolution reverb's factory IR is prepared on the Worker (read, normalized,
 //! FFT-partitioned) and only assembled on the Worklet, in bounded steps, so switching IRs
-//! doesn't stall the audio thread. #529: the same for IRs from the user's own media, whose
+//! doesn't stall the audio thread. The same for IRs from the user's own media, whose
 //! audio the Worker asks the controller for again.
 
 use std::sync::Arc;
@@ -190,7 +190,7 @@ impl Rig {
     }
 }
 
-/// The time `ir_swap` takes to build `id` in one go (what the Worklet did before #514).
+/// The time `ir_swap` takes to build `id` in one go (what the Worklet used to do).
 fn direct_build(id: &str) -> Duration {
     (0..3)
         .map(|_| {
@@ -322,7 +322,7 @@ fn a_newer_change_supersedes_a_prepared_ir_in_flight() {
     assert!(errors.iter().all(|e| !e.contains("IR")), "{errors:?}");
 }
 
-// ─── #529: IRs from the user's own media ───
+// ─── IRs from the user's own media ───
 
 const IR_MEDIA: MediaId = MediaId(Ulid(20));
 
@@ -375,7 +375,7 @@ impl SampleResolver for OneMedia {
     }
 }
 
-/// The time the Worklet took to build `audio` as an IR in one go (before #529).
+/// The time the Worklet took to build `audio` as an IR in one go (as it used to).
 fn direct_media_build(audio: &Arc<DecodedAudio>) -> Duration {
     let samples = OneMedia(Arc::new(InMemorySource::new(audio.clone())));
     (0..3)
@@ -391,7 +391,7 @@ fn direct_media_build(audio: &Arc<DecodedAudio>) -> Duration {
         .unwrap()
 }
 
-/// Send `msg` straight to the Worklet (what the bridge sent before #529).
+/// Send `msg` straight to the Worklet (what the bridge used to send).
 fn send_raw(shared: &Shared<HeapMemory>, msg: EngineMsg) {
     for frame in msg.encode() {
         shared.borrow_mut().control.send(&frame);
@@ -426,7 +426,7 @@ fn switching_to_a_long_media_ir_does_no_heavy_work_per_quantum() {
     let mut before = Duration::MAX;
     let mut after = Duration::MAX;
     for _ in 0..3 {
-        // Before #529: the Worklet reads and partitions the media IR itself.
+        // Before the Worklet reads and partitions the media IR itself.
         let mut r = rig(Some("room"));
         r.load(&audio);
         send_raw(
@@ -472,7 +472,7 @@ fn switching_to_a_long_media_ir_does_no_heavy_work_per_quantum() {
 }
 
 /// A playing synth → reverb whose media IR is there from the start (`prepared` on the
-/// Worker, or built by the Worklet as before #529), settled before playing; both output
+/// Worker, or built by the Worklet as it used to be), settled before playing; both output
 /// channels of `quanta` played quanta.
 fn played_with_media_ir(audio: &Arc<DecodedAudio>, prepared: bool, quanta: usize) -> Vec<f32> {
     let control = HeapMemory::new(1 << 20);

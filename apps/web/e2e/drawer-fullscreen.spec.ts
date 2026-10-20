@@ -1,4 +1,4 @@
-// The editor drawer's fullscreen button (piano roll / beat editor only, #860): the drawer fills the
+// The editor drawer's fullscreen button (piano roll / beat editor only): the drawer fills the
 // workspace over the arrangement (the top bar stays put), the piano roll re-lays out at the new
 // size, and Escape brings the drawer back at the height it had.
 import { expect, test, type Page } from "@playwright/test";

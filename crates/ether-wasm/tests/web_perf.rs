@@ -1,4 +1,4 @@
-//! Graph snapshot cost on the Worklet (web-perf): the large fixture (64 tracks, 500 clips,
+//! Graph snapshot cost on the Worklet: the large fixture (64 tracks, 500 clips,
 //! automation) goes through the real `Publish` path (`WebBridge` encode → ring →
 //! `EngineHost` decode + remap + compile), and the old JSON decode is measured next to the
 //! binary one ([`ether_wasm::perf`]; the same code runs in V8 via `bench_graph_snapshot`).

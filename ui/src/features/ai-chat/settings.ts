@@ -4,8 +4,8 @@
 //   to build requests to its own provider's base URL, never logged, never sent to the engine
 //   or a collab peer, and stored apart from the other settings;
 // - the tool-iteration cap per turn;
-// - per provider, whether the user agreed to send it the project's contents (#717);
-// - whether the user dismissed the "alpha" notice above a conversation (#743).
+// - per provider, whether the user agreed to send it the project's contents;
+// - whether the user dismissed the "alpha" notice above a conversation.
 import { create } from "zustand";
 import { DEFAULT_PROVIDER, isProviderId, PROVIDER_IDS, PROVIDERS, type ProviderId } from "./providers/catalog";
 import type { Connection } from "./providers/types";
@@ -30,9 +30,9 @@ interface Saved {
   model?: string;
   maxIterations?: number;
   providers?: Partial<Record<string, Partial<ProviderConfig>>>;
-  /** #717: the providers the user agreed to send the project's contents to. */
+  /** The providers the user agreed to send the project's contents to. */
   consented?: string[];
-  /** #743: the alpha notice above a conversation was dismissed. */
+  /** The alpha notice above a conversation was dismissed. */
   alphaDismissed?: boolean;
 }
 
@@ -44,9 +44,9 @@ export interface AiSettingsState {
   apiKey: string | null;
   model: string;
   maxIterations: number;
-  /** #717: the providers the user agreed to send the project's contents to (asked once each). */
+  /** The providers the user agreed to send the project's contents to (asked once each). */
   consented: ReadonlyArray<ProviderId>;
-  /** #743: the user dismissed the alpha notice above a conversation (per user, not per project). */
+  /** The user dismissed the alpha notice above a conversation (per user, not per project). */
   alphaDismissed: boolean;
   setProvider(provider: ProviderId): void;
   /** Sets the key of `provider` (default: the active one); `null` removes it. */
@@ -54,9 +54,9 @@ export interface AiSettingsState {
   setModel(model: string): void;
   setBaseUrl(url: string): void;
   setMaxIterations(n: number): void;
-  /** #717: remember that the user agreed to send `provider` the project's contents. */
+  /** Remember that the user agreed to send `provider` the project's contents. */
   consent(provider: ProviderId): void;
-  /** #743: hide the alpha notice above conversations (the badge stays). */
+  /** Hide the alpha notice above conversations (the badge stays). */
   dismissAlpha(): void;
 }
 
@@ -204,7 +204,7 @@ export function missingSetup(s: Pick<AiSettingsState, "provider" | "configs" | "
   return null;
 }
 
-/** #717: the user agreed to send the active provider the project's contents. */
+/** The user agreed to send the active provider the project's contents. */
 export function hasConsent(s: Pick<AiSettingsState, "provider" | "consented"> = useAiSettings.getState()): boolean {
   return s.consented.includes(s.provider);
 }

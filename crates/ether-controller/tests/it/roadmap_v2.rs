@@ -1,4 +1,4 @@
-//! Roadmap v2 built-ins (contracts-2): the new built-ins insert and compile, the drum rack
+//! Roadmap v2 built-ins: the new built-ins insert and compile, the drum rack
 //! compiles to a rack desc and the click follows the project settings.
 
 use crate::common;

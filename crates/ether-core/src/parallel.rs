@@ -27,14 +27,14 @@
 //!   hardware outputs, metronome, preview, recording) is only touched on the audio thread
 //!   between levels.
 //! - Stopped, devices and plugins still run (tails, auditioned instruments, plugins that
-//!   never sleep), so the engine dispatches like while playing (perf audit #2). Only when
+//!   never sleep), so the engine dispatches like while playing. Only when
 //!   the previous sub-block did no real work (every node asleep, see silence skipping in
 //!   `engine.rs`, and nothing monitored) does it run the jobs itself in level order (same
 //!   bits) and leave the workers parked, so an idle engine costs no worker wake-ups.
 //! - **Pinned jobs.** Jobs that must run on the calling (audio) thread are listed first
 //!   in their level and their count passed as `pinned`. None does today: tracks with
 //!   Complex-warped clips used to (their stretchers lived in one engine-wide table); each
-//!   track now owns its stretcher voices (`crate::warp`, perf audit #8) and runs on the
+//!   track now owns its stretcher voices (`crate::warp`) and runs on the
 //!   workers like the others. Plugins are *not* pinned: CLAP (`process` is an `[audio-thread]` call, and the spec
 //!   lets a host run it on any of its audio/worker threads, never concurrently for one
 //!   instance), VST3 (`IAudioProcessor::process` from one processing thread at a time) and

@@ -1,5 +1,5 @@
 /**
- * Mock of the library file filters (`base-145`; `Browser::{Get,Set,Reset,Check}FileFilter`,
+ * Mock of the library file filters (`Browser::{Get,Set,Reset,Check}FileFilter`,
  * CONTRACTS.md §12.8; engine: `crates/ether-controller/src/browser/filter.rs`): regex
  * whitelist/blacklist rules on file names, case-insensitive, blacklist wins, an empty
  * whitelist allows every file, folders are hidden only by the blacklist. JavaScript regexes

@@ -188,7 +188,7 @@ export class WsTransport implements EngineTransport {
     });
   }
 
-  /** The server's open project, or `null` when none is open (base-131: nothing is opened here). */
+  /** The server's open project, or `null` when none is open (nothing is opened here). */
   async connect(): Promise<Project | null> {
     await this.open();
     try {

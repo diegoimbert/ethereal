@@ -1,4 +1,4 @@
-//! `tap-recording` engine side: while recording, an armed audio track whose input is another
+//! Tap recording engine side: while recording, an armed audio track whose input is another
 //! track (`TrackDesc::input_tap`) has its aligned tap captured after the track jobs, with
 //! its PDC input latency, so the host can place every frame on the timeline. The audio
 //! thread never allocates (also with full rings).

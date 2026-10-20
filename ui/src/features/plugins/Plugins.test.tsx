@@ -28,7 +28,7 @@ async function renderWith<T extends EngineTransport>(t: T, ui: ReactNode): Promi
   return t;
 }
 
-/** A device header's plugin parts: the window toggle (base-153: in every header) + controls. */
+/** A device header's plugin parts: the window toggle (in every header) + controls. */
 function Header({ device }: { device: Device }) {
   return (
     <>

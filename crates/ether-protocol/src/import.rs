@@ -1,4 +1,4 @@
-//! Importing projects from other DAWs (`Project::Import`, `import-dawproject`; CONTRACTS.md
+//! Importing projects from other DAWs (`Project::Import`; CONTRACTS.md
 //! §14.1).
 //!
 //! `Project::Import` reads a project file of another application (DAWproject, Ableton Live

@@ -1,4 +1,4 @@
-// transport-keys, owner rule: "Space always does play / stop, no matter where we are in the
+// Transport keys: "Space always does play / stop, no matter where we are in the
 // app, unless we are inside a text box". Each control below is focused (a click, then a
 // keyboard focus on it: the worst case), then Space: the transport toggles and the control
 // is NOT pressed (browsers click a focused button on the Space keyup). Covered: a rack
@@ -105,7 +105,7 @@ test("Space plays / stops from any focused control, but types in text fields", a
       return comp !== undefined;
     })
     .toBe(true);
-  // The focused device card (#355: focusable, Enter opens its window): Space plays, no window.
+  // The focused device card (focusable, Enter opens its window): Space plays, no window.
   const compWin = page.locator(`[data-device-window="${comp!.id}"]`);
   await spacePlaysFrom(page, deviceCard(page, comp!.id), () => compWin.count(), { click: false });
   await expect(compWin).toHaveCount(0);

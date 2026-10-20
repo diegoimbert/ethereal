@@ -23,7 +23,7 @@
 //!   (one byte per attach), unregistering both when removed; `ether_vst3_test_run_loop`
 //!   reports the timer ticks, the handler calls and the registrations alive.
 //! - A second, stereo `kAux` input bus `Sidechain` (not active by default; the aux bus of
-//!   `plugin-sidechain`, CONTRACTS §12.14): added to the output after the gain, when the
+//!   plugin sidechains, CONTRACTS §12.14): added to the output after the gain, when the
 //!   host activated it and passes it. Hosts feed it silence without a sidechain source, so
 //!   the output is unchanged then.
 //!

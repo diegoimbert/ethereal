@@ -1,4 +1,4 @@
-//! Stuck notes on the worklet path (#558): the built-in synth, switched off while its note
+//! Stuck notes on the worklet path: the built-in synth, switched off while its note
 //! sounds and back on after the note ended, releases the voice (the `EngineHost` render
 //! loop over the shared `ether-core` engine).
 

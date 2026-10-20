@@ -1,4 +1,4 @@
-//! MIDI expression (v0.3, `midi-expression`; model
+//! MIDI expression (v0.3; model
 //! `ether_model::expression`, protocol `ether_protocol::expression`, engine
 //! `ether_core::expression`; CONTRACTS.md §13.2).
 //!

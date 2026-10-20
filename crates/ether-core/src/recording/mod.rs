@@ -10,7 +10,7 @@
 //!   ([`CaptureReader`]) and streams takes to disk. The header lets the host place every
 //!   frame on the timeline after latency compensation, across loop wraps and locates
 //!   (sub-blocks are linear in time, see [`crate::ProcessContext`]).
-//! - **capture track input taps** (`tap-recording`, resampling): every armed audio track
+//! - **capture track input taps** (resampling): every armed audio track
 //!   whose input is another track (`TrackDesc::input_tap`) also queues its aligned tapped
 //!   signal (`crate::bus_tap`, stereo) with its track id and its PDC input latency
 //!   ([`TapCapture`]): the tapped frame rendered at engine sample `k` belongs to the timeline
@@ -21,7 +21,7 @@
 //!   every monitored MIDI track (`TrackDesc::monitor`: armed with monitoring `Auto`, or `In`)
 //!   whose MIDI input filter accepts it (`TrackDesc::midi_input`: port and channel, see
 //!   [`MidiInputFilter`]). Events that arrive late play at offset 0.
-//! - **plays preview notes** (base-150): short messages queued for one track by
+//! - **plays preview notes**: short messages queued for one track by
 //!   [`crate::EngineHandle::preview_note`] (piano-roll note preview) go to that MIDI track's
 //!   first device at the start of the next sub-block, whether it is monitored or not. They
 //!   are never recorded.
@@ -80,7 +80,7 @@ pub const MAX_LIVE_NOTES: usize = 128;
 /// Sustain pedal (CC 64).
 const SUSTAIN: u8 = 64;
 
-/// The live notes and sustain pedals a track received and still holds (#559). Live MIDI
+/// The live notes and sustain pedals a track received and still holds. Live MIDI
 /// reaches a track only while it monitors (and while its input accepts the message); when
 /// that changes between a key press and its release, the track would never get the
 /// note-off. So a note-off (or pedal-up) of something the track holds is always delivered,
@@ -410,7 +410,7 @@ impl RecordingRt {
         let end = info.sample_time + frames as u64;
         let recording = info.playing && info.recording;
 
-        // A track that stopped monitoring releases the live notes it holds (#559).
+        // A track that stopped monitoring releases the live notes it holds.
         for (desc, track) in descs.iter().zip(tracks.iter_mut()) {
             if track.monitor || track.live.is_empty() {
                 continue;
@@ -459,7 +459,7 @@ impl RecordingRt {
                         data: ev.data,
                     });
                 }
-                // Monitored input, or the end of a note the track holds (#559).
+                // Monitored input, or the end of a note the track holds.
                 if accepted && track.monitor {
                     track.live.delivered(ev.data, &kind);
                 } else if !track.live.ends(ev.data, &kind) {
@@ -953,7 +953,7 @@ mod tests {
         }
     }
 
-    /// #433: a track filtered to port A / channel 1 ignores port B and channel 2, for
+    /// A track filtered to port A / channel 1 ignores port B and channel 2, for
     /// monitoring and recording; an unfiltered track hears everything.
     #[test]
     fn midi_input_filters_apply_to_monitoring_and_recording() {
@@ -1146,7 +1146,7 @@ mod tests {
         );
     }
 
-    /// base-150: a preview note reaches only its track's first device, monitored or not,
+    /// A preview note reaches only its track's first device, monitored or not,
     /// and is never recorded; an audio track or an unknown track ignores it.
     #[test]
     fn preview_notes_reach_their_track_only_and_are_not_recorded() {

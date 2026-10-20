@@ -118,7 +118,7 @@ export function createEmptyProject(nextId: () => string, name: string, id: Proje
     id,
     settings: defaultSettings(name),
     tracks: { [master.id]: master },
-    // v0.2 tables (contracts-3).
+    // v0.2 tables.
     take_lanes: {},
     comp_regions: {},
     rack_chains: {},

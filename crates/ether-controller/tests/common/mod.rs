@@ -59,7 +59,7 @@ pub struct FakeBridge {
     pub fail_watches: bool,
     /// `create_plugin` panics (a plugin crashing the process while it loads).
     pub panic_on_plugin: bool,
-    /// `agent-plugins`: what `plugin_catalog` reports (`None` = no plugin host).
+    /// What `plugin_catalog` reports (`None` = no plugin host).
     pub catalog: Option<ether_controller::PluginCatalogView>,
     /// The plugin id each live plugin device was created from (per-device descriptors).
     pub plugin_of: BTreeMap<DeviceId, String>,
@@ -68,9 +68,9 @@ pub struct FakeBridge {
     pub plugin_names: BTreeMap<DeviceId, String>,
     /// `publish` fails with this message while set (a graph over the engine's capacity).
     pub reject_publish: Option<String>,
-    /// #529: media the bridge asks the controller to decode again (`take_ir_media_requests`).
+    /// Media the bridge asks the controller to decode again (`take_ir_media_requests`).
     pub ir_requests: Vec<MediaId>,
-    /// #529: the audio handed over for them (`ir_media`), in order.
+    /// The audio handed over for them (`ir_media`), in order.
     pub ir_audio: Vec<(MediaId, Arc<DecodedAudio>)>,
     /// `create_offline_plugin` works (a Utility node stands in for the plugin); unset: the
     /// default `Unsupported` (no plugin host).
@@ -341,11 +341,11 @@ pub struct FakeHost {
     /// to simulate slow work such as plugin loading.
     pub step_per_read: u64,
     reads: std::cell::Cell<u64>,
-    /// #519: a fake web for `http_get`: URL → (status, body); other URLs answer 404.
+    /// A fake web for `http_get`: URL → (status, body); other URLs answer 404.
     pub web: BTreeMap<String, (u16, Vec<u8>)>,
-    /// #519: every request fails like a machine without network.
+    /// Every request fails like a machine without network.
     pub offline: bool,
-    /// #519: the URLs requested so far.
+    /// The URLs requested so far.
     pub requested: Vec<String>,
     http_pending: Vec<(u64, String, u64)>,
 }

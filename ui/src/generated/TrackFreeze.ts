@@ -4,7 +4,7 @@ import type { MediaId } from "./MediaId";
 import type { Seconds } from "./Seconds";
 
 /**
- * A frozen track's render (v0.2, `freeze-bounce`).
+ * A frozen track's render (v0.2).
  *
  * While frozen, an audio or MIDI track plays `media` (the track's **post-chain, pre-fader**
  * signal rendered offline with `OfflineRenderer`, latency removed) at song time: frame `f`

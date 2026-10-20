@@ -122,7 +122,7 @@ async function pick(page: Page, track: string, type: BuiltinDeviceType): Promise
       return device !== "";
     })
     .toBe(true);
-  // base-153: a factory device's UI is in its window.
+  // A factory device's UI is in its window.
   const card = await openDeviceWindow(page, device);
   return { device, card };
 }

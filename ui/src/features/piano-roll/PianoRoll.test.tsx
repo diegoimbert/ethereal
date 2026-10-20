@@ -905,7 +905,7 @@ describe("PianoRoll sections and note clipboard (section-edit)", () => {
     // The note's span (1..2) on the 1/4 grid.
     expect(usePianoRollSection.getState().clipboard).toMatchObject({ length: 1, notes: [{ start: 0, pitch: 60 }] });
     // The clip starts at song beat 64: the selection cursor at 68 is content beat 4. The
-    // playhead elsewhere doesn't matter (transport-keys).
+    // playhead elsewhere doesn't matter.
     act(() => useTimeSelection.setState({ cursor: 68 }));
     await send(cmd("Transport", { type: "Locate", position: 80 }));
     await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(80));

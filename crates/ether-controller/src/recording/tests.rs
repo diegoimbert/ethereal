@@ -27,7 +27,7 @@ struct Bridge {
     next: u32,
     /// `keyboard-midi`: live MIDI queued to the engine.
     live_midi: Vec<[u8; 3]>,
-    /// base-150: preview notes sent to the engine.
+    /// Preview notes sent to the engine.
     previews: Vec<(TrackId, [u8; 3])>,
 }
 
@@ -298,7 +298,7 @@ fn list_inputs_goes_to_the_host() {
 
 /// `keyboard-midi`: computer keyboard notes go to the engine's live MIDI input (like a
 /// hardware port) and into MIDI capture; malformed messages never reach the engine.
-/// base-150: a preview note goes to the engine for its track only; it is never captured,
+/// A preview note goes to the engine for its track only; it is never captured,
 /// needs no arm, and bad bytes or an unknown track are refused.
 #[test]
 fn preview_notes_go_to_their_track_and_are_not_captured() {
@@ -632,7 +632,7 @@ fn without_host_capture_recording_only_drives_the_transport() {
 
 #[test]
 fn switching_projects_while_recording_keeps_the_take_in_the_old_project() {
-    // #717: opening or creating another project finishes the recording first: the take
+    // Opening or creating another project finishes the recording first: the take
     // goes into the project it was recorded in, which is saved before the switch.
     let mut h = H::new(true);
     let first = h.project().id;
@@ -1007,7 +1007,7 @@ fn audio_loop_passes_become_takes_and_plain_recordings_stay_clips() {
     );
 }
 
-// ─── midi-expression: CC / bend / pressure become lanes and note expressions ────────────
+// ─── CC / bend / pressure become lanes and note expressions ────────────
 
 #[test]
 fn recorded_expression_becomes_lanes_and_note_pressure() {
@@ -1196,11 +1196,11 @@ fn an_mpe_track_records_member_channels_as_note_expressions() {
     assert!(h.project().note_expressions.is_empty());
 }
 
-/// `tap-recording` (uses this module's bridge and helpers).
+/// Tap recording (uses this module's bridge and helpers).
 #[path = "tap_tests.rs"]
 mod tap;
 
-// ─── #433: per-track MIDI input filters ─────────────────────────────────────────────────
+// ─── per-track MIDI input filters ─────────────────────────────────────────────────
 
 #[test]
 fn midi_input_filters_reach_the_engine_and_split_the_recorded_midi() {

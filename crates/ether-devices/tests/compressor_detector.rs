@@ -1,4 +1,4 @@
-//! The Compressor's `Detector` param (`ableton-more`): Peak (default, unchanged), RMS (a
+//! The Compressor's `Detector` param: Peak (default, unchanged), RMS (a
 //! 10 ms mean-square window) and Expand (downward expander). Every `process` call runs under
 //! `assert_no_alloc` (debug builds abort on allocation on the audio path).
 

@@ -35,7 +35,7 @@ function MediaRow({ media, transport, busy, setBusy }: { media: MediaRef; transp
       className={clsx("eth-media-refs__row", !missing && "eth-media-refs__row--found")}
       data-testid="relink-row"
       data-media={media.id}
-      // import-resolver: "Resolve…" (match by name, size, length; one undo step with the rest).
+      // "Resolve…" (match by name, size, length; one undo step with the rest).
       onContextMenu={(e) =>
         openContextMenu(
           e,

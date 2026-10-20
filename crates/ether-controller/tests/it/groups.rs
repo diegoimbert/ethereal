@@ -1,4 +1,4 @@
-//! `groups-buses` (CONTRACTS.md §12.10): `Track::{GroupSelected, Ungroup, SetVca}`, VCA
+//! Groups and buses (CONTRACTS.md §12.10): `Track::{GroupSelected, Ungroup, SetVca}`, VCA
 //! compilation (`RenderGraphDesc::vcas`, VCA solo folded into `TrackDesc::solo`), input taps
 //! and live VCA params.
 

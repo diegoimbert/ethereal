@@ -64,7 +64,7 @@ async function setup(page: Page) {
       return device !== "";
     })
     .toBe(true);
-  // base-153: a factory device's UI is in its window.
+  // A factory device's UI is in its window.
   const panel = await openDeviceWindow(page, device);
   await expect(panel.getByTestId("ir-widget")).toBeVisible();
   return { audio, device, panel };
@@ -124,7 +124,7 @@ test("convolution reverb: pick an IR, hear the tail, shape it", async ({ page })
   await open(page, "dark");
   const { audio, device, panel } = await setup(page);
   const widget = panel.getByTestId("ir-widget");
-  // A new convolution reverb starts on the factory hall (#520).
+  // A new convolution reverb starts on the factory hall.
   await expect.poll(() => irOf(page, device)).toEqual({ type: "Factory", id: "hall" });
   await expect(widget.getByTestId("ir-meta")).toHaveText("2.8 s · stereo");
 
@@ -165,7 +165,7 @@ test("convolution reverb: pick an IR, hear the tail, shape it", async ({ page })
   await page.keyboard.press("ControlOrMeta+z");
   await expect.poll(async () => (await doc(page)).devices[device]?.params[2] ?? 100).toBe(100);
 
-  // #529: a file of the user's as the IR (prepared off the audio thread like the factory
+  // A file of the user's as the IR (prepared off the audio thread like the factory
   // ones): drop the 2 s chords loop on the widget, and its tail sounds after the kick.
   await page.getByRole("treeitem", { name: "Chords Loop 120.wav", exact: true }).dragTo(widget.getByTestId("widget-ir"));
   await expect.poll(async () => (await irOf(page, device))?.type, { timeout: 20_000 }).toBe("Media");

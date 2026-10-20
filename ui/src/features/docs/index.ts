@@ -1,4 +1,4 @@
-// The user docs (#665): `/docs` on the web (its own bundle, `mount.tsx`), over the app on the
+// The user docs: `/docs` on the web (its own bundle, `mount.tsx`), over the app on the
 // desktop (`DocsRoot`). Content: docs-site/content (docs-site/README.md).
 export { closeDocs, openDocs, useDocsOverlay } from "./open";
 export { DocsRoot } from "./DocsRoot";

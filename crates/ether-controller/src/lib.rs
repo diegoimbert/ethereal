@@ -113,7 +113,7 @@ pub mod racks;
 pub mod recording;
 #[doc(hidden)]
 pub mod resolver;
-// #519: the default sample pack (docs/SAMPLES.md).
+// The default sample pack (docs/SAMPLES.md).
 pub mod sample_pack;
 #[doc(hidden)]
 pub mod saving;
@@ -269,7 +269,7 @@ pub trait EngineBridge {
         Err(BridgeError::Unsupported("live MIDI input".into()))
     }
 
-    /// base-150 (`Recording::PreviewNote`): one short MIDI message for `track`'s instrument
+    /// (`Recording::PreviewNote`): one short MIDI message for `track`'s instrument
     /// only (`EngineHandle::preview_note`), monitored or not, never recorded. Native: the
     /// engine's control ring; web: the Worklet's. Default: unsupported.
     fn preview_note(&mut self, track: TrackId, data: [u8; 3]) -> Result<(), BridgeError> {
@@ -419,7 +419,7 @@ pub trait EngineBridge {
         None
     }
 
-    /// `agent-plugins`: the installed plugins (the host's scanned catalog, what
+    /// The installed plugins (the host's scanned catalog, what
     /// `PluginCommand::List` replies) and whether a scan is running, for the agent's
     /// `list_plugins` / `add_device`. `None` (the default) = this host has no plugin host
     /// (web).
@@ -427,7 +427,7 @@ pub trait EngineBridge {
         None
     }
 
-    // ─── v0.2 (contracts-3) ───
+    // ─── v0.2 ───
 
     /// Analysis frames pushed by device nodes since the last call (`EngineHandle::
     /// poll_analysis`; CONTRACTS.md §12.4.3). Called from every tick. Native: drain the
@@ -443,7 +443,7 @@ pub trait EngineBridge {
         Ok(())
     }
 
-    /// `latency-republish`: the latency (samples) a live node last reported, as the next
+    /// The latency (samples) a live node last reported, as the next
     /// publish would use it for PDC (`EngineHandle::node_latency`). The controller tick
     /// compares it with the values of the last publish and republishes (debounced) when a
     /// node's latency changed (e.g. a Gate's Lookahead). Cheap and non-blocking. Default:
@@ -453,7 +453,7 @@ pub trait EngineBridge {
         None
     }
 
-    // ─── base-53: plugin GUI mirrors (`plugin-mirror`) ───
+    // ─── plugin GUI mirrors ───
 
     /// Instantiate a GUI-only instance of a plugin device: never routed, never processes
     /// audio, not in any graph. Its GUI edits come back through `poll_plugins` as
@@ -490,9 +490,9 @@ pub trait EngineBridge {
         ))
     }
 
-    // ─── v0.3 (contracts-4) ───
+    // ─── v0.3 ───
 
-    /// `audio-streaming` (CONTRACTS.md §13.1): stream `source.media` from disk instead of
+    /// Audio streaming (CONTRACTS.md §13.1): stream `source.media` from disk instead of
     /// loading decoded audio (`load_media`). `Ok(true)` = the host registered a streaming
     /// `AudioSource` for it; `Ok(false)` (the default) = not supported here, the controller
     /// decodes the whole file as before.
@@ -501,7 +501,7 @@ pub trait EngineBridge {
         Ok(false)
     }
 
-    /// #529: media whose audio the bridge needs (again) to build a convolution reverb's IR
+    /// Media whose audio the bridge needs (again) to build a convolution reverb's IR
     /// itself, off the engine's thread, asked for since the last call. The controller
     /// decodes each again (at most the IR's length) and hands it over with
     /// [`EngineBridge::ir_media`]. Default: none (the engine reads its own media).
@@ -509,7 +509,7 @@ pub trait EngineBridge {
         Vec::new()
     }
 
-    /// #529: audio of a media asked for by [`EngineBridge::take_ir_media_requests`], at
+    /// Audio of a media asked for by [`EngineBridge::take_ir_media_requests`], at
     /// the engine rate, cut to the longest IR kept. The bridge keeps it only until the IRs
     /// waiting for it are delivered.
     fn ir_media(
@@ -555,7 +555,7 @@ pub trait HostServices {
     /// Entropy for the `IdGen` seed.
     fn random_seed(&mut self) -> u64;
 
-    /// #519 (the sample pack, docs/SAMPLES.md): start an HTTP GET of `url` as request `id`
+    /// The sample pack (docs/SAMPLES.md): start an HTTP GET of `url` as request `id`
     /// (controller-chosen), reading at most `max_bytes` of body. The answer comes back from
     /// [`Self::poll_http`]. Never blocks. Default: unsupported (no network: the built-in kit
     /// only).
@@ -564,7 +564,7 @@ pub trait HostServices {
         Err("downloads are not available in this build".into())
     }
 
-    /// #519: the host's sample pack manifest URL, overriding `DEFAULT_SAMPLES_URL` when the
+    /// The host's sample pack manifest URL, overriding `DEFAULT_SAMPLES_URL` when the
     /// UI doesn't name one (natively `ETHER_SAMPLES_URL`; `""` = no remote pack).
     fn samples_url(&self) -> Option<String> {
         None
@@ -614,7 +614,7 @@ pub struct ControllerConfig {
     pub history_depth: usize,
     /// Written into saved files (`app_version`).
     pub app_version: String,
-    /// Whether every receiver applies `PatchChange::DeviceParam` (audit #4; see
+    /// Whether every receiver applies `PatchChange::DeviceParam` (see
     /// [`PatchCompat`]). The host keeps a clone to register older remote clients.
     pub patch_compat: PatchCompat,
 }
@@ -709,7 +709,7 @@ where
     pub external: external::ExternalState,
     /// v0.3: the session keymap for hosts without a writable user library (`keymap` module).
     pub keymap: keymap::KeymapState,
-    /// `agent-api`: agent tool runtime state (shared selection, export jobs).
+    /// Agent tool runtime state (shared selection, export jobs).
     pub agent: agent::AgentState,
     /// v0.3: rolling versions and the crash-recovery session marker (`versions` module).
     pub versions: versions::VersionsState,
@@ -720,9 +720,9 @@ where
     pub undo_history: undo_history::UndoHistoryState,
     /// The extensions (`ext` module): features built outside this repository.
     pub extensions: ext::Extensions<B, H, S, L, X>,
-    /// `import-resolver`: media search job and the last import's hints (`resolver`).
+    /// Media search job and the last import's hints (`resolver`).
     pub resolver: resolver::ResolverState,
-    /// #519: the default sample pack (`sample_pack` module; runtime).
+    /// The default sample pack (`sample_pack` module; runtime).
     pub samples: sample_pack::SamplesState,
     pub next_gesture: u32,
     pub last_transport: Option<TransportState>,
@@ -844,8 +844,8 @@ where
 
     /// Before the host quits (or anything else that drops the open project): wait for the
     /// background autosaves, then save every unsaved change, a failed background write
-    /// included, with every plugin's live state (#561). `Ok` lists the plugins whose
-    /// state could not be read (their last known state was saved instead, #566). `Err`:
+    /// included, with every plugin's live state. `Ok` lists the plugins whose
+    /// state could not be read (their last known state was saved instead). `Err`:
     /// the project is not safely on disk, see [`Self::recovery_document`].
     pub fn save_before_close(
         &mut self,
@@ -905,7 +905,7 @@ where
 {
     fn handle(&mut self, message: ClientMessage, out: &mut dyn MessageSink) {
         let now = self.host.now_ms();
-        // `agent-api`: export events are remembered for `get_export_status`.
+        // Export events are remembered for `get_export_status`.
         let mut tap = agent::ExportTap::new(out);
         let result = self.dispatch(&message, now, &mut tap);
         self.emit_transport_if_changed(&mut tap);
@@ -921,7 +921,7 @@ where
     }
 
     fn tick(&mut self, now_ms: u64, out: &mut dyn MessageSink) {
-        // `latency-republish`: a changed node latency marks the graph dirty; the tick's
+        // A changed node latency marks the graph dirty; the tick's
         // publish below then recomputes PDC.
         self.engine.check_latencies(&self.bridge, now_ms);
         // v0.3 `external-instrument`: latency measurements and hardware port changes.

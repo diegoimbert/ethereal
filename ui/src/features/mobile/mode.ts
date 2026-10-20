@@ -1,5 +1,5 @@
 /**
- * The mobile UI (#522): phones and touch tablets get `MobileShell` instead of the desktop
+ * The mobile UI: phones and touch tablets get `MobileShell` instead of the desktop
  * editor shell. The host turns it on before rendering (`enableMobileUi`; the web app does so
  * for `?mobile=1`, see apps/web/src/mobile.ts), and `<App />` picks the shell from it.
  *

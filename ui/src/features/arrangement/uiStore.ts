@@ -169,7 +169,7 @@ export function resetArrangementUi(): void {
 }
 
 /**
- * Keep the selected tracks on the open project (#589): another project clears them (the
+ * Keep the selected tracks on the open project: another project clears them (the
  * inspector closes), deleted tracks drop out (an undone "add track" closes its inspector).
  * Returns the unsubscribe function.
  */

@@ -1,4 +1,4 @@
-// Finds capitalized words in the string literals the UI shows (#524), for `uiCase.test.ts`.
+// Finds capitalized words in the string literals the UI shows, for `uiCase.test.ts`.
 // Test-only (imports the TypeScript compiler); the rules live in `uiCase.ts`.
 //
 // What counts as UI text, by syntax:

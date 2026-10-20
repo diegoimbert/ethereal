@@ -97,7 +97,7 @@ async function insertMultisampler(page: Page): Promise<{ track: string; device: 
       return device !== "";
     })
     .toBe(true);
-  // base-153: the device's UI is in its window.
+  // The device's UI is in its window.
   const card = await openDeviceWindow(page, device);
   return { track: id, device, card };
 }

@@ -1,6 +1,6 @@
-//! v0.3 engine prewire (contracts-4): the new `TrackDesc` fields round-trip through the web
+//! v0.3 engine prewire: the new `TrackDesc` fields round-trip through the web
 //! codec (inside the v0.2 JSON blob), the expression/hardware stubs are RT-safe no-ops, and
-//! `EventKind::NoteExpression` exists. `midi-expression` and `external-instrument` extend
+//! `EventKind::NoteExpression` exists. MIDI expression and `external-instrument` extend
 //! this with real rendering tests.
 
 mod common;
@@ -77,7 +77,7 @@ fn v03_track_fields_roundtrip_through_the_codec() {
 fn expression_and_hw_io_stubs_do_nothing() {
     let desc = desc_with_v03_fields();
     let t = &desc.tracks[0];
-    // `ExpressionRt` renders inside the engine (`midi-expression`; tests in
+    // `ExpressionRt` renders inside the engine (tests in
     // `tests/expression*.rs`): here only its non-RT construction.
     let mut rt = ExpressionRt::compile(&t.expression);
     rt.prepare(&t.expression);

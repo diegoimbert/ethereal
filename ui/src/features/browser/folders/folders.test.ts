@@ -1,4 +1,4 @@
-/** Folder import (base-136): the walkers (fakes of both browser APIs), skip/quota rules, and the copy through the MockTransport. */
+/** Folder import: the walkers (fakes of both browser APIs), skip/quota rules, and the copy through the MockTransport. */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { MockTransport } from "@/transport/mock/MockTransport";
 import { cmd } from "@/transport";

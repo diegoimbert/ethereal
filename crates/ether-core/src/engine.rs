@@ -81,7 +81,7 @@ enum Control {
     },
     Transport(TransportControl),
     Preview(crate::preview::PreviewControl),
-    /// base-150: a short MIDI message for one track's instrument (piano-roll note preview,
+    /// A short MIDI message for one track's instrument (piano-roll note preview,
     /// [`crate::recording`]).
     PreviewNote {
         track: TrackId,
@@ -168,11 +168,11 @@ impl SharedPlayhead {
 pub(crate) struct NodeSlot {
     pub(crate) generation: u32,
     pub(crate) node: Option<Box<dyn Node>>,
-    /// Silence-skipping state of the node in this slot (perf audit #5).
+    /// Silence-skipping state of the node in this slot.
     pub(crate) rt: NodeRt,
 }
 
-/// Per-node silence-skipping state (perf audit #5), kept with the node across snapshots.
+/// Per-node silence-skipping state, kept with the node across snapshots.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct NodeRt {
     /// The node's last `process` returned [`crate::ProcessStatus::Silent`]: while its
@@ -348,7 +348,7 @@ pub struct Engine {
     metronome: crate::metronome::Metronome,
     /// Browser preview voice ([`crate::preview`]).
     preview: crate::preview::PreviewVoice,
-    /// "Listen on <peer>" tap ([`crate::stream_tap`], base-53): after master + metronome,
+    /// "Listen on <peer>" tap ([`crate::stream_tap`]): after master + metronome,
     /// before the preview voice.
     stream_tap: crate::stream_tap::StreamTap,
     /// Parallel track processing ([`crate::parallel`], roadmap v2; `multicore`).
@@ -362,7 +362,7 @@ pub struct Engine {
     /// Exact beats of the current sub-block's samples on ramped tempo maps
     /// (`sched::Exact::beats`, `max_block_size + 1` entries).
     beat_table: Vec<f64>,
-    /// Skip asleep nodes on silent input (perf audit #5; on by default).
+    /// Skip asleep nodes on silent input (on by default).
     silence_skipping: bool,
     /// Offline export stems: the tapped tracks copied out after every block.
     capture: Vec<CaptureSlot>,
@@ -461,7 +461,7 @@ impl Engine {
 
     /// Non-RT (like [`Engine::set_executor`]): skip nodes that reported
     /// [`ProcessStatus::Silent`] while their input stays silent and no event reaches them
-    /// (on by default; perf audit #5). Off: every node is processed every block (tests
+    /// (on by default). Off: every node is processed every block (tests
     /// compare both).
     pub fn set_silence_skipping(&mut self, on: bool) {
         self.silence_skipping = on;
@@ -608,7 +608,7 @@ impl Engine {
                     t.release_notes = true;
                 }
                 // Stop while stopped still releases every node's notes (a panic for
-                // anything left hanging, #559).
+                // anything left hanging).
                 t.all_notes_off = true;
                 t.playing = false;
             }
@@ -900,8 +900,8 @@ impl Engine {
 
         // --- tracks, level by level (`crate::parallel`) ---
         // Stopped, the jobs still run devices and plugins at full cost (tails, auditioned
-        // instruments, plugins that never sleep): dispatch them like while playing (perf
-        // audit #2). Only when the previous sub-block did no real work anywhere (every node
+        // instruments, plugins that never sleep): dispatch them like while playing.
+        // Only when the previous sub-block did no real work anywhere (every node
         // asleep, nothing monitored: `TrackRt::awake`) keep the workers parked and run the
         // jobs here, in level order. Same result either way, bit for bit.
         let parallel = playing || tracks.iter().any(|t| t.awake || t.monitor);
@@ -958,7 +958,7 @@ impl Engine {
                 }
             }
         }
-        // --- recording capture: hardware input + aligned input taps (`tap-recording`) ---
+        // --- recording capture: hardware input + aligned input taps ---
         recording.capture(&info, inputs, off, n, &desc.tracks, tracks);
 
         // --- collect job flags; master to the hardware (fixed order) ---
@@ -994,7 +994,7 @@ impl Engine {
             n,
             outputs,
         );
-        // --- stream tap (base-53): master + metronome/count-in, never the preview ---
+        // --- stream tap: master + metronome/count-in, never the preview ---
         stream_tap.write(&info, *graph_latency, transport.jump, off, n, outputs);
         transport.jump = false;
         // --- browser preview (after master; not metered, transport-independent) ---
@@ -1359,7 +1359,7 @@ impl JobCtx<'_> {
 
         // --- clips ---
         // Clips ending at or before this beat do nothing in this sub-block (notes, chased
-        // notes, expression, audio): skip them with a binary search (perf audit #7).
+        // notes, expression, audio): skip them with a binary search.
         let live_from = timing.beat_at(-1.0).min(timing.event_range().0);
         if let Some(first) = chain.first_mut() {
             let mut sink = NoteSink {
@@ -1475,7 +1475,7 @@ impl JobCtx<'_> {
 
         // --- device chain ---
         // Whether this job did real work (`TrackRt::awake`: decides parallel dispatch while
-        // stopped, perf audit #2).
+        // stopped).
         let mut awake =
             track.monitor || !racks.is_empty() || !chain_racks.is_empty() || tdesc.frozen.is_some();
         for k in 0..chain.len() {
@@ -1559,7 +1559,7 @@ impl JobCtx<'_> {
                 (entry.channels.0 as usize).min(2),
                 (entry.channels.1 as usize).min(2),
             );
-            // Silence skipping (perf audit #5): a node that reported `Silent` stays asleep
+            // Silence skipping: a node that reported `Silent` stays asleep
             // while it gets no events and its input stays digital silence; its output is
             // then silence too (`ProcessStatus::Silent`'s contract), so don't call it.
             let skip = flags.skip_silence
@@ -1885,7 +1885,7 @@ impl EngineHandle {
         self.send(Control::Preview(control))
     }
 
-    /// base-150: play a short MIDI message (`data`, a channel voice message) on `track`'s
+    /// Play a short MIDI message (`data`, a channel voice message) on `track`'s
     /// instrument from the next block, whatever its arm / monitor state (piano-roll note
     /// preview; [`crate::recording`]). Non-blocking.
     pub fn preview_note(&mut self, track: TrackId, data: [u8; 3]) -> Result<(), EngineError> {
@@ -1893,7 +1893,7 @@ impl EngineHandle {
     }
 
     /// Install (`Some`) or remove (`None`) the "listen on <peer>" stream tap
-    /// ([`crate::stream_tap`]; base-53). Non-blocking; the previous writer is retired to the
+    /// ([`crate::stream_tap`]). Non-blocking; the previous writer is retired to the
     /// GC.
     pub fn set_stream_tap(
         &mut self,

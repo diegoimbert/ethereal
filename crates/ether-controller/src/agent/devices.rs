@@ -1,4 +1,4 @@
-//! Device parameters, drum pads and rack chains (`agent-plugins`): `get_device_params`,
+//! Device parameters, drum pads and rack chains: `get_device_params`,
 //! `get_device_param`, `set_device_param` (names or ids; plain, display, normalized or
 //! relative values), `set_drum_pad`, `load_drum_pad_sample`, `set_rack_chain`.
 

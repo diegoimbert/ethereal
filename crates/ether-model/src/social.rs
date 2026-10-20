@@ -1,4 +1,4 @@
-//! Social layer of the document (base-62).
+//! Social layer of the document.
 //!
 //! - [`ChatMessage`]: the session chat, **saved with the project** as a journal. Replicated
 //!   like any op but **never undoable**: [`crate::History`] applies chat ops without
@@ -9,7 +9,7 @@
 //!   pointers), saved in the project like markers. Undoable, replicated, works outside a
 //!   session too. Named `PinnedNote` because `Note` is the MIDI note.
 //!
-//! Both tables ship with pre-release `.ether` v4 (contracts-3): the v3 → v4 migration adds them empty,
+//! Both tables ship with pre-release `.ether` v4: the v3 → v4 migration adds them empty,
 //! and they are also `#[serde(default)]` on `Project`.
 
 use serde::{Deserialize, Serialize};

@@ -1,4 +1,4 @@
-//! Standard MIDI Files (#717): `Media::ReadMidiFile` (a library file, an upload or a desktop
+//! Standard MIDI Files: `Media::ReadMidiFile` (a library file, an upload or a desktop
 //! path → notes in beats; the UI makes the tracks and clips with ordinary commands, one undo
 //! step) and `Media::WriteMidiFile` (MIDI clips → a type 1 file, written to a desktop path
 //! or returned as bytes). The SMF codec is `ether_media::smf` (`midly`).

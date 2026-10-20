@@ -681,7 +681,7 @@ fn stems_sum_to_the_mix() {
     assert!(max_err < 1e-4, "stems sum to the mix (max error {max_err})");
 }
 
-/// The example projects (#518, factory project templates `factory/example-*`): each one,
+/// The example projects (factory project templates `factory/example-*`): each one,
 /// made like the welcome screen makes it, renders its loop with every track audible (the
 /// drum pads, the instruments) and the mix unclipped.
 #[test]
@@ -1539,7 +1539,7 @@ fn lossy_share_files_stay_aligned_with_the_lossless_render() {
     }
 }
 
-/// #434: files streamed into the store (`create_export`) are the files encoded in memory
+/// Files streamed into the store (`create_export`) are the files encoded in memory
 /// (downloads, and stores with only `write_export`), byte for byte, for every container,
 /// resampled or not, normalized or not, mix and stems.
 #[test]
@@ -1611,7 +1611,7 @@ fn streamed_files_equal_in_memory_files() {
     }
 }
 
-/// #562: a document claiming far more frames than the media holds (hand-edited file,
+/// A document claiming far more frames than the media holds (hand-edited file,
 /// imported bundle, peer snapshot) exports like it plays: the source is padded by at most
 /// `MAX_PAD_FRAMES` (it used to allocate the claimed length and abort).
 #[test]

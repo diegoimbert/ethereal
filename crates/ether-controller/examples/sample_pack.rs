@@ -1,4 +1,4 @@
-//! The sample pack builder (#519, docs/SAMPLES.md).
+//! The sample pack builder (docs/SAMPLES.md).
 //!
 //! ```text
 //! cargo run -p ether-controller --example sample_pack -- build <folder> <out> [--version N]

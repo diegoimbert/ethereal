@@ -1,11 +1,11 @@
 /**
- * v0.2 built-in device descriptors for the MockTransport (contracts-3).
+ * v0.2 built-in device descriptors for the MockTransport.
  *
  * Each JSON file is **generated from Rust** (`ether_devices::descriptor`) and owned by its
  * device node; `crates/ether-devices/tests/v02_descriptors.rs` fails when one is stale.
  * Regenerate with `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test
  * v02_descriptors`; never edit them by hand. Layout specs (`DeviceDescriptor::layout`) travel
- * with them, so the shared device renderer (`device-ui`) shows the same panels on the mock
+ * with them, so the shared device renderer shows the same panels on the mock
  * and on the real engine.
  */
 
@@ -59,11 +59,11 @@ const groups = [polySynth, multisampler, fxColor, fxModulation, fxDynamics, fxAn
 
 export const V02_DESCRIPTORS: Readonly<Record<V02DeviceType, DeviceDescriptor>> = Object.assign({}, ...groups);
 
-/** The v0.3 built-in types (contracts-4; after `MidiEffectRack` in `BuiltinDeviceType::ALL`). */
+/** The v0.3 built-in types (after `MidiEffectRack` in `BuiltinDeviceType::ALL`). */
 export type V03DeviceType = "ConvolutionReverb" | "ExternalInstrument" | "ExternalAudioEffect";
 
 /**
- * v0.3 descriptors (contracts-4), generated from Rust like the v0.2 ones: `fxSpace.json`
+ * v0.3 descriptors, generated from Rust like the v0.2 ones: `fxSpace.json`
  * (fx-space) and `external.json` (external-instrument). Regenerate with
  * `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v03_descriptors`.
  */
@@ -78,7 +78,7 @@ export const V03_DESCRIPTORS: Readonly<Record<V03DeviceType, DeviceDescriptor>> 
  */
 export const FM_SYNTH_DESCRIPTOR: DeviceDescriptor = (fmSynth as unknown as Record<"FmSynth", DeviceDescriptor>).FmSynth;
 
-/** The EQ (devices-2) with its v0.2 `EqCurve` layout (graphical-eq), from Rust. */
+/** The EQ with its v0.2 `EqCurve` layout, from Rust. */
 export const EQ_DESCRIPTOR: DeviceDescriptor = eq as unknown as DeviceDescriptor;
 
 /** `Modulation::ListModulatorKinds` (from `ether_devices::modulators`). */

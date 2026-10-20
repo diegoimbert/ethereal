@@ -1,5 +1,5 @@
 // The browser app (the engine and the editor), loaded by ./main.tsx. Phones and touch-only
-// tablets get the mobile UI (./mobile.ts, #522).
+// tablets get the mobile UI (./mobile.ts).
 //
 // The UI talks to the wasm engine through `WasmTransport`: the real `EtherController` runs
 // in a Web Worker, the engine in an AudioWorklet, connected by SharedArrayBuffer rings
@@ -31,7 +31,7 @@ export async function runApp(invite: string | null): Promise<void> {
 }
 
 /**
- * Boot the editor; if that fails before the editor shows (#597: the engine's chunk didn't
+ * Boot the editor; if that fails before the editor shows (the engine's chunk didn't
  * load, e.g. a page left open across a deploy), say why instead of doing nothing.
  */
 function startApp(invite: string | null): void {
@@ -42,7 +42,7 @@ function startApp(invite: string | null): void {
 }
 
 async function boot(invite: string | null): Promise<void> {
-  // The touch UI (#522): phones and touch-only tablets, or asked for.
+  // The touch UI: phones and touch-only tablets, or asked for.
   const mobile = applyMobileUi(enableMobileUi);
   emit("web.boot", invite);
 
@@ -53,9 +53,9 @@ async function boot(invite: string | null): Promise<void> {
     (window as unknown as { __etherMock?: unknown }).__etherMock = m;
     transport = m;
   } else {
-    // One tab owns the project store (#563): wait here (no engine) while another one has it.
+    // One tab owns the project store: wait here (no engine) while another one has it.
     const owner = await ownStore();
-    // Ask the browser to keep the projects (#622); never holds up the start.
+    // Ask the browser to keep the projects; never holds up the start.
     void ensurePersistentStorage({ onOpenSettings: () => openSettings("general") });
     const { createWebEndpoint } = await import("./engine/endpoint");
     const endpoint = createWebEndpoint();

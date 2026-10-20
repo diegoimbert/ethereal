@@ -296,7 +296,7 @@ describe("DeviceLibrary", () => {
   });
 });
 
-// #425: a plugin installed in several formats is listed once per format; format toggles filter.
+// A plugin installed in several formats is listed once per format; format toggles filter.
 describe("DeviceLibrary plugin formats", () => {
   const formatGroup = () => screen.getByRole("group", { name: "plugin formats" });
   const toggle = (label: string) => within(formatGroup()).getByRole("button", { name: label });

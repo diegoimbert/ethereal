@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 
 const BUILDS: string[][] = [
-  // comping, live-record, remote-engine, tap-recording
+  // comping, live-record, remote-engine
   ["build", "-p", "ether-server", "--bin", "ether-server", "--features", "full"],
 ];
 

@@ -110,7 +110,7 @@ fn set_ir_is_one_undo_step() {
         device,
         media,
     } = setup();
-    // A new convolution reverb starts on the factory hall (#520).
+    // A new convolution reverb starts on the factory hall.
     assert_eq!(ir_of(&h, device), factory("hall"));
     h.ok(set_ir(device, factory("plate")));
     assert_eq!(ir_of(&h, device), factory("plate"));
@@ -322,7 +322,7 @@ fn user_presets_carry_their_ir_file() {
 
 #[test]
 fn ir_media_is_decoded_again_for_the_bridge_cut_to_the_longest_ir() {
-    // #529: a web bridge builds media IRs itself, from audio it asks for again (it doesn't
+    // A web bridge builds media IRs itself, from audio it asks for again (it doesn't
     // keep every loaded media): the controller decodes the media again (the first
     // `MAX_IR_SECONDS`, at the engine rate), hands it over, and keeps nothing.
     let mut lib = MemoryLibrary::new();

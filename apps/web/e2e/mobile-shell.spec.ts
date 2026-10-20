@@ -1,4 +1,4 @@
-// The mobile UI's shell (#522), behind `?mobile=1` while in development: a phone or tablet gets
+// The mobile UI's shell, behind `?mobile=1` while in development: a phone or tablet gets
 // the arrangement with a top bar and a bottom transport (touch-sized), the layout follows the
 // viewport (rotation keeps the project and the arrangement mounted), and hiding the page stops
 // playback. The gate screen offers it as a beta; desktops are unaffected.

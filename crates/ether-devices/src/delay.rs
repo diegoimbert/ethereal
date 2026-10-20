@@ -6,10 +6,10 @@
 //! transport tempo. Small delay-time changes glide (fractional read with linear
 //! interpolation), so automation doesn't click; a jump of more than [`TIME_JUMP_MS`] (a knob
 //! click, a new division) crossfades from the old tap to the new one over [`TIME_FADE_MS`]
-//! instead (gliding that far would sweep the echoes' pitch by octaves, #520). The delay
+//! instead (gliding that far would sweep the echoes' pitch by octaves). The delay
 //! line is allocated in `prepare`.
 //!
-//! `devices-pass-effects` appends (defaults = the sound before them, bit-exact):
+//! The effects pass appends (defaults = the sound before them, bit-exact):
 //! - `Low Cut` / `High Cut` (6, 7; Hz, off at 20 Hz / 20 kHz): 12 dB/oct filters on what
 //!   goes into the line, so each repeat is filtered again (darker / thinner echoes).
 //! - `Mod Rate` / `Mod Depth` (8, 9): a sine LFO sweeping the delay time by up to
@@ -37,15 +37,15 @@ pub mod params {
     pub const FEEDBACK: ParamId = ParamId(3);
     pub const MIX: ParamId = ParamId(4);
     pub const PING_PONG: ParamId = ParamId(5);
-    /// `devices-pass-effects`: feedback-path low cut (Hz, 20 = off).
+    /// Feedback-path low cut (Hz, 20 = off).
     pub const LOW_CUT: ParamId = ParamId(6);
-    /// `devices-pass-effects`: feedback-path high cut (Hz, 20000 = off).
+    /// Feedback-path high cut (Hz, 20000 = off).
     pub const HIGH_CUT: ParamId = ParamId(7);
-    /// `devices-pass-effects`: delay-time modulation rate (Hz).
+    /// Delay-time modulation rate (Hz).
     pub const MOD_RATE: ParamId = ParamId(8);
-    /// `devices-pass-effects`: delay-time modulation depth (percent of ±[`super::MOD_MAX_MS`]).
+    /// Delay-time modulation depth (percent of ±[`super::MOD_MAX_MS`]).
     pub const MOD_DEPTH: ParamId = ParamId(9);
-    /// `devices-pass-effects`: freeze (toggle).
+    /// Freeze (toggle).
     pub const FREEZE: ParamId = ParamId(10);
 }
 
@@ -115,7 +115,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
             &["Off", "On"],
             0,
         ),
-        // --- devices-pass-effects ---
+        // --- devices pass effects ---
         param(
             6,
             "Low Cut",
@@ -251,7 +251,7 @@ pub struct Delay {
     mod_phase: f64,
     /// Freeze amount (0 = off, 1 = frozen; smoothed).
     freeze: Smoother,
-    /// Silence reporting (perf audit #5): an echo above the floor left the line this block.
+    /// Silence reporting: an echo above the floor left the line this block.
     loud: bool,
     tail: util::Tail,
 }
@@ -431,7 +431,7 @@ impl Delay {
             // Read position `delay` samples behind the write head, in f64: in f32 the
             // fraction would round to 1/32 sample at the far end of a 10 s line, so an echo
             // would depend on where the write head happens to be (it stops while the engine
-            // skips the asleep device, perf audit #5).
+            // skips the asleep device).
             let mut rp = self.write as f64 - f64::from(self.delay);
             if rp < 0.0 {
                 rp += len as f64;
@@ -469,7 +469,7 @@ impl Delay {
         }
     }
 
-    /// [`Self::render`] with the `devices-pass-effects` stages: feedback filters, time
+    /// [`Self::render`] with the effects pass stages: feedback filters, time
     /// modulation and freeze (the plain loop above stays bit-identical to the device before
     /// them).
     fn render_extended(

@@ -1,4 +1,4 @@
-// Freeze, flatten, bounce and consolidate (v0.2, owned by `freeze-bounce`; CONTRACTS.md §12.3).
+// Freeze, flatten, bounce and consolidate (v0.2; CONTRACTS.md §12.3).
 import "./freeze.css";
 
 export { FreezeHeaderStatus } from "./FreezeHeaderStatus";

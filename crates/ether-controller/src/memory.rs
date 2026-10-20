@@ -18,7 +18,7 @@ use crate::store::{
     unique_folder_name, user_folder_id,
 };
 
-/// `base-136`: engine-side path prefix of [`MemoryLibrary`]'s imported folders.
+/// Engine-side path prefix of [`MemoryLibrary`]'s imported folders.
 pub const IMPORTED_PREFIX: &str = "imported/";
 
 /// List the direct children of `dir` among `files` (paths relative to the same root).
@@ -84,7 +84,7 @@ pub struct MemoryStore {
     pub fail_saves: bool,
     /// Background write failures not reported yet.
     save_errors: Vec<(ProjectId, StoreError)>,
-    /// Upload staging (`base-136`: browser folder imports are tested with it).
+    /// Upload staging (browser folder imports are tested with it).
     uploads: BTreeMap<String, (u64, Vec<u8>)>,
     /// Streamed exports committed by their file, waiting for `commit_export`.
     exports: CommittedExports,
@@ -364,7 +364,7 @@ impl ProjectStore for MemoryStore {
         Ok(())
     }
 
-    /// v0.3 (`project-versions`): delete one file; missing = `Ok`.
+    /// v0.3: delete one file; missing = `Ok`.
     fn remove(&mut self, id: ProjectId, rel_path: &str) -> Result<(), StoreError> {
         check_relative_path(rel_path)?;
         if rel_path.is_empty() {
@@ -397,12 +397,12 @@ pub struct MemoryLibrary {
     roots: BTreeMap<String, (String, BTreeMap<String, Vec<u8>>)>,
     /// Writable user root id (`Library::user_root`); not listed in `roots()`.
     user: Option<String>,
-    /// `base-136`: imported folders' files by engine-side path (`imported/<name>`), whether
+    /// Imported folders' files by engine-side path (`imported/<name>`), whether
     /// added as a root or not (the "disk").
     imported: BTreeMap<String, BTreeMap<String, Vec<u8>>>,
     /// Imported folders added as roots (`add_folder`): root id → path.
     added: BTreeMap<String, String>,
-    /// #519: the sample pack cache (`Library::sample_cache_*`), by relative path; `None` =
+    /// The sample pack cache (`Library::sample_cache_*`), by relative path; `None` =
     /// the host has none ([`MemoryLibrary::without_sample_cache`]).
     samples: Option<BTreeMap<String, Vec<u8>>>,
 }
@@ -415,13 +415,13 @@ impl MemoryLibrary {
         }
     }
 
-    /// #519: a host without a sample cache (the built-in kit only).
+    /// A host without a sample cache (the built-in kit only).
     pub fn without_sample_cache(mut self) -> Self {
         self.samples = None;
         self
     }
 
-    /// #519: the sample cache's files (for assertions).
+    /// The sample cache's files (for assertions).
     pub fn sample_cache(&self) -> Vec<String> {
         self.samples
             .as_ref()
@@ -451,7 +451,7 @@ impl MemoryLibrary {
             .unwrap_or_default()
     }
 
-    /// `base-136`: the same files, with no user folder added (a host restart: the
+    /// The same files, with no user folder added (a host restart: the
     /// controller re-adds them from its index).
     pub fn restarted(&self) -> Self {
         Self {
@@ -460,7 +460,7 @@ impl MemoryLibrary {
         }
     }
 
-    /// `base-136`: the imported folders' paths (for assertions).
+    /// The imported folders' paths (for assertions).
     pub fn imported_folders(&self) -> Vec<String> {
         self.imported.keys().cloned().collect()
     }
@@ -617,7 +617,7 @@ impl Library for MemoryLibrary {
         self.user.clone()
     }
 
-    /// `base-136`: only imported folders (`imported/<name>`, created) can be added.
+    /// Only imported folders (`imported/<name>`, created) can be added.
     fn add_folder(&mut self, path: &str) -> Result<String, StoreError> {
         if !path.starts_with(IMPORTED_PREFIX) {
             return Err(StoreError::Unsupported(
@@ -632,7 +632,7 @@ impl Library for MemoryLibrary {
         Ok(id)
     }
 
-    /// `base-136`: forget a user folder and delete its files.
+    /// Forget a user folder and delete its files.
     fn remove_folder(&mut self, root: &str) -> Result<(), StoreError> {
         if !root.starts_with(USER_FOLDER_PREFIX) {
             return Err(StoreError::InvalidPath(format!(

@@ -61,7 +61,7 @@ const REVERB: &[FactoryPreset] = &[
     preset!("reverb", "plate"),
     preset!("reverb", "large-hall"),
     preset!("reverb", "ambient-wash"),
-    // More spaces (#520).
+    // More spaces.
     preset!("reverb", "drum-room"),
     preset!("reverb", "tight-ambience"),
     preset!("reverb", "vocal-hall"),

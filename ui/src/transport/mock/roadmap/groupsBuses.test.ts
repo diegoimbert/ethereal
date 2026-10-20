@@ -1,4 +1,4 @@
-/** MockTransport: `Track::{GroupSelected, Ungroup, SetVca}` (v0.2, groups-buses). */
+/** MockTransport: `Track::{GroupSelected, Ungroup, SetVca}` (v0.2). */
 import { describe, expect, it } from "vitest";
 import type { Project, TrackId } from "@/generated";
 import { compareOrderKeys } from "@/state/orderKey";

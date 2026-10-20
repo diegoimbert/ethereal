@@ -1,4 +1,4 @@
-//! Portable project bundles (`Project::ExportBundle` / `ImportBundle`, base-114).
+//! Portable project bundles (`Project::ExportBundle` / `ImportBundle`).
 //!
 //! A bundle is one `.ether` file: a plain ZIP archive whose entries are **stored** (not
 //! compressed: audio barely compresses, and storing keeps the code small and wasm-friendly)

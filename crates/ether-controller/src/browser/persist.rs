@@ -31,7 +31,7 @@ pub struct IndexFile {
 pub struct UserFolder {
     pub id: String,
     pub path: String,
-    /// `base-136`: the user's name for it (`RenameFolder`; `None` = the folder's own name).
+    /// The user's name for it (`RenameFolder`; `None` = the folder's own name).
     pub name: Option<String>,
 }
 

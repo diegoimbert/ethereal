@@ -1,4 +1,4 @@
-//! `devices-pass-instruments`: what the pass added to the Synth (fine, glide, velocity,
+//! What the pass added to the Synth (fine, glide, velocity,
 //! filter envelope and key tracking) and the Sampler (ADSR, fine, velocity, voices,
 //! reverse, forward / ping-pong loops with crossfade, filter). Every render runs under
 //! `assert_no_alloc`. That the defaults sound as before is `instruments_golden.rs`.

@@ -1,5 +1,5 @@
-//! External media references: missing media, relink, search, collect (v0.2, owned by the
-//! `media-references`; model `ether_model::MediaLocation`, protocol
+//! External media references: missing media, relink, search, collect (v0.2;
+//! model `ether_model::MediaLocation`, protocol
 //! `ether_protocol::media_refs`, CONTRACTS.md §12.9).
 //!
 //! - **Import in place** (`handlers.rs`): `MediaSource::Path` and library files the host can

@@ -1,4 +1,4 @@
-//! MIDI expression playback (`midi-expression`, CONTRACTS.md §13.2): clip lanes as raw MIDI
+//! MIDI expression playback (CONTRACTS.md §13.2): clip lanes as raw MIDI
 //! and note expressions as `NoteExpression`, sample-accurate and identical for every block
 //! size, only on value changes, re-sent after jumps, bend centred when its clip stops, and
 //! note expressions following their note across loop wraps and clip moves.

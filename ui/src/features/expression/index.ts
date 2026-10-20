@@ -1,4 +1,4 @@
-/** MIDI expression lanes (v0.3, `midi-expression`): see README.md. */
+/** MIDI expression lanes (v0.3): see README.md. */
 export { ExpressionLanes, type ExpressionLanesProps } from "./ExpressionLanes";
 export { choiceKey, COMMON_KINDS, NOTE_KINDS, type LaneChoice } from "./choices";
 export { ExpressionLaneView, type ExpressionLaneViewProps } from "./ExpressionLaneView";

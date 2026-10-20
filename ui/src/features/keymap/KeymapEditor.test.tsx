@@ -147,7 +147,7 @@ describe("CheatSheetContent", () => {
     const mouse = screen.getByTestId("keymap-mouse-gestures");
     expect(within(mouse).getByText("slip a clip's content (drag its body)")).toBeInTheDocument();
     expect(within(mouse).getByText(/Ctrl\+Shift \+ drag|⇧⌘ \+ drag/)).toBeInTheDocument();
-    // Automation point drags (#793): ⌥ is the precision mode.
+    // Automation point drags: ⌥ is the precision mode.
     expect(within(mouse).getByText(/drag an automation point slowly/)).toBeInTheDocument();
   });
 });

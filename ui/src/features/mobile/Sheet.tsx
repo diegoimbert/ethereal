@@ -1,11 +1,11 @@
 /**
- * A bottom sheet (#522, the design's §7): a panel sliding up over the lower part of the screen,
+ * A bottom sheet (the design's §7): a panel sliding up over the lower part of the screen,
  * with a grab handle. Two heights ("medium" about half the screen, "tall" nearly all of it):
  * drag the handle up to grow it, down to shrink or close it; the scrim behind closes it; so do
  * Escape and the system back (button or gesture: opening pushes a history entry, same URL).
  * Like any modal it takes the focus while open (and gives it back on close): Escape then
  * reaches it even when the sheet was opened from the arrangement, whose own Escape
- * (deselect) would otherwise swallow it (#640).
+ * (deselect) would otherwise swallow it.
  * In phone landscape it is a full-screen panel (mobile.css).
  */
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from "react";

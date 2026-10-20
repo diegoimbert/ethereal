@@ -1,4 +1,4 @@
-//! #519 (docs/SAMPLES.md): the default sample pack. The manifest is fetched and verified on
+//! The default sample pack (docs/SAMPLES.md). The manifest is fetched and verified on
 //! first use, files download lazily into the engine-side cache (size + sha256 checked), the
 //! cached pack works offline, newer versions replace the manifest and keep the files projects
 //! still reference, and the built-in kit is always there.

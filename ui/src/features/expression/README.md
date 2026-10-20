@@ -1,6 +1,6 @@
 # MIDI expression lanes
 
-The lane area under the piano roll (`midi-expression`, v0.3). Contract: CONTRACTS.md §13.2,
+The lane area under the piano roll (v0.3). Contract: CONTRACTS.md §13.2,
 Rust model `ether_model::expression`, commands `ether_protocol::expression`.
 
 ## Data model

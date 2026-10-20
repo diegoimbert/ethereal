@@ -45,15 +45,15 @@ const NO_ENGINE_TABS: ReadonlySet<string> = new Set(["general", "appearance", "i
 /**
  * Settings, in tabs:
  * - Appearance: theme, interface zoom, translucency (kept on this device; needs no engine).
- * - General (base-131): startup ("Reopen last project on launch"); library files (base-145:
+ * - General: startup ("Reopen last project on launch"); library files (
  *   which files the library browser lists, regex rules; needs the engine).
  * - Audio: driver (host API), output and input devices, sample rate and buffer size, the
  *   engine's status, and an input check (the level of armed, monitored tracks). Every change
  *   applies at once (`Engine::SetAudioConfig`, only the changed field); the engine persists
  *   the settings.
- * - Input (base-135): mouse wheel and buttons (zoom/scroll sensitivity, inversion, which
+ * - Input: mouse wheel and buttons (zoom/scroll sensitivity, inversion, which
  *   modifier zooms, middle and side buttons). Kept on this device; needs no engine.
- * - Plugins (base-129): the folders scanned for plugins (system folders on/off, the user's
+ * - Plugins: the folders scanned for plugins (system folders on/off, the user's
  *   folders with a format filter), Rescan and Full rescan.
  * - Privacy: "check for news" (docs/NEWS.md). Kept on this device; needs no engine.
  * - Advanced: the engine server (remote engine), the engine log and the debug panels.
@@ -103,7 +103,7 @@ export function AudioSettingsDialog() {
               <div className="eth-settings__stack">
                 <LanguageSettings />
                 <LaunchSettings />
-                {/* The browser keeps the projects (#622); the desktop app's are files. */}
+                {/* The browser keeps the projects; the desktop app's are files. */}
                 {!isTauri() && <StorageSettings />}
                 {transport && <FileFilterSettings transport={transport} />}
               </div>

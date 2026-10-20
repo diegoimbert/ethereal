@@ -1,7 +1,7 @@
 /**
- * What a folder import copies (`base-136`): the supported audio files (by extension, as
+ * What a folder import copies: the supported audio files (by extension, as
  * the engine decodes them; not empty, at most `MAX_IMPORT_BYTES`, shown by the library's
- * file filter: `base-145`), the rest skipped and counted; and whether the copy fits in the
+ * file filter), the rest skipped and counted; and whether the copy fits in the
  * browser's storage (`navigator.storage.estimate()`, checked before anything is written).
  */
 import { MAX_IMPORT_BYTES, isAudioName } from "@/features/import/sources";

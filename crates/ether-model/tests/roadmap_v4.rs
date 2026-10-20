@@ -1,4 +1,4 @@
-//! v0.3 model contracts (contracts-4): clip expression lanes, note expressions, track MPE,
+//! v0.3 model contracts: clip expression lanes, note expressions, track MPE,
 //! the v0.3 devices' kind data, rack presets, templates, `.ether` v5.
 
 use ether_model::*;
@@ -435,7 +435,7 @@ fn rack_presets_store_chains() {
     assert_eq!(load_preset(v1).unwrap().rack, None);
 }
 
-/// #761: drum rack presets store their pads (no chains, no macros).
+/// Drum rack presets store their pads (no chains, no macros).
 #[test]
 fn drum_rack_presets_store_pads() {
     let pad = |note: u8| PresetPad {

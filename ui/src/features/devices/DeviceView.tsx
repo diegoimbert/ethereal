@@ -47,7 +47,7 @@ export interface DeviceViewProps {
    * above the other (the inspector), reordered by dragging the header.
    */
   layout?: "row" | "stack";
-  /** v0.2 (racks-modulation): move handler for rack-chain devices (default `Device::Move`). */
+  /** v0.2: move handler for rack-chain devices (default `Device::Move`). */
   onMove?(before: DeviceId | null): void;
   /** Remove handler (default `Device::Remove`), e.g. a drum pad's last device removes the pad. */
   onRemove?(): void;
@@ -56,7 +56,7 @@ export interface DeviceViewProps {
 export function DeviceView({ device, prev, moveRightBefore, onDropBefore, acceptsBefore, layout = "row", onMove, onRemove }: DeviceViewProps) {
   const stack = layout === "stack";
   const t = useT();
-  // base-153: two independent states. The window (the plugin's editor, or the factory
+  // Two independent states. The window (the plugin's editor, or the factory
   // device's own UI) opens from the header's window button; the inline parameter list (the
   // generic UI, capped height) from its "Parameters" button.
   const paramsOpen = useParamsOpen(device.id);
@@ -141,10 +141,10 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
           onContextMenu={(e) =>
             openContextMenu(
               e,
-              // Groups, separated: the device itself; racks (v0.2 racks-modulation); modulators;
+              // Groups, separated: the device itself; racks (v0.2 racks and modulation); modulators;
               // plugin (advanced); delete.
               menuGroups([
-                // import-resolver: a plugin that isn't installed; any device but a rack can be replaced.
+                // A plugin that isn't installed; any device but a rack can be replaced.
                 [...resolvePluginEntries(device, transport), ...replaceDeviceEntries(device, transport)],
                 [
                   { label: t("devices.device.copy"), shortcut: shortcutLabel("edit.copy"), onSelect: () => useDeviceClipboard.getState().copy(device.id) },
@@ -294,7 +294,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
                 </div>
               </div>
             ))}
-          {/* v0.2 (racks-modulation): a rack's chains, then the device's modulators. */}
+          {/* v0.2: a rack's chains, then the device's modulators. */}
           {isChainRack(device) && <RackPanel rack={device} />}
           <ModulatorsPanel device={device} />
         </div>

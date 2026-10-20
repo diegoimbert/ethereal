@@ -90,7 +90,7 @@ pub fn store_err(e: StoreError) -> CommandError {
     crate::tx::keyed_err(code, key)
 }
 
-/// Patch changes as they go on the wire (audit #4): plugin state blobs stripped, and
+/// Patch changes as they go on the wire: plugin state blobs stripped, and
 /// `DeviceParam`s turned back into device upserts while a receiver predates them.
 pub fn wire_changes(
     compat: &crate::PatchCompat,
@@ -152,7 +152,7 @@ pub fn media_file_name(id: MediaId, name: &str) -> String {
     format!("{MEDIA_DIR}/{id}-{clean}")
 }
 
-/// base-115: commands that edit the shared document (refused on a listen link). Local
+/// Commands that edit the shared document (refused on a listen link). Local
 /// playback (transport, monitoring) stays available on the read-only copy.
 fn share_edits(command: &Command, current: Option<ProjectId>) -> bool {
     use ether_core::protocol::audio_to_midi::AudioToMidiCommand;
@@ -164,7 +164,7 @@ fn share_edits(command: &Command, current: Option<ProjectId>) -> bool {
     use ether_core::protocol::undo_history::HistoryCommand;
     match command {
         Command::Transport(_) | Command::Recording(_) => false,
-        // #418: mute and solo are per site: never sent, so a listener can
+        // Mute and solo are per site: never sent, so a listener can
         // solo and mute tracks of its read-only copy to hear them on their own. While it
         // listens to the host they are the host's (§9.8: the host applies them only with
         // remote control on).
@@ -187,7 +187,7 @@ fn share_edits(command: &Command, current: Option<ProjectId>) -> bool {
             ..
         })
         | Command::Media(MediaCommand::Import { .. }) => true,
-        // #583: these edit the document outside `doc::apply` (one undo step each).
+        // These edit the document outside `doc::apply` (one undo step each).
         Command::Preset(PresetCommand::Load { .. })
         | Command::Capture(CaptureCommand::Capture { .. })
         | Command::AudioToMidi(AudioToMidiCommand::Start { .. })
@@ -216,13 +216,13 @@ where
             return r;
         }
         if let Some(doc) = self.doc.as_ref() {
-            // v0.2 (`freeze-bounce`): frozen tracks can't be edited.
+            // v0.2: frozen tracks can't be edited.
             crate::freeze::check_editable(&doc.project, command)?;
         }
-        // base-62: a note added by this command is authored by our session identity (a no-op
+        // A note added by this command is authored by our session identity (a no-op
         // in the OSS build: the private overlay's session tracks it).
         self.ext_before_command(command);
-        // base-115: a listen link is view only.
+        // A listen link is view only.
         if self.ext_view_only() && share_edits(command, current) {
             return Err(crate::tx::keyed_err(
                 ether_core::protocol::ErrorCode::InvalidState,
@@ -258,7 +258,7 @@ where
             }
             Command::Transport(t) => {
                 let r = self.transport_command(t, now, out);
-                // base-62: peers see our playhead move at once.
+                // Peers see our playhead move at once.
                 self.ext_transport_changed();
                 r
             }
@@ -280,7 +280,7 @@ where
             // Roadmap v2 (non-document parts; document parts go through `doc::apply`).
             Command::Export(c) => self.export_command(c, out),
             Command::MidiMap(c) => self.midi_map_command(c, out),
-            // v0.2 (contracts-3; document parts of `Take`, `Rack`, `Modulation` and the new
+            // v0.2 (document parts of `Take`, `Rack`, `Modulation` and the new
             // `Track` commands go through `doc::apply`).
             Command::Freeze(c) => self.freeze_command(c, now, out),
             Command::TimeEdit(c) => self.time_edit_command(c, msg.gesture, now, out),
@@ -293,7 +293,7 @@ where
             ) => Ok(ReplyValue::ModulatorKinds {
                 kinds: ether_devices::modulators::all(),
             }),
-            // v0.3 (contracts-4; document parts of `Expression`, `External` and `Template`
+            // v0.3 (document parts of `Expression`, `External` and `Template`
             // go through `doc::apply`).
             Command::Capture(c) => self.capture_command(c, now, out),
             Command::AudioToMidi(c) => self.audio_to_midi_command(c, now, out),
@@ -308,11 +308,11 @@ where
                 crate::text::set_names_language(language);
                 Ok(ReplyValue::Unit)
             }
-            // `agent-api`: LLM tools (each edit tool call is one undo step).
+            // LLM tools (each edit tool call is one undo step).
             Command::Agent(c) => self.agent_command(c, now, out),
-            // `import-resolver`: missing plugins and audio files (`Apply` is one undo step).
+            // Missing plugins and audio files (`Apply` is one undo step).
             Command::Resolve(c) => self.resolve_command(c, now, out),
-            // #519: the default sample pack.
+            // The default sample pack.
             Command::Samples(c) => self.samples_command(c, out),
             // A domain this build doesn't have (an extension's, `ether_protocol::ext`).
             Command::Ext(c) => Err(unsupported(format!(
@@ -572,7 +572,7 @@ where
                 Ok(ReplyValue::Unit)
             }
             EditCommand::CancelGesture { gesture } => {
-                // #717: the gesture's step is the last one while it is open: undo it, and
+                // The gesture's step is the last one while it is open: undo it, and
                 // (outside collab, where undo is per site and replicated) leave nothing to
                 // redo, as an agent call rolls back.
                 if !self
@@ -1015,7 +1015,7 @@ where
                         listing
                     }
                 };
-                // `base-145`: the user's file filter (browser/filter.rs).
+                // The user's file filter (browser/filter.rs).
                 let mut listing = listing;
                 let filter = self.browser_filter();
                 // Hidden files never show (the disk stores skip them already).
@@ -1054,7 +1054,7 @@ where
             return Ok(ReplyValue::Media { media: m.clone() });
         }
         let pid = doc.project.id;
-        // v0.2 (`media-references`, CONTRACTS.md §12.9): library files and OS paths are
+        // v0.2 (CONTRACTS.md §12.9): library files and OS paths are
         // referenced in place where the host can (`External`, nothing copied); the rest is
         // copied into the project's `media/`.
         let mut location = MediaLocation::Project;
@@ -1099,7 +1099,7 @@ where
                 (bytes, name, None)
             }
             // v0.2 (`file-import`): an OS file of the engine machine (desktop), referenced in
-            // place (`media-references`).
+            // place.
             MediaSource::Path { path } => {
                 let (bytes, name) = crate::file_import::read_path(&mut self.library, path)?;
                 location = MediaLocation::External { path: path.clone() };
@@ -1256,7 +1256,7 @@ where
         self.midi_learn_tick(now, out);
         self.export_tick(now, out);
         self.recording_tick(now, out);
-        // base-115: sharing (hub, signaling, joiner links) after the collab session.
+        // Sharing (hub, signaling, joiner links) after the collab session.
         // v0.2 hooks.
         self.analysis_tick(out);
         self.freeze_tick(now, out);
@@ -1270,7 +1270,7 @@ where
         self.history_tick(now, out);
         self.versions_tick(now, out);
 
-        // Media jobs (and media decoded again for the bridge to build reverb IRs, #529).
+        // Media jobs (and media decoded again for the bridge to build reverb IRs).
         if let Some(doc) = self.doc.as_ref() {
             self.media.queue_ir_decodes(&mut self.bridge, &doc.project);
         }

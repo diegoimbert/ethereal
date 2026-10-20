@@ -48,39 +48,39 @@ pub struct Project {
     pub time_signatures: BTreeMap<TimeSignatureId, TimeSignaturePoint>,
     pub warp_markers: BTreeMap<WarpMarkerId, WarpMarker>,
     pub media: BTreeMap<MediaId, MediaRef>,
-    /// Arrangement markers (roadmap v2, `clip-editing`; pre-release `.ether` v3).
+    /// Arrangement markers (roadmap v2; pre-release `.ether` v3).
     pub markers: BTreeMap<MarkerId, Marker>,
     /// MIDI controller mappings (roadmap v2, `midi-learn`; pre-release `.ether` v3).
     pub midi_mappings: BTreeMap<MidiMappingId, MidiMapping>,
     /// Drum rack pads (roadmap v2, `drum-rack`; pre-release `.ether` v3).
     pub drum_pads: BTreeMap<DrumPadId, DrumPad>,
-    // --- v0.2 (pre-release `.ether` v4, contracts-3) ---
+    // --- v0.2 (pre-release `.ether` v4) ---
     /// Take lanes (`comping`).
     #[serde(default)]
     pub take_lanes: BTreeMap<TakeLaneId, TakeLane>,
     /// Comp regions (`comping`).
     #[serde(default)]
     pub comp_regions: BTreeMap<CompRegionId, CompRegion>,
-    /// Rack chains (`racks-modulation`).
+    /// Rack chains.
     #[serde(default)]
     pub rack_chains: BTreeMap<RackChainId, RackChain>,
-    /// Modulators inside devices (`racks-modulation`).
+    /// Modulators inside devices.
     #[serde(default)]
     pub modulators: BTreeMap<ModulatorId, Modulator>,
-    /// Modulation mappings (`racks-modulation`).
+    /// Modulation mappings.
     #[serde(default)]
     pub mod_mappings: BTreeMap<ModMappingId, ModMapping>,
-    /// Chat journal (base-62, `collab-social`; pre-release `.ether` v4).
+    /// Chat journal (pre-release `.ether` v4).
     #[serde(default)]
     pub chat: BTreeMap<ChatMessageId, ChatMessage>,
-    /// Notes pinned on the arrangement (base-62, `collab-social`; pre-release `.ether` v4).
+    /// Notes pinned on the arrangement (pre-release `.ether` v4).
     #[serde(default)]
     pub pinned_notes: BTreeMap<PinnedNoteId, PinnedNote>,
-    // --- v0.3 (pre-release `.ether` v5, contracts-4) ---
-    /// Clip expression lanes: CC, pitch bend, channel pressure (`midi-expression`).
+    // --- v0.3 (pre-release `.ether` v5) ---
+    /// Clip expression lanes: CC, pitch bend, channel pressure.
     #[serde(default)]
     pub expression_lanes: BTreeMap<ExpressionLaneId, ExpressionLane>,
-    /// Per-note expressions: pitch, pressure, timbre (`midi-expression`, `mpe`).
+    /// Per-note expressions: pitch, pressure, timbre (`mpe`).
     #[serde(default)]
     pub note_expressions: BTreeMap<NoteExpressionId, NoteExpression>,
     /// Parent → children indexes (derived; never serialized, ignored by `==`; see

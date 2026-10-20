@@ -26,7 +26,7 @@ frames: number,
  */
 hash: string | null, 
 /**
- * Where the audio is read from (v0.2, `media-references`). Missing in older files =
+ * Where the audio is read from (v0.2). Missing in older files =
  * `Project`.
  */
 location: MediaLocation, };

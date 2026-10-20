@@ -1,4 +1,4 @@
-//! Freeze, flatten, bounce in place, consolidate (v0.2, owned by the `freeze-bounce` node;
+//! Freeze, flatten, bounce in place, consolidate (v0.2;
 //! protocol `ether_protocol::freeze`, model `Track::freeze`, CONTRACTS.md §12.3).
 //!
 //! - [`EtherController::freeze_command`] (dispatched from `handlers.rs`): render jobs
@@ -976,7 +976,7 @@ pub fn frozen_desc(p: &Project, track: &Track) -> Option<FrozenDesc> {
 /// chain, racks, modulation, taps or sends, no solo/mute, no input, no routing (it is
 /// silent and costs nothing; its devices have no nodes, `engine.rs::sync_nodes`). Taps of
 /// tracks that are not inside a frozen group are untouched, so the "taps are unaffected by
-/// mute/solo" rule (#359, #371) holds for them; a sidechain fed by an inert track hears
+/// mute/solo" rule holds for them; a sidechain fed by an inert track hears
 /// silence.
 pub fn apply_inert(p: &Project, tracks: &mut [ether_core::graph::TrackDesc]) {
     if !p

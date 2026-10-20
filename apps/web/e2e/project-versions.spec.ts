@@ -1,4 +1,4 @@
-// Project versions and crash recovery (project-versions, CONTRACTS.md §13.11) on the web
+// Project versions and crash recovery (CONTRACTS.md §13.11) on the web
 // build: versions are `.ether` files in the project folder in the browser's storage (OPFS).
 //
 // 1. Save a named version from the versions dialog (project menu → Versions…), change the

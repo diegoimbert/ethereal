@@ -132,7 +132,7 @@ impl Buses {
 /// channel aftertouch (`kAfterTouch` = 128) and pitch bend (`kPitchBend` = 129).
 const MIDI_CTRLS: usize = 130;
 
-/// v0.3 (`midi-expression`): the plugin's `IMidiMapping` (MIDI controller → param id) per
+/// v0.3: the plugin's `IMidiMapping` (MIDI controller → param id) per
 /// channel, queried once on the main thread when the node is built. VST3 plugins receive
 /// CC, pitch bend and channel pressure only as changes of the params they map them to.
 #[derive(Clone, Debug, Default)]
@@ -245,7 +245,7 @@ pub struct Vst3Node {
     /// Sounding notes per channel (bit = key), for `AllNotesOff` / `reset`.
     held: [u128; 16],
     release_all: bool,
-    /// v0.3 (`midi-expression`): CC / bend / channel pressure → params.
+    /// v0.3: CC / bend / channel pressure → params.
     midi_map: MidiMap,
     /// v0.3 (`mpe`): the plugin has an `INoteExpressionController` (per-note tuning and
     /// brightness as `NoteExpressionValueEvent`); otherwise MPE MIDI through `mpe_out`
@@ -273,7 +273,7 @@ pub(crate) struct NodeInit {
     pub values: Vec<(u32, f64)>,
     pub pending: Vec<ParamMsg>,
     pub module: Arc<Module>,
-    /// v0.3 (`midi-expression`): `MidiMap::query` of the plugin's controller.
+    /// v0.3: `MidiMap::query` of the plugin's controller.
     pub midi_map: MidiMap,
     /// v0.3 (`mpe`): [`takes_note_expressions`] of the plugin's controller.
     pub note_expressions: bool,
@@ -338,7 +338,7 @@ impl Vst3Node {
             pending,
             // Every param may change in a block (a preset recall: one point each), and each
             // engine event adds up to two points (the step and the value before it). One
-            // shared pool (audit #16), not `max_events + 1` points per param.
+            // shared pool, not `max_events + 1` points per param.
             in_changes: ParamChanges::new(params.max(16), 2 * (max_events + 1) + params),
             out_changes: ParamChanges::new(params.max(16), (2 * params).max(4096)),
             // Notes + AllNotesOff expansion (up to 128 note-offs).
@@ -524,7 +524,7 @@ impl Vst3Node {
                 match status {
                     0x90 if vel > 0 => self.note(t, true, u32::MAX, ch, key, v),
                     0x80 | 0x90 => self.note(t, false, u32::MAX, ch, key, v),
-                    // v0.3 (`midi-expression`): CC / bend / channel pressure through
+                    // v0.3: CC / bend / channel pressure through
                     // `IMidiMapping`, poly pressure as `PolyPressureEvent`.
                     _ => match vst3_midi(data) {
                         Some(Vst3Midi::Controller {

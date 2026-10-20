@@ -1,4 +1,4 @@
-// #646: the launch picker paints with the app, before the engine is up (the wasm download,
+// The launch picker paints with the app, before the engine is up (the wasm download,
 // its compile and the engine's start take seconds on a slow network): its actions wait for
 // the engine, then work. Where launch opens something else (a project URL, the crash dialog)
 // it never flashes.
