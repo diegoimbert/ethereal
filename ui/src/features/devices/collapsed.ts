@@ -2,12 +2,12 @@ import { useSyncExternalStore } from "react";
 import type { DeviceId } from "@/generated";
 
 /**
- * Which device cards show their inline parameter list (the header's "Parameters" toggle,
- * base-153); every other card shows its header only. Independent of the device's window.
+ * Which device cards show their inline parameter list (the header's "Parameters" toggle);
+ * every other card shows its header only. Independent of the device's window.
  * In memory only: the inspector opens a track with every list closed (`collapseAll`);
  * opening one keeps it open while the track stays shown.
  *
- * Migration (base-153): this used to be the card's expanded state (which also opened a
+ * Migration: this used to be the card's expanded state (which also opened a
  * plugin's window). It was never saved, so nothing maps over: every card starts with its
  * parameters hidden and its window closed.
  */

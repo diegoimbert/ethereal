@@ -1,4 +1,4 @@
-/** Whether the mobile clip editor panel is open (#522), and opening a clip in it. */
+/** Whether the mobile clip editor panel is open, and opening a clip in it. */
 import { create } from "zustand";
 import type { Clip } from "@/generated";
 import { useEditorStore } from "@/state";

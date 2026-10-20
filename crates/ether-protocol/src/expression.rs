@@ -1,4 +1,4 @@
-//! MIDI expression editing (v0.3, `midi-expression`; MPE parts `mpe`). Document commands,
+//! MIDI expression editing (v0.3; MPE parts `mpe`). Document commands,
 //! all undoable. Data model and value ranges: `ether_model::expression`; CONTRACTS.md §13.2.
 //!
 //! Curves are whole values: `SetPoints` replaces a curve, `ReplaceRange` replaces the points

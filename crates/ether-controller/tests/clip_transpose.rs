@@ -1,4 +1,4 @@
-//! base-144: transposing an audio clip that plays at a transposed rate (unwarped or
+//! Transposing an audio clip that plays at a transposed rate (unwarped or
 //! Repitch) resizes it on the arrangement, trimmed at the next clip; warped (Complex) clips
 //! keep their length. One undo step.
 
@@ -284,7 +284,7 @@ fn transpose_rejects_midi_and_non_finite() {
     assert!(near(f.len(c), 4.0));
 }
 
-/// base-150: transposing several selected clips is one `Edit::Batch`; each clip still
+/// Transposing several selected clips is one `Edit::Batch`; each clip still
 /// resizes (and is trimmed at its next clip) as a lone `SetTranspose` would, and the drag
 /// of a multi-clip field (one batch per step, one gesture) is one undo step.
 #[test]

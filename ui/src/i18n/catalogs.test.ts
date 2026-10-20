@@ -47,10 +47,10 @@ describe("the catalog checks", () => {
       'fr: "a.x" has capitals (MIDI): app text is lowercase (#524), acronyms and units included',
     ]);
     expect(check({ "a.x": "open midi file" }, { "a.x": "ouvrir un fichier midi" })).toEqual([]);
-    // owner: "lowercase everything" (#524 follow-up): acronyms, formats, units, names.
+    // Lowercase everything: acronyms, formats, units, names.
     expect(capitalsIn("44.1 kHz, -6 dB, VST3 and AU, LFO, macOS, IA")).toEqual(["kHz", "dB", "VST3", "AU", "LFO", "macOS", "IA"]);
     expect(capitalsIn("44.1 khz, -6 db, vst3 and au, lfo, macos, ia")).toEqual([]);
-    // bpm and cpu (#815), the eq (#894).
+    // bpm and cpu, the eq.
     expect(capitalsIn("120 BPM, 37% CPU, EQ")).toEqual(["BPM", "CPU", "EQ"]);
     // Arguments and select keys aren't text.
     expect(check({ "a.x": "{Name} {k, select, A {a} other {b}}" }, { "a.x": "{Name} {k, select, A {a} other {b}}" })).toEqual([]);

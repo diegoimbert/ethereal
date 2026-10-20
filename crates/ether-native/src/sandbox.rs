@@ -23,7 +23,7 @@
 //! The audio thread waits at most `ether_sandbox::default_wait_budget` (a quarter of a
 //! max-size block) for the helper's result before it plays silence and counts an underrun.
 //!
-//! Without the `sandbox` feature (feature-flags) `ether-sandbox` is not compiled in: a
+//! Without the `sandbox` feature `ether-sandbox` is not compiled in: a
 //! sandboxed instance fails `PluginError::Unsupported` (the device reports the load error
 //! like any plugin that can't be loaded); the overrides below are kept as no-ops.
 //! Offline tests can lengthen that with [`set_wait_budget`] so a CPU-starved helper on a

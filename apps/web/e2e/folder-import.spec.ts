@@ -1,4 +1,4 @@
-// Importing folders into the library on the web build (base-136), against the real engine
+// Importing folders into the library on the web build, against the real engine
 // (WasmTransport → controller Worker → OPFS):
 // - "Import folder…" with a mocked `showDirectoryPicker` (Chromium's File System Access):
 //   the folder's audio is copied into OPFS under a new library root (sub-folders kept, the
@@ -64,7 +64,7 @@ async function dropOnLane(page: Page, row: Locator, track: string) {
 
 async function boot(page: Page) {
   await page.setViewportSize({ width: 1440, height: 900 });
-  // Nothing is open on launch (base-131): callers create a project with `newProject`.
+  // Nothing is open on launch: callers create a project with `newProject`.
   await page.goto("/");
 }
 

@@ -6,7 +6,7 @@ import { beatsToPx, shiftView, type TimelineViewStore } from "@/timeline";
 export const FOLLOW_AT = 0.4;
 
 /**
- * Smooth follow (owner request): while playing with `followPlayhead` on, the playhead moves
+ * Smooth follow: while playing with `followPlayhead` on, the playhead moves
  * across the view until it reaches `FOLLOW_AT` of its width; past it, the view scrolls by
  * as much as the playhead advanced since the last frame (`prev`), so the playhead keeps its
  * place on screen (no paging) and a zoom while playing (which moves the view around the

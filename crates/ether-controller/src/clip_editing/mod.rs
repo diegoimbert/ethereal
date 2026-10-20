@@ -176,7 +176,7 @@ pub fn clip_command(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
 
 /// `ClipCommand::SetReversed`: toggle the flag and mirror the clip's geometry (offset, loop
 /// region, warp markers, clip envelopes; `ether_model::reverse`), so the clip plays the same
-/// material backwards (#442). Fades stay at the clip edges. Setting the current value is a
+/// material backwards. Fades stay at the clip edges. Setting the current value is a
 /// no-op, so a reversed clip is never mirrored twice.
 fn set_reversed(ctx: &mut DocCtx, id: ClipId, reversed: bool) -> CmdResult<()> {
     let cl = ctx.clip(id)?;

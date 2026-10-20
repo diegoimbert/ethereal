@@ -298,7 +298,7 @@ fn last_create(h: &Harness, d: DeviceId) -> Option<Option<Vec<u8>>> {
     })
 }
 
-/// #471: undoing a plugin delete (on its own, or with its track) brings the device back with
+/// Undoing a plugin delete (on its own, or with its track) brings the device back with
 /// what was running, not the last saved state; redo/undo again keeps it.
 #[test]
 fn undoing_a_plugin_delete_restores_the_running_state() {

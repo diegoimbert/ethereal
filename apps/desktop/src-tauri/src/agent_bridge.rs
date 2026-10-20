@@ -1,4 +1,4 @@
-//! Agent bridge (`agent-api`; docs/MCP.md): lets `ether-mcp` (Claude Code, Claude Desktop,
+//! Agent bridge (docs/MCP.md): lets `ether-mcp` (Claude Code, Claude Desktop,
 //! ...) drive this running app.
 //!
 //! Opt-in ("Allow AI agents (MCP)", default off; persisted in
@@ -10,7 +10,7 @@
 //! Tauri commands: `agent_bridge_status() -> AgentBridgeStatus` and
 //! `agent_bridge_set_enabled(enabled) -> AgentBridgeStatus`.
 //!
-//! Without the `mcp` feature (feature-flags) `ether-server` is not compiled in: enabling the
+//! Without the `mcp` feature `ether-server` is not compiled in: enabling the
 //! bridge fails ("not available in this build") and the status stays disabled.
 
 use std::path::{Path, PathBuf};
@@ -31,7 +31,7 @@ pub struct AgentBridgeStatus {
     /// Loopback port while enabled.
     pub port: Option<u16>,
     pub connected_clients: usize,
-    /// The `ether-mcp` installed next to the app binary (release bundles ship it, #431), for
+    /// The `ether-mcp` installed next to the app binary (release bundles ship it), for
     /// the "claude mcp add" line in the UI; `None` when there is none (dev builds) or its path
     /// is not stable (an AppImage runs from a temporary mount).
     pub mcp_path: Option<String>,

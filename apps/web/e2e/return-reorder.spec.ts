@@ -1,4 +1,4 @@
-// #791: return tracks reorder by dragging their headers among the returns. Add two returns,
+// Return tracks reorder by dragging their headers among the returns. Add two returns,
 // add a third, drag it between the other two: the order is right, and each send still goes
 // to its return (the inspector's send knobs follow the new order).
 import { expect, test, type Page } from "@playwright/test";

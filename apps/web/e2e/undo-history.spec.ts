@@ -23,8 +23,7 @@ test("History tab: list, jump, checkpoints", async ({ page }) => {
   const rows = list.getByRole("listitem");
   const historyButton = page.getByRole("button", { name: "history", exact: true });
   await historyButton.click();
-  // A new project is named after the date and `launch` renames it in place: a Rename step
-  // (#268).
+  // A new project is named after the date and `launch` renames it in place: a Rename step.
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText("project opened");
   await expect(rows.nth(1)).toContainText("rename project");

@@ -1,4 +1,4 @@
-// Phones and touch-only tablets get the mobile UI (apps/web/src/mobile.ts, #522) without a
+// Phones and touch-only tablets get the mobile UI (apps/web/src/mobile.ts) without a
 // flag; `?force-desktop` gives them the desktop editor (no "Open on desktop" band: still a
 // phone). A desktop keeps the editor and gets the band.
 import { expect, test, devices, type Page } from "@playwright/test";

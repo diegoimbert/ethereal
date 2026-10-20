@@ -1,4 +1,4 @@
-// device-power-automation: right-click a device's on/off button → "show automation lane"
+// Right-click a device's on/off button → "show automation lane"
 // opens its "device on" lane in the arrangement; points drawn there (on, then off) switch
 // the device during playback, and the button follows live. Against the real engine.
 //

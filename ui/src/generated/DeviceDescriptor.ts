@@ -18,7 +18,7 @@ audio_inputs: number, audio_outputs: number, midi_input: boolean,
  */
 sidechain_inputs: number, 
 /**
- * v0.2 (`device-ui`): declarative panel layout rendered by the shared renderer
+ * v0.2: declarative panel layout rendered by the shared renderer
  * ([`crate::layout`]). `None` = the generic layout. Omitted from JSON when `None`.
  */
 layout?: DeviceLayout, 

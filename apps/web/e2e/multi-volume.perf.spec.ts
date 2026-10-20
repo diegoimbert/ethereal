@@ -1,4 +1,4 @@
-// #911 (perf): dragging a track header's volume fader with many tracks selected moves them
+// Perf: dragging a track header's volume fader with many tracks selected moves them
 // all (`groupVolumes`). It used to send one `Mixer::SetVolume` per selected track per
 // pointer move, uncoalesced: 64 tracks × every move made thousands of transactions, patches
 // and store updates, and the faders lagged behind the pointer. Now each animation frame sends

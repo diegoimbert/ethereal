@@ -17,7 +17,7 @@
 //!    is on, stops at `end`, and runs through the device's ADSR and filter.
 //!
 //! Zones reference media by `MediaId`: project media or external references
-//! (`MediaLocation::External`, `media-references`), resolved like the sampler's sample.
+//! (`MediaLocation::External`), resolved like the sampler's sample.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

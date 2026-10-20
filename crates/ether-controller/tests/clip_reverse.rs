@@ -1,4 +1,4 @@
-//! Reversing an audio clip (#442): a clip playing media frames `a ..= b` plays `b ..= a`
+//! Reversing an audio clip: a clip playing media frames `a ..= b` plays `b ..= a`
 //! once reversed (the offset, loop region, warp markers and clip envelopes are mirrored),
 //! fades stay at the clip edges, reversing twice gives the clip back, and a split of a
 //! reversed clip keeps both halves on their own material. Rendered offline through the

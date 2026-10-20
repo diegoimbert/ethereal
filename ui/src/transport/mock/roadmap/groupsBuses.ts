@@ -1,5 +1,5 @@
 /**
- * Mock of `Track::{GroupSelected, Ungroup, SetVca}` (v0.2, `groups-buses`; CONTRACTS.md
+ * Mock of `Track::{GroupSelected, Ungroup, SetVca}` (v0.2; CONTRACTS.md
  * §12.10), called from the core track reducer's hook. Mirrors
  * `crates/ether-controller/src/groups/mod.rs`.
  */

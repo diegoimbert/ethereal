@@ -98,7 +98,7 @@
   color: var(--eth-color-accent);
 }
 
-/* base-153: the inline parameter list of a device card (DeviceParams.tsx): capped height,
+/* The inline parameter list of a device card (DeviceParams.tsx): capped height,
    the list scrolls inside (search bar on top for longer lists). */
 .eth-device-params {
   max-height: var(--eth-size-device-params-max-height);

@@ -41,7 +41,7 @@ export interface ProjectStoreState {
   /** The current project has unsaved changes. */
   dirty: boolean;
   /**
-   * base-131: the open project was opened without plugins (`Project::OpenSafe`) and they
+   * The open project was opened without plugins (`Project::OpenSafe`) and they
    * are not loaded yet (`Event::Project { SafeMode }`).
    */
   safe: boolean;

@@ -111,14 +111,14 @@ Gestures and modifiers (for UX review). `⌘` is Ctrl off macOS.
 | Value scale | `⌘`-wheel | zoom the value window around the pointer |
 | Value scale | double-click | reset the window |
 | Lane (track lanes) | click empty space | select the track and the lane (focus), clear the other selections, place the insert marker at the click (snapped, `⌥`: free) and, when stopped, the playhead: like a click on the track's empty clip-lane space |
-| Lane | drag empty space | like the arranger (#621): marquee-select points (`⌘`: toggle them); a click places the insert marker (track lanes) |
+| Lane | drag empty space | like the arranger: marquee-select points (`⌘`: toggle them); a click places the insert marker (track lanes) |
 | Lane (track lanes) | `⇧`-drag empty space | select a time range in this lane (snapped, `⌥`: free); `⇧`-click extends the range (or the track's insert marker) to the click |
 | Lane (track lanes), with a time section | `⇧`-drag the line inside the section (within 6 px of it) | move the section up/down; the lane outside it doesn't change: each edge becomes a jump (two points at the same time, outer one kept, inner one moving), added once the pointer moved 3 px, reusing points already there (`sectionMovePlan` in `range.ts`). The inside moves like a vertical multi-point drag (stepped params by steps, the group clamped to the range, `⌥`: precision). A `⇧`-click there changes nothing. The section is the lane's own or the track row's. One undo step |
 | Lane | double-click empty space | add a point on the SECOND PRESS (not the release) at the clicked time (on the grid, `⌥`: free) with the lane's value there, never the pointer's y, so adding a point never changes what plays (`splitPointAt` in `curve.ts`: the engine's evaluation, step/linear exact, a curve split keeps its left half exactly and fits the right half's tension, within ~2 % at extreme tensions; an empty lane: the target's current value). Moving more than 3 px (touch: 8 px) while held drags it exactly like a grabbed point (same code: grid, steps, `⇧`/`⌥`/`⌘`, a point landing on a neighbour's time keeps its side), relative to where it was added; a release before that changes nothing. One undo step |
 | Lane | click / `⇧`-click / `⌘`-click a point | select / add / toggle |
 | Lane | drag a point | move the selection: time on the grid; stepped params (semitones, enums, toggles) by whole steps, 8 px per step |
 | Lane, dragging | `⇧` held | continuous params: whole increments of the displayed value (1 dB, 1 %, 1 st, 1 ct, 0.01 pan, 0.1 ratio; Hz/ms on two significant digits: 1 Hz below 100 Hz, 10 Hz to 1 kHz, 100 Hz above), so points land on round values. Stepped params always snap |
-| Lane, dragging | `⌥` held | precision (#793): time off the grid (the app-wide meaning) and the point moves 1/10 of the pointer's motion, counted from the press, so pressing or releasing it mid-drag never jumps (`precisionDrag`). With `⇧`, `⇧`'s increments win for the value; only the time is slowed. The tempo and expression lanes do the same |
+| Lane, dragging | `⌥` held | precision: time off the grid (the app-wide meaning) and the point moves 1/10 of the pointer's motion, counted from the press, so pressing or releasing it mid-drag never jumps (`precisionDrag`). With `⇧`, `⇧`'s increments win for the value; only the time is slowed. The tempo and expression lanes do the same |
 | Lane, dragging | `⌘` held | lock to the dominant axis |
 | Lane, dragging | — | a tooltip shows the value and these modifiers (from the keymap's `POINT_DRAG_GESTURES`) |
 | Lane | `⌥`-drag a segment | bend it (curve tension) |
@@ -157,8 +157,8 @@ range's edge values, so a paste or duplicate reproduces the range exactly.
   open on a window where every step is at least 8 px tall, around their default (a default
   64 px Transpose lane shows ±3 st; resize the lane or scroll/zoom the value scale for
   more), and dragging moves them by whole steps at 8 px per step, whatever the lane height.
-  Steps come from `ParamInfo.step` (contracts-3 #106) when present; enums (`labels`) and
-  `Toggle` are stepped either way; only descriptors without the field (pre-#106)
+  Steps come from `ParamInfo.step` when present; enums (`labels`) and
+  `Toggle` are stepped either way; only descriptors without the field (older descriptors)
   also treat linear `Semitones` as whole semitones.
 - **Every drag is one `LaneGesture`**: all its `EditPoints` share one gesture id, closed
   with `Edit::EndGesture`, so it is one undo step. Moves are coalesced (latest wins while a

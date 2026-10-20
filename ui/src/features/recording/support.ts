@@ -1,5 +1,5 @@
 /**
- * Whether the host can record (#717): `Recording::ListInputs` replies `Unsupported` where
+ * Whether the host can record: `Recording::ListInputs` replies `Unsupported` where
  * there are no audio or MIDI inputs (the browser build). The desktop record button and the
  * mobile transport's both disable themselves with `unsupportedTooltip()` then.
  */

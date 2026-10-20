@@ -1,4 +1,4 @@
-// Recording from a track input tap (`tap-recording`, resampling).
+// Recording from a track input tap (resampling).
 //
 // Native: the web UI connected to a local `ether-server` (real native engine + controller,
 // null audio backend). A synth track plays a MIDI clip; an audio track takes its signal
@@ -149,7 +149,7 @@ test.describe("native engine", () => {
     await page.getByLabel("token").fill(TOKEN);
     await page.getByRole("button", { name: "connect", exact: true }).click();
     await expect(page.getByTestId("remote-button")).toHaveText(/e2e-tap/);
-    // base-131: the server has no project open; the project screen creates one there.
+    // The server has no project open; the project screen creates one there.
     await createOnLaunch(page, "Remote song");
     await expect.poll(async () => (await project(page)).id).not.toBe(localId);
     await peerSend("Transport", { type: "SetLoopRegion", region: { start: 0, end: 4 } });

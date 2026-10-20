@@ -1,4 +1,4 @@
-// groups-buses on the web build (real wasm engine + controller): Cmd+G groups the selected
+// Groups and buses on the web build (real wasm engine + controller): Cmd+G groups the selected
 // tracks into a folding group track (a bus), Ungroup puts them back, a VCA is created from
 // the track menu and shows what it controls, and the inspector routes one track's output
 // into another's input with a tap point. The engine takes every graph (VCAs and taps

@@ -23,12 +23,12 @@ pub enum ProjectCommand {
     /// Open a stored project (the current one is autosaved first if dirty). Replies
     /// `Project` (also emitted as `Event::ProjectLoaded`).
     Open { id: ProjectId },
-    /// base-131: open a stored project in safe mode: every plugin device is kept as a
+    /// Open a stored project in safe mode: every plugin device is kept as a
     /// bypassed placeholder (not instantiated; its state and params stay untouched in the
     /// document), and `Event::Project { SafeMode }` lists them. Nothing is written to the
     /// store. Replies `Project` (also emitted as `Event::ProjectLoaded`).
     OpenSafe { id: ProjectId },
-    /// base-131: leave safe mode: instantiate the plugin devices held as placeholders.
+    /// Leave safe mode: instantiate the plugin devices held as placeholders.
     /// Emits `SafeMode { active: false, devices: [] }` (nothing when not in safe mode).
     /// Replies `Unit`.
     LoadPlugins,
@@ -62,7 +62,7 @@ pub enum ProjectCommand {
     Get,
     /// Undoable project scale metadata; never restricts MIDI notes.
     SetScale { scale: crate::model::MusicalScale },
-    // --- base-114 (project actions) ---
+    // --- project actions ---
     /// Pack a project (the open one: its current state) into one portable `.ether` bundle
     /// file: a ZIP archive (entries stored, not compressed) holding `project.ether` and, with
     /// `include_media` (the default), the project's `media/` files plus a copy of every
@@ -107,7 +107,7 @@ pub enum ProjectCommand {
     },
     /// Cancel the running import `id` (nothing is created). Replies `Unit`.
     CancelImport { id: ProjectId },
-    /// project-export: convert a stored project (the open one: its current state) into a
+    /// Convert a stored project (the open one: its current state) into a
     /// project of another DAW (`crate::project_export`), its audio files included. Replies
     /// `ProjectExported`. `path`: an absolute engine-machine path from the desktop's OS save
     /// dialog (must end with the format's extension): the host writes the project there and
@@ -155,7 +155,7 @@ pub enum ProjectEvent {
     Saved { project: ProjectSummary },
     /// Unsaved changes flag of the current project.
     DirtyChanged { dirty: bool },
-    /// base-131: safe mode of the open project (`OpenSafe`: `active`, with the plugin
+    /// Safe mode of the open project (`OpenSafe`: `active`, with the plugin
     /// devices held as bypassed placeholders; `LoadPlugins`: not active, empty). Opening a
     /// project normally leaves safe mode without this event (`ProjectLoaded` resets it).
     SafeMode {
@@ -175,7 +175,7 @@ pub enum EditCommand {
         gesture: GestureId,
     },
     /// Takes back what the open gesture `gesture` applied and forgets its undo step: a
-    /// drag cancelled with Escape leaves no step behind (#717). Closes the gesture. No-op
+    /// drag cancelled with Escape leaves no step behind. Closes the gesture. No-op
     /// when `gesture` isn't the open gesture (nothing applied, or already closed).
     CancelGesture {
         gesture: GestureId,

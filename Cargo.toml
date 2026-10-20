@@ -18,10 +18,10 @@ members = [
     "crates/ether-sandbox",
     "crates/ether-native",
     "crates/ether-wasm",
-    # Roadmap v2 (contracts-2).
+    # Roadmap v2.
     "crates/ether-server",
     "apps/desktop/src-tauri",
-    # agent-api (owner request): MCP server.
+    # The agent API: MCP server.
     "crates/ether-mcp",
 ]
 
@@ -67,7 +67,7 @@ base64 = "0.22"
 
 # --- errors / logging ---
 thiserror = "2"
-# base-145: library file filters (small build: no perf/unicode tables beyond case + perl classes).
+# Library file filters (small build: no perf/unicode tables beyond case + perl classes).
 regex = { version = "1.11", default-features = false, features = ["std", "unicode-case", "unicode-perl"] }
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
@@ -82,7 +82,7 @@ cpal = "0.17"
 midir = "0.10"
 symphonia = { version = "0.5", default-features = false, features = ["wav", "pcm", "aiff", "flac", "mp3", "ogg", "vorbis", "isomp4", "aac", "alac"] }
 rubato = "5.0"
-# #717: Standard MIDI File import/export (no rayon: wasm-safe).
+# Standard MIDI File import/export (no rayon: wasm-safe).
 midly = { version = "0.5", default-features = false, features = ["std"] }
 realfft = "3.5"
 rustfft = "6.4"
@@ -93,7 +93,7 @@ clack-extensions = { git = "https://github.com/prokopyl/clack", rev = "27ca28391
 clack-plugin = { git = "https://github.com/prokopyl/clack", rev = "27ca28391b57a61bad4bb5099288a7bf9247350d" }
 libloading = "0.9"
 
-# --- plugins: VST3 + AU (formats-base; used by ether-vst3 / ether-au). All permissive. ---
+# --- plugins: VST3 + AU (used by ether-vst3 / ether-au). All permissive. ---
 # VST3 COM bindings, host and plugin side, pre-generated from the (MIT-licensed, since 3.8)
 # VST3 SDK headers; no SDK or bindgen needed at build time.
 # Plugin-side test fixtures can be written with it too (`ComWrapper`, see its `gain` example).
@@ -146,7 +146,7 @@ flacenc = "0.5"
 # Pure-Rust MP3 encoder (no C, builds for wasm32): MP3 exports.
 rusty_mp3 = "1.0"
 
-# --- agent-api: MCP server (official Rust SDK; stdio transport) and its async runtime. ---
+# --- MCP server (official Rust SDK; stdio transport) and its async runtime. ---
 tokio = { version = "1", default-features = false, features = ["rt", "net", "time", "sync"] }
 rmcp = { version = "3.5", default-features = false, features = ["server", "transport-io"] }
 

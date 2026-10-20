@@ -1,5 +1,5 @@
 /**
- * Reading a folder of the user's computer in the browser (`base-136`), from every entry
+ * Reading a folder of the user's computer in the browser, from every entry
  * point, into one shape (`PickedFolder`: the folder's name and its files with their path
  * relative to it):
  * - File System Access handles (`showDirectoryPicker()`, `DataTransferItem.getAsFileSystemHandle()`;

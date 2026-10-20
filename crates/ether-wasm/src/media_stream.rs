@@ -1,4 +1,4 @@
-//! Web streaming of long media (v0.3, `audio-streaming`; CONTRACTS.md
+//! Web streaming of long media (v0.3; CONTRACTS.md
 //! §13.1).
 //!
 //! The engine Worker reads the media file from OPFS by byte ranges ([`RangeFs`]: the sync

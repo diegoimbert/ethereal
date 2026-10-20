@@ -1,4 +1,4 @@
-//! `devices-pass-effects`: the features the built-in effects gained, one DSP test each
+//! The features the built-in effects gained, one DSP test each
 //! (compressor knee / mix / lookahead / auto makeup / meters, delay filters / modulation /
 //! freeze, reverb freeze / filters / diffusion, utility channel mode / mid-side / bass mono /
 //! DC filter / mute / meters, EQ channel modes, phaser & flanger LFO shapes, chorus sync,

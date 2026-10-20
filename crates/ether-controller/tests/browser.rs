@@ -1,4 +1,4 @@
-//! Browser v2 (`browser-v2`; CONTRACTS.md §12.8): the library index through the controller
+//! Browser v2 (CONTRACTS.md §12.8): the library index through the controller
 //! with an in-memory library: background indexing, search and filters, packs, presets,
 //! projects, favourites/tags, persistence and reload, incremental rescans, errors, and the
 //! tempo-synced preview (repitch ratio + next-beat start) with a recording bridge.
@@ -794,7 +794,7 @@ fn in_root(root: &str) -> BrowserQuery {
     }
 }
 
-/// `base-136`: a folder copied from the UI machine becomes a user folder: created empty,
+/// A folder copied from the UI machine becomes a user folder: created empty,
 /// filled file by file from uploads, indexed by a rescan, renamed, and back after a restart;
 /// removing it deletes the copy.
 #[test]

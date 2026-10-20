@@ -287,7 +287,7 @@
   pointer-events: none;
 }
 
-/* devices-pass-instruments ------------------------------------------------------------ */
+/* The instruments pass ------------------------------------------------------------ */
 /* In the drum rack's device window: the editor below the rack params, inset like them. */
 .eth-device--window > .eth-drum-rack__rack {
   padding: 0 var(--eth-space-md) var(--eth-space-md);

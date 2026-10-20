@@ -1,4 +1,4 @@
-// import-resolver: "Resolve missing items" after an import, on the web build.
+// "Resolve missing items" after an import, on the web build.
 //
 // 1. Real wasm engine: a REAPER project uses "Kontakt 7" (not installed) and a sample from
 //    another machine. The web has no plugin host, so the test stands in an installed list

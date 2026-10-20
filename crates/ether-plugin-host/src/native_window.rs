@@ -1,4 +1,4 @@
-//! Plugin editor windows as [`NativeWindow`]s (`PluginController::editor_window`, #853),
+//! Plugin editor windows as [`NativeWindow`]s (`PluginController::editor_window`),
 //! and finding the window a plugin opened on its own (CLAP floating editors).
 //!
 //! Host-created editor windows (VST3, VST2, AU, embedded CLAP) know their handle; a floating

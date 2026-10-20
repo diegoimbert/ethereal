@@ -1,4 +1,4 @@
-//! Parent → children indexes of a [`Project`] (derived data; perf audit #23).
+//! Parent → children indexes of a [`Project`] (derived data).
 //!
 //! The document is normalized: children point to their parent by id, so "the notes of this
 //! clip" is a scan of the whole note table. The index keeps, for the big tables, the

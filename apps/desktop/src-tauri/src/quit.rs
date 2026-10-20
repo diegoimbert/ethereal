@@ -193,7 +193,7 @@ pub mod menu {
         };
         let quit = MenuItem::with_id(app, QUIT_ID, &l.quit, true, Some("CmdOrCtrl+Q"))?;
         let close = MenuItem::with_id(app, CLOSE_ID, &l.close_window, true, Some("CmdOrCtrl+W"))?;
-        // #573: File, Edit's undo / redo / select all and Help run the UI's own actions
+        // File, Edit's undo / redo / select all and Help run the UI's own actions
         // (`app_menu`); cut / copy / paste stay AppKit's (clipboard events in the page).
         let mut file = app_menu::macos::grouped(app, app_menu::FILE_ITEMS, &l)?;
         file.push(Box::new(PredefinedMenuItem::separator(app)?));

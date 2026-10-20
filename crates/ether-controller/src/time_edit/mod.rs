@@ -16,7 +16,7 @@
 //! tracks never shifts the song's markers or tempo under the others.
 //!
 //! # Frozen tracks
-//! A time edit touching a frozen track is rejected (`InvalidState`; the `freeze-bounce`
+//! A time edit touching a frozen track is rejected (`InvalidState`
 //! node's `check_editable` enforces the same rule for every content command).
 //!
 //! # Semantics

@@ -118,7 +118,7 @@ fn fade_curves_and_reverse_reach_the_engine_and_undo_in_one_step() {
     assert_eq!(a.fade_in_curve, FadeCurve::EqualPower);
     assert_eq!(a.fade_out_curve, FadeCurve::Curve { tension: 0.25 });
     assert!(a.reversed);
-    // Reverse mirrors the offset over the 5-beat file (#442): content 0 .. 4 is 1 .. 5 of
+    // Reverse mirrors the offset over the 5-beat file: content 0 .. 4 is 1 .. 5 of
     // the reversed file; the clip itself stays put.
     assert!(close(f.bounds(c), (0.0, 4.0, 1.0)));
 
@@ -409,7 +409,7 @@ fn markers_crud_and_undo() {
 
 #[test]
 fn leading_gap_offsets_are_accepted_compiled_saved_and_undone() {
-    // base-142: dragging the left edge past the content start gives a negative offset.
+    // Dragging the left edge past the content start gives a negative offset.
     let mut f = fx();
     let c = f.clip(4.0, 4.0, 0.0);
     f.h.ok(Command::Clip(ClipCommand::SetBounds {

@@ -1,5 +1,5 @@
 /**
- * The mobile UI's sheets (#522, the design's §7): which one is open. One at a time; opening
+ * The mobile UI's sheets (the design's §7): which one is open. One at a time; opening
  * another replaces it. `Sheet.tsx` draws them; the back button / gesture closes the open one.
  */
 import { create } from "zustand";

@@ -1,4 +1,4 @@
-// Helpers of the editor's error boundaries (PanelBoundary.tsx, #590).
+// Helpers of the editor's error boundaries (PanelBoundary.tsx).
 import { useProjectStore } from "@/state";
 import { cmd, type EngineTransport } from "@/transport";
 

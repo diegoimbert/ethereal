@@ -1,4 +1,4 @@
-/* base-153: factory device windows (DeviceWindow.tsx), in kit FloatingWindows (base-154:
+/* Factory device windows (DeviceWindow.tsx), in kit FloatingWindows (
    the frame, title bar, resizing: kit/FloatingWindow.css). */
 .eth-device-window__name {
   overflow: hidden;

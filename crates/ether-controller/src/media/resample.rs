@@ -163,8 +163,8 @@ impl IncrementalResampler {
     }
 }
 
-/// [`IncrementalResampler`] over a signal that arrives block by block (an export render,
-/// #434): the same chunks with the same zero padding go through the same resampler, so the
+/// [`IncrementalResampler`] over a signal that arrives block by block (an export
+/// render): the same chunks with the same zero padding go through the same resampler, so the
 /// output is identical, but only about one chunk of input is held at a time. The signal's
 /// length must be known up front (it sets the alignment and the output length).
 pub struct StreamResampler {

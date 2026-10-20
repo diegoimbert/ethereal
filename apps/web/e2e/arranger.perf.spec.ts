@@ -1,6 +1,6 @@
 // Arranger frame rate (perf): 64 tracks × 8 MIDI clips on the web build. Playback and wheel
 // scrolling keep a steady frame rate, and the arranger doesn't promote a compositor layer
-// per clip (performance audit #3: one canvas per clip made ~650 layers and ~20 fps).
+// per clip (one canvas per clip made ~650 layers and ~20 fps).
 //
 // - Structural, always asserted: the page's compositor layer count stays far below one per
 //   clip.
@@ -20,7 +20,7 @@ test.use({ viewport: { width: 1440, height: 900 }, trace: "off" });
 
 /**
  * Layers allowed for the whole page: the old arranger had about one per clip (512 clips).
- * Since #283 each track header and its meter are layers of their own on purpose (they no
+ * Each track header and its meter are layers of their own on purpose (they no
  * longer re-layerize against the lanes on every pan/zoom frame): about 2 per track (64
  * here) plus the lane canvases, measured at 249.
  */
@@ -106,7 +106,7 @@ test("64 tracks × 8 clips: playback and scrolling keep the frame rate @frames",
     }
   });
 
-  // Clip drag: every pointermove previews the move (audit #13: it re-rendered every lane).
+  // Clip drag: every pointermove previews the move (it re-rendered every lane).
   const first = (await arrangerApi(page, "visibleClipIds"))[0]!;
   const t = await clipPart(page, first, "header");
   await page.mouse.move(t.x + 6, t.y + 4);

@@ -13,7 +13,7 @@ use symphonia::core::probe::Hint;
 use crate::{DecodedAudio, MediaError};
 
 /// Frames worth reserving per channel up front for a file of `file_bytes` bytes whose
-/// header claims `n_frames`. The header is not trusted (#554: a WAV data chunk of
+/// header claims `n_frames`. The header is not trusted (a WAV data chunk of
 /// `0xFFFFFFFF`, ffmpeg's placeholder when writing to a pipe, claims ~1e9 frames): the
 /// reservation is at most one frame per byte per channel (exact for 8-bit PCM, generous
 /// for wider PCM; compressed files grow past it as they decode) and at most 2^28 frames.

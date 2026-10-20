@@ -102,7 +102,7 @@ define_ids! {
     WarpMarkerId => "WarpMarker";
     /// An imported media file (audio sample) referenced by clips and samplers.
     MediaId => "Media";
-    /// An arrangement marker (locator). Roadmap v2 (`clip-editing`).
+    /// An arrangement marker (locator). Roadmap v2.
     MarkerId => "Marker";
     /// A MIDI controller mapping. Roadmap v2 (`midi-learn`).
     MidiMappingId => "MidiMapping";
@@ -112,22 +112,22 @@ define_ids! {
     TakeLaneId => "TakeLane";
     /// A comp region: a time range of a track played from one take lane (v0.2, `comping`).
     CompRegionId => "CompRegion";
-    /// A parallel chain of a rack device (v0.2, `racks-modulation`).
+    /// A parallel chain of a rack device (v0.2).
     RackChainId => "RackChain";
-    /// A modulator (LFO, envelope, ...) inside a device (v0.2, `racks-modulation`).
+    /// A modulator (LFO, envelope, ...) inside a device (v0.2).
     ModulatorId => "Modulator";
     /// A modulation mapping: source (modulator or macro) → device param, with a depth (v0.2,
-    /// `racks-modulation`).
+    /// racks and modulation).
     ModMappingId => "ModMapping";
-    /// A chat message of the project journal. base-62 (`collab-social`).
+    /// A chat message of the project journal..
     ChatMessageId => "ChatMessage";
-    /// A note pinned on the arrangement. base-62 (`collab-social`).
+    /// A note pinned on the arrangement..
     PinnedNoteId => "PinnedNote";
     /// A channel-wide expression lane (CC, pitch bend, channel pressure) of a MIDI clip
-    /// (v0.3, `midi-expression`).
+    /// (v0.3).
     ExpressionLaneId => "ExpressionLane";
     /// A per-note expression curve (pitch, pressure, timbre) of a note (v0.3,
-    /// `midi-expression` / `mpe`).
+    /// MPE).
     NoteExpressionId => "NoteExpression";
 }
 

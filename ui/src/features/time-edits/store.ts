@@ -65,7 +65,7 @@ export interface TimeSelectionState {
    */
   playFrom: Beats | null;
   /**
-   * The SELECTION CURSOR (transport-keys, owner request): song position of the start of the
+   * The SELECTION CURSOR: song position of the start of the
    * last selection made (arrangement time selection / insert marker, piano-roll section or
    * marker, a clip click). It outlives the selection itself (clicking a clip clears the time
    * selection, not the cursor). Edits without a range land here, never at the playhead;
@@ -96,7 +96,7 @@ export const useTimeSelection = create<TimeSelectionState>()((set, get) => ({
 }));
 
 /**
- * Keep the time selection on the open project (#589): another project (or none) clears it,
+ * Keep the time selection on the open project: another project (or none) clears it,
  * the selection cursor and the play-from marker; deleted tracks leave it (a selection left
  * with no track goes). Returns the unsubscribe function.
  */

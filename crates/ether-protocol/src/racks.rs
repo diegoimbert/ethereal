@@ -1,4 +1,4 @@
-//! Racks, macros and modulation (v0.2, `racks-modulation`; CONTRACTS.md §12.6). Data
+//! Racks, macros and modulation (v0.2; CONTRACTS.md §12.6). Data
 //! model: `ether_model::{rack, modulation}`. All commands are undoable document commands
 //! except `ListModulatorKinds`.
 //!

@@ -1,4 +1,4 @@
-// Bugfix `instrument-replace`: a new MIDI track comes with the built-in Synth; adding another
+// Bugfix a new MIDI track comes with the built-in Synth; adding another
 // instrument from "Add device" replaces it (Ableton behaviour) instead of putting it in front
 // of the Synth, where the trailing Synth (no notes in) cleared its audio: a silent track.
 // Add track → Add Sampler (a demo sample dropped in) → the chain is just the Sampler → a clip
@@ -68,7 +68,7 @@ test("adding an instrument to a new MIDI track replaces its Synth, and the track
   const chain = page.getByRole("list", { name: `${midi.name} devices` });
   await expect(chain.getByRole("listitem")).toHaveCount(1);
 
-  // A sustained demo sample in the Sampler (base-153: its slot is in the device's window).
+  // A sustained demo sample in the Sampler (its slot is in the device's window).
   await chain.getByRole("button", { name: "open Sampler window" }).click();
   const sampler = page.getByRole("dialog", { name: "Sampler window" });
   await expect(sampler.getByText("loading…")).toHaveCount(0);

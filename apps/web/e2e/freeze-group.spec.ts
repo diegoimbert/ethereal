@@ -110,7 +110,7 @@ test("freeze a group, its children lock, unfreeze, flatten and undo", async ({ p
   await trackMenu(page, group.name, "freeze group");
   await expect.poll(async () => (await doc(page)).tracks[group.id]!.freeze !== undefined, { timeout: 60_000 }).toBe(true);
   await trackMenu(page, group.name, "flatten group");
-  // #717: flatten asks first.
+  // Flatten asks first.
   await page.getByRole("dialog").getByRole("button", { name: "flatten", exact: true }).click();
   await expect.poll(async () => (await doc(page)).tracks[group.id]).toBeUndefined();
   const flat = await doc(page);

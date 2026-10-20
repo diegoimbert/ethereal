@@ -1,4 +1,4 @@
-// #793: ⌥ (Option) is a precision mode for automation point drags: off the grid, and the point
+// ⌥ (Option) is a precision mode for automation point drags: off the grid, and the point
 // moves a tenth as far as the pointer. Against the real engine; the UI mirror is `window.__ether`.
 // No sleeps: every step waits on UI or engine state.
 import { expect, test, type Page } from "@playwright/test";

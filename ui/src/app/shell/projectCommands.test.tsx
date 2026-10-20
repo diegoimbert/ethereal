@@ -1,4 +1,4 @@
-// base-114: project entries of the command palette (`buildCommands`).
+// Project entries of the command palette (`buildCommands`).
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { ConfirmDialog } from "@/kit";
@@ -57,7 +57,7 @@ describe("palette: project commands", () => {
       "import project…",
       "export project…",
       "export audio…",
-      // project-versions: the versions dialog, and a named version.
+      // The versions dialog, and a named version.
       "versions…",
       "save snapshot…",
       "delete project…",

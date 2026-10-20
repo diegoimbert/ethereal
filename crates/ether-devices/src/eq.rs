@@ -1,4 +1,4 @@
-//! Built-in `Eq` device (roadmap v2, `devices-2`).
+//! Built-in `Eq` device (roadmap v2).
 //!
 //! Eight-band parametric EQ. Every band has the same five params (on, type, frequency,
 //! gain, Q) and can be any of: low cut, low shelf, bell, notch, high shelf, high cut
@@ -23,7 +23,7 @@
 //! | `5b+3`  | `Gain`     | -24 ..= 24 dB                 |
 //! | `5b+4`  | `Q`        | 0.1 ..= 18 (log)              |
 //! | `40`    | `Output`   | -24 ..= 24 dB                 |
-//! | `41`    | `Channel`  | Stereo, Left, Right, Mid, Side (`devices-pass-effects`) |
+//! | `41`    | `Channel`  | Stereo, Left, Right, Mid, Side |
 //!
 //! `Channel` picks what the bands process: both channels (default, unchanged), one side
 //! only, or the mid (`(L+R)/2`) or side (`(L-R)/2`) signal of a mid/side encode-decode
@@ -32,7 +32,7 @@
 //! Default bands: 1 Low Cut 30 Hz (off), 2 Low Shelf 100 Hz, 3-6 Bell 250 / 1k / 2.5k /
 //! 6k Hz, 7 High Shelf 10 kHz, 8 High Cut 18 kHz (off); all gains 0 dB (flat).
 //!
-//! # Analysis (v0.2, `graphical-eq`, CONTRACTS.md §12.15)
+//! # Analysis (v0.2, CONTRACTS.md §12.15)
 //! While watched, the EQ publishes its input (`SpectrumPre`) and output (`Spectrum`) spectra
 //! in the same pass: `process` feeds both mono sums into [`spectrum::Analyzer`]s and runs
 //! their FFTs once per `sample_rate / ANALYSIS_HZ` frames, only while `analysis` was asked
@@ -75,7 +75,7 @@ pub mod params {
     }
 
     pub const OUTPUT: ParamId = ParamId(40);
-    /// `devices-pass-effects`: what the bands process ([`super::CHANNEL_LABELS`]).
+    /// What the bands process ([`super::CHANNEL_LABELS`]).
     pub const CHANNEL: ParamId = ParamId(41);
 }
 
@@ -201,7 +201,7 @@ pub fn descriptor() -> DeviceDescriptor {
     }
 }
 
-/// Declarative panel (v0.2, `graphical-eq`): the interactive curve over all bands with a
+/// Declarative panel (v0.2): the interactive curve over all bands with a
 /// pre/post spectrum, then each band's controls and the output.
 pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
     use crate::contract::{item, knob, layout, section};
@@ -306,7 +306,7 @@ pub struct Eq {
     until_hop: usize,
     /// `Channel` index (`CHANNEL_*`).
     channel: usize,
-    /// Silence reporting (perf audit #5).
+    /// Silence reporting.
     tail: util::Tail,
 }
 

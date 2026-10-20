@@ -410,7 +410,7 @@ fn legato_does_not_retrigger_but_mono_does() {
     assert!(mono > 1.5, "mono retriggers {mono}");
 }
 
-/// base-148: touching notes (the first ends on the sample the second starts, delivered in
+/// Touching notes (the first ends on the sample the second starts, delivered in
 /// the order the clip scheduler pushes them: on, then off) are not legato: the envelope
 /// retriggers, the pitch jumps (no glide) and a same-pitch repeat keeps sounding. A real
 /// overlap still slides.

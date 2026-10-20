@@ -1,4 +1,4 @@
-//! Reversing an audio clip (`AudioContent::reversed`, #442).
+//! Reversing an audio clip (`AudioContent::reversed`).
 //!
 //! A reversed clip plays the reversed media `R[i] = M[N - 1 - i]` with its offset, loop
 //! region and warp markers on that reversed timeline (the engine only mirrors the final

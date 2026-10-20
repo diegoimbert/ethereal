@@ -12,10 +12,10 @@ import type { SliceSettings } from "./SliceSettings";
  * Parameters are *not* here (they are `Device::params`, described by the device type's
  * `DeviceDescriptor` from `ether-devices`). Variants after `Delay` are roadmap v2: their
  * parameter lists are defined in `ether-devices` (docs/DEVICES.md); ids are
- * append-only, never renumbered once released. Variants after `DrumRack` are v0.2
- * (contracts-3): their param tables are frozen in their `ether-devices` module (append-only)
- * and implemented there (docs/DEVICES.md). Variants after `MidiEffectRack` are v0.3
- * (contracts-4), same rules.
+ * append-only, never renumbered once released. Variants after `DrumRack` are v0.2:
+ * their param tables are frozen in their `ether-devices` module (append-only)
+ * and implemented there (docs/DEVICES.md). Variants after `MidiEffectRack` are v0.3,
+ * same rules.
  */
 export type BuiltinDevice = { "type": "Synth" } | { "type": "Sampler", sample: MediaId | null, slices: SliceSettings, } | { "type": "Compressor" } | { "type": "Delay" } | { "type": "Eq" } | { "type": "Reverb" } | { "type": "Limiter" } | { "type": "Utility" } | { "type": "DrumRack" } | { "type": "PolySynth" } | { "type": "MultiSampler", zones: Array<SampleZone>, } | { "type": "Saturator" } | { "type": "Bitcrusher" } | { "type": "AutoFilter" } | { "type": "Chorus" } | { "type": "Phaser" } | { "type": "Flanger" } | { "type": "Tremolo" } | { "type": "Gate" } | { "type": "MultibandCompressor" } | { "type": "TransientShaper" } | { "type": "SpectrumAnalyzer" } | { "type": "Tuner" } | { "type": "Arpeggiator" } | { "type": "Chord" } | { "type": "ScaleQuantize" } | { "type": "NoteLength" } | { "type": "Velocity" } | { "type": "Randomizer" } | { "type": "Pitch" } | { "type": "InstrumentRack" } | { "type": "AudioEffectRack" } | { "type": "MidiEffectRack" } | { "type": "ConvolutionReverb", ir: IrSource | null, } | { "type": "ExternalInstrument", routing: ExternalRouting, } | { "type": "ExternalAudioEffect", routing: ExternalRouting, } | { "type": "FmSynth" } | { "type": "Vibrato" } | { "type": "VolumeLfo", 
 /**

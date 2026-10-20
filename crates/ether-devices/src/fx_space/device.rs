@@ -110,7 +110,7 @@ pub struct ConvolutionReverb {
     cin: [Vec<f32>; 2],
     wet: [Vec<f32>; 2],
     wet_from: [Vec<f32>; 2],
-    /// Silence reporting (perf audit #5): wet signal above the floor in this block.
+    /// Silence reporting: wet signal above the floor in this block.
     loud: bool,
     tail: util::Tail,
 }

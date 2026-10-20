@@ -1,4 +1,4 @@
-/** MockTransport: base behaviour touched by contracts-2. */
+/** MockTransport: base behaviour touched by the v2 roadmap. */
 import { describe, expect, it } from "vitest";
 import { cmd } from "../../cmd";
 import { newId } from "../../ids";

@@ -1,4 +1,4 @@
-//! The EQ's pre/post spectrum analysis (`graphical-eq`, CONTRACTS.md §12.15): frames are
+//! The EQ's pre/post spectrum analysis (CONTRACTS.md §12.15): frames are
 //! published only while watched, both stages in the same pass, and neither `process` nor
 //! `analysis` allocates (`assert_no_alloc`).
 

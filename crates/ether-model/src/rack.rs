@@ -1,4 +1,4 @@
-//! Racks: devices containing parallel chains (v0.2, `racks-modulation`; see
+//! Racks: devices containing parallel chains (v0.2; see
 //! CONTRACTS.md §12.6).
 //!
 //! A rack is a built-in device (`BuiltinDevice::{InstrumentRack, AudioEffectRack,

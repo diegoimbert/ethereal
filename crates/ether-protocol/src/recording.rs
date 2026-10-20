@@ -47,7 +47,7 @@ pub enum RecordingCommand {
     LiveMidi {
         data: [u8; 3],
     },
-    /// base-150: audition a note on one track's instrument (piano-roll note preview): one
+    /// Audition a note on one track's instrument (piano-roll note preview): one
     /// short channel voice message (`[status, data1, data2]`, e.g. `[0x90, pitch, velocity]`
     /// then `[0x80, pitch, 0]`) played on `track`'s first device from the next block, whether
     /// the track is armed / monitored or not, and while the transport plays. Unlike

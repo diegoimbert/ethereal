@@ -1,4 +1,4 @@
-//! `latency-republish`: when a built-in node's reported latency changes mid-session (a
+//! When a built-in node's reported latency changes mid-session (a
 //! lookahead param), the controller tick republishes the graph so PDC keeps the track aligned
 //! with the others; with stable latencies the tick never republishes.
 //!

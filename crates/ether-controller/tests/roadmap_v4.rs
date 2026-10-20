@@ -1,4 +1,4 @@
-//! v0.3 routing (contracts-4): the new commands reach their modules (or reply `Unsupported`
+//! v0.3 routing: the new commands reach their modules (or reply `Unsupported`
 //! without changing the document when the host can't serve them), new built-ins insert and
 //! compile, new desc fields compile empty and the cascades of the new entities are done.
 
@@ -206,11 +206,11 @@ fn external_instrument_routes_and_hostless_ports_are_unsupported() {
 
 // templates: implemented (tests/templates.rs).
 
-// project-versions: implemented (tests/versions.rs).
+// Implemented (tests/versions.rs).
 
 // keymap: implemented (tests/keymap.rs).
 
-// web-latency: web-only (the worklet's latency report, `ether-wasm/src/latency.rs`); its
-// prewire test is `crates/ether-wasm/tests/latency_prewire.rs`. rack-presets: the format is
-// pinned in `ether-model/tests/roadmap_v4.rs` (`rack_presets_store_chains`). ux-followups has no
+// Web-only (the worklet's latency report, `ether-wasm/src/latency.rs`); its
+// prewire test is `crates/ether-wasm/tests/latency_prewire.rs`. The format is
+// pinned in `ether-model/tests/roadmap_v4.rs` (`rack_presets_store_chains`). The UX follow-ups have no
 // engine side.

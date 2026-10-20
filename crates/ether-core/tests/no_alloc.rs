@@ -281,7 +281,7 @@ fn process_never_allocates() {
     assert!(l.iter().chain(r.iter()).all(|v| v.is_finite()));
 }
 
-// ─── Roadmap v2 hooks (base-24) ─────────────────────────────────────────────────────────
+// ─── Roadmap v2 hooks ─────────────────────────────────────────────────────────
 
 /// Adds its sidechain into its output (no allocation).
 struct ScSum;

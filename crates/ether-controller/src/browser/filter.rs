@@ -1,4 +1,4 @@
-//! Library file filters (`base-145`; protocol `ether_protocol::browser::FileFilter`,
+//! Library file filters (protocol `ether_protocol::browser::FileFilter`,
 //! CONTRACTS.md §12.8): regex whitelist/blacklist rules on file names, deciding which files
 //! `Media::ListDirectory`, the index ([`super::list_folder`]) and folder imports
 //! (`Browser::CheckFileFilter { paths }`) show.

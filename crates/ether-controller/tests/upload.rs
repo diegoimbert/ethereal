@@ -290,7 +290,7 @@ fn limits_and_idle_cleanup() {
     assert_eq!(err(&h.chunk("big", 0, &[0])).code, ErrorCode::NotFound);
 }
 
-// ─── base-114: project bundles (`ExportBundle` / `ImportBundle`) ────────────────────────
+// ─── project bundles (`ExportBundle` / `ImportBundle`) ────────────────────────
 
 impl H {
     /// Upload `bytes` in 64 KiB chunks as `upload`.

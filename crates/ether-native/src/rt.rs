@@ -84,7 +84,7 @@ pub struct AudioShared {
     pub xruns: AtomicU32,
     /// The output device went away (cpal `DeviceNotAvailable`): the stream is dead. The
     /// controller thread notices, tells the user and moves the engine to another device
-    /// (`crate::host`, issue #567).
+    /// (`crate::host`).
     pub device_lost: AtomicBool,
     /// A render panicked: the stream outputs silence until it is restarted (same handling).
     pub render_crashed: AtomicBool,
@@ -229,7 +229,7 @@ impl RtRenderer {
         let start = Instant::now();
         let channels = channels.max(1);
         let total = out.len() / channels;
-        // Audit #9: the device period and the shared deadline of sandboxed plugins' waits.
+        // The device period and the shared deadline of sandboxed plugins' waits.
         ether_core::period::begin_callback(total, self.sample_rate);
         let Some(engine) = self.engine.as_mut() else {
             out.fill(T::EQUILIBRIUM);

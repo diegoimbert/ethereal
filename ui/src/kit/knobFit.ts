@@ -1,4 +1,4 @@
-// The large-knob center value (ux-followups): the number in the middle of the ring, its unit
+// The large-knob center value: the number in the middle of the ring, its unit
 // in the gap at the bottom of the arc, both shrunk to fit. Pure helpers + the fitting hook
 // used by Knob.tsx (kept out of the component file for fast refresh).
 import { useLayoutEffect, useRef, type RefObject } from "react";

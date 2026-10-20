@@ -1,5 +1,5 @@
 /*
- * The EQ curve widget (graphical-eq). Tokens only: band colours come from the track palette
+ * The EQ curve widget. Tokens only: band colours come from the track palette
  * (`--eth-track-*`), everything else from `--eth-color-*`, sizes from spacing/row tokens.
  */
 

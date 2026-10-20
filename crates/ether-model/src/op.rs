@@ -123,12 +123,12 @@ pub enum EntityUpdate {
         id: ModMappingId,
         change: ModMappingChange,
     },
-    /// base-62 (`collab-social`). Chat messages have no updates (sent messages are final).
+    /// Chat messages have no updates (sent messages are final).
     PinnedNote {
         id: PinnedNoteId,
         change: PinnedNoteChange,
     },
-    // --- v0.3 (contracts-4) ---
+    // --- v0.3 ---
     ExpressionLane {
         id: ExpressionLaneId,
         change: ExpressionLaneChange,
@@ -173,9 +173,9 @@ pub enum TrackChange {
     Monitor(MonitorMode),
     /// Track musical scale (MIDI tracks only).
     Scale(crate::scale::TrackScale),
-    /// v0.2 (`freeze-bounce`): freeze state.
+    /// v0.2: freeze state.
     Freeze(Option<TrackFreeze>),
-    /// v0.2 (`groups-buses`): VCA assignment.
+    /// v0.2: VCA assignment.
     Vca(Option<TrackId>),
     /// v0.3 (`mpe`): MPE settings (MIDI tracks only).
     Mpe(Option<crate::expression::MpeSettings>),
@@ -241,7 +241,7 @@ pub enum DeviceChange {
     /// Roadmap v2: move between the track chain (`None`) and a drum pad chain (combine with
     /// `Order`; the pad must be on a rack of the same track).
     Pad(Option<DrumPadId>),
-    /// v0.2 (`racks-modulation`): move between the track chain (`None`) and a rack chain
+    /// v0.2: move between the track chain (`None`) and a rack chain
     /// (combine with `Order`; the chain's rack must be on the same track).
     Chain(Option<RackChainId>),
     /// v0.4: where the sidechain taps its source (`None` = post-fader).
@@ -295,9 +295,9 @@ pub enum WarpMarkerChange {
 #[serde(tag = "field", content = "value")]
 pub enum MediaChange {
     Name(String),
-    /// v0.2 (`media-references`): relink / collect.
+    /// v0.2: relink / collect.
     Location(MediaLocation),
-    /// v0.2 (`media-references`): content hash after a relink to different content.
+    /// v0.2: content hash after a relink to different content.
     Hash(Option<String>),
 }
 
@@ -393,7 +393,7 @@ pub enum ModMappingChange {
     Source(ModSource),
 }
 
-/// v0.3 (`midi-expression`): a lane's whole curve is one last-writer-wins value
+/// v0.3: a lane's whole curve is one last-writer-wins value
 /// (`ether_model::expression`). The kind and clip never change (re-create the lane).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "field", content = "value")]
@@ -401,7 +401,7 @@ pub enum ExpressionLaneChange {
     Points(Vec<crate::expression::ExpressionPoint>),
 }
 
-/// v0.3 (`midi-expression` / `mpe`): a note expression's whole curve.
+/// v0.3 (MIDI expression / `mpe`): a note expression's whole curve.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "field", content = "value")]
 pub enum NoteExpressionChange {

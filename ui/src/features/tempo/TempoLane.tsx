@@ -1,7 +1,7 @@
 /**
  * Tempo lane (the master track's first automation lane in the arrangement, see
  * `TempoAutomationLane`): the tempo curve (steps and ramps) with one handle per tempo point.
- * It edits like the automation lanes and the arranger (#621):
+ * It edits like the automation lanes and the arranger:
  *
  * - a drag on empty space selects the points in a box; Shift+drag selects a time section
  *   (Shift+click extends it); a click deselects and places the playhead;
@@ -225,7 +225,7 @@ export function TempoLane({ view, tempo, points, height, track = null }: TempoLa
     const offset = precisionDrag(start);
     let cancelled = false;
     // Escape cancels the drag: the engine takes back what it applied and keeps no undo
-    // step (#717: restoring the points by hand left a no-op step behind).
+    // step (restoring the points by hand left a no-op step behind).
     const onKey = (ev: globalThis.KeyboardEvent) => {
       if (ev.key !== "Escape" || cancelled) return;
       ev.preventDefault();
@@ -242,7 +242,7 @@ export function TempoLane({ view, tempo, points, height, track = null }: TempoLa
         if (cancelled) return;
         if (!frozen) setFrozen(range);
         setDragCursor("grabbing");
-        // Alt: precision, 1/10 of the pointer's motion and off the grid (#793); Shift's fine
+        // Alt: precision, 1/10 of the pointer's motion and off the grid; Shift's fine
         // steps win for the BPM, so with Shift + Alt only the time is slowed down.
         const { dx, dy } = offset(local(ev), { x: ev.altKey, y: ev.altKey && !ev.shiftKey });
         const time = isAtZero(point) ? point.time : snap(point.time + dx / view.getState().pxPerBeat, ev.altKey);

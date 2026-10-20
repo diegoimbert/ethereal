@@ -1,4 +1,4 @@
-//! Racks (`racks-modulation`): chains, chain devices, mix/zones/solo compiled into
+//! Racks: chains, chain devices, mix/zones/solo compiled into
 //! `TrackDesc::chain_racks`, chain content rules, Group (with modulators re-hosted on the
 //! rack), duplicate, cascades, one undo step each, save/reopen.
 
@@ -704,7 +704,7 @@ fn device_switch_lanes_on_nested_rack_devices_resolve_and_cascade() {
     );
 }
 
-/// #582: the UI pastes a device as one `Edit::Batch` of `Device::Duplicate { track }` (onto
+/// The UI pastes a device as one `Edit::Batch` of `Device::Duplicate { track }` (onto
 /// the target's track) and a move into place: all or nothing, and racks with chains can be
 /// pasted onto other tracks.
 #[test]

@@ -26,7 +26,7 @@ afterEach(() => {
 const chainNames = (track: string) => devicesOfTrack(store().project!, trackByName(track).id).map((d) => d.name);
 const deviceOf = (track: string, name: string): Device => devicesOfTrack(store().project!, trackByName(track).id).find((d) => d.name === name)!;
 const deviceEl = (name: string) => screen.getByRole("region", { name });
-/** base-153: a factory device's UI is in its window: opens it (header toggle), returns it. */
+/** A factory device's UI is in its window: opens it (header toggle), returns it. */
 function openWindow(name: string): HTMLElement {
   const toggle = within(deviceEl(name)).getByRole("button", { name: `open ${name} window` });
   if (toggle.getAttribute("aria-pressed") !== "true") fireEvent.click(toggle);
@@ -347,7 +347,7 @@ describe("DeviceChain: stacked layout (inspector)", () => {
     await flush();
     expect(chainNames("Keys")).toEqual(["Synth", "Compressor", "delay"]);
     await waitFor(() => expect(screen.queryByRole("list", { name: "effects" })).toBeNull());
-    // base-154: a device added from the library opens its window.
+    // A device added from the library opens its window.
     expect(await screen.findByRole("dialog", { name: "delay window" })).toBeInTheDocument();
 
     fireEvent.click(midiFx.getAllByRole("button", { name: "add midi effect" })[0]!);
@@ -605,7 +605,7 @@ describe("DeviceChain: stacked layout (inspector)", () => {
     const saved = JSON.parse(localStorage.getItem("eth.devices.windows")!) as { open: string[] };
     const id = deviceOf("Keys", "Synth").id;
     expect(saved.open).toEqual([id]);
-    // The geometry: the kit's floating windows (base-154), per window id.
+    // The geometry: the kit's floating windows, per window id.
     const rects = JSON.parse(localStorage.getItem("eth.windows")!) as Record<string, { x: number; y: number }>;
     expect(rects[`device:${id}`]).toEqual({ x: x0 + 40, y: y0 + 30 });
     // Closed and opened again: where it was.

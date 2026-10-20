@@ -34,12 +34,12 @@ interface Entry {
   markers: WarpMarker[];
 }
 
-/** `project`: where the clips were copied; they paste only there (#589: another project
+/** `project`: where the clips were copied; they paste only there (another project
  * has none of their tracks or media). */
 let clipboard: { project: ProjectId; entries: Entry[]; start: Beats; end: Beats } | null = null;
 
 /**
- * The track clipboard (base-151): copied or cut tracks, top-most first in display order
+ * The track clipboard: copied or cut tracks, top-most first in display order
  * (a group carries its children). See `trackEdit.ts`. `cutUndoId`: the undo step of the
  * cut, while the tracks are deleted (pasting then restores them).
  */
@@ -146,8 +146,8 @@ function rebuild({ clip, notes, markers }: Entry, id: ClipId, track: TrackId, st
       ? [cmd("Clip", { type: "CreateMidi", id, track, start, length: clip.length, name: clip.name })]
       : [
           cmd("Clip", { type: "CreateAudio", id, track, start, media: c.media }),
-          // Before the bounds: a transpose resizes an unwarped clip (base-144), and a reverse
-          // mirrors the bounds (#442; the snapshot's are already on the reversed file).
+          // Before the bounds: a transpose resizes an unwarped clip, and a reverse
+          // mirrors the bounds (the snapshot's are already on the reversed file).
           cmd("Clip", { type: "SetTranspose", id, semitones: c.transpose }),
           ...(c.reversed ? [cmd("Clip", { type: "SetReversed", id, reversed: true })] : []),
         ];

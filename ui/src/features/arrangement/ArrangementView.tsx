@@ -93,7 +93,7 @@ export function ArrangementView() {
       </div>
     );
   }
-  // base-131: nothing is opened on launch; the project screen picks a project. Blank until
+  // Nothing is opened on launch; the project screen picks a project. Blank until
   // launch has decided (no "Open a project" flash before the project screen).
   if (noProject && launching) return <div className="eth-arr eth-arr--disconnected" data-feature="arrangement" />;
   if (noProject) {
@@ -198,13 +198,13 @@ function ConnectedArrangementView() {
     };
   }, [transport]);
 
-  // groups-buses: Cmd+G groups the selected tracks, Cmd+Shift+G ungroups (keymap). On the document,
+  // Cmd+G groups the selected tracks, Cmd+Shift+G ungroups (keymap). On the document,
   // so it still works after a menu or a click elsewhere took the focus (not in text fields
   // or dialogs).
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
       // keymap: `track.group` / `track.ungroup` (defaults Mod+G / Mod+Shift+G).
-      // #870: `clip.consolidate` (Mod+J) too, when nothing has focus (a click elsewhere): else
+      // `clip.consolidate` (Mod+J) too, when nothing has focus (a click elsewhere): else
       // the browser takes Ctrl+J (Chrome opens its downloads). In the arrangement, its own
       // key handler already ran it (and prevented the default).
       const action = firstMatch(["track.group", "track.ungroup", "clip.consolidate"] as const, e);
@@ -242,7 +242,7 @@ function ConnectedArrangementView() {
     }),
     [transport, peaks],
   );
-  // The mobile UI (#522): pan, pinch, tap, long-press and clip drags on touch screens.
+  // The mobile UI: pan, pinch, tap, long-press and clip drags on touch screens.
   useTouchArranger(rootRef, scrollRef, onVerticalZoom, ctx);
   useEffect(
     () =>
@@ -362,7 +362,7 @@ function ConnectedArrangementView() {
   // `file-import`: OS files dropped on a lane (clips from the drop point, one after the
   // other) or below the tracks (a new audio track per file). On the desktop the shell
   // forwards the dropped paths instead of the drop: they land here via `noteHover`.
-  // #717: MIDI files among them become MIDI clips (`importMidiFile`): on a MIDI track, or
+  // MIDI files among them become MIDI clips (`importMidiFile`): on a MIDI track, or
   // on new MIDI tracks below the tracks.
   const importAt = (sources: ImportSource[], point: DropPoint) => {
     useArrangementUi.getState().setDropHint(null);
@@ -529,7 +529,7 @@ function ConnectedArrangementView() {
             <div className="eth-arr__overlay" style={{ left: headerWidth }}>
               <TimeSelectionLayer rows={rows} view={view} headerWidth={0} />
               <PlayheadLine view={view} />
-              {/* The mobile UI (#522): trim handles of the selected clips, the time range's handles. */}
+              {/* The mobile UI: trim handles of the selected clips, the time range's handles. */}
               <ClipHandles rows={rows} />
               <RangeHandles rows={rows} />
             </div>
@@ -692,7 +692,7 @@ function NewTrackDropHint() {
   // A shared project's viewer takes no drops.
   if (useReadOnly()) return null;
   if (hint === null && pending) return <ImportPlaceholder item={pending} />;
-  // Touch screens (#522): no file drops or browser there; clips come from a double-tap.
+  // Touch screens: no file drops or browser there; clips come from a double-tap.
   if (hint === null && mobile) return empty ? <span className="eth-arr__drop-label">{t("arrangement.view.double_tap_hint")}</span> : null;
   if (hint === null) {
     return <span className="eth-arr__drop-label">{empty ? t("arrangement.view.empty_hint") : t("arrangement.view.drop_hint")}</span>;

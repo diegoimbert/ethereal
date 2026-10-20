@@ -1,7 +1,7 @@
 /**
  * Run a keymap action without its chord: the command palette, menus and the desktop app's
  * native menu bar run editor actions (copy, delete, split, quantize…) through the same key
- * handlers the keyboard reaches, so there is one implementation per action (#577, #573).
+ * handlers the keyboard reaches, so there is one implementation per action.
  *
  * `runAction(id)` dispatches a synthetic `keydown` that carries the action id. Every
  * handler asks `matchesAction` / `firstMatch`, which answer a tagged event by its id alone

@@ -87,7 +87,7 @@ test("saturator, bitcrusher and auto filter on an audio track", async ({ page })
     await expect.poll(async () => (await chainOf()).length).toBe(i + 1);
   }
   const [sat, crush, filter] = (await chainOf()).map((d) => d.id) as [string, string, string];
-  // base-153: a factory device's UI is in its window (opened, and raised, on use).
+  // A factory device's UI is in its window (opened, and raised, on use).
   const panel = (id: string) => openDeviceWindow(page, id);
 
   // Declarative panels: typed widgets and the controls they own.

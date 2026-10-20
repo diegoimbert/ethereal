@@ -1,5 +1,5 @@
 /**
- * Settings > General > Library (`base-145`): which files the library browser shows. Two
+ * Settings > General > Library: which files the library browser shows. Two
  * lists of regex rules on file names (`Browser::{Get,Set,Reset,Check}FileFilter`,
  * CONTRACTS.md §12.8): "Show" (whitelist; empty = every file) and "Hide" (blacklist, wins).
  *

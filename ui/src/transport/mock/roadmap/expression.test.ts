@@ -1,4 +1,4 @@
-/** MockTransport: `Expression::*` (v0.3, midi-expression), same semantics as the Rust controller. */
+/** MockTransport: `Expression::*` (v0.3), same semantics as the Rust controller. */
 import { beforeEach, describe, expect, it } from "vitest";
 import type { ExpressionPoint } from "@/generated";
 import { cmd } from "../../cmd";

@@ -1,4 +1,4 @@
-// The user docs (#665): a left nav of sections and pages (a drawer on phones), the page with
+// The user docs: a left nav of sections and pages (a drawer on phones), the page with
 // its on-page contents, prev / next, and search. The same view runs standalone at `/docs`
 // (the URL router) and over the desktop app (a memory router, `DocsRoot`).
 import "./docs.css";

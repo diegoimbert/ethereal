@@ -24,7 +24,7 @@ export interface TransportProviderProps {
  * - forwards playhead and meter streams to `playheadStore`.
  *
  * On a connect (and a refetch) the engine's undo/redo state is read too (`History::State`):
- * after switching engines the one we come back to still has its history (#598). Switching
+ * after switching engines the one we come back to still has its history. Switching
  * also clears what the previous engine said that the next one only reports on change: the
  * dirty flag and the armed tracks (its track ids mean nothing here); the project list is
  * re-read.
@@ -34,7 +34,7 @@ export function TransportProvider({ transport: local, children }: TransportProvi
   const transport = remote ?? local;
   // Status is tagged with its transport, so swapping the transport reads as "connecting".
   const [state, setState] = useState<{ transport: EngineTransport; attempt: number; connection: ConnectionStatus } | null>(null);
-  // Bumped by `retry` (#597): connect again after a failed start.
+  // Bumped by `retry`: connect again after a failed start.
   const [attempt, setAttempt] = useState(0);
   const connection: ConnectionStatus = state?.transport === transport && state.attempt === attempt ? state.connection : CONNECTING;
   const previous = useRef<EngineTransport | null>(null);
@@ -122,7 +122,7 @@ export function TransportProvider({ transport: local, children }: TransportProvi
     transport.connect().then(
       (project) => {
         if (!active) return;
-        // base-131: hosts open nothing on launch, so there may be no project yet.
+        // Hosts open nothing on launch, so there may be no project yet.
         if (project) load(project);
         else store().clearProject();
         setConnection({ status: "connected" });

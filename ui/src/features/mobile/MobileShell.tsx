@@ -1,5 +1,5 @@
 /**
- * The mobile app shell (#522, design: the "Mobile UX design" comment on the issue): the same
+ * The mobile app shell (design: the "Mobile UX design" comment on the issue): the same
  * arrangement and feature code as the desktop editor, laid out for touch screens.
  *
  *   phone portrait / tablet          phone landscape
@@ -12,7 +12,7 @@
  * The top bar and the transport keep their place in the React tree in every layout (the
  * grid moves them), so a rotation never remounts the project menu (launch, autosave, the
  * project URL) or the arrangement. No rail, floating panes or device windows: panels arrive
- * as sheets in later steps of #522.
+ * as sheets in later steps of.
  */
 import { ExtensionRoots } from "@/app/ExtensionRoots";
 import "./mobile.css";
@@ -76,7 +76,7 @@ function useMobileLayout() {
 export function MobileShell() {
   const t = useT();
   const layout = useMobileLayout();
-  // #717: arms and punch come back when a project opens again.
+  // Arms and punch come back when a project opens again.
   useKeepRecordingSetup();
   // Undo / redo bring back the time selections of their step (as on desktop).
   useEffect(() => bindSelectionHistory(), []);
@@ -89,7 +89,7 @@ export function MobileShell() {
         </div>
         <UndoRedo />
         <div className="eth-mshell__spacer" />
-        {/* The project menu's "export audio…" opens it (#572); while rendering with the
+        {/* The project menu's "export audio…" opens it; while rendering with the
             dialog closed, its progress chip sits here. */}
         <div data-slot="export">
           <ExportDialog />

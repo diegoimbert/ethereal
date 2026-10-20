@@ -179,7 +179,7 @@ test("time edits: select time over tracks, delete time, undo, split at the edges
       [4, 4],
     ]);
 
-  // ⇧⌘D duplicates the selection right after it, pasting over what follows (#268: nothing
+  // ⇧⌘D duplicates the selection right after it, pasting over what follows (nothing
   // moves right; A's second clip is cut where the copy lands).
   await selectTime(2, 6);
   await page.keyboard.press("ControlOrMeta+Shift+d");
@@ -199,7 +199,7 @@ test("time edits: select time over tracks, delete time, undo, split at the edges
     ]);
   await shot(page, "time-duplicate");
 
-  // A frozen track refuses time edits (freeze-bounce's check); the engine's message shows.
+  // A frozen track refuses time edits (freeze and bounce's check); the engine's message shows.
   await page.keyboard.press("ControlOrMeta+z");
   await expect.poll(() => spans(page, b.id)).toEqual([[0, 4]]);
   await page.getByRole("group", { name: `${b.name} track` }).click({ button: "right", position: { x: 6, y: 10 } });

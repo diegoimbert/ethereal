@@ -1,4 +1,4 @@
-//! Stereo low-cut + high-cut pair (`devices-pass-effects`): the tone filters of the delay's
+//! Stereo low-cut + high-cut pair: the tone filters of the delay's
 //! feedback path and the reverb's input. Two 12 dB/oct TPT state-variable stages
 //! (Butterworth Q) whose coefficients glide on change. A stage set to its "off" extreme
 //! (low cut at or under [`LOW_OFF_HZ`], high cut at or over [`HIGH_OFF_HZ`]) fades to

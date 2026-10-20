@@ -1,4 +1,4 @@
-// #565: an edit made right before the tab closes (inside the 1 s autosave wait) is saved: a
+// An edit made right before the tab closes (inside the 1 s autosave wait) is saved: a
 // hidden or closed tab saves at once.
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";

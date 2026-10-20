@@ -1,5 +1,5 @@
 //! The built-in kit (pack `builtin`): the kick, snare and closed hi-hat that audio-to-MIDI
-//! synthesizes (#500, `audio_to_midi::kit`), always available offline, never downloaded.
+//! synthesizes (`audio_to_midi::kit`), always available offline, never downloaded.
 //! No third-party audio: every byte comes from code, deterministically.
 
 use ether_core::protocol::samples::{

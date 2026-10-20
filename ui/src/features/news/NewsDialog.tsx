@@ -66,7 +66,7 @@ export function NewsViewer() {
   const current = useNews((s) => s.current);
   const replay = useNews((s) => s.replay);
   const more = useNews((s) => (s.current && !s.replay ? s.queue.filter((i) => i.id !== s.current!.id).length : 0));
-  // #623: never over a guided tour (its overlay owns the screen). The item waits in the
+  // Never over a guided tour (its overlay owns the screen). The item waits in the
   // store and shows once the tour ends; a tour started over it hides it until then.
   const touring = useTour((s) => s.tour !== null);
   const open = current !== null && !touring;

@@ -1,4 +1,4 @@
-// automation-live: automated values show live in the UI, against the real engine.
+// Automated values show live in the UI, against the real engine.
 //
 // A synth switched off in the document with "Device On" automation (on until beat 2, then
 // off), like an imported Ableton device whose switch is automated (AWIP 115's Auto Filter),

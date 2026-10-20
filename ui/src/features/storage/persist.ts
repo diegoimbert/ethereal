@@ -1,5 +1,5 @@
 /**
- * #622 (owner: "keep them permanently"): in the browser, projects (and their `versions/`
+ * In the browser, projects (and their `versions/`
  * backups) live in OPFS, which the browser may clear under storage pressure unless the site's
  * storage is persistent. On launch the web app asks for it (`navigator.storage.persist()`):
  * Chrome and Edge decide by engagement (an installed app, a bookmark), Firefox asks the user,

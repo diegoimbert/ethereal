@@ -1,6 +1,6 @@
 # Guided tours (in-app tutorials)
 
-The welcome screen's **get started** items are guided tours of the real UI (refs #518, the
+The welcome screen's **get started** items are guided tours of the real UI (refs the
 tutorial format): the welcome screen hides, the screen is dimmed except the part to look at,
 and a bubble explains it. Code: `ui/src/features/tutorials/**`.
 
@@ -17,14 +17,14 @@ track, then MIDI track), its instrument (the picker that opens under it: the bui
 it has, or the poly synth), a clip (a double-click on the empty lane), opened in the piano
 roll (a double-click on the clip), three notes drawn there, then play and stop. It ends with
 "open the guide": `welcome/first-beat` ("your first loop"), which goes on with a second
-instrument, an effect and the mix. When the default sample pack (#519) ships, a step that
+instrument, an effect and the mix. When the default sample pack ships, a step that
 drags a sample in can join it.
 
 ## Example beats
 
 The welcome screen's **examples** (under get started; Help: the palette's and the project
 menu's **example beats** bring the welcome screen back) are short loops that sound good at once
-and are simple to rebuild (#518): **house beat**, **hip-hop loop**, **lo-fi chords** and
+and are simple to rebuild: **house beat**, **hip-hop loop**, **lo-fi chords** and
 **simple bassline**.
 
 - **The projects** are factory project templates (`factory/example-<slug>`), built in code by
@@ -33,7 +33,7 @@ and are simple to rebuild (#518): **house beat**, **hip-hop loop**, **lo-fi chor
   **new project** form's "start from" list. Only built-in devices and factory presets: the drums
   are drum rack pads playing a **poly synth** with one of its drum presets (`poly-synth/kick`,
   `snare`, `clap`, `closed-hat`, `open-hat`). `pad_sound` there is the one place that decides
-  what a pad plays: when the default sample pack (#519) ships, it gives each drum its sample
+  what a pad plays: when the default sample pack ships, it gives each drum its sample
   instead, and every example follows. The docs guides then change their "make the drum kit"
   step.
 - **Open** (a click on the row) makes a project from the template, named after the example.

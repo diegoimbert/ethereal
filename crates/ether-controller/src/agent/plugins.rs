@@ -1,4 +1,4 @@
-//! Devices and installed plugins (`agent-plugins`): `list_plugins`, `add_device` (built-in
+//! Devices and installed plugins: `list_plugins`, `add_device` (built-in
 //! types and plugins, with the UI's placement rules), device presets, and the device-window
 //! UI actions.
 

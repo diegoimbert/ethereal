@@ -1,4 +1,4 @@
-/* The mobile shell (#522, MobileShell.tsx). Tokens only. The layout follows `data-layout`
+/* The mobile shell (MobileShell.tsx). Tokens only. The layout follows `data-layout`
    (phone-portrait, phone-landscape, tablet), set from the viewport by `useFormFactor`. */
 
 /* No pull-to-refresh or rubber-banding fighting the timeline gestures; no double-tap zoom
@@ -329,7 +329,7 @@ html[data-eth-mobile] textarea {
 .eth-mshell[data-layout="tablet"] .eth-arr-header .eth-arr-vol {
   flex: 1;
 }
-/* Mute / solo / arm at touch size (#640: they were the desktop's small buttons); the desktop's
+/* Mute / solo / arm at touch size (they were the desktop's small buttons); the desktop's
    look otherwise (no fill, a tint when on: arrangement.css). */
 .eth-mshell[data-layout="tablet"] .eth-arr-header__toggle {
   width: var(--eth-size-touch-target);

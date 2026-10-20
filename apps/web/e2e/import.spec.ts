@@ -1,4 +1,4 @@
-// import-dawproject: "Import from another DAW…" on the web build (real wasm engine): a
+// "Import from another DAW…" on the web build (real wasm engine): a
 // DAWproject exported by Bitwig Studio and a REAPER project, each picked (project screen,
 // command palette) and dropped on the window, become new projects that open, with the
 // import report.

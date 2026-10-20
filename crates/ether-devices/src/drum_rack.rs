@@ -76,7 +76,7 @@ pub fn descriptor() -> DeviceDescriptor {
     }
 }
 
-/// Declarative panel (v0.2, `device-ui`; drawn by the shared device renderer).
+/// Declarative panel (v0.2; drawn by the shared device renderer).
 pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
     use crate::contract::{knob, layout, section};
     use ether_core::protocol::layout::WidgetSize::*;

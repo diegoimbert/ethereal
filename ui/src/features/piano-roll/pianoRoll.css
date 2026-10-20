@@ -72,7 +72,7 @@
   min-width: 0;
 }
 
-/* Note-stretch bar (base-109): over the top of the ruler, spanning the selection. */
+/* Note-stretch bar: over the top of the ruler, spanning the selection. */
 .eth-pr-stretch-layer {
   position: absolute;
   top: 0;
@@ -376,7 +376,7 @@
   opacity: var(--eth-opacity-scale-out-key);
 }
 
-/* Multi-clip editing (base-143): several clips on the song timeline. */
+/* Multi-clip editing: several clips on the song timeline. */
 .eth-pr__clip-count {
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);

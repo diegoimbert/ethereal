@@ -281,7 +281,7 @@ fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
             // A drum rack is copied with its pads and their chains.
             let mut ids = BTreeMap::from([(d.id, *new_id)]);
             ctx.copy_rack_pads(d.id, *new_id, d.track, &mut ids)?;
-            // v0.2 (`racks-modulation`): every copied rack (this one, or racks on the copied
+            // v0.2: every copied rack (this one, or racks on the copied
             // pads) with its chains; modulators and their mappings inside the copy.
             crate::racks::copy_for_track(ctx, &mut ids)
         }
@@ -401,7 +401,7 @@ fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
     }
 }
 
-/// `Device::Duplicate { track }` onto another track (#582): the copy goes at the end of that
+/// `Device::Duplicate { track }` onto another track: the copy goes at the end of that
 /// track's chain (the caller then moves it into place), its rack chains or drum pads with it.
 fn duplicate_to_track(
     ctx: &mut DocCtx,

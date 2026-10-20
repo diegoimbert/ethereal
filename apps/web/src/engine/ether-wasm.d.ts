@@ -19,7 +19,7 @@ declare module "@ether-wasm/ether_wasm.js" {
     remove(path: string): void;
     /** JSON entry or `null`. */
     stat(path: string): string;
-    /** `length` bytes of a file from `offset` (fewer at the end; audio-streaming). */
+    /** `length` bytes of a file from `offset` (fewer at the end). */
     readRange(path: string, offset: number, length: number): Uint8Array;
   }
 
@@ -29,7 +29,7 @@ declare module "@ether-wasm/ether_wasm.js" {
     tick(nowMs: number): string;
     pending_control_bytes(): number;
     engine_blocks(): number;
-    /** #519: JSON `[{id, url, max}]` of the sample pack's pending HTTP GETs. */
+    /** JSON `[{id, url, max}]` of the sample pack's pending HTTP GETs. */
     take_http_requests(): string;
     http_progress(id: number, received: number, total: number): void;
     http_done(id: number, status: number, body: Uint8Array, error?: string | null): void;
@@ -44,7 +44,7 @@ declare module "@ether-wasm/ether_wasm.js" {
     free(): void;
   }
 
-  /** Graph snapshot costs of the large fixture (JSON `SnapshotCosts`, ms; web-perf). */
+  /** Graph snapshot costs of the large fixture (JSON `SnapshotCosts`, ms). */
   export function bench_graph_snapshot(runs: number): string;
 }
 

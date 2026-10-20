@@ -110,7 +110,7 @@ export class MockUploads {
     return u;
   }
 
-  /** Consume a completed upload's raw bytes (base-114: `Project::ImportBundle`). */
+  /** Consume a completed upload's raw bytes (`Project::ImportBundle`). */
   takeBytes(upload: string): Uint8Array {
     const u = this.check(upload);
     this.uploads.delete(upload);

@@ -1,5 +1,5 @@
 /**
- * The time range's two handles on touch screens (#522, the design's §5 "Range"): like iOS text
+ * The time range's two handles on touch screens (the design's §5 "Range"): like iOS text
  * selection, a grip on each end that drags that end. Pure: the range, the rows, the view.
  *
  * A handle's target is `TOUCH_TARGET_PX` wide, centred on its edge, over the range's rows (from

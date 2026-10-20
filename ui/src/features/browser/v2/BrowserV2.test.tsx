@@ -302,7 +302,7 @@ describe("Browser v2 (indexed)", () => {
     fireEvent.click(await screen.findByRole("menuitem", { name: "rename…" }));
     fireEvent.change(await screen.findByRole("textbox", { name: "folder name" }), { target: { value: "Kit A" } });
     fireEvent.click(screen.getByRole("button", { name: "rename" }));
-    // #571: removing asks first (it deletes the imported copy); cancel keeps the folder.
+    // Removing asks first (it deletes the imported copy); cancel keeps the folder.
     const removes = () => browserCommands(spy).filter((c) => c.type === "RemoveFolder");
     fireEvent.contextMenu(await node("Kit A"));
     fireEvent.click(await screen.findByRole("menuitem", { name: "remove folder…" }));

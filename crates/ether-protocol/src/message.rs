@@ -96,7 +96,7 @@ pub enum Command {
     Groove(GrooveCommand),
     DrumRack(DrumRackCommand),
     Slice(SliceCommand),
-    // --- v0.2 (contracts-3; one domain per feature, CONTRACTS.md §12) ---
+    // --- v0.2 (one domain per feature, CONTRACTS.md §12) ---
     Take(TakeCommand),
     Freeze(FreezeCommand),
     TimeEdit(TimeEditCommand),
@@ -106,8 +106,8 @@ pub enum Command {
     Rack(RackCommand),
     Modulation(ModulationCommand),
     MediaRef(MediaRefCommand),
-    // --- v0.3 (contracts-4; one domain per feature, CONTRACTS.md §13) ---
-    /// Clip expression lanes, note expressions, track MPE (`midi-expression`, `mpe`).
+    // --- v0.3 (one domain per feature, CONTRACTS.md §13) ---
+    /// Clip expression lanes, note expressions, track MPE (`mpe`).
     Expression(ExpressionCommand),
     /// MIDI capture buffer (`capture-midi`).
     Capture(CaptureCommand),
@@ -119,22 +119,22 @@ pub enum Command {
     History(HistoryCommand),
     /// Project and track templates (`templates`).
     Template(TemplateCommand),
-    /// Project versions and crash recovery (`project-versions`).
+    /// Project versions and crash recovery.
     Version(VersionCommand),
     /// User keymap storage (`keymap`).
     Keymap(KeymapCommand),
-    // --- agent-api (owner request; docs/MCP.md) ---
+    // --- the agent API (docs/MCP.md) ---
     /// LLM agent tools (in-app AI chat, MCP server). Not a document command itself: a tool
     /// call that edits is one undo step.
     Agent(AgentCommand),
-    // --- import-resolver (owner request; CONTRACTS.md §14.2) ---
+    // --- the import resolver (CONTRACTS.md §14.2) ---
     /// Resolve missing plugins and audio files (after an import, or any time). `Apply` is
     /// one undo step.
     Resolve(ResolveCommand),
-    // --- i18n (#667; docs/LOCALIZATION.md) ---
+    // --- i18n (docs/LOCALIZATION.md) ---
     /// App settings the engine takes from the UI (not a document command).
     Settings(SettingsCommand),
-    // --- #519 (docs/SAMPLES.md) ---
+    // --- sample pack (docs/SAMPLES.md) ---
     /// The default sample pack: manifest, lazy downloads, the built-in kit (not a document
     /// command).
     Samples(SamplesCommand),
@@ -269,7 +269,7 @@ pub enum ReplyValue {
         mappings: Vec<MidiMapping>,
     },
     // --- v0.2 ---
-    /// A freeze/bounce/consolidate render started (`freeze-bounce`).
+    /// A freeze/bounce/consolidate render started.
     RenderStarted {
         job: RenderJobId,
     },
@@ -285,12 +285,12 @@ pub enum ReplyValue {
     BrowserRoots {
         roots: Vec<BrowserRoot>,
     },
-    /// `base-145`: the current file filter and the defaults (`Browser::{Get,Set,Reset}FileFilter`).
+    /// The current file filter and the defaults (`Browser::{Get,Set,Reset}FileFilter`).
     BrowserFileFilter {
         filter: FileFilter,
         defaults: FileFilter,
     },
-    /// `base-145`: `Browser::CheckFileFilter`.
+    /// `Browser::CheckFileFilter`.
     BrowserFileFilterCheck {
         check: FileFilterCheck,
     },
@@ -300,11 +300,11 @@ pub enum ReplyValue {
     MissingMedia {
         media: Vec<MediaId>,
     },
-    /// `Samples::{Open, Get}` (#519).
+    /// `Samples::{Open, Get}`.
     Samples {
         view: SamplesView,
     },
-    // --- v0.3 (contracts-4) ---
+    // --- v0.3 ---
     /// `Capture::Capture`.
     Captured {
         capture: CaptureResult,
@@ -347,7 +347,7 @@ pub enum ReplyValue {
     Recoverable {
         projects: Vec<RecoveryInfo>,
     },
-    /// base-131: `Version::SessionStatus`: stored projects whose session marker was left by
+    /// `Version::SessionStatus`: stored projects whose session marker was left by
     /// another session that didn't close cleanly (a crash, a killed process). Empty = the
     /// previous session closed cleanly.
     SessionStatus {
@@ -356,7 +356,7 @@ pub enum ReplyValue {
     Keymap {
         keymap: Keymap,
     },
-    // --- agent-api ---
+    // --- agent api ---
     /// `Agent::ListTools`.
     AgentTools {
         tools: Vec<AgentToolSpec>,
@@ -367,24 +367,24 @@ pub enum ReplyValue {
         content: String,
         is_error: bool,
     },
-    /// #717: `Media::ReadMidiFile`.
+    /// `Media::ReadMidiFile`.
     MidiFile {
         file: crate::media::MidiFileContents,
     },
-    /// #717: `Media::WriteMidiFile`.
+    /// `Media::WriteMidiFile`.
     MidiFileWritten {
         result: crate::media::MidiExportResult,
     },
-    /// base-114: a packed project bundle (`Project::ExportBundle` without a path), to pull
+    /// A packed project bundle (`Project::ExportBundle` without a path), to pull
     /// with `Export::ReadChunk`.
     Bundle {
         download: crate::export::ExportDownload,
     },
-    /// project-export: `Project::ExportTo` finished (report, and the file or a download).
+    /// `Project::ExportTo` finished (report, and the file or a download).
     ProjectExported {
         result: crate::project_export::ProjectExportResult,
     },
-    // --- import-resolver ---
+    // --- import resolver ---
     /// `Resolve::Propose`.
     ResolveProposal {
         proposal: ResolveProposal,
@@ -495,7 +495,7 @@ pub enum Event {
     MediaRef {
         event: MediaRefEvent,
     },
-    /// The default sample pack (#519).
+    /// The default sample pack.
     Samples {
         event: SamplesEvent,
     },
@@ -521,11 +521,11 @@ pub enum Event {
     Keymap {
         event: KeymapEvent,
     },
-    /// `Project::Import` job progress and result (`import-dawproject`).
+    /// `Project::Import` job progress and result.
     Import {
         event: ImportEvent,
     },
-    /// `Resolve::SearchMedia` progress and results (`import-resolver`).
+    /// `Resolve::SearchMedia` progress and results.
     Resolve {
         event: ResolveEvent,
     },

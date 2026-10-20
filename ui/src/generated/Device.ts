@@ -44,7 +44,7 @@ sidechain_tap?: SidechainTap,
  */
 pad: DrumPadId | null, 
 /**
- * Rack chain this device is on (v0.2, `racks-modulation`; see [`crate::rack`]). `None` =
+ * Rack chain this device is on (v0.2; see [`crate::rack`]). `None` =
  * not in a rack. Mutually exclusive with `pad`; `track` = the rack's track. Omitted from
  * JSON when `None`.
  */

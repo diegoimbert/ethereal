@@ -420,7 +420,7 @@ fn run(case: Case) {
 
     // --- Save / reopen: the state blob restores the edit.
     rig.save_and_reopen(&pid);
-    // Whole-project replies carry no state blobs (#270): check the saved file.
+    // Whole-project replies carry no state blobs: check the saved file.
     let saved = rig.saved_file(&pid);
     let s = &saved["project"]["devices"][&dev];
     assert!(

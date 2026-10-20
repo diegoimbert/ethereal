@@ -89,7 +89,7 @@ function setPlayhead(position: number) {
   act(() => playheadStore.setPlayhead({ transport: { position, seconds: 0, playing: false, bpm: 120 } }));
 }
 
-/** Where pastes land: the selection cursor (transport-keys), never the playhead. */
+/** Where pastes land: the selection cursor, never the playhead. */
 function setCursor(position: number) {
   act(() => useTimeSelection.setState({ cursor: position }));
 }

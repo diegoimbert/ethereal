@@ -1,4 +1,4 @@
-// Missing devices (owner request): a device that couldn't be created (Live's Hybrid Reverb)
+// Missing devices: a device that couldn't be created (Live's Hybrid Reverb)
 // is a placeholder that keeps its values and automation; the resolver lists it with the
 // missing plugins and files, with its tracks, and replaces it (built-in or plugin) carrying
 // its automation over by parameter name, in one undo step. Opening a project shows the

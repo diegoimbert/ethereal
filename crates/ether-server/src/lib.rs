@@ -227,14 +227,14 @@ fn default_name() -> String {
 /// The engine a [`Server`] forwards client messages to.
 ///
 /// [`Server::start`] owns a [`NativeHost`]; [`Server::attach`] serves an engine that
-/// somebody else owns and also drives (the desktop app's agent bridge, `agent-api`: the UI
+/// somebody else owns and also drives (the desktop app's agent bridge, the UI
 /// and the agents share one controller).
 pub trait Engine: Send + Sync {
     /// Queue one (already id-remapped) client message.
     fn send(&self, message: ether_protocol::ClientMessage) -> Result<(), String>;
 
-    /// Where clients that predate `PatchChange::DeviceParam` register while connected
-    /// (audit #4). `None`: the engine has no such switch (it always sends field patches).
+    /// Where clients that predate `PatchChange::DeviceParam` register while connected.
+    /// `None`: the engine has no such switch (it always sends field patches).
     fn patch_compat(&self) -> Option<PatchCompat> {
         None
     }
@@ -708,7 +708,7 @@ fn serve_connection(
         session: session.clone(),
     };
     let client_name = loggable(&hello.client);
-    // Audit #4: a client that predates `PatchChange::DeviceParam` gets whole-device upserts
+    // A client that predates `PatchChange::DeviceParam` gets whole-device upserts
     // (for everyone) while it is connected.
     let _legacy = (!hello.supports(ether_protocol::remote::FEATURE_DEVICE_PARAM_PATCH))
         .then(|| shared.host.patch_compat().map(|c| c.legacy_client()))

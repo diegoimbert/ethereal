@@ -32,7 +32,7 @@ export function useVerticalDrag({ value, onChange, sensitivity, defaultValue, on
       if (e.button !== 0) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       const sens = typeof sensitivity === "function" ? sensitivity(e.currentTarget) : sensitivity;
-      // Touch (#522): the rate follows how far the finger is off the axis (`touchFineFactor`),
+      // Touch: the rate follows how far the finger is off the axis (`touchFineFactor`),
       // applied to each move, so changing it never jumps the value.
       const touch = e.pointerType === "touch" ? { startX: e.clientX, lastY: e.clientY, value } : null;
       drag.current = { startY: e.clientY, startValue: value, sensitivity: Number.isFinite(sens) ? sens : 0.01, touch };

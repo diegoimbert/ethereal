@@ -1,6 +1,6 @@
 // news: mounted once by the app shell. Checks for news a few seconds after launch (never
 // blocking startup, never on the audio path) and hosts the viewer and the "News…" list.
-// The viewer waits while a guided tour runs (#623; `NewsViewer`).
+// The viewer waits while a guided tour runs (`NewsViewer`).
 import { useEffect } from "react";
 import { Toggle } from "@/kit";
 import { useT } from "@/i18n";

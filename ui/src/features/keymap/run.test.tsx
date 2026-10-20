@@ -1,4 +1,4 @@
-// runAction (#577): palette and menu entries run an editor action through the editor's own
+// runAction: palette and menu entries run an editor action through the editor's own
 // key handler, in the editor focused last.
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

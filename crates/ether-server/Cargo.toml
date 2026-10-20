@@ -27,7 +27,7 @@ tungstenite.workspace = true
 [lints]
 workspace = true
 
-# Cargo features (feature-flags; docs/ARCHITECTURE.md "Cargo features"): the host's
+# Cargo features (docs/ARCHITECTURE.md "Cargo features"): the host's
 # features, passed through to `ether-native`. Default: the fast dev core
 # (`just dev-server`); `full` is everything (`just dev-server-full`, the gates).
 [features]

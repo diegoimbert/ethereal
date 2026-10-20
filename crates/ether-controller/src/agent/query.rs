@@ -1,4 +1,4 @@
-//! Project querying (`agent-plugins`): `find`, `list_clips`, and the name-or-id resolution
+//! Project querying: `find`, `list_clips`, and the name-or-id resolution
 //! of tool arguments (see [`super::resolve`]).
 
 use ether_core::protocol::model::*;

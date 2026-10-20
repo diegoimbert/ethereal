@@ -1,4 +1,4 @@
-//! Browser v2 query latency over a 50k-item index (`browser-v2` acceptance: queries under
+//! Browser v2 query latency over a 50k-item index (queries under
 //! 50 ms for 50k items). Indexes a generated in-memory library through the controller
 //! (bounded work per tick), then times representative queries end to end (`handle`).
 //!

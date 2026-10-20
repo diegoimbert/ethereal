@@ -19,15 +19,15 @@ fade_in: Beats, fade_out: Beats,
  */
 warp: WarpSettings, 
 /**
- * Shape of the fade-in (roadmap v2, `clip-editing`; pre-release `.ether` v3).
+ * Shape of the fade-in (roadmap v2; pre-release `.ether` v3).
  */
 fade_in_curve: FadeCurve, 
 /**
- * Shape of the fade-out (roadmap v2, `clip-editing`; pre-release `.ether` v3).
+ * Shape of the fade-out (roadmap v2; pre-release `.ether` v3).
  */
 fade_out_curve: FadeCurve, 
 /**
- * Play the source backwards (roadmap v2, `clip-editing`; pre-release `.ether` v3). The clip then
+ * Play the source backwards (roadmap v2; pre-release `.ether` v3). The clip then
  * behaves as if its media file were reversed (frame `i` reads the media's frame
  * `N - 1 - i`), and `offset`, the loop region and warp markers are all expressed on that
  * reversed timeline. The flag alone does not move them; the controller's reverse

@@ -145,7 +145,7 @@ impl Router {
     /// A router whose global request ids start at `request_base` and gesture ids at
     /// `gesture_base` (kept below `0x8000_0000`, the controller's own gestures). For an
     /// engine that other clients drive directly too (the desktop agent bridge,
-    /// `agent-api`): pick bases their ids never reach.
+    /// the agent API): pick bases their ids never reach.
     pub fn with_id_base(request_base: u32, gesture_base: u32) -> Self {
         Self {
             state: Mutex::default(),
@@ -525,7 +525,7 @@ mod tests {
 
     #[test]
     fn cancel_gesture_maps_like_end_gesture() {
-        // #717: CancelGesture names the client's gesture: it reaches the engine as the
+        // CancelGesture names the client's gesture: it reaches the engine as the
         // global one, which is then forgotten (a disconnect doesn't end it again).
         let r = Router::default();
         let (t, _rx) = crossbeam_channel::bounded(16);

@@ -18,7 +18,7 @@ export interface PluginDeviceControlsProps {
  * action, and "found · reload" once a rescan lists a plugin that was missing (it stays bypassed until reloaded, with
  * the state saved in the project). Works the same for every format. Sandboxing is in the device's context menu
  * (`pluginMenuEntries`). The editor window opens from the header's window button, the same
- * for every device (`features/devices`, base-153; `setPluginWindow` below).
+ * for every device (`features/devices`; `setPluginWindow` below).
  */
 export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
   const t = useT();
@@ -31,7 +31,7 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const plugins = useScannedPlugins(device.kind.type === "Plugin");
-  // base-131: held as a placeholder (the project was opened without plugins).
+  // Held as a placeholder (the project was opened without plugins).
   const held = useProjectStore((s) => s.safeMode.includes(device.id));
 
   if (device.kind.type !== "Plugin") return null;
@@ -91,7 +91,7 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
             <span
               role="status"
               title={t("plugins.device.missing_hint", { format: FORMAT_LABEL[format], id: plugin_id })}
-              // import-resolver: right-click "Resolve…" (a replacement plugin).
+              // Right-click "Resolve…" (a replacement plugin).
               onContextMenu={(e) => openContextMenu(e, resolvePluginEntries(device, transport))}
             >
               {t("plugins.device.missing")}

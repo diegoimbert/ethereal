@@ -1,4 +1,4 @@
-// #563: one tab owns the project store. A second tab of the same browser starts no engine and
+// One tab owns the project store. A second tab of the same browser starts no engine and
 // says so ("ethereal is open in another tab"); it never deletes the first tab's draft. "use
 // here" moves the editor: the first tab saves, stops, and shows "ethereal moved to another tab".
 import { expect, test, type Page } from "@playwright/test";

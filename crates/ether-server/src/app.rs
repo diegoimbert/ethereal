@@ -140,7 +140,7 @@ fn run(hooks: &Hooks) -> Result<(), String> {
         ),
         (Some(_), false) => {}
     }
-    // The app hides the engine server form until asked for (#717).
+    // The app hides the engine server form until asked for.
     println!(
         "connect: in Ethereal, run \"engine server…\" from the command palette (or open the web app with ?engine-server)"
     );

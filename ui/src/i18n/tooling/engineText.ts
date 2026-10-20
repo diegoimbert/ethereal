@@ -35,7 +35,7 @@ const slug = (s: string) =>
     .replace(/[^a-z0-9]+/g, "_")
     .replace(/^_|_$/g, "");
 
-/** Lowercase, acronyms included (the lowercase rule, #524). */
+/** Lowercase, acronyms included (the lowercase rule). */
 const lower = (s: string) => s.toLowerCase();
 
 /** One entry per string; numbered names ("Band 3", "Step 12") share one message with `{n}`. */

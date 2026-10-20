@@ -14,7 +14,7 @@
 //! gets a ` (2)` suffix); hosts whose store says `Unsupported` (web/remote) keep the bytes
 //! for `Export::ReadChunk`.
 //!
-//! # Streaming (#434)
+//! # Streaming
 //! The render is never held whole: each engine block goes straight through every file of
 //! the render (a `StreamResampler` per output rate, then each format's encoder), and the
 //! encoders write into `ProjectStore::create_export` files as they go (native: a temp file
@@ -119,7 +119,7 @@ pub struct ExportState {
     last_progress: Option<f32>,
     /// Unit sizes of the last job (tests/diagnostics).
     last_stats: job::UnitStats,
-    /// v0.2 (`freeze-bounce`): the running freeze/bounce/consolidate render, independent of
+    /// v0.2: the running freeze/bounce/consolidate render, independent of
     /// the export job (kept here so the controller struct needs no new field).
     pub render: crate::freeze::RenderState,
 }
@@ -127,7 +127,7 @@ pub struct ExportState {
 pub use job::UnitStats as ExportUnitStats;
 
 impl ExportState {
-    /// Keep `bytes` engine-side as a download for `Export::ReadChunk` (base-114 bundles).
+    /// Keep `bytes` engine-side as a download for `Export::ReadChunk` (project bundles).
     /// Dropped with the others when `project` is no longer open.
     pub fn add_download(&mut self, token: String, project: ProjectId, bytes: Vec<u8>) {
         self.downloads.insert(token, Download { project, bytes });

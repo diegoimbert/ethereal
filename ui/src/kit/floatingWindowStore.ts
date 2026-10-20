@@ -1,5 +1,5 @@
 /**
- * base-154: the floating windows' shared state (kit `FloatingWindow`).
+ * The floating windows' shared state (kit `FloatingWindow`).
  *
  * - **Geometry** per window id (position, and size once resized): a UI setting kept on this
  *   machine (localStorage `eth.windows`), never in a project. The most recently used

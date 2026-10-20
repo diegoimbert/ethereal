@@ -1,4 +1,4 @@
-//! `agent-plugins` end to end with a real CLAP plugin (`ether-clap`'s `ether_test_plugin`
+//! Agent plugins end to end with a real CLAP plugin (`ether-clap`'s `ether_test_plugin`
 //! fixture, wrapped into a bundle) behind the native bridge, driven only through the agent
 //! tools: `list_plugins` sees the scanned catalog, `add_device` inserts the plugin by id
 //! (and by name), `get_device_params` lists its params and `set_device_param` changes the

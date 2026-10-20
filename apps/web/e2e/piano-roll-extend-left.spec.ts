@@ -1,4 +1,4 @@
-// The piano roll of a MIDI clip extended to the left past its content start (#878: the
+// The piano roll of a MIDI clip extended to the left past its content start (the
 // extended part was invisible there, the roll started at beat 1). Web build, real engine
 // (WasmTransport → controller Worker → AudioWorklet), through the UI:
 // a one-bar clip with a note at content beat 0 moved to bar 3, its left edge dragged 2 bars

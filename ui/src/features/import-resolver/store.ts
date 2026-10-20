@@ -1,5 +1,5 @@
 /**
- * The "Resolve missing items" dialog's state (`import-resolver`; CONTRACTS.md §14.2).
+ * The "Resolve missing items" dialog's state (CONTRACTS.md §14.2).
  *
  * `openResolver(focus?)` asks the engine for a proposal (`Resolve::Propose` with the
  * installed plugins), starts the audio file search (`Resolve::SearchMedia`, results as
@@ -215,7 +215,7 @@ export async function openResolver(focus?: Focus, transport: EngineTransport | n
 }
 
 /**
- * On project load (owner request): list everything missing in the dialog, once, when
+ * On project load: list everything missing in the dialog, once, when
  * anything is (and the user hasn't turned it off). The count is kept either way (the
  * "missing" badge, the project menu).
  */

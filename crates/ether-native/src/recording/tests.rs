@@ -397,7 +397,7 @@ fn midi_is_monitored_and_recorded_with_compensation() {
     assert!(takes.midi[1].position > takes.midi[0].position);
 }
 
-/// #433: MIDI from port B / channel 2 is ignored by a track filtered to port A / channel 1;
+/// MIDI from port B / channel 2 is ignored by a track filtered to port A / channel 1;
 /// an unfiltered track records everything (ports tagged like the midir callbacks do).
 #[test]
 fn midi_port_and_channel_filters_split_the_recorded_midi() {
@@ -531,6 +531,6 @@ fn a_silent_input_take_warns() {
     assert_eq!(takes.warnings, vec![writer::SILENT_INPUT.to_string()]);
 }
 
-/// `tap-recording` (uses this module's rig and helpers).
+/// Tap recording (uses this module's rig and helpers).
 #[path = "tap_tests.rs"]
 mod tap;

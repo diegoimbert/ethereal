@@ -1,4 +1,4 @@
-//! `agent-plugins`: devices and installed plugins through the agent tools (a fake plugin
+//! Devices and installed plugins through the agent tools (a fake plugin
 //! catalog), factory device params, drum pads, rack chains, presets; project querying
 //! (`find`, `list_clips`, the overview) and reference resolution ("duplicate the drum loop
 //! to span a minute").

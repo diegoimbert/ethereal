@@ -1,4 +1,4 @@
-/* Resolve missing items (import-resolver): rows of missing plugins and audio files. */
+/* Resolve missing items: rows of missing plugins and audio files. */
 
 .eth-resolver-dialog {
   --dialog-width: min(calc(var(--eth-size-dialog-width) * 2), calc(100vw - 2 * var(--eth-space-lg)));
@@ -238,7 +238,7 @@
   margin-right: auto;
 }
 
-/* The top bar's "N missing" (import-resolver): reachable after the dialog. */
+/* The top bar's "N missing": reachable after the dialog. */
 .eth-missing-badge {
   color: var(--eth-color-warn);
   gap: var(--eth-space-xs);

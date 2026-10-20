@@ -1,5 +1,5 @@
 /**
- * Which clip a finger grabs, and how (#522, the design's §4 "Trim handles"). Pure: clip boxes
+ * Which clip a finger grabs, and how (the design's §4 "Trim handles"). Pure: clip boxes
  * in content px (`clipRects`), the selection, a point.
  *
  * Only a selected clip has trim handles on touch, and they are wide: a `TOUCH_TARGET_PX` target

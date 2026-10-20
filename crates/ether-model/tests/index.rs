@@ -1,4 +1,4 @@
-//! Parent → children indexes (perf audit #23): kept in sync through apply, undo and patch
+//! Parent → children indexes: kept in sync through apply, undo and patch
 //! mirroring, used by the dependent checks, and never trusted once the tables were edited
 //! behind the model's back.
 

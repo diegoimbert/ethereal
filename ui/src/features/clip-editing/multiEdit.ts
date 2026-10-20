@@ -1,5 +1,5 @@
 /**
- * Editing a field of several audio clips at once (base-150), the Ableton way:
+ * Editing a field of several audio clips at once, the Ableton way:
  *
  * - typing or picking a value sets it on every clip (`setAll*`);
  * - a drag, a scrub or an arrow step moves every clip by the same amount, so their

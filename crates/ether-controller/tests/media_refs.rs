@@ -1,4 +1,4 @@
-//! `media-references` (CONTRACTS.md §12.9): samples are referenced in place. Imports by OS
+//! Media references (CONTRACTS.md §12.9): samples are referenced in place. Imports by OS
 //! path and from library roots become `MediaLocation::External` (nothing copied); missing
 //! files are detected when a project opens (silence, `MediaEvent::Missing`,
 //! `ListMissing`); `Relink`, `Search` (library roots and a folder, by name then content

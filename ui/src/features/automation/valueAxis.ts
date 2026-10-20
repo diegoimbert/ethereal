@@ -9,7 +9,7 @@
  *   100 Hz above...) only while ⇧ is held during a drag or a double-click (see
  *   `snapValue`), so points land on round displayed values; ⇧↑/⇧↓ step to the next one
  *   (`incrementNudge`). ⌥ is precision: off the time grid and 1/10 of the pointer's
- *   motion (`precisionDrag`, #793; ⇧'s increments win for the value); ⌘/Ctrl locks a drag
+ *   motion (`precisionDrag`; ⇧'s increments win for the value); ⌘/Ctrl locks a drag
  *   to one axis.
  * - The **visible range** is a window of normalized values (`ValueRange`): stepped params
  *   open on a window where each step is at least `MIN_STEP_PX` tall, around their default
@@ -18,7 +18,7 @@
  * - Dragging a stepped param moves it by whole steps at `DRAG_PX_PER_STEP`, whatever the
  *   lane height or window.
  *
- * Steps come from `ParamInfo.step` (contracts-3, #106) when the descriptor has the field;
+ * Steps come from `ParamInfo.step` when the descriptor has the field;
  * enums (`labels`) and the `Toggle` unit are stepped either way. Descriptors from before
  * that field (no `step` key at all) also treat linear `Semitones` as whole semitones; with
  * the field present, `step: null` means continuous and nothing is inferred.
@@ -54,7 +54,7 @@ export function paramStep(info: ParamInfo): number | null {
   if (typeof withStep.step === "number" && withStep.step > 0) return withStep.step;
   if (info.labels && info.labels.length > 1) return span / (info.labels.length - 1);
   if (info.unit === "Toggle") return span;
-  // Inference only for descriptors without the field (pre-#106, e.g. old plugins/mocks).
+  // Inference only for descriptors without the field (e.g. old plugins/mocks).
   if (!("step" in info) && info.unit === "Semitones" && info.scale.type === "Linear") return 1;
   return null;
 }

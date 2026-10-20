@@ -1,4 +1,4 @@
-//! Plugin editor windows stay above the app's main window (`plugin-editor-owner`).
+//! Plugin editor windows stay above the app's main window.
 //!
 //! A plugin editor lives in a native top-level window (a format's `HostWindow`, an AU
 //! editor window, or a CLAP plugin's own floating window). Without a relation to the app's

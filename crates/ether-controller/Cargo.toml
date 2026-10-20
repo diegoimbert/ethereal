@@ -19,7 +19,7 @@ symphonia.workspace = true
 rubato.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-# base-145: library file filters.
+# Library file filters.
 regex.workspace = true
 # export: WAV/FLAC/MP3 encoding.
 hound.workspace = true
@@ -39,7 +39,7 @@ serde_json.workspace = true
 [lints]
 workspace = true
 
-# Cargo features (feature-flags; docs/ARCHITECTURE.md "Cargo features"). The default is the
+# Cargo features (docs/ARCHITECTURE.md "Cargo features"). The default is the
 # fast dev core; release builds and the gates use `full` (or `--all-features`).
 [features]
 default = []

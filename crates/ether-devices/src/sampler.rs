@@ -15,7 +15,7 @@
 //!   markers reach a live sampler in place through [`Node::set_data`] (a boxed
 //!   [`SliceSettings`]), so an edit never cuts sounding notes.
 //!
-//! `devices-pass-instruments` appends (all defaulting to the sound before, bit for bit):
+//! The instruments pass appends (all defaulting to the sound before, bit for bit):
 //! - a full ADSR (`Decay`, `Sustain`), `Fine` (cents), `Velocity` sensitivity and `Voices`
 //!   (1..=32, default the original 8);
 //! - `Reverse`: notes play the range backwards, from `End` down to `Start`;
@@ -27,7 +27,7 @@
 //!   with `Cutoff` and `Resonance`.
 //!
 //! Reads go through the source in chunks into pre-allocated scratch buffers, so `process`
-//! never allocates. They are band-limited ([`crate::dsp::resample`], #520): a windowed
+//! never allocates. They are band-limited ([`crate::dsp::resample`]): a windowed
 //! sinc whose cutoff follows the playback rate, so a sample pitched up doesn't alias (and an
 //! unpitched one plays bit-exact).
 
@@ -70,7 +70,7 @@ pub mod params {
     pub const START: ParamId = ParamId(6);
     /// End of the played range, percent of the sample (roadmap v2, `drum-rack`).
     pub const END: ParamId = ParamId(7);
-    // devices-pass-instruments (appended):
+    // The instruments pass (appended):
     pub const DECAY: ParamId = ParamId(8);
     pub const SUSTAIN: ParamId = ParamId(9);
     /// Fine tuning, cents.
@@ -97,7 +97,7 @@ const NUM_PARAMS: usize = 21;
 /// Fade at a range/slice end that is not the end of the sample (declick), in ms.
 const END_FADE_MS: f64 = 2.0;
 /// Extra voice slots where a stolen voice fades out over [`END_FADE_MS`] while the new note
-/// starts in its slot (a hard cut clicked, #520).
+/// starts in its slot (a hard cut clicked).
 const STEAL_SLOTS: usize = 8;
 /// Physical voice slots.
 const SLOTS: usize = MAX_VOICES + STEAL_SLOTS;
@@ -242,7 +242,7 @@ pub fn descriptor() -> DeviceDescriptor {
     }
 }
 
-/// Declarative panel (v0.2, `device-ui`; drawn by the shared device renderer): the sample
+/// Declarative panel (v0.2; drawn by the shared device renderer): the sample
 /// with its range, playback, loop, the ADSR, the filter curve and the output.
 pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
     use crate::contract::{item, knob, layout, section};
@@ -482,7 +482,7 @@ pub struct Sampler {
     scratch_xf: [Vec<f32>; 2],
     gains: [f32; CHUNK],
     /// Filter coefficients of each sample of the chunk (the cutoff glides per sample: per
-    /// chunk, a jump stepped audibly, #845).
+    /// chunk, a jump stepped audibly).
     filters: [Filter; CHUNK],
     /// Slice markers + slice mode (swapped in place by `set_data`).
     slices: Box<SliceSettings>,

@@ -510,7 +510,7 @@ fn swapped_ir_matches_a_fresh_reverb_once_settled() {
     assert!(err < 1e-3, "err {err}");
 }
 
-/// #514: stream `ir` through a [`fx_space::ConvolverAssembly`] the way the web Worklet does
+/// Stream `ir` through a [`fx_space::ConvolverAssembly`] the way the web Worklet does
 /// (pieces of `piece` values as `f32` LE, zero-fill `fill` values at a time); `push` and
 /// `fill` never allocate. Returns the convolver and the number of fill steps.
 fn assemble(

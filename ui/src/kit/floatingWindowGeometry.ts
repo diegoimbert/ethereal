@@ -1,5 +1,5 @@
 /**
- * base-154: the geometry of a floating window (kit `FloatingWindow`), as pure functions:
+ * The geometry of a floating window (kit `FloatingWindow`), as pure functions:
  * where it may sit (inside the viewport) and how an edge or corner drag resizes it.
  */
 

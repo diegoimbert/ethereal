@@ -48,12 +48,12 @@ pub(super) struct Flanger {
     gain: Ramp,
     /// Whole samples of [`TZ_MS`].
     tz_samples: usize,
-    /// LFO value per channel at control rate (perf audit #17), samples left in the chunk.
+    /// LFO value per channel at control rate, samples left in the chunk.
     lfo_m: [CtlRamp; 2],
     ctl_left: usize,
-    /// Wet signal above the floor in this block (perf audit #5).
+    /// Wet signal above the floor in this block.
     loud: bool,
-    /// Silence reporting (perf audit #5).
+    /// Silence reporting.
     tail: crate::util::Tail,
 }
 
@@ -155,7 +155,7 @@ impl Flanger {
             let gain = self.gain.tick();
             let base = ms(base_ms, sr);
             let tz_swing = depth * ms(base_ms.min(TZ_MS), sr);
-            // The LFO's sin once per control chunk (perf audit #17).
+            // The LFO's sin once per control chunk.
             if self.ctl_left == 0 {
                 self.ctl_left = CONTROL;
                 let m_at = |phase: f64, ch: usize| {

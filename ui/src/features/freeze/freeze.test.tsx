@@ -229,7 +229,7 @@ describe("freeze group", () => {
     const before = fake.sent.length;
     items(freezeTrackEntries(transport, frozen, []))[1]!.onSelect();
     await flush();
-    // #717: flatten asks first.
+    // Flatten asks first.
     const ask = useConfirm.getState().request!;
     expect(ask.title).toBe(`flatten “${frozen.name}”?`);
     expect(ask.body).toMatch(/tracks inside a group/);

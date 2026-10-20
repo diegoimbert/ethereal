@@ -1,4 +1,4 @@
-//! `base-136` on the web: a folder imported from the user's computer is copied into OPFS
+//! On the web: a folder imported from the user's computer is copied into OPFS
 //! (`imported/<folder>/`, preserving sub-folders) through the local wasm controller
 //! (`Browser::ImportFolder`, uploads + `ImportFile`, `Rescan`), indexed like any library
 //! root, imported into a project from there, and back after a reload (a fresh controller

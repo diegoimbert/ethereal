@@ -1,5 +1,5 @@
 /**
- * Mock `Media::ReadMidiFile` / `WriteMidiFile` (#717). The mock has no SMF codec (the
+ * Mock `Media::ReadMidiFile` / `WriteMidiFile`. The mock has no SMF codec (the
  * engine's is `ether_media::smf`): any MIDI file reads as the canned two-track groove below
  * (named after the file), and a written file is a stub header. Validation follows the
  * controller (`ether-controller/src/midi_file.rs`).

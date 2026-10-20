@@ -13,7 +13,7 @@ publish.workspace = true
 ether-protocol.workspace = true
 ether-stretch.workspace = true
 serde.workspace = true
-# v0.2 (contracts-3): the codec's JSON blob for v0.2 track fields (`codec.rs`).
+# v0.2: the codec's JSON blob for v0.2 track fields (`codec.rs`).
 serde_json.workspace = true
 rtrb.workspace = true
 thiserror.workspace = true

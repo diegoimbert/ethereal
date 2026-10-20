@@ -272,7 +272,7 @@ export function NoteGrid({
     const { x, y } = local(e);
     return hitNote(notes, itemSelection.getState().selected.note, x, y, geometry);
   };
-  // The mobile UI's touch layer (#522) asks what a finger is on: a note (selected or not).
+  // The mobile UI's touch layer asks what a finger is on: a note (selected or not).
   useEffect(() => {
     const el = rootRef.current as (HTMLElement & { ethNoteAt?: (x: number, y: number) => { selected: boolean } | null }) | null;
     if (!el) return;
@@ -498,7 +498,7 @@ export function NoteGrid({
     if (!sel.selected.note.has(id)) sel.select("note", [id], "replace");
     const ids = [...itemSelection.getState().selected.note].filter((n) => notes.some((x) => x.id === n));
     const grid = e.currentTarget;
-    // #575: the clipboard set of the clip and automation menus, run by the piano roll's own
+    // The clipboard set of the clip and automation menus, run by the piano roll's own
     // key handlers (so a section and multi-clip editing behave as with the keys).
     const edit = (label: string, action: string): ContextMenuEntry => ({
       label,
@@ -525,7 +525,7 @@ export function NoteGrid({
     ]);
   };
 
-  /** A note: its menu. Empty grid: paste (#575), and the extensions' entries. */
+  /** A note: its menu. Empty grid: paste, and the extensions' entries. */
   const onContextMenu = (e: React.MouseEvent) => {
     const hit = e.target === e.currentTarget ? noteAt(e) : null;
     if (hit) onNoteContextMenu(e, hit.note.id);

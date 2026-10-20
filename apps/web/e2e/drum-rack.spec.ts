@@ -110,7 +110,7 @@ test("drum rack: build a 2-pad kit from the browser", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-// #761: a drum rack preset keeps the pads (notes, names, choke group) and their samplers with
+// A drum rack preset keeps the pads (notes, names, choke group) and their samplers with
 // their samples; loading it onto another drum rack rebuilds them, and undo removes them in
 // one step.
 test("drum rack: a preset keeps the pads and loads them onto another drum rack", async ({ page }) => {

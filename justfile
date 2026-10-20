@@ -157,7 +157,7 @@ check-features:
     cargo clippy --workspace --all-targets --all-features -- -D warnings
     cargo clippy --workspace --all-targets --no-default-features -- -D warnings
 
-# Tracked paths that collide on case-insensitive file systems (macOS, Windows; #811).
+# Tracked paths that collide on case-insensitive file systems (macOS, Windows).
 check-case-clashes:
     node scripts/check-case-clashes.mjs
 

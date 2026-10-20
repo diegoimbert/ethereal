@@ -1,4 +1,4 @@
-// rack-presets on the web build (real wasm engine): a factory rack preset that stores chains
+// Rack presets on the web build (real wasm engine): a factory rack preset that stores chains
 // loads from the rack's preset menu (chains, chain devices, the rack's LFO and the macro
 // mappings appear), undo removes them in one step, and a user preset of the rack restores the
 // same structure on a fresh rack.

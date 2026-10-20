@@ -4,7 +4,7 @@
 //! runs the queue when it gets to it, as before. The queue also lets the main thread run the
 //! jobs itself while it is blocked waiting for them: `NativeHost::shutdown` runs in the
 //! `RunEvent::Exit` handler (on the main thread) and waits for the quit save, which reads
-//! every plugin's state through main-thread calls (#566).
+//! every plugin's state through main-thread calls.
 
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};

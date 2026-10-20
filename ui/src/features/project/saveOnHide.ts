@@ -1,5 +1,5 @@
 /**
- * #565: in the browser the project saves itself `AUTOSAVE_MS` after the last edit, so closing
+ * In the browser the project saves itself `AUTOSAVE_MS` after the last edit, so closing
  * the tab (or switching away from it, which may be the last chance on mobile) within that wait
  * lost the edit. When the page is hidden or unloaded with unsaved changes, save at once.
  * A closed page's engine dies with it, so on `pagehide` the page also waits (`wait`, from a

@@ -117,7 +117,7 @@ const TRACK_ICONS: Record<Track["kind"], ReactNode> = {
   Group: <Folder />,
   Return: <CornerDownRight />,
   Master: <Speaker />,
-  // v0.2 (`groups-buses`): VCA faders.
+  // v0.2: VCA faders.
   Vca: <SlidersVertical />,
 };
 
@@ -224,10 +224,10 @@ function TrackHeader({ row }: { row: Row }) {
         onContextMenu={(e) => {
           const items = trackMenu(transport, track);
           const selected = [...useArrangementUi.getState().selectedTracks];
-          // groups-buses: group/ungroup and VCA entries (after the owner's track menu + freeze entries).
+          // Group/ungroup and VCA entries (after the owner's track menu + freeze entries).
           openContextMenu(e, [
             // comping: take entries go before the track menu's last group.
-            // Take entries are per track: only for a single-track menu (base-151).
+            // Take entries are per track: only for a single-track menu.
             ...withFreezeTrackEntries(selected.length > 1 ? items : withTakeEntries(items, trackTakeEntries(transport, track.id)), transport, track, selected),
             ...groupsTrackMenu(transport, track, useArrangementUi.getState().selectedTracks),
             // templates: save as / insert a track template.
@@ -334,7 +334,7 @@ function TrackHeader({ row }: { row: Row }) {
                 {...midiTarget({ type: "TrackArm", track: track.id })}
                 aria-pressed={armed}
                 aria-label={t("arrangement.header.arm_named", { name: track.name })}
-                // Browser build: a tapped track can't record (no capture); say why (`tap-recording`).
+                // Browser build: a tapped track can't record (no capture); say why.
                 aria-disabled={armBlocked || inert ? true : undefined}
                 style={armBlocked || inert ? { opacity: "var(--eth-opacity-disabled)", cursor: "not-allowed" } : undefined}
                 title={(inert ? inertTitle(inert) : armBlocked) ?? t("arrangement.header.arm_title")}
@@ -631,7 +631,7 @@ function GroupLane({ track }: { track: Track }) {
 }
 
 /**
- * base-106: clips dragged below the last track: the new tracks the drop will create, as
+ * Clips dragged below the last track: the new tracks the drop will create, as
  * ghost rows (in the draft row's style) right under the last track, with the dragged clips
  * where they will land. Not interactive (the drag follows the pointer itself).
  */

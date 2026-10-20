@@ -136,7 +136,7 @@ export const usePluginStore = create<PluginRuntimeState>((set) => ({
           return { editors: without(s.editors, e.device) };
         case "Crashed":
           return { crashed: { ...s.crashed, [e.device]: e.message }, editors: without(s.editors, e.device) };
-        // transport-keys: forwarded editor keys are handled by `features/plugin-keys` listeners.
+        // Forwarded editor keys are handled by `features/plugin-keys` listeners.
         case "LatencyChanged":
         case "EditorKey":
           return {};

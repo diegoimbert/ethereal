@@ -1,4 +1,4 @@
-// device-ui: the one shared device renderer against the real wasm engine. The Synth's
+// The one shared device renderer against the real wasm engine. The Synth's
 // declared layout (oscillator, filter curve, envelope) drives the engine's params by knob,
 // by curve drag and by envelope handle; every param control is a MIDI-learn and modulation
 // target; the param menu opens its automation lane; a device without a layout gets the
@@ -53,7 +53,7 @@ test("the shared renderer draws and drives a declared layout and the generic one
   const track = await createTrack(page, "Midi");
   await openDeviceTab(page, track.name);
   const synth = await insert(page, track.id, "Synth");
-  // base-153: a factory device's UI is in its window.
+  // A factory device's UI is in its window.
   const card = await openDeviceWindow(page, synth);
   await expect(card.locator('[data-widget="FilterCurve"]')).toBeVisible();
   await expect(card.locator('[data-widget="Envelope"]')).toBeVisible();

@@ -19,7 +19,7 @@ const ICONS: Readonly<Record<string, ReactNode>> = {
 };
 
 /**
- * The welcome screen's example beats (#518, docs/TUTORIALS.md "Example beats"): short loops
+ * The welcome screen's example beats (docs/TUTORIALS.md "Example beats"): short loops
  * made of the built-in instruments, as factory project templates. A click opens one as a new
  * project; "show me how" starts its guided tour (a project of its own, walked through part by
  * part, ending on the docs guide that rebuilds it from an empty project).

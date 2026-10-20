@@ -48,7 +48,7 @@ pub type RenderDocument = Box<dyn FnOnce() -> Result<String, StoreError> + Send>
 /// built from the document's JSON: `(relative path, bytes)`, or nothing.
 pub type RenderSidecar = Box<dyn FnOnce(&str) -> Option<(String, Vec<u8>)> + Send>;
 
-/// `export` (#434): an export file being written piece by piece
+/// `export`: an export file being written piece by piece
 /// ([`ProjectStore::create_export`]). It is seekable because encoders fill their header in
 /// at the end. Dropped without [`ProjectStore::commit_export`] (cancel, failure), it leaves
 /// nothing behind.
@@ -136,7 +136,7 @@ pub trait ProjectStore {
     /// List a folder relative to the project folder (browse location `ProjectMedia`).
     fn list_dir(&mut self, id: ProjectId, rel_path: &str) -> Result<DirectoryListing, StoreError>;
 
-    // --- Roadmap v2 (contracts-2), defaulted so existing stores keep compiling ------------
+    // --- Roadmap v2, defaulted so existing stores keep compiling ------------
 
     /// `export`: store a finished export as `<project>/exports/<file_name>` (see
     /// [`export_path`]) and return that project-relative path. `Err(Unsupported)` (the
@@ -154,7 +154,7 @@ pub trait ProjectStore {
         ))
     }
 
-    /// `export` (#434): start writing `exports/<file_name>` piece by piece, so an export
+    /// `export`: start writing `exports/<file_name>` piece by piece, so an export
     /// streams to disk instead of being held in memory; [`Self::commit_export`] then gives
     /// it its name. `Err(Unsupported)` (the default) means the controller encodes the file
     /// in memory and hands it whole to [`Self::write_export`].
@@ -212,9 +212,9 @@ pub trait ProjectStore {
         Ok(())
     }
 
-    // --- v0.3 (contracts-4), defaulted ---
+    // --- v0.3, defaulted ---
 
-    /// `project-versions`: delete a file relative to the project folder (old versions, the
+    /// Delete a file relative to the project folder (old versions, the
     /// session marker). Missing = `Ok`. Default: unsupported (the node implements it in the
     /// native, OPFS and memory stores).
     fn remove(&mut self, id: ProjectId, rel_path: &str) -> Result<(), StoreError> {
@@ -222,7 +222,7 @@ pub trait ProjectStore {
         Err(StoreError::Unsupported("removing project files".into()))
     }
 
-    // --- base-114 (project bundles), defaulted ---
+    // --- project bundles, defaulted ---
 
     /// Write a project bundle to an absolute engine-machine path chosen in the desktop's OS
     /// save dialog (`Project::ExportBundle { path }`). Implementations require a `.ether`
@@ -243,7 +243,7 @@ pub trait ProjectStore {
         ))
     }
 
-    /// #717: write a Standard MIDI File (`Media::WriteMidiFile { path }`) to an absolute
+    /// Write a Standard MIDI File (`Media::WriteMidiFile { path }`) to an absolute
     /// engine-machine path chosen in the desktop's OS save dialog. Implementations require a
     /// MIDI extension ([`MIDI_EXTENSIONS`]). Default: unsupported (the bytes go back in the
     /// reply instead).
@@ -254,7 +254,7 @@ pub trait ProjectStore {
         ))
     }
 
-    // --- import-dawproject, defaulted ---
+    // --- DAWproject import, defaulted ---
 
     /// Read a project file of another DAW from an absolute engine-machine path chosen in the
     /// desktop's OS open dialog or dropped on the window (`Project::Import { source: Path }`).
@@ -267,7 +267,7 @@ pub trait ProjectStore {
         ))
     }
 
-    // --- project-export, defaulted ---
+    // --- project export, defaulted ---
 
     /// Write a project exported for another DAW (`Project::ExportTo { path }`): `project` at
     /// the absolute engine-machine path chosen in the desktop's OS save dialog, and each of
@@ -326,7 +326,7 @@ pub trait Library {
 
     fn read(&mut self, root: &str, rel_path: &str) -> Result<Vec<u8>, StoreError>;
 
-    // --- v0.2 (contracts-3), defaulted ---
+    // --- v0.2, defaulted ---
 
     /// Write a file in a writable root (the user library: presets, the browser index).
     /// Creates parent folders. Default: unsupported (read-only library).
@@ -358,7 +358,7 @@ pub trait Library {
         None
     }
 
-    /// `browser-v2`: add a user folder by absolute engine-side path; returns its root id.
+    /// Add a user folder by absolute engine-side path; returns its root id.
     /// Native only. Default: unsupported.
     fn add_folder(&mut self, path: &str) -> Result<String, StoreError> {
         let _ = path;
@@ -367,7 +367,7 @@ pub trait Library {
         ))
     }
 
-    /// `browser-v2`: forget a user folder. Default: unsupported.
+    /// Forget a user folder. Default: unsupported.
     fn remove_folder(&mut self, root: &str) -> Result<(), StoreError> {
         let _ = root;
         Err(StoreError::Unsupported(
@@ -375,7 +375,7 @@ pub trait Library {
         ))
     }
 
-    /// `base-136`: create an empty, engine-owned folder for a folder copied from the UI
+    /// Create an empty, engine-owned folder for a folder copied from the UI
     /// machine (`Browser::ImportFolder`), named after `name` ([`import_folder_name`], made
     /// unique among the imported folders). Returns its engine-side path, which
     /// [`Library::add_folder`] accepts (the controller then treats it as a user folder and
@@ -389,7 +389,7 @@ pub trait Library {
         ))
     }
 
-    /// `media-references`: the absolute engine-side path of a library file, for an external
+    /// The absolute engine-side path of a library file, for an external
     /// reference (`MediaLocation::External`). `None` = cannot be referenced in place (web,
     /// remote): the import copies it into the project instead.
     fn external_path(&self, root: &str, rel_path: &str) -> Option<String> {
@@ -397,7 +397,7 @@ pub trait Library {
         None
     }
 
-    /// `media-references`: the entries of an absolute engine-side folder (the Relink
+    /// The entries of an absolute engine-side folder (the Relink
     /// dialog's folder search): `(absolute path, is_dir)` per entry, hidden entries left out.
     /// Default: unsupported (hosts without OS files).
     fn list_external_dir(&mut self, path: &str) -> Result<Vec<(String, bool)>, StoreError> {
@@ -407,7 +407,7 @@ pub trait Library {
         ))
     }
 
-    /// `media-references`: read an external reference by its absolute path. Default:
+    /// Read an external reference by its absolute path. Default:
     /// unsupported.
     fn read_external(&mut self, path: &str) -> Result<Vec<u8>, StoreError> {
         let _ = path;
@@ -416,7 +416,7 @@ pub trait Library {
         ))
     }
 
-    // --- #519: the sample pack cache (docs/SAMPLES.md) ---
+    // --- the sample pack cache (docs/SAMPLES.md) ---
 
     /// Read a file of the sample pack cache: `rel` (checked by the caller, `/`-separated) under
     /// the host's samples folder (natively `<app data>/samples`, OPFS `samples/` on the web).
@@ -516,7 +516,7 @@ pub mod test_store_ext {
     }
 }
 
-/// `base-136`: the folder name of an imported folder: `name` without path separators,
+/// The folder name of an imported folder: `name` without path separators,
 /// control characters, `:` and leading dots, trimmed and at most 64 characters; `None` when
 /// nothing is left.
 pub fn import_folder_name(name: &str) -> Option<String> {
@@ -536,7 +536,7 @@ pub fn import_folder_name(name: &str) -> Option<String> {
     (!out.is_empty()).then_some(out)
 }
 
-/// `base-136`: `base`, or `base 2`, `base 3`… the first one `taken` refuses
+/// `base`, or `base 2`, `base 3`… the first one `taken` refuses
 /// (case-insensitively: OPFS and most desktop file systems).
 pub fn unique_folder_name(base: &str, taken: impl Fn(&str) -> bool) -> String {
     (1..)

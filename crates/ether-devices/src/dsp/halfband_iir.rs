@@ -1,4 +1,4 @@
-//! Polyphase IIR half-band filters for cheap 2x oversampling inside a voice (#845: the Poly
+//! Polyphase IIR half-band filters for cheap 2x oversampling inside a voice (the Poly
 //! Synth's filter saturator).
 //!
 //! The half-band low-pass is `H(z) = ½·(A0(z²) + z⁻¹·A1(z²))`, each `Ai` a chain of
