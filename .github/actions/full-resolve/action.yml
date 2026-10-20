@@ -1,6 +1,6 @@
 # What a full-product run builds (full.yml, full-platforms.yml), after the checkout of the OSS ref:
 # whether it may see the private code at all (the token is set: never on a fork's event), the OSS
-# commit, and the private commit to overlay (requested, else the commit's ee pointer, else EE main).
+# commit, and the private commit to build (requested, else the commit's ee pointer, else EE main).
 name: Full product resolve
 description: Resolve the OSS and private commits a full-product run builds
 

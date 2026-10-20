@@ -4,7 +4,7 @@ run-name: >-
   ${{ github.event_name == 'workflow_dispatch'
   && format('Full product: {0} + ee {1}', inputs.ref, inputs.ee_ref || 'pointer') || '' }}
 
-# The full product: this repository with the private `ee/` repository overlaid (docs/EE-WORKFLOW.md),
+# The full product: the private `ee/` repository (its own Cargo workspace over this one, docs/EE-WORKFLOW.md),
 # built and tested on every push to main and on demand. Pull requests run no builds or tests
 # (owner, 2026-10-19: only CLA, Policy, What changed and ee/pointer gate a merge); a PR's full
 # build is a dispatch: `gh workflow run full.yml --ref <branch> -f ref=<sha>` (a fork's PR only
@@ -28,7 +28,7 @@ run-name: >-
 # GitHub-hosted by default. The short jobs (Resolve, ee/build) stay GitHub-hosted, so
 # a busy pool never holds up the start of a run. On the devbox pool (docs/CI-RUNNERS.md) the job
 # ids name the cargo target dirs (`full-*`, apart from ci.yml's open-source ones), the
-# GitHub-hosted-only steps are skipped, and a hook empties the overlay from the workspace after
+# GitHub-hosted-only steps are skipped, and a hook empties `ee/` from the workspace after
 # every job.
 on:
   push:
@@ -39,7 +39,7 @@ on:
         description: OSS ref to build (e.g. refs/pull/N/head after reading the diff)
         default: main
       ee_ref:
-        description: Private ref to overlay (empty = the ref's ee pointer, else EE main)
+        description: Private ref to build (empty = the ref's ee pointer, else EE main)
         default: ""
       all:
         description: Also the e2e suite (macOS and Windows are full-platforms.yml)
@@ -114,11 +114,10 @@ jobs:
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
         with:
           tool: cargo-nextest@0.9.148
-      - uses: ./.github/actions/ee-overlay
+      - uses: ./.github/actions/ee-fetch
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
-          drift-check: "true"
       # The full product's crates are ee/'s own Cargo workspace (the app's crates are its path
       # dependencies, tested by ci.yml): every cargo step runs there.
       - name: fmt
@@ -157,7 +156,7 @@ jobs:
         with:
           key: web-build
           save-if: "false"
-      - uses: ./.github/actions/ee-overlay
+      - uses: ./.github/actions/ee-fetch
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}
@@ -226,7 +225,7 @@ jobs:
         with:
           key: web-build
           save-if: "false"
-      - uses: ./.github/actions/ee-overlay
+      - uses: ./.github/actions/ee-fetch
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.resolve.outputs.ee_ref }}

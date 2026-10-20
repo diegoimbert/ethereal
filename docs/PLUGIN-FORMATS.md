@@ -3,7 +3,7 @@
 CLAP, VST3 and AU are hosted end to end: scanning, the native host (in-process and
 sandboxed), save/reopen and the plugin browser. `crates/ether-vst3` and `crates/ether-au`
 implement the formats, and the native host wires them into the app (see "Integration (native host)" below). VST2 is
-**not in this build** (it lives in the private overlay; see "`vst2`" below).
+**not in this build** (it lives in the private repository; see "`vst2`" below).
 
 ## Architecture
 
@@ -143,7 +143,8 @@ Documented on `ether_model::PluginFormat`. `.ether` tags are `"Clap"`, `"Vst3"`,
 
 ### `vst2` (not in the open-source build)
 
-VST2 hosting lives in the private overlay (`ethereal-private`): the open-source build does not
+VST2 hosting lives in the private repository (`ethereal-private`, registered with
+`ether_plugin_host::set_extra_formats`): the open-source build does not
 register the format, so loading a VST2 plugin is `Unsupported`. `PluginFormat::Vst2` stays in
 the model so a project that references one still parses.
 

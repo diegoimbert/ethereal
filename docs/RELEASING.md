@@ -180,7 +180,7 @@ AppImage and `.deb` are not signed; `SHA256SUMS.txt` is the integrity check.
 ## Auto-update
 
 The self-updater (`tauri-plugin-updater`) is **not part of this open-source build**: it is
-part of the private overlay, so the official binaries update themselves from this
+part of the full product (the private repository), so the official binaries update themselves from this
 repository's GitHub releases while a source build has no updater. This section is kept for
 the private build (see `ethereal-private`).
 
@@ -188,7 +188,7 @@ When it is enabled (`full` in the private build), the app reads
 `https://github.com/diegoimbert/ethereal/releases/latest/download/latest.json`, so only the
 newest stable release is offered; prereleases (`v<VERSION>+<sha>`, partial releases) never
 are. Every download is verified against the minisign public key before it is installed:
-`plugins.updater.pubkey`, which the private overlay adds to the Tauri config (this
+`plugins.updater.pubkey`, which the full product's Tauri config has (this
 repository's `apps/desktop/src-tauri/tauri.conf.json` has no updater section).
 
 ### How a release gets updater files

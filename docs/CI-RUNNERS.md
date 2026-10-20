@@ -30,8 +30,8 @@ Trusted jobs build the same code the maintainers build on that machine anyway; t
 defense in depth. The pool's caches can hold private build output, which is why no untrusted job
 may ever reach them.
 
-The full product's jobs (`full.yml`) overlay the private `ee/` repository on their checkout. Their
-cargo target dirs are their own (`full-*` job ids), and the hooks empty the overlay from the slot's
+The full product's jobs (`full.yml`) fetch the private `ee/` repository into their checkout. Their
+cargo target dirs are their own (`full-*` job ids), and the hooks empty `ee/` from the slot's
 workspace after every job and again before the next (`scripts/ci/runner/clean-workspace.sh`), so an
 open-source job that lands on the same slot, whose artifacts are public, never sees private code.
 

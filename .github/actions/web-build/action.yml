@@ -2,7 +2,7 @@
 # (the deployed folder `<out>/site`: dist + the COOP/COEP `_headers`, and `<out>/functions`).
 # Used by release.yml (the `web` job).
 #
-# Runs after .github/actions/ee-overlay: the install and build go through
+# Runs after .github/actions/ee-fetch: the install and build go through
 # scripts/ci/private-step.mjs (their output is private; .github/actions/full-logs uploads it
 # encrypted), and the Rust cache is restore-only (ci.yml's open-source `web-build` cache): this
 # public repository's cache never holds private build output.

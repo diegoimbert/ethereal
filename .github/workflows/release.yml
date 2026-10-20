@@ -3,8 +3,8 @@
 # last release so a version is never published twice) and deploy the web app to Cloudflare Pages.
 # See docs/RELEASING.md.
 #
-# The full product: this repository at `ref` with the private `ee/` repository overlaid at the
-# commit `ref` points `ee` at (.github/actions/ee-overlay, ETHER_PRIVATE_TOKEN). As in full.yml,
+# The full product: the private `ee/` repository (built in place over this one) at the
+# commit `ref` points `ee` at (.github/actions/ee-fetch, ETHER_PRIVATE_TOKEN). As in full.yml,
 # nothing private reaches the public log or cache: the steps that compile it go through
 # scripts/ci/private-step.mjs (logs uploaded encrypted, `just full-logs <run-id>`), and no Rust
 # cache is saved.
@@ -155,7 +155,7 @@ jobs:
           persist-credentials: false
           ref: ${{ needs.prepare.outputs.sha }}
       - uses: ./.github/actions/free-disk
-      - uses: ./.github/actions/ee-overlay
+      - uses: ./.github/actions/ee-fetch
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.prepare.outputs.ee_sha }}
@@ -330,7 +330,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ needs.prepare.outputs.sha }}
-      - uses: ./.github/actions/ee-overlay
+      - uses: ./.github/actions/ee-fetch
         with:
           token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
           ee-ref: ${{ needs.prepare.outputs.ee_sha }}

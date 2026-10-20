@@ -7,12 +7,17 @@
 import { describe, expect, it } from "vitest";
 import { readCatalog } from "@/i18n/tooling/check";
 import { contentFiles, getDocs, loadDocs, staleTranslations } from "./content";
-import { files as fr } from "./contentFr";
+import { files as bundledFr } from "./contentFr";
+import { docsExtensions } from "./extensions";
 import { inlineText, type Block, type Inline } from "./markdown";
 import { buildDocs, type DocPage } from "./model";
 import { docsLinkTarget } from "./route";
 
 const english = getDocs("en");
+/** A language's pages as a build ships them: the bundled ones, then its extensions' (`extendDocs`). */
+const translated = (lang: "fr", files: Record<string, string>): Record<string, string> =>
+  Object.assign({}, files, ...docsExtensions().map((e) => e.translations?.[lang] ?? {}));
+const fr = translated("fr", bundledFr);
 const TRANSLATIONS = { fr };
 
 function inlines(page: DocPage): Inline[] {
