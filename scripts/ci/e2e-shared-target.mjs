@@ -114,7 +114,8 @@ function inner(dir, cmd) {
   const restore = freeze(paths, stamp.t0);
   console.log(`e2e: using the shared build in ${dir} (${paths.length} paths aligned in ${Date.now() - t} ms)`);
   try {
-    return exec(cmd, { ...process.env, CARGO_TARGET_DIR: dir });
+    // The shards' plan (scripts/ci/e2e-shard-plan.mjs), made by the build job for these commits.
+    return exec(cmd, { ...process.env, CARGO_TARGET_DIR: dir, E2E_PLAN: join(dir, "e2e-plan") });
   } finally {
     restore();
   }

@@ -13,7 +13,7 @@ GitHub-hosted runners.
 | Linux jobs of a push to `main` or a manual run, but e2e | the pool, when the repository variable `CI_POOL` is `devbox`; else GitHub-hosted |
 | the full product's Linux build jobs (`full.yml`), but e2e | the pool, when `FULL_RUNNER` is `["self-hosted","devbox-pool"]`; else GitHub-hosted |
 | e2e shards                                    | GitHub-hosted (they build nothing, and four of them per run would fill the pool) |
-| the full product's e2e (`full.yml`)           | GitHub-hosted, or the pool when `FULL_E2E_RUNNER` names it: then one job builds what the four shards need and the shards use its target dir (`scripts/ci/e2e-shared-target.mjs`) |
+| the full product's e2e (`full.yml`)           | GitHub-hosted, or the pool when `FULL_E2E_RUNNER` names it: then one job builds what the four shards need and the shards use its target dir (`scripts/ci/e2e-shared-target.mjs`); that job also deals the tests to the shards by their last times on the machine (`scripts/ci/e2e-shard-plan.mjs`) |
 | pull requests (forks included), any bot       | always GitHub-hosted                                                            |
 | macOS, Windows                                | always GitHub-hosted                                                            |
 
