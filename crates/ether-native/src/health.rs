@@ -27,6 +27,17 @@ thread_local! {
     static CONTROLLER_THREAD: Cell<bool> = const { Cell::new(false) };
 }
 
+/// Told every event the watchdog reports ([`set_watchdog_observer`]).
+pub type WatchdogObserver = fn(&EngineEvent);
+
+static WATCHDOG_OBSERVER: std::sync::OnceLock<WatchdogObserver> = std::sync::OnceLock::new();
+
+/// Extension point: `observer` is also told every stall event the [`Watchdog`] reports (e.g.
+/// to count stalls), from the watchdog thread. Set once, at start.
+pub fn set_watchdog_observer(observer: WatchdogObserver) {
+    let _ = WATCHDOG_OBSERVER.set(observer);
+}
+
 /// Mark the current thread as the controller thread (once, when it starts).
 pub fn set_controller_thread() {
     CONTROLLER_THREAD.with(|c| c.set(true));
@@ -317,6 +328,9 @@ impl Watchdog {
                     while !stop.load(Ordering::Relaxed) {
                         std::thread::sleep(CHECK_EVERY);
                         for event in tracker.observe(health.stall(), Instant::now()) {
+                            if let Some(observe) = WATCHDOG_OBSERVER.get() {
+                                observe(&event);
+                            }
                             emit(ServerMessage::Event(Event::Engine { event }));
                         }
                     }
@@ -405,6 +419,32 @@ mod tests {
     fn started(h: &Health, slot: &Slot, work: Work, ago: Duration) {
         let at = h.now_ms().saturating_sub(ago.as_millis() as u64);
         slot.set(Some((work, at)));
+    }
+
+    /// The watchdog's events reach the UI and the observer (`set_watchdog_observer`).
+    #[test]
+    fn the_watchdog_tells_its_observer_too() {
+        static SEEN: Mutex<Vec<EngineEvent>> = Mutex::new(Vec::new());
+        set_watchdog_observer(|e| SEEN.lock().unwrap().push(e.clone()));
+        let h = Arc::new(health_at(Duration::from_secs(10)));
+        started(&h, &h.controller, Work::Tick, Duration::from_secs(3));
+        let (tx, rx) = std::sync::mpsc::channel();
+        let dog = Watchdog::start(h.clone(), move |m| {
+            let _ = tx.send(m);
+        })
+        .unwrap();
+        let sent = rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("a stall event");
+        drop(dog);
+        let ServerMessage::Event(Event::Engine { event }) = sent else {
+            panic!("{sent:?}")
+        };
+        assert!(
+            matches!(event, EngineEvent::Unresponsive { .. }),
+            "{event:?}"
+        );
+        assert_eq!(SEEN.lock().unwrap().first(), Some(&event));
     }
 
     #[test]
