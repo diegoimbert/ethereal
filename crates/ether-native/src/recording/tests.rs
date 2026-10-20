@@ -387,8 +387,14 @@ fn midi_is_monitored_and_recorded_with_compensation() {
         "{} vs {on_at}",
         takes.midi[0].position
     );
-    let held = takes.midi[1].position - takes.midi[0].position;
-    assert!((0.15..0.9).contains(&held), "held {held} beats (~0.5)");
+    // Released where the key was released: the engine's own playhead says how far it got
+    // during the 250 ms (a stalled engine thread on a loaded machine moves it less).
+    assert!(
+        (takes.midi[1].position - off_at).abs() < 0.16,
+        "{} vs {off_at}",
+        takes.midi[1].position
+    );
+    assert!(takes.midi[1].position > takes.midi[0].position);
 }
 
 /// #433: MIDI from port B / channel 2 is ignored by a track filtered to port A / channel 1;

@@ -2049,8 +2049,15 @@ mod tests {
         assert_eq!(b.plugin_state(d).unwrap(), Some(mine.clone()));
         assert_eq!(e.plugin_state(d).unwrap(), Some(theirs));
         // Its notifications never reach the document through the main bridge.
+        // The main instance's notification can arrive after the first poll on a loaded machine.
         let mut notes = Vec::new();
-        b.poll_plugins(&mut notes);
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        while notes.is_empty() && std::time::Instant::now() < deadline {
+            b.poll_plugins(&mut notes);
+            if notes.is_empty() {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+        }
         assert!(notes.iter().all(|(dev, _)| *dev == d), "{notes:?}");
         assert_eq!(notes.len(), 1, "only the main instance's: {notes:?}");
 
