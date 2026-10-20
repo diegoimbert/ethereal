@@ -309,7 +309,7 @@ fn get_resends_runtime_state() {
 }
 
 /// base-115 (`recents-shared`): Save As and Duplicate make private copies (no `share.json`).
-/// Reading it into `ProjectSummary.share` is part of the private sharing overlay, so the list
+/// Reading it into `ProjectSummary.ext` is part of the private sharing overlay, so the list
 /// never carries share info in this build.
 #[test]
 fn copies_never_carry_the_share_file() {
