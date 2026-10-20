@@ -9,10 +9,10 @@ use ether_model::*;
 use serde_json::Value;
 
 const FIXTURES: &[(&str, &str)] = &[
-    ("v1_full", include_str!("fixtures/v1_full.ether")),
+    ("v1_full", include_str!("../fixtures/v1_full.ether")),
     (
         "v1_clap_plugin",
-        include_str!("fixtures/v1_clap_plugin.ether"),
+        include_str!("../fixtures/v1_clap_plugin.ether"),
     ),
 ];
 
