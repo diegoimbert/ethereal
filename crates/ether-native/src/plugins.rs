@@ -114,8 +114,9 @@ impl MainThread for PluginUiThread {
 }
 
 /// Every plugin format the native host loads: CLAP, VST3 and AU (AU is `Unsupported`
-/// off macOS). A format whose `plugins-*` feature is off is not registered, so it is
-/// `Unsupported` ("not supported by this build").
+/// off macOS), then an extension's (`ether_plugin_host::set_extra_formats`). A format whose
+/// `plugins-*` feature is off is not registered, so it is `Unsupported` ("not supported by
+/// this build").
 pub fn formats() -> Formats {
     let hosts: Vec<Arc<dyn ether_plugin_host::PluginFormatHost>> = vec![
         #[cfg(feature = "plugins-clap")]
@@ -125,7 +126,7 @@ pub fn formats() -> Formats {
         #[cfg(feature = "plugins-au")]
         Arc::new(ether_au::AuFormat),
     ];
-    Formats::new(hosts)
+    Formats::with_extras(hosts)
 }
 
 /// The in-process instantiator of the native host: [`formats`], by format.

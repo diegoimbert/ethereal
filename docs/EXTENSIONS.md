@@ -149,3 +149,13 @@ hosts), `f` returning a controller made with `with_state`.
   another crate's tests.
 - `health::set_watchdog_observer(f)` (once, at startup): `f` is also told every stall event
   the engine watchdog reports (from the watchdog thread).
+
+## Plugin formats (`crates/ether-plugin-host`)
+
+`ether_plugin_host::set_extra_formats(f)` (once, at start): `f`'s `PluginFormatHost`s are
+hosted after the app's (CLAP, VST3, AU) by every `Formats::with_extras` registry of the
+process: the native host (`ether_native::plugins::formats`), the scanner
+(`ether_plugin_scanner::formats`) and the sandbox helper (`ether_sandbox::helper::formats`).
+The scanner and the helper are processes of their own: a product with extra formats builds
+its own `ether-plugin-scanner` and `ether-sandbox-helper` binaries, which register them and
+then run `ether_plugin_scanner::main()` / `ether_sandbox::helper::main()`.
