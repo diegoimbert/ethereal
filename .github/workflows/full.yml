@@ -25,7 +25,9 @@ run-name: >-
 #
 # Runners: repository variables FULL_RUNNER / FULL_E2E_RUNNER (JSON, e.g.
 # '"ubuntu-latest"' or '["self-hosted","devbox-pool"]') pick the build jobs' runners;
-# GitHub-hosted by default. The short jobs (Resolve, ee/build) stay GitHub-hosted, so
+# GitHub-hosted by default (a dispatch's `e2e_runner` overrides FULL_E2E_RUNNER for that run).
+# On the pool, one job builds what the e2e shards need and the shards use its target dir
+# (scripts/ci/e2e-shared-target.mjs); a GitHub-hosted shard builds its own. The short jobs (Resolve, ee/build) stay GitHub-hosted, so
 # a busy pool never holds up the start of a run. On the devbox pool (docs/CI-RUNNERS.md) the job
 # ids name the cargo target dirs (`full-*`, apart from ci.yml's open-source ones), the
 # GitHub-hosted-only steps are skipped, and a hook empties `ee/` from the workspace after
@@ -45,6 +47,9 @@ on:
         description: Also the e2e suite (macOS and Windows are full-platforms.yml)
         type: boolean
         default: true
+      e2e_runner:
+        description: The e2e jobs' runner for this run (JSON, as FULL_E2E_RUNNER; empty = that variable)
+        default: ""
 
 permissions:
   contents: read
@@ -191,17 +196,65 @@ jobs:
         with:
           name: full-logs-web
 
+  full-e2e-build:
+    # The pool only: the wasm module and the native binaries the e2e specs start, built once for
+    # the four shards, which then build nothing (the same commands as `npm run test:e2e`'s and
+    # ee-global-setup.ts's, so the shards' own cargo runs are no-ops).
+    name: Full e2e build
+    needs: resolve
+    if: >-
+      needs.resolve.outputs.enabled == 'true' && needs.resolve.outputs.all == 'true'
+      && contains(inputs.e2e_runner || vars.FULL_E2E_RUNNER || '', 'self-hosted')
+    runs-on: ${{ fromJSON(inputs.e2e_runner || vars.FULL_E2E_RUNNER || '"ubuntu-latest"') }}
+    timeout-minutes: 45
+    outputs:
+      dir: ${{ steps.share.outputs.dir }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.resolve.outputs.oss_ref }}
+      - name: Toolchain (from rust-toolchain.toml)
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: ./.github/actions/ee-fetch
+        with:
+          token: ${{ secrets.ETHER_PRIVATE_TOKEN }}
+          ee-ref: ${{ needs.resolve.outputs.ee_ref }}
+      - name: wasm-bindgen version (from ee/Cargo.lock)
+        id: wb
+        run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' ee/Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: wasm-bindgen@${{ steps.wb.outputs.version }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: build
+        run: |
+          echo "t0=$(( $(date +%s) - 2 ))" >> "$GITHUB_ENV"
+          node scripts/ci/private-step.mjs e2e-build -- "node apps/web/scripts/build-wasm.mjs --package ether-ee-wasm --workspace ee && cd ee/app/web && ETHER_E2E_PREBUILD=1 node --input-type=module -e 'const m = await import(\"./e2e/ee-global-setup.ts\"); m.default();'"
+      - id: share
+        run: node scripts/ci/e2e-shared-target.mjs publish "$t0"
+      - uses: ./.github/actions/full-logs
+        if: always()
+        with:
+          name: full-logs-e2e-build
+
   full-e2e:
     # The Playwright suite on the full build (pushes to main and manual runs: the per-PR e2e is
     # ci.yml's, on the open-source build). It runs ee/app's config: the OSS specs and the EE ones
     # (an EE `<name>.full.spec.ts` replaces the OSS `<name>.spec.ts`) against the full UI;
     # apps/web's config would test the open-source UI and leave the EE specs out.
     name: Full e2e (${{ matrix.shard }}/4)
-    needs: resolve
-    if: needs.resolve.outputs.enabled == 'true' && needs.resolve.outputs.all == 'true'
-    # Its own variable (FULL_E2E_RUNNER): four shards per run would hold the pool's few slots;
+    needs: [resolve, full-e2e-build]
+    # After the pool's build job (skipped on GitHub-hosted runners); not when it failed.
+    if: >-
+      !cancelled() && needs.resolve.outputs.enabled == 'true' && needs.resolve.outputs.all == 'true'
+      && (needs.full-e2e-build.result == 'success' || needs.full-e2e-build.result == 'skipped')
+    # Its own variable (FULL_E2E_RUNNER): four shards per run hold four of the pool's slots;
     # GitHub-hosted by default.
-    runs-on: ${{ fromJSON(vars.FULL_E2E_RUNNER || '"ubuntu-latest"') }}
+    runs-on: ${{ fromJSON(inputs.e2e_runner || vars.FULL_E2E_RUNNER || '"ubuntu-latest"') }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -248,7 +301,10 @@ jobs:
           ETHEREAL_TOURS: "1"
           ETHER_E2E_PREBUILD: "1"
           SHARD: ${{ matrix.shard }}
+          # The pool build job's target dir (empty on GitHub-hosted runners: the shard builds).
+          SHARED_TARGET: ${{ needs.full-e2e-build.outputs.dir }}
         run: >-
+          node scripts/ci/e2e-shared-target.mjs run "$SHARED_TARGET" --
           node scripts/ci/private-step.mjs e2e -- "cd ee/app && npm run test:e2e --
           --workers=2 --shard=$SHARD/4 --grep-invert '@frames|@pixels' --retries=1 --reporter=list"
       - uses: ./.github/actions/full-logs
@@ -260,7 +316,7 @@ jobs:
     # The aggregate check: green when every job of this workflow passed or was skipped (e2e on a
     # dispatch without `all`). macOS and Windows are full-platforms.yml's, outside this check.
     name: ee/build
-    needs: [resolve, full-rust-linux, full-web, full-e2e]
+    needs: [resolve, full-rust-linux, full-web, full-e2e-build, full-e2e]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
