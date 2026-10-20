@@ -1,5 +1,5 @@
 {
- "_comment": "Shared normalized<->plain param-scale test vectors. Source of truth: ether_protocol::devices::scale_to_plain/scale_to_normalized and ether_controller::compile::track_param_info. Checked by crates/ether-protocol/tests/param_scale_vectors.rs, crates/ether-controller/tests/contract_vectors.rs and ui/src/app/contracts.test.ts.",
+ "_comment": "Shared normalized<->plain param-scale test vectors. Source of truth: ether_protocol::devices::scale_to_plain/scale_to_normalized and ether_controller::compile::track_param_info. Checked by crates/ether-protocol/tests/param_scale_vectors.rs, crates/ether-controller/tests/it/contract_vectors.rs and ui/src/app/contracts.test.ts.",
  "tolerance": 1e-09,
  "cases": [
   {

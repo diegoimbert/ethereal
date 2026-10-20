@@ -944,7 +944,7 @@ mode outside slice mode only; loops through the release), `Loop Start` / `Loop E
 loops: blends the loop's tail into the material before the loop start), `Filter` (17:
 `Off | Low-pass | High-pass | Band-pass`, 12 dB state-variable, per voice), `Cutoff` (18),
 `Resonance` (19) and `Voices` (20, 1..=32, default 8 = the polyphony before). Every
-default renders bit-identically to before (`ether-devices/tests/instruments_golden.rs`,
+default renders bit-identically to before (`ether-devices/tests/it/instruments_golden.rs`,
 fingerprints recorded on `main`). The import model's `Sampler` gains `loop_range`,
 `ping_pong`, `reverse`, `decay_ms`, `sustain`; Ableton's Simpler maps its sustain loop,
 reverse and ADSR onto them.
@@ -973,7 +973,7 @@ tokens only) renders every built-in; devices without a layout (plugins, v0.1 dev
 they add one) get the generic layout grouped by `ParamInfo::group`. Devices write
 specs and widget data only, never bespoke panels. `ModulatorDescriptor::layout` uses the same
 catalog (the Steps editor is `StepEditor`). A shared validator
-(`ether-devices/tests/layouts.rs`) checks every built-in and modulator layout: referenced
+(`ether-devices/tests/it/layouts.rs`) checks every built-in and modulator layout: referenced
 params exist (typed widgets included), `colspan <= columns`, spans/columns in range, unique
 section ids, one `EqCurve` shape per `kind` label. The renderer adds MIDI-learn targets
 (`midiTarget()`), modulation drop targets and depth rings to every param widget.

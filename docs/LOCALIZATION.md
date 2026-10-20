@@ -145,7 +145,7 @@ engine). Arguments can be numbers, names (user content, shown as is) or nested k
   their parameters, groups and choices, and their panels' section titles. The engine keeps
   its English ("Attack Time", "Low-pass 24"; agents and MCP read it); the UI shows each one
   through the catalog, so lowercase English or the user's language. `ui/src/i18n/engine-text.json`
-  lists every string (`crates/ether-devices/tests/engine_text.rs` fails when it's stale:
+  lists every string (`crates/ether-devices/tests/it/engine_text.rs` fails when it's stale:
   `UPDATE_ENGINE_TEXT=1 cargo test -p ether-devices --test engine_text`), and `pnpm i18n gen`
   gives each one a key (`engineText.gen.ts`, numbered names share one: "Step 12" is
   `engine.step_n` with `{n}`) and adds new ones to `en.json` in lowercase; translate them like
