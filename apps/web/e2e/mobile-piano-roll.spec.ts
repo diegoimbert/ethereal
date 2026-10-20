@@ -24,17 +24,13 @@ async function openEditor(page: Page) {
   const lanes = (await page.getByTestId("arrangement-content").boundingBox())!;
   const ppb = (await arrangementViewState(page)).pxPerBeat;
   const at = { x: lanes.x + row.width + 2 * ppb, y: row.y + row.height * 0.7 };
-  await touch.tap(at);
-  await touch.sleep(120);
-  await touch.tap(at);
+  await touch.doubleTap(at);
   await expect.poll(async () => (await clipIds(page)).length).toBe(1);
   const id = (await clipIds(page))[0]!;
   const r = (await arrangerApi(page, "clipRect", id))!;
   const on = { x: r.x + r.width / 2, y: r.y + r.height * 0.7 };
   await touch.sleep(400);
-  await touch.tap(on);
-  await touch.sleep(120);
-  await touch.tap(on);
+  await touch.doubleTap(on);
   await expect(editor(page)).toBeVisible();
   await expect(grid(page)).toBeVisible();
   await settled(page);
@@ -70,9 +66,7 @@ test("select mode: double-tap adds a note, a drag on the selected note moves it,
   await launchMobile(page);
   const { touch } = await openEditor(page);
   const p = await inGrid(page, 50, 120);
-  await touch.tap(p);
-  await touch.sleep(120);
-  await touch.tap(p);
+  await touch.doubleTap(p);
   await expect.poll(async () => (await pianoRollNotes(grid(page))).length).toBe(1);
   const [n0] = await pianoRollNotes(grid(page));
   // The new note is selected: a drag on it moves it (right and up).
