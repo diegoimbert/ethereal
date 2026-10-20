@@ -25,9 +25,9 @@ test.use({ trace: "off" });
 const BUDGET_LONG_AUDIO_MB = 700;
 /**
  * The tab with the 16-track MIDI project, after a garbage collection of the page: the memory it
- * holds. 280 MB: 236-241 MB measured (median 239, 7 runs) on 2026-10-20 (#136; 242 MB at
- * 92a33e13, 250 MB before #136's fixes). Single runs vary by a few MB. A build with more of its
- * own UI sets its budget with `ETHER_E2E_MOBILE_MEMORY_MB`.
+ * holds. 280 MB: 236-241 MB measured (median 239, 7 runs) on 2026-10-20 (242 MB at 92a33e13,
+ * 250 MB before the fixes that day). Single runs vary by a few MB. A build with more of its own
+ * UI sets its budget with `ETHER_E2E_MOBILE_MEMORY_MB`.
  */
 const BUDGET_MB = Number(process.env.ETHER_E2E_MOBILE_MEMORY_MB ?? 280);
 /**

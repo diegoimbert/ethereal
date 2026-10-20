@@ -134,8 +134,8 @@ impl Serialize for Command {
 
 // The `Deserialize` impls below buffer the input as a `Value` and hand it to one non-generic
 // function of this crate: the derived (remote) deserializers are then compiled once, here,
-// rather than once more in every crate that parses a message (#136: a second copy of every
-// command's deserializer was ~1 MB of the web engine's wasm).
+// rather than once more in every crate that parses a message (the second copies were about
+// 2 MB of the web engine's wasm code).
 
 /// [`Command`] from JSON: an extension domain's as [`Command::Ext`].
 fn command_from_value(value: Value) -> Result<Command, serde_json::Error> {

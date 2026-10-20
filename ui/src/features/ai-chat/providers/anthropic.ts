@@ -26,8 +26,8 @@ const DEFAULT_BASE = "https://api.anthropic.com";
 let sdk: typeof Anthropic | null = null;
 
 /**
- * Loads the SDK, on first use: it's a big module (#136: about 3 MB of source in the dev
- * build) that the app has no use for until a conversation or a connection test starts.
+ * Loads the SDK, on first use: it's a big module (about 3 MB of source in the dev build) that
+ * the app has no use for until a conversation or a connection test starts.
  */
 export async function loadAnthropicSdk(): Promise<typeof Anthropic> {
   sdk ??= (await import("@anthropic-ai/sdk")).default;
