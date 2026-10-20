@@ -246,8 +246,14 @@ jobs:
           cache-on-failure: true
       - name: wasm-bindgen version (from Cargo.lock)
         id: wb
-        run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
+        # A pool machine keeps its tools between jobs: install only when missing (concurrent
+        # jobs installing into the shared cargo bin dir race).
+        run: |
+          v="$(grep -A1 '^name = "wasm-bindgen"$' Cargo.lock | sed -n 's/^version = "\(.*\)"/\1/p')"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          if [ "$(wasm-bindgen --version 2>/dev/null)" = "wasm-bindgen $v" ]; then echo "have=true" >> "$GITHUB_OUTPUT"; fi
       - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        if: steps.wb.outputs.have != 'true'
         with:
           tool: wasm-bindgen@${{ steps.wb.outputs.version }}
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
