@@ -25,6 +25,24 @@ export function extendDocs(ext: DocsExtension): void {
   for (const l of listeners) l();
 }
 
+const pending: Array<() => Promise<DocsExtension>> = [];
+
+/**
+ * Adds pages loaded only when the docs first show (`loadDocsExtensions`): call it at startup,
+ * so the pages (all their languages' Markdown) stay out of memory until someone opens the docs.
+ */
+export function extendDocsLazily(load: () => Promise<DocsExtension>): void {
+  pending.push(load);
+}
+
+/** Loads the pages added with `extendDocsLazily` (the docs await it before they first show). */
+export async function loadDocsExtensions(): Promise<void> {
+  while (pending.length > 0) {
+    const loads = pending.splice(0);
+    for (const ext of await Promise.all(loads.map((load) => load()))) extendDocs(ext);
+  }
+}
+
 /** Every extension, in the order they were added. */
 export function docsExtensions(): readonly DocsExtension[] {
   return extensions;

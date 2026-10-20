@@ -1,9 +1,11 @@
 // The docs over the desktop app (`openDocs` in the app): mounted once by the app shell; the
 // docs chunk loads only the first time they open.
 import { lazy, Suspense } from "react";
+import { loadDocsExtensions } from "./extensions";
 import { closeDocs, useDocsOverlay } from "./open";
 
-const DocsOverlay = lazy(() => import("./DocsOverlay"));
+// With the pages a build adds lazily (`extendDocsLazily`).
+const DocsOverlay = lazy(() => loadDocsExtensions().then(() => import("./DocsOverlay")));
 
 export function DocsRoot() {
   const { open, path, anchor, request } = useDocsOverlay();

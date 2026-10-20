@@ -7,8 +7,9 @@
 //   throttled phone run against the same gesture unthrottled, which catches per-frame work that
 //   grows with the CPU cost (React renders, layout) rather than the GPU's;
 // - the timeline canvases' pixel ratio is capped at 2 (a DPR 3 iPhone fills 2.25× fewer pixels);
-// - memory: the tab (its renderer processes: page, workers, worklet, wasm) stays under 350 MB
-//   with the project open, and the page is cross-origin isolated (SharedArrayBuffer).
+// - memory: the tab (its renderer processes: page, workers, worklet, wasm) stays under budget
+//   with the project open, after a garbage collection and before it, and the page is
+//   cross-origin isolated (SharedArrayBuffer).
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import { buildPerfProject, hostHasHeadroom, median, p95, startFrames, stopFrames } from "./perfProject";
@@ -23,11 +24,19 @@ test.use({ trace: "off" });
  */
 const BUDGET_LONG_AUDIO_MB = 700;
 /**
- * The tab with the 16-track MIDI project: 420 MB (296-350 MB measured locally and 334-389 MB on
- * main's CI on 2026-10-20; it grew after #47, #136 tracks bringing it back down). A build with more
- * of its own UI sets its budget with `ETHER_E2E_MOBILE_MEMORY_MB`.
+ * The tab with the 16-track MIDI project, after a garbage collection of the page: the memory it
+ * holds. 280 MB: 236-241 MB measured (median 239, 7 runs) on 2026-10-20 (242 MB at 92a33e13,
+ * 250 MB before the fixes that day). Single runs vary by a few MB. A build with more of its own
+ * UI sets its budget with `ETHER_E2E_MOBILE_MEMORY_MB`.
  */
-const BUDGET_MB = Number(process.env.ETHER_E2E_MOBILE_MEMORY_MB ?? 420);
+const BUDGET_MB = Number(process.env.ETHER_E2E_MOBILE_MEMORY_MB ?? 280);
+/**
+ * The same tab before that collection: what it holds plus the garbage the gestures left, which
+ * depends on when the collector last ran (a loaded host runs it later, so this varies by ±30 MB
+ * and more on CI). 400 MB: 287-329 MB measured (median 293) on 2026-10-20. A build with more of
+ * its own UI sets it with `ETHER_E2E_MOBILE_MEMORY_UNCOLLECTED_MB`.
+ */
+const BUDGET_UNCOLLECTED_MB = Number(process.env.ETHER_E2E_MOBILE_MEMORY_UNCOLLECTED_MB ?? 400);
 
 /** The lanes' box (right of the header column). */
 async function lanes(page: Page) {
@@ -57,6 +66,19 @@ async function tabMemory(page: Page): Promise<number | null> {
   }
   return total;
 }
+
+/**
+ * The memory tests' page, in a browser of its own: the worker's browser may still hold the
+ * renderer process of a test that ran before (about 20 MB more), which `tabMemory` would count.
+ */
+const memoryTest = test.extend<{ freshPage: Page }>({
+  freshPage: async ({ playwright, launchOptions, baseURL, storageState, viewport, userAgent, deviceScaleFactor, isMobile, hasTouch }, provide) => {
+    const browser = await playwright.chromium.launch(launchOptions);
+    const context = await browser.newContext({ baseURL, storageState, viewport, userAgent, deviceScaleFactor, isMobile, hasTouch });
+    await provide(await context.newPage());
+    await browser.close();
+  },
+});
 
 /** Long tasks (ms) from now on; `takeLongTasks` returns and clears them. */
 const watchLongTasks = (page: Page) =>
@@ -134,19 +156,37 @@ test.describe("on a Pixel 7", () => {
       expect(Math.max(0, ...phone[kind].long), `${kind} longest task`).toBeLessThan(250);
     }
   });
+});
 
-  test(`memory: the tab stays under ${BUDGET_MB} MB with a 16-track project`, async ({ page }) => {
+memoryTest.describe("on a Pixel 7, memory", () => {
+  memoryTest.use(PIXEL);
+
+  memoryTest(`memory: the tab stays under ${BUDGET_MB} MB with a 16-track project`, async ({ freshPage: page }) => {
     test.setTimeout(180_000);
     await launchMobile(page);
     expect(await page.evaluate(() => crossOriginIsolated && typeof SharedArrayBuffer === "function")).toBe(true);
     await buildPerfProject(page, 16);
     await gestures(page, "pixel 7 (memory run)");
-    const bytes = await tabMemory(page);
-    test.skip(bytes === null, "no /proc here: the renderer's memory is not measured");
-    const line = `pixel 7 memory: ${(bytes! / 1048576).toFixed(1)} MB (the renderer processes: page, workers, worklet, wasm)`;
+    const uncollected = await tabMemory(page);
+    test.skip(uncollected === null, "no /proc here: the renderer's memory is not measured");
+    // What the page holds: its garbage collected (the workers' and the worklet's heaps are small).
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("HeapProfiler.enable");
+    await cdp.send("HeapProfiler.collectGarbage");
+    await cdp.detach();
+    // The freed memory goes back to the system a little later (sooner on an idle host): the
+    // lowest of a few readings over 3 s.
+    let bytes = uncollected!;
+    for (let i = 0; i < 6; i++) {
+      await page.waitForTimeout(500);
+      bytes = Math.min(bytes, (await tabMemory(page))!);
+    }
+    const mb = (n: number) => (n / 1048576).toFixed(1);
+    const line = `pixel 7 memory: ${mb(bytes)} MB after a gc, ${mb(uncollected!)} MB before (the renderer processes: page, workers, worklet, wasm)`;
     console.log(line);
     test.info().annotations.push({ type: "perf", description: line });
-    expect(bytes!).toBeLessThan(BUDGET_MB * 1048576);
+    expect(bytes, "after a gc").toBeLessThan(BUDGET_MB * 1048576);
+    expect(uncollected!, "before a gc").toBeLessThan(BUDGET_UNCOLLECTED_MB * 1048576);
   });
 });
 
@@ -175,10 +215,10 @@ function longWav(seconds: number): Buffer {
   return b;
 }
 
-test.describe("on a Pixel 7, long audio (#640)", () => {
-  test.use(PIXEL);
+memoryTest.describe("on a Pixel 7, long audio (#640)", () => {
+  memoryTest.use(PIXEL);
 
-  test("memory: the tab stays under budget with four 5-minute audio clips", async ({ page }) => {
+  memoryTest("memory: the tab stays under budget with four 5-minute audio clips", async ({ freshPage: page }) => {
     test.setTimeout(300_000);
     await launchMobile(page);
     type Doc = { clips: Record<string, { content: { type: string; media?: string } }>; media: Record<string, { name: string }> };

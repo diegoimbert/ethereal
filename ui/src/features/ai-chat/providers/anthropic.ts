@@ -3,7 +3,7 @@
 // History is append-only (thinking blocks and fallback blocks are echoed back unchanged),
 // so prompt caching and preserved thinking keep working across turns.
 import { t } from "@/i18n";
-import Anthropic from "@anthropic-ai/sdk";
+import type Anthropic from "@anthropic-ai/sdk";
 import type {
   BetaContentBlock,
   BetaMessage,
@@ -22,13 +22,27 @@ export const MAX_TOKENS = 32_000;
 
 const DEFAULT_BASE = "https://api.anthropic.com";
 
+/** The SDK once loaded (`loadAnthropicSdk`). */
+let sdk: typeof Anthropic | null = null;
+
 /**
- * Builds the API client (replaced in tests). The key goes to the configured base URL only.
- * Requests go through `providerFetch` (Rust-side on the desktop, so no CORS).
+ * Loads the SDK, on first use: it's a big module (about 3 MB of source in the dev build) that
+ * the app has no use for until a conversation or a connection test starts.
+ */
+export async function loadAnthropicSdk(): Promise<typeof Anthropic> {
+  sdk ??= (await import("@anthropic-ai/sdk")).default;
+  return sdk;
+}
+
+/**
+ * Builds the API client (replaced in tests), once the SDK is loaded (`loadAnthropicSdk`). The
+ * key goes to the configured base URL only. Requests go through `providerFetch` (Rust-side on
+ * the desktop, so no CORS).
  */
 export const clientFactory = {
   create(apiKey: string, baseURL?: string): Anthropic {
-    return new Anthropic({ apiKey, dangerouslyAllowBrowser: true, fetch: providerFetch, ...(baseURL && baseURL !== DEFAULT_BASE ? { baseURL } : {}) });
+    if (!sdk) throw new Error("call loadAnthropicSdk first");
+    return new sdk({ apiKey, dangerouslyAllowBrowser: true, fetch: providerFetch, ...(baseURL && baseURL !== DEFAULT_BASE ? { baseURL } : {}) });
   },
 };
 
@@ -77,6 +91,7 @@ export class AnthropicSession implements ChatSession {
   async step(conn: Connection, signal: AbortSignal, onEvent: (e: LoopEvent) => void): Promise<Step> {
     let message: BetaMessage;
     try {
+      await loadAnthropicSdk();
       const client = clientFactory.create(conn.apiKey ?? "", conn.baseUrl);
       const stream = client.beta.messages.stream(requestParams({ model: conn.model, system: this.system, tools: this.tools, messages: this.history }), {
         signal,
@@ -145,8 +160,10 @@ export class AnthropicSession implements ChatSession {
 
 /** SDK errors as `ProviderError`s (aborts pass through). */
 export function toProviderError(e: unknown, baseUrl = DEFAULT_BASE): unknown {
-  if (isAbortError(e) || e instanceof Anthropic.APIUserAbortError) return Object.assign(new Error("aborted"), { name: "AbortError" });
-  if (e instanceof ProviderError) return e;
+  // Not loaded yet: `e` can't be one of its errors.
+  const Anthropic = sdk;
+  if (isAbortError(e) || (Anthropic && e instanceof Anthropic.APIUserAbortError)) return Object.assign(new Error("aborted"), { name: "AbortError" });
+  if (e instanceof ProviderError || !Anthropic) return e;
   const host = hostOf(baseUrl);
   const provider = "Anthropic";
   if (e instanceof Anthropic.AuthenticationError) return new ProviderError("auth", t("ai_chat.error.key_rejected"), 401);
@@ -168,6 +185,7 @@ function apiMessage(e: InstanceType<typeof Anthropic.APIError>): string {
 /** Test connection: the key works and the model exists (no tokens spent). */
 export async function testAnthropic(conn: Connection, signal?: AbortSignal): Promise<string> {
   try {
+    await loadAnthropicSdk();
     const m = await clientFactory.create(conn.apiKey ?? "", conn.baseUrl).models.retrieve(conn.model, {}, { signal });
     return t("ai_chat.test.model_available", { model: m.display_name ?? conn.model });
   } catch (e) {

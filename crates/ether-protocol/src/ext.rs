@@ -132,15 +132,38 @@ impl Serialize for Command {
     }
 }
 
+// The `Deserialize` impls below buffer the input as a `Value` and hand it to one non-generic
+// function of this crate: the derived (remote) deserializers are then compiled once, here,
+// rather than once more in every crate that parses a message (the second copies were about
+// 2 MB of the web engine's wasm code).
+
+/// [`Command`] from JSON: an extension domain's as [`Command::Ext`].
+fn command_from_value(value: Value) -> Result<Command, serde_json::Error> {
+    if is_ext(&value, "domain", command_domains()) {
+        return ExtCommand::deserialize(value).map(Command::Ext);
+    }
+    Command::deserialize(value)
+}
+
+/// [`Event`] from JSON: an extension's type as [`Event::Ext`].
+fn event_from_value(value: Value) -> Result<Event, serde_json::Error> {
+    if is_ext(&value, "type", event_types()) {
+        return Ok(Event::Ext(ExtValue(value)));
+    }
+    Event::deserialize(value)
+}
+
+/// [`ReplyValue`] from JSON: an extension's type as [`ReplyValue::Ext`].
+fn reply_from_value(value: Value) -> Result<ReplyValue, serde_json::Error> {
+    if is_ext(&value, "type", reply_types()) {
+        return Ok(ReplyValue::Ext(ExtValue(value)));
+    }
+    ReplyValue::deserialize(value)
+}
+
 impl<'de> Deserialize<'de> for Command {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let value = Value::deserialize(d)?;
-        if is_ext(&value, "domain", command_domains()) {
-            return ExtCommand::deserialize(value)
-                .map(Command::Ext)
-                .map_err(D::Error::custom);
-        }
-        Command::deserialize(value).map_err(D::Error::custom)
+        command_from_value(Value::deserialize(d)?).map_err(D::Error::custom)
     }
 }
 
@@ -155,11 +178,7 @@ impl Serialize for Event {
 
 impl<'de> Deserialize<'de> for Event {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let value = Value::deserialize(d)?;
-        if is_ext(&value, "type", event_types()) {
-            return Ok(Event::Ext(ExtValue(value)));
-        }
-        Event::deserialize(value).map_err(D::Error::custom)
+        event_from_value(Value::deserialize(d)?).map_err(D::Error::custom)
     }
 }
 
@@ -174,10 +193,6 @@ impl Serialize for ReplyValue {
 
 impl<'de> Deserialize<'de> for ReplyValue {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let value = Value::deserialize(d)?;
-        if is_ext(&value, "type", reply_types()) {
-            return Ok(ReplyValue::Ext(ExtValue(value)));
-        }
-        ReplyValue::deserialize(value).map_err(D::Error::custom)
+        reply_from_value(Value::deserialize(d)?).map_err(D::Error::custom)
     }
 }
