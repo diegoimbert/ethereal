@@ -60,9 +60,9 @@ fn param_key(op: &Op) -> Option<(DeviceId, ParamId)> {
 ///   A gesture closes on [`History::end_gesture`], on a commit with another (or no) gesture,
 ///   and on undo/redo/clear.
 /// - At most `max_depth` steps are kept (the oldest are dropped); `0` = unlimited.
-/// - Chat ops ([`crate::social::is_untracked`]) are applied by `commit` but never recorded
-///   (docs/COLLAB.md §12.1): a transaction of only chat ops pushes nothing, keeps the redo
-///   stack and the open gesture.
+/// - Chat ops ([`crate::social::is_untracked`]) are applied by `commit` but never recorded:
+///   a transaction of only chat ops pushes nothing, keeps the redo stack and the open
+///   gesture.
 #[derive(Debug, Default)]
 pub struct History {
     max_depth: usize,
@@ -304,7 +304,7 @@ impl History {
     }
 
     /// Undo the last step through `apply` instead of applying its inverse strictly (collab:
-    /// per-site undo skips what peers changed since; see `docs/COLLAB.md` §3).
+    /// per-site undo skips what peers changed since).
     ///
     /// `apply(project, ops, guards)` gets the step's inverse ops (in application order) and
     /// its forward ops, aligned so that `ops[i]` reverts `guards[len - 1 - i]`. It applies
