@@ -51,3 +51,8 @@ updates:
       js:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+    ignore:
+      # TypeScript 7 drops the JS compiler API that ui/'s i18n and ui-case scanners use, and
+      # typescript-eslint doesn't support it yet. Stay on 6.x until both are sorted (#88).
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
