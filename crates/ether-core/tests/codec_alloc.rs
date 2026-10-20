@@ -4,7 +4,7 @@
 //!
 //! Own test binary: it installs a counting global allocator.
 
-#[path = "codec_fixture.rs"]
+#[path = "it/codec_fixture.rs"]
 mod fixture;
 
 use std::alloc::{GlobalAlloc, Layout, System};
