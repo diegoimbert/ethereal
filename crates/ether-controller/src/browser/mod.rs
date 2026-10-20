@@ -61,10 +61,6 @@ use ether_core::protocol::media::{BrowseLocation, FileKind, MediaEvent, MediaSou
 use ether_core::protocol::model::{BuiltinDeviceType, PRESET_EXTENSION, PRESETS_DIR, load_preset};
 use ether_core::protocol::presets::{PresetRef, PresetSource};
 use ether_core::protocol::{Event, ReplyValue};
-use symphonia::core::formats::FormatOptions;
-use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
-use symphonia::core::meta::MetadataOptions;
-use symphonia::core::probe::Hint;
 
 use crate::handlers::{event, store_err};
 use crate::media::extension_of;
@@ -265,27 +261,12 @@ fn preset_entry(
 
 /// Header metadata of an audio file: (sample rate, channels, duration in seconds).
 fn probe(bytes: Vec<u8>, ext: Option<&str>) -> Option<(u32, u16, Option<f64>)> {
-    let mss = MediaSourceStream::new(
-        Box::new(Cursor::new(bytes)),
-        MediaSourceStreamOptions::default(),
-    );
-    let mut hint = Hint::new();
-    if let Some(ext) = ext {
-        hint.with_extension(&ext.trim_start_matches('.').to_ascii_lowercase());
-    }
-    let probed = symphonia::default::get_probe()
-        .format(
-            &hint,
-            mss,
-            &FormatOptions::default(),
-            &MetadataOptions::default(),
-        )
-        .ok()?;
-    let track = probed.format.default_track()?;
-    let p = &track.codec_params;
-    let rate = p.sample_rate.filter(|r| *r > 0)?;
-    let channels = p.channels.map_or(0, |c| c.count()) as u16;
-    let duration = p.n_frames.map(|n| n as f64 / rate as f64);
+    let format = ether_media::source::probe(Box::new(Cursor::new(bytes)), ext).ok()?;
+    let track = ether_media::source::audio_track(format.as_ref())?;
+    let (rate, channels, n_frames) = ether_media::source::track_info(track);
+    let rate = (rate > 0).then_some(rate)?;
+    let channels = channels as u16;
+    let duration = n_frames.map(|n| n as f64 / rate as f64);
     Some((rate, channels, duration))
 }
 

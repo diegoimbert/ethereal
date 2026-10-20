@@ -14,6 +14,7 @@ pub mod demo;
 mod peaks;
 mod resample;
 pub mod smf;
+pub mod source;
 pub mod stream;
 pub mod to_midi;
 

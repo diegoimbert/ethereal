@@ -1,32 +1,20 @@
 //! Incremental decoding (symphonia), so a long file never blocks the controller: the
 //! header is probed up front (`MediaRef` metadata), packets are decoded a budget at a time
-//! from `tick()`. Same options and error policy as `ether_media::decode` (gapless; corrupt
-//! packets skipped), plus detection of chained Ogg streams, which are truncated to the
-//! first stream (reported so the controller can warn).
+//! from `tick()`. Same options and error policy as `ether_media::decode` (shared in
+//! `ether_media::source`: gapless; corrupt packets skipped), plus detection of chained
+//! Ogg streams, which are truncated to the first stream (reported so the controller can
+//! warn).
 
 use std::io::Cursor;
 use std::sync::Arc;
 
+use ether_media::source::{self, AudioDecoder, FormatReader, Next};
 use ether_media::stream::PeakBuilder;
 use ether_media::{DecodedAudio, MediaError, PeakMipmap};
-use symphonia::core::audio::{AudioBuffer, Signal};
-use symphonia::core::codecs::{CODEC_TYPE_NULL, Decoder, DecoderOptions};
-use symphonia::core::errors::Error as SymError;
-use symphonia::core::formats::{FormatOptions, FormatReader};
-use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
-use symphonia::core::meta::MetadataOptions;
-use symphonia::core::probe::Hint;
-
-fn map_err(e: SymError) -> MediaError {
-    match e {
-        SymError::Unsupported(what) => MediaError::Unsupported(what.to_string()),
-        other => MediaError::Decode(other.to_string()),
-    }
-}
 
 pub struct IncrementalDecoder {
     format: Box<dyn FormatReader>,
-    decoder: Box<dyn Decoder>,
+    decoder: Box<dyn AudioDecoder>,
     track_id: u32,
     /// From the header (0 = unknown until the first packet).
     pub sample_rate: u32,
@@ -38,7 +26,8 @@ pub struct IncrementalDecoder {
     /// header-only probe or a peaks-only decode reserves nothing; bounded by the file size,
     /// as headers can lie).
     reserve: usize,
-    scratch: Option<AudioBuffer<f32>>,
+    /// One decoded packet (planar), for the peaks.
+    scratch: Vec<Vec<f32>>,
     /// A chained stream was cut off (only the first stream is imported).
     pub truncated: bool,
     done: bool,
@@ -58,42 +47,14 @@ struct PeaksSink {
 impl IncrementalDecoder {
     pub fn new(bytes: Arc<[u8]>, extension: Option<&str>) -> Result<Self, MediaError> {
         let bytes_len = bytes.len();
-        let mss = MediaSourceStream::new(
-            Box::new(Cursor::new(bytes)),
-            MediaSourceStreamOptions::default(),
-        );
-        let mut hint = Hint::new();
-        if let Some(ext) = extension {
-            let ext = ext.trim_start_matches('.').to_ascii_lowercase();
-            if !ext.is_empty() {
-                hint.with_extension(&ext);
-            }
-        }
-        let format_opts = FormatOptions {
-            enable_gapless: true,
-            ..Default::default()
-        };
-        let probed = symphonia::default::get_probe()
-            .format(&hint, mss, &format_opts, &MetadataOptions::default())
-            .map_err(map_err)?;
-        let format = probed.format;
-        let track = format
-            .default_track()
-            .filter(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-            .or_else(|| {
-                format
-                    .tracks()
-                    .iter()
-                    .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-            })
-            .ok_or_else(|| MediaError::Unsupported("no audio track".into()))?;
-        let track_id = track.id;
-        let sample_rate = track.codec_params.sample_rate.unwrap_or(0);
-        let channels = track.codec_params.channels.map_or(0, |c| c.count());
-        let n_frames = track.codec_params.n_frames;
-        let decoder = symphonia::default::get_codecs()
-            .make(&track.codec_params, &DecoderOptions::default())
-            .map_err(map_err)?;
+        let source::Opened {
+            format,
+            decoder,
+            track_id,
+            sample_rate,
+            channels,
+            n_frames,
+        } = source::open(Box::new(Cursor::new(bytes)), extension)?;
         Ok(Self {
             reserve: ether_media::reserve_frames(n_frames, bytes_len, channels),
             format,
@@ -103,7 +64,7 @@ impl IncrementalDecoder {
             channels,
             n_frames,
             out: vec![Vec::new(); channels],
-            scratch: None,
+            scratch: Vec::new(),
             truncated: false,
             done: false,
             peaks: None,
@@ -156,33 +117,26 @@ impl IncrementalDecoder {
                 self.done = true;
                 break;
             }
-            let packet = match self.format.next_packet() {
-                Ok(p) => p,
-                Err(SymError::IoError(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+            let packet = match source::next_packet(self.format.as_mut(), self.track_id)? {
+                Next::Packet(p) => p,
+                Next::End => {
                     self.done = true;
                     break;
                 }
-                Err(SymError::ResetRequired) => {
+                Next::Reset => {
                     // Chained/changed stream: keep the first one.
                     self.truncated = true;
                     self.done = true;
                     break;
                 }
-                Err(e) => return Err(map_err(e)),
             };
-            if packet.track_id() != self.track_id {
+            let Some(decoded) = source::decode_packet(self.decoder.as_mut(), &packet)? else {
                 continue;
-            }
-            let decoded = match self.decoder.decode(&packet) {
-                Ok(buf) => buf,
-                Err(SymError::DecodeError(_)) | Err(SymError::IoError(_)) => continue,
-                Err(e) => return Err(map_err(e)),
             };
-            let spec = *decoded.spec();
             if decoded.frames() == 0 {
                 continue;
             }
-            let n_ch = spec.channels.count();
+            let n_ch = source::channels_of(&decoded);
             if self.out.is_empty() {
                 self.out = vec![Vec::new(); n_ch];
                 self.channels = n_ch;
@@ -193,20 +147,20 @@ impl IncrementalDecoder {
                 )));
             }
             if self.sample_rate == 0 {
-                self.sample_rate = spec.rate;
+                self.sample_rate = decoded.spec().rate();
             }
-            let buf = match &mut self.scratch {
-                Some(b) if *b.spec() == spec && b.capacity() >= decoded.capacity() => b,
-                slot => slot.insert(AudioBuffer::new(decoded.capacity() as u64, spec)),
-            };
-            decoded.convert(buf);
             if let Some(p) = &mut self.peaks {
+                self.scratch.resize_with(n_ch, Vec::new);
+                for c in &mut self.scratch {
+                    c.clear();
+                }
+                source::append_planar(&decoded, &mut self.scratch);
                 let builder = p
                     .builder
                     .get_or_insert_with(|| PeakBuilder::new(n_ch, p.frames));
-                let chans: Vec<&[f32]> = (0..n_ch).map(|c| buf.chan(c)).collect();
+                let chans: Vec<&[f32]> = self.scratch.iter().map(Vec::as_slice).collect();
                 builder.push(&chans);
-                p.fed += buf.frames();
+                p.fed += self.scratch[0].len();
                 continue;
             }
             if self.reserve > 0 {
@@ -216,9 +170,7 @@ impl IncrementalDecoder {
                     out.reserve(n);
                 }
             }
-            for (c, out) in self.out.iter_mut().enumerate() {
-                out.extend_from_slice(buf.chan(c));
-            }
+            source::append_planar(&decoded, &mut self.out);
         }
         Ok(self.done)
     }
@@ -319,9 +271,12 @@ mod tests {
     fn a_lying_header_reserves_nothing_up_front_and_little_when_decoding() {
         let bytes: Arc<[u8]> = wav_unknown_length().into();
         let dec = IncrementalDecoder::new(bytes.clone(), Some("wav")).unwrap();
+        // symphonia >= 0.6 reads a `0xFFFFFFFF` data chunk as "length unknown"; older
+        // readers took the ~1e9 frames it claims at face value. Either way nothing is
+        // reserved from it.
         assert!(
-            dec.n_frames.unwrap() > 1 << 28,
-            "the header claims ~1e9 frames"
+            dec.n_frames.is_none_or(|n| n > 1 << 28),
+            "unknown, or the ~1e9 frames the header claims"
         );
         assert!(
             dec.out.iter().all(|ch| ch.capacity() == 0),

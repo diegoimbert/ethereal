@@ -1,9 +1,10 @@
 //! [`ChunkDecoder`]: decode + resample one media chunk by chunk, with seeking.
 //!
 //! Source side: symphonia, same options as the whole-file decode (gapless, corrupt packets
-//! skipped, first stream of a chained Ogg). With gapless enabled a packet's timestamp is the
-//! source frame of its first (trimmed) decoded frame, so decoded audio is placed by
-//! timestamp: a seek lands exactly, whatever packet the format reader restarts from. Seeks
+//! skipped, first stream of a chained Ogg). A packet's timestamp plus the delay the decoder
+//! trims ([`crate::source::packet_start`]) is the source frame of its first decoded frame,
+//! so decoded audio is placed by timestamp: a seek lands exactly, whatever packet the
+//! format reader restarts from. Seeks
 //! restart [`SEEK_PREROLL`] frames early (lossy codecs need a few packets to settle). The
 //! source is cut or zero-padded to the document's frame count, like the whole-file path.
 //!
@@ -18,15 +19,14 @@
 use std::sync::Arc;
 
 use rubato::{Async, Resampler};
-use symphonia::core::audio::{AudioBuffer, Signal};
-use symphonia::core::codecs::{CODEC_TYPE_NULL, Decoder, DecoderOptions};
+use symphonia::core::codecs::audio::AudioDecoder;
 use symphonia::core::errors::Error as SymError;
-use symphonia::core::formats::{FormatOptions, FormatReader, SeekMode, SeekTo};
-use symphonia::core::io::{MediaSource, MediaSourceStream, MediaSourceStreamOptions};
-use symphonia::core::meta::MetadataOptions;
-use symphonia::core::probe::Hint;
+use symphonia::core::formats::{FormatReader, SeekMode, SeekTo};
+use symphonia::core::io::MediaSource;
+use symphonia::core::units::Timestamp;
 
 use super::CHUNK_FRAMES;
+use crate::source::{self, Next, map_err};
 use crate::{MediaError, resampled_len};
 
 /// Source frames decoded (and dropped) before a seek target.
@@ -39,13 +39,6 @@ const SKIP_FORWARD: u64 = 2 * CHUNK_FRAMES as u64;
 /// Resampler input frames per call (as `ether_media::resample`).
 const RS_CHUNK: usize = 1024;
 
-fn map_err(e: SymError) -> MediaError {
-    match e {
-        SymError::Unsupported(what) => MediaError::Unsupported(what.to_string()),
-        other => MediaError::Decode(other.to_string()),
-    }
-}
-
 fn gcd(mut a: u32, mut b: u32) -> u32 {
     while b != 0 {
         (a, b) = (b, a % b);
@@ -56,7 +49,7 @@ fn gcd(mut a: u32, mut b: u32) -> u32 {
 /// Sequential reader of source-rate frames with seeking.
 struct SourceReader {
     format: Box<dyn FormatReader>,
-    decoder: Box<dyn Decoder>,
+    decoder: Box<dyn AudioDecoder>,
     track_id: u32,
     channels: usize,
     /// Document length (source frames): reads past it are zeros.
@@ -67,7 +60,8 @@ struct SourceReader {
     /// Next frame [`Self::read`] returns.
     pos: u64,
     eof: bool,
-    scratch: Option<AudioBuffer<f32>>,
+    /// One decoded packet (planar).
+    scratch: Vec<Vec<f32>>,
     /// Packets that failed to decode since the last seek (corrupt data is skipped).
     pub skipped: u64,
 }
@@ -78,38 +72,14 @@ impl SourceReader {
         extension: Option<&str>,
         frames: u64,
     ) -> Result<(Self, u32), MediaError> {
-        let mss = MediaSourceStream::new(source, MediaSourceStreamOptions::default());
-        let mut hint = Hint::new();
-        if let Some(ext) = extension {
-            let ext = ext.trim_start_matches('.').to_ascii_lowercase();
-            if !ext.is_empty() {
-                hint.with_extension(&ext);
-            }
-        }
-        let format_opts = FormatOptions {
-            enable_gapless: true,
-            ..Default::default()
-        };
-        let probed = symphonia::default::get_probe()
-            .format(&hint, mss, &format_opts, &MetadataOptions::default())
-            .map_err(map_err)?;
-        let format = probed.format;
-        let track = format
-            .default_track()
-            .filter(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-            .or_else(|| {
-                format
-                    .tracks()
-                    .iter()
-                    .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-            })
-            .ok_or_else(|| MediaError::Unsupported("no audio track".into()))?;
-        let track_id = track.id;
-        let rate = track.codec_params.sample_rate.unwrap_or(0);
-        let channels = track.codec_params.channels.map_or(0, |c| c.count());
-        let decoder = symphonia::default::get_codecs()
-            .make(&track.codec_params, &DecoderOptions::default())
-            .map_err(map_err)?;
+        let source::Opened {
+            format,
+            decoder,
+            track_id,
+            sample_rate: rate,
+            channels,
+            ..
+        } = source::open(source, extension)?;
         let mut reader = Self {
             format,
             decoder,
@@ -120,7 +90,7 @@ impl SourceReader {
             buf_pos: 0,
             pos: 0,
             eof: false,
-            scratch: None,
+            scratch: Vec::new(),
             skipped: 0,
         };
         // Some containers only tell the channel count once a packet is decoded (AAC in
@@ -148,8 +118,8 @@ impl SourceReader {
         let target = to.saturating_sub(SEEK_PREROLL);
         let seeked = self.format.seek(
             SeekMode::Accurate,
-            SeekTo::TimeStamp {
-                ts: target,
+            SeekTo::Timestamp {
+                ts: Timestamp::try_from(target).unwrap_or(Timestamp::MAX),
                 track_id: self.track_id,
             },
         );
@@ -173,32 +143,20 @@ impl SourceReader {
     /// Decode one packet into `buf` (placed by its timestamp). `false` at the end.
     fn decode_packet(&mut self) -> Result<bool, MediaError> {
         loop {
-            let packet = match self.format.next_packet() {
-                Ok(p) => p,
-                Err(SymError::IoError(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                    return Ok(false);
-                }
+            let packet = match source::next_packet(self.format.as_mut(), self.track_id)? {
+                Next::Packet(p) => p,
                 // Chained/changed stream: only the first one is imported.
-                Err(SymError::ResetRequired) => return Ok(false),
-                Err(e) => return Err(map_err(e)),
+                Next::End | Next::Reset => return Ok(false),
             };
-            if packet.track_id() != self.track_id {
+            let ts = source::packet_start(&packet);
+            let Some(decoded) = source::decode_packet(self.decoder.as_mut(), &packet)? else {
+                self.skipped += 1;
                 continue;
-            }
-            let ts = packet.ts();
-            let decoded = match self.decoder.decode(&packet) {
-                Ok(buf) => buf,
-                Err(SymError::DecodeError(_)) | Err(SymError::IoError(_)) => {
-                    self.skipped += 1;
-                    continue;
-                }
-                Err(e) => return Err(map_err(e)),
             };
             if decoded.frames() == 0 {
                 continue;
             }
-            let spec = *decoded.spec();
-            let n_ch = spec.channels.count();
+            let n_ch = source::channels_of(&decoded);
             if n_ch != self.channels {
                 if self.channels == 0 {
                     self.channels = n_ch;
@@ -210,12 +168,12 @@ impl SourceReader {
                     )));
                 }
             }
-            let mut sbuf = match self.scratch.take() {
-                Some(b) if *b.spec() == spec && b.capacity() >= decoded.capacity() => b,
-                _ => AudioBuffer::new(decoded.capacity() as u64, spec),
-            };
-            decoded.convert(&mut sbuf);
-            let n = sbuf.frames();
+            self.scratch.resize_with(n_ch, Vec::new);
+            for c in &mut self.scratch {
+                c.clear();
+            }
+            source::append_planar(&decoded, &mut self.scratch);
+            let n = self.scratch[0].len();
             if self.buf_pos == u64::MAX {
                 self.buf_pos = ts;
             }
@@ -231,9 +189,8 @@ impl SourceReader {
             // Overlap with what is buffered (shouldn't happen): keep the new tail only.
             let skip = (end.saturating_sub(ts) as usize).min(n);
             for (c, out) in self.buf.iter_mut().enumerate() {
-                out.extend_from_slice(&sbuf.chan(c)[skip..n]);
+                out.extend_from_slice(&self.scratch[c][skip..n]);
             }
-            self.scratch = Some(sbuf);
             return Ok(true);
         }
     }
