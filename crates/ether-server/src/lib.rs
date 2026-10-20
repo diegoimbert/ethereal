@@ -25,6 +25,7 @@
 //! (`scripts/dev-env.mjs`, README "Running multiple dev instances").
 
 pub mod agent_bridge;
+pub mod app;
 pub mod cli;
 pub mod frames;
 pub mod router;
