@@ -2,7 +2,7 @@
 // The devbox runner pool (docs/CI-RUNNERS.md): keeps one ephemeral GitHub Actions runner per slot,
 // each in a fresh sandboxed systemd user unit that runs one job and exits.
 //
-//   node scripts/ci/runner/pool.mjs setup     install the runner, toolchain, sccache, slice (idempotent)
+//   node scripts/ci/runner/pool.mjs setup     install the runner, toolchain, sccache, slices, thermal guard (idempotent)
 //   node scripts/ci/runner/pool.mjs run       supervise the slots (the systemd unit's command; runs setup)
 //   node scripts/ci/runner/pool.mjs status    slots, runners, disk
 //   node scripts/ci/runner/pool.mjs stop      remove the idle runners (busy ones finish their job)
@@ -12,6 +12,8 @@
 //   CI_POOL_REPO          repository the runners serve             (diegoimbert/ethereal)
 //   CI_POOL_SLOTS         jobs at once                             (3)
 //   CI_POOL_CPUS          CPUs for the whole pool (slice quota)    (8)
+//   CI_CPUS               CPUs for all CI (ethereal-ci.slice)      (CI_POOL_CPUS)
+//   CI_THERMAL_*          the thermal guard's thresholds (header of thermal-guard.sh)
 //   CI_POOL_MEMORY_GB     memory for the whole pool (slice)        (20)
 //   CI_POOL_BUILD_JOBS    CARGO_BUILD_JOBS of a job       (1.5 x CPUS / SLOTS)
 //                         (slots that mostly wait, e2e shards, can outnumber the CPUs: the
@@ -36,6 +38,7 @@ const cfg = {
   repo: env.CI_POOL_REPO || "diegoimbert/ethereal",
   slots: Number(env.CI_POOL_SLOTS || 3),
   cpus: Number(env.CI_POOL_CPUS || 8),
+  ciCpus: Number(env.CI_CPUS || env.CI_POOL_CPUS || 8),
   memoryGb: Number(env.CI_POOL_MEMORY_GB || 20),
   buildJobs: Number(env.CI_POOL_BUILD_JOBS || 0),
   labels: (env.CI_POOL_LABELS || "devbox-pool")
@@ -52,6 +55,7 @@ const RUSTUP = { version: "1.29.0", sha256: "4acc9acc76d5079515b46346a485974457b
 const SCCACHE = { version: "0.18.0", sha256: "45f1447fbe231e3037bde351ef70677dd212216c8d62ae7ca409fecc4d6acc89" };
 
 const SLICE = "ethereal-ci-pool.slice";
+const CI_SLICE = "ethereal-ci.slice";
 // Runner names: `pool-<host>-<slot>-<time>`, so each machine only manages its own.
 const NAME = `pool-${hostname()}-`;
 const slotOf = (runnerName) => runnerName.slice(NAME.length).split("-")[0];
@@ -165,13 +169,36 @@ IOWeight=50
 MemoryHigh=${cfg.memoryGb}G
 MemoryMax=${Math.round(cfg.memoryGb * 1.25)}G
 `;
-  const slicePath = join(unitDir, SLICE);
-  if (!existsSync(slicePath) || readFileSync(slicePath, "utf8") !== slice) {
-    writeFileSync(slicePath, slice);
-    systemctl("daemon-reload");
-    // Applies to a running slice too (never restart a slice: that stops every unit in it).
-    systemctl("set-property", SLICE, `CPUQuota=${cfg.cpus * 100}%`, `MemoryHigh=${cfg.memoryGb}G`, `MemoryMax=${Math.round(cfg.memoryGb * 1.25)}G`);
+  // Its parent, all CI on the machine (the repo's file with CI_CPUS as its quota).
+  const ciSlice = readFileSync(join(here, CI_SLICE), "utf8")
+    .replace(/^Description=Ethereal CI \(\d+ CPUs/m, `Description=Ethereal CI (${cfg.ciCpus} CPUs`)
+    .replace(/^CPUQuota=.*$/m, `CPUQuota=${cfg.ciCpus * 100}%`);
+  // The thermal guard, a copy of the script (a pull of the checkout can't break it mid-run).
+  const units = {
+    [SLICE]: slice,
+    [CI_SLICE]: ciSlice,
+    "ethereal-ci-thermal.service": readFileSync(join(here, "ethereal-ci-thermal.service"), "utf8").replaceAll("%h/ci-pool", home),
+    "ethereal-ci-thermal.timer": readFileSync(join(here, "ethereal-ci-thermal.timer"), "utf8"),
+  };
+  const guard = readFileSync(join(here, "thermal-guard.sh"), "utf8");
+  if (!existsSync(p("bin", "thermal-guard.sh")) || readFileSync(p("bin", "thermal-guard.sh"), "utf8") !== guard)
+    writeFileSync(p("bin", "thermal-guard.sh"), guard, { mode: 0o755 });
+  let changed = false;
+  for (const [name, text] of Object.entries(units)) {
+    const path = join(unitDir, name);
+    if (existsSync(path) && readFileSync(path, "utf8") === text) continue;
+    writeFileSync(path, text);
+    changed = true;
   }
+  if (changed) {
+    systemctl("daemon-reload");
+    // Applies to running slices too (never restart a slice: that stops every unit in it).
+    systemctl("set-property", SLICE, `CPUQuota=${cfg.cpus * 100}%`, `MemoryHigh=${cfg.memoryGb}G`, `MemoryMax=${Math.round(cfg.memoryGb * 1.25)}G`);
+    systemctl("set-property", CI_SLICE, `CPUQuota=${cfg.ciCpus * 100}%`);
+  }
+  systemctl("enable", "--now", "ethereal-ci-thermal.timer");
+  // Now, not in 20 s: while it is hot, the quotas just set must go back down at once.
+  systemctl("start", "ethereal-ci-thermal.service");
 }
 
 // ---------------------------------------------------------------------------------- the slots

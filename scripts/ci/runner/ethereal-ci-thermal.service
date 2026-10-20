@@ -1,0 +1,11 @@
+# Thermal guard of the CI slices (thermal-guard.sh; docs/CI-RUNNERS.md). Installed by
+# `pool.mjs setup`, which copies the script to ~/ci-pool/bin (a pull of the checkout mid-run can't
+# break it) and enables ethereal-ci-thermal.timer.
+[Unit]
+Description=Ethereal CI thermal guard (throttle the CI slices when hot)
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.config/ethereal-ci/env
+Environment=CI_THERMAL_DIR=%h/ci-pool/thermal
+ExecStart=%h/ci-pool/bin/thermal-guard.sh

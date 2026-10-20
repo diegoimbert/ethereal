@@ -54,6 +54,11 @@ The sandbox of a job's unit:
 
 Limits: the jobs run in `ethereal-ci-pool.slice` (CPU quota, memory, low CPU and IO weight, so the
 owner's work goes first), inside `ethereal-ci.slice`, which caps all CI on the machine together.
+A thermal guard (`thermal-guard.sh`, every 20 s from `ethereal-ci-thermal.timer`) lowers both
+slices' CPU quota while the CPU (Tctl) or a DIMM runs hot (default: Tctl >= 90 C or DIMM >= 75 C ->
+half of `CI_CPUS`) and gives it back once both have cooled (Tctl <= 80 C and DIMM <= 65 C). Its
+thresholds are `CI_THERMAL_*` in `~/.config/ethereal-ci/env` (header of the script); its
+transitions go to `~/ci-pool/thermal/log`, the last reading to `~/ci-pool/thermal/last`.
 
 Caches, shared by every slot: the cargo registry, sccache (one server per slot, never the owner's),
 the pnpm store, Playwright's browsers. Each slot keeps its runner workspace (a checkout only
@@ -76,7 +81,7 @@ systemctl --user daemon-reload && systemctl --user enable --now ethereal-ci-pool
 node ~/ci/ethereal/scripts/ci/runner/pool.mjs status
 ```
 
-The unit runs `pool.mjs setup` first (runner, toolchain, sccache, slice; idempotent). The machine
+The unit runs `pool.mjs setup` first (runner, toolchain, sccache, slices, thermal guard; idempotent). The machine
 needs the build's system libraries (the `apt-get install` lines of `ci.yml`). Then set the
 repository variable: `gh variable set CI_POOL --body devbox`. A second machine runs the same unit
 (its runners get unique names); the jobs go to whichever pool runner is free.
