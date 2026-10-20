@@ -1,0 +1,11 @@
+# Runs the CI thermal guard every 20 s (ethereal-ci-thermal.service). Installed by `pool.mjs setup`.
+[Unit]
+Description=Run the Ethereal CI thermal guard every 20 s
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=20s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target
