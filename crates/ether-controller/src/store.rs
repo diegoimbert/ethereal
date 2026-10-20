@@ -21,6 +21,7 @@
 //! Paths passed to these traits are always *relative* (to a project folder or a library
 //! root). Implementations must reject absolute paths and `..` components.
 
+use ether_core::protocol::ext::ExtValue;
 use ether_core::protocol::media::{BrowseRoot, DirectoryListing};
 use ether_core::protocol::model::ProjectId;
 use ether_core::protocol::project::ProjectSummary;
@@ -119,7 +120,7 @@ pub trait ProjectStore {
     }
 
     /// Copy the whole folder (document + media; cache optional) to `to`, **except
-    /// [`SHARE_FILE`]** (a copy is a private project). The caller then rewrites the copy's
+    /// an extension's [`private_files`]** (a copy is a private project). The caller then rewrites the copy's
     /// name via `load`/`save`.
     fn duplicate(&mut self, from: ProjectId, to: ProjectId) -> Result<(), StoreError>;
 
@@ -452,11 +453,68 @@ pub trait Library {
     }
 }
 
-/// base-115 (`recents-shared`): the host-local sharing file next to `project.ether`
-/// (docs/SHARING.md §4.5). Every store excludes it from `duplicate` (so `SaveAs`/`Duplicate`
-/// make a private project) and deletes it with the project folder. Reading it into
-/// [`ProjectSummary::share`] and sharing itself are part of the private overlay.
-pub const SHARE_FILE: &str = "share.json";
+/// What an extension keeps in a project folder (docs/EXTENSIONS.md), set once at start with
+/// [`set_store_ext`]. Every store honours it.
+#[derive(Clone, Copy)]
+pub struct StoreExt {
+    /// Files `duplicate` never copies (so `SaveAs` / `Duplicate` make a private project).
+    pub private_files: &'static [&'static str],
+    /// Files a save writes right after the document ([`RenderSidecar`]): reading or replacing
+    /// one waits for a queued save, like the document.
+    pub sidecar_files: &'static [&'static str],
+    /// The project list's [`ProjectSummary::ext`], from the project folder's files (`read`: a
+    /// file's bytes, `None` when it is absent or unreadable).
+    pub summary: fn(read: ReadProjectFile) -> Option<ExtValue>,
+}
+
+/// Reads a file of a project folder for [`StoreExt::summary`] (`None`: absent or unreadable).
+pub type ReadProjectFile<'a> = &'a mut dyn FnMut(&str) -> Option<Vec<u8>>;
+
+static STORE_EXT: std::sync::OnceLock<StoreExt> = std::sync::OnceLock::new();
+
+/// Extension point: what an extension keeps in a project folder (set once, at start).
+pub fn set_store_ext(ext: StoreExt) {
+    let _ = STORE_EXT.set(ext);
+}
+
+/// The extension's files `duplicate` never copies (relative to the project folder).
+pub fn private_files() -> &'static [&'static str] {
+    STORE_EXT.get().map_or(&[], |e| e.private_files)
+}
+
+/// `rel` (relative to the project folder) is written with the document by a save.
+pub fn is_sidecar_file(rel: &str) -> bool {
+    STORE_EXT
+        .get()
+        .is_some_and(|e| e.sidecar_files.contains(&rel))
+}
+
+/// [`ProjectSummary::ext`] of a project folder (`read`: one of its files).
+pub fn summary_ext(read: ReadProjectFile) -> Option<ExtValue> {
+    (STORE_EXT.get()?.summary)(read)
+}
+
+/// A test [`StoreExt`]: `ext-private.json` is private and its JSON is the summary's `ext`;
+/// `ext-sidecar.json` is a save's sidecar.
+#[doc(hidden)]
+pub mod test_store_ext {
+    /// The private file (never copied by `duplicate`; its JSON is the summary's `ext`).
+    pub const PRIVATE: &str = "ext-private.json";
+    /// The sidecar file (written after the document).
+    pub const SIDECAR: &str = "ext-sidecar.json";
+
+    /// Set the test [`super::StoreExt`] (idempotent; every test of a binary sets the same one).
+    pub fn install() {
+        super::set_store_ext(super::StoreExt {
+            private_files: &[PRIVATE],
+            sidecar_files: &[SIDECAR],
+            summary: |read| {
+                let bytes = read(PRIVATE)?;
+                serde_json::from_slice(&bytes).ok().map(super::ExtValue)
+            },
+        });
+    }
+}
 
 /// `base-136`: the folder name of an imported folder: `name` without path separators,
 /// control characters, `:` and leading dots, trimmed and at most 64 characters; `None` when

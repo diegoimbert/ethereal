@@ -17,7 +17,7 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::thread::JoinHandle;
 use std::time::Instant;
 
-use ether_controller::store::{RenderDocument, StoreError};
+use ether_controller::store::{RenderDocument, RenderSidecar, StoreError};
 use ether_core::protocol::model::ProjectId;
 
 use crate::store::atomic_write;
@@ -26,6 +26,8 @@ struct Job {
     id: ProjectId,
     path: PathBuf,
     render: RenderDocument,
+    /// A file written right after the document, from its JSON (an extension's sidecar).
+    sidecar: Option<RenderSidecar>,
 }
 
 #[derive(Default)]
@@ -73,8 +75,15 @@ impl std::fmt::Debug for SaveWriter {
 }
 
 impl SaveWriter {
-    /// Queue `render` to be written to `path` (`project.ether` of `id`).
-    pub(crate) fn submit(&self, id: ProjectId, path: PathBuf, render: RenderDocument) {
+    /// Queue `render` to be written to `path` (`project.ether` of `id`), then `sidecar`'s
+    /// file next to it.
+    pub(crate) fn submit(
+        &self,
+        id: ProjectId,
+        path: PathBuf,
+        render: RenderDocument,
+        sidecar: Option<RenderSidecar>,
+    ) {
         let mut s = self.shared.lock();
         // Another project's queued document is never dropped: wait until it started.
         while s.queued.as_ref().is_some_and(|j| j.id != id) {
@@ -83,7 +92,12 @@ impl SaveWriter {
         if s.queued.is_some() {
             tracing::debug!(project = %id, "queued autosave replaced by a newer one");
         }
-        s.queued = Some(Job { id, path, render });
+        s.queued = Some(Job {
+            id,
+            path,
+            render,
+            sidecar,
+        });
         drop(s);
         self.shared.changed.notify_all();
         let mut thread = self.thread.lock().unwrap_or_else(|p| p.into_inner());
@@ -98,7 +112,7 @@ impl SaveWriter {
                     // No thread: write here (the caller is blocked, as before).
                     tracing::warn!(error = %e, "could not start the save thread");
                     if let Some(job) = self.shared.lock().queued.take() {
-                        let result = write(job.path, job.render);
+                        let result = write(job.path, job.render, job.sidecar);
                         if let Err(e) = result {
                             self.shared.lock().error.get_or_insert((job.id, e));
                         }
@@ -157,9 +171,10 @@ fn run(shared: &Shared) {
         // Wakes a `submit` waiting for another project's job to start.
         shared.changed.notify_all();
         let id = job.id;
-        let result =
-            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| write(job.path, job.render)))
-                .unwrap_or_else(|_| Err(StoreError::Io("saving the project panicked".into())));
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            write(job.path, job.render, job.sidecar)
+        }))
+        .unwrap_or_else(|_| Err(StoreError::Io("saving the project panicked".into())));
         let mut s = shared.lock();
         s.busy = false;
         if let Err(e) = result {
@@ -171,11 +186,23 @@ fn run(shared: &Shared) {
     }
 }
 
-fn write(path: PathBuf, render: RenderDocument) -> Result<(), StoreError> {
+fn write(
+    path: PathBuf,
+    render: RenderDocument,
+    sidecar: Option<RenderSidecar>,
+) -> Result<(), StoreError> {
     let started = Instant::now();
     let json = render()?;
     let render_ms = started.elapsed().as_millis() as u64;
     atomic_write(&path, json.as_bytes())?;
+    // The sidecar's name is relative to the project folder (a plain file name).
+    if let Some((name, bytes)) = sidecar.and_then(|f| f(&json))
+        && let Some(dir) = path.parent()
+        && !name.contains(['/', '\\'])
+        && !name.starts_with('.')
+    {
+        atomic_write(&dir.join(name), &bytes)?;
+    }
     tracing::info!(
         path = %path.display(),
         kb = json.len() / 1024,

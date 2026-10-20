@@ -4,6 +4,7 @@ description = "VST3 plugin hosting (PluginFormatHost for .vst3 bundles)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 repository.workspace = true
 authors.workspace = true
 publish.workspace = true
