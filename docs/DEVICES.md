@@ -24,7 +24,7 @@ the real-time rules in [ARCHITECTURE.md](ARCHITECTURE.md).
    arrives latency-aligned (CONTRACTS.md §11.10); without a source, `process` keys from the
    input.
 6. **Descriptor ↔ mock parity.** After any descriptor change run
-   `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v02_descriptors` and commit
+   `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test it v02_descriptors::` and commit
    the JSON (`ui/src/transport/mock/devices/<group>.json`). Never edit it by hand.
 7. **Layout.** Ship a `DeviceLayout` for every device in `descriptor().layout` (checked by
    `tests/layouts.rs`; `EqCurve` is for the EQ only: filters use `FilterCurve`, multiband

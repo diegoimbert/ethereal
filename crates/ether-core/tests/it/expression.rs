@@ -439,7 +439,7 @@ fn muted_clips_and_missing_curves_send_nothing() {
     );
 }
 
-/// CPU cost (run with `cargo test --release -p ether-core --test expression -- --ignored
+/// CPU cost (run with `cargo test --release -p ether-core --test it expression:: -- --ignored
 /// --nocapture`): a 512-frame block of one track with 4 dense lanes and 16 sounding notes
 /// with pressure curves vs the same track without expression.
 #[test]

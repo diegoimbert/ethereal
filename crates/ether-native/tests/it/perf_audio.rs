@@ -2,7 +2,7 @@
 //! worker pool. Ignored by default; run in release:
 //!
 //! ```text
-//! cargo test --release -p ether-native --test perf_audio -- --ignored --nocapture --test-threads 1
+//! cargo test --release -p ether-native --test it perf_audio:: -- --ignored --nocapture --test-threads 1
 //! ```
 //!
 //! Only public API, so the same file measures the code before and after.

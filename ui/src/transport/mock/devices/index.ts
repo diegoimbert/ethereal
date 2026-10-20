@@ -65,7 +65,7 @@ export type V03DeviceType = "ConvolutionReverb" | "ExternalInstrument" | "Extern
 /**
  * v0.3 descriptors, generated from Rust like the v0.2 ones: `fxSpace.json`
  * (fx-space) and `external.json` (external-instrument). Regenerate with
- * `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test v03_descriptors`.
+ * `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test it v03_descriptors::`.
  */
 export const V03_DESCRIPTORS: Readonly<Record<V03DeviceType, DeviceDescriptor>> = Object.assign(
   {},
@@ -74,7 +74,7 @@ export const V03_DESCRIPTORS: Readonly<Record<V03DeviceType, DeviceDescriptor>> 
 
 /**
  * The FM Synth (fm-synth), generated from Rust like the others. Regenerate with
- * `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test fm_synth`.
+ * `UPDATE_MOCK_DESCRIPTORS=1 cargo test -p ether-devices --test it fm_synth::`.
  */
 export const FM_SYNTH_DESCRIPTOR: DeviceDescriptor = (fmSynth as unknown as Record<"FmSynth", DeviceDescriptor>).FmSynth;
 
