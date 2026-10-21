@@ -175,7 +175,12 @@ describe("ConnectDialog", () => {
       timeout: 5000,
     });
     // Why, as a toast.
-    expect(useNotices.getState().notices.map((n) => n.message).join()).toMatch(/connection to studio lost/);
+    expect(
+      useNotices
+        .getState()
+        .notices.map((n) => n.message)
+        .join(),
+    ).toMatch(/connection to studio lost/);
   });
 });
 

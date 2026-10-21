@@ -73,7 +73,12 @@ describe("TransportBar", () => {
   });
 
   it("compact (a narrow window): the position is the time, a click shows the bars", async () => {
-    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("max-width"), media: query, addEventListener: () => {}, removeEventListener: () => {} }));
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("max-width"),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
     try {
       await renderWithMock(<TransportBar />);
       const position = screen.getByRole("button", { name: "position" });

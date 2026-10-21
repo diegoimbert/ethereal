@@ -75,7 +75,10 @@ function load(): PluginVisibility {
       rules: Array.isArray(v.rules)
         ? v.rules.filter(
             (r): r is PluginHideRule =>
-              !!r && typeof r.name === "string" && typeof r.vendor === "string" && (r.format === null || (typeof r.format === "string" && FORMATS.has(r.format))),
+              !!r &&
+              typeof r.name === "string" &&
+              typeof r.vendor === "string" &&
+              (r.format === null || (typeof r.format === "string" && FORMATS.has(r.format))),
           )
         : [],
     };

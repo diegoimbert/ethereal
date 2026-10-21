@@ -643,7 +643,13 @@ function ChainDevices({ chain, rackType, nestRacks }: { chain: RackChain; rackTy
         onAdd={(p, category, before) => {
           recordDeviceUse(p);
           void send(
-            cmd("Rack", { type: "InsertDevice", id: newId(), chain: chain.id, device: deviceSpec(p), before: before !== undefined ? before : insertBefore(category) }),
+            cmd("Rack", {
+              type: "InsertDevice",
+              id: newId(),
+              chain: chain.id,
+              device: deviceSpec(p),
+              before: before !== undefined ? before : insertBefore(category),
+            }),
           );
         }}
         onMove={(id, before) => void send(cmd("Rack", { type: "MoveDevice", id, chain: chain.id, before }))}

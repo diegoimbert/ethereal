@@ -13,7 +13,13 @@ let mock: MockTransport;
 const store = () => useProjectStore.getState();
 const project = (): Project => store().project!;
 
-const CATEGORY: Record<string, DeviceCategory> = { Synth: "Instrument", PolySynth: "Instrument", InstrumentRack: "Instrument", Arpeggiator: "NoteEffect", Chord: "NoteEffect" };
+const CATEGORY: Record<string, DeviceCategory> = {
+  Synth: "Instrument",
+  PolySynth: "Instrument",
+  InstrumentRack: "Instrument",
+  Arpeggiator: "NoteEffect",
+  Chord: "NoteEffect",
+};
 const categoryOf = (d: Device): DeviceCategory => (d.kind.type === "Builtin" ? (CATEGORY[d.kind.device.type] ?? "AudioEffect") : "AudioEffect");
 
 beforeEach(async () => {

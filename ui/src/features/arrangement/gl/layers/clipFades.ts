@@ -144,7 +144,16 @@ export function clipFadesLayer(renderer: ArrangerRenderer, transport: EngineTran
         put({ ...handle, mode: FadeMode.Handle, f0: s + fin, f1: s + fin, fill: fill("fade-in"), minFromStart: HANDLE_INSET_PX, radius: 2.5 });
         put({ ...handle, mode: FadeMode.Handle, f0: e - fout, f1: e - fout, fill: fill("fade-out"), minFromEnd: HANDLE_INSET_PX, radius: 2.5 });
         put({ ...handle, mode: FadeMode.CurveHandle, f0: s, f1: s + fin, curve: a.fade_in_curve, fill: fill("fade-in-curve"), radius: HANDLE_PX / 2 });
-        put({ ...handle, mode: FadeMode.CurveHandle, f0: e - fout, f1: e, curve: a.fade_out_curve, dir: -1, fill: fill("fade-out-curve"), radius: HANDLE_PX / 2 });
+        put({
+          ...handle,
+          mode: FadeMode.CurveHandle,
+          f0: e - fout,
+          f1: e,
+          curve: a.fade_out_curve,
+          dir: -1,
+          fill: fill("fade-out-curve"),
+          radius: HANDLE_PX / 2,
+        });
       }
     });
   };

@@ -222,7 +222,12 @@ describe("group summary", () => {
     expect(bar.slice(0, 2)).toEqual([0, 6]);
     expect(bar.slice(8, 12).map((v) => +v.toFixed(5))).toEqual([0, 0.4, 0, 0.6]);
     // The group's color as shown (displayColor), at half alpha.
-    expect(bar.slice(12, 16).map((v) => +v.toFixed(3))).toEqual([...rgbOf(0xff0000).slice(0, 3).map((v) => +v.toFixed(3)), 0.5]);
+    expect(bar.slice(12, 16).map((v) => +v.toFixed(3))).toEqual([
+      ...rgbOf(0xff0000)
+        .slice(0, 3)
+        .map((v) => +v.toFixed(3)),
+      0.5,
+    ]);
   });
 });
 

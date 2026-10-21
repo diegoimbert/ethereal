@@ -22,15 +22,7 @@ export const POINT_LABEL: Record<InputTap, MessageKey> = {
 
 /** Why a tap is refused ([`tapError`]). */
 export type TapError =
-  | "unknown_track"
-  | "master"
-  | "loop"
-  | "after_device"
-  | "not_on_track"
-  | "broken_nesting"
-  | "holds_device"
-  | "sibling_chain"
-  | "sibling_post_fader";
+  "unknown_track" | "master" | "loop" | "after_device" | "not_on_track" | "broken_nesting" | "holds_device" | "sibling_chain" | "sibling_post_fader";
 
 /** What the selector shows for each [`TapError`]. */
 export const TAP_ERROR_TEXT: Record<TapError, MessageKey> = {

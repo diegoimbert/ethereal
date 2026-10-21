@@ -63,8 +63,7 @@ export const useDeviceClipboard = create<DeviceClipboardState>((set, get) => ({
   select: (id, mode = "replace") => {
     if (id === null) return set({ selected: [], anchor: null });
     const { selected, anchor } = get();
-    if (mode === "toggle")
-      return set({ selected: selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id], anchor: id });
+    if (mode === "toggle") return set({ selected: selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id], anchor: id });
     if (mode === "range" && anchor) {
       const range = rangeIn(anchor, id);
       if (range) return set({ selected: [...selected.filter((x) => !range.includes(x)), ...range] });

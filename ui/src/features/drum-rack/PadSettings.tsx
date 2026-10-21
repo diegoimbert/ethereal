@@ -193,7 +193,13 @@ function PadChain({ pad }: { pad: DrumPad }) {
         accept={acceptInPad}
         onAdd={(p, category, before) =>
           void send(
-            cmd("DrumRack", { type: "InsertDevice", id: newId(), pad: pad.id, device: deviceSpec(p), before: before !== undefined ? before : insertBefore(category) }),
+            cmd("DrumRack", {
+              type: "InsertDevice",
+              id: newId(),
+              pad: pad.id,
+              device: deviceSpec(p),
+              before: before !== undefined ? before : insertBefore(category),
+            }),
           )
         }
         onMove={(id, before) => void send(cmd("DrumRack", { type: "MoveDevice", id, pad: pad.id, before }))}

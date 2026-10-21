@@ -202,7 +202,12 @@ export function FileFilterSettings({ transport }: { transport: EngineTransport }
   // Loading: the section's frame at once, placeholder rows for the rules (no jump when they come).
   if (!lists || !draft) {
     return (
-      <section className="eth-settings__section eth-file-filter" aria-label={t("browser.filter.title")} aria-busy={!error} data-testid="settings-library-filters">
+      <section
+        className="eth-settings__section eth-file-filter"
+        aria-label={t("browser.filter.title")}
+        aria-busy={!error}
+        data-testid="settings-library-filters"
+      >
         <div className="eth-settings__row">
           <h3 className="eth-settings__heading">{t("browser.filter.title")}</h3>
           <Button size="sm" disabled>

@@ -88,7 +88,13 @@ export function groupEntries(
   device: Device,
   descriptor: DeviceDescriptor | null,
   send: (c: Command) => unknown,
-  selection?: { project: Project; ids: ReadonlyArray<DeviceId>; categoryOf: (d: Device) => DeviceCategory; shortcut?: string; onGrouped?(rack: DeviceId): void },
+  selection?: {
+    project: Project;
+    ids: ReadonlyArray<DeviceId>;
+    categoryOf: (d: Device) => DeviceCategory;
+    shortcut?: string;
+    onGrouped?(rack: DeviceId): void;
+  },
 ): ContextMenuEntry[] {
   if (!descriptor || device.pad !== null || device.chain != null) return [];
   if (device.kind.type === "Builtin" && device.kind.device.type === "DrumRack") return [];
