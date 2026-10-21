@@ -34,7 +34,8 @@
 //!   (its MIDI input filter accepted them); notes a host sends with [`TrackId::NIL`] go to
 //!   every armed MIDI track. On stop, what
 //!   the host flushed while closing the takes is sent right before the real clips; nothing
-//!   is emitted after `Stopped`.
+//!   is emitted after `Stopped` (also emitted, with no clips, when the commit fails).
+//!   Extensions see the same events first ([`crate::ext::ControllerExt::recording`]).
 //!
 //! Hosts without capture (web, tests) reply `Unsupported` from the bridge: recording then
 //! runs the transport but creates no clips.
@@ -403,14 +404,13 @@ pub struct NoteSpecDraft {
     pub duration: f64,
 }
 
-/// Poll the host's live view into `active` and emit `Progress` if due (`now: None`: flush
-/// whatever is pending, at the end of the recording).
+/// Poll the host's live view into `active`; the `Progress` to emit if due (`now: None`:
+/// flush whatever is pending, at the end of the recording).
 fn pump_live<B: EngineBridge>(
     bridge: &mut B,
     active: &mut Active,
     now: Option<u64>,
-    out: &mut dyn MessageSink,
-) {
+) -> Option<RecordingEvent> {
     let live = &mut active.live;
     bridge.poll_recording(&mut live.poll_audio, &mut live.poll_midi);
     let polled = std::mem::take(&mut live.poll_audio);
@@ -428,26 +428,21 @@ fn pump_live<B: EngineBridge>(
         }
     }
     if live.audio.is_empty() && live.midi.is_empty() {
-        return;
+        return None;
     }
     if let Some(now) = now {
         if live
             .last_emit
             .is_some_and(|t| now.saturating_sub(t) < PROGRESS_INTERVAL_MS)
         {
-            return;
+            return None;
         }
         live.last_emit = Some(now);
     }
-    event(
-        out,
-        Event::Recording {
-            event: RecordingEvent::Progress {
-                audio: std::mem::take(&mut live.audio),
-                midi: std::mem::take(&mut live.midi),
-            },
-        },
-    );
+    Some(RecordingEvent::Progress {
+        audio: std::mem::take(&mut live.audio),
+        midi: std::mem::take(&mut live.midi),
+    })
 }
 
 fn unsupported_host(e: &BridgeError) -> bool {
@@ -687,13 +682,15 @@ where
             loop_region,
             live: LiveProgress::default(),
         });
-        event(
-            out,
-            Event::Recording {
-                event: RecordingEvent::Started { tracks },
-            },
-        );
+        self.recording_event(RecordingEvent::Started { tracks }, now, out);
         Ok(())
+    }
+
+    /// Emit a live view event (`Started`, `Progress`, `Stopped`), extensions first
+    /// ([`crate::ext::ControllerExt::recording`]).
+    fn recording_event(&mut self, ev: RecordingEvent, now: u64, out: &mut dyn MessageSink) {
+        self.ext_each(|e, ctl| e.recording(ctl, &ev, now, out));
+        event(out, Event::Recording { event: ev });
     }
 
     /// Tick while recording (`live-record`): poll the host's live peaks/notes and emit
@@ -702,8 +699,10 @@ where
         let Some(active) = self.recording.session.as_mut() else {
             return;
         };
-        if active.host {
-            pump_live(&mut self.bridge, active, Some(now), out);
+        if active.host
+            && let Some(ev) = pump_live(&mut self.bridge, active, Some(now))
+        {
+            self.recording_event(ev, now, out);
         }
     }
 
@@ -726,7 +725,9 @@ where
                 Ok(t) => {
                     // The rest of the live view (the takes are closed now), before the
                     // real clips: the live clips then end exactly where they will.
-                    pump_live(&mut self.bridge, &mut active, None, out);
+                    if let Some(ev) = pump_live(&mut self.bridge, &mut active, None) {
+                        self.recording_event(ev, now, out);
+                    }
                     t
                 }
                 Err(e) => {
@@ -745,20 +746,20 @@ where
             notify(out, NotificationLevel::Warning, w.clone());
         }
         let stop_at = self.transport.position.0;
-        match self.commit_takes(&active, &takes, stop_at, now, out) {
-            Ok(clips) => event(
-                out,
-                Event::Recording {
-                    event: RecordingEvent::Stopped { clips },
-                },
-            ),
-            Err(e) => notify(
-                out,
-                NotificationLevel::Error,
-                crate::text::msg("notice.recording.commit_failed")
-                    .arg("error", crate::text::error_arg(&e)),
-            ),
-        }
+        let clips = match self.commit_takes(&active, &takes, stop_at, now, out) {
+            Ok(clips) => clips,
+            Err(e) => {
+                notify(
+                    out,
+                    NotificationLevel::Error,
+                    crate::text::msg("notice.recording.commit_failed")
+                        .arg("error", crate::text::error_arg(&e)),
+                );
+                // The live view still ends (nothing replaces it).
+                Vec::new()
+            }
+        };
+        self.recording_event(RecordingEvent::Stopped { clips }, now, out);
     }
 
     /// Commit the takes as one undo step; returns the new clips.

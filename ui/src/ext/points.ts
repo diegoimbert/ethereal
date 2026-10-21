@@ -4,7 +4,7 @@
  * any module may contribute or read without import cycles.
  */
 import type { ComponentType, ReactNode, RefObject } from "react";
-import type { Clip, ClipId, Device, Project, ProjectSummary, TrackId } from "@/generated";
+import type { Beats, Clip, ClipId, Color, Device, Project, ProjectSummary, TrackId } from "@/generated";
 import type { DeviceDescriptor } from "@/generated";
 import type { ContextMenuEntry } from "@/kit";
 import type { EngineTransport } from "@/transport";
@@ -25,6 +25,21 @@ export interface ArrangementLayerProps {
   scrollRef: RefObject<HTMLDivElement | null>;
   rows: ReadonlyArray<unknown>;
   masterRow: unknown;
+}
+
+/**
+ * One audio or MIDI track's lane (`arrangement.lane`): positions in beats from `origin`
+ * (the lane's `LaneLayer`), like its clips.
+ */
+export interface ArrangementLaneProps {
+  transport: EngineTransport;
+  track: TrackId;
+  color: Color;
+  origin: Beats;
+  /** Visible timeline range. */
+  visible: { start: Beats; end: Beats };
+  /** Settled zoom the lane is laid out at. */
+  pxPerBeat: number;
 }
 
 /** The piano roll grid: px ⇄ the focused clip's content beats and pitch (the key plus how far up it). */
@@ -362,6 +377,8 @@ export interface ExtensionPoints {
   "edit.activity": (activity: EditActivity | null) => void;
   /** Layers over the arranger's tracks (DOM, in the arrangement's scroll content). */
   "arrangement.layer": ComponentType<ArrangementLayerProps>;
+  /** Content drawn in each audio and MIDI track's lane, over its clips (e.g. clips being recorded elsewhere). */
+  "arrangement.lane": ComponentType<ArrangementLaneProps>;
   /** Layers of the WebGL arranger (`gl/layers/overlays.ts`): mounted with the renderer. */
   "arrangement.glLayer": (renderer: unknown) => { onTheme(): void; remove(): void };
   /** The clips the arranger shows (the edited one first), every quarter second while contributed. */

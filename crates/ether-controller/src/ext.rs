@@ -18,6 +18,7 @@ use ether_core::plugin::PluginNotification;
 use ether_core::protocol::freeze::FreezeCommand;
 use ether_core::protocol::model::Op;
 use ether_core::protocol::model::{Base64Bytes, DeviceId, ProjectId, SiteId};
+use ether_core::protocol::recording::RecordingEvent;
 use ether_core::protocol::transport::TransportState;
 use ether_core::protocol::{Command, CommandError, ReplyValue};
 
@@ -147,6 +148,20 @@ where
     /// The local transport moved (play, stop, locate, loop).
     fn transport_changed(&mut self, ctl: &mut EtherController<B, H, S, L, X>) {
         let _ = ctl;
+    }
+
+    /// The live recording view, as the UI gets it (`Event::Recording`): `Started`, every
+    /// `Progress` (only what is new since the previous one, ~20 Hz) and `Stopped` (its clips
+    /// are committed; no clips when nothing was kept or the commit failed). Runtime only:
+    /// e.g. to show what is being recorded elsewhere.
+    fn recording(
+        &mut self,
+        ctl: &mut EtherController<B, H, S, L, X>,
+        event: &RecordingEvent,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) {
+        let _ = (ctl, event, now, out);
     }
 
     /// A save is about to happen.

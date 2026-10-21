@@ -194,6 +194,28 @@ describe("live recording model", () => {
     expect(m.view(A).takes).toHaveLength(0);
   });
 
+  it("freeze() holds the view, as long as it takes, until Stopped", () => {
+    vi.useFakeTimers();
+    const m = new LiveRecording((clip) => (clip === "c1" ? "m1" : null));
+    m.freeze(); // not recording: nothing
+    expect(m.phase).toBe("idle");
+    m.apply({ type: "Started", tracks: [A] });
+    m.apply(progress([chunk(0, [0.5])]));
+    m.freeze();
+    expect(m.view(A).phase).toBe("handoff");
+    expect(m.apply(progress([chunk(1, [0.5])]))).toBe(false);
+    vi.advanceTimersByTime(HANDOFF_TIMEOUT_MS * 10);
+    expect(m.view(A).takes).toHaveLength(1);
+    // Then the usual handoff.
+    expect(m.apply({ type: "Stopped", clips: ["c1"] })).toBe(true);
+    m.peaksReady("m1");
+    vi.advanceTimersByTime(HANDOFF_GRACE_MS);
+    expect(m.view(A).takes).toHaveLength(0);
+    expect(m.phase).toBe("idle");
+    // A second Stopped does nothing.
+    expect(m.apply({ type: "Stopped", clips: [] })).toBe(false);
+  });
+
   it("starts over on Started and ignores Progress outside a recording", () => {
     const m = new LiveRecording();
     expect(m.apply(progress([chunk(0, [0.5])]))).toBe(false);

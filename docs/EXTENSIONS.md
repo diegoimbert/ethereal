@@ -52,6 +52,7 @@ contribute("shell.root", { name: "my feature", Component: MyRoot }, /* order */ 
 | editing | `surface.menu`, `arrangement.rulerMenu` | context menu entries on the edit surfaces and the ruler |
 | editing | `edit.activity` | a listener for what the user is dragging or editing |
 | editing | `arrangement.layer`, `arrangement.glLayer`, `arrangement.visibleClips` | a DOM layer and a GL layer over the arranger, and the clips in view |
+| editing | `arrangement.lane` | content in each audio and MIDI track's lane (e.g. live clips recorded elsewhere: `LiveRecordView` draws a live view like the app's own, against a clock of its own) |
 | editing | `clips.badge`, `clips.pending` | clip badges, and clips whose content is still on its way |
 | editing | `pianoRoll.layer`, `pianoRoll.header`, `pianoRoll.follow` | a piano roll layer and header, and a view that follows something else |
 | transport | `transport.blocked` | why play is unavailable right now |
@@ -122,6 +123,8 @@ It keeps its own state and gets the controller with every hook:
   `plugin_reloaded`, `project_loaded`, `engine_changed` / `engine_status` /
   `engine_off_error` (an extension that turns the local engine off). Each defaults to
   the app's single-user behavior.
+- The live recording view: `recording` gets every `RecordingEvent` the UI gets for it
+  (`Started`, each `Progress`, `Stopped`), first. Runtime only, never in the document.
 - Saves: `save_sidecar` (a file written right after the document, in the same job), `saved`,
   `project_copied` (a `SaveAs` / `Duplicate` copy is a private project).
 - Renders (freeze, bounce, consolidate): `offload_render` runs one elsewhere (the result comes

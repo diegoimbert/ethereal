@@ -10,7 +10,8 @@ import { useProjectStore } from "@/state";
 import type { EngineTransport } from "@/transport";
 import { LiveRecording, type LiveTrackView } from "./liveModel";
 
-function mediaOfClip(id: ClipId): MediaId | null {
+/** The media of a committed audio clip (what a handoff waits for). */
+export function mediaOfClip(id: ClipId): MediaId | null {
   const c = useProjectStore.getState().project?.clips[id];
   return c?.content.type === "Audio" ? c.content.media : null;
 }
