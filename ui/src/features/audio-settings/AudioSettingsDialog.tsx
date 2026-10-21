@@ -5,6 +5,7 @@ import { Button, Dialog, IconButton, Meter, Select, Toggle, type SelectOption } 
 import { useProjectStore, useTrackMeter } from "@/state";
 import { cmd, commandErrorText, isCommandFailed, isTauri, TransportContext, type EngineTransport } from "@/transport";
 import { PluginFoldersPanel } from "@/features/plugins";
+import { PluginListSettings } from "@/features/plugins/PluginListSettings";
 import { useEngineEvent } from "@/features/transport-bar/engine";
 import { LaunchSettings } from "@/features/project/LaunchSettings";
 import { FileFilterSettings } from "@/features/browser/settings/FileFilterSettings";
@@ -60,7 +61,14 @@ const CATEGORIES: ReadonlyArray<{ id: string; label: MessageKey; pages: Readonly
       { id: "shortcuts", label: "settings.pages.shortcuts" },
     ],
   },
-  { id: "plugins", label: "settings.tabs.plugins", pages: [{ id: "plugins", label: "settings.tabs.plugins" }] },
+  {
+    id: "plugins",
+    label: "settings.tabs.plugins",
+    pages: [
+      { id: "plugins", label: "settings.pages.plugin_folders" },
+      { id: "plugin-list", label: "settings.pages.plugin_list" },
+    ],
+  },
   { id: "privacy", label: "settings.tabs.privacy", pages: [{ id: "privacy", label: "settings.tabs.privacy" }] },
   {
     id: "advanced",
@@ -73,7 +81,7 @@ const CATEGORIES: ReadonlyArray<{ id: string; label: MessageKey; pages: Readonly
 ];
 
 /** The pages shown without an engine (the others say "no engine connected"). */
-const NO_ENGINE_PAGES: ReadonlySet<string> = new Set(["general", "appearance", "input", "shortcuts", "privacy", "diagnostics"]);
+const NO_ENGINE_PAGES: ReadonlySet<string> = new Set(["general", "appearance", "input", "shortcuts", "plugin-list", "privacy", "diagnostics"]);
 
 /**
  * Settings: a sidebar of categories (a category with several pages lists them under it when
@@ -88,8 +96,9 @@ const NO_ENGINE_PAGES: ReadonlySet<string> = new Set(["general", "appearance", "
  * - Mouse & keyboard > Mouse & trackpad: wheel and buttons (zoom/scroll sensitivity,
  *   inversion, modifier zooms, middle and side buttons; kept on this device). Keyboard
  *   shortcuts: the shortcuts editor.
- * - Plugins: the folders scanned for plugins (system folders on/off, the user's folders with
- *   a format filter), Rescan and Full rescan.
+ * - Plugins > Folders & scan: the folders scanned for plugins (system folders on/off, the
+ *   user's folders with a format filter), Rescan and Full rescan. Plugin list: one format per
+ *   plugin (the preferred one) and the hidden plugins (kept on this device).
  * - Privacy: "check for news" (docs/NEWS.md). Kept on this device; needs no engine.
  * - Advanced > Engine: the engine server (remote engine). Diagnostics: the engine log and
  *   the debug panels.
@@ -206,6 +215,7 @@ export function AudioSettingsDialog() {
             )}
             {transport && page.id === "audio" && <AudioSettingsBody transport={transport} reason={reason} />}
             {transport && page.id === "plugins" && <PluginFoldersPanel transport={transport} />}
+            {page.id === "plugin-list" && <PluginListSettings />}
             {transport && page.id === "advanced" && <AdvancedSettings transport={transport} />}
             {page.id === "diagnostics" && <DiagnosticsSettings />}
             {extra?.Component && (transport || extra.noEngine) && <extra.Component transport={transport} />}

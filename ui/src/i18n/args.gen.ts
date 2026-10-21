@@ -491,6 +491,12 @@ export interface MessageArgs {
   "plugins.scan.failed_count": { count: number };
   "plugins.scan.progress": { done: string | number; total: string | number };
   "plugins.scan.scan_failed": { error: string | number };
+  "plugins.visibility.count": { listed: string | number; total: string | number };
+  "plugins.visibility.hidden_toast": { name: string | number };
+  "plugins.visibility.hide": { name: string | number };
+  "plugins.visibility.hide_format": { format: string | number };
+  "plugins.visibility.rule_format": { name: string | number };
+  "plugins.visibility.show_again": { name: string | number };
   "presets.dialog.delete_title": { name: string | number };
   "presets.dialog.exists": { name: string | number };
   "presets.dialog.exists_replace": { name: string | number };
