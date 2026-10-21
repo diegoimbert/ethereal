@@ -4,6 +4,7 @@ import { setDragCursor } from "@/kit";
 import { isReadOnly } from "@/state";
 import { useT } from "@/i18n";
 import { dbToFader, faderToDb } from "./faderLaw";
+import { readoutBelow } from "./readoutPlacement";
 
 export interface VolumeFaderProps {
   /** The level shown (dB; at or below -144: -inf). */
@@ -29,6 +30,8 @@ export function VolumeFader({ db, label, onChange, onBegin, onEnd, attrs }: Volu
   const pos = dbToFader(db);
   const drag = useRef<{ x: number; pos: number; width: number } | null>(null);
   const [active, setActive] = useState(false);
+  const [below, setBelow] = useState(false);
+  const place = (el: HTMLDivElement) => setBelow(readoutBelow(el, el.querySelector(".eth-arr-vol__readout")));
   const set = (n: number, from: "drag" | "key" | "reset") => onChange(faderToDb(Math.min(1, Math.max(0, n))), from);
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
@@ -39,6 +42,7 @@ export function VolumeFader({ db, label, onChange, onBegin, onEnd, attrs }: Volu
     }
     e.stopPropagation(); // not a header / row press
     if (e.button !== 0) return;
+    place(e.currentTarget);
     e.preventDefault();
     e.currentTarget.setPointerCapture?.(e.pointerId);
     e.currentTarget.focus({ preventScroll: true });
@@ -82,7 +86,9 @@ export function VolumeFader({ db, label, onChange, onBegin, onEnd, attrs }: Volu
       aria-valuemax={1}
       aria-valuenow={pos}
       aria-valuetext={formatDb(db)}
+      data-readout={below ? "below" : undefined}
       title={t("arrangement.header.volume_title", { value: formatDb(db) })}
+      onPointerEnter={(e) => place(e.currentTarget)}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={end}

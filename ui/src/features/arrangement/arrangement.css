@@ -702,6 +702,19 @@
   transform: translate(-50%, 0);
 }
 
+/* No room above (the first visible row, under the scroll area's top edge: readoutPlacement):
+   the readout shows below its control. */
+.eth-arr-vol[data-readout="below"] .eth-arr-vol__readout,
+.eth-arr-pan[data-readout="below"] .eth-arr-pan__readout {
+  top: 100%;
+  bottom: auto;
+  transform: translate(-50%, calc(-1 * var(--eth-space-xs)));
+}
+.eth-arr-vol[data-readout="below"]:is(:hover, .eth-arr-vol--active) .eth-arr-vol__readout,
+.eth-arr-pan[data-readout="below"]:is(:hover, .eth-arr-pan--active) .eth-arr-pan__readout {
+  transform: translate(-50%, 0);
+}
+
 /* A header's readouts float above their control: lift the row's paint containment
    (content-visibility) while they can show, or the row's top edge cuts them. */
 .eth-arr-row:has(.eth-arr-header:hover),
@@ -711,9 +724,7 @@
 /* The fader starts where the buttons under it do (a track's usual four: mute, solo, arm,
    automation), the pan knob ending with them. */
 .eth-arr-header .eth-arr-vol {
-  width: calc(
-    4 * var(--eth-size-track-header-button) + 3 * var(--eth-space-hair) - var(--eth-space-md) - var(--eth-size-track-pan-knob)
-  );
+  width: calc(4 * var(--eth-size-track-header-button) + 3 * var(--eth-space-hair) - var(--eth-space-md) - var(--eth-size-track-pan-knob));
 }
 /* The pan's value ("43R", "C") above the knob, like the fader's dB. */
 .eth-arr-header .eth-arr-pan {
