@@ -133,7 +133,7 @@ describe("groove commands", () => {
 describe("GrooveControls (piano roll)", () => {
   it("quantizes with strength 50% halfway and swing on off-beats", async () => {
     await setup("controls");
-    fireEvent.click(screen.getByRole("button", { name: "quantize…" }));
+    fireEvent.click(screen.getByRole("button", { name: "quantize settings" }));
     // A real press in the (portaled) list must not close the Quantize popover.
     const grid = screen.getByRole("combobox", { name: "quantize grid" });
     fireEvent.click(grid);

@@ -51,3 +51,19 @@
   flex: none;
   width: 7ch;
 }
+
+/* Quantize: the button and the "…" opening its settings, joined. */
+.eth-groove__split {
+  display: inline-flex;
+  align-items: stretch;
+}
+.eth-groove__split .eth-groove__split-main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.eth-groove__split .eth-groove__split-more {
+  margin-left: var(--eth-border-width);
+  padding-inline: var(--eth-space-xs);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
