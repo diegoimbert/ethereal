@@ -280,6 +280,10 @@ html[data-eth-mobile] textarea {
 .eth-mshell .eth-arr-header__mix {
   display: contents;
 }
+/* The desktop's pan readout is placed against that block (gone here): no readout on touch. */
+.eth-mshell .eth-arr-pan__readout {
+  display: none;
+}
 /* Phones: two lines in the narrow column, the desktop's badge and the name, then the buttons
    at touch size; volume, pan, takes and automation live in the track sheet (a tap on the
    selected header). */

@@ -702,6 +702,43 @@
   transform: translate(-50%, 0);
 }
 
+/* In a track header: the dB (and the pan, HeaderPan) left of the fader, over the name's end,
+   not above it (rows are paint-contained, content-visibility: a readout above the row is cut). */
+.eth-arr-header__mix {
+  position: relative;
+}
+.eth-arr-header .eth-arr-vol__readout,
+.eth-arr-pan__readout {
+  top: 50%;
+  right: calc(100% + var(--eth-space-sm));
+  bottom: auto;
+  left: auto;
+  transform: translate(var(--eth-space-xs), -50%);
+}
+.eth-arr-header .eth-arr-vol:hover .eth-arr-vol__readout,
+.eth-arr-header .eth-arr-vol--active .eth-arr-vol__readout,
+.eth-arr-pan:hover .eth-arr-pan__readout,
+.eth-arr-pan--active .eth-arr-pan__readout {
+  opacity: 1;
+  transform: translate(0, -50%);
+}
+.eth-arr-pan__readout {
+  position: absolute;
+  z-index: 2;
+  padding: 0 var(--eth-space-xs);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-overlay);
+  box-shadow: var(--eth-shadow-sm);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity var(--eth-duration-fast) var(--eth-ease-out),
+    transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+
 /* The name, then the controls at the header's right end: the volume and pan, and under them
    the buttons (always shown, small and tight). */
 .eth-arr-header__main {
