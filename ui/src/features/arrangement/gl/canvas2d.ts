@@ -22,7 +22,7 @@
  */
 
 import { mainHeight, type Row } from "../layout";
-import { CLIP_INSET, CLIP_TITLE } from "../laneBodyGeometry";
+import { CLIP_INSET, contentTop } from "../laneBodyGeometry";
 import type { FrameSetup, RenderBackend } from "./backend";
 import type { Batch, Pipeline, RenderContext } from "./glContext";
 import type { GlyphAtlas } from "./glyphAtlas";
@@ -321,8 +321,8 @@ export class Canvas2DBackend implements RenderBackend {
 
   private waves(l: Lane, d: Float32Array, first: number, n: number): void {
     const { c, f } = l;
-    const top = l.top + CLIP_INSET + CLIP_TITLE;
-    const bodyH = l.h - 2 * CLIP_INSET - CLIP_TITLE;
+    const top = l.top + CLIP_INSET + contentTop(l.h);
+    const bodyH = l.h - 2 * CLIP_INSET - contentTop(l.h);
     if (bodyH <= 0) return;
     const mid = bodyH * 0.5;
     const mark = Math.min(2, mid);
@@ -547,8 +547,8 @@ function makeCanvas(w: number, h: number): HTMLCanvasElement | OffscreenCanvas |
 
 function notes(l: Lane, d: Float32Array, first: number, n: number): void {
   const { c, f } = l;
-  const top = l.top + CLIP_INSET + CLIP_TITLE;
-  const bodyH = l.h - 2 * CLIP_INSET - CLIP_TITLE;
+  const top = l.top + CLIP_INSET + contentTop(l.h);
+  const bodyH = l.h - 2 * CLIP_INSET - contentTop(l.h);
   if (bodyH <= 0) return;
   let style = "";
   for (let i = first; i < first + n; i++) {
@@ -589,8 +589,8 @@ function fadeGain(code: number, tension: number, x: number): number {
 function fades(l: Lane, radius: number, d: Float32Array, first: number, n: number): void {
   const { c, f } = l;
   const dpr = f.dpr;
-  const top = l.top + CLIP_INSET + CLIP_TITLE;
-  const bodyH = Math.max(0, l.h - 2 * CLIP_INSET - CLIP_TITLE);
+  const top = l.top + CLIP_INSET + contentTop(l.h);
+  const bodyH = Math.max(0, l.h - 2 * CLIP_INSET - contentTop(l.h));
   for (let i = first; i < first + n; i++) {
     const o = i * 24;
     const mode = Math.round(d[o + 3]!);

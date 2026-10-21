@@ -30,6 +30,14 @@ export function titleHeight(laneHeight: number): number {
   return isCompactLane(laneHeight) ? Math.max(0, laneHeight - 2 * CLIP_INSET) : CLIP_TITLE;
 }
 
+/**
+ * Where a clip's content area starts below its inset, in a lane `laneHeight` px tall: under
+ * the title band; at the clip's top in a compact lane (its fades span the whole clip).
+ */
+export function contentTop(laneHeight: number): number {
+  return isCompactLane(laneHeight) ? 0 : CLIP_TITLE;
+}
+
 /** Height of a clip's body (below its title) in a lane `laneHeight` px tall (none when compact). */
 export function bodyHeight(laneHeight: number): number {
   return Math.max(0, laneHeight - 2 * CLIP_INSET - titleHeight(laneHeight));

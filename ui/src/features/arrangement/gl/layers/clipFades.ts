@@ -5,7 +5,7 @@
  * - The fade shapes: the shade above each fade curve and the curve (`fadeGain`), drawn by the
  *   `fade` pipeline; on a crossfaded edge, the tinted overlap and the neighbour's curve
  *   dashed across it (an X with this clip's).
- * - The handles, shown while the clip is hovered or selected: a length handle per fade on
+ * - The handles, shown while the clip is hovered: a length handle per fade on
  *   the body's top edge (drag horizontally; past the clip's edge into a touching clip it
  *   creates a crossfade, on a crossfade it resizes it around its centre) and a curve handle
  *   at the fade's midpoint (drag vertically; double-click: linear).
@@ -60,7 +60,7 @@ export interface FadeDecor {
   lines: number;
   crossfadeIn: boolean;
   crossfadeOut: boolean;
-  /** Handles shown (the clip is hovered or selected). */
+  /** Handles shown (the clip is hovered). */
   handles: boolean;
 }
 
@@ -112,7 +112,8 @@ export function clipFadesLayer(renderer: ArrangerRenderer, transport: EngineTran
       const fout = Math.min(a.fade_out, len);
       const xv = xfades.get(clip.id) ?? { in: null, out: null };
       const hovered = hover?.clip === clip.id;
-      const handles = hovered || input.selected.has(clip.id);
+      // Only on the hovered clip (a selected one shows its fades, not their handles).
+      const handles = hovered;
       const hoveredHandle = hovered && typeof hover?.data === "string" ? hover.data : null;
       const decor: FadeDecor = { lines: 0, crossfadeIn: !!xv.in && fin > 0, crossfadeOut: !!xv.out && fout > 0, handles };
       const zoomed = (beats: number) => beats * ctx.window.ppb;

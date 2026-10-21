@@ -7,7 +7,7 @@
 import type { ClipId, FadeCurve } from "@/generated";
 import { audioOf, isCrossfade } from "@/features/clip-editing/clipEditing";
 import { fadeGain } from "@/features/clip-editing/fades";
-import { CLIP_INSET, isCompactLane, titleHeight } from "../../laneBodyGeometry";
+import { CLIP_INSET, contentTop } from "../../laneBodyGeometry";
 import type { LaneItem } from "../../laneItems";
 import { boxX, isRaised, type LaneView } from "../hitTest";
 
@@ -121,14 +121,14 @@ export interface FadeGeometry {
 /** `ClipFades`' layout for an audio item (null for other clips) in a lane `mainHeight` tall. */
 export function fadeGeometry(it: LaneItem, v: LaneView, mainHeight: number): FadeGeometry | null {
   const a = audioOf(it.clip);
-  // A compact lane's clips have no body: no fades shown.
-  if (!a || isCompactLane(mainHeight)) return null;
+  if (!a) return null;
   const [x0, x1] = boxX(it, v);
   const len = it.bounds.length;
   const width = Math.max(1, len * v.pxPerBeat);
   const fin = Math.min(a.fade_in, len) * v.pxPerBeat;
   const fout = Math.min(a.fade_out, len) * v.pxPerBeat;
-  const top = CLIP_INSET + titleHeight(mainHeight);
+  // Under the title band; the whole clip in a compact lane.
+  const top = CLIP_INSET + contentTop(mainHeight);
   const bottom = mainHeight - CLIP_INSET;
   const bodyH = Math.max(0, bottom - top);
   const curve = (fadePx: number, cx: number, c: FadeCurve) => (fadePx < CURVE_HANDLE_MIN_PX ? null : { x: cx, y: top + (1 - fadeGain(c, 0.5)) * bodyH });
