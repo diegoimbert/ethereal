@@ -103,10 +103,13 @@
   background: var(--eth-color-border-light);
 }
 
+/* No reserved scrollbar gutter here or on the lanes: with classic (always shown) scrollbars it
+   was an empty band at the right end of the lanes whenever nothing scrolled. A scrollbar takes
+   room only while the tracks overflow (the ruler and the master then run past the lanes'
+   right end by its width; the beats line up from the left). */
 .eth-arr__top {
   display: flex;
   flex: none;
-  scrollbar-gutter: stable;
   overflow: hidden;
 }
 
@@ -143,18 +146,15 @@
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-gutter: stable;
 }
 
-/* The master track, pinned below the scrolling tracks (same scrollbar gutter, so the lanes
-   line up with the ones above). */
+/* The master track, pinned below the scrolling tracks. */
 .eth-arr__master {
   position: relative;
   flex: none;
   max-height: 40%;
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-gutter: stable;
   border-top: var(--eth-border-width) solid var(--eth-color-border);
 }
 
