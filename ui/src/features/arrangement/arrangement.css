@@ -876,7 +876,7 @@
   )
   .eth-arr-header__name,
 .eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(1)) .eth-arr-header__name {
-  margin-right: calc(1 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+  margin-right: calc(1 * (var(--arr-header-button) + var(--eth-space-hair)));
 }
 .eth-arr-header--compact:has(
     .eth-arr-header__buttons
@@ -892,7 +892,7 @@
   )
   .eth-arr-header__name,
 .eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(2)) .eth-arr-header__name {
-  margin-right: calc(2 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+  margin-right: calc(2 * (var(--arr-header-button) + var(--eth-space-hair)));
 }
 .eth-arr-header--compact:has(
     .eth-arr-header__buttons
@@ -908,7 +908,7 @@
   )
   .eth-arr-header__name,
 .eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(3)) .eth-arr-header__name {
-  margin-right: calc(3 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+  margin-right: calc(3 * (var(--arr-header-button) + var(--eth-space-hair)));
 }
 .eth-arr-header--compact:has(
     .eth-arr-header__buttons
@@ -924,7 +924,7 @@
   )
   .eth-arr-header__name,
 .eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(4)) .eth-arr-header__name {
-  margin-right: calc(4 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+  margin-right: calc(4 * (var(--arr-header-button) + var(--eth-space-hair)));
 }
 .eth-arr-header--compact:has(
     .eth-arr-header__buttons
@@ -940,7 +940,7 @@
   )
   .eth-arr-header__name,
 .eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(5)) .eth-arr-header__name {
-  margin-right: calc(5 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+  margin-right: calc(5 * (var(--arr-header-button) + var(--eth-space-hair)));
 }
 .eth-arr-header--compact:has(
     .eth-arr-header__buttons
@@ -956,7 +956,7 @@
   )
   .eth-arr-header__name,
 .eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(6)) .eth-arr-header__name {
-  margin-right: calc(6 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+  margin-right: calc(6 * (var(--arr-header-button) + var(--eth-space-hair)));
 }
 .eth-arr-header--compact .eth-arr-pan .eth-knob {
   --knob-size: var(--eth-size-track-pan-knob-compact);
@@ -1011,15 +1011,26 @@
   color: var(--eth-color-text);
 }
 
+/* The header buttons' size (and the room the compact name leaves them, above). */
+.eth-arr-header {
+  --arr-header-button: var(--eth-size-track-header-button);
+  --arr-header-icon: var(--eth-size-track-header-icon);
+}
+/* A short lane in a narrow column: smaller buttons, so that on hover they leave the name some room. */
+.eth-arr-header--compact.eth-arr-header--narrow {
+  --arr-header-button: var(--eth-size-track-header-button-small);
+  --arr-header-icon: var(--eth-size-icon-sm);
+}
+
 .eth-arr-header__buttons .eth-arr-header__toggle {
-  width: var(--eth-size-track-header-button);
-  height: var(--eth-size-track-header-button);
+  width: var(--arr-header-button);
+  height: var(--arr-header-button);
   font-size: var(--eth-fs-sm);
 }
 
 .eth-arr-header__buttons .eth-arr-header__toggle .lucide {
-  width: var(--eth-size-track-header-icon);
-  height: var(--eth-size-track-header-icon);
+  width: var(--arr-header-icon);
+  height: var(--arr-header-icon);
 }
 
 .eth-arr-header__automation[aria-pressed="true"] {

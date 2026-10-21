@@ -19,7 +19,11 @@ import { isArrangementClip, startOf } from "./clipTime";
 
 /** Default width of the track header column (resizable: `useArrangementUi().headerWidth`). */
 export const HEADER_WIDTH = 232;
-export const MIN_HEADER_WIDTH = 140;
+export const MIN_HEADER_WIDTH = 180;
+/** A phone's header column (fixed, not resizable there): narrower than the desktop's minimum. */
+export const PHONE_HEADER_WIDTH = 140;
+/** Under this width the header is narrow: compact, its buttons are smaller (they cover the name). */
+export const NARROW_HEADER_WIDTH = 220;
 export const MAX_HEADER_WIDTH = 400;
 
 export function clampHeaderWidth(px: number): number {

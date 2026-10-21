@@ -37,7 +37,7 @@ import { HeaderVolume } from "./HeaderVolume";
 import { sameTrackExceptVolume } from "./trackEquality";
 import { useTrackDisplayName } from "./trackDisplayName";
 import { onTrackHeaderPointerDown } from "./trackDrag";
-import { mainHeight, TRACK_HEIGHT_STEP, type Row } from "./layout";
+import { mainHeight, NARROW_HEADER_WIDTH, TRACK_HEIGHT_STEP, type Row } from "./layout";
 import { arrangementView, useArrangementUi, type PendingImport } from "./uiStore";
 import { formatNumber, Trans, useT } from "@/i18n";
 
@@ -269,6 +269,7 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
           (dropInto || deviceDrop) && "eth-arr-header--drop-into",
           dropBlocked && "eth-arr-header--drop-blocked",
           compact && "eth-arr-header--compact",
+          headerWidth < NARROW_HEADER_WIDTH && "eth-arr-header--narrow",
           inert && "eth-arr-header--inert",
           `eth-arr-header--${track.kind.toLowerCase()}`,
         )}

@@ -44,7 +44,7 @@ import { ClipActionBar, DragBadge } from "./ClipActions";
 import { EditorPanel } from "./EditorPanel";
 import { MobileMixer } from "./MobileMixer";
 import { useMobileView } from "./viewState";
-import { MIN_HEADER_WIDTH } from "@/features/arrangement/layout";
+import { PHONE_HEADER_WIDTH } from "@/features/arrangement/layout";
 import { arrangementView, useArrangementUi } from "@/features/arrangement/uiStore";
 import { TransportDock } from "./TransportDock";
 
@@ -66,7 +66,7 @@ function useMobileLayout() {
   const phone = isPhone(layout);
   useEffect(() => {
     useArrangementUi.setState((s) => ({
-      headerWidth: phone ? MIN_HEADER_WIDTH : s.headerWidth,
+      headerWidth: phone ? PHONE_HEADER_WIDTH : s.headerWidth,
       defaultHeight: Math.max(s.defaultHeight, phone ? PHONE_TRACK_HEIGHT : TABLET_TRACK_HEIGHT),
     }));
   }, [phone]);
