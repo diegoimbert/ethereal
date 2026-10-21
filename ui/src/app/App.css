@@ -223,8 +223,10 @@
   height: var(--eth-size-icon-md);
   flex: none;
 }
+/* Centred beside the arrangement: above an open (floating) editor drawer, whose top-right
+   buttons it would cover otherwise. */
 .eth-float-bar--right {
-  top: 50%;
+  top: calc((100% - var(--pane-bottom-overlay, 0px)) / 2);
   right: var(--eth-size-collapsed-bar-inset);
   width: var(--eth-size-collapsed-bar);
   flex-direction: column;

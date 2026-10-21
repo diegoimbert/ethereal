@@ -3051,6 +3051,8 @@
   "devices.group.failed": "impossible de grouper : {error}",
   "undo.device.remove_selected": "supprimer des appareils",
   "devices.device.delete_failed": "impossible de supprimer : {error}",
+  "piano_roll.draw": "dessin",
+  "piano_roll.draw_mode": "mode dessin",
   "engine.1_bar": "1 mesure",
   "engine.2_bars": "2 mesures",
   "engine.4_bars": "4 mesures",

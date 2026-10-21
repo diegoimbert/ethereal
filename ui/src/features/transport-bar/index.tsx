@@ -34,6 +34,7 @@ import {
   parseSignature,
 } from "./format";
 import { useCompactTopBar } from "./compact";
+import { useMobileUi } from "@/features/mobile/mode";
 
 export { COMPACT_TOP_BAR_QUERY, useCompactTopBar } from "./compact";
 
@@ -305,7 +306,9 @@ export function PositionDisplay() {
   const t = useT();
   const frame = usePlayhead();
   const points = useProjectStore(useShallow((s) => (s.project ? timeSignaturePoints(s.project) : EMPTY_POINTS)));
-  const compact = useCompactTopBar();
+  // The mobile shell keeps the plain display (no tap target this small on a touch screen).
+  const mobile = useMobileUi((s) => s.enabled);
+  const compact = useCompactTopBar() && !mobile;
   const [showBars, setShowBars] = useState(false);
   const beats = frame?.transport.position ?? 0;
   const seconds = frame?.transport.seconds ?? 0;

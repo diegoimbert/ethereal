@@ -3051,6 +3051,8 @@
   "devices.group.failed": "couldn’t group: {error}",
   "undo.device.remove_selected": "remove devices",
   "devices.device.delete_failed": "couldn’t delete: {error}",
+  "piano_roll.draw": "draw",
+  "piano_roll.draw_mode": "draw mode",
   "engine.1_bar": "1 bar",
   "engine.2_bars": "2 bars",
   "engine.4_bars": "4 bars",

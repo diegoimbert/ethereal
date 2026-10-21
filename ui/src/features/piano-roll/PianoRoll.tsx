@@ -31,6 +31,7 @@
  *   lanes follow the focused clip).
  */
 
+import { useMobileUi } from "@/features/mobile/mode";
 import { contributions, useContributions } from "@/ext";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import clsx from "clsx";
@@ -247,6 +248,7 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
   const [gridIndex, setGridIndex] = useState(1);
   const [triplet, setTriplet] = useState(false);
   const [drawMode, setDrawMode] = useState(false);
+  const mobile = useMobileUi((m) => m.enabled);
   const previewOn = usePreviewSetting((s) => s.enabled);
   // Scale: document state (project / track); highlight and folding are local view state.
   const projectScale = useProjectStore((s) => s.project?.settings.scale ?? CHROMATIC_SCALE);
@@ -579,6 +581,12 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
           icon={<Headphones />}
           onClick={() => usePreviewSetting.getState().setEnabled(!previewOn)}
         />
+        {/* Touch (the mobile shell): no B key, so draw mode has its button. */}
+        {mobile && (
+          <Button size="sm" active={drawMode} onClick={() => setDrawMode((d) => !d)} title={t("piano_roll.draw_mode")}>
+            {t("piano_roll.draw")}
+          </Button>
+        )}
         <Button
           size="sm"
           data-testid="piano-roll-reverse"

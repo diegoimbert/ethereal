@@ -20,6 +20,7 @@ import { newsCommands } from "@/features/news";
 import { Trans, useT } from "@/i18n";
 import { RecentProjects } from "./ProjectScreen";
 import { GetStarted } from "./GetStarted";
+import { useMobileUi } from "@/features/mobile/mode";
 
 /** Which submenu of the project menu is open (one at a time), shared by its items. */
 const OpenSub = createContext<{ open: string | null; setOpen(label: string | null): void }>({ open: null, setOpen: () => {} });
@@ -147,6 +148,7 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
   const confirmRef = useRef<HTMLDivElement>(null);
   const missing = useMissingCount();
   const entries = useContributions("project.menu");
+  const mobile = useMobileUi((s) => s.enabled);
   // Opens like the kit menus: the first item focused, then ↑/↓/Home/End.
   useFocusFirstItem(ref);
   // The delete confirmation replaces its item: keep the keyboard on it (its cancel).
@@ -216,11 +218,16 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
         {item("app:settings")}
         <Separator />
         {item("project:new")}
-        {/* The recent projects (the welcome screen's), as a submenu. */}
-        <SubMenu label={t("project.menu.open_project")} panel className="eth-project-menu__wide">
-          {/* The search takes the focus when it opens: type to find a project. */}
-          <RecentProjects commands={commands} onDone={close} focusSearch />
-        </SubMenu>
+        {/* The recent projects (the welcome screen's), as a submenu; on a phone or tablet (no
+            room beside the menu) "open project…" opens the project screen. */}
+        {mobile ? (
+          item("project:open")
+        ) : (
+          <SubMenu label={t("project.menu.open_project")} panel className="eth-project-menu__wide">
+            {/* The search takes the focus when it opens: type to find a project. */}
+            <RecentProjects commands={commands} onDone={close} focusSearch />
+          </SubMenu>
+        )}
         {extra("start")}
         {project && (
           <>
@@ -287,10 +294,13 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
         <Separator />
         {/* docs: the user documentation (in the app on desktop, /docs in a new tab on the web). */}
         {item("app:docs")}
-        {/* tutorials: the guided tours, the welcome screen's "get started", as a submenu. */}
-        <SubMenu label={t("project.menu.tutorials")} panel className="eth-project-menu__wide">
-          <GetStarted commands={commands} onStarted={close} />
-        </SubMenu>
+        {/* tutorials: the guided tours, the welcome screen's "get started", as a submenu (none
+            on mobile: tours are desktop and web only). */}
+        {!mobile && (
+          <SubMenu label={t("project.menu.tutorials")} panel className="eth-project-menu__wide">
+            <GetStarted commands={commands} onStarted={close} />
+          </SubMenu>
+        )}
         {/* The welcome (splash) screen itself. */}
         {item("app:splash")}
         {/* news: past announcements (docs/NEWS.md). */}
