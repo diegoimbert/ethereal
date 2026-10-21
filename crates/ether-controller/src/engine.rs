@@ -56,6 +56,9 @@ struct NodeEntry {
     sig: NodeSig,
 }
 
+/// How long the engine's queue may stay full (every publish retried) before it is said.
+const QUEUE_FULL_NOTICE_MS: u64 = 5_000;
+
 #[derive(Debug, Default)]
 pub struct EngineState {
     nodes: BTreeMap<DeviceId, NodeEntry>,
@@ -115,6 +118,10 @@ pub struct EngineState {
     pub refused: Option<String>,
     /// Why the last switch to "my engine" failed (kept until the next switch).
     pub switch_error: Option<String>,
+    /// Since when the engine's queue has been full for every publish (`None`: it took the
+    /// last one), and whether that was said already.
+    queue_full_since: Option<u64>,
+    queue_full_told: bool,
     /// Plugins of an engine running elsewhere (an extension's, e.g. another computer's
     /// engine playing this project): empty in the app.
     pub remote: RemotePlugins,
@@ -584,18 +591,30 @@ impl EngineState {
         match bridge.publish(desc) {
             Ok(()) => {
                 self.rejected = None;
+                self.queue_full_since = None;
+                self.queue_full_told = false;
                 // Plugins left to load: publish again at the next tick.
                 self.graph_dirty = self.plugins_pending;
                 for key in std::mem::take(&mut self.pending_destroy) {
                     let _ = bridge.destroy_node(key);
                 }
             }
-            Err(e) => {
-                // Keep the graph dirty only for transient failures (retried next tick).
-                self.graph_dirty = matches!(e, BridgeError::QueueFull);
-                if !matches!(e, BridgeError::QueueFull) {
-                    self.refused = Some(e.to_string());
+            // A full queue is transient: retried next tick, silently (a toast per tick
+            // flooded the stack while a big graph was being sent). Said once if it lasts.
+            Err(BridgeError::QueueFull) => {
+                self.graph_dirty = true;
+                let since = *self.queue_full_since.get_or_insert(now_ms);
+                if !self.queue_full_told && now_ms.saturating_sub(since) >= QUEUE_FULL_NOTICE_MS {
+                    self.queue_full_told = true;
+                    problems.push((
+                        NotificationLevel::Warning,
+                        crate::text::msg("notice.engine.busy").into(),
+                    ));
                 }
+            }
+            Err(e) => {
+                self.graph_dirty = false;
+                self.refused = Some(e.to_string());
                 let text = e.to_string();
                 if text.contains("exceeds engine capacity") {
                     let message = capacity_message(&text);
