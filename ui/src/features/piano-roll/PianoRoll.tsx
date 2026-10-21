@@ -566,7 +566,7 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
             size="sm"
             aria-label={t("piano_roll.grid")}
             value={String(gridIndex)}
-            options={GRID_OPTIONS.map((o, i) => ({ value: String(i), label: o.label() }))}
+            options={GRID_OPTIONS.map((o, i) => ({ value: String(i), label: o.label(), short: o.short?.() }))}
             onChange={(v) => setGridIndex(Number(v))}
           />
         </span>

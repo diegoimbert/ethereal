@@ -13,6 +13,8 @@ import { foldForSearch, useT } from "@/i18n";
 export interface SelectOption<V extends string> {
   value: V;
   label: string;
+  /** Shown on the closed button instead of `label` (the list keeps `label`): a narrow toolbar. */
+  short?: string;
   disabled?: boolean;
   /** Options with the same group are listed under that heading (in first-seen order). */
   group?: string;
@@ -175,7 +177,7 @@ export function Select<V extends string>({
         {...rest}
       >
         <span className={clsx("eth-select__value", !current && "eth-select__value--placeholder", current?.userText && "eth-user-text")}>
-          {current?.label ?? placeholder ?? ""}
+          {current?.short ?? current?.label ?? placeholder ?? ""}
         </span>
         <ChevronDown className="eth-select__chevron" aria-hidden />
       </button>

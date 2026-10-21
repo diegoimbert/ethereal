@@ -37,11 +37,16 @@ export function colorCss(color: Color): string {
   return displayColorCss(color);
 }
 
-/** Grid choices of the toolbar selector (`label`: a message key). */
-export const GRID_OPTIONS: ReadonlyArray<{ id: string; label: MessageKey; grid: GridSetting }> = [
-  { id: "adaptive-narrow", label: "arrangement.grid.adaptive_narrow", grid: { type: "Adaptive", density: "narrow", triplet: false } },
+/** Grid choices of the toolbar selector (`label`, `short` on the closed selector: message keys). */
+export const GRID_OPTIONS: ReadonlyArray<{ id: string; label: MessageKey; short?: MessageKey; grid: GridSetting }> = [
+  {
+    id: "adaptive-narrow",
+    label: "arrangement.grid.adaptive_narrow",
+    short: "arrangement.grid.narrow",
+    grid: { type: "Adaptive", density: "narrow", triplet: false },
+  },
   { id: "adaptive-medium", label: "arrangement.grid.adaptive", grid: { type: "Adaptive", density: "medium", triplet: false } },
-  { id: "adaptive-wide", label: "arrangement.grid.adaptive_wide", grid: { type: "Adaptive", density: "wide", triplet: false } },
+  { id: "adaptive-wide", label: "arrangement.grid.adaptive_wide", short: "arrangement.grid.wide", grid: { type: "Adaptive", density: "wide", triplet: false } },
   { id: "bar", label: "arrangement.grid.bar", grid: { type: "Fixed", step: { kind: "bars", bars: 1 }, triplet: false } },
   { id: "1/4", label: "arrangement.grid.quarter", grid: { type: "Fixed", step: { kind: "beats", beats: 1 }, triplet: false } },
   { id: "1/8", label: "arrangement.grid.eighth", grid: { type: "Fixed", step: { kind: "beats", beats: 0.5 }, triplet: false } },

@@ -25,7 +25,7 @@ function GridSelect() {
         size="sm"
         aria-label={t("arrangement.toolbar.grid")}
         value={gridId(grid)}
-        options={GRID_OPTIONS.map((o) => ({ value: o.id, label: t(o.label) }))}
+        options={GRID_OPTIONS.map((o) => ({ value: o.id, label: t(o.label), short: o.short && t(o.short) }))}
         onChange={(id) => {
           const o = GRID_OPTIONS.find((x) => x.id === id);
           if (o) useArrangementUi.getState().setGrid(o.grid);
