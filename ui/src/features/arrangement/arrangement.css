@@ -584,6 +584,14 @@
   font-size: var(--eth-fs-md);
 }
 
+/* A narrow column (the full height): a smaller badge, a little closer to the name. */
+.eth-arr-header--narrow:not(.eth-arr-header--compact) .eth-arr-header__badge {
+  width: var(--eth-size-track-header-button);
+  height: var(--eth-size-track-header-button);
+  margin-right: var(--eth-space-xs);
+  font-size: var(--eth-fs-lg);
+}
+
 /* A group's badge is its fold button: the chevron, neutral (not the track color). */
 .eth-arr-header__fold {
   padding: 0;
