@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import { surfaceMenuEntries } from "@/ext/surfaces";
+import { useContributions } from "@/ext";
 import { useStore } from "zustand";
 import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { AudioLines, ChevronDown, Circle, CornerDownRight, Folder, Headphones, Piano, Speaker, SlidersVertical, Spline, Volume2, VolumeX } from "lucide-react";
@@ -615,6 +616,7 @@ const TrackLane = memo(function TrackLane({ track }: { track: Track }) {
   const { vp, visible } = useLaneView();
 
   const [insert, setInsert] = useState<InsertSpan | null>(null);
+  const laneExts = useContributions("arrangement.lane");
 
   return (
     <div
@@ -655,7 +657,13 @@ const TrackLane = memo(function TrackLane({ track }: { track: Track }) {
         {dropHint !== null && <div className="eth-arr-lane__drop-hint" style={{ left: beatsCss(dropHint - vp.scrollBeats) }} />}
         {imports.map((i) => (i.track === track.id ? <ImportPlaceholder key={i.id} item={i} style={{ left: beatsCss(i.at - vp.scrollBeats) }} /> : null))}
         {(track.kind === "Audio" || track.kind === "Midi") && (
-          <LiveRecordLane transport={ctx.transport} track={track.id} color={track.color} origin={vp.scrollBeats} visible={visible} pxPerBeat={vp.pxPerBeat} />
+          <>
+            <LiveRecordLane transport={ctx.transport} track={track.id} color={track.color} origin={vp.scrollBeats} visible={visible} pxPerBeat={vp.pxPerBeat} />
+            {/* Extensions' lane content (`@/ext` "arrangement.lane"). */}
+            {laneExts.map((Lane, i) => (
+              <Lane key={i} transport={ctx.transport} track={track.id} color={track.color} origin={vp.scrollBeats} visible={visible} pxPerBeat={vp.pxPerBeat} />
+            ))}
+          </>
         )}
       </LaneLayer>
     </div>

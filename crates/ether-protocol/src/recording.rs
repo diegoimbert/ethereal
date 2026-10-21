@@ -106,7 +106,7 @@ pub enum RecordingEvent {
     },
     /// Live view of the takes being recorded (`live-record`): only what is new since the
     /// previous `Progress`, emitted by the controller while recording (~20 Hz). Runtime only:
-    /// never part of the document or of collab; the real clips arrive with `Stopped`.
+    /// never part of the document or its history; the real clips arrive with `Stopped`.
     Progress {
         audio: Vec<LiveAudioChunk>,
         midi: Vec<LiveMidiNote>,

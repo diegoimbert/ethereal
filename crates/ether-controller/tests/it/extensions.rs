@@ -11,6 +11,7 @@ use ether_controller::{Controller, MessageSink};
 use ether_core::protocol::ext::ExtCommand;
 use ether_core::protocol::model::ProjectId;
 use ether_core::protocol::project::{BundleSource, ProjectCommand};
+use ether_core::protocol::recording::RecordingEvent;
 use ether_core::protocol::{Command, ErrorCode, ReplyValue};
 
 /// Answers the `Jam` domain and `Project::Import`, counts ticks.
@@ -276,4 +277,87 @@ fn a_stateless_extension_sees_the_hooks_its_own_hooks_trigger() {
     });
     assert_eq!(ok(&h.send(cmd)), ReplyValue::Unit);
     assert_eq!(h.ctl.ext, vec!["metronome on".to_string()]);
+}
+
+/// Keeps the live recording events it sees (`ControllerExt::recording`).
+#[derive(Default)]
+struct LiveWatch {
+    seen: std::rc::Rc<std::cell::RefCell<Vec<RecordingEvent>>>,
+}
+
+impl ControllerExt<FakeBridge, FakeHost, MemoryStore, MemoryLibrary> for LiveWatch {
+    fn recording(
+        &mut self,
+        _ctl: &mut Ctl,
+        event: &RecordingEvent,
+        _now: u64,
+        _out: &mut dyn MessageSink,
+    ) {
+        self.seen.borrow_mut().push(event.clone());
+    }
+}
+
+/// The `Event::Recording`s of `out`.
+fn recording_events(out: &[ether_core::protocol::ServerMessage]) -> Vec<RecordingEvent> {
+    use ether_core::protocol::{Event, ServerMessage};
+    out.iter()
+        .filter_map(|m| match m {
+            ServerMessage::Event(Event::Recording { event }) => Some(event.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn an_extension_sees_the_live_recording_view_the_ui_gets() {
+    use ether_core::protocol::model::{TrackId, TrackKind};
+    use ether_core::protocol::recording::{LiveMidiNote, RecordingCommand};
+    use ether_core::protocol::tracks::TrackCommand;
+
+    let bridge = FakeBridge {
+        recording: Some(FakeRecording::default()),
+        ..FakeBridge::default()
+    };
+    let mut h = Harness::with(bridge, MemoryLibrary::new(), Default::default());
+    h.create_project("Live");
+    let watch = LiveWatch::default();
+    let seen = watch.seen.clone();
+    h.ctl.add_extension(watch);
+    let track: TrackId = h.id();
+    h.ok(Command::Track(TrackCommand::Create {
+        id: track,
+        kind: TrackKind::Midi,
+        name: Some("keys".into()),
+        color: None,
+        parent: None,
+        before: None,
+    }));
+    h.ok(Command::Recording(RecordingCommand::SetCountIn { bars: 0 }));
+    h.ok(Command::Recording(RecordingCommand::Arm {
+        track,
+        armed: true,
+        exclusive: true,
+    }));
+    let start = Command::Recording(RecordingCommand::SetRecording { enabled: true });
+    let mut ui = recording_events(&h.send(start));
+    let note = LiveMidiNote {
+        track,
+        pitch: 60,
+        velocity: 100,
+        start: 0.0,
+        length: None,
+    };
+    let rec = h.ctl.bridge.recording.as_mut().expect("fake capture");
+    rec.live_midi.push(note.clone());
+    h.advance(100);
+    ui.extend(recording_events(&h.tick()));
+    let stop = Command::Recording(RecordingCommand::SetRecording { enabled: false });
+    ui.extend(recording_events(&h.send(stop)));
+    assert!(matches!(ui.first(), Some(RecordingEvent::Started { tracks }) if tracks == &[track]));
+    assert!(ui.contains(&RecordingEvent::Progress {
+        audio: vec![],
+        midi: vec![note],
+    }));
+    assert!(matches!(ui.last(), Some(RecordingEvent::Stopped { .. })));
+    assert_eq!(*seen.borrow(), ui, "the extension sees what the UI gets");
 }
