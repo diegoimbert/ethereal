@@ -247,7 +247,7 @@ export class MockFreeze {
           )
           .filter(({ at }) => at >= f.start && at < f.end)
           .sort((a, b) => a.at - b.at || a.n.pitch - b.n.pitch);
-        apply(cmd("Clip", { type: "CreateMidi", id: clip, track: id, start: f.start, length: f.end - f.start, name: t.name }));
+        apply(cmd("Clip", { type: "CreateMidi", id: clip, track: id, start: f.start, length: f.end - f.start, name: null }));
         if (notes.length)
           apply(
             cmd("Note", {

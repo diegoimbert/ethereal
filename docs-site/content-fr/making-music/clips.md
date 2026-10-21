@@ -117,7 +117,7 @@ Si vous avez fait une sélection temporelle, ces raccourcis agissent sur cette s
 
 ## renommer un clip {#renaming-a-clip}
 
-Faites un clic droit sur un clip et choisissez **renommer**. Tapez dans sa barre de titre, puis appuyez sur [[key:Enter]] ou cliquez ailleurs. [[key:Escape]] annule. Si vous effacez le nom, le clip reprend son nom par défaut (un clip audio affiche le nom de son échantillon). **renommer** n’est proposé que quand un seul clip est sélectionné. L’inspecteur a aussi un champ de nom pour le clip sélectionné.
+Faites un clic droit sur un clip et choisissez **renommer**. Tapez dans sa barre de titre, puis appuyez sur [[key:Enter]] ou cliquez ailleurs. [[key:Escape]] annule. Si vous effacez le nom, le clip reprend son nom par défaut (un clip audio affiche le nom de son échantillon). Un nouveau clip MIDI n’a pas de nom à lui : il affiche le nom de sa piste, et le suit quand vous renommez la piste. **renommer** n’est proposé que quand un seul clip est sélectionné. L’inspecteur a aussi un champ de nom pour le clip sélectionné.
 
 ## couleurs des clips {#clip-colors}
 

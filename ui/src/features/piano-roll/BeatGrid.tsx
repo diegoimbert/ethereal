@@ -24,7 +24,7 @@ import { Headphones } from "lucide-react";
 import { reverseNotesCommand } from "@/features/clip-editing/clipEditing";
 import { GrooveControls } from "@/features/groove";
 import { Button, IconButton, Select } from "@/kit";
-import { useClip, useEditedClipId, useProjectStore } from "@/state";
+import { clipDisplayName, useClip, useEditedClipId, useProjectStore } from "@/state";
 import { notesOfClip } from "@/state/selectors";
 import { cmd, newId, useTransport } from "@/transport";
 import { border, radius, size, space, useThemeColor } from "@/theme";
@@ -91,6 +91,8 @@ export function useClipDrumRack(clip: Clip | null | undefined): string | null {
 
 export function BeatGrid({ clip, rack }: { clip: Clip; rack: string }) {
   const t = useT();
+  // Unnamed, the clip reads as its track.
+  const clipName = useProjectStore((s) => (s.project ? clipDisplayName(s.project, clip) : clip.name)) || t("piano_roll.clip_fallback");
   const sender = useGestureSender();
   const pads = useProjectStore(useShallow((s) => (s.project ? Object.values(s.project.drum_pads).filter((p) => p.rack === rack) : [])));
   const notes = useProjectStore(useShallow((s) => (s.project ? notesOfClip(s.project, clip.id) : [])));
@@ -378,8 +380,8 @@ export function BeatGrid({ clip, rack }: { clip: Clip; rack: string }) {
       style={{ ["--_cell" as string]: `${cellPx}px`, ...(nameW !== null && { ["--_name-w" as string]: `${nameW}px` }) }}
     >
       <div className="eth-pr__toolbar">
-        <span className="eth-pr__title eth-user-text" title={clip.name}>
-          {clip.name || t("piano_roll.clip_fallback")}
+        <span className="eth-pr__title eth-user-text" title={clipName}>
+          {clipName}
         </span>
         <span className="eth-pr__grid-select">
           {t("piano_roll.grid")}

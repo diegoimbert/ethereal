@@ -15,7 +15,7 @@ import { contributions } from "@/ext";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Clip, ClipId } from "@/generated";
 import { openContextMenu } from "@/kit";
-import { isReadOnly, useEditorStore, useProjectStore, defaultClipName } from "@/state";
+import { clipDisplayName, isReadOnly, useEditorStore, useProjectStore, defaultClipName } from "@/state";
 import { itemSelection, subscribeSettledZoom, TempoMap } from "@/timeline";
 import { cmd } from "@/transport";
 import { subscribeLaneFrames } from "@/features/automation";
@@ -462,7 +462,9 @@ function SelectionAnnouncer() {
           ? ""
           : names.length === 1
             ? tr("arrangement.clip.selected_one", {
-                name: names[0]!.name || tr(names[0]!.content.type === "Midi" ? "arrangement.clip.midi_placeholder" : "arrangement.clip.audio_placeholder"),
+                name:
+                  (project && clipDisplayName(project, names[0]!)) ||
+                  tr(names[0]!.content.type === "Midi" ? "arrangement.clip.midi_placeholder" : "arrangement.clip.audio_placeholder"),
               })
             : tr("arrangement.clip.selected_many", { count: names.length }),
       );

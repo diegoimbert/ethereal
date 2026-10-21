@@ -387,7 +387,8 @@ function ClipInspector({ clip }: { clip: Clip }) {
         />
         <NameField
           label={t("shell.inspector.clip_name")}
-          placeholder={audio ? t("shell.inspector.audio_clip") : t("shell.inspector.midi_clip")}
+          // Unnamed, it reads as its track.
+          placeholder={track?.name || (audio ? t("shell.inspector.audio_clip") : t("shell.inspector.midi_clip"))}
           value={clip.name}
           onCommit={(name) => void send(cmd("Clip", { type: "Rename", id: clip.id, name }))}
           defaultName={() => {

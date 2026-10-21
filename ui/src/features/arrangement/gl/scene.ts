@@ -590,14 +590,16 @@ export class LaneScene {
     // On the title band, the band's text color; a compact lane's clip (a body alone): the clip's.
     const color = this.compact ? clipColors(input.palette, clip.color ?? this.track.color).strong : input.palette.titleText;
     const box: XSpec = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_DRAW_MIN_PX };
+    // Its name, or its track's when it has none of its own.
+    const label = clip.name || this.track.name;
     // Centered in the title band (the whole clip in a compact lane).
     const lineTop = titleLineTop(this.titleHeight, LINE_HEIGHT);
     const baseline = atlas.baseline(lineTop, LINE_HEIGHT, TITLE_FONT);
     if (width < SMALL_CLIP_PX && !this.source?.elements) {
       // Small clips: no icon, the name
       // only past 24 px, cut at 3 px from the edges without an ellipsis.
-      if (!clip.name || input.renaming === clip.id || width <= SMALL_NAME_PX) return;
-      const run = atlas.layout(clip.name, TITLE_FONT, Infinity, color);
+      if (!label || input.renaming === clip.id || width <= SMALL_NAME_PX) return;
+      const run = atlas.layout(label, TITLE_FONT, Infinity, color);
       const clipX: XSpec = { b0: bounds.start, b1: bounds.start + bounds.length, p1: -SMALL_NAME_INSET };
       for (const { glyph, x: gx } of run.glyphs) {
         if (glyph.width === 0 || gx > width) continue;
@@ -636,10 +638,10 @@ export class LaneScene {
     }
     // Title items (badges before the name, statuses after it) take their room first.
     const layout = titleLayout(clip, width, atlas, input, this.shared.titleReserves());
-    if (!clip.name || input.renaming === clip.id) return;
+    if (!label || input.renaming === clip.id) return;
     const room = layout.nameRoom;
     if (room <= 0) return;
-    const run = atlas.layout(clip.name, TITLE_FONT, room, color);
+    const run = atlas.layout(label, TITLE_FONT, room, color);
     const left = layout.nameStart + NAME_PAD_X;
     for (const { glyph, x: gx } of run.glyphs) {
       if (glyph.width === 0) continue;

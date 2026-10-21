@@ -43,7 +43,7 @@ import { Button, IconButton, Select, setDragCursor } from "@/kit";
 import { ExpressionLanes } from "@/features/expression";
 import { firstMatch, shortcutLabel } from "@/features/keymap";
 import { GrooveControls, grooveMenuItems, grooveQuantizeCommand, useGrooveSettings } from "@/features/groove";
-import { useClip, useEditedClipId, useEditorStore, useProjectStore } from "@/state";
+import { clipDisplayName, useClip, useEditedClipId, useEditorStore, useProjectStore } from "@/state";
 import {
   beatsToPx,
   createTimelineViewStore,
@@ -228,6 +228,8 @@ export function PianoRollEditor(props: PianoRollEditorProps) {
 function Editor({ space, view: injectedView }: { space: RollSpace; view?: TimelineViewStore }) {
   const t = useT();
   const clip = space.focus;
+  // Unnamed, the clip reads as its track.
+  const clipName = useProjectStore((s) => (s.project ? clipDisplayName(s.project, clip) : clip.name)) || t("piano_roll.clip_fallback");
   const drumRack = useClipDrumRack(clip);
   const transport = useTransport();
   // A marker placed while playing becomes the play start on the next stop (idempotent with
@@ -544,8 +546,8 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
       onPointerDownCapture={() => rootRef.current?.focus({ preventScroll: true })}
     >
       <div className="eth-pr__toolbar">
-        <span className="eth-pr__title eth-user-text" title={clip.name}>
-          {clip.name || t("piano_roll.clip_fallback")}
+        <span className="eth-pr__title eth-user-text" title={clipName}>
+          {clipName}
         </span>
         {space.multi && (
           <span className="eth-pr__clip-count" data-testid="piano-roll-clip-count" title={t("piano_roll.clip_count_title")}>
@@ -749,7 +751,7 @@ function ClipBands({ space, vp, colors }: { space: RollSpace; vp: { pxPerBeat: n
       {space.bands.map((b) => {
         const focused = b.clip.id === space.focus.id;
         const track = tracks?.[b.clip.track]?.name;
-        const name = b.clip.name || t("piano_roll.clip_fallback");
+        const name = b.clip.name || track || t("piano_roll.clip_fallback");
         return (
           <button
             type="button"

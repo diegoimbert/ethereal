@@ -7,7 +7,7 @@
 import { useMemo } from "react";
 import type { Clip } from "@/generated";
 import { useT } from "@/i18n";
-import { defaultClipName, tracksOrdered, useProjectStore } from "@/state";
+import { clipDisplayName, defaultClipName, tracksOrdered, useProjectStore } from "@/state";
 import { formatBarBeat, useTempoMap } from "@/timeline";
 import { endOf, isArrangementClip, startOf } from "../clipTime";
 
@@ -38,7 +38,7 @@ export function ClipSummary() {
               {clips.map((c) => (
                 <li key={c.id}>
                   {t(c.content.type === "Midi" ? "arrangement.summary.midi_clip" : "arrangement.summary.audio_clip", {
-                    name: c.name || defaultClipName(project, c),
+                    name: c.name || defaultClipName(project, c) || clipDisplayName(project, c),
                     start: formatBarBeat(startOf(c), tempo),
                     end: formatBarBeat(endOf(c), tempo),
                     muted: c.muted ? "true" : "false",

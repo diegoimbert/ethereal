@@ -326,7 +326,6 @@ where
             )
         })?;
 
-        let name = t.name.clone();
         let Plan {
             start,
             length,
@@ -365,7 +364,8 @@ where
                         track,
                         start: Beats(start),
                         length: Beats(length),
-                        name: Some(name),
+                        // Unnamed: it reads as its track (and follows a rename).
+                        name: None,
                     }),
                 )?;
                 let specs: Vec<NoteSpec> = notes
