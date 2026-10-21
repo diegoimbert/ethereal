@@ -446,6 +446,9 @@ export const size = {
   trackHeaderButton: "20px",
   /** Their icons: most of the button (a thin hover frame around them). */
   trackHeaderIcon: "14.5px",
+  /** In a narrow header column: slightly smaller. */
+  trackHeaderButtonNarrow: "18px",
+  trackHeaderIconNarrow: "13px",
   /** Narrow and compact (a short lane in a narrow column): smaller, so they leave the name room. */
   trackHeaderButtonSmall: "16px",
   trackMeterWidth: "3px",

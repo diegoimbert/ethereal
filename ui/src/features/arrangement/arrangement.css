@@ -759,9 +759,9 @@
   content-visibility: visible;
 }
 /* The fader starts where the buttons under it do (a track's usual four: mute, solo, arm,
-   automation), the pan knob ending with them. */
+   automation), the pan knob ending with them (narrower with smaller buttons). */
 .eth-arr-header .eth-arr-vol {
-  width: calc(4 * var(--eth-size-track-header-button) + 3 * var(--eth-space-hair) - var(--eth-space-md) - var(--eth-size-track-pan-knob));
+  width: calc(4 * var(--arr-header-button) + 3 * var(--eth-space-hair) - var(--eth-space-md) - var(--eth-size-track-pan-knob));
 }
 .eth-arr-header--compact .eth-arr-vol {
   width: var(--eth-size-track-fader-width-compact);
@@ -1023,6 +1023,11 @@
 .eth-arr-header {
   --arr-header-button: var(--eth-size-track-header-button);
   --arr-header-icon: var(--eth-size-track-header-icon);
+}
+/* A narrow column: slightly smaller buttons (and the fader above them). */
+.eth-arr-header--narrow {
+  --arr-header-button: var(--eth-size-track-header-button-narrow);
+  --arr-header-icon: var(--eth-size-track-header-icon-narrow);
 }
 /* A short lane in a narrow column: smaller buttons, so that on hover they leave the name some room. */
 .eth-arr-header--compact.eth-arr-header--narrow {
