@@ -19,7 +19,7 @@ import { useT } from "@/i18n";
 import { ConfirmDialog, ContextMenuHost, ReadOnlySurface, TitleTooltipHost, ToastStack } from "@/kit";
 import { dismissOnRelease, useEditorStore, useProjectStore, useReadOnly } from "@/state";
 import { size } from "@/theme";
-import { ArrangementView } from "@/features/arrangement";
+import { ArrangementView, useKeepTrackHeights } from "@/features/arrangement";
 import { AudioSettingsDialog } from "@/features/audio-settings";
 import { MarkerLane } from "@/features/clip-editing";
 import { DebugPanelsRoot } from "@/features/debug";
@@ -372,6 +372,8 @@ function ViewerShell() {
 function EditorShell() {
   // Arms and punch come back when a project opens again.
   useKeepRecordingSetup();
+  // So do the track heights (the vertical zoom), per project on this computer.
+  useKeepTrackHeights();
   const compact = useCompactTopBar();
   return (
     <div className="eth-shell">
