@@ -163,6 +163,7 @@ export interface MessageArgs {
   "debug.window.label": { title: string | number };
   "devices.chain.label": { name: string | number };
   "devices.clipboard.paste_failed": { error: string | number; name: string | number };
+  "devices.clipboard.replace_body": { name: string | number; with: string | number };
   "devices.device.bypass_name": { name: string | number };
   "devices.device.enable_name": { name: string | number };
   "devices.device.move_left": { name: string | number };
@@ -187,6 +188,7 @@ export interface MessageArgs {
   "devices.lfo_curve.label": { count: number };
   "devices.lfo_curve.point": { n: string | number; x: string | number; y: string | number };
   "devices.library.add": { name: string | number };
+  "devices.library.add_or_drag": { name: string | number };
   "devices.library.empty": { kind: string };
   "devices.library.empty_formats": { kind: string };
   "devices.library.empty_scanned": { kind: string };

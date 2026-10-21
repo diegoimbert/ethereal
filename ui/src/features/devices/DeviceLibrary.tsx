@@ -13,6 +13,7 @@
  * formats turned off are remembered (`libraryStats.hiddenFormats`). Two plugins sharing a
  * format + id (VST2 uniqueID collisions) are both listed: the insert names which one.
  */
+import { LIBRARY_DEVICE_DRAG_TYPE, setDraggingLibraryDevice } from "./chainUtils";
 import { useContributions } from "@/ext";
 import "./deviceLibrary.css";
 import clsx from "clsx";
@@ -118,11 +119,16 @@ export interface DeviceLibraryProps {
   onPick(payload: LibraryDevicePayload): void;
   /** Close the surrounding popover: opening the plugin settings does. */
   onClose?(): void;
+  /**
+   * Rows can also be dragged out (onto a device chain, `LIBRARY_DEVICE_DRAG_TYPE`): the drag
+   * started, and ended (`dropped`: it landed somewhere).
+   */
+  drag?: { onStart(): void; onEnd(dropped: boolean): void };
 }
 
 const ALL_CATEGORIES: ReadonlyArray<DeviceCategory> = ["Instrument", "AudioEffect", "NoteEffect"];
 
-export function DeviceLibrary({ category, categories, accept, pluginsOnly = false, plugins: given, onPick, onClose }: DeviceLibraryProps) {
+export function DeviceLibrary({ category, categories, accept, pluginsOnly = false, plugins: given, onPick, onClose, drag }: DeviceLibraryProps) {
   const t = useT();
   const cats = useMemo<ReadonlyArray<DeviceCategory>>(() => categories ?? (category ? [category] : ALL_CATEGORIES), [categories, category]);
   const single = cats.length === 1 ? cats[0]! : null;
@@ -318,8 +324,26 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
               data-key={e.key}
               aria-label={e.name}
               role="button"
-              title={t("devices.library.add", { name: e.name })}
+              title={drag ? t("devices.library.add_or_drag", { name: e.name }) : t("devices.library.add", { name: e.name })}
               onClick={() => onPick(e.payload)}
+              draggable={!!drag}
+              onDragStart={
+                drag &&
+                ((ev) => {
+                  ev.dataTransfer.setData(LIBRARY_DEVICE_DRAG_TYPE, JSON.stringify(e.payload));
+                  ev.dataTransfer.setData("text/plain", e.name);
+                  ev.dataTransfer.effectAllowed = "copy";
+                  setDraggingLibraryDevice(e.payload);
+                  drag.onStart();
+                })
+              }
+              onDragEnd={
+                drag &&
+                ((ev) => {
+                  setDraggingLibraryDevice(null);
+                  drag.onEnd(ev.dataTransfer.dropEffect !== "none");
+                })
+              }
             >
               <span className="eth-devlib__icon" aria-hidden>
                 {e.format ? <Plug /> : ICON[e.payload.category]}

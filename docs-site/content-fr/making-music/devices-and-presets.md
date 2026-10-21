@@ -34,7 +34,8 @@ Chaque section de la chaîne a son propre bouton d’ajout : le **+** à côté
 
 - tapez dans le champ de recherche pour filtrer, puis appuyez sur [[key:Enter]] ou cliquez sur une ligne pour l’ajouter ;
 - les puces **tous**, **usine** et **plug-ins** choisissent entre les appareils intégrés et vos plug-ins (les plug-ins sont réservés à l’application de bureau) ;
-- l’étoile filtre vos favoris, et le menu de tri classe la liste par nom, par les plus utilisés ou par les plus récents.
+- l’étoile filtre vos favoris, et le menu de tri classe la liste par nom, par les plus utilisés ou par les plus récents ;
+- faites glisser une ligne dans la chaîne pour placer l’appareil à un endroit de sa section : avant un appareil, ou à la fin de la section.
 
 Un appareil que vous ajoutez ouvre aussitôt sa fenêtre, pour que vous puissiez commencer à jouer avec. Vous pouvez aussi ajouter un appareil depuis la palette de commandes ([[action:palette.open]]).
 
@@ -59,7 +60,7 @@ De gauche à droite, l’en-tête d’un appareil contient :
 - le **nom** de l’appareil ;
 - le bouton **presets** et le bouton **+** qui ajoute un modulateur. Ces deux-là n’apparaissent que quand le pointeur survole la carte, pour garder la chaîne lisible ;
 - un sélecteur de **sidechain**, sur les appareils qui peuvent être déclenchés par une autre piste (voir [modulation et sidechain](/docs/making-music/modulation-and-sidechain#sidechain)) ;
-- le bouton **paramètres** (icône de curseurs) et **×** pour supprimer l’appareil.
+- le bouton **paramètres** (icône de curseurs), affiché comme les presets quand le pointeur survole la carte (ou quand la liste est ouverte), et **×** pour supprimer l’appareil.
 
 ### la fenêtre de l’appareil et la liste des paramètres {#the-device-window-and-the-parameter-list}
 
@@ -75,6 +76,7 @@ Les racks font exception : un rack n’a pas de fenêtre, car ses chaînes et s
 - Cliquez sur le bouton **alimentation** pour contourner un appareil (le son le traverse sans changement). Cliquez à nouveau pour réactiver l’appareil.
 - Double-cliquez sur le nom pour renommer l’appareil. Un nom vide rétablit son nom d’origine.
 - Cliquez sur une carte pour la sélectionner, puis appuyez sur [[action:edit.copy]] pour la copier et sur [[action:edit.paste]] pour coller la copie après l’appareil sélectionné. La copie garde tout : les réglages, l’état d’un plug-in, les chaînes d’un rack ou les pads d’un drum rack.
+- [[key:Mod]]-clic ajoute une carte à la sélection ou l’en retire, et [[key:Shift]]-clic sélectionne les cartes entre les deux : effets MIDI, instrument et effets audio ensemble. Un collage place chaque copie dans sa propre section, en une seule étape d’annulation. Un instrument collé remplace celui de la chaîne, après confirmation.
 - Faites un clic droit sur l’en-tête pour les mêmes actions et d’autres : **copier**, **coller après**, **renommer…**, **contourner**, **grouper dans un rack …**, une entrée **ajouter …** par type de modulateur, et **supprimer l’appareil**.
 
 ## tourner les boutons {#turning-knobs}

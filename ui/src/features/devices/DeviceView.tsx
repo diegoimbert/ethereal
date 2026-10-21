@@ -17,8 +17,8 @@ import { midiTarget } from "@/features/midi-learn/targets";
 import { switchMenu, switchTarget } from "./layout/automation";
 import { cmd, useTransport } from "@/transport";
 import { useT } from "@/i18n";
-import { DEVICE_DRAG_TYPE, deviceCategory, draggingDevice, setDraggingDevice } from "./chainUtils";
-import { pasteDevice, useDeviceClipboard, useDeviceClipboardKeys } from "./deviceClipboard";
+import { DEVICE_DRAG_TYPE, currentChainDrag, deviceCategory, droppedChainDrag, isChainDrag, setDraggingDevice, type ChainDrag } from "./chainUtils";
+import { copyFrom, pasteDevice, selectModeOf, useDeviceClipboard, useDeviceClipboardKeys } from "./deviceClipboard";
 import { usePluginStore } from "@/features/plugins/pluginStore";
 import { shortcutLabel } from "@/features/keymap";
 import { useBuiltinTypes, useDescriptor } from "./descriptors";
@@ -35,13 +35,13 @@ export interface DeviceViewProps {
   prev: DeviceId | null;
   /** `before` target for "move right" (the device after next, or `null` = end); `undefined` = already last. */
   moveRightBefore: DeviceId | null | undefined;
-  /** Drop handler for a dragged device, inserted before this one. */
-  onDropBefore(dragged: DeviceId): void;
+  /** Drop handler for a dragged device (or a library device), inserted before this one. */
+  onDropBefore(dragged: ChainDrag): void;
   /**
-   * Whether the device being dragged (`null`: unknown, e.g. from another window) may land
-   * before this one; refused drops show no insertion line. Default: any.
+   * Whether what is dragged (`null`: unknown, e.g. from another window) may land before this
+   * one; refused drops show no insertion line. Default: any.
    */
-  acceptsBefore?(dragged: DeviceId | null): boolean;
+  acceptsBefore?(dragged: ChainDrag | null): boolean;
   /**
    * "row" (default): cards side by side, move left/right. "stack": full-width cards one
    * above the other (the inspector), reordered by dragging the header.
@@ -72,8 +72,8 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
   const setEnabled = (enabled: boolean) => void send(cmd("Device", { type: "SetEnabled", id: device.id, enabled }));
   const transport = useTransport();
   // Copy / paste (deviceClipboard.ts): the selected card, what's copied, device kinds.
-  const selected = useDeviceClipboard((s) => s.selected === device.id);
-  const copied = useDeviceClipboard((s) => s.copied !== null);
+  const selected = useDeviceClipboard((s) => s.selected.includes(device.id));
+  const copied = useDeviceClipboard((s) => s.copied.length > 0);
   const builtins = useBuiltinTypes();
   const plugins = usePluginStore((s) => s.plugins);
   const categoryOf = (d: Device) => deviceCategory(d, builtins, plugins);
@@ -93,18 +93,20 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
   const move = (before: DeviceId | null) => (onMove ? onMove(before) : void send(cmd("Device", { type: "Move", id: device.id, track: device.track, before })));
 
   const onDragOver = (e: DragEvent) => {
-    if (!e.dataTransfer.types.includes(DEVICE_DRAG_TYPE)) return;
-    if (draggingDevice() === device.id || (acceptsBefore && !acceptsBefore(draggingDevice()))) return;
+    if (!isChainDrag(e.dataTransfer.types)) return;
+    const drag = currentChainDrag();
+    if ((drag?.type === "device" && drag.id === device.id) || (acceptsBefore && !acceptsBefore(drag))) return;
     e.preventDefault();
     e.stopPropagation();
     setDropTarget(true);
   };
   const onDrop = (e: DragEvent) => {
     setDropTarget(false);
-    const id = e.dataTransfer.getData(DEVICE_DRAG_TYPE);
-    if (!id || id === device.id) return;
+    const drag = droppedChainDrag(e.dataTransfer);
+    if (!drag || (drag.type === "device" && drag.id === device.id)) return;
     e.preventDefault();
-    onDropBefore(id);
+    e.stopPropagation();
+    onDropBefore(drag);
   };
 
   return (
@@ -124,12 +126,13 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
         data-device={device.id}
         aria-label={device.name}
         // A click selects the card (the innermost one: a device in a rack chain, not its rack)
-        // and focuses it, so ⌘C / ⌘V copy / paste it (deviceClipboard.ts).
+        // and focuses it, so ⌘C / ⌘V copy / paste it (deviceClipboard.ts); ⌘ / Ctrl-click adds
+        // or removes it, Shift-click selects the cards between.
         tabIndex={-1}
         onPointerDown={(e) => {
           // A rack chain's own space inside this card is that chain's (DeviceChain.tsx).
           if (e.button !== 0 || (e.target as HTMLElement).closest(".eth-device, [data-paste-chain]") !== e.currentTarget) return;
-          useDeviceClipboard.getState().select(device.id);
+          useDeviceClipboard.getState().select(device.id, selectModeOf(e));
           if (!(e.target as HTMLElement).closest("input, textarea, select, [contenteditable='true']")) e.currentTarget.focus({ preventScroll: true });
         }}
         onDragOver={onDragOver}
@@ -147,7 +150,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
                 // A plugin that isn't installed; any device but a rack can be replaced.
                 [...resolvePluginEntries(device, transport), ...replaceDeviceEntries(device, transport)],
                 [
-                  { label: t("devices.device.copy"), shortcut: shortcutLabel("edit.copy"), onSelect: () => useDeviceClipboard.getState().copy(device.id) },
+                  { label: t("devices.device.copy"), shortcut: shortcutLabel("edit.copy"), onSelect: () => copyFrom(device.id) },
                   ...(copied
                     ? [
                         {

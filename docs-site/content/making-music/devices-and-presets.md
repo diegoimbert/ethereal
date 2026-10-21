@@ -34,7 +34,8 @@ Each section of the chain has its own add button: the **+** next to the section'
 
 - type in the search field to filter, then press [[key:Enter]] or click a row to add it;
 - the **all**, **factory** and **plugins** chips choose between the built-in devices and your plugins (plugins are desktop only);
-- the star filters your favourites, and the sort menu orders the list by name, most used or most recent.
+- the star filters your favourites, and the sort menu orders the list by name, most used or most recent;
+- drag a row onto the chain to put the device at a place in its section: before a device, or at the section's end.
 
 A device you add opens its window right away, so you can start playing with it. You can also add a device from the command palette ([[action:palette.open]]).
 
@@ -59,7 +60,7 @@ From left to right, a device header has:
 - the device's **name**;
 - the **presets** button and the **+** button that adds a modulator. These two only appear while the pointer is over the card, to keep the chain tidy;
 - a **sidechain** selector, on devices that can be keyed by another track (see [modulation and sidechain](/docs/making-music/modulation-and-sidechain#sidechain));
-- the **parameters** button (sliders icon) and **×** to remove the device.
+- the **parameters** button (sliders icon), shown like presets while the pointer is over the card (or while the list is open), and **×** to remove the device.
 
 ### the device window and the parameter list
 
@@ -75,6 +76,7 @@ Racks are the exception: a rack has no window, because its chains and macros are
 - Click the **power** button to bypass a device (the sound passes through unchanged). Click it again to turn the device back on.
 - Double-click the name to rename the device. An empty name brings back its original name.
 - Click a card to select it, then press [[action:edit.copy]] to copy it and [[action:edit.paste]] to paste the copy after the selected device. The copy keeps everything: settings, a plugin's state, a rack's chains or a drum rack's pads.
+- [[key:Mod]]-click adds a card to the selection or takes it out, and [[key:Shift]]-click selects the cards in between: MIDI effects, the instrument and audio effects together. A paste puts each copy in its own section, in one undo step. A pasted instrument replaces the chain's instrument, after asking.
 - Right-click the header for the same actions and more: **copy**, **paste after**, **rename…**, **bypass**, **group into … rack**, one **add …** entry per modulator type, and **delete device**.
 
 ## turning knobs

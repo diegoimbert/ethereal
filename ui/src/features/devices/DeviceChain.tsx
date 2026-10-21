@@ -10,7 +10,7 @@ import { cmd, useTransport } from "@/transport";
 import { useT, type MessageKey } from "@/i18n";
 import { useBuiltinTypes } from "./descriptors";
 import { usePluginStore } from "@/features/plugins/pluginStore";
-import { CHAIN_SECTIONS, DEVICE_DRAG_TYPE, deviceCategory, draggingDevice } from "./chainUtils";
+import { CHAIN_SECTIONS, currentChainDrag, deviceCategory, droppedChainDrag, isChainDrag, type ChainDrag } from "./chainUtils";
 import { canHost, type LibraryDevicePayload } from "./library";
 import { insertFromLibrary } from "./userInsert";
 import { DevicePicker } from "./DevicePicker";
@@ -66,7 +66,8 @@ const ADD_LABEL: Record<DeviceDescriptor["category"], MessageKey> = {
  * A section's add button (stacked layout, right of its label): opens the device library of
  * its category in a popover (search, All / Factory / Plugins, Rescan); picking a device adds
  * it. An instrument goes in the empty slot; effects go at their section's place (MIDI effects
- * before the instrument, audio effects last).
+ * before the instrument, audio effects last). A row can also be dragged onto the chain, to a
+ * place in its section (before a device, or at the section's end).
  */
 function AddSectionDevice({
   category,
@@ -90,6 +91,8 @@ function AddSectionDevice({
   autoOpen?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  /** A row is dragged out onto the chain: the popover steps aside (still open) until it ends. */
+  const [dragging, setDragging] = useState(false);
   const t = useT();
   // A shared project's viewer adds nothing.
   const readOnly = useReadOnly();
@@ -106,6 +109,7 @@ function AddSectionDevice({
       onOpenChange={setOpen}
       aria-label={addLabel}
       placement="bottom-end"
+      className={clsx(dragging && "eth-devlib-popover--dragging")}
       trigger={(p) =>
         card ? (
           // The section's last "device": a placeholder card that adds one.
@@ -136,6 +140,16 @@ function AddSectionDevice({
             close();
             onAdd(payload);
           }}
+          // Dragged onto the chain: dropped in place (the chain's drop targets), or back to the
+          // list when the drag is cancelled.
+          drag={{
+            // After the drag has started (hiding its source at once cancels it in WebKit).
+            onStart: () => void setTimeout(() => setDragging(true)),
+            onEnd: (dropped) => {
+              setDragging(false);
+              if (dropped) close();
+            },
+          }}
         />
       )}
     </Popover>
@@ -151,8 +165,11 @@ export interface ChainSectionsProps {
   categories: ReadonlyArray<DeviceCategory>;
   layout: ChainLayout;
   label: string;
-  /** Add a device picked in a section's library. */
-  onAdd(payload: LibraryDevicePayload, category: DeviceCategory): void;
+  /**
+   * Add a device picked in a section's library: at `before` when given (dropped from the
+   * library at a place in its section; `null`: the end), else at its section's usual place.
+   */
+  onAdd(payload: LibraryDevicePayload, category: DeviceCategory, before?: DeviceId | null): void;
   /** Move `id` before `before` (null: the end); only called for moves inside a section. */
   onMove(id: DeviceId, before: DeviceId | null): void;
   /** Narrows the sections' libraries (e.g. no drum rack inside a drum pad). */
@@ -209,22 +226,35 @@ export function ChainSections({
     useDeviceClipboard.getState().select(null);
     e.currentTarget.focus({ preventScroll: true });
   };
+  /** Whether `category` may land at `before`: before a device of its section, or at its end. */
+  const inSection = (category: DeviceCategory, before: DeviceId | null) => {
+    const target = before === null ? null : devices.find((d) => d.id === before);
+    return before === sectionEnd(category) || (!!target && categoryOf(target) === category);
+  };
   // Moves stay inside the device's section (the engine's chain rule): before a device of the
-  // same section, or right after the section's last one. A device of another chain goes anywhere.
-  const canMove = (id: DeviceId | null, before: DeviceId | null) => {
+  // same section, or right after the section's last one. A device of another chain goes
+  // anywhere. A library device goes in its own section, if the chain shows it (and takes it);
+  // an instrument only in an empty slot.
+  const canDrop = (drag: ChainDrag | null, before: DeviceId | null) => {
+    if (readOnly) return false;
+    if (drag?.type === "library") {
+      const { category } = drag.payload;
+      if (!categories.includes(category) || (accept && !accept(drag.payload))) return false;
+      if (category === "Instrument" && devices.some((d) => categoryOf(d) === "Instrument")) return false;
+      return inSection(category, before);
+    }
+    const id = drag?.id ?? null;
     const dragged = id === null ? undefined : devices.find((d) => d.id === id);
     if (!dragged) return true;
-    const category = categoryOf(dragged);
-    const section = devices.filter((d) => categoryOf(d) === category);
-    const afterSection = devices[devices.indexOf(section[section.length - 1]!) + 1]?.id ?? null;
-    const target = before === null ? null : devices.find((d) => d.id === before);
     // Before itself or right after itself: no move.
     if (before === id || (before !== null && devices[devices.indexOf(dragged) + 1]?.id === before)) return false;
     if (before === null && devices.at(-1)?.id === id) return false;
-    return before === afterSection || (!!target && categoryOf(target) === category);
+    return inSection(categoryOf(dragged), before);
   };
-  const moveTo = (id: DeviceId, before: DeviceId | null) => {
-    if (canMove(id, before)) onMove(id, before);
+  const dropAt = (drag: ChainDrag, before: DeviceId | null) => {
+    if (!canDrop(drag, before)) return;
+    if (drag.type === "library") onAdd(drag.payload, drag.payload.category, before);
+    else onMove(drag.id, before);
   };
   const sections = CHAIN_SECTIONS.filter((s) => categories.includes(s.id)).map((s) => ({
     ...s,
@@ -247,31 +277,35 @@ export function ChainSections({
   const cardDropProps = (category: DeviceCategory) => ({
     active: cardDrop === category || (endDrop && category === lastCard),
     onDragOver: (e: DragEvent) => {
-      if (!e.dataTransfer.types.includes(DEVICE_DRAG_TYPE) || !canMove(draggingDevice(), sectionEnd(category))) return;
+      if (!isChainDrag(e.dataTransfer.types) || !canDrop(currentChainDrag(), sectionEnd(category))) return;
       e.preventDefault();
+      e.stopPropagation();
       setCardDrop(category);
     },
     onDragLeave: () => setCardDrop(null),
     onDrop: (e: DragEvent) => {
       setCardDrop(null);
-      const id = e.dataTransfer.getData(DEVICE_DRAG_TYPE);
-      if (!id) return;
+      const drag = droppedChainDrag(e.dataTransfer);
+      if (!drag) return;
       e.preventDefault();
-      moveTo(id, sectionEnd(category));
+      e.stopPropagation();
+      dropAt(drag, sectionEnd(category));
     },
   });
 
   const onEndDragOver = (e: DragEvent) => {
-    if (!e.dataTransfer.types.includes(DEVICE_DRAG_TYPE) || !canMove(draggingDevice(), null)) return;
+    if (!isChainDrag(e.dataTransfer.types) || !canDrop(currentChainDrag(), null)) return;
     e.preventDefault();
+    e.stopPropagation();
     setEndDrop(true);
   };
   const onEndDrop = (e: DragEvent) => {
     setEndDrop(false);
-    const id = e.dataTransfer.getData(DEVICE_DRAG_TYPE);
-    if (!id) return;
+    const drag = droppedChainDrag(e.dataTransfer);
+    if (!drag) return;
     e.preventDefault();
-    moveTo(id, null);
+    e.stopPropagation();
+    dropAt(drag, null);
   };
 
   return (
@@ -304,9 +338,9 @@ export function ChainSections({
                   device={d}
                   prev={section.devices[i - 1]?.id ?? null}
                   moveRightBefore={i === section.devices.length - 1 ? undefined : (devices[at + 2]?.id ?? null)}
-                  onDropBefore={(dragged) => moveTo(dragged, d.id)}
-                  acceptsBefore={(dragged) => canMove(dragged, d.id)}
-                  onMove={(before) => moveTo(d.id, before)}
+                  onDropBefore={(dragged) => dropAt(dragged, d.id)}
+                  acceptsBefore={(dragged) => canDrop(dragged, d.id)}
+                  onMove={(before) => dropAt({ type: "device", id: d.id }, before)}
                   onRemove={onRemove && (() => onRemove(d))}
                   layout={layout}
                 />
@@ -357,7 +391,7 @@ function Chain({ track, layout, picker }: { track: Track; layout: ChainLayout; p
         categories={categories}
         layout={layout}
         label={t("devices.chain.label", { name: track.name })}
-        onAdd={(payload) => void insertFromLibrary(transport, track, payload)}
+        onAdd={(payload, _category, before) => void insertFromLibrary(transport, track, payload, before)}
         onMove={(id, before) => void send(cmd("Device", { type: "Move", id, track: track.id, before }))}
         pasteChain={{ type: "Track", track: track.id }}
       />

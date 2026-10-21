@@ -1,8 +1,11 @@
 import type { MessageKey } from "@/i18n";
+import type { LibraryDevicePayload } from "./libraryDevice";
 import type { BuiltinDeviceType, Device, DeviceCategory, DeviceDescriptor, DeviceId, ParamInfo, PluginDescriptor, Track } from "@/generated";
 
 /** MIME type used to drag a device within/between chains. */
 export const DEVICE_DRAG_TYPE = "application/x-ethereal-device";
+/** MIME type of a device dragged out of the device library (its `LibraryDevicePayload` as JSON). */
+export const LIBRARY_DEVICE_DRAG_TYPE = "application/x-ethereal-library-device";
 
 /**
  * The device being dragged (set on `dragstart`, cleared on `dragend`): drop targets read it
@@ -11,6 +14,36 @@ export const DEVICE_DRAG_TYPE = "application/x-ethereal-device";
 let dragging: string | null = null;
 export const setDraggingDevice = (id: string | null) => void (dragging = id);
 export const draggingDevice = () => dragging;
+
+/** The library device being dragged (like `draggingDevice`). */
+let draggingFromLibrary: LibraryDevicePayload | null = null;
+export const setDraggingLibraryDevice = (p: LibraryDevicePayload | null) => void (draggingFromLibrary = p);
+
+/** What is dragged over a chain: one of its devices (or another chain's), or a device of the library. */
+export type ChainDrag = { type: "device"; id: DeviceId } | { type: "library"; payload: LibraryDevicePayload };
+
+/** `true` if a drag (its `DataTransfer` types) may be a device or a library device. */
+export const isChainDrag = (types: ReadonlyArray<string>) => types.includes(DEVICE_DRAG_TYPE) || types.includes(LIBRARY_DEVICE_DRAG_TYPE);
+
+/** The drag in progress, during `dragover` (`null`: unknown, e.g. from another window). */
+export function currentChainDrag(): ChainDrag | null {
+  if (dragging) return { type: "device", id: dragging };
+  if (draggingFromLibrary) return { type: "library", payload: draggingFromLibrary };
+  return null;
+}
+
+/** The dropped drag, on `drop` (its data is readable then). */
+export function droppedChainDrag(dt: Pick<DataTransfer, "getData">): ChainDrag | null {
+  const id = dt.getData(DEVICE_DRAG_TYPE);
+  if (id) return { type: "device", id };
+  const json = dt.getData(LIBRARY_DEVICE_DRAG_TYPE);
+  if (!json) return null;
+  try {
+    return { type: "library", payload: JSON.parse(json) as LibraryDevicePayload };
+  } catch {
+    return null;
+  }
+}
 
 /** The chain's sections, in signal order (MIDI effects feed the instrument, then audio effects). */
 export const CHAIN_SECTIONS: ReadonlyArray<{ id: DeviceCategory; label: MessageKey }> = [

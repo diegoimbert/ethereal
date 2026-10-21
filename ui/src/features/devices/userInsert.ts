@@ -75,13 +75,14 @@ export async function sendUserInsert(transport: EngineTransport, command: Comman
 }
 
 /**
- * Adds a device picked in the device library to `track`: opens its window, or says why it
- * can't go there (e.g. an instrument on an audio track).
+ * Adds a device picked in the device library to `track` (at `before` in its section when
+ * given: dropped there): opens its window, or says why it can't go there (e.g. an instrument
+ * on an audio track).
  */
-export async function insertFromLibrary(transport: EngineTransport, track: Track, payload: LibraryDevicePayload): Promise<boolean> {
+export async function insertFromLibrary(transport: EngineTransport, track: Track, payload: LibraryDevicePayload, before?: DeviceId | null): Promise<boolean> {
   const project = useProjectStore.getState().project;
   if (!project) return false;
-  const command = await libraryInsertCommand(transport, project, track, payload);
+  const command = await libraryInsertCommand(transport, project, track, payload, before);
   if (!command) {
     notify("Warning", cannotHostMessage(payload.name, payload.category, track));
     return false;

@@ -640,9 +640,11 @@ function ChainDevices({ chain, rackType, nestRacks }: { chain: RackChain; rackTy
         layout="stack"
         label={t("racks.chain.devices", { name: chain.name })}
         accept={accept}
-        onAdd={(p, category) => {
+        onAdd={(p, category, before) => {
           recordDeviceUse(p);
-          void send(cmd("Rack", { type: "InsertDevice", id: newId(), chain: chain.id, device: deviceSpec(p), before: insertBefore(category) }));
+          void send(
+            cmd("Rack", { type: "InsertDevice", id: newId(), chain: chain.id, device: deviceSpec(p), before: before !== undefined ? before : insertBefore(category) }),
+          );
         }}
         onMove={(id, before) => void send(cmd("Rack", { type: "MoveDevice", id, chain: chain.id, before }))}
         pasteChain={{ type: "Chain", chain: chain.id }}
