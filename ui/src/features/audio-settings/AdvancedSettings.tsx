@@ -3,14 +3,19 @@
 import { isTauri, type EngineTransport } from "@/transport";
 import { DebugPanelsSettings } from "@/features/debug";
 import { EngineLogSettings } from "@/features/engine-health";
-import { RemoteEngineSettings } from "@/features/remote/RemoteEngineSettings";
+import { RemoteEngineSettings, useEngineServerSettingsShown } from "@/features/remote/RemoteEngineSettings";
+import { useT } from "@/i18n";
 import { useAudioSettings } from "./store";
 
 export function AdvancedSettings({ transport }: { transport: EngineTransport }) {
   void transport;
+  const t = useT();
+  const shown = useEngineServerSettingsShown();
   return (
     <div className="eth-settings__stack" data-testid="settings-advanced">
       <RemoteEngineSettings />
+      {/* Hidden until turned on: say how (never an empty page). */}
+      {!shown && <p className="eth-settings__hint">{t("settings.engine.hidden_hint")}</p>}
     </div>
   );
 }

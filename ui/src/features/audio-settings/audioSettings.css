@@ -221,3 +221,22 @@
   justify-content: space-between;
   gap: var(--eth-space-md);
 }
+
+/* A section still loading (SettingsPlaceholder): muted bars at the content's height. */
+.eth-settings__placeholder {
+  gap: var(--eth-space-sm);
+}
+.eth-settings__placeholder-heading,
+.eth-settings__placeholder-line {
+  display: block;
+  height: var(--eth-fs-md);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+}
+.eth-settings__placeholder-heading {
+  width: 30%;
+}
+.eth-settings__placeholder-line {
+  width: 85%;
+  height: var(--eth-size-control-sm);
+}

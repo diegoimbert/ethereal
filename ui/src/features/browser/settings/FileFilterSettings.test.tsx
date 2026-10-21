@@ -7,10 +7,11 @@ import { cmd, TransportContext } from "@/transport";
 import type { MockTransport } from "@/transport/mock/MockTransport";
 import { defaultFileFilter } from "@/transport/mock/roadmap/fileFilter";
 import { useConfirm } from "@/kit";
-import { FileFilterSettings } from "./FileFilterSettings";
+import { FileFilterSettings, resetFileFilterCache } from "./FileFilterSettings";
 
 afterEach(() => {
   resetStores();
+  resetFileFilterCache();
   localStorage.removeItem("eth.library.regexRules");
 });
 

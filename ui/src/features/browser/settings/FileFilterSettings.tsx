@@ -19,6 +19,7 @@ import { useEngineEvent } from "@/features/transport-bar/engine";
 import { Button, IconButton, Select, TextInput, Toggle, useConfirm } from "@/kit";
 import { cmd, commandErrorText, isCommandFailed, newId, type EngineTransport } from "@/transport";
 import { useT, type MessageKey } from "@/i18n";
+import { SettingsPlaceholder } from "@/features/audio-settings/SettingsPlaceholder";
 import { fromRegex, RULE_KINDS, toRegex, type FriendlyRule, type RuleKind } from "./friendlyRules";
 
 /** Live check delay after a keystroke. */
@@ -109,11 +110,25 @@ function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+/** The rules as last loaded (this session): a later visit shows them at once, then refreshes. */
+let lastLoaded: { filter: FileFilter; defaults: FileFilter } | null = null;
+
+/** Tests: forget the last loaded rules. */
+export function resetFileFilterCache(): void {
+  lastLoaded = null;
+}
+
+/** Remember the rules shown (and the defaults, when known). */
+function remember(filter: FileFilter, defaults?: FileFilter): void {
+  const d = defaults ?? lastLoaded?.defaults;
+  if (d) lastLoaded = { filter, defaults: d };
+}
+
 export function FileFilterSettings({ transport }: { transport: EngineTransport }) {
   const t = useT();
-  const [saved, setSaved] = useState<FileFilter | null>(null);
-  const [defaults, setDefaults] = useState<FileFilter | null>(null);
-  const [lists, setLists] = useState<Lists | null>(null);
+  const [saved, setSaved] = useState<FileFilter | null>(() => lastLoaded?.filter ?? null);
+  const [defaults, setDefaults] = useState<FileFilter | null>(() => lastLoaded?.defaults ?? null);
+  const [lists, setLists] = useState<Lists | null>(() => (lastLoaded ? toRows(lastLoaded.filter) : null));
   const [checked, setChecked] = useState<{ key: string; check: FileFilterCheck } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recount, setRecount] = useState(0);
@@ -132,6 +147,7 @@ export function FileFilterSettings({ transport }: { transport: EngineTransport }
   const adopt = useCallback((filter: FileFilter) => {
     setSaved(filter);
     setLists(toRows(filter));
+    remember(filter);
   }, []);
 
   useEffect(() => {
@@ -141,7 +157,10 @@ export function FileFilterSettings({ transport }: { transport: EngineTransport }
       .then((r) => {
         if (!live || r.type !== "BrowserFileFilter") return;
         setDefaults(r.defaults);
-        adopt(r.filter);
+        // Shown from the last visit already: only a change replaces the rows (and their ids).
+        const changed = !lastLoaded || !sameFilter(lastLoaded.filter, r.filter);
+        remember(r.filter, r.defaults);
+        if (changed) adopt(r.filter);
       })
       .catch((e: unknown) => live && setError(errorText(e)));
     return () => {
@@ -180,7 +199,22 @@ export function FileFilterSettings({ transport }: { transport: EngineTransport }
     };
   }, [transport, draftKey, recount]);
 
-  if (!lists || !draft) return <p className="eth-settings__hint">{error ?? t("browser.filter.loading")}</p>;
+  // Loading: the section's frame at once, placeholder rows for the rules (no jump when they come).
+  if (!lists || !draft) {
+    return (
+      <section className="eth-settings__section eth-file-filter" aria-label={t("browser.filter.title")} aria-busy={!error} data-testid="settings-library-filters">
+        <div className="eth-settings__row">
+          <h3 className="eth-settings__heading">{t("browser.filter.title")}</h3>
+          <Button size="sm" disabled>
+            {t("browser.filter.reset")}
+          </Button>
+        </div>
+        <p className="eth-settings__hint">{error ?? t("browser.filter.hint")}</p>
+        <Toggle size="sm" label={t("browser.filter.use_regex")} checked={regexMode} onChange={setRegexMode} />
+        {!error && <SettingsPlaceholder rows={5} />}
+      </section>
+    );
+  }
 
   // Errors of the current rows only (a check of older text is ignored).
   const current = checked && checked.key === draftKey ? checked.check : null;
@@ -197,7 +231,10 @@ export function FileFilterSettings({ transport }: { transport: EngineTransport }
       const r = await transport.send(cmd("Browser", { type: "CheckFileFilter", filter, paths: [] }));
       if (r.type === "BrowserFileFilterCheck" && r.check.errors.length > 0) return; // shown inline
       const reply = await transport.send(cmd("Browser", { type: "SetFileFilter", filter }));
-      if (reply.type === "BrowserFileFilter") setSaved(reply.filter);
+      if (reply.type === "BrowserFileFilter") {
+        setSaved(reply.filter);
+        remember(reply.filter);
+      }
       setError(null);
     } catch (e) {
       setError(errorText(e));

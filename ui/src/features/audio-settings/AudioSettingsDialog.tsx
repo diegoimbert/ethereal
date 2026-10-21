@@ -14,6 +14,7 @@ import { AdvancedSettings, DiagnosticsSettings } from "./AdvancedSettings";
 import { AppearanceSettings } from "./AppearanceSettings";
 import { InputSettings, ShortcutSettings } from "./InputSettings";
 import { LanguageSettings } from "./LanguageSettings";
+import { SettingsPlaceholder } from "./SettingsPlaceholder";
 import { bufferChoice } from "./buffer";
 import { loadAudioDevices, useAudioSettings, type BuiltinSettingsTab } from "./store";
 import { useContributions, type SettingsSectionContribution } from "@/ext";
@@ -282,7 +283,8 @@ function AudioSettingsBody({ transport, reason }: { transport: EngineTransport; 
       </p>
     );
   }
-  if (!devices) return <p className="eth-audio-settings__note">{loading ? t("settings.audio.loading") : t("settings.audio.no_devices")}</p>;
+  // Loading: placeholder rows where the devices go (no jump when they come).
+  if (!devices) return loading ? <SettingsPlaceholder rows={4} /> : <p className="eth-audio-settings__note">{t("settings.audio.no_devices")}</p>;
 
   const cur = devices.current;
   const defaultOutput = devices.outputs.find((d) => d.is_default)?.name ?? devices.outputs[0]?.name ?? "";
