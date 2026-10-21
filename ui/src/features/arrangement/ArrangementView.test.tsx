@@ -392,7 +392,10 @@ const rowsOf = (r: object) => (r as { deps: { rows(): unknown[] } }).deps.rows()
 
 describe("ArrangementView: track header polish", () => {
   const headerOf = (name: string) => screen.getByRole("group", { name: `${name} track` });
-  const buttonLabels = (name: string) => [...headerOf(name).querySelectorAll(".eth-arr-header__buttons > button")].map((b) => b.getAttribute("aria-label"));
+  const buttonLabels = (name: string) =>
+    [...headerOf(name).querySelectorAll(".eth-arr-header__buttons > button, .eth-arr-header__buttons > .eth-popover-anchor > button")].map((b) =>
+      b.getAttribute("aria-label"),
+    );
 
   it("puts the takes button first, so the other buttons keep their positions", async () => {
     const bass = trackByName("Bass");
@@ -405,6 +408,14 @@ describe("ArrangementView: track header polish", () => {
     const after = buttonLabels("Bass");
     expect(after[0]).toMatch(/takes of Bass/);
     expect(after.slice(1)).toEqual(before);
+  });
+
+  it("right-clicking the arm button shows the track's input and monitoring", async () => {
+    const arm = within(headerOf("Bass")).getByRole("button", { name: "arm Bass" });
+    fireEvent.contextMenu(arm);
+    const panel = await screen.findByRole("dialog", { name: "input and monitoring of Bass" });
+    expect(within(panel).getByRole("combobox", { name: "monitoring of Bass" })).toBeTruthy();
+    expect(within(panel).getByRole("combobox", { name: "input of Bass" })).toBeTruthy();
   });
 
   it("header buttons are always shown, small, under the volume and pan", () => {

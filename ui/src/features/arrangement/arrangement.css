@@ -874,6 +874,7 @@
     .eth-arr-header__buttons
       > :nth-last-child(1):is(
         [aria-pressed="true"],
+        :has(> [aria-pressed="true"]),
         .eth-takes-toggle,
         .eth-auto-toggle--has,
         .eth-freeze__toggle,
@@ -890,6 +891,7 @@
     .eth-arr-header__buttons
       > :nth-last-child(2):is(
         [aria-pressed="true"],
+        :has(> [aria-pressed="true"]),
         .eth-takes-toggle,
         .eth-auto-toggle--has,
         .eth-freeze__toggle,
@@ -906,6 +908,7 @@
     .eth-arr-header__buttons
       > :nth-last-child(3):is(
         [aria-pressed="true"],
+        :has(> [aria-pressed="true"]),
         .eth-takes-toggle,
         .eth-auto-toggle--has,
         .eth-freeze__toggle,
@@ -922,6 +925,7 @@
     .eth-arr-header__buttons
       > :nth-last-child(4):is(
         [aria-pressed="true"],
+        :has(> [aria-pressed="true"]),
         .eth-takes-toggle,
         .eth-auto-toggle--has,
         .eth-freeze__toggle,
@@ -938,6 +942,7 @@
     .eth-arr-header__buttons
       > :nth-last-child(5):is(
         [aria-pressed="true"],
+        :has(> [aria-pressed="true"]),
         .eth-takes-toggle,
         .eth-auto-toggle--has,
         .eth-freeze__toggle,
@@ -954,6 +959,7 @@
     .eth-arr-header__buttons
       > :nth-last-child(6):is(
         [aria-pressed="true"],
+        :has(> [aria-pressed="true"]),
         .eth-takes-toggle,
         .eth-auto-toggle--has,
         .eth-freeze__toggle,

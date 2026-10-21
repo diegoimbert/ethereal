@@ -6,6 +6,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSPr
 import { AudioLines, ChevronDown, Circle, CornerDownRight, Folder, Headphones, Piano, Speaker, SlidersVertical, Spline, Volume2, VolumeX } from "lucide-react";
 import type { Beats, Track, TrackId } from "@/generated";
 import { promptForInputIfNone } from "@/features/audio-settings";
+import { TrackRecordSetup } from "@/features/recording";
 import { animateGroupFold, AutomationToggleButton, TrackAutomationLanes } from "@/features/automation";
 import { groupsTrackMenu, VcaLane } from "@/features/groups";
 import { FreezeHeaderStatus, inertTitle, useFrozenAncestor, withFreezeTrackEntries } from "@/features/freeze";
@@ -218,6 +219,7 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
   const inert = useFrozenAncestor(track.id);
   const folded = useArrangementUi((s) => s.folded.has(track.id));
   const [renaming, setRenaming] = useState(false);
+  const [recordSetup, setRecordSetup] = useState(false);
   // An unnamed MIDI track shows its instrument's name.
   const displayName = useTrackDisplayName(track);
   const { mute, solo } = track.mixer;
@@ -415,37 +417,57 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
               </button>
             )}
             {canArm && !readOnly && (
-              <button
-                type="button"
-                className="eth-arr-header__toggle eth-arr-header__arm"
-                {...midiTarget({ type: "TrackArm", track: track.id })}
-                aria-pressed={armed}
-                aria-label={t("arrangement.header.arm_named", { name: track.name })}
-                // Browser build: a tapped track can't record (no capture); say why.
-                aria-disabled={armBlocked || inert ? true : undefined}
-                style={armBlocked || inert ? { opacity: "var(--eth-opacity-disabled)", cursor: "not-allowed" } : undefined}
-                title={(inert ? inertTitle(inert) : armBlocked) ?? t("arrangement.header.arm_title")}
-                onClick={(e) =>
-                  !armBlocked &&
-                  !inert &&
-                  void transport
-                    .send(
-                      cmd("Recording", {
-                        type: "Arm",
-                        track: track.id,
-                        armed: !armed,
-                        exclusive: !(e.ctrlKey || e.metaKey),
-                      }),
-                    )
-                    // Arming an audio track with no input device open: offer to choose one.
-                    .then(() => {
-                      if (!armed && track.kind === "Audio" && track.input.type !== "Track") void promptForInputIfNone(transport);
-                    })
-                    .catch((err: unknown) => console.warn("arm failed", err))
-                }
+              // Right-click: the track's input and monitoring, in a popover.
+              <Popover
+                open={recordSetup}
+                onOpenChange={setRecordSetup}
+                placement="bottom-end"
+                aria-label={t("arrangement.header.record_setup_named", { name: track.name })}
+                trigger={() => (
+                  <button
+                    type="button"
+                    className="eth-arr-header__toggle eth-arr-header__arm"
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setRecordSetup(true);
+                    }}
+                    {...midiTarget({ type: "TrackArm", track: track.id })}
+                    aria-pressed={armed}
+                    aria-label={t("arrangement.header.arm_named", { name: track.name })}
+                    // Browser build: a tapped track can't record (no capture); say why.
+                    aria-disabled={armBlocked || inert ? true : undefined}
+                    style={armBlocked || inert ? { opacity: "var(--eth-opacity-disabled)", cursor: "not-allowed" } : undefined}
+                    title={(inert ? inertTitle(inert) : armBlocked) ?? t("arrangement.header.arm_title")}
+                    onClick={(e) =>
+                      !armBlocked &&
+                      !inert &&
+                      void transport
+                        .send(
+                          cmd("Recording", {
+                            type: "Arm",
+                            track: track.id,
+                            armed: !armed,
+                            exclusive: !(e.ctrlKey || e.metaKey),
+                          }),
+                        )
+                        // Arming an audio track with no input device open: offer to choose one.
+                        .then(() => {
+                          if (!armed && track.kind === "Audio" && track.input.type !== "Track") void promptForInputIfNone(transport);
+                        })
+                        .catch((err: unknown) => console.warn("arm failed", err))
+                    }
+                  >
+                    <Circle />
+                  </button>
+                )}
               >
-                <Circle />
-              </button>
+                {/* Picks stay in the popover (not a press / click on the track header behind it). */}
+                {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+                <div onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+                  <TrackRecordSetup track={track.id} />
+                </div>
+              </Popover>
             )}
             <AutomationToggle track={track} />
           </span>

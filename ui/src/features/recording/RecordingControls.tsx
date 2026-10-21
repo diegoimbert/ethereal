@@ -7,19 +7,9 @@ import { EngineStatusIndicator, useCompactTopBar } from "@/features/transport-ba
 import { tracksOrdered, useProjectStore, useRecordSupport } from "@/state";
 import { cmd, commandErrorText, isCommandFailed, TransportContext, type EngineTransport } from "@/transport";
 import { useLiveRecordingFeed } from "./live/liveStore";
-import {
-  COUNT_IN_CHOICES,
-  countInLabel,
-  inputOptions,
-  inputValue,
-  isRecordable,
-  midiChannelOptions,
-  midiChannelValue,
-  MONITOR_LABELS,
-  MONITOR_MODES,
-  withMidiChannel,
-} from "./inputs";
+import { COUNT_IN_CHOICES, countInLabel, isRecordable } from "./inputs";
 import { tapArmBlocked } from "./tapRecording";
+import { TrackInputSelects, TrackMonitorSelect } from "./TrackInputs";
 
 import { unsupportedTooltip } from "./support";
 import { useT } from "@/i18n";
@@ -293,7 +283,6 @@ function InputsPanel({ transport, inputs, unsupported, send, onDeviceChanged }: 
             {tracks.map((tr) => {
               const isArmed = armed.includes(tr.id);
               const armBlocked = tapArmBlocked(transport.kind, tr.input, isArmed);
-              const options = inputOptions(tr.kind, inputs, tr.input);
               return (
                 <tr key={tr.id} data-track={tr.id}>
                   <td className="eth-rec__track-name eth-user-text">{tr.name}</td>
@@ -314,36 +303,10 @@ function InputsPanel({ transport, inputs, unsupported, send, onDeviceChanged }: 
                     </span>
                   </td>
                   <td>
-                    <span className="eth-rec__input">
-                      <Select
-                        size="sm"
-                        aria-label={t("recording.input_of", { name: tr.name })}
-                        value={inputValue(tr.input)}
-                        onChange={(v) => {
-                          const option = options.find((o) => o.value === v);
-                          if (option) void send(cmd("Recording", { type: "SetInput", track: tr.id, input: option.input }));
-                        }}
-                        options={options.map((o) => ({ value: o.value, label: o.label, userText: o.userText }))}
-                      />
-                      {tr.input.type === "Midi" && (
-                        <Select
-                          size="sm"
-                          aria-label={t("recording.midi_channel_of", { name: tr.name })}
-                          value={midiChannelValue(tr.input)}
-                          onChange={(v) => void send(cmd("Recording", { type: "SetInput", track: tr.id, input: withMidiChannel(tr.input, v) }))}
-                          options={midiChannelOptions()}
-                        />
-                      )}
-                    </span>
+                    <TrackInputSelects track={tr} inputs={inputs} send={send} />
                   </td>
                   <td>
-                    <Select<Track["monitor"]>
-                      size="sm"
-                      aria-label={t("recording.monitoring_of", { name: tr.name })}
-                      value={tr.monitor}
-                      onChange={(v) => void send(cmd("Recording", { type: "SetMonitor", track: tr.id, monitor: v }))}
-                      options={MONITOR_MODES.map((m) => ({ value: m, label: t(MONITOR_LABELS[m]) }))}
-                    />
+                    <TrackMonitorSelect track={tr} send={send} />
                   </td>
                 </tr>
               );

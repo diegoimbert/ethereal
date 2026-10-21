@@ -62,6 +62,7 @@ export interface MessageArgs {
   "arrangement.header.mute_named": { name: string | number };
   "arrangement.header.name_title": { name: string | number };
   "arrangement.header.pan": { name: string | number };
+  "arrangement.header.record_setup_named": { name: string | number };
   "arrangement.header.resize_named": { name: string | number };
   "arrangement.header.solo_named": { name: string | number };
   "arrangement.header.track": { name: string | number };
