@@ -1,5 +1,6 @@
 import "./arrangement.css";
-import { rulerMenuEntries, surfaceMenuEntries } from "@/ext/surfaces";
+import { surfaceMenuEntries } from "@/ext/surfaces";
+import { timelineMenuExtras } from "@/features/clip-editing/timelineMenu";
 import { useContributions } from "@/ext";
 import { AmbientBlobs, Button, openContextMenu, setDragCursor, useThemeColor } from "@/kit";
 import { useProjectScreen } from "@/features/project/screenStore";
@@ -509,7 +510,8 @@ function ConnectedArrangementView() {
             view={view}
             grid={grid}
             className="eth-arr__ruler"
-            menuItems={rulerMenuEntries}
+            // After its tempo entries, the marker band's (one timeline menu on both).
+            menuItems={(at) => timelineMenuExtras(transport, at)}
           />
         </div>
         <div className="eth-arr__scroll" ref={scrollRef} onPointerDownCapture={onTracksPointerDownCapture}>

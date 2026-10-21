@@ -43,7 +43,7 @@ Pour changer de mesure en cours de morceau, ajoutez plutôt un changement de sig
 
 ## changements au cours du morceau {#changes-during-the-song}
 
-Faites un clic droit sur la règle à l’endroit du changement et choisissez **ajouter un changement de tempo ici** ou **ajouter un changement de signature rythmique ici**. Les changements apparaissent sous forme de petites pastilles le long du bord inférieur de la règle : celles de tempo se lisent comme ♩120, celles de signature comme 3/4.
+Faites un clic droit sur la règle (ses numéros ou la bande des marqueurs au-dessus : elles partagent un menu, avec aussi **ajouter un marqueur ici**) à l’endroit du changement et choisissez **ajouter un changement de tempo ici** ou **ajouter un changement de signature rythmique ici**. Les changements apparaissent sous forme de petites pastilles le long du bord inférieur de la règle : celles de tempo se lisent comme ♩120, celles de signature comme 3/4.
 
 - **Faites glisser** une pastille pour la déplacer. Elle s’aligne sur la grille ; maintenez [[key:Alt]] pour la déplacer librement.
 - **Faites un clic droit** sur une pastille de tempo pour basculer entre **rampe jusqu’au point suivant** (le tempo glisse jusqu’au changement suivant) et **tempo constant (sans rampe)** (il saute), ou pour la supprimer.
