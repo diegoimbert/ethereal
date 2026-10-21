@@ -14,8 +14,8 @@ import { boxX, isRaised, type LaneView } from "../hitTest";
 export type FadeHandle = "fade-in" | "fade-out" | "fade-in-curve" | "fade-out-curve";
 export const FADE_HANDLES: ReadonlyArray<FadeHandle> = ["fade-in", "fade-out", "fade-in-curve", "fade-out-curve"];
 
-/** Visible handle size (`--eth-space-sm`) and the invisible grab margin around it (`--eth-space-md`). */
-export const HANDLE_PX = 4;
+/** Visible handle size (`--eth-space-md`) and the invisible grab margin around it (`--eth-space-md`). */
+export const HANDLE_PX = 8;
 export const GRAB_PX = 8;
 /** Length handles stay this far inside the clip's edges (`max(fade, --eth-space-md)`). */
 export const HANDLE_INSET_PX = 8;

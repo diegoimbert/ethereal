@@ -22,6 +22,7 @@ import { Pipeline } from "../glContext";
 import type { Rgba } from "../palette";
 import type { FxCode, InstanceWriter } from "../pipelines";
 import { FRAG_COMMON, SHADER_COMMON } from "../shaders";
+import { HANDLE_PX } from "./fadeModel";
 
 export const FadeMode = { Tint: 0, Shade: 1, Line: 2, Dashed: 3, Handle: 4, CurveHandle: 5, Hatch: 6, Outline: 7 } as const;
 export type FadeModeCode = (typeof FadeMode)[keyof typeof FadeMode];
@@ -58,7 +59,7 @@ flat out float v_radius;
 flat out vec4 v_fill;
 flat out vec4 v_stroke;
 
-const float HANDLE = 4.0;
+const float HANDLE = ${HANDLE_PX.toFixed(1)};
 
 float gain(float code, float tension, float x) {
   float t = clamp(x, 0.0, 1.0);

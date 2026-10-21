@@ -30,6 +30,7 @@ import type { Rgba } from "./palette";
 import { RectFlag } from "./pipelines";
 import type { WaveTiles } from "./waveTiles";
 import { FadeMode } from "./layers/fadePipeline";
+import { HANDLE_PX } from "./layers/fadeModel";
 
 /** Batches and scenes keep their CPU copy only (no GPU objects). */
 class Canvas2DContext implements RenderContext {
@@ -576,7 +577,7 @@ function notes(l: Lane, d: Float32Array, first: number, n: number): void {
 
 // ── fade (layers/fadePipeline.ts) ─────────────────────────────────────────────────────────
 
-const HANDLE = 4;
+const HANDLE = HANDLE_PX;
 
 function fadeGain(code: number, tension: number, x: number): number {
   const t = clamp(x, 0, 1);
