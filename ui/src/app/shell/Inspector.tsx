@@ -33,7 +33,7 @@ import { IconButton, Knob, NumberField, Popover, Select, TextInput, Toggle } fro
 import { useProjectStore, defaultClipName, defaultTrackName, tracksOrdered } from "@/state";
 import { trackSoloCommand } from "@/domain/soloCommands";
 import { additiveClick } from "@/domain/soloPlan";
-import { TRACK_COLORS } from "@/theme";
+import { displayColorCss, TRACK_COLORS } from "@/theme";
 import { formatBarBeat, formatDuration, useTempoMap } from "@/timeline";
 import { cmd, newId } from "@/transport";
 import { type MessageKey, useT } from "@/i18n";
@@ -43,7 +43,7 @@ import { ProjectSwingFields } from "@/features/groove";
 
 const PALETTE: ReadonlyArray<number> = TRACK_COLORS.map((c) => parseInt(c.slice(1), 16));
 /** A track/clip color as CSS; an unknown one (`null`) is the fallback token. */
-const css = (color: number | null | undefined) => (color == null ? "var(--eth-track-fallback)" : `#${(color & 0xffffff).toString(16).padStart(6, "0")}`);
+const css = (color: number | null | undefined) => (color == null ? "var(--eth-track-fallback)" : displayColorCss(color));
 const batch = (label: string, commands: Command[]): Command | null =>
   commands.length === 0 ? null : commands.length === 1 ? commands[0]! : cmd("Edit", { type: "Batch", label, commands });
 

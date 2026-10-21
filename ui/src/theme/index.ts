@@ -9,6 +9,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import { darkColors, DEFAULT_THEME, THEME_NAMES, themes, tokenName, TRACK_COLORS, type ColorKey, type ThemeName } from "./tokens";
 
 export * from "./tokens";
+export { displayColor, displayColorCss } from "./displayColor";
 
 /** Dark-theme color values (kept for backwards compatibility; theme-aware code uses `readToken`). */
 export const colors = darkColors;
