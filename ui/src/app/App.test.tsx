@@ -62,7 +62,7 @@ describe("App shell", () => {
     }
     // The settings open from the gear.
     fireEvent.click(screen.getByRole("button", { name: "settings" }));
-    expect(await screen.findByRole("tab", { name: "general" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "general" })).toBeInTheDocument();
   });
 
   it("the rail opens each panel in the left pane, and closes it on a second click", async () => {

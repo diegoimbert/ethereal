@@ -1,5 +1,5 @@
-// Settings > Advanced: the engine server (remote engine), the engine log (desktop) and the
-// debug panels.
+// Settings > Advanced: the engine server (remote engine); Diagnostics: the engine log
+// (desktop) and the debug panels.
 import { isTauri, type EngineTransport } from "@/transport";
 import { DebugPanelsSettings } from "@/features/debug";
 import { EngineLogSettings } from "@/features/engine-health";
@@ -11,6 +11,13 @@ export function AdvancedSettings({ transport }: { transport: EngineTransport }) 
   return (
     <div className="eth-settings__stack" data-testid="settings-advanced">
       <RemoteEngineSettings />
+    </div>
+  );
+}
+
+export function DiagnosticsSettings() {
+  return (
+    <div className="eth-settings__stack" data-testid="settings-diagnostics">
       {isTauri() && <EngineLogSettings />}
       <DebugPanelsSettings onOpen={() => useAudioSettings.getState().close()} />
     </div>

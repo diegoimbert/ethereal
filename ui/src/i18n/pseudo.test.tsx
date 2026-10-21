@@ -168,14 +168,14 @@ describe("the pseudo-locale finds no untranslated text", () => {
     await renderWithMock(<AudioSettingsDialog />);
     await act(async () => openSettings("general"));
     const dialog = await screen.findByRole("dialog");
-    const frame = [dialog.querySelector(".eth-dialog__header"), screen.getByRole("tablist"), dialog.querySelector(".eth-dialog__footer")];
+    const frame = [dialog.querySelector(".eth-dialog__header"), screen.getByRole("navigation"), dialog.querySelector(".eth-dialog__footer")];
     for (const el of [...frame, screen.getByTestId("settings-language"), screen.getByTestId("settings-general")]) {
       expect(el).not.toBeNull();
       expect(untranslated(el!)).toEqual([]);
     }
   });
 
-  for (const tab of ["appearance", "input", "audio", "privacy"] satisfies SettingsTab[]) {
+  for (const tab of ["library", "appearance", "input", "shortcuts", "audio", "privacy", "diagnostics"] satisfies SettingsTab[]) {
     it(`in settings > ${tab}`, async () => {
       await renderWithMock(<AudioSettingsDialog />);
       await act(async () => openSettings(tab));

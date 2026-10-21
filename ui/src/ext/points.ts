@@ -179,20 +179,29 @@ export interface ProjectRowAction {
 }
 
 /** A settings tab of its own (`AudioSettingsDialog`). */
+/**
+ * A settings page: a category of its own in the sidebar, or with `parent` a page of that
+ * category (listed under it). Its content: `Component`, and the sections contributed to it.
+ */
 export interface SettingsTabContribution {
   id: string;
   label(): string;
+  /** A page of this category (e.g. "sharing", "advanced"), after its own pages. */
+  parent?: string;
+  /** A category's own page, when pages are added under it: its name there (default `label`). */
+  pageLabel?(): string;
   /** Shown without an engine (else the "no engine connected" note replaces it). */
   noEngine?: boolean;
-  /** Placed before this tab (default: before "advanced"). */
+  /** A category placed before this one (default: before "advanced"). */
   before?: string;
-  Component: ComponentType<{ transport: EngineTransport | null }>;
+  Component?: ComponentType<{ transport: EngineTransport | null }>;
 }
 
-/** A section added to a settings tab (built-in or contributed). */
+/** A section added to a settings page (built-in or contributed). */
 export interface SettingsSectionContribution {
+  /** The page (its id: e.g. "general", "privacy", "diagnostics", or a contributed one). */
   tab: string;
-  /** `start` or `end` (default) of the tab. */
+  /** `start` or `end` (default) of the page. */
   at?: "start" | "end";
   /** Shown without an engine too (default: only with one). */
   noEngine?: boolean;

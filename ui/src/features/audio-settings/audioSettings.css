@@ -84,17 +84,65 @@
   }
 }
 
-/* Settings tabs (Audio | Sharing | Advanced). */
+/* Settings: the categories' sidebar (a category with several pages lists them under it
+   when open), and the page. */
 .eth-settings {
   display: flex;
   flex: 1;
-  flex-direction: column;
-  gap: var(--eth-space-lg);
+  gap: var(--eth-space-xl);
   min-width: 0;
   min-height: 0;
 }
-.eth-settings__tabs {
-  align-self: flex-start;
+.eth-settings__nav {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--eth-space-hair);
+  width: var(--eth-size-settings-nav-width);
+  overflow-y: auto;
+}
+.eth-settings__nav-item {
+  display: block;
+  width: 100%;
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  border: none;
+  border-radius: var(--eth-radius-md);
+  background: transparent;
+  color: var(--eth-color-text-dim);
+  font: inherit;
+  font-size: var(--eth-fs-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.eth-settings__nav-item:hover {
+  background: var(--eth-color-bg-hover);
+  color: var(--eth-color-text);
+}
+.eth-settings__nav-item[data-current] {
+  color: var(--eth-color-text);
+}
+/* The page shown: a category alone, or the page under its open category. */
+.eth-settings__nav-item[aria-current="page"] {
+  background: var(--eth-color-bg-active);
+}
+.eth-settings__nav-item:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: calc(-1 * var(--eth-focus-ring-width));
+}
+.eth-settings__nav-pages {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-hair);
+  margin: var(--eth-space-hair) 0 var(--eth-space-sm) var(--eth-space-md);
+}
+.eth-settings__nav-page {
+  font-size: var(--eth-fs-xs);
+}
+.eth-settings__page-title {
+  margin: 0 0 var(--eth-space-lg);
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-md);
+  font-weight: var(--eth-fw-medium);
 }
 .eth-settings__panel {
   flex: 1;

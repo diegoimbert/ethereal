@@ -2,8 +2,8 @@ import { create } from "zustand";
 import type { AudioConfig, AudioDeviceList, EngineStatus } from "@/generated";
 import { cmd, type EngineTransport } from "@/transport";
 
-/** The Settings dialog's own tabs. */
-export type BuiltinSettingsTab = "general" | "appearance" | "audio" | "input" | "plugins" | "privacy" | "advanced";
+/** The Settings dialog's own pages (`AudioSettingsDialog`: in categories). */
+export type BuiltinSettingsTab = "general" | "library" | "appearance" | "audio" | "input" | "shortcuts" | "plugins" | "privacy" | "advanced" | "diagnostics";
 /** A Settings tab: the app's, or an extension's (`@/ext` "settings.tab"). */
 export type SettingsTab = BuiltinSettingsTab | (string & {});
 

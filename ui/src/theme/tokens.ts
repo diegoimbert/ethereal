@@ -534,7 +534,9 @@ export const size = {
   deviceGroupMinWidth: "220px",
   deviceGroupMinWidthWide: "200px",
   // Audio settings dialog.
-  audioSettingsDialogWidth: "520px",
+  audioSettingsDialogWidth: "720px",
+  /** The settings dialog's sidebar (categories and their pages). */
+  settingsNavWidth: "168px",
   audioSettingsMeterNameWidth: "120px",
   // Guided tours (features/tutorials).
   /** The tour's step bubble (narrower on small screens), and the most an illustration in it takes. */
