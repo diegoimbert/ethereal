@@ -54,11 +54,13 @@ on:
 permissions:
   contents: read
 
-# Pushes to main share one group that never cancels a running run: it goes to the end (green or
-# red), the newest push waits, the ones in between are skipped (reported as cancelled). The
-# `Main status` workflow reports the latest run that finished.
+# Pushes to main share one group: the newest push waits, the ones in between are skipped (reported
+# as cancelled), and main-supersede.yml cancels the running one so the newest starts, unless no run
+# has finished for ~2 h. The `Main status` workflow reports the latest run that finished green or
+# red. Manual runs have groups of their own (per ref: a newer dispatch of a ref skips the waiting
+# one).
 concurrency:
-  group: full-${{ github.ref }}-${{ inputs.ref }}
+  group: full-${{ github.event_name }}-${{ github.ref }}-${{ inputs.ref }}
   cancel-in-progress: false
 
 env:
@@ -253,6 +255,9 @@ jobs:
         run: node scripts/ci/private-step.mjs install -- "pnpm install --frozen-lockfile && pnpm --dir ee install --frozen-lockfile && node ee/app/link.mjs"
       - name: build
         run: |
+          # The last build's stamp goes first: a build cancelled or failed midway must not leave
+          # this dir stamped with the earlier commits (a re-run shard would trust it).
+          rm -f "${CARGO_TARGET_DIR:-target}/e2e-stamp.json"
           echo "t0=$(( $(date +%s) - 2 ))" >> "$GITHUB_ENV"
           # The wasm build (its own target triple, so its own cargo lock) runs beside the native
           # ones (cold: ~8 min of ~24).

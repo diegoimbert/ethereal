@@ -17,8 +17,9 @@ permissions:
   contents: read
 
 concurrency:
-  # Pushes to `main`: one run goes to the end, the newest push waits, the ones in between are
-  # skipped (reported as cancelled). Manual runs are a group of their own.
+  # Pushes to `main`: the newest push waits, the ones in between are skipped (reported as
+  # cancelled), and main-supersede.yml cancels the running one (as ci.yml). Manual runs are a
+  # group of their own.
   group: ci-windows-${{ github.event_name == 'push' && github.ref || github.run_id }}
   cancel-in-progress: false
 
@@ -62,6 +63,12 @@ jobs:
         # manifest an installed app carries; bare, they don't start (0xc0000139). Its tests run on
         # Linux, and the Windows packaging job builds and bundles it.
         run: cargo nextest run --profile ci --workspace --all-features --exclude ether-desktop
+      - name: No Rust cache from a cancelled run
+        # cache-on-failure also saves a cancelled job's (main-supersede.yml) half-built cache,
+        # which would hold its key until Cargo.lock changes; the superseding run saves instead.
+        if: cancelled()
+        shell: bash
+        run: echo "CACHE_ON_FAILURE=false" >> "$GITHUB_ENV"
 
   package:
     # The release's desktop packaging path, before merge: tauri.conf.json's beforeBuildCommand
@@ -123,3 +130,9 @@ jobs:
         env:
           TARGET: ${{ matrix.target }}
         run: node scripts/release/collect.mjs desktop "$TARGET" "$RUNNER_TEMP/out"
+      - name: No Rust cache from a cancelled run
+        # cache-on-failure also saves a cancelled job's (main-supersede.yml) half-built cache,
+        # which would hold its key until Cargo.lock changes; the superseding run saves instead.
+        if: cancelled()
+        shell: bash
+        run: echo "CACHE_ON_FAILURE=false" >> "$GITHUB_ENV"

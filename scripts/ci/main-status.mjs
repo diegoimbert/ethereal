@@ -1,6 +1,7 @@
 // Main status (.github/workflows/main-status.yml): after a run of CI, CI (Windows), Full product or
-// Full product (macOS, Windows) on `main` finishes, report the latest *finished* push run of each (a skipped run, reported as cancelled,
-// says nothing about `main`) on the one open `ci-main` issue:
+// Full product (macOS, Windows) on `main` finishes, report the latest *finished* push run of each on
+// the one open `ci-main` issue. A cancelled run (skipped by the concurrency group, or superseded by
+// main-supersede.yml) is no signal: it never opens, comments on or closes the issue.
 //   - a red run that the issue doesn't mention yet: a comment (the issue is opened if none is);
 //   - a workflow the issue last reported red that is green again, while others are still red: a
 //     comment, so the issue says which ones are left;
@@ -35,7 +36,8 @@ export function plan(latest, issue) {
     `${l.name}: ${l.run ? `${l.run.conclusion === "success" ? "green" : "red"} at ${l.run.head_sha.slice(0, 10)} (${l.run.html_url})` : "no finished run yet"}`;
   const summary = latest.map((l) => `- ${line(l)}`).join("\n");
   if (!red.length) {
-    if (!issue) return { comments: [], open: false, close: false };
+    // Green needs a verdict from every workflow: one with only cancelled runs in sight says nothing.
+    if (!issue || latest.some((l) => !l.run)) return { comments: [], open: false, close: false };
     return { comments: [`\`main\` is green again: the latest finished run of every workflow passed.\n\n${summary}`], open: false, close: true };
   }
   const news = red.filter((l) => !issue?.text.includes(l.run.html_url));
@@ -62,11 +64,15 @@ function main() {
   const dry = process.argv.includes("--dry-run");
   const repo = process.env.GH_REPO ?? die("GH_REPO is not set");
   const latest = WORKFLOWS.map((w) => {
-    let runs = [];
+    let run = null;
     try {
-      runs = api(`repos/${repo}/actions/workflows/${w.file}/runs?branch=main&event=push&status=completed&per_page=50`).workflow_runs;
+      // Past a merge streak's cancelled runs (3 pages at most).
+      for (let page = 1; page <= 3 && !run; page++) {
+        const runs = api(`repos/${repo}/actions/workflows/${w.file}/runs?branch=main&event=push&status=completed&per_page=100&page=${page}`).workflow_runs;
+        run = latestFinished(runs);
+        if (runs.length < 100) break;
+      }
     } catch {} // a workflow that isn't on `main` yet: no finished run
-    const run = latestFinished(runs);
     const failed = run
       ? api(`repos/${repo}/actions/runs/${run.id}/jobs?filter=latest&per_page=100`)
           .jobs.filter((j) => ["failure", "timed_out"].includes(j.conclusion))

@@ -1,0 +1,43 @@
+name: Supersede main runs
+
+# A streak of merges builds only its last commit: after a push to `main`, cancel the running push
+# run of CI, CI (Windows), Full product and Full product (macOS, Windows) that a newer push run of
+# the same workflow replaces (scripts/ci/main-supersede.mjs). Each of them has one concurrency group
+# for pushes to `main` that never cancels by itself (cancel-in-progress: false): the runs waiting
+# in it are skipped by GitHub, the newest waits for the running one, and this workflow cancels the
+# running one so the newest starts at once. A group with cancel-in-progress: true can't do it: it
+# would cancel during a long merge streak forever, and `main` would get no signal. So the guard:
+# when a workflow has had no finished (green or red) push run for more than ~2 h, the running run
+# is let finish. Manual runs, re-runs and other workflows (release, EE sync) are never cancelled.
+#
+# Safety: a push to `main` only (trusted); the token can only read the repository and cancel runs.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  # The newest push's run sees every run the older pushes' would cancel.
+  group: main-supersede
+  cancel-in-progress: true
+
+jobs:
+  cancel:
+    name: Cancel superseded runs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          sparse-checkout: scripts/ci
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: node scripts/ci/main-supersede.mjs
