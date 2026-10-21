@@ -286,13 +286,14 @@ jobs:
         # The helpers (plugin scanner, sandbox helper on macOS/Linux) and the MCP server are
         # built and staged by tauri.conf.json's beforeBuildCommand and installed next to the app
         # binary; collect.mjs checks they are in the .app and the .deb. `--features full`: every
-        # Cargo feature (docs/ARCHITECTURE.md "Cargo features").
+        # Cargo feature (docs/ARCHITECTURE.md "Cargo features"). `npm run`, not `pnpm tauri`: pnpm
+        # would install first, and this node_modules is a link (ee/app/link.mjs) it refuses.
         env:
           TARGET: ${{ matrix.target }}
           BUNDLES: ${{ matrix.bundles }}
         run: >-
           node ../../../scripts/ci/private-step.mjs tauri-build --
-          pnpm tauri build --ci --features full --target "$TARGET" --bundles "$BUNDLES"
+          npm run tauri -- build --ci --features full --target "$TARGET" --bundles "$BUNDLES"
           --config "$RUNNER_TEMP/tauri.release.json"
       - name: Collect installers
         shell: bash
