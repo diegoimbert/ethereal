@@ -133,6 +133,7 @@ export const ParamRow = memo(function ParamRow({ device, info, sender, pinKey, p
       info,
       plain,
       reset: () => void sender.send(cmd("Device", { type: "SetParam", device, param: info.id, value: info.default })),
+      setPlain: (value) => void sender.send(cmd("Device", { type: "SetParam", device, param: info.id, value })),
     });
   };
   return (

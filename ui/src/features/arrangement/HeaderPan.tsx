@@ -5,6 +5,7 @@ import { useGestureSender } from "@/features/devices/gesture";
 import { formatPan, paramToPlain } from "@/domain/paramScale";
 import { useLiveAutomation } from "@/features/automation/live";
 import { PAN_INFO } from "@/features/automation/params";
+import { openValueMenu } from "@/features/automation/valueMenu";
 import { midiTarget } from "@/features/midi-learn/targets";
 import { Knob } from "@/kit";
 import { cmd } from "@/transport";
@@ -46,6 +47,14 @@ export function HeaderPan({ track }: { track: Track }) {
         hideLabel
         label={t("arrangement.header.pan", { name: track.name })}
         title={t("arrangement.header.pan_title")}
+        onContextMenu={(e) =>
+          openValueMenu(e, {
+            info: PAN_INFO,
+            plain: pan,
+            set: (v) => void sender.send(cmd("Mixer", { type: "SetPan", track: track.id, pan: v })),
+            automation: { track: track.id, target: { type: "TrackPan", track: track.id } },
+          })
+        }
         value={(pan + 1) / 2}
         valueText={formatPan(pan)}
         onChange={set}

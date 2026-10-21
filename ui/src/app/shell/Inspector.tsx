@@ -2,14 +2,15 @@ import clsx from "clsx";
 import { Headphones, Music, Volume2, VolumeX, Waves } from "lucide-react";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
-import type { Clip, Command, Track, TrackId, TrackSend, WarpMode } from "@/generated";
+import type { Clip, Command, ParamInfo, Track, TrackId, TrackSend, WarpMode } from "@/generated";
 import { inertTitle, useFrozenAncestor } from "@/features/freeze";
 import { DeviceChain } from "@/features/devices";
 import { collapseAll } from "@/features/devices/collapsed";
 import { useGestureSender, useSend, type GestureSender } from "@/features/devices/gesture";
 import { formatDb, formatPan, paramToPlain } from "@/domain/paramScale";
 import { useLiveAutomation } from "@/features/automation/live";
-import { PAN_INFO, VOLUME_INFO } from "@/features/automation/params";
+import { CLIP_GAIN_INFO, CLIP_TRANSPOSE_INFO, PAN_INFO, SEND_INFO, VOLUME_INFO } from "@/features/automation/params";
+import { openValueMenu } from "@/features/automation/valueMenu";
 import { midiTarget } from "@/features/midi-learn/targets";
 import { reverseCommand } from "@/features/clip-editing/clipEditing";
 import {
@@ -42,6 +43,8 @@ import "./inspector.css";
 import { ProjectSwingFields } from "@/features/groove";
 
 const css = colorSwatchCss;
+/** A clip's gain field (its range, -60..+24 dB) for the value menu's "set value". */
+const GAIN_FIELD_INFO: ParamInfo = { ...CLIP_GAIN_INFO, name: "gain", min: -60, max: 24 };
 const batch = (label: string, commands: Command[]): Command | null =>
   commands.length === 0 ? null : commands.length === 1 ? commands[0]! : cmd("Edit", { type: "Batch", label, commands });
 
@@ -297,6 +300,7 @@ function ManyAudioClipsSection({ clips }: { clips: ReadonlyArray<Clip> }) {
           precision={1}
           unit="db"
           onChange={(v) => sendCmd(setAllGain(audio, v))}
+          onContextMenu={(e) => openValueMenu(e, { info: GAIN_FIELD_INFO, plain: gain ?? audio[0]!.audio.gain, set: (v) => sendCmd(setAllGain(audio, v)) })}
           onNudge={(d) => sendCmd(offsetGain(audio, bases.current?.gain ?? gainBases(audio), d))}
         />
       </Row>
@@ -311,6 +315,9 @@ function ManyAudioClipsSection({ clips }: { clips: ReadonlyArray<Clip> }) {
           max={48}
           unit={t("shell.inspector.unit_semitones")}
           onChange={(v) => sendCmd(setAllTranspose(audio, v))}
+          onContextMenu={(e) =>
+            openValueMenu(e, { info: CLIP_TRANSPOSE_INFO, plain: transpose ?? audio[0]!.audio.transpose, set: (v) => sendCmd(setAllTranspose(audio, v)) })
+          }
           onNudge={(d) => sendCmd(offsetTranspose(audio, bases.current?.transpose ?? transposeBases(audio), d))}
         />
       </Row>
@@ -404,6 +411,9 @@ function ClipInspector({ clip }: { clip: Clip }) {
               precision={1}
               unit="db"
               onChange={(gain) => void gesture.send(cmd("Clip", { type: "SetGain", id: clip.id, gain }))}
+              onContextMenu={(e) =>
+                openValueMenu(e, { info: GAIN_FIELD_INFO, plain: audio.gain, set: (gain) => void send(cmd("Clip", { type: "SetGain", id: clip.id, gain })) })
+              }
             />
           </Row>
           <Row label={t("shell.inspector.transpose")}>
@@ -416,6 +426,13 @@ function ClipInspector({ clip }: { clip: Clip }) {
               max={48}
               unit={t("shell.inspector.unit_semitones")}
               onChange={(semitones) => void gesture.send(cmd("Clip", { type: "SetTranspose", id: clip.id, semitones }))}
+              onContextMenu={(e) =>
+                openValueMenu(e, {
+                  info: CLIP_TRANSPOSE_INFO,
+                  plain: audio.transpose,
+                  set: (semitones) => void send(cmd("Clip", { type: "SetTranspose", id: clip.id, semitones })),
+                })
+              }
             />
           </Row>
           <Row label={t("shell.inspector.fade_in")}>
@@ -618,6 +635,14 @@ function TrackMixer({ track, sender }: { track: Track; sender: GestureSender }) 
           label={t("shell.inspector.volume_named", { name: track.name })}
           valueText={formatDb(volume)}
           onChange={(n) => void sender.send(cmd("Mixer", { type: "SetVolume", track: track.id, volume: faderToDb(n) }))}
+          onContextMenu={(e) =>
+            openValueMenu(e, {
+              info: VOLUME_INFO,
+              plain: volume,
+              set: (v) => void send(cmd("Mixer", { type: "SetVolume", track: track.id, volume: v })),
+              automation: { track: track.id, target: { type: "TrackVolume", track: track.id } },
+            })
+          }
           onChangeStart={sender.begin}
           onChangeEnd={sender.end}
         />
@@ -630,6 +655,14 @@ function TrackMixer({ track, sender }: { track: Track; sender: GestureSender }) 
             label={t("shell.inspector.pan_named", { name: track.name })}
             valueText={formatPan(pan)}
             onChange={(n) => void sender.send(cmd("Mixer", { type: "SetPan", track: track.id, pan: n * 2 - 1 }))}
+            onContextMenu={(e) =>
+              openValueMenu(e, {
+                info: PAN_INFO,
+                plain: pan,
+                set: (v) => void send(cmd("Mixer", { type: "SetPan", track: track.id, pan: v })),
+                automation: { track: track.id, target: { type: "TrackPan", track: track.id } },
+              })
+            }
             onChangeStart={sender.begin}
             onChangeEnd={sender.end}
           />
@@ -714,6 +747,20 @@ function SendKnob({ track, ret, send, sender }: { track: Track; ret: Track; send
         defaultValue={dbToFader(-144)}
         label={t("shell.inspector.send_named", { name: ret.name })}
         valueText={formatDb(level)}
+        // The value menu; a send not made yet is made by "set value".
+        onContextMenu={(e) =>
+          openValueMenu(e, {
+            info: SEND_INFO,
+            plain: level,
+            set: (db) =>
+              void sendNow(
+                send
+                  ? cmd("Mixer", { type: "SetSendLevel", send: send.id, level: db })
+                  : cmd("Mixer", { type: "CreateSend", id: newId(), from: track.id, to: ret.id, level: db, pre_fader: false }),
+              ),
+            automation: send ? { track: track.id, target: { type: "SendLevel", send: send.id } } : undefined,
+          })
+        }
         onChange={(n) => {
           const db = faderToDb(n);
           const id = send?.id ?? pending.current;

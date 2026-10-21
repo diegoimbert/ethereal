@@ -37,6 +37,7 @@ import { ProjectMenu } from "@/features/project";
 import { RecordingControls, useKeepRecordingSetup } from "@/features/recording";
 import { ConnectDialog } from "@/features/remote";
 import { TransportBar, useCompactTopBar } from "@/features/transport-bar";
+import { ValueEditHost } from "@/features/automation/valueMenu";
 import { QuitRoot } from "@/features/quit";
 import { DesktopMenuRoot } from "@/features/desktop-menu";
 import { TourRoot } from "@/features/tutorials";
@@ -364,6 +365,7 @@ function ViewerShell() {
       </PanelBoundary>
       <DrawerShortcut />
       <TitleTooltipHost />
+      <ValueEditHost />
     </div>
   );
 }
@@ -474,6 +476,7 @@ function EditorShell() {
       <ConfirmDialog />
       <ContextMenuHost />
       <TitleTooltipHost />
+      <ValueEditHost />
     </div>
   );
 }

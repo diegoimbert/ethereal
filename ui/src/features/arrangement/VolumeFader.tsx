@@ -1,4 +1,4 @@
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import { formatDb } from "@/domain/paramScale";
 import { setDragCursor } from "@/kit";
 import { isReadOnly } from "@/state";
@@ -18,6 +18,8 @@ export interface VolumeFaderProps {
   onEnd(): void;
   /** Extra attributes on the slider (e.g. the MIDI-learn target). */
   attrs?: Record<string, string>;
+  /** Right-click (the app's value menu: automation, set value, reset). */
+  onContextMenu?: (e: MouseEvent<HTMLDivElement>) => void;
 }
 
 /**
@@ -25,7 +27,7 @@ export interface VolumeFaderProps {
  * chains: drag left / right (Shift: fine) as one gesture, arrows step it, Home / End go to
  * the ends, double-click resets to 0 dB; the dB value shows while hovering or dragging.
  */
-export function VolumeFader({ db, label, onChange, onBegin, onEnd, attrs }: VolumeFaderProps) {
+export function VolumeFader({ db, label, onChange, onBegin, onEnd, attrs, onContextMenu }: VolumeFaderProps) {
   const t = useT();
   const pos = dbToFader(db);
   const drag = useRef<{ x: number; pos: number; width: number } | null>(null);
@@ -89,6 +91,7 @@ export function VolumeFader({ db, label, onChange, onBegin, onEnd, attrs }: Volu
       data-readout={below ? "below" : undefined}
       title={t("arrangement.header.volume_title", { value: formatDb(db) })}
       onPointerEnter={(e) => place(e.currentTarget)}
+      onContextMenu={onContextMenu}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={end}

@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useRef, type CSSProperties } from "react";
+import { useRef, type CSSProperties, type MouseEvent as ReactMouseEvent } from "react";
 import { knobGeometry } from "../theme/tokens";
 import "./Knob.css";
 import { centerParts, useCenterFit } from "./knobFit";
@@ -33,6 +33,8 @@ export interface KnobProps {
   className?: string;
   /** Hover tooltip: what the knob does (default: its `label`). */
   title?: string;
+  /** Right-click (the app's value menu: automation, set value, reset). */
+  onContextMenu?: (e: ReactMouseEvent<HTMLDivElement>) => void;
   /** MIDI learn hook (`midiTarget()` in features/midi-learn): marks this control as mappable. */
   "data-midi-target"?: string;
 }
@@ -86,6 +88,7 @@ export function Knob({
   disabled: disabledProp = false,
   className,
   title,
+  onContextMenu,
   "data-midi-target": midiTarget,
 }: KnobProps) {
   const disabled = useDisabled(disabledProp);
@@ -119,6 +122,7 @@ export function Knob({
       tabIndex={disabled ? -1 : 0}
       aria-label={label}
       title={title}
+      onContextMenu={onContextMenu}
       aria-valuemin={0}
       aria-valuemax={1}
       aria-valuenow={v}
