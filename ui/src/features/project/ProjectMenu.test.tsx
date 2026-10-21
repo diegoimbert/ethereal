@@ -39,9 +39,9 @@ async function enabledButton(container: HTMLElement, name: string): Promise<HTML
   return button;
 }
 
+/** The project picker (as the palette's "open project…" shows it). */
 async function openManager() {
-  fireEvent.click(screen.getByRole("button", { name: "projects" }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: "open project…" }));
+  act(() => useProjectScreen.getState().show());
   return screen.findByRole("dialog", { name: "open project" });
 }
 
@@ -225,11 +225,25 @@ describe("ProjectMenu", () => {
     const item = (name: string) => within(menu).getByRole("menuitem", { name });
     await waitFor(() => expect(item("new project")).toHaveFocus());
     fireEvent.keyDown(item("new project"), { key: "ArrowDown" });
-    expect(item("open project…")).toHaveFocus();
-    fireEvent.keyDown(item("open project…"), { key: "ArrowUp" });
+    expect(item("open project")).toHaveFocus();
+    fireEvent.keyDown(item("open project"), { key: "ArrowUp" });
     expect(item("new project")).toHaveFocus();
     fireEvent.keyDown(item("new project"), { key: "ArrowUp" }); // wraps to the last item
     expect(within(menu).getAllByRole("menuitem").at(-1)).toHaveFocus();
+  });
+
+  it("lists the recent projects in its 'open project' submenu (search included); a click opens one", async () => {
+    await renderWithMock(<ProjectMenu />);
+    fireEvent.click(screen.getByRole("button", { name: "projects" }));
+    const menu = await screen.findByRole("menu", { name: "project" });
+    const open = within(menu).getByRole("menuitem", { name: "open project" });
+    expect(open).toHaveAttribute("aria-haspopup", "menu");
+    fireEvent.click(open);
+    const panel = await screen.findByRole("dialog", { name: "open project" });
+    await waitFor(() => expect(within(panel).getByRole("searchbox", { name: "search projects" })).toHaveFocus());
+    fireEvent.click(await enabledButton(panel, "open Beat sketch"));
+    await waitFor(() => expect(screen.getByTestId("project-name").textContent).toBe("Beat sketch"));
+    await waitFor(() => expect(screen.queryByRole("menu", { name: "project" })).toBeNull());
   });
 
   it("closes on Escape", async () => {

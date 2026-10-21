@@ -1601,6 +1601,7 @@
   "project.safe.text": "plugins disabled (safe mode)",
   "project.safe.load": "load plugins",
   "project.cmd.open": "open project…",
+  "project.menu.open_project": "open project",
   "project.cmd.save": "save",
   "project.cmd.save_as": "save as…",
   "project.cmd.duplicate": "duplicate project",

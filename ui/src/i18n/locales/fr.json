@@ -1601,6 +1601,7 @@
   "project.safe.text": "plug-ins désactivés (mode sans échec)",
   "project.safe.load": "charger les plug-ins",
   "project.cmd.open": "ouvrir un projet…",
+  "project.menu.open_project": "ouvrir un projet",
   "project.cmd.save": "enregistrer",
   "project.cmd.save_as": "enregistrer sous…",
   "project.cmd.duplicate": "dupliquer le projet",

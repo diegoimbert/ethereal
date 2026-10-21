@@ -18,6 +18,7 @@ import { appProjectCommands, byId, deleteOpenProject, openProjectCommands } from
 import { docsCommands } from "@/features/docs/commands";
 import { newsCommands } from "@/features/news";
 import { Trans, useT } from "@/i18n";
+import { RecentProjects } from "./ProjectScreen";
 
 /** Which submenu of the project menu is open (one at a time), shared by its items. */
 const OpenSub = createContext<{ open: string | null; setOpen(label: string | null): void }>({ open: null, setOpen: () => {} });
@@ -50,8 +51,23 @@ const SUBMENU_CLOSE_MS = 150;
 /**
  * A menu item that opens `children` as a submenu at its side: on hover, a click, Enter, Space
  * or →. Inside it ↑/↓ move, ← or Escape close it back to its item. One submenu at a time.
+ * `panel`: the submenu is a panel of its own (e.g. the recent projects with their search),
+ * not menu items: opened from the keyboard its first field gets the focus, ← or Escape still
+ * close it.
  */
-function SubMenu({ label, tour, children }: { label: string; tour?: string; children: ReactNode }) {
+function SubMenu({
+  label,
+  tour,
+  panel: isPanel,
+  className,
+  children,
+}: {
+  label: string;
+  tour?: string;
+  panel?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
   const sub = useContext(OpenSub);
   const open = sub.open === label;
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -70,7 +86,7 @@ function SubMenu({ label, tour, children }: { label: string; tour?: string; chil
   };
   const openAndFocus = () => {
     show();
-    requestAnimationFrame(() => menuItems(panel.current)[0]?.focus());
+    requestAnimationFrame(() => (isPanel ? panel.current?.querySelector<HTMLElement>("input, button") : menuItems(panel.current)[0])?.focus());
   };
   return (
     <div className="eth-project-menu__sub" data-tour={tour} onMouseEnter={show} onMouseLeave={hide}>
@@ -99,12 +115,13 @@ function SubMenu({ label, tour, children }: { label: string; tour?: string; chil
         // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- a menu: focus is on its items (roving, menuKeyDown)
         <div
           ref={panel}
-          className="eth-menu eth-project-menu__submenu"
-          role="menu"
+          className={clsx("eth-menu eth-project-menu__submenu", isPanel && "eth-project-menu__panel", className)}
+          role={isPanel ? "dialog" : "menu"}
           aria-label={label}
           onKeyDown={(e) => {
-            if (menuKeyDown(e, panel.current)) return;
-            if (e.key !== "ArrowLeft" && e.key !== "Escape") return;
+            if (!isPanel && menuKeyDown(e, panel.current)) return;
+            // In a panel ← moves in its fields: Escape alone closes it.
+            if (isPanel ? e.key !== "Escape" : e.key !== "ArrowLeft" && e.key !== "Escape") return;
             e.preventDefault();
             e.stopPropagation();
             sub.setOpen(null);
@@ -196,7 +213,11 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
         onKeyDown={(e) => menuKeyDown(e, ref.current)}
       >
         {item("project:new")}
-        {item("project:open")}
+        {/* The recent projects (the welcome screen's), as a submenu. */}
+        <SubMenu label={t("project.menu.open_project")} panel className="eth-project-menu__projects">
+          {/* The search takes the focus when it opens: type to find a project. */}
+          <RecentProjects commands={commands} onDone={close} focusSearch />
+        </SubMenu>
         {extra("start")}
         {project && (
           <>

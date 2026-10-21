@@ -120,9 +120,11 @@ describe("palette: project commands", () => {
       const match = palette.find((c) => c.label === label);
       expect(match, `menu item "${label}" has no palette command`).toBeDefined();
     }
-    // The palette's project actions are all in the menu.
+    // The palette's project actions are all in the menu ("open project…" as the submenu of
+    // the recent projects).
     const labels = new Set(items.map((i) => i.label));
-    for (const c of palette.filter((c) => c.group === "Project")) {
+    expect(within(menu).getByRole("menuitem", { name: "open project" })).toHaveAttribute("aria-haspopup", "menu");
+    for (const c of palette.filter((c) => c.group === "Project" && c.id !== "project:open")) {
       expect(labels.has(c.label), `palette "${c.label}" is not in the menu`).toBe(true);
     }
   });

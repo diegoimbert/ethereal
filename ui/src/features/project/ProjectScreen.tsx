@@ -142,17 +142,35 @@ function writeRecentCount(n: number): void {
   }
 }
 
-function Home({ commands, onDone }: { commands: EngineCommands; onDone(): void }) {
+/**
+ * The recent projects: a search, then the list (open on a click; a row's menu: open without
+ * plugins, rename, duplicate, export, delete, extensions' actions), placeholder rows while
+ * launching. The welcome screen's right column, and the project menu's "Open project" submenu.
+ */
+export function RecentProjects({
+  commands,
+  onDone,
+  ready = true,
+  focusSearch = false,
+  extraError,
+  clearExtraError,
+}: {
+  commands: EngineCommands;
+  /** A project opened (the screen / menu closes). */
+  onDone(): void;
+  /** Launch is done (else placeholder rows). */
+  ready?: boolean;
+  /** Focus the search once ready (unless typing elsewhere). */
+  focusSearch?: boolean;
+  /** An error of the surroundings to show on the error line too (e.g. "new project" failed). */
+  extraError?: string | null;
+  clearExtraError?(): void;
+}) {
   const t = useT();
   const { send, transport } = commands;
-  // Launch isn't done (the engine is loading): the actions wait, the list is placeholders.
-  const ready = !useProjectScreen((s) => s.launching);
-  const engineFailed = useOptionalConnection()?.status === "error";
   const [bones] = useState(readRecentCount);
   const projects = useProjectStore((s) => s.projects);
   const current = useProjectStore((s) => s.project);
-  // Why the picker is shown (the address bar's project isn't stored here).
-  const notice = useProjectScreen((s) => s.notice);
   // Not the open project, nor untouched drafts.
   const others = useMemo(() => sortProjects(projects).filter((p) => p.id !== current?.id && !isDraft(p.id)), [projects, current?.id]);
   // The search over the recent projects (focused when the screen opens).
@@ -164,18 +182,17 @@ function Home({ commands, onDone }: { commands: EngineCommands; onDone(): void }
   const searchRef = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     // After the dialog focused itself; once ready, unless the user is typing somewhere else.
-    if (!ready) return;
+    if (!ready || !focusSearch) return;
     const timer = setTimeout(() => {
       if (!(document.activeElement instanceof HTMLInputElement)) searchRef.current?.querySelector("input")?.focus();
     }, 0);
     return () => clearTimeout(timer);
-  }, [ready]);
+  }, [ready, focusSearch]);
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   // A pending extension row action's confirmation (`@/ext` "project.rowActions").
   const [confirmAction, setConfirmAction] = useState<{ id: string; action: ProjectRowAction } | null>(null);
-  const welcomeActions = useContributions("project.welcomeActions");
   // Failures of actions run outside `send` (new project, extensions' row actions).
   const [error, setError] = useState<string | null>(null);
 
@@ -289,6 +306,198 @@ function Home({ commands, onDone }: { commands: EngineCommands; onDone(): void }
     openContextMenu(e, entries);
   };
 
+  return (
+    <div className="eth-project-screen__body">
+      <ErrorLine
+        commands={commands}
+        extra={error ?? extraError}
+        clearExtra={() => {
+          setError(null);
+          clearExtraError?.();
+        }}
+      />
+
+      {!ready && bones > 0 && (
+        <section className="eth-project-screen__recent" aria-label={t("project.recent.title")} aria-busy="true">
+          <div className="eth-project-screen__recent-head">
+            <span className="eth-project-screen__label">{t("project.recent.title")}</span>
+            <span className="eth-project-screen__search">
+              <Search className="eth-project-screen__search-icon" aria-hidden />
+              <TextInput size="sm" type="search" aria-label={t("project.recent.search")} placeholder={t("project.recent.search")} disabled value="" readOnly />
+            </span>
+          </div>
+          <ul className="eth-project-screen__list" data-testid="project-list-skeleton">
+            {Array.from({ length: bones }, (_, i) => (
+              <li key={i} className="eth-project-screen__item eth-project-screen__item--bone" aria-hidden>
+                <span className="eth-project-screen__bone" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+      {ready && others.length > 0 && (
+        <section className="eth-project-screen__recent" aria-label={t("project.recent.title")}>
+          <div className="eth-project-screen__recent-head">
+            <span className="eth-project-screen__label">{t("project.recent.title")}</span>
+            <span className="eth-project-screen__search" ref={searchRef}>
+              <Search className="eth-project-screen__search-icon" aria-hidden />
+              <TextInput
+                size="sm"
+                type="search"
+                aria-label={t("project.recent.search")}
+                placeholder={t("project.recent.search")}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  // Enter opens the first match.
+                  if (e.key === "Enter" && shown[0]) {
+                    e.preventDefault();
+                    void openProject(shown[0].id);
+                  }
+                }}
+              />
+            </span>
+          </div>
+          {shown.length === 0 && (
+            <span className="eth-project-screen__empty">
+              <Trans k="project.recent.no_match" values={{ query: <span className="eth-user-text">{query.trim()}</span> }} />
+            </span>
+          )}
+          <ul className="eth-project-screen__list" aria-label={t("project.recent.stored")}>
+            {shown.map((p) => (
+              <li key={p.id} className="eth-project-screen__item" onContextMenu={(e) => menu(e, p)}>
+                {renaming?.id === p.id ? (
+                  <form className="eth-project-screen__rename" onSubmit={commitRename}>
+                    <TextInput
+                      aria-label={t("project.actions.rename_input", { name: p.name })}
+                      autoFocus
+                      value={renaming.name}
+                      onChange={(e) => setRenaming({ id: p.id, name: e.target.value })}
+                      onBlur={() => commitRename()}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          e.stopPropagation(); // don't close the screen
+                          setRenaming(null);
+                        }
+                      }}
+                    />
+                  </form>
+                ) : confirmAction?.id === p.id && confirmAction.action.confirm ? (
+                  <span className="eth-project-screen__confirm">
+                    <span className="eth-project-screen__name" title={confirmAction.action.confirm.title}>
+                      {confirmAction.action.confirm.text}
+                    </span>
+                    <Button size="sm" onClick={() => setConfirmAction(null)}>
+                      {t("project.actions.cancel")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="eth-project-screen__danger"
+                      disabled={busy}
+                      aria-label={confirmAction.action.confirm.buttonLabel}
+                      onClick={() => {
+                        const a = confirmAction.action;
+                        setConfirmAction(null);
+                        void runRowAction(p, a);
+                      }}
+                    >
+                      {confirmAction.action.confirm.button}
+                    </Button>
+                  </span>
+                ) : confirmDelete === p.id ? (
+                  <span className="eth-project-screen__confirm">
+                    <span className="eth-project-screen__name">
+                      <Trans k="project.actions.delete_named" values={{ name: <span className="eth-user-text">{p.name}</span> }} />
+                    </span>
+                    <Button size="sm" onClick={() => setConfirmDelete(null)}>
+                      {t("project.actions.cancel")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="eth-project-screen__danger"
+                      disabled={busy}
+                      aria-label={t("project.actions.confirm_delete", { name: p.name })}
+                      onClick={() => {
+                        setConfirmDelete(null);
+                        void run(cmd("Project", { type: "Delete", id: p.id }));
+                      }}
+                    >
+                      {t("project.actions.delete")}
+                    </Button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    className="eth-project-screen__open"
+                    aria-label={t("project.actions.open_named", { name: p.name })}
+                    disabled={busy}
+                    onClick={() => void openProject(p.id)}
+                  >
+                    <span className="eth-project-screen__name eth-user-text" title={p.name}>
+                      {splitLocalCopy(p.name).base}
+                    </span>
+                    <ProjectBadges project={p} />
+                    {/* A date in the user's language (Intl), not catalog text. */}
+                    <span className="eth-project-screen__date" data-i18n-exempt>
+                      {formatModified(p.modified_ms)}
+                    </span>
+                  </button>
+                )}
+                <IconButton
+                  size="sm"
+                  tone="ghost"
+                  label={t("project.actions.more", { name: p.name })}
+                  icon={<MoreHorizontal aria-hidden />}
+                  onClick={(e) => {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    menu(
+                      {
+                        clientX: r.left,
+                        clientY: r.bottom,
+                        preventDefault: () => undefined,
+                        stopPropagation: () => undefined,
+                      } as MouseEvent,
+                      p,
+                    );
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function Home({ commands, onDone }: { commands: EngineCommands; onDone(): void }) {
+  const t = useT();
+  const { transport } = commands;
+  // Launch isn't done (the engine is loading): the actions wait, the list is placeholders.
+  const ready = !useProjectScreen((s) => s.launching);
+  const engineFailed = useOptionalConnection()?.status === "error";
+  // Why the picker is shown (the address bar's project isn't stored here).
+  const notice = useProjectScreen((s) => s.notice);
+  const welcomeActions = useContributions("project.welcomeActions");
+  const [busy, setBusy] = useState(false);
+  // Failures of actions run outside `send` (new project, extensions' welcome actions).
+  const [error, setError] = useState<string | null>(null);
+
+  /** Run an action on the transport, showing its failure on the error line. */
+  const act = async <T,>(action: (tr: EngineTransport) => Promise<T>): Promise<T | undefined> => {
+    if (!transport) return undefined;
+    setBusy(true);
+    setError(null);
+    try {
+      return await action(transport);
+    } catch (e) {
+      setError(errorMessage(e));
+      return undefined;
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // The welcome screen: the wordmark and version with its actions (discord, extensions', then
   // "new project" at the very right), then Get started | the recent projects.
   return (
@@ -338,167 +547,7 @@ function Home({ commands, onDone }: { commands: EngineCommands; onDone(): void }
       )}
       <div className="eth-welcome__columns">
         <GetStarted commands={commands} onStarted={onDone} />
-        <div className="eth-project-screen__body">
-          <ErrorLine commands={commands} extra={error} clearExtra={() => setError(null)} />
-
-          {!ready && bones > 0 && (
-            <section className="eth-project-screen__recent" aria-label={t("project.recent.title")} aria-busy="true">
-              <div className="eth-project-screen__recent-head">
-                <span className="eth-project-screen__label">{t("project.recent.title")}</span>
-                <span className="eth-project-screen__search">
-                  <Search className="eth-project-screen__search-icon" aria-hidden />
-                  <TextInput
-                    size="sm"
-                    type="search"
-                    aria-label={t("project.recent.search")}
-                    placeholder={t("project.recent.search")}
-                    disabled
-                    value=""
-                    readOnly
-                  />
-                </span>
-              </div>
-              <ul className="eth-project-screen__list" data-testid="project-list-skeleton">
-                {Array.from({ length: bones }, (_, i) => (
-                  <li key={i} className="eth-project-screen__item eth-project-screen__item--bone" aria-hidden>
-                    <span className="eth-project-screen__bone" />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          {ready && others.length > 0 && (
-            <section className="eth-project-screen__recent" aria-label={t("project.recent.title")}>
-              <div className="eth-project-screen__recent-head">
-                <span className="eth-project-screen__label">{t("project.recent.title")}</span>
-                <span className="eth-project-screen__search" ref={searchRef}>
-                  <Search className="eth-project-screen__search-icon" aria-hidden />
-                  <TextInput
-                    size="sm"
-                    type="search"
-                    aria-label={t("project.recent.search")}
-                    placeholder={t("project.recent.search")}
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      // Enter opens the first match.
-                      if (e.key === "Enter" && shown[0]) {
-                        e.preventDefault();
-                        void openProject(shown[0].id);
-                      }
-                    }}
-                  />
-                </span>
-              </div>
-              {shown.length === 0 && (
-                <span className="eth-project-screen__empty">
-                  <Trans k="project.recent.no_match" values={{ query: <span className="eth-user-text">{query.trim()}</span> }} />
-                </span>
-              )}
-              <ul className="eth-project-screen__list" aria-label={t("project.recent.stored")}>
-                {shown.map((p) => (
-                  <li key={p.id} className="eth-project-screen__item" onContextMenu={(e) => menu(e, p)}>
-                    {renaming?.id === p.id ? (
-                      <form className="eth-project-screen__rename" onSubmit={commitRename}>
-                        <TextInput
-                          aria-label={t("project.actions.rename_input", { name: p.name })}
-                          autoFocus
-                          value={renaming.name}
-                          onChange={(e) => setRenaming({ id: p.id, name: e.target.value })}
-                          onBlur={() => commitRename()}
-                          onKeyDown={(e) => {
-                            if (e.key === "Escape") {
-                              e.stopPropagation(); // don't close the screen
-                              setRenaming(null);
-                            }
-                          }}
-                        />
-                      </form>
-                    ) : confirmAction?.id === p.id && confirmAction.action.confirm ? (
-                      <span className="eth-project-screen__confirm">
-                        <span className="eth-project-screen__name" title={confirmAction.action.confirm.title}>
-                          {confirmAction.action.confirm.text}
-                        </span>
-                        <Button size="sm" onClick={() => setConfirmAction(null)}>
-                          {t("project.actions.cancel")}
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="eth-project-screen__danger"
-                          disabled={busy}
-                          aria-label={confirmAction.action.confirm.buttonLabel}
-                          onClick={() => {
-                            const a = confirmAction.action;
-                            setConfirmAction(null);
-                            void runRowAction(p, a);
-                          }}
-                        >
-                          {confirmAction.action.confirm.button}
-                        </Button>
-                      </span>
-                    ) : confirmDelete === p.id ? (
-                      <span className="eth-project-screen__confirm">
-                        <span className="eth-project-screen__name">
-                          <Trans k="project.actions.delete_named" values={{ name: <span className="eth-user-text">{p.name}</span> }} />
-                        </span>
-                        <Button size="sm" onClick={() => setConfirmDelete(null)}>
-                          {t("project.actions.cancel")}
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="eth-project-screen__danger"
-                          disabled={busy}
-                          aria-label={t("project.actions.confirm_delete", { name: p.name })}
-                          onClick={() => {
-                            setConfirmDelete(null);
-                            void run(cmd("Project", { type: "Delete", id: p.id }));
-                          }}
-                        >
-                          {t("project.actions.delete")}
-                        </Button>
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        className="eth-project-screen__open"
-                        aria-label={t("project.actions.open_named", { name: p.name })}
-                        disabled={busy}
-                        onClick={() => void openProject(p.id)}
-                      >
-                        <span className="eth-project-screen__name eth-user-text" title={p.name}>
-                          {splitLocalCopy(p.name).base}
-                        </span>
-                        <ProjectBadges project={p} />
-                        {/* A date in the user's language (Intl), not catalog text. */}
-                        <span className="eth-project-screen__date" data-i18n-exempt>
-                          {formatModified(p.modified_ms)}
-                        </span>
-                      </button>
-                    )}
-                    <IconButton
-                      size="sm"
-                      tone="ghost"
-                      label={t("project.actions.more", { name: p.name })}
-                      icon={<MoreHorizontal aria-hidden />}
-                      onClick={(e) => {
-                        const r = e.currentTarget.getBoundingClientRect();
-                        menu(
-                          {
-                            clientX: r.left,
-                            clientY: r.bottom,
-                            preventDefault: () => undefined,
-                            stopPropagation: () => undefined,
-                          } as MouseEvent,
-                          p,
-                        );
-                      }}
-                    />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-        </div>
+        <RecentProjects commands={commands} onDone={onDone} ready={ready} focusSearch extraError={error} clearExtraError={() => setError(null)} />
       </div>
     </div>
   );

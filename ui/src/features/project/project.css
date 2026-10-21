@@ -510,6 +510,14 @@
   box-shadow: var(--popover-shadow);
   animation: eth-context-menu-in var(--context-menu-enter-duration) var(--context-menu-enter-ease) both;
 }
+/* A submenu that is a panel of its own: the recent projects (their search and list). */
+.eth-project-menu__projects {
+  width: var(--eth-size-project-menu-projects-width);
+  padding: var(--eth-space-sm);
+}
+.eth-project-menu__projects .eth-project-screen__list {
+  max-height: 50vh;
+}
 
 /* Shown before the engine is up. A quiet line by the version; the recent projects are
    placeholder rows of the real rows' height (as many as last time: nothing moves when the

@@ -47,9 +47,9 @@ function recordSent(t: EngineTransport): Command[] {
   return sent;
 }
 
+/** The project picker (as the palette's "open project…" shows it). */
 async function openScreen() {
-  fireEvent.click(screen.getByRole("button", { name: "projects" }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: "open project…" }));
+  act(() => useProjectScreen.getState().show());
   return screen.findByRole("dialog", { name: "open project" });
 }
 
