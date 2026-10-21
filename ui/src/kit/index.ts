@@ -30,7 +30,7 @@ export {
   type FloatingWindowProps,
   type WindowRect,
 } from "./floatingWindows";
-export { NumberField, TextInput, type NumberFieldProps, type TextInputProps } from "./fields";
+export { NO_AUTOCORRECT, NumberField, TextInput, type NumberFieldProps, type TextInputProps } from "./fields";
 export { SEARCH_OVER, Select, type SelectOption, type SelectProps } from "./Select";
 export { VIRTUAL_MAX_ROWS, VirtualList, type VirtualListProps } from "./VirtualList";
 export { IconButton, type IconButtonProps } from "./IconButton";

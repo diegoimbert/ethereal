@@ -9,7 +9,7 @@ import clsx from "clsx";
 import { memo, useDeferredValue, useMemo, useState, type MouseEvent } from "react";
 import { Pin } from "lucide-react";
 import type { DeviceId, ParamId, ParamInfo } from "@/generated";
-import { Dialog, IconButton, TextInput, VirtualList } from "@/kit";
+import { NO_AUTOCORRECT, Dialog, IconButton, TextInput, VirtualList } from "@/kit";
 import { useProjectStore } from "@/state";
 import { size } from "@/theme/tokens";
 import type { GestureSender } from "../gesture";
@@ -78,6 +78,7 @@ export function ParamBrowser({ device, deviceName, params, sender, pins, total }
         <TextInput
           size="sm"
           type="search"
+          {...NO_AUTOCORRECT}
           className="eth-params__search"
           placeholder={t("devices.params.search_placeholder")}
           aria-label={t("devices.params.search", { name: deviceName })}

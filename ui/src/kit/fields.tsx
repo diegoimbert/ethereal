@@ -14,11 +14,19 @@ export interface TextInputProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   invalid?: boolean;
 }
 
+/**
+ * For search and filter fields: no autocorrect, autocapitalization, spellcheck or
+ * autocomplete (macOS WebKit otherwise pops its autocorrect suggestion under the text, and
+ * a search query is no prose). Spread onto the `<input>`; `TextInput type="search"` has it.
+ */
+export const NO_AUTOCORRECT = { autoCorrect: "off", autoCapitalize: "off", spellCheck: false, autoComplete: "off" } as const;
+
 export function TextInput({ size = "md", invalid, className, type = "text", readOnly, ...rest }: TextInputProps) {
   // A shared project's viewer: names and values show, nothing is typed into them.
   const viewOnly = useReadOnly();
   return (
     <input
+      {...(type === "search" ? NO_AUTOCORRECT : {})}
       type={type}
       readOnly={viewOnly || readOnly}
       aria-invalid={invalid || undefined}

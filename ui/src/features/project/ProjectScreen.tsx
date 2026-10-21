@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent, 
 import { MoreHorizontal, Plus, Search } from "lucide-react";
 import type { ProjectSummary } from "@/generated";
 import { errorMessage, useOptionalConnection, type EngineCommands } from "@/features/transport-bar/engine";
-import { Badge, Button, Dialog, DismissibleError, IconButton, openContextMenu, TextInput, type ContextMenuEntry } from "@/kit";
+import { NO_AUTOCORRECT, Badge, Button, Dialog, DismissibleError, IconButton, openContextMenu, TextInput, type ContextMenuEntry } from "@/kit";
 import { useRecoveryShown } from "@/features/versions/store";
 import { DiscordLink } from "@/features/community";
 import { notify } from "@/features/notifications";
@@ -323,7 +323,16 @@ export function RecentProjects({
             <span className="eth-project-screen__label">{t("project.recent.title")}</span>
             <span className="eth-project-screen__search">
               <Search className="eth-project-screen__search-icon" aria-hidden />
-              <TextInput size="sm" type="search" aria-label={t("project.recent.search")} placeholder={t("project.recent.search")} disabled value="" readOnly />
+              <TextInput
+                size="sm"
+                type="search"
+                {...NO_AUTOCORRECT}
+                aria-label={t("project.recent.search")}
+                placeholder={t("project.recent.search")}
+                disabled
+                value=""
+                readOnly
+              />
             </span>
           </div>
           <ul className="eth-project-screen__list" data-testid="project-list-skeleton">
@@ -344,6 +353,7 @@ export function RecentProjects({
               <TextInput
                 size="sm"
                 type="search"
+                {...NO_AUTOCORRECT}
                 aria-label={t("project.recent.search")}
                 placeholder={t("project.recent.search")}
                 value={query}

@@ -14,7 +14,7 @@ import { libraryItemPayload, type BrowserDragPayload } from "@/features/browser/
 import { ALL_ROOTS, buildQuery, formatDuration, isFactoryRoot, itemDetail, loadSync } from "@/features/browser/v2/model";
 import { useItemPreview, type PreviewTarget } from "@/features/browser/v2/preview";
 import { useEngineCommands } from "@/features/transport-bar/engine";
-import { TextInput } from "@/kit";
+import { NO_AUTOCORRECT, TextInput } from "@/kit";
 import { cmd } from "@/transport";
 import { useT } from "@/i18n";
 
@@ -113,6 +113,7 @@ export function SamplePicker({ onPick }: { onPick(payload: BrowserDragPayload): 
           <TextInput
             size="sm"
             type="search"
+            {...NO_AUTOCORRECT}
             className="eth-devlib__search-input"
             aria-label={t("devices.samples.search")}
             placeholder={t("devices.samples.search")}

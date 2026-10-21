@@ -3,7 +3,7 @@ import { AlertTriangle, Plus, Printer, RotateCcw, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeymapPreset } from "@/generated";
 import { useOptionalTransport } from "@/features/transport-bar/engine";
-import { Badge, Button, Dialog, IconButton, Select, TextInput, Toggle } from "@/kit";
+import { NO_AUTOCORRECT, Badge, Button, Dialog, IconButton, Select, TextInput, Toggle } from "@/kit";
 import { eventChords, formatChord, MAX_CHORDS_PER_ACTION } from "./chords";
 import { findConflicts, conflictsFor } from "./conflicts";
 import { pauseDispatch } from "./dispatcher";
@@ -89,6 +89,7 @@ function EditorBody() {
         </label>
         <TextInput
           size="sm"
+          {...NO_AUTOCORRECT}
           className="eth-keymap__search"
           placeholder={t("shell.keymap.search_placeholder")}
           aria-label={t("shell.keymap.search_label")}

@@ -10,7 +10,7 @@ import { AudioLines, CornerLeftUp, File, Folder, FolderOpen, Music, Search, Volu
 import type { BrowseLocation, BrowseRoot, BrowserRoot, DirectoryEntry, MediaSource } from "@/generated";
 import { useImportDrop } from "@/features/import";
 import { useEngineCommands, useEngineEvent } from "@/features/transport-bar/engine";
-import { Button, DismissibleError, TextInput } from "@/kit";
+import { NO_AUTOCORRECT, Button, DismissibleError, TextInput } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
 import { useT } from "@/i18n";
@@ -251,6 +251,7 @@ export function FolderBrowser({ scope = "all" }: { scope?: BrowserScope } = {}) 
         <TextInput
           size="sm"
           type="search"
+          {...NO_AUTOCORRECT}
           className="eth-browser__search-input"
           aria-label={t("browser.search.label")}
           placeholder={currentRoot ? t("browser.search.in", { name: locationName(currentRoot) }) : t("browser.search.placeholder")}

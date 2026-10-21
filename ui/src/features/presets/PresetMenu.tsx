@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import { ChevronDown, Ellipsis, Save } from "lucide-react";
 import type { Device, PresetInfo } from "@/generated";
 import { useT } from "@/i18n";
-import { Button, IconButton, Popover, TextInput, openContextMenu, type Placement } from "@/kit";
+import { NO_AUTOCORRECT, Button, IconButton, Popover, TextInput, openContextMenu, type Placement } from "@/kit";
 import { cmd, useTransport, useTransportEvent } from "@/transport";
 import { groupPresets, loadPresetCommand, presetDeviceOf, useCurrentPresets } from "./model";
 import { PresetDialogs, type PresetDialog } from "./PresetDialogs";
@@ -177,6 +177,7 @@ function DevicePresetMenu({ device }: PresetMenuProps) {
             <TextInput
               autoFocus
               size="sm"
+              {...NO_AUTOCORRECT}
               className="eth-presets__search"
               placeholder={t("presets.menu.search")}
               aria-label={t("presets.menu.search")}

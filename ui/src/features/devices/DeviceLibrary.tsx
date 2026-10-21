@@ -28,7 +28,7 @@ import { isOffered } from "./chainUtils";
 import { fetchBuiltinTypes } from "./descriptors";
 import { FORMAT_LABEL, FORMAT_ORDER, platformFormats, pluginKey } from "@/features/plugins/filter";
 import { useOptionalTransport, usePluginEvents, usePluginStore } from "@/features/plugins/pluginStore";
-import { Badge, Button, IconButton, Select, TextInput, openContextMenu, type SelectOption } from "@/kit";
+import { NO_AUTOCORRECT, Badge, Button, IconButton, Select, TextInput, openContextMenu, type SelectOption } from "@/kit";
 import { notify } from "@/features/notifications";
 import { usePluginVisibility, visiblePlugins, type PluginHideRule, type PluginVisibility } from "@/features/plugins/visibility";
 import { cmd } from "@/transport";
@@ -290,6 +290,7 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
           <TextInput
             size="sm"
             type="search"
+            {...NO_AUTOCORRECT}
             className="eth-devlib__search-input"
             aria-label={t("devices.library.search", { kind: noun })}
             placeholder={t("devices.library.search", { kind: noun })}
