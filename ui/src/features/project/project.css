@@ -183,6 +183,13 @@
 .eth-welcome__article--tour:disabled {
   cursor: progress;
 }
+/* The light theme: pure white cards, a touch darker on hover. */
+[data-theme="light"] .eth-welcome__article {
+  background: var(--eth-ink-light);
+}
+[data-theme="light"] .eth-welcome__article--tour:hover:not(:disabled) {
+  background: var(--eth-color-bg-hover);
+}
 .eth-welcome__done {
   display: inline-flex;
   flex: none;
