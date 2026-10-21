@@ -175,8 +175,23 @@ function Swatches({ value, onPick, inherit, label }: { value: number | null; onP
   );
 }
 
-/** The current color as one swatch; clicking it opens the palette in a popover. */
-function ColorPicker({ value, onPick, inherit, label }: { value: number | null; onPick(color: number | null): void; inherit?: number | null; label: string }) {
+/**
+ * The current color as one swatch; clicking it opens the palette in a popover. `kind`: the
+ * swatch is the header's kind square (the clip's / track's icon on its color) instead.
+ */
+function ColorPicker({
+  value,
+  onPick,
+  inherit,
+  label,
+  kind,
+}: {
+  value: number | null;
+  onPick(color: number | null): void;
+  inherit?: number | null;
+  label: string;
+  kind?: ReactNode;
+}) {
   const shown = value === null || value < 0 ? inherit : value;
   return (
     <Popover
@@ -185,12 +200,17 @@ function ColorPicker({ value, onPick, inherit, label }: { value: number | null; 
       trigger={(p) => (
         <button
           type="button"
-          className={clsx("eth-inspector__swatch eth-inspector__color", value === null && inherit !== undefined && "eth-inspector__swatch--inherit")}
+          className={clsx(
+            kind === undefined ? "eth-inspector__swatch eth-inspector__color" : "eth-inspector__kind eth-inspector__kind--pick",
+            kind === undefined && value === null && inherit !== undefined && "eth-inspector__swatch--inherit",
+          )}
           style={{ ["--swatch" as string]: css(shown) }}
           aria-label={label}
           title={label}
           {...p}
-        />
+        >
+          {kind}
+        </button>
       )}
     >
       {(close) => (
@@ -388,9 +408,14 @@ function ClipInspector({ clip }: { clip: Clip }) {
   return (
     <>
       <Section className="eth-inspector__head">
-        <span className="eth-inspector__kind" style={{ ["--swatch" as string]: css(clip.color ?? track?.color) }}>
-          {audio ? <Waves aria-hidden /> : <Music aria-hidden />}
-        </span>
+        {/* The kind square is the color picker. */}
+        <ColorPicker
+          label={t("shell.inspector.clip_color")}
+          value={clip.color}
+          inherit={track?.color ?? null}
+          onPick={(color) => void send(cmd("Clip", { type: "SetColor", id: clip.id, color }))}
+          kind={audio ? <Waves aria-hidden /> : <Music aria-hidden />}
+        />
         <NameField
           label={t("shell.inspector.clip_name")}
           placeholder={audio ? t("shell.inspector.audio_clip") : t("shell.inspector.midi_clip")}
@@ -400,13 +425,6 @@ function ClipInspector({ clip }: { clip: Clip }) {
             const project = useProjectStore.getState().project;
             return project ? defaultClipName(project, clip) : "";
           }}
-        />
-        {/* Right of the name, like a track's color. */}
-        <ColorPicker
-          label={t("shell.inspector.clip_color")}
-          value={clip.color}
-          inherit={track?.color ?? null}
-          onPick={(color) => void send(cmd("Clip", { type: "SetColor", id: clip.id, color }))}
         />
       </Section>
 
@@ -558,7 +576,17 @@ function TrackInspector({ id }: { id: TrackId }) {
   return (
     <>
       <Section className="eth-inspector__head">
-        <span className="eth-inspector__kind" style={{ ["--swatch" as string]: css(track.color) }} />
+        {/* The kind square is the color picker (the master's color is fixed). */}
+        {isMaster ? (
+          <span className="eth-inspector__kind" style={{ ["--swatch" as string]: css(track.color) }} />
+        ) : (
+          <ColorPicker
+            label={t("shell.inspector.track_color")}
+            value={track.color}
+            onPick={(color) => color !== null && void send(cmd("Track", { type: "SetColor", id: track.id, color }))}
+            kind={null}
+          />
+        )}
         {isMaster ? (
           <span className="eth-inspector__heading eth-user-text">{track.name}</span>
         ) : (
@@ -571,13 +599,6 @@ function TrackInspector({ id }: { id: TrackId }) {
               const project = useProjectStore.getState().project;
               return project ? defaultTrackName(project, track) : track.name;
             }}
-          />
-        )}
-        {!isMaster && (
-          <ColorPicker
-            label={t("shell.inspector.track_color")}
-            value={track.color}
-            onPick={(color) => color !== null && void send(cmd("Track", { type: "SetColor", id: track.id, color }))}
           />
         )}
       </Section>
