@@ -113,7 +113,21 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--eth-space-xl);
-  align-items: start;
+  align-items: stretch;
+}
+/* The projects: as tall as Get started beside them (size-contained: they don't stretch the
+   row; their list scrolls), so a long list doesn't make the welcome screen tall. */
+.eth-welcome .eth-project-screen__body {
+  contain: size;
+  min-height: var(--eth-size-welcome-projects-min-height);
+}
+.eth-welcome .eth-project-screen__recent {
+  flex: 1;
+}
+.eth-welcome .eth-project-screen__list {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
 }
 /* The left column: get started. */
 .eth-welcome__start {
