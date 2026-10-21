@@ -122,7 +122,8 @@ function NameField({
   return (
     <TextInput
       size="lg"
-      className="eth-inspector__name"
+      // A name, and its placeholder may be one too (an unnamed clip reads as its track's).
+      className="eth-inspector__name eth-user-text"
       aria-label={label}
       placeholder={placeholder}
       value={draft ?? value}
