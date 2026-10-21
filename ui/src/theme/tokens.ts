@@ -499,8 +499,6 @@ export const size = {
   projectScreenWidth: "560px",
   /** The welcome screen (the project screen's home): get started | recent projects. */
   welcomeWidth: "880px",
-  /** The welcome screen's projects at their shortest (else as tall as Get started beside them). */
-  welcomeProjectsMinHeight: "240px",
   /** The download page (`/download`): its column, the big download button, a platform card. */
   downloadPageWidth: "1040px",
   downloadPrimaryHeight: "64px",
