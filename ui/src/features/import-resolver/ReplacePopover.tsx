@@ -12,9 +12,9 @@ import { acceptReplacement, choiceOf, closeReplace, isRackDevice, replaceWith, s
 
 /**
  * "Replace device…" (mounted under every device card's header, `DeviceView`): a popover like
- * the add library: the factory devices and installed plugins of the device's role (never a
- * rack, nor the device itself), and below them "Retain automations and parameters" (what it
- * keeps: its tooltip, on hover). A row replaces the device at once (one undo step); the device keeps its place, its
+ * the add library: "Retain automations and parameters" at the top (what it keeps: its
+ * tooltip, on hover), then the factory devices and installed plugins of the device's role
+ * (never a rack, nor the device itself). A row replaces the device at once (one undo step); the device keeps its place, its
  * on/off state and its sidechain source (when the new device has a sidechain input).
  */
 export function ReplacePopover({ device }: { device: Device }) {
@@ -58,6 +58,11 @@ function ReplaceLibrary({ device }: { device: Device }) {
   const accept = useMemo(() => (p: LibraryDevicePayload) => acceptReplacement(device, p), [device]);
   return (
     <div className="eth-replace" data-testid="replace-device">
+      {/* What retaining keeps (or not): the tooltip of the toggle and its info icon. */}
+      <div className="eth-replace__options" title={retain ? t("resolver.replace.retain_hint") : t("resolver.replace.reset_hint")}>
+        <Toggle size="sm" checked={retain} onChange={setRetain} label={t("resolver.replace.retain")} />
+        <Info className="eth-replace__info" aria-hidden />
+      </div>
       <DeviceLibrary
         categories={role ? [role] : undefined}
         plugins={loading ? [] : (installed ?? undefined)}
@@ -68,11 +73,6 @@ function ReplaceLibrary({ device }: { device: Device }) {
           if (c) void replaceWith(c, transport);
         }}
       />
-      {/* What retaining keeps (or not): the tooltip of the toggle and its info icon. */}
-      <div className="eth-replace__options" title={retain ? t("resolver.replace.retain_hint") : t("resolver.replace.reset_hint")}>
-        <Toggle size="sm" checked={retain} onChange={setRetain} label={t("resolver.replace.retain")} />
-        <Info className="eth-replace__info" aria-hidden />
-      </div>
     </div>
   );
 }
