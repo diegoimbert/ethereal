@@ -726,6 +726,9 @@
 .eth-arr-header .eth-arr-vol {
   width: calc(4 * var(--eth-size-track-header-button) + 3 * var(--eth-space-hair) - var(--eth-space-md) - var(--eth-size-track-pan-knob));
 }
+.eth-arr-header--compact .eth-arr-vol {
+  width: var(--eth-size-track-fader-width-compact);
+}
 /* The pan's value ("43R", "C") above the knob, like the fader's dB. */
 .eth-arr-header .eth-arr-pan {
   position: relative;
@@ -793,11 +796,141 @@
   display: none;
 }
 
-/* A short lane: no room for two lines, the buttons before the volume and pan. */
+/* A short lane: no room for two lines, the volume and pan alone at the right end, smaller (a
+   short fader, a small knob); the buttons over the name (below). */
 .eth-arr-header--compact .eth-arr-header__controls {
   flex-direction: row;
   align-items: center;
-  gap: var(--eth-space-sm);
+}
+.eth-arr-header--compact .eth-arr-pan {
+  margin-left: var(--eth-space-sm);
+}
+/* Compact, the buttons are over the name's right end, at fixed slots (they never move): shown
+   on hover (or a selected clip), and whenever one carries state or has focus. */
+.eth-arr-header--compact .eth-arr-header__controls {
+  position: relative;
+}
+.eth-arr-header--compact .eth-arr-header__buttons {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + var(--eth-space-sm));
+  transform: translateY(-50%);
+}
+.eth-arr-header--compact:not(:hover, [data-clip-selected])
+  .eth-arr-header__buttons
+  .eth-arr-header__toggle:not(
+    :focus-visible,
+    [aria-pressed="true"],
+    .eth-takes-toggle,
+    .eth-auto-toggle--has,
+    .eth-freeze__toggle,
+    .eth-freeze__lock,
+    .eth-freeze__cancel,
+    .eth-freeze__error
+  ) {
+  opacity: 0;
+  pointer-events: none;
+}
+/* The name stops before the leftmost shown button: k slots when it is the k-th from the end
+   (the later, wider rule wins). */
+.eth-arr-header--compact:has(
+    .eth-arr-header__buttons
+      > :nth-last-child(1):is(
+        [aria-pressed="true"],
+        .eth-takes-toggle,
+        .eth-auto-toggle--has,
+        .eth-freeze__toggle,
+        .eth-freeze__lock,
+        .eth-freeze__cancel,
+        .eth-freeze__error
+      )
+  )
+  .eth-arr-header__name,
+.eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(1)) .eth-arr-header__name {
+  margin-right: calc(1 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+}
+.eth-arr-header--compact:has(
+    .eth-arr-header__buttons
+      > :nth-last-child(2):is(
+        [aria-pressed="true"],
+        .eth-takes-toggle,
+        .eth-auto-toggle--has,
+        .eth-freeze__toggle,
+        .eth-freeze__lock,
+        .eth-freeze__cancel,
+        .eth-freeze__error
+      )
+  )
+  .eth-arr-header__name,
+.eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(2)) .eth-arr-header__name {
+  margin-right: calc(2 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+}
+.eth-arr-header--compact:has(
+    .eth-arr-header__buttons
+      > :nth-last-child(3):is(
+        [aria-pressed="true"],
+        .eth-takes-toggle,
+        .eth-auto-toggle--has,
+        .eth-freeze__toggle,
+        .eth-freeze__lock,
+        .eth-freeze__cancel,
+        .eth-freeze__error
+      )
+  )
+  .eth-arr-header__name,
+.eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(3)) .eth-arr-header__name {
+  margin-right: calc(3 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+}
+.eth-arr-header--compact:has(
+    .eth-arr-header__buttons
+      > :nth-last-child(4):is(
+        [aria-pressed="true"],
+        .eth-takes-toggle,
+        .eth-auto-toggle--has,
+        .eth-freeze__toggle,
+        .eth-freeze__lock,
+        .eth-freeze__cancel,
+        .eth-freeze__error
+      )
+  )
+  .eth-arr-header__name,
+.eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(4)) .eth-arr-header__name {
+  margin-right: calc(4 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+}
+.eth-arr-header--compact:has(
+    .eth-arr-header__buttons
+      > :nth-last-child(5):is(
+        [aria-pressed="true"],
+        .eth-takes-toggle,
+        .eth-auto-toggle--has,
+        .eth-freeze__toggle,
+        .eth-freeze__lock,
+        .eth-freeze__cancel,
+        .eth-freeze__error
+      )
+  )
+  .eth-arr-header__name,
+.eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(5)) .eth-arr-header__name {
+  margin-right: calc(5 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+}
+.eth-arr-header--compact:has(
+    .eth-arr-header__buttons
+      > :nth-last-child(6):is(
+        [aria-pressed="true"],
+        .eth-takes-toggle,
+        .eth-auto-toggle--has,
+        .eth-freeze__toggle,
+        .eth-freeze__lock,
+        .eth-freeze__cancel,
+        .eth-freeze__error
+      )
+  )
+  .eth-arr-header__name,
+.eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(6)) .eth-arr-header__name {
+  margin-right: calc(6 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+}
+.eth-arr-header--compact .eth-arr-pan .eth-knob {
+  --knob-size: var(--eth-size-track-pan-knob-compact);
 }
 
 .eth-arr-header__toggle {

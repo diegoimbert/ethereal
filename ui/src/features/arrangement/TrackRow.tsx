@@ -141,8 +141,13 @@ function TrackBadge({ kind, color, compact }: { kind: Track["kind"]; color: Colo
   );
 }
 
-/** Below this lane height (px) the header's badge is the icon alone, without its circle. */
-const COMPACT_HEADER_HEIGHT = 38;
+/**
+ * Below this lane height (px) the header is compact: the badge is the icon alone (no circle),
+ * the buttons, a short fader and a small pan knob on one line. Vertical zoom steps by 1.12 from
+ * 64 (57, 51, 46, 41, ...): compact from 41, where the volume / pan line over the buttons no
+ * longer fits the card.
+ */
+const COMPACT_HEADER_HEIGHT = 43;
 
 function TrackHeader({ row }: { row: Row }) {
   const headerWidth = useArrangementUi((s) => s.headerWidth);

@@ -171,6 +171,8 @@
   --eth-size-selected-glow-outer: 24px;
   --eth-size-add-track-height: 32px;
   --eth-size-track-pan-knob: 18px;
+  --eth-size-track-pan-knob-compact: 14px;
+  --eth-size-track-fader-width-compact: 30px;
   --eth-size-piano-zoom-grip: 8px;
   --eth-size-beat-row-height: 28px;
   --eth-size-beat-name-width: 120px;
