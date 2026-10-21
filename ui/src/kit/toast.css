@@ -26,14 +26,14 @@
   pointer-events: auto;
   animation: eth-context-menu-in var(--context-menu-enter-duration) var(--context-menu-enter-ease) both;
 }
-/* Time left before it goes: a thin bar along the bottom in the accent (e.g. the author's
+/* Time left before it goes: a hairline along the bottom in the accent (e.g. the author's
    colour), shrinking to nothing; paused while hovered, like the timer (Toast.tsx). */
 .eth-toast__life {
   position: absolute;
   left: 0;
   right: 0;
   bottom: 0;
-  height: var(--eth-border-width-strong);
+  height: var(--eth-border-width);
   background: var(--eth-toast-accent);
   transform-origin: left;
   animation: eth-toast-life var(--eth-toast-life) linear both;
