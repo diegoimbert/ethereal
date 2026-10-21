@@ -219,6 +219,8 @@ struct TransportRt {
     all_notes_off: bool,
     /// `Node::reset` on every node before the next sub-block.
     reset_nodes: bool,
+    /// A locate (playing or not): automation is re-sent at the next sub-block.
+    relocated: bool,
     /// Note chasing on the next played sub-block: start the clip notes already sounding at
     /// the position (after Play, Locate or a loop jump).
     chase_notes: bool,
@@ -606,6 +608,10 @@ impl Engine {
             TransportControl::Stop => {
                 if t.playing {
                     t.release_notes = true;
+                } else {
+                    // Stop while stopped: a panic. Every node restarts (tails cut), on top
+                    // of the notes released below.
+                    t.reset_nodes = true;
                 }
                 // Stop while stopped still releases every node's notes (a panic for
                 // anything left hanging).
@@ -616,7 +622,11 @@ impl Engine {
                 t.position = position.0;
                 t.release_notes = true;
                 t.all_notes_off = true;
-                t.reset_nodes = true;
+                // A jump while playing restarts the devices; stopped (e.g. Space: stop, then
+                // back to where playback started) their tails ring out: a reset there cuts
+                // reverbs and snaps a ducking compressor back up (a click).
+                t.reset_nodes |= t.playing;
+                t.relocated = true;
                 t.chase_notes = true;
                 t.jump = true;
             }
@@ -922,6 +932,7 @@ impl Engine {
                 release_notes: transport.release_notes,
                 all_notes_off: transport.all_notes_off,
                 reset_nodes: transport.reset_nodes,
+                relocated: transport.relocated,
                 chase_notes: transport.chase_notes,
                 skip_silence: *silence_skipping,
             },
@@ -1004,6 +1015,7 @@ impl Engine {
         transport.release_notes = false;
         transport.all_notes_off = false;
         transport.reset_nodes = false;
+        transport.relocated = false;
         transport.sample_time += n as u64;
         if playing {
             transport.chase_notes = false;
@@ -1151,6 +1163,7 @@ struct JobFlags {
     release_notes: bool,
     all_notes_off: bool,
     reset_nodes: bool,
+    relocated: bool,
     chase_notes: bool,
     /// Skip asleep nodes on silent input (`Engine::set_silence_skipping`).
     skip_silence: bool,
@@ -1447,7 +1460,7 @@ impl JobCtx<'_> {
         // Enabled lanes/envelopes always drive their target (precedence per event, see
         // docs/CONTRACTS.md §4 "Automation precedence"): node params are re-sent after a
         // live change or a locate; mixer targets are ramped in the fader stage below.
-        if track.auto_dirty || flags.reset_nodes {
+        if track.auto_dirty || flags.reset_nodes || flags.relocated {
             track.auto_last.fill(f64::NAN);
             track.env_last.fill(f64::NAN);
             track.auto_dirty = false;

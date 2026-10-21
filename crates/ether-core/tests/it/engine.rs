@@ -1096,3 +1096,65 @@ fn device_switch_automation_bypasses_the_device() {
     let (l, _) = render(&mut p.engine, 2048, BLOCK);
     assert!(close(l[2000], 0.25), "automated on: {}", l[2000]);
 }
+
+/// Counts its resets; passes its input through.
+struct ResetCounter(std::sync::Arc<std::sync::atomic::AtomicU32>);
+
+impl ether_core::Node for ResetCounter {
+    fn prepare(&mut self, _: &ether_core::PrepareConfig) {}
+    fn reset(&mut self) {
+        self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+    fn process(
+        &mut self,
+        _: &mut ether_core::ProcessContext<'_>,
+        audio: &mut ether_core::AudioBuffers<'_, '_>,
+    ) -> ether_core::ProcessStatus {
+        audio.pass_through();
+        ether_core::ProcessStatus::Continue
+    }
+}
+
+#[test]
+fn a_locate_while_stopped_lets_the_devices_ring_out() {
+    // Space while playing: stop, then back to where playback started. A reset there would
+    // cut reverb tails and snap a ducking compressor back up (a click): only a jump while
+    // playing restarts the devices.
+    use std::sync::atomic::{AtomicU32, Ordering};
+    let resets = std::sync::Arc::new(AtomicU32::new(0));
+    let mut p = create(config());
+    let node = p
+        .handle
+        .add_node(Box::new(ResetCounter(resets.clone())))
+        .unwrap();
+    let t = with_chain(track(tid(2), TrackKind::Audio, Some(tid(1))), &[node]);
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    render(&mut p.engine, 2048, 512);
+    let before = resets.load(Ordering::Relaxed);
+    p.handle.transport(TransportControl::Stop).unwrap();
+    p.handle
+        .transport(TransportControl::Locate {
+            position: Beats(0.0),
+        })
+        .unwrap();
+    render(&mut p.engine, 2048, 512);
+    assert_eq!(resets.load(Ordering::Relaxed), before);
+    // Playing: a locate resets them.
+    p.handle.transport(TransportControl::Play).unwrap();
+    render(&mut p.engine, 1024, 512);
+    p.handle
+        .transport(TransportControl::Locate {
+            position: Beats(2.0),
+        })
+        .unwrap();
+    render(&mut p.engine, 1024, 512);
+    assert_eq!(resets.load(Ordering::Relaxed), before + 1);
+    // Stop, then Stop again while stopped (a panic): the second one resets them.
+    p.handle.transport(TransportControl::Stop).unwrap();
+    render(&mut p.engine, 1024, 512);
+    assert_eq!(resets.load(Ordering::Relaxed), before + 1);
+    p.handle.transport(TransportControl::Stop).unwrap();
+    render(&mut p.engine, 1024, 512);
+    assert_eq!(resets.load(Ordering::Relaxed), before + 2);
+}
