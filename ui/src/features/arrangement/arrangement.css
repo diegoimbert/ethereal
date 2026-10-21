@@ -382,6 +382,9 @@
 }
 
 .eth-arr-row__main {
+  /* Positions the header's glow, meter and resize grip, sized by it (not by inline heights:
+     a vertical zoom step re-renders none of them). */
+  position: relative;
   display: flex;
   flex: none;
 }
@@ -530,6 +533,7 @@
   position: absolute;
   top: 0;
   left: 0;
+  height: 100%;
   z-index: 4;
   box-sizing: border-box;
   pointer-events: none;
@@ -1031,6 +1035,7 @@
 .eth-arr-header__meter {
   position: absolute;
   top: 0;
+  height: 100%;
   left: calc(var(--eth-arr-header-width) - (var(--eth-space-lg) + var(--eth-size-track-meter-width)) / 2);
   z-index: 6;
   box-sizing: border-box;

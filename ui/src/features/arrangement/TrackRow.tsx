@@ -44,6 +44,9 @@ const INDENT_PX = 12;
 
 // Rows stack in flow and nothing below reads `y`: rows that only move (automation lanes
 // animating above them) don't re-render.
+/** `VcaLane`, re-rendered only when its track changes (not on a lane height change). */
+const VcaLaneMemo = memo(VcaLane);
+
 export const TrackRow = memo(
   function TrackRow({ row }: { row: Row }) {
     return <RealTrackRow row={row} />;
@@ -73,17 +76,19 @@ function RealTrackRow({ row }: { row: Row }) {
     () => (
       <>
         <div className="eth-arr-row__main" style={{ height: mainHeight(mainRow) }}>
-          <TrackHeader row={mainRow} />
+          {/* Memoized on what they show (not the height: CSS sizes them), so a vertical zoom
+              step re-renders none of them unless the lane turns compact or back. */}
+          <TrackHeader track={track} depth={depth} compact={isCompactLane(mainHeight(mainRow))} />
           {/* On the edge between the header column and the lanes (outside the card). */}
-          <HeaderMeter track={track.id} height={mainHeight(mainRow)} />
+          <HeaderMeter track={track.id} />
           <ResizeHandle row={mainRow} />
-          {track.kind === "Group" ? <GroupLane track={track} /> : track.kind === "Vca" ? <VcaLane track={track} /> : <TrackLane track={track} />}
+          {track.kind === "Group" ? <GroupLane track={track} /> : track.kind === "Vca" ? <VcaLaneMemo track={track} /> : <TrackLane track={track} />}
         </div>
         {/* v0.2 (`comping`): expanded take lanes, part of the row's lane height. */}
         {takesHeight > 0 && <TakesSection track={track} />}
       </>
     ),
-    [mainRow, track, takesHeight],
+    [mainRow, track, depth, takesHeight],
   );
   return (
     <div
@@ -147,7 +152,6 @@ function TrackBadge({ track, onPick }: { track: Track; onPick?: (color: number) 
       aria-label={t("arrangement.header.color_named", { name: track.name })}
       trigger={() => (
         // A pointer shortcut (the inspector's color square is the keyboard's way).
-        // eslint-disable-next-line jsx-a11y/no-static-element-interactions
         <span
           className="eth-arr-header__badge"
           aria-hidden
@@ -179,10 +183,9 @@ function TrackBadge({ track, onPick }: { track: Track; onPick?: (color: number) 
   );
 }
 
-function TrackHeader({ row }: { row: Row }) {
+const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track: Track; depth: number; compact: boolean }) {
   const headerWidth = useArrangementUi((s) => s.headerWidth);
   const t = useT();
-  const { track, depth } = row;
   const ctx = useArrangement();
   const { transport } = ctx;
   const dragging = useArrangementUi((s) => s.trackDrag?.track === track.id);
@@ -207,8 +210,6 @@ function TrackHeader({ row }: { row: Row }) {
   const canArm = track.kind === "Audio" || track.kind === "Midi";
   const armBlocked = tapArmBlocked(transport.kind, track.input, armed);
   const stop = (e: MouseEvent) => e.stopPropagation();
-  // Too short for the round badge: the icon alone, in the track color.
-  const compact = isCompactLane(mainHeight(row));
   // A shared project's viewer: Solo / Mute play the share's stems (tracks with a stem, groups
   // holding some); nothing else in the header edits.
   const viewer = useViewer();
@@ -225,7 +226,6 @@ function TrackHeader({ row }: { row: Row }) {
           aria-hidden
           style={{
             width: headerWidth,
-            height: mainHeight(row),
             ["--eth-track-color" as string]: colorCss(track.color),
             ["--eth-track-depth" as string]: depth,
           }}
@@ -420,7 +420,7 @@ function TrackHeader({ row }: { row: Row }) {
       </div>
     </>
   );
-}
+});
 
 /** Inline rename field: Enter or blur commits, Escape cancels (`onDone(null)`). */
 function TrackNameInput({ name, onDone }: { name: string; onDone: (name: string | null) => void }) {
@@ -453,15 +453,15 @@ function TrackNameInput({ name, onDone }: { name: string; onDone: (name: string 
 }
 
 /** Live level along the header's right edge (its own component: re-renders at meter rate). */
-function HeaderMeter({ track, height }: { track: TrackId; height: number }) {
+const HeaderMeter = memo(function HeaderMeter({ track }: { track: TrackId }) {
   const meter = useTrackMeter(track);
   const level = meter ? meterPosition(Math.max(meter.peak[0], meter.peak[1])) : 0;
   return (
-    <span className="eth-arr-header__meter" style={{ height }} aria-hidden>
+    <span className="eth-arr-header__meter" aria-hidden>
       <span className="eth-arr-header__meter-fill" style={{ transform: `scaleY(${level})` }} />
     </span>
   );
-}
+});
 
 /**
  * Bottom edge of a track's header (not the lane, so clips keep their edges): drag to resize
@@ -582,7 +582,7 @@ function LaneLayer({ origin, children }: { origin: Beats; children: ReactNode })
  * (gl/) draws and hit-tests the clips; the lane keeps the DOM overlays (MIDI insert preview,
  * drop hint, imports, live recording) and the presses that reach it (insert, paste menu).
  */
-function TrackLane({ track }: { track: Track }) {
+const TrackLane = memo(function TrackLane({ track }: { track: Track }) {
   const ctx = useArrangement();
   const dropHint = useArrangementUi((s) => (s.dropHint?.track === track.id ? s.dropHint.at : null));
   const imports = useArrangementUi((s) => s.imports);
@@ -636,13 +636,13 @@ function TrackLane({ track }: { track: Track }) {
       </LaneLayer>
     </div>
   );
-}
+});
 
 /** v0.2 (`comping`): a track's take lanes (headers; the canvas draws their clips). */
-function TakesSection({ track }: { track: Track }) {
+const TakesSection = memo(function TakesSection({ track }: { track: Track }) {
   const headerWidth = useArrangementUi((s) => s.headerWidth);
   return <TakeLanes track={track} headerWidth={headerWidth} />;
-}
+});
 
 /** Take entries (`comping`) go before the track menu's last group (Delete). */
 function withTakeEntries(menu: ContextMenuEntry[], takes: ContextMenuEntry[]): ContextMenuEntry[] {
@@ -675,9 +675,9 @@ export function ImportPlaceholder({ item, style }: { item: PendingImport; style?
 }
 
 /** Group lane: the summary of its tracks' clips is drawn by the canvas (gl/layers/groupSummary.ts). */
-function GroupLane({ track }: { track: Track }) {
+const GroupLane = memo(function GroupLane({ track }: { track: Track }) {
   return <div className="eth-arr-lane eth-arr-lane--group" data-lane={track.id} />;
-}
+});
 
 /**
  * Clips dragged below the last track: the new tracks the drop will create, as
