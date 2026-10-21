@@ -79,7 +79,7 @@ crossbeam-channel = "0.5"
 
 # --- audio I/O, media, DSP ---
 cpal = "0.17"
-midir = "0.10"
+midir = "0.11"
 symphonia = { version = "0.6.1", default-features = false, features = ["wav", "pcm", "aiff", "flac", "mp3", "ogg", "vorbis", "isomp4", "aac", "alac", "id3v1", "id3v2", "ape"] }
 rubato = "5.0"
 # Standard MIDI File import/export (no rayon: wasm-safe).
