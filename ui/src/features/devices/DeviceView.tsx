@@ -181,8 +181,6 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
           }}
           onDragEnd={() => setDraggingDevice(null)}
         >
-          {/* A chain rack has no window (its macros and chains are on this card). */}
-          {hasWindow(device) && <DeviceWindowButton device={device} control={deviceWindow} />}
           <IconButton
             size="sm"
             tone="ghost"
@@ -203,6 +201,9 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
             onContextMenu={(e) => switchMenu(e, device, setEnabled)}
             {...midiTarget({ type: "Param", target: switchTarget(device) })}
           />
+          {/* After the power button. A chain rack has no window (its macros and chains are on
+              this card). */}
+          {hasWindow(device) && <DeviceWindowButton device={device} control={deviceWindow} />}
           {renaming ? (
             <input
               className="eth-device__rename"
