@@ -110,14 +110,15 @@ function RealTrackRow({ row }: { row: Row }) {
 /**
  * The group guides left of a row's header: a thin line per group the track is in (and one for
  * a group itself, from its own row), so consecutive rows draw one line down each group, from
- * its header to its last track. They add no indent.
+ * its header to its last track. They add no indent. Top-level groups have none (only the
+ * groups nested in another).
  */
 function GroupGuides({ depth, group }: { depth: number; group: boolean }) {
   const levels = depth + (group ? 1 : 0);
-  if (levels === 0) return null;
+  if (levels <= 1) return null;
   return (
     <span className="eth-arr-row__guides" aria-hidden>
-      {Array.from({ length: levels }, (_, level) => (
+      {Array.from({ length: levels - 1 }, (_, i) => i + 1).map((level) => (
         <span key={level} className={clsx(group && level === depth && "eth-arr-row__guide--start")} style={{ ["--eth-guide-level" as string]: level }} />
       ))}
     </span>
