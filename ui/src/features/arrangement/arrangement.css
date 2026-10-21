@@ -761,7 +761,7 @@
 /* The fader starts where the buttons under it do (a track's usual four: mute, solo, arm,
    automation), the pan knob ending with them (narrower with smaller buttons). */
 .eth-arr-header .eth-arr-vol {
-  width: calc(4 * var(--arr-header-button) + 3 * var(--eth-space-hair) - var(--eth-space-md) - var(--eth-size-track-pan-knob));
+  width: calc(4 * var(--arr-header-button) + 3 * var(--eth-space-hair) - var(--eth-space-md) - var(--arr-pan-knob));
 }
 .eth-arr-header--compact .eth-arr-vol {
   width: var(--eth-size-track-fader-width-compact);
@@ -966,8 +966,8 @@
 .eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(6)) .eth-arr-header__name {
   margin-right: calc(6 * (var(--arr-header-button) + var(--eth-space-hair)));
 }
-.eth-arr-header--compact .eth-arr-pan .eth-knob {
-  --knob-size: var(--eth-size-track-pan-knob-compact);
+.eth-arr-header .eth-arr-pan .eth-knob {
+  --knob-size: var(--arr-pan-knob);
 }
 
 .eth-arr-header__toggle {
@@ -1023,6 +1023,12 @@
 .eth-arr-header {
   --arr-header-button: var(--eth-size-track-header-button);
   --arr-header-icon: var(--eth-size-track-header-icon);
+  --arr-pan-knob: var(--eth-size-track-pan-knob);
+}
+/* A short lane, or a narrow column: the small pan knob. */
+.eth-arr-header--compact,
+.eth-arr-header--narrow {
+  --arr-pan-knob: var(--eth-size-track-pan-knob-compact);
 }
 /* A narrow column: slightly smaller buttons (and the fader above them). */
 .eth-arr-header--narrow {
