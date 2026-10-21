@@ -56,6 +56,7 @@ export interface MessageArgs {
   "arrangement.clip_menu.edit_in_piano_roll": { count: string | number };
   "arrangement.header.arm_named": { name: string | number };
   "arrangement.header.choose_instrument": { name: string | number };
+  "arrangement.header.color_named": { name: string | number };
   "arrangement.header.fold_named": { name: string | number };
   "arrangement.header.kind": { kind: string };
   "arrangement.header.mute_named": { name: string | number };

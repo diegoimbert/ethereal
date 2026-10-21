@@ -33,7 +33,7 @@ import { IconButton, Knob, NumberField, Popover, Select, TextInput, Toggle } fro
 import { useProjectStore, defaultClipName, defaultTrackName, tracksOrdered } from "@/state";
 import { trackSoloCommand } from "@/domain/soloCommands";
 import { additiveClick } from "@/domain/soloPlan";
-import { displayColorCss, TRACK_COLORS } from "@/theme";
+import { ColorSwatches, colorSwatchCss } from "@/features/colors";
 import { formatBarBeat, formatDuration, useTempoMap } from "@/timeline";
 import { cmd, newId } from "@/transport";
 import { type MessageKey, useT } from "@/i18n";
@@ -41,9 +41,7 @@ import type { InspectorTarget } from "./inspectorTarget";
 import "./inspector.css";
 import { ProjectSwingFields } from "@/features/groove";
 
-const PALETTE: ReadonlyArray<number> = TRACK_COLORS.map((c) => parseInt(c.slice(1), 16));
-/** A track/clip color as CSS; an unknown one (`null`) is the fallback token. */
-const css = (color: number | null | undefined) => (color == null ? "var(--eth-track-fallback)" : displayColorCss(color));
+const css = colorSwatchCss;
 const batch = (label: string, commands: Command[]): Command | null =>
   commands.length === 0 ? null : commands.length === 1 ? commands[0]! : cmd("Edit", { type: "Batch", label, commands });
 
@@ -140,42 +138,6 @@ function NameField({
 }
 
 /**
- * Color swatches; `inherit` adds a "follow the track color" swatch (value null), showing that
- * color (`null`: unknown, several tracks).
- */
-function Swatches({ value, onPick, inherit, label }: { value: number | null; onPick(color: number | null): void; inherit?: number | null; label: string }) {
-  const t = useT();
-  return (
-    <div className="eth-inspector__swatches" role="radiogroup" aria-label={label}>
-      {inherit !== undefined && (
-        <button
-          type="button"
-          role="radio"
-          aria-checked={value === null}
-          aria-label={t("shell.inspector.track_color")}
-          title={t("shell.inspector.use_track_color")}
-          className="eth-inspector__swatch eth-inspector__swatch--inherit"
-          style={{ ["--swatch" as string]: css(inherit) }}
-          onClick={() => onPick(null)}
-        />
-      )}
-      {PALETTE.map((c) => (
-        <button
-          key={c}
-          type="button"
-          role="radio"
-          aria-checked={value === c}
-          aria-label={css(c)}
-          className="eth-inspector__swatch"
-          style={{ ["--swatch" as string]: css(c) }}
-          onClick={() => onPick(c)}
-        />
-      ))}
-    </div>
-  );
-}
-
-/**
  * The current color as one swatch; clicking it opens the palette in a popover. `kind`: the
  * swatch is the header's kind square (the clip's / track's icon on its color) instead.
  */
@@ -201,8 +163,8 @@ function ColorPicker({
         <button
           type="button"
           className={clsx(
-            kind === undefined ? "eth-inspector__swatch eth-inspector__color" : "eth-inspector__kind eth-inspector__kind--pick",
-            kind === undefined && value === null && inherit !== undefined && "eth-inspector__swatch--inherit",
+            kind === undefined ? "eth-color-swatch eth-inspector__color" : "eth-inspector__kind eth-inspector__kind--pick",
+            kind === undefined && value === null && inherit !== undefined && "eth-color-swatch--inherit",
           )}
           style={{ ["--swatch" as string]: css(shown) }}
           aria-label={label}
@@ -214,8 +176,8 @@ function ColorPicker({
       )}
     >
       {(close) => (
-        <div className="eth-inspector__palette">
-          <Swatches
+        <div className="eth-color-palette">
+          <ColorSwatches
             label={label}
             value={value}
             inherit={inherit}

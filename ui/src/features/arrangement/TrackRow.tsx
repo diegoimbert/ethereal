@@ -12,7 +12,8 @@ import { LiveRecordLane } from "@/features/recording/live/LiveRecordLane";
 import { tapArmBlocked } from "@/features/recording/tapRecording";
 import { TakeLanes, TakesToggle, trackTakeEntries } from "@/features/comping";
 import { templateTrackEntries } from "@/features/templates";
-import { meterPosition, openContextMenu, ReadOnlySurface, setDragCursor, type ContextMenuEntry } from "@/kit";
+import { meterPosition, openContextMenu, Popover, ReadOnlySurface, setDragCursor, type ContextMenuEntry } from "@/kit";
+import { ColorSwatches } from "@/features/colors";
 import { shortcutLabel } from "@/features/keymap";
 import { useShellStore } from "@/state/shell";
 import { isReadOnly, listenBlockedReason, useProjectStore, useTrackMeter, useViewer, defaultTrackName } from "@/state";
@@ -124,15 +125,57 @@ const TRACK_ICONS: Record<Track["kind"], ReactNode> = {
 };
 
 /**
- * A round badge with the track type's icon, both in the track color (CSS; compact, a short
- * lane: the icon alone).
+ * The track type's icon in the track color (CSS; compact, a short lane: smaller). With
+ * `onPick` (an editable track's color), a double-click opens the palette under it.
  */
-function TrackBadge({ kind }: { kind: Track["kind"] }) {
+function TrackBadge({ track, onPick }: { track: Track; onPick?: (color: number) => void }) {
   const t = useT();
+  const [open, setOpen] = useState(false);
+  const kind = t("arrangement.header.kind", { kind: track.kind.toLowerCase() });
+  if (!onPick) {
+    return (
+      <span className="eth-arr-header__badge" aria-hidden title={kind}>
+        {TRACK_ICONS[track.kind]}
+      </span>
+    );
+  }
   return (
-    <span className="eth-arr-header__badge" aria-hidden title={t("arrangement.header.kind", { kind: kind.toLowerCase() })}>
-      {TRACK_ICONS[kind]}
-    </span>
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      placement="bottom-start"
+      aria-label={t("arrangement.header.color_named", { name: track.name })}
+      trigger={() => (
+        // A pointer shortcut (the inspector's color square is the keyboard's way).
+        // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+        <span
+          className="eth-arr-header__badge"
+          aria-hidden
+          title={`${kind} · ${t("arrangement.header.color_hint")}`}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            setOpen(true);
+          }}
+        >
+          {TRACK_ICONS[track.kind]}
+        </span>
+      )}
+    >
+      {(close) => (
+        // Picks stay in the palette (not a press / click on the track header behind it).
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+        <div className="eth-color-palette" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          <ColorSwatches
+            label={t("arrangement.header.color_named", { name: track.name })}
+            value={track.color}
+            onPick={(c) => {
+              if (c !== null) onPick(c);
+              close();
+            }}
+          />
+        </div>
+      )}
+    </Popover>
   );
 }
 
@@ -253,7 +296,12 @@ function TrackHeader({ row }: { row: Row }) {
             <ChevronDown />
           </button>
         ) : (
-          <TrackBadge kind={track.kind} />
+          <TrackBadge
+            track={track}
+            onPick={
+              readOnly || track.kind === "Master" ? undefined : (color) => void sendEdit(transport, cmd("Track", { type: "SetColor", id: track.id, color }))
+            }
+          />
         )}
         <span className="eth-arr-header__main">
           {renaming ? (

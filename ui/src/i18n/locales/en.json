@@ -2437,6 +2437,8 @@
   "arrangement.summary.midi_clip": "midi clip {name}, {start} to {end}{muted, select, true {, muted} other {}}",
   "arrangement.summary.audio_clip": "audio clip {name}, {start} to {end}{muted, select, true {, muted} other {}}",
   "arrangement.header.kind": "{kind, select, midi {midi track} audio {audio track} group {group track} return {return track} master {master track} other {vca}}",
+  "arrangement.header.color_hint": "double-click to change the colour",
+  "arrangement.header.color_named": "colour of {name}",
   "arrangement.header.track": "{name} track",
   "arrangement.header.fold": "fold",
   "arrangement.header.unfold": "unfold",

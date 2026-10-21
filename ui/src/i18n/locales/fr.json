@@ -2437,6 +2437,8 @@
   "arrangement.summary.midi_clip": "clip midi {name}, de {start} à {end}{muted, select, true {, muet} other {}}",
   "arrangement.summary.audio_clip": "clip audio {name}, de {start} à {end}{muted, select, true {, muet} other {}}",
   "arrangement.header.kind": "{kind, select, midi {piste midi} audio {piste audio} group {piste de groupe} return {piste de retour} master {piste master} other {vca}}",
+  "arrangement.header.color_hint": "double-cliquez pour changer la couleur",
+  "arrangement.header.color_named": "couleur de {name}",
   "arrangement.header.track": "piste {name}",
   "arrangement.header.fold": "replier",
   "arrangement.header.unfold": "déplier",
