@@ -13,7 +13,8 @@
 //!   the chain, `Track(PostFx)` after it, `Track(PostFader)` after the
 //!   fader and VCA (before the PDC output delay); `After(node)` = that entry's output (any
 //!   depth); `ChainIn/ChainOut/ChainMix` = a rack chain or pad's input, aligned output, and
-//!   output after its volume/pan/mute (and choke).
+//!   output after its volume/pan/mute (and choke); `ChainRaw` = a rack chain's output before
+//!   the alignment, for another chain of the same rack (run after it).
 //! - **PDC** ([`plan`]). Walking the consumer's track in processing order with the latency
 //!   `L` of the signal at each entry: at a sidechained entry, `L_sc` = the latency of the
 //!   tapped point (final: other tracks were planned first, own points earlier in the walk).
@@ -51,6 +52,9 @@ pub enum ScPoint {
     ChainIn(u128),
     /// Its output, aligned with the rack's other chains, before its volume/pan/mute.
     ChainOut(u128),
+    /// Its output before the alignment (a rack chain's): what another chain of the same rack
+    /// keys from (it runs after this one; the aligned output comes after every chain).
+    ChainRaw(u128),
     /// Its output after its volume/pan/mute (and a pad's choke).
     ChainMix(u128),
 }
@@ -260,9 +264,14 @@ impl Walk<'_> {
                 ids.push(p.pad.0.0);
             }
         } else if let Some(r) = desc.chain_racks.iter().find(|r| r.rack == node) {
+            // In run order: a chain keyed by another one of the rack comes first.
             for c in &r.chains {
                 self.plan.points.push((ScPoint::ChainIn(c.id.0.0), lat));
-                longest = longest.max(self.chain(&c.chain, lat, depth));
+                let l = self.chain(&c.chain, lat, depth);
+                self.plan
+                    .points
+                    .push((ScPoint::ChainRaw(c.id.0.0), lat.saturating_add(l)));
+                longest = longest.max(l);
                 ids.push(c.id.0.0);
             }
         }

@@ -71,7 +71,12 @@ pub fn chain_racks_desc(p: &Project, track: TrackId, ctx: &CompileContext) -> Ve
         .filter_map(|r| {
             let kind = rack_kind(r)?;
             let rack = (ctx.nodes)(r.id)?;
-            let chains = p.chains_of(r.id);
+            // In run order: a chain keyed by another one of the rack first
+            // (`Project::chain_order`).
+            let mut chains = p.chains_of(r.id);
+            if let Some(order) = p.chain_order(r.id) {
+                chains.sort_by_key(|c| order.iter().position(|id| *id == c.id));
+            }
             let any_solo = chains.iter().any(|c| c.solo);
             let selector = r
                 .params

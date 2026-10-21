@@ -671,6 +671,12 @@ ordinary edits at tick rate (one gesture per control) and still reach monitored 
   followers keyed from a track read the same tap.
 - Devices on drum pads cannot have a sidechain (the model rejects `sidechain` on a device
   with `pad`); pad chains never carry one.
+- Chains of one rack (v0.4, `ether_model::SidechainTap`): a device inside a rack chain may
+  key another chain of a rack it is in (any depth). That chain runs first: a rack's chains
+  run in `Project::chain_order` (keyed chains before the chains keying them, else their own
+  order; the mix is a sum), the model rejects loops, and a chain of the rack holding the
+  device is tapped before the rack's alignment (`ScPoint::ChainRaw` for post-FX; pre-FX
+  is its input; no post-fader: the aligned and mixed outputs come after every chain).
 
 ### 11.11 Groove
 `NoteCommand::Quantize::swing` (0..=1, destructive: odd grid positions are delayed by

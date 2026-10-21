@@ -64,7 +64,7 @@ The device then reacts to the source instead of to its own input: a compressor o
 
 ### keying from your own track or a muted track
 
-- A device can listen to its own track's **pre FX** signal, or to a chain of a rack placed before it on the same track. Its own track appears in the list as **(this track)**.
+- A device can listen to its own track's **pre FX** signal, or to a chain of a rack placed before it on the same track. Inside a rack, it can also listen to another chain of that rack, at its **pre FX** or **post FX** point: for example a compressor in one chain of an audio effect rack ducked by a second chain. That chain then plays first; two chains can't listen to each other. Its own track appears in the list as **(this track)**.
 - Muting or soloing the source track doesn't cut the sidechain: a muted track still keys the device. You can use a muted track as a pure trigger, for example a muted kick that only drives a ducking compressor.
 
 ## where next

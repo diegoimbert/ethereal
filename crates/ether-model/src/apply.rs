@@ -1909,19 +1909,43 @@ impl Project {
         if src != d.track {
             return Ok(());
         }
-        // Same track: the chain's rack must be finished before the device runs.
+        // Same track: the chain's rack must be finished before the device runs, or the
+        // tapped chain is another chain of a rack the device is in (run first: the rack's
+        // chains run in `Project::chain_order`).
         let (Some(rp), Some(dp)) = (self.device_path(rack), self.device_path(d.id)) else {
             return Err(invariant("rack nesting is cyclic or too deep"));
         };
-        let Some(i) = rp.iter().zip(&dp).position(|(a, b)| a != b) else {
+        let sibling = self.sibling_chain_edge(d);
+        if let Some((r, _, _)) = sibling
+            && self.chain_order(r).is_none()
+        {
             return Err(invariant(
-                "a device cannot sidechain a chain of a rack that holds it (or that it holds)",
+                "chains of a rack cannot sidechain each other in a loop",
             ));
+        }
+        let Some(i) = rp.iter().zip(&dp).position(|(a, b)| a != b) else {
+            if sibling.is_none() {
+                return Err(invariant(
+                    "a device cannot sidechain its own chain of a rack that holds it (or a rack it holds)",
+                ));
+            }
+            // Another chain of the rack holding the device: its output before the rack's
+            // alignment (the aligned and post-fader outputs come after every chain).
+            if tap.point == InputTap::PostFader {
+                return Err(invariant(
+                    "a chain can only sidechain another chain of its rack before its volume (pre- or post-FX)",
+                ));
+            }
+            return Ok(());
         };
         let (p, q) = (&self.devices[&rp[i]], &self.devices[&dp[i]]);
         if (p.pad, p.chain) != (q.pad, q.chain) {
+            // Two chains of one rack: the tapped one runs first. Drum pads never.
+            if sibling.is_some() {
+                return Ok(());
+            }
             return Err(invariant(
-                "chains of the same rack cannot sidechain each other",
+                "pads of the same drum rack cannot sidechain each other",
             ));
         }
         if crate::project::by_order((&p.order, p.id), (&q.order, q.id)) != std::cmp::Ordering::Less

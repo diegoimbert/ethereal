@@ -21,7 +21,16 @@ export const POINT_LABEL: Record<InputTap, MessageKey> = {
 };
 
 /** Why a tap is refused ([`tapError`]). */
-export type TapError = "unknown_track" | "master" | "loop" | "after_device" | "not_on_track" | "broken_nesting" | "holds_device" | "sibling_chain";
+export type TapError =
+  | "unknown_track"
+  | "master"
+  | "loop"
+  | "after_device"
+  | "not_on_track"
+  | "broken_nesting"
+  | "holds_device"
+  | "sibling_chain"
+  | "sibling_post_fader";
 
 /** What the selector shows for each [`TapError`]. */
 export const TAP_ERROR_TEXT: Record<TapError, MessageKey> = {
@@ -33,6 +42,7 @@ export const TAP_ERROR_TEXT: Record<TapError, MessageKey> = {
   broken_nesting: "sidechain.error.broken_nesting",
   holds_device: "sidechain.error.holds_device",
   sibling_chain: "sidechain.error.sibling_chain",
+  sibling_post_fader: "sidechain.error.sibling_post_fader",
 };
 const POINTS: InputTap[] = ["PreFx", "PostFx", "PostFader"];
 
@@ -102,9 +112,59 @@ function pathOf(project: P, id: DeviceId): DeviceId[] | null {
 }
 
 /**
+ * The order a same-track tap sets between two chains of one rack (`Project::sibling_chain_edge`):
+ * `device` keys chain `from` of `rack` (or a point inside it) from inside another chain `to`
+ * of that rack, so `from` runs first. `null` for any other tap.
+ */
+function siblingEdge(project: P, device: Device, tap: SidechainTap): { rack: DeviceId; from: string; to: string } | null {
+  if (tap.chain?.type !== "Rack") return null;
+  const chain = tap.chain.chain;
+  const rack = project.rack_chains[chain]?.rack;
+  if (!rack) return null;
+  const rp = pathOf(project, rack);
+  const dp = pathOf(project, device.id);
+  if (!rp || !dp) return null;
+  const i = rp.findIndex((r, k) => dp[k] !== r);
+  if (i < 0) {
+    // The tapped chain's rack holds the device: the chain of that rack holding it.
+    const to = dp[rp.length] !== undefined ? project.devices[dp[rp.length]!]?.chain : null;
+    return to && to !== chain ? { rack, from: chain, to } : null;
+  }
+  const p = project.devices[rp[i]!];
+  const q = project.devices[dp[i]!];
+  if (!p?.chain || !q?.chain || p.chain === q.chain) return null;
+  const r = project.rack_chains[p.chain]?.rack;
+  return r && project.rack_chains[q.chain]?.rack === r ? { rack: r, from: p.chain, to: q.chain } : null;
+}
+
+/** Whether `device` keying at `tap` would make chains of one rack key each other in a loop. */
+function chainsLoop(project: P, device: Device, tap: SidechainTap): boolean {
+  const edge = siblingEdge(project, device, tap);
+  if (!edge) return false;
+  const edges = Object.values(project.devices)
+    .filter((d) => d.id !== device.id && d.track === device.track && d.sidechain === device.track)
+    .flatMap((d) => {
+      const e = siblingEdge(project, d, tapOf(d));
+      return e && e.rack === edge.rack ? [e] : [];
+    });
+  // A loop: `edge.to` already reaches `edge.from`.
+  const seen = new Set<string>();
+  const stack = [edge.to];
+  while (stack.length > 0) {
+    const c = stack.pop()!;
+    if (c === edge.from) return true;
+    if (seen.has(c)) continue;
+    seen.add(c);
+    stack.push(...edges.filter((e) => e.from === c).map((e) => e.to));
+  }
+  return false;
+}
+
+/**
  * Why `device` can't take `source` at `tap` (`null` = it can). Same rules as the model:
- * the chain must be on the source; on its own track only the Pre FX signal or a chain of a
- * rack placed before it; no routing cycle with other tracks.
+ * the chain must be on the source; on its own track only the Pre FX signal, a chain of a
+ * rack placed before it, or another chain of a rack it is in (that chain runs first; before
+ * its volume: Pre or Post FX), never in a loop; no routing cycle with other tracks.
  */
 export function tapError(project: P, device: Device, source: TrackId, tap: SidechainTap): TapError | null {
   const src = project.tracks[source];
@@ -120,11 +180,16 @@ export function tapError(project: P, device: Device, source: TrackId, tap: Sidec
   const rp = pathOf(project, rack);
   const dp = pathOf(project, device.id);
   if (!rp || !dp) return "broken_nesting";
+  const sibling = siblingEdge(project, device, tap) !== null;
+  if (sibling && chainsLoop(project, device, tap)) return "loop";
   const i = rp.findIndex((r, k) => dp[k] !== r);
-  if (i < 0 || i >= dp.length) return "holds_device";
+  if (i < 0 || i >= dp.length) {
+    if (!sibling) return "holds_device";
+    return tap.point === "PostFader" ? "sibling_post_fader" : null;
+  }
   const p = project.devices[rp[i]!]!;
   const q = project.devices[dp[i]!]!;
-  if ((p.pad ?? null) !== (q.pad ?? null) || (p.chain ?? null) !== (q.chain ?? null)) return "sibling_chain";
+  if ((p.pad ?? null) !== (q.pad ?? null) || (p.chain ?? null) !== (q.chain ?? null)) return sibling ? null : "sibling_chain";
   return byOrder(p, q) < 0 ? null : "after_device";
 }
 

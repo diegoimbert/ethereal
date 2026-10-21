@@ -335,6 +335,35 @@ fn own_track_points_produced_earlier_are_heard() {
 }
 
 #[test]
+fn a_chain_hears_an_earlier_chain_of_its_rack_before_the_alignment() {
+    // Chain 30 = [impulse, delay 100] runs first; chain 32 = [impulse, probe] keys its
+    // output before the rack's alignment (`ChainRaw`, latency 100): the probe's main signal
+    // is delayed 100 to match, and the rack's longest chain is then 100 (not 100 + 100).
+    let mut r = Rig::new();
+    let rack_node = r.node(Pass);
+    let (imp, d100, imp2) = (r.node(Impulse), r.node(Delay::new(100)), r.node(Impulse));
+    let (probe, seen) = r.probe();
+    let mut s = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[rack_node]);
+    s.chain_racks = vec![rack(
+        rack_node,
+        ChainRackKind::Instrument,
+        vec![(30, vec![imp, d100]), (32, vec![imp2, probe])],
+    )];
+    key(&mut s, probe, tid(2), ScPoint::ChainRaw(30));
+    r.run(vec![master(), s.clone()]).unwrap();
+    let seen = *seen.lock().unwrap();
+    assert_eq!((seen.sidechain, seen.main), (Some(100), Some(100)));
+    let lat = move |k: NodeKey| {
+        Some(NodeInfo {
+            latency: if k == d100 { 100 } else { 0 },
+            channels: (2, 2),
+        })
+    };
+    let snap = compile_with(desc(vec![master(), s]), &config(), &lat).unwrap();
+    assert_eq!(snap.track_latency(tid(2)), Some(100));
+}
+
+#[test]
 fn own_track_points_not_produced_yet_are_ignored() {
     // The probe inside chain 30 keyed from its own rack's output: not produced yet (the
     // model rejects it); the engine plays it without a sidechain rather than misreading.
