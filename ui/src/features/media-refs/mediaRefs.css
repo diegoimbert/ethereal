@@ -1,35 +1,12 @@
-/* Samples referenced in place: notice, Relink dialog (the arranger canvas
-   hatches missing clips and badges them, arrangement/gl/layers/clipBadges.ts). */
-
-/* ── Notice ───────────────────────────────────────────────────────── */
-
-/* Floats at the bottom left of the timeline, clear of the rail and the track headers (the
-   import status list is bottom center). */
-.eth-media-refs__notice {
-  position: fixed;
-  left: calc(var(--eth-size-rail-width) + var(--eth-size-track-header-width) + var(--eth-space-lg));
-  bottom: var(--eth-space-2xl);
-  z-index: var(--eth-z-popover);
-  display: flex;
-  align-items: center;
-  gap: var(--eth-space-sm);
-  padding: var(--eth-space-xs) var(--eth-space-xs) var(--eth-space-xs) var(--eth-space-md);
-  background: var(--eth-color-bg-overlay);
-  border: var(--eth-border-width) solid var(--eth-color-warn);
-  border-radius: var(--eth-radius-md);
-  box-shadow: var(--eth-shadow-lg);
-  color: var(--eth-color-text);
-  font-size: var(--eth-fs-xs);
-  animation: eth-fade-in var(--eth-duration-normal) var(--eth-ease-out);
-}
-
-.eth-media-refs__notice-icon {
-  width: var(--eth-size-icon-sm);
-  height: var(--eth-size-icon-sm);
-  color: var(--eth-color-warn);
-}
+/* Samples referenced in place: the Relink dialog (the status bar shows what is missing; the
+   arranger canvas hatches missing clips and badges them, arrangement/gl/layers/clipBadges.ts). */
 
 /* ── Relink dialog ────────────────────────────────────────────────── */
+
+/* As wide as the resolver's: long file names and paths fit; the list takes most of the height. */
+.eth-media-refs {
+  --dialog-width: min(calc(var(--eth-size-dialog-width) * 2), calc(100vw - 2 * var(--eth-space-lg)));
+}
 
 .eth-media-refs__summary {
   margin: 0 0 var(--eth-space-md);
@@ -41,7 +18,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--eth-space-xs);
-  max-height: calc(8 * var(--eth-size-row-height));
+  max-height: max(calc(8 * var(--eth-size-row-height)), 60vh);
   margin: 0;
   padding: 0;
   overflow-y: auto;
@@ -139,10 +116,4 @@
   color: var(--eth-color-danger);
   font-size: var(--eth-fs-xs);
   overflow-wrap: anywhere;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .eth-media-refs__notice {
-    animation: none;
-  }
 }

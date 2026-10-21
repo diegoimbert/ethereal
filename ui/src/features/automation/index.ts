@@ -20,6 +20,7 @@ export {
 } from "./laneMotion";
 export { TrackAutomationLanes, type TrackAutomationLanesProps } from "./TrackAutomationLanes";
 export { useAutomationToggle } from "./toggle";
+export { openValueMenu, ValueEditHost, valueMenuEntries, type ValueMenuTarget } from "./valueMenu";
 export { AutomationToggleButton, type AutomationToggleButtonProps } from "./AutomationToggleButton";
 export { clampTension, curveFraction, evaluatePoints, shapeFraction, type CurvePoint } from "./curve";
 export { PAN_INFO, SEND_INFO, VOLUME_INFO, targetKey, targetNameIsUserText, trackTargets, useTrackTargets, type TargetInfo } from "./params";

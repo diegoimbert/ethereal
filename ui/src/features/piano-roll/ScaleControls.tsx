@@ -36,8 +36,8 @@ export function ScaleControls({ scale, mode, onMode, onScale, highlight, onHighl
     <Popover
       aria-label={t("piano_roll.scale.popover")}
       trigger={(p) => (
-        <Button size="sm" active={only} title={t("piano_roll.scale.trigger_title")} data-testid="scale-trigger" {...p}>
-          {scaleLabel(scale)}…
+        <Button size="sm" chevron active={only} title={t("piano_roll.scale.trigger_title")} data-testid="scale-trigger" {...p}>
+          {scaleLabel(scale)}
         </Button>
       )}
     >

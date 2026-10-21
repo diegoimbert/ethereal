@@ -1,6 +1,7 @@
 // The user docs: a left nav of sections and pages (a drawer on phones), the page with
 // its on-page contents, prev / next, and search. The same view runs standalone at `/docs`
 // (the URL router) and over the desktop app (a memory router, `DocsRoot`).
+import { NO_AUTOCORRECT } from "@/kit";
 import "./docs.css";
 import clsx from "clsx";
 import { ArrowLeft, ArrowRight, BookOpen, ChevronRight, Menu, Search, X } from "lucide-react";
@@ -267,6 +268,7 @@ function DocsSearch({ docs, router, inputRef }: { docs: Docs; router: DocsRouter
       <input
         ref={inputRef}
         type="search"
+        {...NO_AUTOCORRECT}
         className="eth-docs-search__input"
         placeholder={t("docs.search")}
         aria-label={t("docs.search")}

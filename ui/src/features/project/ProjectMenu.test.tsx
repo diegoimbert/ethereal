@@ -39,9 +39,9 @@ async function enabledButton(container: HTMLElement, name: string): Promise<HTML
   return button;
 }
 
+/** The project picker (as the palette's "open project…" shows it). */
 async function openManager() {
-  fireEvent.click(screen.getByRole("button", { name: "projects" }));
-  fireEvent.click(await screen.findByRole("menuitem", { name: "open project…" }));
+  act(() => useProjectScreen.getState().show());
   return screen.findByRole("dialog", { name: "open project" });
 }
 
@@ -127,13 +127,16 @@ describe("ProjectMenu", () => {
     expect(useProjectScreen.getState().launchPending).toBe(false);
   });
 
-  it("the welcome screen has a visible close next to its actions (#578)", async () => {
+  it('the welcome screen has no close button: Escape leaves it, "new project" ends its row', async () => {
     useProjectScreen.setState({ launchPending: true });
     await renderWithMock(<ProjectMenu />);
     const dialog = await screen.findByRole("dialog", { name: "open project" });
-    // One close: the welcome's own (its kit header is visually hidden).
-    expect(within(dialog).getAllByRole("button", { name: "close" })).toHaveLength(1);
-    fireEvent.click(within(dialog).getByRole("button", { name: "close" }));
+    expect(within(dialog).queryByRole("button", { name: "close" })).toBeNull();
+    // The header's actions: "join discord" first, "new project" at the very right.
+    const actions = within(dialog).getByTestId("welcome-new-project").parentElement!;
+    expect(actions.lastElementChild).toBe(within(dialog).getByTestId("welcome-new-project"));
+    expect(actions.firstElementChild).toBe(within(dialog).getByRole("button", { name: "join discord" }));
+    fireEvent.keyDown(dialog, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(screen.getByTestId("project-name").textContent).toBe("Demo");
   });
@@ -220,13 +223,27 @@ describe("ProjectMenu", () => {
     fireEvent.click(screen.getByRole("button", { name: "projects" }));
     const menu = await screen.findByRole("menu", { name: "project" });
     const item = (name: string) => within(menu).getByRole("menuitem", { name });
-    await waitFor(() => expect(item("new project")).toHaveFocus());
-    fireEvent.keyDown(item("new project"), { key: "ArrowDown" });
-    expect(item("open project…")).toHaveFocus();
-    fireEvent.keyDown(item("open project…"), { key: "ArrowUp" });
+    await waitFor(() => expect(item("settings…")).toHaveFocus());
+    fireEvent.keyDown(item("settings…"), { key: "ArrowDown" });
     expect(item("new project")).toHaveFocus();
-    fireEvent.keyDown(item("new project"), { key: "ArrowUp" }); // wraps to the last item
+    fireEvent.keyDown(item("new project"), { key: "ArrowUp" });
+    expect(item("settings…")).toHaveFocus();
+    fireEvent.keyDown(item("settings…"), { key: "ArrowUp" }); // wraps to the last item
     expect(within(menu).getAllByRole("menuitem").at(-1)).toHaveFocus();
+  });
+
+  it("lists the recent projects in its 'open project' submenu (search included); a click opens one", async () => {
+    await renderWithMock(<ProjectMenu />);
+    fireEvent.click(screen.getByRole("button", { name: "projects" }));
+    const menu = await screen.findByRole("menu", { name: "project" });
+    const open = within(menu).getByRole("menuitem", { name: "open project" });
+    expect(open).toHaveAttribute("aria-haspopup", "menu");
+    fireEvent.click(open);
+    const panel = await screen.findByRole("dialog", { name: "open project" });
+    await waitFor(() => expect(within(panel).getByRole("searchbox", { name: "search projects" })).toHaveFocus());
+    fireEvent.click(await enabledButton(panel, "open Beat sketch"));
+    await waitFor(() => expect(screen.getByTestId("project-name").textContent).toBe("Beat sketch"));
+    await waitFor(() => expect(screen.queryByRole("menu", { name: "project" })).toBeNull());
   });
 
   it("closes on Escape", async () => {

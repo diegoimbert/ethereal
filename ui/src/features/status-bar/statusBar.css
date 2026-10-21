@@ -1,0 +1,92 @@
+/* The editor's thin status bar (StatusBar.tsx): the app's ongoing state at its start, the
+   extensions' items at its end. Tokens only. */
+.eth-status-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-md);
+  height: var(--eth-size-status-bar-height);
+  min-width: 0;
+  /* The shell's padding already separates it from the window edge. */
+  margin-top: calc(-1 * var(--eth-space-xs));
+  padding: 0 var(--eth-space-sm);
+  font-size: var(--eth-fs-2xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-status-bar__spacer {
+  flex: 1;
+}
+.eth-status-bar__button,
+.eth-status-bar__text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  height: 100%;
+  min-width: 0;
+  padding: 0 var(--eth-space-sm);
+  border: none;
+  border-radius: var(--eth-radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    color var(--eth-duration-fast) var(--eth-ease-standard),
+    background var(--eth-duration-fast) var(--eth-ease-standard);
+}
+.eth-status-bar__button:hover,
+.eth-status-bar__button[aria-expanded="true"] {
+  color: var(--eth-color-text);
+  background: var(--eth-color-bg-hover);
+}
+.eth-status-bar__button:focus-visible {
+  outline: var(--eth-border-width) solid var(--eth-color-focus);
+}
+.eth-status-bar__text {
+  cursor: default;
+}
+/* An item and its action side by side (safe mode | load plugins). */
+.eth-status-bar__group {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+}
+.eth-status-bar__action {
+  color: var(--eth-color-accent);
+}
+.eth-status-bar__button:disabled {
+  opacity: var(--eth-opacity-disabled);
+  cursor: default;
+}
+.eth-status-bar__button svg,
+.eth-status-bar__text svg {
+  flex: none;
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+}
+.eth-status-bar__button[data-tone="warn"] svg,
+.eth-status-bar__text[data-tone="warn"] svg {
+  color: var(--eth-color-warn);
+}
+.eth-status-bar__button[data-tone="danger"] svg,
+.eth-status-bar__text[data-tone="danger"] svg {
+  color: var(--eth-color-danger);
+}
+/* A small progress bar inside an item (imports, downloads). */
+.eth-status-bar__progress {
+  position: relative;
+  flex: none;
+  width: calc(var(--eth-size-icon-sm) * 3);
+  height: var(--eth-space-xs);
+  overflow: hidden;
+  border-radius: var(--eth-radius-round);
+  background: var(--eth-color-bg-hover);
+}
+.eth-status-bar__progress-fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left;
+  transform: scaleX(var(--eth-status-progress, 0));
+  background: var(--eth-color-accent);
+}

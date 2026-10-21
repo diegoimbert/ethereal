@@ -30,4 +30,27 @@ describe("TitleTooltipHost", () => {
     expect(screen.queryByRole("tooltip")).toBeNull();
     expect(button).toHaveAttribute("title");
   });
+
+  it("a control without a title shows its label, unless the label only repeats its text", () => {
+    render(
+      <>
+        <button type="button" aria-label="mute Kick">
+          <svg />
+        </button>
+        <button type="button" aria-label="add track">
+          add track
+        </button>
+        <div role="slider" aria-label="Kick pan" aria-valuenow={0.5} tabIndex={0} />
+        <TitleTooltipHost />
+      </>,
+    );
+    act(() => void fireEvent.pointerOver(screen.getByRole("button", { name: "mute Kick" })));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("mute Kick");
+    act(() => void fireEvent.pointerOver(screen.getByRole("button", { name: "add track" })));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    act(() => void fireEvent.pointerOver(screen.getByRole("slider", { name: "Kick pan" })));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Kick pan");
+    // A slider's tooltip goes below it (its value shows above on hover).
+    expect(screen.getByRole("tooltip")).toHaveClass("eth-tooltip--bottom");
+  });
 });

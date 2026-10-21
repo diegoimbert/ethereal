@@ -1,8 +1,8 @@
 /**
  * Take-lane UI state (not in the document): which tracks show their take lanes, the
  * selected comp region (for the next/previous take shortcuts), the swipe being dragged,
- * the auditioned lane per track (mirrors the runtime `Take::Audition` this client sent) and
- * the last error (e.g. a frozen track rejecting the edit).
+ * and the auditioned lane per track (mirrors the runtime `Take::Audition` this client sent).
+ * A refused edit (e.g. a frozen track) is a warning toast.
  */
 
 import { create } from "zustand";
@@ -15,23 +15,16 @@ export interface SwipePreview {
   end: Beats;
 }
 
-export interface TakesError {
-  track: TrackId;
-  message: string;
-}
-
 export interface CompingUiState {
   expanded: ReadonlySet<TrackId>;
   /** The selected comp region (Up/Down pick the previous/next take for it). */
   selected: { track: TrackId; region: CompRegionId } | null;
   swipe: SwipePreview | null;
   audition: ReadonlyMap<TrackId, TakeLaneId>;
-  error: TakesError | null;
   toggle(track: TrackId, open?: boolean): void;
   select(sel: { track: TrackId; region: CompRegionId } | null): void;
   setSwipe(swipe: SwipePreview | null): void;
   setAudition(track: TrackId, lane: TakeLaneId | null): void;
-  setError(error: TakesError | null): void;
 }
 
 export const useCompingUi = create<CompingUiState>((set) => ({
@@ -39,7 +32,6 @@ export const useCompingUi = create<CompingUiState>((set) => ({
   selected: null,
   swipe: null,
   audition: new Map(),
-  error: null,
   toggle: (track, open) =>
     set((s) => {
       const next = new Set(s.expanded);
@@ -57,5 +49,4 @@ export const useCompingUi = create<CompingUiState>((set) => ({
       else next.delete(track);
       return { audition: next };
     }),
-  setError: (error) => set({ error }),
 }));

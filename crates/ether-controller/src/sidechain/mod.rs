@@ -108,7 +108,7 @@ pub fn taps_desc(
         .filter_map(|d| {
             let src = d.sidechain?;
             let tap = d.sidechain_tap?;
-            let point = engine_point(p, src, tap, ctx)?;
+            let point = engine_point(p, d, src, tap, ctx)?;
             let node = (ctx.nodes)(d.id)?;
             Some(SidechainTapDesc { node, point })
         })
@@ -117,11 +117,12 @@ pub fn taps_desc(
     out
 }
 
-/// The engine point of `tap` on `source` (`None` = the post-fader default). `PreFx` is the
+/// The engine point of `tap` on `source` for `consumer` (`None` = the post-fader default). `PreFx` is the
 /// output of the first instrument of the track / chain (racks count), else its input
 /// (`ether_model::SidechainTap`).
 fn engine_point(
     p: &Project,
+    consumer: &Device,
     source: TrackId,
     tap: SidechainTap,
     ctx: &crate::compile::CompileContext,
@@ -153,6 +154,14 @@ fn engine_point(
                     Some(node) => ScPoint::After(node),
                     None => ScPoint::ChainIn(id),
                 },
+                // Another chain of a rack holding the consumer: its output before the rack's
+                // alignment (it runs first; the aligned output comes after every chain).
+                InputTap::PostFx
+                    if p.sibling_chain_edge(consumer)
+                        .is_some_and(|e| p.is_inside(consumer.id, e.0) && e.1.0.0 == id) =>
+                {
+                    ScPoint::ChainRaw(id)
+                }
                 InputTap::PostFx => ScPoint::ChainOut(id),
                 InputTap::PostFader => ScPoint::ChainMix(id),
             }

@@ -21,9 +21,9 @@ Le projet s’ouvre avec tous les plug-ins contournés : ils ne produisent aucu
 
 ## en mode sans échec {#while-in-safe-mode}
 
-- La barre du haut indique **plug-ins désactivés (mode sans échec)**.
+- La barre d’état (en bas) indique **plug-ins désactivés (mode sans échec)**.
 - Chaque plug-in affiche **mode sans échec · contourné**, avec un bouton **⟳** qui charge ce seul plug-in. Les charger un par un permet de trouver celui qui plante.
-- **charger les plug-ins** dans la barre du haut les charge tous et quitte le mode sans échec.
+- **charger les plug-ins**, juste à côté, les charge tous et quitte le mode sans échec.
 
 Ouvrir en mode sans échec ne modifie pas le projet enregistré : chaque plug-in garde son état.
 

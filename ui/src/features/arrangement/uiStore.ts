@@ -56,6 +56,8 @@ export interface ArrangementUiState {
   trackDrag: { track: TrackId; y: number | null; into: TrackId | null; blocked?: { top: number; height: number } } | null;
   /** A MIDI track just dragged into place from Add track: its header offers the instruments. */
   instrumentPick: TrackId | null;
+  /** A group whose header is hovered: its tracks (at any depth) look hovered too, not selected. */
+  hoveredGroup: TrackId | null;
   folded: ReadonlySet<TrackId>;
   /** Lane height of resized tracks; the others use `defaultHeight`. */
   heights: ReadonlyMap<TrackId, number>;
@@ -65,6 +67,8 @@ export interface ArrangementUiState {
   preview: DragPreview | null;
   /** Timeline position of a pending browser drop (indicator), with its track. */
   dropHint: { track: TrackId | null; at: Beats } | null;
+  /** The track device cards are dragged over (it takes them on drop: `@/features/devices/trackDrop`). */
+  deviceDrop: TrackId | null;
   imports: ReadonlyArray<PendingImport>;
 
   setHeaderWidth(px: number): void;
@@ -74,6 +78,7 @@ export interface ArrangementUiState {
   setTrackSelection(tracks: Iterable<TrackId>, focus: TrackId | null): void;
   setTrackDrag(drag: ArrangementUiState["trackDrag"]): void;
   setInstrumentPick(track: TrackId | null): void;
+  setHoveredGroup(group: TrackId | null): void;
   toggleFold(track: TrackId): void;
   /** Resize one lane (clamped); `null` resets it to the default. */
   setHeight(track: TrackId, height: number | null): void;
@@ -82,6 +87,7 @@ export interface ArrangementUiState {
   setGrid(grid: GridSetting): void;
   setPreview(preview: DragPreview | null): void;
   setDropHint(hint: ArrangementUiState["dropHint"]): void;
+  setDeviceDrop(track: TrackId | null): void;
   /** Add or update (by id) a pending import. */
   putImport(item: PendingImport): void;
   removeImport(id: string): void;
@@ -103,12 +109,14 @@ const INITIAL = {
   selectedTracks: new Set<TrackId>() as ReadonlySet<TrackId>,
   trackDrag: null as ArrangementUiState["trackDrag"],
   instrumentPick: null as TrackId | null,
+  hoveredGroup: null as TrackId | null,
   folded: new Set<TrackId>() as ReadonlySet<TrackId>,
   heights: new Map<TrackId, number>() as ReadonlyMap<TrackId, number>,
   defaultHeight: TRACK_HEIGHT,
   grid: DEFAULT_GRID,
   preview: null,
   dropHint: null,
+  deviceDrop: null,
   imports: [] as ReadonlyArray<PendingImport>,
 };
 
@@ -128,6 +136,7 @@ export const useArrangementUi = create<ArrangementUiState>()((set) => ({
   setTrackSelection: (tracks, focus) => set({ trackFocus: focus, selectedTracks: new Set(tracks) }),
   setTrackDrag: (trackDrag) => set({ trackDrag }),
   setInstrumentPick: (instrumentPick) => set({ instrumentPick }),
+  setHoveredGroup: (hoveredGroup) => set((s) => (s.hoveredGroup === hoveredGroup ? s : { hoveredGroup })),
   toggleFold: (track) =>
     set((s) => {
       const folded = new Set(s.folded);
@@ -150,6 +159,7 @@ export const useArrangementUi = create<ArrangementUiState>()((set) => ({
   setGrid: (grid) => set({ grid }),
   setPreview: (preview) => set({ preview }),
   setDropHint: (dropHint) => set({ dropHint }),
+  setDeviceDrop: (deviceDrop) => set((s) => (s.deviceDrop === deviceDrop ? s : { deviceDrop })),
   putImport: (item) =>
     set((s) => ({
       imports: s.imports.some((i) => i.id === item.id) ? s.imports.map((i) => (i.id === item.id ? item : i)) : [...s.imports, item],

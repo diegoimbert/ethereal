@@ -7,7 +7,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
 import { expectProjectRenderer } from "./clips";
-import { createTrack, launch } from "./ui";
+import { createTrack, launch, showInspector } from "./ui";
 
 test.use({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
 
@@ -28,7 +28,7 @@ async function lanePoint(page: Page, track: string, fx: number): Promise<{ x: nu
   return { x: box.x + box.width * fx, y: box.y + box.height / 2 };
 }
 
-test("a click on a lane's empty space selects the track and shows it in the inspector", async ({ page }) => {
+test("a click on a lane's empty space selects the track (the inspector folds to its bar and shows it when expanded)", async ({ page }) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -46,19 +46,24 @@ test("a click on a lane's empty space selects the track and shows it in the insp
   await page.locator(`[data-lane="${a.id}"]`).dblclick({ position: { x: 5, y: 30 } });
   await expect.poll(() => clipsOn(a.id)).toBe(1);
 
-  // --- Click on B's empty space: B is selected, the inspector shows it ----------------------------
+  // --- Click on B's empty space: B is selected; the inspector folds to its bar (a click on the
+  // lanes' empty space collapses it) and shows B when expanded --------------------------------------
+  const inspectorBar = page.getByRole("button", { name: "expand the inspector panel" });
   let p = await lanePoint(page, b.id, 0.6);
   await page.mouse.click(p.x, p.y);
-  await expect(trackName).toHaveValue(b.name);
   await expect(header(b.name)).toHaveClass(/eth-arr-header--selected/);
   await expect(header(a.name)).not.toHaveClass(/eth-arr-header--selected/);
+  await expect(inspectorBar).toBeVisible();
+  await showInspector(page);
+  await expect(trackName).toHaveValue(b.name);
   await shot(page, "lane-click-selects-track");
 
   // --- And on A's empty space (right of its clip): A ------------------------------------------------
   p = await lanePoint(page, a.id, 0.6);
   await page.mouse.click(p.x, p.y);
-  await expect(trackName).toHaveValue(a.name);
   await expect(header(a.name)).toHaveClass(/eth-arr-header--selected/);
+  await showInspector(page);
+  await expect(trackName).toHaveValue(a.name);
   await expect(header(b.name)).not.toHaveClass(/eth-arr-header--selected/);
 
   // --- Cmd/Ctrl-click adds B, like on the header -----------------------------------------------------
@@ -93,6 +98,8 @@ test("a click on a lane's empty space selects the track and shows it in the insp
     clip.id,
   );
   await page.mouse.click(clipBox!.x + clipBox!.width / 2, clipBox!.y + clipBox!.height * 0.75);
+  // (A click on a clip never expands a pane.)
+  await showInspector(page);
   await expect(inspector.getByRole("textbox", { name: "clip name" })).toBeVisible();
   await expect(header(a.name)).not.toHaveClass(/eth-arr-header--selected/);
 

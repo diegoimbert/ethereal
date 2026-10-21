@@ -112,7 +112,8 @@ export interface ShellRoot {
   /**
    * Where: `overlay` (dialogs and runtimes, after the app's; default), `device-windows` (with
    * the floating device windows), `top-bar` (the top bar's end, before settings),
-   * `status-bar` (below the workspace).
+   * `status-bar` (items at the end of the status bar below the workspace: a `StatusButton`,
+   * with any details in a popover above it; the UI has no floating cards but toasts).
    */
   slot?: "overlay" | "device-windows" | "top-bar" | "status-bar";
   /** `top-bar`: its wrapper's `data-slot` (default: `name`). */
@@ -193,20 +194,29 @@ export interface ProjectRowAction {
 }
 
 /** A settings tab of its own (`AudioSettingsDialog`). */
+/**
+ * A settings page: a category of its own in the sidebar, or with `parent` a page of that
+ * category (listed under it). Its content: `Component`, and the sections contributed to it.
+ */
 export interface SettingsTabContribution {
   id: string;
   label(): string;
+  /** A page of this category (e.g. "sharing", "advanced"), after its own pages. */
+  parent?: string;
+  /** A category's own page, when pages are added under it: its name there (default `label`). */
+  pageLabel?(): string;
   /** Shown without an engine (else the "no engine connected" note replaces it). */
   noEngine?: boolean;
-  /** Placed before this tab (default: before "advanced"). */
+  /** A category placed before this one (default: before "advanced"). */
   before?: string;
-  Component: ComponentType<{ transport: EngineTransport | null }>;
+  Component?: ComponentType<{ transport: EngineTransport | null }>;
 }
 
-/** A section added to a settings tab (built-in or contributed). */
+/** A section added to a settings page (built-in or contributed). */
 export interface SettingsSectionContribution {
+  /** The page (its id: e.g. "general", "privacy", "diagnostics", or a contributed one). */
   tab: string;
-  /** `start` or `end` (default) of the tab. */
+  /** `start` or `end` (default) of the page. */
   at?: "start" | "end";
   /** Shown without an engine too (default: only with one). */
   noEngine?: boolean;
@@ -319,7 +329,7 @@ export interface ExtensionPoints {
   "project.leaveGuard": (action: () => void | Promise<unknown>, confirm: string | undefined) => Promise<boolean> | null;
   /** Badges after a project's name in the project picker (`ProjectScreen`). */
   "project.badges": ComponentType<{ project: ProjectSummary }>;
-  /** Buttons on the project picker's welcome row (after "new project"; `onDone` closes the picker). */
+  /** Buttons on the project picker's welcome row (before "new project"; `onDone` closes the picker). */
   "project.welcomeActions": ComponentType<{ busy: boolean; ready: boolean; onDone(): void }>;
   /** Entries of a stored project's menu in the picker (before "delete"). */
   "project.rowActions": (project: ProjectSummary) => ReadonlyArray<ProjectRowAction>;

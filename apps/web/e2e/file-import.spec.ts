@@ -114,6 +114,8 @@ test("OS drops on a lane and below the tracks; bad files are reported", async ({
     { name: "broken.wav", bytes: Buffer.from("RIFF....WAVE") },
   ]);
   await expect.poll(async () => count((await project(page)).tracks), { timeout: 20_000 }).toBe(tracks + 1);
+  // The status bar's import item lists them in a popover.
+  await page.getByTestId("import-status").click();
   const rows = page.getByTestId("import-row");
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0)).toContainText("notes.txt: .txt files are not supported");

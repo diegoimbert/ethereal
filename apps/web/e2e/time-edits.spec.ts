@@ -207,7 +207,7 @@ test("time edits: select time over tracks, delete time, undo, split at the edges
   await expect.poll(async () => (await doc(page)).tracks[b.id]!.freeze !== undefined, { timeout: 60_000 }).toBe(true);
   await selectTime(2, 6);
   await page.keyboard.press("ControlOrMeta+Shift+Backspace");
-  await expect(page.getByTestId("time-edit-notice")).toContainText("frozen");
+  await expect(page.locator(".eth-notice").last()).toContainText("frozen");
   await shot(page, "time-frozen-notice");
   expect(await spans(page, b.id)).toEqual([[0, 4]]);
   expect(await spans(page, a.id)).toEqual([

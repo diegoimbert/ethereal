@@ -47,7 +47,7 @@ A new project is a **draft** until you change something in it (an edit, an undo 
 
 ### guided tours
 
-The **get started** list on the welcome screen starts guided tours of the real app, such as making your first track or recording audio. Starting one makes a project for it and walks you through the steps. When you finish or leave the tour, you come back to the welcome screen.
+The **get started** list on the welcome screen starts guided tours of the real app, such as making your first track or recording audio. Starting one makes a project for it and walks you through the steps. When you finish or leave the tour, you come back to the welcome screen. To find the tours again later, choose **tutorials** in the project menu.
 
 A tour you've finished shows a check mark. Clicking it again asks whether you want to **do it again**. On a phone the guides are marked **soon**: the tours run in the desktop app and the web version.
 

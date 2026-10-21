@@ -114,7 +114,7 @@ Les tags s’affichent aussi sur les lignes. Cliquez sur l’un d’eux pour fil
 
 ## choisir les fichiers listés {#choosing-which-files-are-listed}
 
-Par défaut, le navigateur ne liste que les fichiers qu’Ethereal peut utiliser, et masque les fichiers système et annexes. Pour changer cela, ouvrez les **réglages**, allez dans l’onglet **général** et trouvez **fichiers de la bibliothèque** :
+Par défaut, le navigateur ne liste que les fichiers qu’Ethereal peut utiliser, et masque les fichiers système et annexes. Pour changer cela, ouvrez les **réglages**, allez dans **général** › **bibliothèque** et trouvez **fichiers de la bibliothèque** :
 
 - **afficher** : les règles des fichiers à lister. Sans règle, tous les fichiers sont listés.
 - **masquer** : les règles des fichiers et dossiers à exclure. Une règle de masquage l’emporte sur une règle d’affichage.

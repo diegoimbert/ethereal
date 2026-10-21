@@ -7,7 +7,7 @@ use ts_rs::TS;
 
 use crate::automation::{AutomationLane, AutomationPoint};
 use crate::clip::Clip;
-use crate::device::Device;
+use crate::device::{Device, SidechainChain};
 use crate::entity::{Entity, EntityKey};
 use crate::error::ModelError;
 use crate::ids::*;
@@ -700,6 +700,68 @@ impl Project {
             .collect();
         v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
         v
+    }
+
+    /// The order a same-track sidechain sets between two chains of one rack: device `d` keys
+    /// rack chain `from` (or a point inside it) from inside another chain `to` of the same
+    /// rack (any depth), so `from` must run first. `(rack, from, to)`; `None` for any other
+    /// sidechain (another track, the track's own points, a rack placed before, drum pads).
+    /// See `SidechainTap` for the rules.
+    pub fn sibling_chain_edge(&self, d: &Device) -> Option<(DeviceId, RackChainId, RackChainId)> {
+        if d.sidechain? != d.track {
+            return None;
+        }
+        let SidechainChain::Rack { chain } = d.sidechain_tap?.chain? else {
+            return None;
+        };
+        let rack = self.rack_chains.get(&chain)?.rack;
+        let rp = self.device_path(rack)?;
+        let dp = self.device_path(d.id)?;
+        match rp.iter().zip(&dp).position(|(a, b)| a != b) {
+            // The tapped chain's rack holds the device: the chain of that rack holding it.
+            None => {
+                let to = self.devices.get(dp.get(rp.len())?)?.chain?;
+                (to != chain).then_some((rack, chain, to))
+            }
+            // A rack nested in another chain of a common rack: those two chains.
+            Some(i) => {
+                let (p, q) = (self.devices.get(&rp[i])?, self.devices.get(&dp[i])?);
+                let (Some(a), Some(b)) = (p.chain, q.chain) else {
+                    return None;
+                };
+                let r = self.rack_chains.get(&a)?.rack;
+                (a != b && self.rack_chains.get(&b)?.rack == r).then_some((r, a, b))
+            }
+        }
+    }
+
+    /// The order the engine runs `rack`'s chains in: a chain keyed by another one of the same
+    /// rack ([`Self::sibling_chain_edge`]) runs before it, otherwise the chains' own order
+    /// (the mix is a sum: the order changes nothing else). `None` when they key each other in
+    /// a loop (the model rejects it).
+    pub fn chain_order(&self, rack: DeviceId) -> Option<Vec<RackChainId>> {
+        let mut left: Vec<RackChainId> = self.chains_of(rack).iter().map(|c| c.id).collect();
+        let track = self.devices.get(&rack)?.track;
+        let mut edges: Vec<(RackChainId, RackChainId)> = self
+            .devices
+            .values()
+            .filter(|d| d.track == track && d.sidechain == Some(track))
+            .filter_map(|d| self.sibling_chain_edge(d))
+            .filter(|e| e.0 == rack)
+            .map(|e| (e.1, e.2))
+            .collect();
+        edges.sort();
+        edges.dedup();
+        let mut out = Vec::with_capacity(left.len());
+        while !left.is_empty() {
+            let next = left.iter().position(|c| {
+                !edges
+                    .iter()
+                    .any(|(from, to)| to == c && left.contains(from))
+            })?;
+            out.push(left.remove(next));
+        }
+        Some(out)
     }
 
     /// Modulators inside a device, sorted by `order` (v0.2).

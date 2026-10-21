@@ -32,21 +32,3 @@
     animation: none;
   }
 }
-
-.eth-time-notice {
-  position: absolute;
-  z-index: 6;
-  left: 50%;
-  /* Near the top: the editor drawer may cover the bottom of the arrangement. */
-  top: var(--eth-space-3xl);
-  transform: translateX(-50%);
-  max-width: 80%;
-  padding: var(--eth-space-sm) var(--eth-space-md);
-  border: var(--eth-border-width) solid var(--eth-color-danger);
-  border-radius: var(--eth-radius-md);
-  background: var(--eth-color-bg-raised);
-  box-shadow: var(--eth-shadow-md);
-  color: var(--eth-color-text);
-  font-size: var(--eth-fs-sm);
-  cursor: default;
-}

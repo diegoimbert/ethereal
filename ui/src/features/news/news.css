@@ -33,8 +33,9 @@
   /* Until the page paints its own background. */
   background: var(--eth-color-bg-inset);
 }
-.eth-news-list__body {
-  min-width: min(calc(var(--eth-size-tooltip-max-width) * 2), 80vw);
+.eth-news-list {
+  /* The dialog is this wide (a min-width on its body overflowed it: a sideways scrollbar). */
+  --dialog-width: min(calc(var(--eth-size-tooltip-max-width) * 2 + 2 * var(--eth-space-lg)), calc(100vw - 2 * var(--eth-space-xl)));
 }
 .eth-news-list__items {
   display: flex;

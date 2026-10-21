@@ -9,6 +9,7 @@ import { useMemo, useSyncExternalStore } from "react";
 import { darkColors, DEFAULT_THEME, THEME_NAMES, themes, tokenName, TRACK_COLORS, type ColorKey, type ThemeName } from "./tokens";
 
 export * from "./tokens";
+export { displayColor, displayColorCss } from "./displayColor";
 
 /** Dark-theme color values (kept for backwards compatibility; theme-aware code uses `readToken`). */
 export const colors = darkColors;
@@ -60,6 +61,7 @@ export function getTheme(): ThemeName {
 export function setTheme(theme: ThemeName): void {
   if (typeof document === "undefined") return;
   document.documentElement.dataset.theme = theme;
+  applyGlow();
   try {
     localStorage.setItem(STORAGE_KEY, theme);
   } catch {
@@ -85,10 +87,11 @@ export function initTheme(): void {
   }
   try {
     if (localStorage.getItem(COLOR_BLOBS_KEY) === "off") document.documentElement.dataset.blobs = "off";
-    if (localStorage.getItem(GLOW_KEY) === "off") document.documentElement.dataset.glow = "off";
+    if (localStorage.getItem(GLOW_KEY) === "off") glowPreference = false;
   } catch {
     // storage unavailable: shown (the default)
   }
+  applyGlow();
   zoom = storedZoom() ?? ZOOM_DEFAULT;
   if (zoom !== ZOOM_DEFAULT) applyZoom(zoom);
 }
@@ -96,21 +99,40 @@ export function initTheme(): void {
 const COLOR_BLOBS_KEY = "eth-color-blobs";
 const GLOW_KEY = "eth-glow";
 
+/** The glow setting (Settings > Appearance) as chosen; the light theme has none whatever it says. */
+let glowPreference = true;
+
 /**
- * Whether selections glow (Settings > Appearance): selected notes and clips, the selected
- * track's card, the playhead and status dots. Off: `<html data-glow="off">`, and the canvases
- * (arranger, piano roll) leave their halos out.
+ * Applies the glows: `<html data-glow="off">` when the setting is off or the theme is light
+ * (no glow anywhere in the light theme). Every glow keys off it (CSS, the canvases via `getGlow`).
+ */
+function applyGlow(): void {
+  if (typeof document === "undefined") return;
+  const on = glowPreference && themes[getTheme()].colorScheme !== "light";
+  if (on) delete document.documentElement.dataset.glow;
+  else document.documentElement.dataset.glow = "off";
+}
+
+/**
+ * Whether selections glow now: selected notes and clips, the selected track's card, the
+ * playhead and status dots. Not with the setting off, nor in the light theme: then
+ * `<html data-glow="off">`, and the canvases (arranger, piano roll) leave their halos out.
  */
 export function getGlow(): boolean {
   if (typeof document === "undefined") return true;
   return document.documentElement.dataset.glow !== "off";
 }
 
-/** Turns the glows on or off (`<html data-glow>`) and remembers it (localStorage). */
+/** The glow setting as chosen (the light theme's "never" aside): what its toggle shows. */
+export function getGlowSetting(): boolean {
+  return glowPreference;
+}
+
+/** Turns the glow setting on or off (applied unless the theme is light) and remembers it. */
 export function setGlow(on: boolean): void {
   if (typeof document === "undefined") return;
-  if (on) delete document.documentElement.dataset.glow;
-  else document.documentElement.dataset.glow = "off";
+  glowPreference = on;
+  applyGlow();
   try {
     localStorage.setItem(GLOW_KEY, on ? "on" : "off");
   } catch {
@@ -119,9 +141,14 @@ export function setGlow(on: boolean): void {
   listeners.forEach((l) => l());
 }
 
-/** The glow setting, re-rendering on change. */
-export function useGlow(): [boolean, (on: boolean) => void] {
-  const on = useSyncExternalStore(subscribe, getGlow, () => true);
+/** Whether selections glow now (`getGlow`), re-rendering on change. */
+export function useGlow(): boolean {
+  return useSyncExternalStore(subscribe, getGlow, () => true);
+}
+
+/** The glow setting (its toggle), re-rendering on change. */
+export function useGlowSetting(): [boolean, (on: boolean) => void] {
+  const on = useSyncExternalStore(subscribe, getGlowSetting, () => true);
   return [on, setGlow];
 }
 

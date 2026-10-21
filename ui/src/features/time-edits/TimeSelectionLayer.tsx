@@ -1,5 +1,4 @@
 import "./time-edits.css";
-import { useEffect } from "react";
 import type { TrackId } from "@/generated";
 import { useViewport, type TimelineViewStore } from "@/timeline";
 import { isMarker, useTimeSelection } from "./store";
@@ -61,27 +60,5 @@ export function TimeSelectionLayer({ rows, view, headerWidth }: { rows: Readonly
         />
       ))}
     </>
-  );
-}
-
-/** How long a refused-edit notice stays (ms). */
-const NOTICE_MS = 4000;
-
-/** The last refused time edit (e.g. "track "Bass" is frozen: …"), shown for a few seconds. */
-export function TimeEditNotice() {
-  const notice = useTimeSelection((s) => s.notice);
-  useEffect(() => {
-    if (!notice) return;
-    const t = setTimeout(() => {
-      if (useTimeSelection.getState().notice?.id === notice.id) useTimeSelection.getState().notify(null);
-    }, NOTICE_MS);
-    return () => clearTimeout(t);
-  }, [notice]);
-  if (!notice) return null;
-  return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- a click dismisses the notice early; it times out by itself
-    <div className="eth-time-notice" role="status" data-testid="time-edit-notice" onClick={() => useTimeSelection.getState().notify(null)}>
-      {notice.message}
-    </div>
   );
 }

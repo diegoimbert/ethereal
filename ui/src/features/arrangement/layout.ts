@@ -26,7 +26,7 @@ export function clampHeaderWidth(px: number): number {
   return Math.min(MAX_HEADER_WIDTH, Math.max(MIN_HEADER_WIDTH, px));
 }
 /** Default lane height. Resized lanes stay within `[MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT]`. */
-export const TRACK_HEIGHT = 56;
+export const TRACK_HEIGHT = 64;
 export const MIN_TRACK_HEIGHT = 24;
 export const MAX_TRACK_HEIGHT = 320;
 /** Dragging a lane's edge resizes it in these increments. */

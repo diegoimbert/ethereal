@@ -6,7 +6,7 @@
 // `UX_SHOTS=<dir>` also writes the PR screenshots of the Input tab (`UX_SHOTS_THEME=light`).
 // No sleeps: every step waits on UI or engine state.
 import { expect, test, type Page } from "@playwright/test";
-import { createTrack, launch, openOnLaunch } from "./ui";
+import { createTrack, launch, openOnLaunch, settingsPage } from "./ui";
 
 const shots = process.env.UX_SHOTS;
 const theme = process.env.UX_SHOTS_THEME === "light" ? "light" : "dark";
@@ -58,7 +58,7 @@ async function notchRatio(page: Page, lines: number): Promise<number> {
 async function openInputSettings(page: Page) {
   await page.getByRole("button", { name: "settings", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "settings" });
-  await dialog.getByRole("tab", { name: "input" }).click();
+  await settingsPage(dialog, "mouse & keyboard");
   await expect(dialog.getByTestId("input-settings")).toBeVisible();
   return dialog;
 }

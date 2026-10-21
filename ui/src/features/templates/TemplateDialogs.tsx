@@ -5,7 +5,7 @@ import type { TemplateInfo, TemplateKind } from "@/generated";
 import { selectTrackEntity } from "@/features/arrangement/actions";
 import { parseTags } from "@/features/presets/model";
 import { useEngineCommands } from "@/features/transport-bar/engine";
-import { Button, Dialog, IconButton, TextInput } from "@/kit";
+import { NO_AUTOCORRECT, Button, Dialog, IconButton, TextInput } from "@/kit";
 import { cmd } from "@/transport";
 import { findByName, groupTemplates, insertTemplate, matchesQuery, message, templateMenu, useTemplateDialog, type TemplateDialog } from "./model";
 import { useTemplates } from "./useTemplates";
@@ -134,6 +134,7 @@ function InsertDialog({ dialog, onClose }: { dialog: Extract<TemplateDialog, { t
       <div className="eth-template-dialog__form">
         <TextInput
           autoFocus
+          {...NO_AUTOCORRECT}
           aria-label={t("templates.insert.search")}
           placeholder={t("templates.insert.search")}
           value={query}

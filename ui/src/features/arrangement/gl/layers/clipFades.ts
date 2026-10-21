@@ -5,7 +5,7 @@
  * - The fade shapes: the shade above each fade curve and the curve (`fadeGain`), drawn by the
  *   `fade` pipeline; on a crossfaded edge, the tinted overlap and the neighbour's curve
  *   dashed across it (an X with this clip's).
- * - The handles, shown while the clip is hovered or selected: a length handle per fade on
+ * - The handles, shown while the clip is hovered: a length handle per fade on
  *   the body's top edge (drag horizontally; past the clip's edge into a touching clip it
  *   creates a crossfade, on a crossfade it resizes it around its centre) and a curve handle
  *   at the fade's midpoint (drag vertically; double-click: linear).
@@ -43,7 +43,7 @@ import type { LaneScene, SceneInput } from "../scene";
 import { editColors } from "./colors";
 import type { Pipeline } from "../glContext";
 import { FadeMode, writeFade, type FadeSpec } from "./fadePipeline";
-import { drawOrder, fadeGeometry, HANDLE_INSET_PX, hitFadeHandle, laneCrossfades, visibleSpans, type FadeHandle } from "./fadeModel";
+import { drawOrder, fadeGeometry, HANDLE_INSET_PX, HANDLE_PX, hitFadeHandle, laneCrossfades, visibleSpans, type FadeHandle } from "./fadeModel";
 
 export const CLIP_FADES_LAYER = "clip-fades";
 
@@ -60,7 +60,7 @@ export interface FadeDecor {
   lines: number;
   crossfadeIn: boolean;
   crossfadeOut: boolean;
-  /** Handles shown (the clip is hovered or selected). */
+  /** Handles shown (the clip is hovered). */
   handles: boolean;
 }
 
@@ -112,7 +112,8 @@ export function clipFadesLayer(renderer: ArrangerRenderer, transport: EngineTran
       const fout = Math.min(a.fade_out, len);
       const xv = xfades.get(clip.id) ?? { in: null, out: null };
       const hovered = hover?.clip === clip.id;
-      const handles = hovered || input.selected.has(clip.id);
+      // Only on the hovered clip (a selected one shows its fades, not their handles).
+      const handles = hovered;
       const hoveredHandle = hovered && typeof hover?.data === "string" ? hover.data : null;
       const decor: FadeDecor = { lines: 0, crossfadeIn: !!xv.in && fin > 0, crossfadeOut: !!xv.out && fout > 0, handles };
       const zoomed = (beats: number) => beats * ctx.window.ppb;
@@ -140,10 +141,19 @@ export function clipFadesLayer(renderer: ArrangerRenderer, transport: EngineTran
         if (!handles) continue;
         const fill = (h: FadeHandle) => (hoveredHandle === h ? colors.handleHover : colors.line);
         const handle = { stroke: colors.handleBorder };
-        put({ ...handle, mode: FadeMode.Handle, f0: s + fin, f1: s + fin, fill: fill("fade-in"), minFromStart: HANDLE_INSET_PX });
-        put({ ...handle, mode: FadeMode.Handle, f0: e - fout, f1: e - fout, fill: fill("fade-out"), minFromEnd: HANDLE_INSET_PX });
-        put({ ...handle, mode: FadeMode.CurveHandle, f0: s, f1: s + fin, curve: a.fade_in_curve, fill: fill("fade-in-curve"), radius: 2 });
-        put({ ...handle, mode: FadeMode.CurveHandle, f0: e - fout, f1: e, curve: a.fade_out_curve, dir: -1, fill: fill("fade-out-curve"), radius: 2 });
+        put({ ...handle, mode: FadeMode.Handle, f0: s + fin, f1: s + fin, fill: fill("fade-in"), minFromStart: HANDLE_INSET_PX, radius: 2.5 });
+        put({ ...handle, mode: FadeMode.Handle, f0: e - fout, f1: e - fout, fill: fill("fade-out"), minFromEnd: HANDLE_INSET_PX, radius: 2.5 });
+        put({ ...handle, mode: FadeMode.CurveHandle, f0: s, f1: s + fin, curve: a.fade_in_curve, fill: fill("fade-in-curve"), radius: HANDLE_PX / 2 });
+        put({
+          ...handle,
+          mode: FadeMode.CurveHandle,
+          f0: e - fout,
+          f1: e,
+          curve: a.fade_out_curve,
+          dir: -1,
+          fill: fill("fade-out-curve"),
+          radius: HANDLE_PX / 2,
+        });
       }
     });
   };

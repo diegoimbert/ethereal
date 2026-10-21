@@ -21,11 +21,19 @@ export function docsCommands() {
       run: () => openDocs(DOC_LINKS.shortcuts),
     },
     {
-      // The example beats are on the welcome screen (open one, or its tour).
-      id: "app:examples",
+      // The tutorials (guided tours) are the welcome screen's "get started" items.
+      id: "app:tutorials",
       group: "Help",
-      label: t("docs.command.examples"),
-      keywords: "examples example beats demo loop template tutorial learn house hip-hop lo-fi bassline",
+      label: t("docs.command.tutorials"),
+      keywords: "tutorials tutorial tour guided get started learn help first track",
+      run: () => useProjectScreen.getState().show("home"),
+    },
+    {
+      // The welcome (splash) screen: get started and the recent projects.
+      id: "app:splash",
+      group: "Help",
+      label: t("docs.command.splash"),
+      keywords: "splash welcome home start screen recent projects get started",
       run: () => useProjectScreen.getState().show("home"),
     },
   ];

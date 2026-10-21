@@ -15,7 +15,7 @@ import { openKeymapEditor } from "@/features/keymap";
 import { useAudioSettings } from "./store";
 
 /**
- * Settings > Input: how the mouse wheel and buttons drive zoom and scrolling in
+ * Settings > Mouse & keyboard > Mouse & trackpad: how the mouse wheel and buttons drive zoom and scrolling in
  * every timeline (arrangement, piano roll, automation), value axes and wheel-adjusted
  * controls. Kept on this device (`useInputSettings`); defaults depend on the platform.
  */
@@ -121,23 +121,6 @@ export function InputSettings() {
         </div>
       </section>
 
-      {/* the shortcuts editor was only in the command palette. */}
-      <section className="eth-settings__section" aria-label={t("settings.input.shortcuts")} data-testid="settings-shortcuts">
-        <h3 className="eth-settings__heading">{t("settings.input.shortcuts")}</h3>
-        <p className="eth-settings__hint">{t("settings.input.shortcuts_hint")}</p>
-        <div>
-          <Button
-            size="sm"
-            onClick={() => {
-              useAudioSettings.getState().close();
-              openKeymapEditor();
-            }}
-          >
-            {t("settings.input.shortcuts_edit")}
-          </Button>
-        </div>
-      </section>
-
       <div className="eth-input-settings__footer">
         <span className="eth-audio-settings__note">{t("settings.input.saved_note", { platform: PLATFORM })}</span>
         <Button size="sm" onClick={reset}>
@@ -154,6 +137,30 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     <div className="eth-audio-settings__field">
       <span className="eth-audio-settings__label">{label}</span>
       {children}
+    </div>
+  );
+}
+
+/** Settings > Mouse & keyboard > Keyboard shortcuts: opens the shortcuts editor. */
+export function ShortcutSettings() {
+  const t = useT();
+  return (
+    <div className="eth-settings__stack">
+      <section className="eth-settings__section" aria-label={t("settings.input.shortcuts")} data-testid="settings-shortcuts">
+        <h3 className="eth-settings__heading">{t("settings.input.shortcuts")}</h3>
+        <p className="eth-settings__hint">{t("settings.input.shortcuts_hint")}</p>
+        <div>
+          <Button
+            size="sm"
+            onClick={() => {
+              useAudioSettings.getState().close();
+              openKeymapEditor();
+            }}
+          >
+            {t("settings.input.shortcuts_edit")}
+          </Button>
+        </div>
+      </section>
     </div>
   );
 }

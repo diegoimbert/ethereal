@@ -139,6 +139,7 @@ test("a factory device: its window and its inline parameters, independent", asyn
   await expect(card.getByTestId("device-params")).toBeVisible();
   await windowToggle.click();
   await expect(win).toBeVisible();
+  await header.hover();
   await paramsToggle.click();
   await expect(card.getByTestId("device-params")).toHaveCount(0);
   await expect(win).toBeVisible();

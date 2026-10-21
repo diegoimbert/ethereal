@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { NO_AUTOCORRECT } from "./fields";
 import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
@@ -367,6 +368,7 @@ function SelectList<V extends string>(p: SelectListProps<V>) {
             <input
               ref={searchRef}
               type="search"
+              {...NO_AUTOCORRECT}
               className="eth-input eth-input--sm eth-select-list__search"
               placeholder={t("kit.select.search_placeholder")}
               aria-label={p.label ? t("kit.select.search_named", { name: p.label }) : t("kit.select.search")}

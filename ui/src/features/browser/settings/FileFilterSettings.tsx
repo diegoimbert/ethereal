@@ -12,21 +12,46 @@
  *   sidecar files hidden). `FileFilterChanged` from elsewhere (another window) is followed.
  */
 import "./fileFilterSettings.css";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type FocusEvent } from "react";
 import { Plus, X } from "lucide-react";
 import type { FileFilter, FileFilterCheck, FileFilterList } from "@/generated";
 import { useEngineEvent } from "@/features/transport-bar/engine";
-import { Button, IconButton, TextInput } from "@/kit";
+import { Button, IconButton, Select, TextInput, Toggle, useConfirm } from "@/kit";
 import { cmd, commandErrorText, isCommandFailed, newId, type EngineTransport } from "@/transport";
 import { useT, type MessageKey } from "@/i18n";
+import { SettingsPlaceholder } from "@/features/audio-settings/SettingsPlaceholder";
+import { fromRegex, RULE_KINDS, toRegex, type FriendlyRule, type RuleKind } from "./friendlyRules";
 
 /** Live check delay after a keystroke. */
 export const CHECK_DEBOUNCE_MS = 200;
 
 interface Row {
   id: string;
+  /** The rule (a regex: what the engine takes). */
   text: string;
+  /** Edited in plain terms: the kind and text as typed (kept while typing, e.g. "wav, "). */
+  friendly?: FriendlyRule;
 }
+
+/** Shows the rules as regexes (else in plain terms); kept on this device. */
+const REGEX_MODE_KEY = "eth.library.regexRules";
+
+function loadRegexMode(): boolean {
+  try {
+    return localStorage.getItem(REGEX_MODE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+const KIND_LABEL: Record<RuleKind | "regex", MessageKey> = {
+  type: "browser.filter.kind.type",
+  starts: "browser.filter.kind.starts",
+  ends: "browser.filter.kind.ends",
+  is: "browser.filter.kind.is",
+  contains: "browser.filter.kind.contains",
+  regex: "browser.filter.kind.regex",
+};
 
 type Lists = Record<FileFilterList, Row[]>;
 
@@ -85,18 +110,44 @@ function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+/** The rules as last loaded (this session): a later visit shows them at once, then refreshes. */
+let lastLoaded: { filter: FileFilter; defaults: FileFilter } | null = null;
+
+/** Tests: forget the last loaded rules. */
+export function resetFileFilterCache(): void {
+  lastLoaded = null;
+}
+
+/** Remember the rules shown (and the defaults, when known). */
+function remember(filter: FileFilter, defaults?: FileFilter): void {
+  const d = defaults ?? lastLoaded?.defaults;
+  if (d) lastLoaded = { filter, defaults: d };
+}
+
 export function FileFilterSettings({ transport }: { transport: EngineTransport }) {
   const t = useT();
-  const [saved, setSaved] = useState<FileFilter | null>(null);
-  const [defaults, setDefaults] = useState<FileFilter | null>(null);
-  const [lists, setLists] = useState<Lists | null>(null);
+  const [saved, setSaved] = useState<FileFilter | null>(() => lastLoaded?.filter ?? null);
+  const [defaults, setDefaults] = useState<FileFilter | null>(() => lastLoaded?.defaults ?? null);
+  const [lists, setLists] = useState<Lists | null>(() => (lastLoaded ? toRows(lastLoaded.filter) : null));
   const [checked, setChecked] = useState<{ key: string; check: FileFilterCheck } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [recount, setRecount] = useState(0);
+  const [regexMode, setRegexModeState] = useState(loadRegexMode);
+  /** The row a press is in (until that press's events are over): its field's blur keeps it. */
+  const pressedRow = useRef<string | null>(null);
+  const setRegexMode = (on: boolean) => {
+    setRegexModeState(on);
+    try {
+      localStorage.setItem(REGEX_MODE_KEY, on ? "1" : "0");
+    } catch {
+      /* this session only */
+    }
+  };
 
   const adopt = useCallback((filter: FileFilter) => {
     setSaved(filter);
     setLists(toRows(filter));
+    remember(filter);
   }, []);
 
   useEffect(() => {
@@ -106,7 +157,10 @@ export function FileFilterSettings({ transport }: { transport: EngineTransport }
       .then((r) => {
         if (!live || r.type !== "BrowserFileFilter") return;
         setDefaults(r.defaults);
-        adopt(r.filter);
+        // Shown from the last visit already: only a change replaces the rows (and their ids).
+        const changed = !lastLoaded || !sameFilter(lastLoaded.filter, r.filter);
+        remember(r.filter, r.defaults);
+        if (changed) adopt(r.filter);
       })
       .catch((e: unknown) => live && setError(errorText(e)));
     return () => {
@@ -145,7 +199,27 @@ export function FileFilterSettings({ transport }: { transport: EngineTransport }
     };
   }, [transport, draftKey, recount]);
 
-  if (!lists || !draft) return <p className="eth-settings__hint">{error ?? t("browser.filter.loading")}</p>;
+  // Loading: the section's frame at once, placeholder rows for the rules (no jump when they come).
+  if (!lists || !draft) {
+    return (
+      <section
+        className="eth-settings__section eth-file-filter"
+        aria-label={t("browser.filter.title")}
+        aria-busy={!error}
+        data-testid="settings-library-filters"
+      >
+        <div className="eth-settings__row">
+          <h3 className="eth-settings__heading">{t("browser.filter.title")}</h3>
+          <Button size="sm" disabled>
+            {t("browser.filter.reset")}
+          </Button>
+        </div>
+        <p className="eth-settings__hint">{error ?? t("browser.filter.hint")}</p>
+        <Toggle size="sm" label={t("browser.filter.use_regex")} checked={regexMode} onChange={setRegexMode} />
+        {!error && <SettingsPlaceholder rows={5} />}
+      </section>
+    );
+  }
 
   // Errors of the current rows only (a check of older text is ignored).
   const current = checked && checked.key === draftKey ? checked.check : null;
@@ -162,12 +236,24 @@ export function FileFilterSettings({ transport }: { transport: EngineTransport }
       const r = await transport.send(cmd("Browser", { type: "CheckFileFilter", filter, paths: [] }));
       if (r.type === "BrowserFileFilterCheck" && r.check.errors.length > 0) return; // shown inline
       const reply = await transport.send(cmd("Browser", { type: "SetFileFilter", filter }));
-      if (reply.type === "BrowserFileFilter") setSaved(reply.filter);
+      if (reply.type === "BrowserFileFilter") {
+        setSaved(reply.filter);
+        remember(reply.filter);
+      }
       setError(null);
     } catch (e) {
       setError(errorText(e));
     }
   };
+
+  const askReset = () =>
+    useConfirm.getState().ask({
+      title: t("browser.filter.reset_confirm.title"),
+      body: t("browser.filter.reset_confirm.body"),
+      action: t("browser.filter.reset_confirm.action"),
+      danger: true,
+      run: () => void reset(),
+    });
 
   const reset = async () => {
     try {
@@ -188,6 +274,20 @@ export function FileFilterSettings({ transport }: { transport: EngineTransport }
     return next;
   };
 
+  /**
+   * A rule's field lost focus: save, dropping it when blank, unless the focus stays in its row
+   * or the blur comes from a press in it (its kind menu: WebKit doesn't focus a pressed button,
+   * so the press is what tells; it comes before the blur in every browser).
+   */
+  const leaveRow = (e: FocusEvent<HTMLElement>, list: FileFilterList, row: Row) => {
+    const to = e.relatedTarget;
+    if (to instanceof Node && e.currentTarget.closest(".eth-file-filter__rule")?.contains(to)) return;
+    if (pressedRow.current === row.id) return;
+    const current = lists[list].find((r) => r.id === row.id) ?? row;
+    const next = current.text.trim() === "" ? edit(list, (rows) => rows.filter((r) => r.id !== row.id)) : lists;
+    void save(next);
+  };
+
   const isDefault = defaults !== null && sameFilter(draft.filter, defaults);
   const lib = current?.library;
 
@@ -195,11 +295,13 @@ export function FileFilterSettings({ transport }: { transport: EngineTransport }
     <section className="eth-settings__section eth-file-filter" aria-label={t("browser.filter.title")} data-testid="settings-library-filters">
       <div className="eth-settings__row">
         <h3 className="eth-settings__heading">{t("browser.filter.title")}</h3>
-        <Button size="sm" tone="ghost" disabled={isDefault} onClick={() => void reset()}>
+        <Button size="sm" disabled={isDefault} onClick={askReset} data-testid="file-filter-reset">
           {t("browser.filter.reset")}
         </Button>
       </div>
       <p className="eth-settings__hint">{t("browser.filter.hint")}</p>
+      <Toggle size="sm" label={t("browser.filter.use_regex")} checked={regexMode} onChange={setRegexMode} />
+      {regexMode && <p className="eth-settings__hint">{t("browser.filter.regex_hint")}</p>}
       {error && (
         <p className="eth-file-filter__error" role="alert">
           {error}
@@ -217,32 +319,53 @@ export function FileFilterSettings({ transport }: { transport: EngineTransport }
                 const message = rowError.get(row.id);
                 const errorId = `eth-file-filter-${row.id}`;
                 return (
-                  <li key={row.id} className="eth-file-filter__rule">
+                  <li
+                    key={row.id}
+                    className="eth-file-filter__rule"
+                    onPointerDownCapture={() => {
+                      pressedRow.current = row.id;
+                      setTimeout(() => {
+                        if (pressedRow.current === row.id) pressedRow.current = null;
+                      }, 0);
+                    }}
+                  >
                     <div className="eth-file-filter__rule-row">
-                      <TextInput
-                        size="sm"
-                        className="eth-file-filter__input"
-                        aria-label={t(rule, { n: i + 1 })}
-                        aria-describedby={message ? errorId : undefined}
-                        invalid={!!message}
-                        spellCheck={false}
-                        autoCapitalize="off"
-                        autoComplete="off"
-                        placeholder={t("browser.filter.placeholder")}
-                        value={row.text}
-                        autoFocus={row.text === "" && i === lists[list].length - 1}
-                        onChange={(e) => edit(list, (rows) => rows.map((r) => (r.id === row.id ? { ...r, text: e.target.value } : r)))}
-                        onBlur={() => {
-                          const next = row.text.trim() === "" ? edit(list, (rows) => rows.filter((r) => r.id !== row.id)) : lists;
-                          void save(next);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            void save(lists);
-                          }
-                        }}
-                      />
+                      {regexMode ? (
+                        <TextInput
+                          size="sm"
+                          className="eth-file-filter__input eth-file-filter__input--regex"
+                          aria-label={t(rule, { n: i + 1 })}
+                          aria-describedby={message ? errorId : undefined}
+                          invalid={!!message}
+                          spellCheck={false}
+                          autoCapitalize="off"
+                          autoComplete="off"
+                          placeholder={t("browser.filter.placeholder")}
+                          value={row.text}
+                          autoFocus={row.text === "" && i === lists[list].length - 1}
+                          onChange={(e) => edit(list, (rows) => rows.map((r) => (r.id === row.id ? { id: r.id, text: e.target.value } : r)))}
+                          onBlur={(e) => leaveRow(e, list, row)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              void save(lists);
+                            }
+                          }}
+                        />
+                      ) : (
+                        <FriendlyRuleEditor
+                          row={row}
+                          label={t(rule, { n: i + 1 })}
+                          invalid={message ? errorId : undefined}
+                          autoFocus={row.text === "" && !row.friendly?.value && i === lists[list].length - 1}
+                          onChange={(next, commit) => {
+                            const rows = edit(list, (rs) => rs.map((r) => (r.id === row.id ? next : r)));
+                            if (commit) void save(rows);
+                          }}
+                          onBlur={(e) => leaveRow(e, list, row)}
+                          onEnter={() => void save(lists)}
+                        />
+                      )}
                       <IconButton
                         size="sm"
                         tone="ghost"
@@ -277,5 +400,79 @@ export function FileFilterSettings({ transport }: { transport: EngineTransport }
             : "\u00a0"}
       </p>
     </section>
+  );
+}
+
+/**
+ * A rule in plain terms: its kind (a file type, a name that starts with / ends with / is /
+ * contains) and its text. A rule that is none of those (a custom pattern) shows its regex.
+ */
+function FriendlyRuleEditor({
+  row,
+  label,
+  invalid,
+  autoFocus,
+  onChange,
+  onBlur,
+  onEnter,
+}: {
+  row: Row;
+  label: string;
+  /** The id of its error message, when it has one. */
+  invalid: string | undefined;
+  autoFocus: boolean;
+  /** The edited row; `commit`: save now (a kind picked). */
+  onChange(row: Row, commit: boolean): void;
+  onBlur(e: FocusEvent<HTMLElement>): void;
+  onEnter(): void;
+}) {
+  const t = useT();
+  const shown: FriendlyRule | null = row.friendly ?? (row.text === "" ? { kind: "type", value: "" } : fromRegex(row.text));
+  const kind: RuleKind | "regex" = shown?.kind ?? "regex";
+  const value = shown ? shown.value : row.text;
+  const setKind = (k: RuleKind | "regex") => {
+    if (k === "regex") return onChange({ id: row.id, text: row.text }, true);
+    const friendly = { kind: k, value: shown?.value ?? "" };
+    onChange({ id: row.id, text: toRegex(friendly), friendly }, true);
+  };
+  const setValue = (v: string) => {
+    if (kind === "regex") return onChange({ id: row.id, text: v }, false);
+    const friendly = { kind, value: v };
+    onChange({ id: row.id, text: toRegex(friendly), friendly }, false);
+  };
+  return (
+    <>
+      <Select<RuleKind | "regex">
+        size="sm"
+        className="eth-file-filter__kind"
+        aria-label={t("browser.filter.kind_of", { rule: label })}
+        value={kind}
+        options={[...RULE_KINDS, ...(kind === "regex" ? (["regex"] as const) : [])].map((k) => ({ value: k, label: t(KIND_LABEL[k]) }))}
+        onChange={setKind}
+      />
+      <TextInput
+        size="sm"
+        className={kind === "regex" ? "eth-file-filter__input eth-file-filter__input--regex" : "eth-file-filter__input"}
+        aria-label={label}
+        aria-describedby={invalid}
+        invalid={!!invalid}
+        spellCheck={false}
+        autoCapitalize="off"
+        autoComplete="off"
+        placeholder={
+          kind === "type" ? t("browser.filter.placeholder_type") : kind === "regex" ? t("browser.filter.placeholder") : t("browser.filter.placeholder_text")
+        }
+        value={value}
+        autoFocus={autoFocus}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={onBlur}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            onEnter();
+          }
+        }}
+      />
+    </>
   );
 }

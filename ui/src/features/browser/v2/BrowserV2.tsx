@@ -29,7 +29,7 @@ import { isAudioName } from "@/features/import/sources";
 import { loadPresetCommand, useCurrentPresets } from "@/features/presets";
 import { sliceSampleEntries } from "@/features/drum-rack";
 import { useEngineCommands, useEngineEvent } from "@/features/transport-bar/engine";
-import { Button, Dialog, DismissibleError, IconButton, Select, TextInput, openContextMenu, type ContextMenuEntry } from "@/kit";
+import { NO_AUTOCORRECT, Button, Dialog, DismissibleError, IconButton, Select, TextInput, openContextMenu, type ContextMenuEntry } from "@/kit";
 import { devicesOfTrack, useProjectStore, useSelectionStore } from "@/state";
 import { cmd, type EngineTransport } from "@/transport";
 import { Trans, useT } from "@/i18n";
@@ -466,6 +466,7 @@ export function BrowserV2({ initialRoots }: BrowserV2Props) {
           <TextInput
             size="sm"
             type="search"
+            {...NO_AUTOCORRECT}
             className="eth-browser__search-input"
             aria-label={t("browser.search.label")}
             placeholder={t(KIND_FILTERS.find((k) => k.value === kind)?.search ?? "browser.search.library")}
@@ -700,6 +701,7 @@ function TagsDialog({ item, onClose, onSave }: { item: LibraryItem | null; onClo
       }
     >
       <TextInput
+        {...NO_AUTOCORRECT}
         aria-label={t("browser.tags.title")}
         placeholder={t("browser.tags.placeholder")}
         value={value}

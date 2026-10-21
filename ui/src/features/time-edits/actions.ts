@@ -23,9 +23,10 @@
  * duplicate, delete and insert-silence need a real range; paste and split target the marker.
  *
  * Each is one undo step (split at both edges: two commands under one gesture). Refused
- * edits (a frozen track, ...) show their engine message as a notice.
+ * edits (a frozen track, ...) show their engine message as a warning toast.
  */
 
+import { notify } from "@/features/notifications";
 import type { Command, TrackId } from "@/generated";
 import { freezeRangeEntries } from "@/features/freeze";
 import { firstMatch, shortcutLabel, type ChordEvent } from "@/features/keymap";
@@ -44,19 +45,18 @@ function errorText(err: unknown): string {
   let message = String(err);
   if (err && typeof err === "object" && "message" in err && typeof err.message === "string") message = err.message;
   else if (err && typeof err === "object" && "error" in err) message = String((err as { error: { message: string } }).error.message);
-  // Transport errors read "<Code>: <message>"; the notice shows the message.
+  // Transport errors read "<Code>: <message>"; the toast shows the message.
   return message.replace(/^[A-Z][A-Za-z]+: /, "");
 }
 
-/** Send `commands` as one undo gesture; a refusal becomes the notice. `true` on success. */
+/** Send `commands` as one undo gesture; a refusal becomes a warning toast. `true` on success. */
 async function send(transport: EngineTransport, commands: Command[]): Promise<boolean> {
   const gesture = nextGestureId();
   try {
     for (const c of commands) await transport.send(c, { gesture });
-    useTimeSelection.getState().notify(null);
     return true;
   } catch (err) {
-    useTimeSelection.getState().notify(errorText(err));
+    notify("Warning", errorText(err));
     return false;
   } finally {
     transport.send(cmd("Edit", { type: "EndGesture", gesture })).catch(() => {});

@@ -8,7 +8,7 @@ import { MockTransport } from "@/transport/mock";
 import { libraryPath } from "@/transport/mock/roadmap/mediaReferences";
 import type { ChatSession, LoopEvent } from "@/features/ai-chat/providers";
 import { reloadAiSettings, useAiSettings } from "@/features/ai-chat/settings";
-import { applyMediaRefEvent, MissingMediaNotice, openRelink, RelinkDialog, resetMediaRefs } from "@/features/media-refs";
+import { applyMediaRefEvent, MissingMediaStatus, openRelink, RelinkDialog, resetMediaRefs } from "@/features/media-refs";
 import { usePluginStore } from "@/features/plugins/pluginStore";
 import { PluginDeviceControls } from "@/features/plugins";
 import { DeviceChain } from "@/features/devices";
@@ -326,7 +326,7 @@ describe("Resolve… entry points", () => {
         <PluginDeviceControls device={device} />
       </TransportProvider>,
     );
-    fireEvent.contextMenu(screen.getByText("missing · bypassed"));
+    fireEvent.contextMenu(screen.getByText("missing"));
     expect(menuLabels()).toEqual(["resolve…"]);
   });
 
@@ -351,7 +351,7 @@ describe("Resolve… entry points", () => {
   it("missing-sample notice and Relink rows", async () => {
     const { t } = await setup(
       <>
-        <MissingMediaNotice />
+        <MissingMediaStatus />
       </>,
     );
     const clip = Object.values(project().clips).find((c) => c.content.type === "Audio")!;

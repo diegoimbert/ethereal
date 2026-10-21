@@ -10,7 +10,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { Note, Project } from "@/generated";
 import { openClip } from "./clips";
-import { clickPianoRollNote, launch, newProject, pianoRollNotes } from "./ui";
+import { clickPianoRollNote, launch, newProject, pianoRollNotes, showInspector } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -71,9 +71,9 @@ test("groove: quantize with swing, humanize, project swing", async ({ page }) =>
   }
   await expect.poll(async () => (await notes(page)).length).toBe(3);
 
-  // --- Quantize… popover: 1/8, strength 100%, swing 100% (all notes selected) ----------------
+  // --- Quantize's settings (its "…"): 1/8, strength 100%, swing 100% (all notes selected) ---
   await page.getByTestId("piano-roll").press("ControlOrMeta+a");
-  await page.getByRole("button", { name: "quantize…" }).click();
+  await page.getByRole("button", { name: "quantize settings" }).click();
   await page.getByRole("combobox", { name: "quantize grid" }).click();
   await page.getByRole("option", { name: "1/8", exact: true }).click();
   // (Exact: the clip inspector's groove has "project swing".)
@@ -100,6 +100,7 @@ test("groove: quantize with swing, humanize, project swing", async ({ page }) =>
     .toBe(1);
 
   // --- Project swing: the clip inspector's groove row (the Groove tab is gone, e6d68591) ----
+  await showInspector(page);
   const amount = page.getByRole("spinbutton", { name: "project swing" });
   await amount.fill("50");
   await amount.press("Enter");

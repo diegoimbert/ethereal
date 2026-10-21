@@ -1,7 +1,8 @@
 # Guided tours (in-app tutorials)
 
 The welcome screen's **get started** items are guided tours of the real UI (refs the
-tutorial format): the welcome screen hides, the screen is dimmed except the part to look at,
+tutorial format; Help: the palette's and the project menu's **tutorials** bring the welcome
+screen back): the welcome screen hides, the screen is dimmed except the part to look at,
 and a bubble explains it. Code: `ui/src/features/tutorials/**`.
 
 | Tour | id | Project it makes | Ends with |
@@ -10,7 +11,6 @@ and a bubble explains it. Code: `ui/src/features/tutorials/**`.
 | Jam with your friends | `jam` | "jam tutorial" (the starter project) | "start a session now" or finish |
 | Record audio | `record-audio` | "record audio tutorial" (empty) | finish |
 | Bring a project from another DAW | `import-daw` | "import tutorial" (empty) | "pick a file now" or finish |
-| Example beats (×4, below) | `example-<slug>` | the example ("house beat", …), from its template | "open the guide" or finish |
 
 **Make your first track** (#14, `tours/firstTrack.tsx`) needs no sample: a MIDI track (Add
 track, then MIDI track), its instrument (the picker that opens under it: the built-in synth
@@ -19,36 +19,6 @@ roll (a double-click on the clip), three notes drawn there, then play and stop. 
 "open the guide": `welcome/first-beat` ("your first loop"), which goes on with a second
 instrument, an effect and the mix. When the default sample pack ships, a step that
 drags a sample in can join it.
-
-## Example beats
-
-The welcome screen's **examples** (under get started; Help: the palette's and the project
-menu's **example beats** bring the welcome screen back) are short loops that sound good at once
-and are simple to rebuild: **house beat**, **hip-hop loop**, **lo-fi chords** and
-**simple bassline**.
-
-- **The projects** are factory project templates (`factory/example-<slug>`), built in code by
-  `crates/ether-controller/src/templates/examples.rs` the way a user builds them (tracks,
-  devices, factory presets, pads, clips, notes, tempo, swing, loop), so they also show in the
-  **new project** form's "start from" list. Only built-in devices and factory presets: the drums
-  are drum rack pads playing a **poly synth** with one of its drum presets (`poly-synth/kick`,
-  `snare`, `clap`, `closed-hat`, `open-hat`). `pad_sound` there is the one place that decides
-  what a pad plays: when the default sample pack ships, it gives each drum its sample
-  instead, and every example follows. The docs guides then change their "make the drum kit"
-  step.
-- **Open** (a click on the row) makes a project from the template, named after the example.
-- **Show me how** runs the example's tour (`tours/examples.tsx`, one builder for the four):
-  the tour's project is made from the template (`TourDef.project: { template }`), it waits for
-  play, shows the tempo and loop, the tracks, then for each part its devices (the track
-  selected: the inspector) and its clip (opened in the editor drawer), and ends with "open the
-  guide".
-- **The guides** (`docs-site/content/welcome/example-*.md`, and `content-fr`) rebuild each one
-  from an empty project, click by click, with the patterns and notes.
-- **Tests**: `examples.rs` (each builds a valid project with its parts), `export.rs`
-  `example_projects_render_every_track` (each renders its loop, every track audible, the mix
-  unclipped), `poly_synth.rs` `drum_presets_hit_and_decay`, `apps/web/e2e/examples.spec.ts`
-  (each opens from the welcome screen and every track is heard on its meter in the wasm
-  engine; Help brings the examples back), and the tours in `just e2e-tours`.
 
 ## How a tour runs
 

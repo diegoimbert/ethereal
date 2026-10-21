@@ -1,6 +1,7 @@
 import { AlertTriangle } from "lucide-react";
 import { useContext, useEffect } from "react";
-import { Button, openContextMenu } from "@/kit";
+import { openContextMenu } from "@/kit";
+import { StatusButton } from "@/features/status-bar/StatusButton";
 import { openResolver } from "@/features/import-resolver/store";
 import { resolveLabel } from "@/features/import-resolver/menus";
 import { useT } from "@/i18n";
@@ -9,26 +10,24 @@ import { TransportContext, type EngineTransport } from "@/transport";
 import { RelinkDialog } from "./RelinkDialog";
 import { applyMediaRefEvent, openRelink, refreshMissing, useMediaRefs } from "./store";
 
-/** Floating notice while samples are missing: opens the Relink dialog. */
-export function MissingMediaNotice() {
+/** Status bar item while samples are missing: opens the Relink dialog. */
+export function MissingMediaStatus() {
   const t = useT();
   const count = useMediaRefs((s) => s.missing.size);
   const dialogOpen = useMediaRefs((s) => s.dialog !== null);
   if (count === 0 || dialogOpen) return null;
   return (
-    <div
-      className="eth-media-refs__notice"
-      role="status"
+    <StatusButton
+      tone="warn"
+      icon={<AlertTriangle aria-hidden />}
+      title={t("media_refs.notice.relink")}
       data-testid="missing-media-notice"
+      onClick={() => openRelink()}
       // Right-click "Resolve…" every missing item.
       onContextMenu={(e) => openContextMenu(e, [{ label: resolveLabel(), onSelect: () => void openResolver() }])}
     >
-      <AlertTriangle className="eth-media-refs__notice-icon" aria-hidden />
-      <span>{t("media_refs.notice.missing", { count })}</span>
-      <Button size="sm" onClick={() => openRelink()}>
-        {t("media_refs.notice.relink")}
-      </Button>
-    </div>
+      {t("media_refs.notice.missing", { count })}
+    </StatusButton>
   );
 }
 
@@ -43,8 +42,8 @@ function Sync({ transport }: { transport: EngineTransport }) {
 }
 
 /**
- * Mounted once by the app shell: mirrors missing media from the engine, shows the missing
- * notice and the Relink dialog. Renders nothing without an engine connection.
+ * Mounted once by the app shell: mirrors missing media from the engine and shows the Relink
+ * dialog (the status bar shows what is missing). Renders nothing without an engine connection.
  */
 export function MediaRefsRoot() {
   const transport = useContext(TransportContext)?.transport;
@@ -52,7 +51,6 @@ export function MediaRefsRoot() {
   return (
     <>
       <Sync transport={transport} />
-      <MissingMediaNotice />
       <RelinkDialog transport={transport} />
     </>
   );

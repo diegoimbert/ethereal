@@ -10,3 +10,4 @@ export * from "./selection";
 export * from "./editor";
 export * from "./defaultNames";
 export * from "./viewer";
+export * from "./recordSupport";

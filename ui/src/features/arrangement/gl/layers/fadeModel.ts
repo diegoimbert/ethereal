@@ -7,15 +7,15 @@
 import type { ClipId, FadeCurve } from "@/generated";
 import { audioOf, isCrossfade } from "@/features/clip-editing/clipEditing";
 import { fadeGain } from "@/features/clip-editing/fades";
-import { CLIP_INSET, CLIP_TITLE } from "../../laneBodyGeometry";
+import { CLIP_INSET, contentTop } from "../../laneBodyGeometry";
 import type { LaneItem } from "../../laneItems";
 import { boxX, isRaised, type LaneView } from "../hitTest";
 
 export type FadeHandle = "fade-in" | "fade-out" | "fade-in-curve" | "fade-out-curve";
 export const FADE_HANDLES: ReadonlyArray<FadeHandle> = ["fade-in", "fade-out", "fade-in-curve", "fade-out-curve"];
 
-/** Visible handle size (`--eth-space-sm`) and the invisible grab margin around it (`--eth-space-md`). */
-export const HANDLE_PX = 4;
+/** Visible handle size (`--eth-space-md`) and the invisible grab margin around it (`--eth-space-md`). */
+export const HANDLE_PX = 8;
 export const GRAB_PX = 8;
 /** Length handles stay this far inside the clip's edges (`max(fade, --eth-space-md)`). */
 export const HANDLE_INSET_PX = 8;
@@ -127,7 +127,8 @@ export function fadeGeometry(it: LaneItem, v: LaneView, mainHeight: number): Fad
   const width = Math.max(1, len * v.pxPerBeat);
   const fin = Math.min(a.fade_in, len) * v.pxPerBeat;
   const fout = Math.min(a.fade_out, len) * v.pxPerBeat;
-  const top = CLIP_INSET + CLIP_TITLE;
+  // Under the title band; the whole clip in a compact lane.
+  const top = CLIP_INSET + contentTop(mainHeight);
   const bottom = mainHeight - CLIP_INSET;
   const bodyH = Math.max(0, bottom - top);
   const curve = (fadePx: number, cx: number, c: FadeCurve) => (fadePx < CURVE_HANDLE_MIN_PX ? null : { x: cx, y: top + (1 - fadeGain(c, 0.5)) * bodyH });

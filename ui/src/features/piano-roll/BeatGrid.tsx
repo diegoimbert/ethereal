@@ -22,7 +22,7 @@ import { useGestureSender } from "@/features/devices/gesture";
 import { useDeviceWindows } from "@/features/devices/window";
 import { Headphones } from "lucide-react";
 import { reverseNotesCommand } from "@/features/clip-editing/clipEditing";
-import { GrooveControls, grooveQuantizeCommand, useGrooveSettings } from "@/features/groove";
+import { GrooveControls } from "@/features/groove";
 import { Button, IconButton, Select } from "@/kit";
 import { useClip, useEditedClipId, useProjectStore } from "@/state";
 import { notesOfClip } from "@/state/selectors";
@@ -406,14 +406,6 @@ export function BeatGrid({ clip, rack }: { clip: Clip; rack: string }) {
         <Button
           size="sm"
           disabled={notes.length === 0}
-          onClick={() => void sender.send(grooveQuantizeCommand(clip.id, [], useGrooveSettings.getState().quantize, step))}
-          title={t("piano_roll.beat.quantize_title")}
-        >
-          {t("piano_roll.quantize")}
-        </Button>
-        <Button
-          size="sm"
-          disabled={notes.length === 0}
           onClick={() => {
             const c = reverseNotesCommand(notes);
             if (c) void sender.send(c);
@@ -422,7 +414,13 @@ export function BeatGrid({ clip, rack }: { clip: Clip; rack: string }) {
         >
           {t("piano_roll.reverse")}
         </Button>
-        <GrooveControls clip={clip.id} selected={[]} rollStep={step} />
+        <GrooveControls
+          clip={clip.id}
+          selected={[]}
+          rollStep={step}
+          quantizeTitle={t("piano_roll.beat.quantize_title")}
+          quantizeDisabled={notes.length === 0}
+        />
         <EditorSwitch track={clip.track} />
       </div>
       <div className="eth-beats__stage">

@@ -12,7 +12,7 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
-import { expandFolder, launch, libraryTree, openLibrary, playButton } from "./ui";
+import { expandFolder, launch, libraryTree, openLibrary, playButton, settingsPage } from "./ui";
 
 const panel = (page: Page) => page.locator('[data-feature="browser"][data-browser="v2"]');
 /** A file or folder row of the library's folder tree. */
@@ -92,7 +92,8 @@ for (const theme of ["dark", "light"] as const) {
     // --- Settings > General > Library files -------------------------------------------------
     await page.getByRole("button", { name: "settings", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "settings" });
-    await dialog.getByRole("tab", { name: "general" }).click();
+    await settingsPage(dialog, "general");
+    await settingsPage(dialog, "library");
     const section = dialog.getByTestId("settings-library-filters");
     await expect(section).toBeVisible();
     const showRules = section.getByRole("group", { name: "show rules" });
@@ -101,7 +102,9 @@ for (const theme of ["dark", "light"] as const) {
     // The live count covers the files the index has seen.
     await expect(section.getByTestId("file-filter-count")).toHaveText(/^shows \d+ of \d+ files in your library/, { timeout: 30_000 });
 
-    // A rule that isn't a regex is marked and not applied.
+    // Regular expressions (the advanced mode; rules are in plain words by default): a rule
+    // that isn't a regex is marked and not applied.
+    await section.getByRole("switch", { name: "use regex (advanced)" }).click();
     const hideRules = section.getByRole("group", { name: "hide rules" });
     const defaultHides = await hideRules.getByRole("textbox").count();
     await section.getByRole("button", { name: "add hide rule" }).click();
@@ -125,8 +128,11 @@ for (const theme of ["dark", "light"] as const) {
 
     // Back to the defaults: shown again.
     await page.getByRole("button", { name: "settings", exact: true }).click();
-    await dialog.getByRole("tab", { name: "general" }).click();
+    await settingsPage(dialog, "general");
+    await settingsPage(dialog, "library");
     await section.getByRole("button", { name: "reset to defaults" }).click();
+    // It asks first.
+    await page.getByRole("dialog", { name: "reset the library file rules?" }).getByRole("button", { name: "reset", exact: true }).click();
     await expect(hideRules.getByRole("textbox")).toHaveCount(defaultHides);
     await dialog.getByRole("button", { name: "done" }).click();
     await expect(row(page, "Draft snare.wav")).toBeVisible({ timeout: 20_000 });

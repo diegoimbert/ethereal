@@ -120,7 +120,12 @@ export async function clipPoint(page: Page, clipId: string, part: ClipPart = "he
  */
 export async function openClip(page: Page, clipId: string): Promise<void> {
   const p = await clipPoint(page, clipId);
-  await page.mouse.dblclick(p.x, p.y);
+  // Like a person's double-click: frames pass between its two clicks (the first selects the
+  // track, and its row lays out again before the second; an instant double-click lands while
+  // the browser still hit-tests the row without its content).
+  await page.mouse.click(p.x, p.y);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await page.mouse.click(p.x, p.y, { clickCount: 2 });
 }
 
 /** Selects a clip the way a user does: a click on its title bar (the body lets clicks through). */

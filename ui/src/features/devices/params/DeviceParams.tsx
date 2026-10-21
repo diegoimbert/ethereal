@@ -8,7 +8,7 @@
  */
 import { useDeferredValue, useMemo, useState } from "react";
 import type { DeviceDescriptor, DeviceId, ParamInfo } from "@/generated";
-import { TextInput, VirtualList } from "@/kit";
+import { NO_AUTOCORRECT, TextInput, VirtualList } from "@/kit";
 import { size } from "@/theme/tokens";
 import type { GestureSender } from "../gesture";
 import { ParamRow } from "./AllParams";
@@ -59,6 +59,7 @@ export function DeviceParams({ device, deviceName, descriptor, sender, pins, id 
           <TextInput
             size="sm"
             type="search"
+            {...NO_AUTOCORRECT}
             className="eth-params__search"
             placeholder={t("devices.params.search_placeholder")}
             aria-label={t("devices.params.search", { name: deviceName })}

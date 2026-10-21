@@ -39,7 +39,8 @@ for (const theme of ["dark", "light"] as const) {
     await page.locator(`[data-lane="${a.id}"]`).dblclick({ position: { x: 5, y: 20 } });
     await expect.poll(async () => Object.values((await doc(page)).clips).length).toBe(1);
 
-    // Inspector: x collapses it to a bar; another selection reopens it collapsed.
+    // Inspector: a track header's click shows it; x collapses it to a bar; another track
+    // header's click expands it again.
     await header(page, a.name).click({ position: { x: 6, y: 10 } });
     const inspector = page.getByTestId("inspector");
     await expect(inspector).toBeVisible();
@@ -50,15 +51,19 @@ for (const theme of ["dark", "light"] as const) {
     await expect(inspector).toHaveCount(0);
     if (shots) await page.screenshot({ path: `${shots}/inspector-collapsed-${theme}.png` });
     await header(page, b.name).click({ position: { x: 6, y: 10 } });
-    await expect(bar).toBeVisible();
-    await expect(inspector).toHaveCount(0);
+    await expect(inspector).toBeVisible();
+    await expect(bar).toHaveCount(0);
 
-    // Reload: still collapsed. Enter on the focused bar expands it.
+    // Collapsed, then reloaded: still collapsed (a click on a clip shows it as its bar). Enter on
+    // the focused bar expands it.
+    await page.getByRole("button", { name: "collapse the inspector panel" }).click();
+    await expect(bar).toBeVisible();
     await page.keyboard.press("ControlOrMeta+s");
     await expect(page.getByRole("status", { name: "unsaved changes" })).toHaveCount(0);
     await page.reload();
     await openOnLaunch(page, name);
-    await header(page, b.name).click({ position: { x: 6, y: 10 } });
+    const clip = Object.values((await doc(page)).clips)[0]!.id;
+    await selectClip(page, clip);
     await expect(page.getByRole("button", { name: "expand the inspector panel" })).toBeVisible();
     await page.getByRole("button", { name: "expand the inspector panel" }).focus();
     await page.keyboard.press("Enter");
@@ -67,10 +72,11 @@ for (const theme of ["dark", "light"] as const) {
     await settled(page);
     if (shots) await page.screenshot({ path: `${shots}/inspector-expanded-${theme}.png` });
 
-    // Bottom pane: a clip opens the editor; x collapses it; the next clip opens it collapsed.
-    const clip = Object.values((await doc(page)).clips)[0]!.id;
+    // Bottom pane: a double-click on a clip opens the editor (and folds the inspector); x
+    // collapses it; a click on the clip then shows it collapsed.
     await openClip(page, clip);
-    await expect(page.locator('[data-pane="bottom"]')).toBeVisible();
+    await expect(page.locator('[data-pane="bottom"]').getByTestId("piano-roll")).toBeVisible();
+    await expect(page.getByRole("button", { name: "expand the inspector panel" })).toBeVisible();
     await page.getByRole("button", { name: "collapse the editor panel" }).click();
     const bottom = page.getByRole("button", { name: "expand the editor panel" });
     await expect(bottom).toBeVisible();
@@ -81,7 +87,6 @@ for (const theme of ["dark", "light"] as const) {
     await expect(page.getByRole("status", { name: "unsaved changes" })).toHaveCount(0);
     await page.reload();
     await openOnLaunch(page, name);
-    // A click on a MIDI clip opens it in the editor: still collapsed.
     await selectClip(page, clip);
     await expect(page.getByRole("button", { name: "expand the editor panel" })).toBeVisible();
     await page.getByRole("button", { name: "expand the editor panel" }).click();
@@ -90,33 +95,20 @@ for (const theme of ["dark", "light"] as const) {
     await settled(page);
     await expect(page.locator(".eth-float--closing")).toHaveCount(0);
 
-    // A double-click on the clip expands both collapsed panels, at their last size.
+    // A double-click on the clip always expands the collapsed editor, at its last size, and
+    // leaves the inspector as its bar; again, it stays open.
     const height = (await page.locator('[data-pane="bottom"]').boundingBox())!.height;
     await page.getByRole("button", { name: "collapse the editor panel" }).click();
-    await page.getByRole("button", { name: "collapse the inspector panel" }).click();
     await expect(page.getByRole("button", { name: "expand the editor panel" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "expand the inspector panel" })).toBeVisible();
     await settled(page);
     await openClip(page, clip);
     await expect(page.locator('[data-pane="bottom"]').getByTestId("piano-roll")).toBeVisible();
-    await expect(page.getByTestId("inspector")).toBeVisible();
     await expect(page.getByRole("button", { name: "expand the editor panel" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "expand the inspector panel" })).toHaveCount(0);
     await settled(page);
     expect((await page.locator('[data-pane="bottom"]').boundingBox())!.height).toBeCloseTo(height, 0);
-
-    // Both expanded: a double-click on the open clip collapses both; another expands them
-    // back at the same size.
     await openClip(page, clip);
-    await expect(page.getByRole("button", { name: "expand the editor panel" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "expand the inspector panel" })).toBeVisible();
     await settled(page);
-    await expect(page.locator(".eth-drawer")).toHaveCount(0);
-    await expect(page.getByTestId("inspector")).toHaveCount(0);
-    await openClip(page, clip);
     await expect(page.locator('[data-pane="bottom"]').getByTestId("piano-roll")).toBeVisible();
-    await expect(page.getByTestId("inspector")).toBeVisible();
-    await settled(page);
     expect((await page.locator('[data-pane="bottom"]').boundingBox())!.height).toBeCloseTo(height, 0);
   });
 }

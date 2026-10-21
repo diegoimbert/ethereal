@@ -89,7 +89,7 @@ Avec une souris ou un pavé tactile, dans l’arrangement :
 
 Un pincement zoome toujours. Sous Windows, le sens du zoom est inversé par défaut, pour que pousser la molette vers l’avant zoome comme sur un Mac.
 
-Tout cela se règle dans **réglages › souris** : la sensibilité du zoom et du défilement, le modificateur qui zoome (ou si la molette seule zoome), l’inversion de chaque sens, le rôle du bouton du milieu et celui des boutons précédent et suivant de la souris. La palette de commandes propose **réglages de la souris et de la molette…** pour y aller vite, et **ajuster le zoom** pour afficher tout le morceau.
+Tout cela se règle dans **réglages › souris et clavier** : la sensibilité du zoom et du défilement, le modificateur qui zoome (ou si la molette seule zoome), l’inversion de chaque sens, le rôle du bouton du milieu et celui des boutons précédent et suivant de la souris. La palette de commandes propose **réglages de la souris et de la molette…** pour y aller vite, et **ajuster le zoom** pour afficher tout le morceau.
 
 ### jusqu’où vous pouvez dézoomer {#how-far-you-can-zoom-out}
 

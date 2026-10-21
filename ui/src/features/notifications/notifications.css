@@ -1,0 +1,55 @@
+/* The messages dialog ("see all messages" under the toasts): this session's notices, newest
+   first. A dot in the level's colour, never a side stripe. Tokens only. */
+.eth-notice-log-dialog {
+  --dialog-width: min(calc(var(--eth-size-dialog-width) * 1.5), calc(100vw - 2 * var(--eth-space-lg)));
+}
+.eth-notice-log {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  max-height: 60vh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+.eth-notice-log__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-sm);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  font-size: var(--eth-fs-sm);
+}
+.eth-notice-log__dot {
+  flex: none;
+  width: var(--eth-space-sm);
+  height: var(--eth-space-sm);
+  margin-top: var(--eth-space-xs);
+  border-radius: var(--eth-radius-round);
+}
+.eth-notice-log__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--eth-space-hair);
+  min-width: 0;
+}
+.eth-notice-log__title {
+  display: flex;
+  gap: var(--eth-space-sm);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-notice-log__time {
+  color: var(--eth-color-text-dim);
+  font-weight: var(--eth-fw-regular);
+}
+.eth-notice-log__text {
+  color: var(--eth-color-text-dim);
+  overflow-wrap: anywhere;
+}
+.eth-notice-log__empty {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+}

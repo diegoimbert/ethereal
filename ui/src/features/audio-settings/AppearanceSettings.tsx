@@ -8,7 +8,7 @@ import {
   ZOOM_MIN,
   useTheme,
   useColorBlobs,
-  useGlow,
+  useGlowSetting,
   useTranslucency,
   useTranslucencyAmount,
   useZoom,
@@ -33,7 +33,7 @@ export function AppearanceSettings() {
   const [theme, setTheme] = useTheme();
   const [zoom, setZoom] = useZoom();
   const [blobs, setBlobs] = useColorBlobs();
-  const [glow, setGlowOn] = useGlow();
+  const [glow, setGlowOn] = useGlowSetting();
   const motion = useSyncExternalStore(subscribeMotionLevel, getMotionLevel, getMotionLevel);
   const [translucent, setTranslucent] = useTranslucency();
   const [amount, setAmount] = useTranslucencyAmount();
@@ -79,8 +79,9 @@ export function AppearanceSettings() {
         <p className="eth-settings__hint">{t("settings.appearance.animations_hint")}</p>
         <Toggle size="sm" checked={blobs} onChange={setBlobs} label={t("settings.appearance.color_blobs")} />
         <p className="eth-settings__hint">{t("settings.appearance.color_blobs_hint")}</p>
-        <Toggle size="sm" checked={glow} onChange={setGlowOn} label={t("settings.appearance.glow")} />
-        <p className="eth-settings__hint">{t("settings.appearance.glow_hint")}</p>
+        {/* The light theme has no glow at all: the setting waits for the dark one. */}
+        <Toggle size="sm" checked={glow && theme !== "light"} disabled={theme === "light"} onChange={setGlowOn} label={t("settings.appearance.glow")} />
+        <p className="eth-settings__hint">{theme === "light" ? t("settings.appearance.glow_light") : t("settings.appearance.glow_hint")}</p>
       </section>
       <section className="eth-settings__section" aria-label={t("settings.appearance.translucency")}>
         <h3 className="eth-settings__heading">{t("settings.appearance.translucency")}</h3>

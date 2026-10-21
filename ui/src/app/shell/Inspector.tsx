@@ -2,14 +2,15 @@ import clsx from "clsx";
 import { Headphones, Music, Volume2, VolumeX, Waves } from "lucide-react";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
-import type { Clip, Command, Track, TrackId, TrackSend, WarpMode } from "@/generated";
+import type { Clip, Command, ParamInfo, Track, TrackId, TrackSend, WarpMode } from "@/generated";
 import { inertTitle, useFrozenAncestor } from "@/features/freeze";
 import { DeviceChain } from "@/features/devices";
 import { collapseAll } from "@/features/devices/collapsed";
 import { useGestureSender, useSend, type GestureSender } from "@/features/devices/gesture";
 import { formatDb, formatPan, paramToPlain } from "@/domain/paramScale";
 import { useLiveAutomation } from "@/features/automation/live";
-import { PAN_INFO, VOLUME_INFO } from "@/features/automation/params";
+import { CLIP_GAIN_INFO, CLIP_TRANSPOSE_INFO, PAN_INFO, SEND_INFO, VOLUME_INFO } from "@/features/automation/params";
+import { openValueMenu } from "@/features/automation/valueMenu";
 import { midiTarget } from "@/features/midi-learn/targets";
 import { reverseCommand } from "@/features/clip-editing/clipEditing";
 import {
@@ -33,7 +34,7 @@ import { IconButton, Knob, NumberField, Popover, Select, TextInput, Toggle } fro
 import { useProjectStore, defaultClipName, defaultTrackName, tracksOrdered } from "@/state";
 import { trackSoloCommand } from "@/domain/soloCommands";
 import { additiveClick } from "@/domain/soloPlan";
-import { TRACK_COLORS } from "@/theme";
+import { ColorSwatches, colorSwatchCss } from "@/features/colors";
 import { formatBarBeat, formatDuration, useTempoMap } from "@/timeline";
 import { cmd, newId } from "@/transport";
 import { type MessageKey, useT } from "@/i18n";
@@ -41,9 +42,9 @@ import type { InspectorTarget } from "./inspectorTarget";
 import "./inspector.css";
 import { ProjectSwingFields } from "@/features/groove";
 
-const PALETTE: ReadonlyArray<number> = TRACK_COLORS.map((c) => parseInt(c.slice(1), 16));
-/** A track/clip color as CSS; an unknown one (`null`) is the fallback token. */
-const css = (color: number | null | undefined) => (color == null ? "var(--eth-track-fallback)" : `#${(color & 0xffffff).toString(16).padStart(6, "0")}`);
+const css = colorSwatchCss;
+/** A clip's gain field (its range, -60..+24 dB) for the value menu's "set value". */
+const GAIN_FIELD_INFO: ParamInfo = { ...CLIP_GAIN_INFO, name: "gain", min: -60, max: 24 };
 const batch = (label: string, commands: Command[]): Command | null =>
   commands.length === 0 ? null : commands.length === 1 ? commands[0]! : cmd("Edit", { type: "Batch", label, commands });
 
@@ -140,43 +141,22 @@ function NameField({
 }
 
 /**
- * Color swatches; `inherit` adds a "follow the track color" swatch (value null), showing that
- * color (`null`: unknown, several tracks).
+ * The current color as one swatch; clicking it opens the palette in a popover. `kind`: the
+ * swatch is the header's kind square (the clip's / track's icon on its color) instead.
  */
-function Swatches({ value, onPick, inherit, label }: { value: number | null; onPick(color: number | null): void; inherit?: number | null; label: string }) {
-  const t = useT();
-  return (
-    <div className="eth-inspector__swatches" role="radiogroup" aria-label={label}>
-      {inherit !== undefined && (
-        <button
-          type="button"
-          role="radio"
-          aria-checked={value === null}
-          aria-label={t("shell.inspector.track_color")}
-          title={t("shell.inspector.use_track_color")}
-          className="eth-inspector__swatch eth-inspector__swatch--inherit"
-          style={{ ["--swatch" as string]: css(inherit) }}
-          onClick={() => onPick(null)}
-        />
-      )}
-      {PALETTE.map((c) => (
-        <button
-          key={c}
-          type="button"
-          role="radio"
-          aria-checked={value === c}
-          aria-label={css(c)}
-          className="eth-inspector__swatch"
-          style={{ ["--swatch" as string]: css(c) }}
-          onClick={() => onPick(c)}
-        />
-      ))}
-    </div>
-  );
-}
-
-/** The current color as one swatch; clicking it opens the palette in a popover. */
-function ColorPicker({ value, onPick, inherit, label }: { value: number | null; onPick(color: number | null): void; inherit?: number | null; label: string }) {
+function ColorPicker({
+  value,
+  onPick,
+  inherit,
+  label,
+  kind,
+}: {
+  value: number | null;
+  onPick(color: number | null): void;
+  inherit?: number | null;
+  label: string;
+  kind?: ReactNode;
+}) {
   const shown = value === null || value < 0 ? inherit : value;
   return (
     <Popover
@@ -185,17 +165,22 @@ function ColorPicker({ value, onPick, inherit, label }: { value: number | null; 
       trigger={(p) => (
         <button
           type="button"
-          className={clsx("eth-inspector__swatch eth-inspector__color", value === null && inherit !== undefined && "eth-inspector__swatch--inherit")}
+          className={clsx(
+            kind === undefined ? "eth-color-swatch eth-inspector__color" : "eth-inspector__kind eth-inspector__kind--pick",
+            kind === undefined && value === null && inherit !== undefined && "eth-color-swatch--inherit",
+          )}
           style={{ ["--swatch" as string]: css(shown) }}
           aria-label={label}
           title={label}
           {...p}
-        />
+        >
+          {kind}
+        </button>
       )}
     >
       {(close) => (
-        <div className="eth-inspector__palette">
-          <Swatches
+        <div className="eth-color-palette">
+          <ColorSwatches
             label={label}
             value={value}
             inherit={inherit}
@@ -315,6 +300,7 @@ function ManyAudioClipsSection({ clips }: { clips: ReadonlyArray<Clip> }) {
           precision={1}
           unit="db"
           onChange={(v) => sendCmd(setAllGain(audio, v))}
+          onContextMenu={(e) => openValueMenu(e, { info: GAIN_FIELD_INFO, plain: gain ?? audio[0]!.audio.gain, set: (v) => sendCmd(setAllGain(audio, v)) })}
           onNudge={(d) => sendCmd(offsetGain(audio, bases.current?.gain ?? gainBases(audio), d))}
         />
       </Row>
@@ -329,6 +315,9 @@ function ManyAudioClipsSection({ clips }: { clips: ReadonlyArray<Clip> }) {
           max={48}
           unit={t("shell.inspector.unit_semitones")}
           onChange={(v) => sendCmd(setAllTranspose(audio, v))}
+          onContextMenu={(e) =>
+            openValueMenu(e, { info: CLIP_TRANSPOSE_INFO, plain: transpose ?? audio[0]!.audio.transpose, set: (v) => sendCmd(setAllTranspose(audio, v)) })
+          }
           onNudge={(d) => sendCmd(offsetTranspose(audio, bases.current?.transpose ?? transposeBases(audio), d))}
         />
       </Row>
@@ -388,9 +377,14 @@ function ClipInspector({ clip }: { clip: Clip }) {
   return (
     <>
       <Section className="eth-inspector__head">
-        <span className="eth-inspector__kind" style={{ ["--swatch" as string]: css(clip.color ?? track?.color) }}>
-          {audio ? <Waves aria-hidden /> : <Music aria-hidden />}
-        </span>
+        {/* The kind square is the color picker. */}
+        <ColorPicker
+          label={t("shell.inspector.clip_color")}
+          value={clip.color}
+          inherit={track?.color ?? null}
+          onPick={(color) => void send(cmd("Clip", { type: "SetColor", id: clip.id, color }))}
+          kind={audio ? <Waves aria-hidden /> : <Music aria-hidden />}
+        />
         <NameField
           label={t("shell.inspector.clip_name")}
           placeholder={audio ? t("shell.inspector.audio_clip") : t("shell.inspector.midi_clip")}
@@ -400,13 +394,6 @@ function ClipInspector({ clip }: { clip: Clip }) {
             const project = useProjectStore.getState().project;
             return project ? defaultClipName(project, clip) : "";
           }}
-        />
-        {/* Right of the name, like a track's color. */}
-        <ColorPicker
-          label={t("shell.inspector.clip_color")}
-          value={clip.color}
-          inherit={track?.color ?? null}
-          onPick={(color) => void send(cmd("Clip", { type: "SetColor", id: clip.id, color }))}
         />
       </Section>
 
@@ -424,6 +411,9 @@ function ClipInspector({ clip }: { clip: Clip }) {
               precision={1}
               unit="db"
               onChange={(gain) => void gesture.send(cmd("Clip", { type: "SetGain", id: clip.id, gain }))}
+              onContextMenu={(e) =>
+                openValueMenu(e, { info: GAIN_FIELD_INFO, plain: audio.gain, set: (gain) => void send(cmd("Clip", { type: "SetGain", id: clip.id, gain })) })
+              }
             />
           </Row>
           <Row label={t("shell.inspector.transpose")}>
@@ -436,6 +426,13 @@ function ClipInspector({ clip }: { clip: Clip }) {
               max={48}
               unit={t("shell.inspector.unit_semitones")}
               onChange={(semitones) => void gesture.send(cmd("Clip", { type: "SetTranspose", id: clip.id, semitones }))}
+              onContextMenu={(e) =>
+                openValueMenu(e, {
+                  info: CLIP_TRANSPOSE_INFO,
+                  plain: audio.transpose,
+                  set: (semitones) => void send(cmd("Clip", { type: "SetTranspose", id: clip.id, semitones })),
+                })
+              }
             />
           </Row>
           <Row label={t("shell.inspector.fade_in")}>
@@ -558,7 +555,17 @@ function TrackInspector({ id }: { id: TrackId }) {
   return (
     <>
       <Section className="eth-inspector__head">
-        <span className="eth-inspector__kind" style={{ ["--swatch" as string]: css(track.color) }} />
+        {/* The kind square is the color picker (the master's color is fixed). */}
+        {isMaster ? (
+          <span className="eth-inspector__kind" style={{ ["--swatch" as string]: css(track.color) }} />
+        ) : (
+          <ColorPicker
+            label={t("shell.inspector.track_color")}
+            value={track.color}
+            onPick={(color) => color !== null && void send(cmd("Track", { type: "SetColor", id: track.id, color }))}
+            kind={null}
+          />
+        )}
         {isMaster ? (
           <span className="eth-inspector__heading eth-user-text">{track.name}</span>
         ) : (
@@ -571,13 +578,6 @@ function TrackInspector({ id }: { id: TrackId }) {
               const project = useProjectStore.getState().project;
               return project ? defaultTrackName(project, track) : track.name;
             }}
-          />
-        )}
-        {!isMaster && (
-          <ColorPicker
-            label={t("shell.inspector.track_color")}
-            value={track.color}
-            onPick={(color) => color !== null && void send(cmd("Track", { type: "SetColor", id: track.id, color }))}
           />
         )}
       </Section>
@@ -635,6 +635,14 @@ function TrackMixer({ track, sender }: { track: Track; sender: GestureSender }) 
           label={t("shell.inspector.volume_named", { name: track.name })}
           valueText={formatDb(volume)}
           onChange={(n) => void sender.send(cmd("Mixer", { type: "SetVolume", track: track.id, volume: faderToDb(n) }))}
+          onContextMenu={(e) =>
+            openValueMenu(e, {
+              info: VOLUME_INFO,
+              plain: volume,
+              set: (v) => void send(cmd("Mixer", { type: "SetVolume", track: track.id, volume: v })),
+              automation: { track: track.id, target: { type: "TrackVolume", track: track.id } },
+            })
+          }
           onChangeStart={sender.begin}
           onChangeEnd={sender.end}
         />
@@ -647,6 +655,14 @@ function TrackMixer({ track, sender }: { track: Track; sender: GestureSender }) 
             label={t("shell.inspector.pan_named", { name: track.name })}
             valueText={formatPan(pan)}
             onChange={(n) => void sender.send(cmd("Mixer", { type: "SetPan", track: track.id, pan: n * 2 - 1 }))}
+            onContextMenu={(e) =>
+              openValueMenu(e, {
+                info: PAN_INFO,
+                plain: pan,
+                set: (v) => void send(cmd("Mixer", { type: "SetPan", track: track.id, pan: v })),
+                automation: { track: track.id, target: { type: "TrackPan", track: track.id } },
+              })
+            }
             onChangeStart={sender.begin}
             onChangeEnd={sender.end}
           />
@@ -731,6 +747,20 @@ function SendKnob({ track, ret, send, sender }: { track: Track; ret: Track; send
         defaultValue={dbToFader(-144)}
         label={t("shell.inspector.send_named", { name: ret.name })}
         valueText={formatDb(level)}
+        // The value menu; a send not made yet is made by "set value".
+        onContextMenu={(e) =>
+          openValueMenu(e, {
+            info: SEND_INFO,
+            plain: level,
+            set: (db) =>
+              void sendNow(
+                send
+                  ? cmd("Mixer", { type: "SetSendLevel", send: send.id, level: db })
+                  : cmd("Mixer", { type: "CreateSend", id: newId(), from: track.id, to: ret.id, level: db, pre_fader: false }),
+              ),
+            automation: send ? { track: track.id, target: { type: "SendLevel", send: send.id } } : undefined,
+          })
+        }
         onChange={(n) => {
           const db = faderToDb(n);
           const id = send?.id ?? pending.current;

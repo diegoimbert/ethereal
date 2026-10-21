@@ -84,8 +84,9 @@ export function detectPlatform(): Platform {
   // The OS (`platform`) first: the user agent and its client hints are often spoofed (device
   // emulation reports a Windows UA on any host), `platform` isn't.
   const p = (nav.platform || nav.userAgentData?.platform || nav.userAgent || "").toLowerCase();
-  if (p.includes("win")) return "windows";
-  if (p.includes("mac")) return "mac";
+  // The Mac first: "darwin" (a Node / jsdom user agent) contains "win".
+  if (p.includes("mac") || p.includes("darwin")) return "mac";
+  if (/\bwin/.test(p)) return "windows";
   if (p.includes("linux") || p.includes("x11")) return "linux";
   return "other";
 }

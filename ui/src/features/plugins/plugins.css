@@ -187,3 +187,42 @@
   gap: var(--eth-space-sm);
   margin: var(--eth-space-sm) 0;
 }
+
+/* Settings > Plugins > Plugin list: the hidden plugins, one row each. */
+.eth-plugin-list__rules {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.eth-plugin-list__rule {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+}
+.eth-plugin-list__icon {
+  flex: none;
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+  color: var(--eth-color-text-dim);
+}
+.eth-plugin-list__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-plugin-list__vendor {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eth-color-text-dim);
+}
+.eth-plugin-list__add {
+  align-self: flex-start;
+}

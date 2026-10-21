@@ -13,14 +13,16 @@ export interface ToastProps {
   accent?: string;
   /** Click on the toast body (e.g. open what it is about). */
   onClick?: () => void;
+  /** A button beside the text (e.g. "resolve"); choosing it dismisses the toast. */
+  action?: { label: string; onSelect: () => void };
   onDismiss?: () => void;
-  /** Auto-dismiss after this many ms (paused while hovered); omit to keep it. */
+  /** Auto-dismiss after this many ms (paused while hovered; a bar shows the time left); omit to keep it. */
   timeoutMs?: number;
   className?: string;
 }
 
 /** A short notification card. Stack them in a `ToastStack`. */
-export function Toast({ title, children, accent, onClick, onDismiss, timeoutMs, className }: ToastProps) {
+export function Toast({ title, children, accent, onClick, action, onDismiss, timeoutMs, className }: ToastProps) {
   const t = useT();
   const dismiss = useRef(onDismiss);
   useEffect(() => {
@@ -54,10 +56,25 @@ export function Toast({ title, children, accent, onClick, onDismiss, timeoutMs, 
         <span className="eth-toast__title">{title}</span>
         {children !== undefined && <span className="eth-toast__text">{children}</span>}
       </button>
+      {action && (
+        <button
+          type="button"
+          className="eth-toast__action"
+          onClick={() => {
+            action.onSelect();
+            onDismiss?.();
+          }}
+        >
+          {action.label}
+        </button>
+      )}
       {onDismiss && (
         <button type="button" className="eth-toast__close" aria-label={t("common.dismiss")} title={t("common.dismiss")} onClick={onDismiss}>
           <X aria-hidden />
         </button>
+      )}
+      {timeoutMs !== undefined && (
+        <span className="eth-toast__life" style={{ "--eth-toast-life": `${timeoutMs}ms` } as CSSProperties} aria-hidden data-testid="toast-life" />
       )}
     </div>
   );

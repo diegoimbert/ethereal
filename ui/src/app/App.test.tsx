@@ -46,7 +46,7 @@ afterEach(() => {
 describe("App shell", () => {
   it("mounts the top bar slots and the arrangement as the main view", () => {
     const { container } = render(<App />);
-    for (const slot of ["project", "transport-bar", "metronome", "recording", "export", "remote", "markers", "main"]) {
+    for (const slot of ["project", "transport-bar", "recording", "export", "remote", "markers", "main"]) {
       expect(container.querySelector(`[data-slot="${slot}"]`), slot).not.toBeNull();
     }
     expect(container.querySelector('[data-slot="main"] [data-feature="arrangement"]')).not.toBeNull();
@@ -62,7 +62,7 @@ describe("App shell", () => {
     }
     // The settings open from the gear.
     fireEvent.click(screen.getByRole("button", { name: "settings" }));
-    expect(await screen.findByRole("tab", { name: "general" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "general" })).toBeInTheDocument();
   });
 
   it("the rail opens each panel in the left pane, and closes it on a second click", async () => {
@@ -139,7 +139,7 @@ describe("App shell: connected", () => {
     mock.dispose();
   });
 
-  it("a click on a MIDI clip opens the piano roll; a click elsewhere in the tracks closes it unless pinned", async () => {
+  it("a click on a MIDI clip shows it in the drawer as a bar (expanded stays expanded); a header click collapses it unless pinned", async () => {
     const { mock } = await renderWithMock(<App />);
     act(() => arrangementView.getState().setViewport({ pxPerBeat: 10, scrollBeats: 0 }));
     const chords = Object.values(useProjectStore.getState().project!.clips).find((c) => c.name === "Chords")!;
@@ -151,21 +151,50 @@ describe("App shell: connected", () => {
         fireEvent.pointerUp(window, p);
       });
     };
+    // A click never expands a pane: it shows the clip in the drawer as a bar, and the inspector
+    // (not showing yet) appears as its bar.
     await press(lanes());
-    expect(pane("bottom")).not.toBeNull();
-    expect(useShellStore.getState().bottom.tab).toBe("piano-roll");
+    expect(useShellStore.getState().bottom).toMatchObject({ open: true, collapsed: true, tab: "piano-roll" });
+    expect(useShellStore.getState().right.collapsed).toBe(true);
     expect(useEditorStore.getState().clip).toBe(chords.id);
-
-    // A track header (outside any clip) closes it.
-    const header = screen.getByRole("group", { name: "Keys track" });
-    await press(header, { button: 0, clientX: 5, clientY: 5 });
-    await waitFor(() => expect(pane("bottom")).toBeNull());
-
-    // Pinned, it stays.
+    // Expanded, a click on a clip leaves it expanded.
+    act(() => useShellStore.getState().setCollapsed("bottom", false));
     await press(lanes());
+    expect(useShellStore.getState().bottom).toMatchObject({ open: true, collapsed: false });
+
+    // A track header (outside any clip) collapses it, and expands the inspector on the track.
+    const header = screen.getByRole("group", { name: "Keys track" });
+    act(() => useShellStore.getState().setCollapsed("right", true));
+    await press(header, { button: 0, clientX: 5, clientY: 5 });
+    fireEvent.click(header);
+    await waitFor(() => expect(useShellStore.getState().bottom).toMatchObject({ open: true, collapsed: true }));
+    expect(useShellStore.getState().right).toMatchObject({ open: true, collapsed: false });
+
+    // Pinned, it stays expanded.
+    act(() => useShellStore.getState().setCollapsed("bottom", false));
     act(() => useShellStore.getState().setPinned("bottom", true));
     await press(header, { button: 0, clientX: 5, clientY: 5 });
-    expect(pane("bottom")).not.toBeNull();
+    expect(useShellStore.getState().bottom.collapsed).toBe(false);
+    mock.dispose();
+  });
+
+  it("a click on the lanes' empty space collapses the drawer and the inspector to their bars", async () => {
+    const { mock } = await renderWithMock(<App />);
+    act(() => arrangementView.getState().setViewport({ pxPerBeat: 10, scrollBeats: 0 }));
+    await act(async () => {
+      fireEvent.doubleClick(lanes(), clipTitle("Chords"));
+    });
+    fireEvent.click(screen.getByRole("group", { name: "Keys track" }));
+    expect(useShellStore.getState().right).toMatchObject({ open: true, collapsed: false });
+    act(() => useShellStore.getState().setCollapsed("bottom", false));
+    // Far right of the first row: no clip there.
+    const empty = { button: 0, clientX: useArrangementUi.getState().headerWidth + 5000, clientY: 5 };
+    await act(async () => {
+      fireEvent.pointerDown(lanes(), empty);
+      fireEvent.pointerUp(window, empty);
+    });
+    await waitFor(() => expect(useShellStore.getState().bottom).toMatchObject({ open: true, collapsed: true }));
+    expect(useShellStore.getState().right.collapsed).toBe(true);
     mock.dispose();
   });
 
@@ -323,7 +352,7 @@ describe("App shell: connected", () => {
     mock.dispose();
   });
 
-  it("the inspector appears with a selected clip or track and hides when nothing is selected", async () => {
+  it("the inspector appears as its bar with a clicked clip, expanded with a track header, and hides when nothing is selected", async () => {
     const { container, mock } = await renderWithMock(<App />);
     expect(pane("right")).toBeNull();
     await act(async () => {
@@ -331,7 +360,8 @@ describe("App shell: connected", () => {
       fireEvent.pointerDown(lanes(), { button: 0, ...at });
       fireEvent.pointerUp(window, at);
     });
-    expect(pane("right")).toHaveAttribute("aria-label", "inspector");
+    act(() => itemSelection.getState().select("clip", [Object.values(useProjectStore.getState().project!.clips).find((c) => c.name === "Chords")!.id]));
+    expect(await screen.findByRole("button", { name: "expand the inspector panel" })).toBeInTheDocument();
 
     act(() => {
       fireEvent.keyDown(container.querySelector('[data-feature="arrangement"]')!, { key: "Escape" });
@@ -339,7 +369,7 @@ describe("App shell: connected", () => {
     await waitFor(() => expect(pane("right")).toBeNull());
 
     fireEvent.click(screen.getByRole("group", { name: "Keys track" }));
-    expect(pane("right")).not.toBeNull();
+    expect(screen.getByTestId("inspector")).toBeInTheDocument();
     act(() => {
       fireEvent.keyDown(container.querySelector('[data-feature="arrangement"]')!, { key: "Escape" });
     });
@@ -367,12 +397,13 @@ describe("App shell: collapsing the inspector and the bottom pane", () => {
     expect(useShellStore.getState().right.open).toBe(true);
     expect(workspace().style.getPropertyValue("--pane-right-reserved")).toBe("0px");
 
-    // Esc closes it (bar gone); selecting again reopens it collapsed.
+    // Esc closes it (bar gone); selecting a clip reopens it collapsed (a click on a clip never
+    // expands it).
     act(() => {
       fireEvent.keyDown(container.querySelector('[data-feature="arrangement"]')!, { key: "Escape" });
     });
     await waitFor(() => expect(screen.queryByRole("button", { name: "expand the inspector panel" })).toBeNull());
-    selectKeys();
+    act(() => itemSelection.getState().select("clip", [Object.values(useProjectStore.getState().project!.clips).find((c) => c.name === "Chords")!.id]));
     expect(await screen.findByRole("button", { name: "expand the inspector panel" })).toBeInTheDocument();
     expect(screen.queryByTestId("inspector")).toBeNull();
 
@@ -397,7 +428,7 @@ describe("App shell: collapsing the inspector and the bottom pane", () => {
     mock.dispose();
   });
 
-  it("double-clicking a clip expands the collapsed drawer and inspector at their last size (#758)", async () => {
+  it("a click shows a clip with both panels as bars; a double-click expands the drawer at its last size and collapses the inspector (#758)", async () => {
     const { container, mock } = await renderWithMock(<App />);
     act(() => {
       const s = useShellStore.getState();
@@ -406,30 +437,29 @@ describe("App shell: collapsing the inspector and the bottom pane", () => {
       s.setCollapsed("right", true);
       s.setCollapsed("bottom", true);
     });
-    // A click opens the clip; the panels stay collapsed (a remembered choice).
+    // A click shows the clip; the panels stay bars.
     fireEvent.pointerDown(lanes(), { button: 0, ...clipTitle("Chords") });
     fireEvent.pointerUp(window, { button: 0, ...clipTitle("Chords") });
     expect(await screen.findByRole("button", { name: "expand the editor panel" })).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "expand the inspector panel" })).toBeInTheDocument();
-    // A double-click expands both, at their last size.
+    // A double-click expands the drawer at its last size; the inspector stays a bar.
     await act(async () => {
       fireEvent.doubleClick(lanes(), clipTitle("Chords"));
     });
-    expect(useShellStore.getState().right).toMatchObject({ open: true, collapsed: false, size: 333 });
     expect(useShellStore.getState().bottom).toMatchObject({ open: true, collapsed: false, size: 222, tab: "piano-roll" });
-    expect(stored().right?.collapsed).toBe(false);
+    expect(useShellStore.getState().right).toMatchObject({ open: true, collapsed: true, size: 333 });
     expect(stored().bottom?.collapsed).toBe(false);
-    expect(screen.getByTestId("inspector")).toBeInTheDocument();
     expect(container.querySelector('[data-pane="bottom"] [data-testid="piano-roll"]')).not.toBeNull();
-    // They collapse again as usual.
+    // The bar expands the inspector at its last size; the drawer collapses as usual.
+    fireEvent.click(screen.getByRole("button", { name: "expand the inspector panel" }));
+    expect(useShellStore.getState().right).toMatchObject({ collapsed: false, size: 333 });
     fireEvent.click(screen.getByRole("button", { name: "collapse the editor panel" }));
     expect(useShellStore.getState().bottom.collapsed).toBe(true);
     mock.dispose();
   });
 
-  it("double-clicking the open clip with both panels expanded collapses them, and again expands them at the same sizes", async () => {
+  it("a double-click always expands the drawer, again on the same clip; it collapses the inspector unless pinned", async () => {
     const { mock } = await renderWithMock(<App />);
-    // A real double-click: two presses (the second one's `detail` is 2), then the dblclick.
     const doubleClick = async (name: string) => {
       const at = clipTitle(name);
       await act(async () => {
@@ -440,38 +470,27 @@ describe("App shell: collapsing the inspector and the bottom pane", () => {
         fireEvent.doubleClick(lanes(), at);
       });
     };
-    act(() => {
-      const s = useShellStore.getState();
-      s.setSize("right", 333);
-      s.setSize("bottom", 222);
-    });
-    const chords = Object.values(useProjectStore.getState().project!.clips).find((c) => c.name === "Chords")!;
     const bass = Object.values(useProjectStore.getState().project!.clips).find((c) => c.name === "Bassline")!;
-    // Both collapsed: a double-click expands both.
     await doubleClick("Chords");
-    expect(useShellStore.getState().right).toMatchObject({ open: true, collapsed: false, size: 333 });
-    expect(useShellStore.getState().bottom).toMatchObject({ open: true, collapsed: false, size: 222 });
-    // Both expanded, the same clip: both collapse, sizes kept; the clip stays selected and open.
+    expect(useShellStore.getState().bottom).toMatchObject({ open: true, collapsed: false });
+    expect(useShellStore.getState().right).toMatchObject({ open: true, collapsed: true });
     await doubleClick("Chords");
-    expect(useShellStore.getState().right).toMatchObject({ collapsed: true, size: 333 });
-    expect(useShellStore.getState().bottom).toMatchObject({ collapsed: true, size: 222 });
-    expect(stored().right?.collapsed).toBe(true);
-    expect(stored().bottom?.collapsed).toBe(true);
-    expect(useEditorStore.getState().clip).toBe(chords.id);
-    expect(itemSelection.getState().selected.clip.has(chords.id)).toBe(true);
-    // Again: both expand back, at the same sizes.
-    await doubleClick("Chords");
-    expect(useShellStore.getState().right).toMatchObject({ open: true, collapsed: false, size: 333 });
-    expect(useShellStore.getState().bottom).toMatchObject({ open: true, collapsed: false, size: 222 });
-    // Both expanded, another clip: the editor switches to it and both stay open.
+    expect(useShellStore.getState().bottom).toMatchObject({ open: true, collapsed: false });
+    // Another clip: the editor switches to it, still expanded.
     await doubleClick("Bassline");
     expect(useEditorStore.getState().clip).toBe(bass.id);
-    expect(useShellStore.getState().right).toMatchObject({ open: true, collapsed: false });
     expect(useShellStore.getState().bottom).toMatchObject({ open: true, collapsed: false });
+    // A pinned inspector stays expanded.
+    act(() => {
+      useShellStore.getState().setPinned("right", true);
+      useShellStore.getState().setCollapsed("right", false);
+    });
+    await doubleClick("Chords");
+    expect(useShellStore.getState().right).toMatchObject({ open: true, collapsed: false });
     mock.dispose();
   });
 
-  it("an open panel keeps its size on a double-click; a collapsed one too big for the window is clamped", async () => {
+  it("the inspector keeps its size on a double-click; a collapsed drawer too big for the window is clamped", async () => {
     const { mock } = await renderWithMock(<App />);
     const n = (token: string) => parseFloat(token);
     act(() => {
@@ -483,7 +502,8 @@ describe("App shell: collapsing the inspector and the bottom pane", () => {
     await act(async () => {
       fireEvent.doubleClick(lanes(), clipTitle("Chords"));
     });
-    expect(useShellStore.getState().right).toMatchObject({ collapsed: false, size: 5000 });
+    // The inspector collapses to its bar, its size kept.
+    expect(useShellStore.getState().right).toMatchObject({ collapsed: true, size: 5000 });
     // The arrangement keeps its minimum height above the expanded drawer.
     const max = window.innerHeight - n(tokenSize.mainMinSize) - n(tokenSize.topBarHeight) - n(tokenSize.statusBarHeight);
     expect(useShellStore.getState().bottom).toMatchObject({ collapsed: false, size: Math.max(n(tokenSize.floatMinSize), max) });

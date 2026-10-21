@@ -6,17 +6,21 @@
  * footer. It is the chain sections' add popover: a click on a row, or Enter on the active
  * one (↑ ↓ from the search field), picks it.
  *
- * Plugins: a plugin installed in several formats is listed once per format, each row
- * with its format chip. The format toggles (CLAP / VST2 / VST3 / AU: the platform's formats
+ * Plugins: a plugin installed in several formats is listed once, in the preferred format
+ * (`@/features/plugins/visibility`: Settings > Plugins > Plugin list, where it can be turned
+ * off to list every format, each row with its format chip); hidden plugins aren't listed (a
+ * row's right-click hides it). Not for `plugins` given nor `pluginsOnly` (the resolver,
+ * Replace plugin: every format). The format toggles (CLAP / VST2 / VST3 / AU: the platform's formats
  * present in the plugin list, shown when there are two or more) filter the plugins, search
  * included. They are a multi-select, every format on by default and at least one on; the
  * formats turned off are remembered (`libraryStats.hiddenFormats`). Two plugins sharing a
  * format + id (VST2 uniqueID collisions) are both listed: the insert names which one.
  */
+import { LIBRARY_DEVICE_DRAG_TYPE, setDraggingLibraryDevice } from "./chainUtils";
 import { useContributions } from "@/ext";
 import "./deviceLibrary.css";
 import clsx from "clsx";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { AudioWaveform, FolderCog, Music2, Piano, Plug, Search, Star, X } from "lucide-react";
 import type { DeviceCategory, DeviceDescriptor, PluginDescriptor, PluginFormat } from "@/generated";
 import { openSettings } from "@/features/audio-settings/store";
@@ -24,7 +28,9 @@ import { isOffered } from "./chainUtils";
 import { fetchBuiltinTypes } from "./descriptors";
 import { FORMAT_LABEL, FORMAT_ORDER, platformFormats, pluginKey } from "@/features/plugins/filter";
 import { useOptionalTransport, usePluginEvents, usePluginStore } from "@/features/plugins/pluginStore";
-import { Badge, Button, IconButton, Select, TextInput, type SelectOption } from "@/kit";
+import { NO_AUTOCORRECT, Badge, Button, IconButton, Select, TextInput, openContextMenu, type SelectOption } from "@/kit";
+import { notify } from "@/features/notifications";
+import { usePluginVisibility, visiblePlugins, type PluginHideRule, type PluginVisibility } from "@/features/plugins/visibility";
 import { cmd } from "@/transport";
 import { localizeDescriptor, useT, type MessageKey } from "@/i18n";
 import type { LibraryDevicePayload } from "./libraryDevice";
@@ -118,11 +124,16 @@ export interface DeviceLibraryProps {
   onPick(payload: LibraryDevicePayload): void;
   /** Close the surrounding popover: opening the plugin settings does. */
   onClose?(): void;
+  /**
+   * Rows can also be dragged out (onto a device chain, `LIBRARY_DEVICE_DRAG_TYPE`): the drag
+   * started, and ended (`dropped`: it landed somewhere).
+   */
+  drag?: { onStart(): void; onEnd(dropped: boolean): void };
 }
 
 const ALL_CATEGORIES: ReadonlyArray<DeviceCategory> = ["Instrument", "AudioEffect", "NoteEffect"];
 
-export function DeviceLibrary({ category, categories, accept, pluginsOnly = false, plugins: given, onPick, onClose }: DeviceLibraryProps) {
+export function DeviceLibrary({ category, categories, accept, pluginsOnly = false, plugins: given, onPick, onClose, drag }: DeviceLibraryProps) {
   const t = useT();
   const cats = useMemo<ReadonlyArray<DeviceCategory>>(() => categories ?? (category ? [category] : ALL_CATEGORIES), [categories, category]);
   const single = cats.length === 1 ? cats[0]! : null;
@@ -171,6 +182,12 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
   const sort = useLibraryStats((s) => s.sort);
   const [favouritesOnly, setFavouritesOnly] = useState(false);
   const hiddenFormats = useLibraryStats((s) => s.hiddenFormats);
+  // One format per plugin, the hidden ones out (not in the resolver's nor Replace plugin's list).
+  const filtering = given === undefined && !pluginsOnly;
+  const dedupe = usePluginVisibility((s) => s.dedupe);
+  const preferred = usePluginVisibility((s) => s.preferred);
+  const rules = usePluginVisibility((s) => s.rules);
+  const visibility = useMemo<PluginVisibility | null>(() => (filtering ? { dedupe, preferred, rules } : null), [filtering, dedupe, preferred, rules]);
   const pluginsShown = desktop || given !== undefined || remote !== null;
   // The format toggles: this platform's formats present in the plugin list, when 2 or more.
   const formats = useMemo<PluginFormat[]>(() => {
@@ -192,8 +209,8 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
             .filter((d) => isOffered(d) && cats.includes(d.category))
             .flatMap((d) => builtinEntry(localizeDescriptor(d)) ?? [])
             .filter(ok);
-    const scanned =
-      source === "Factory" || !pluginsShown ? [] : pluginEntries((plugins ?? []).filter((p) => cats.includes(p.category) && !hidden.has(p.format))).filter(ok);
+    const listed = (plugins ?? []).filter((p) => cats.includes(p.category) && !hidden.has(p.format));
+    const scanned = source === "Factory" || !pluginsShown ? [] : pluginEntries(visibility ? visiblePlugins(listed, visibility) : listed).filter(ok);
     // A plugin's formats in toggle order (CLAP, VST2, VST3, AU).
     const rank = (e: Entry) => (e.pluginFormat ? FORMAT_ORDER.indexOf(e.pluginFormat) : -1);
     const byName = (a: Entry, b: Entry) => a.name.localeCompare(b.name) || (a.vendor ?? "").localeCompare(b.vendor ?? "") || rank(a) - rank(b);
@@ -205,9 +222,39 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
           ? (a: Entry, b: Entry) => (used(b)?.last ?? 0) - (used(a)?.last ?? 0) || byName(a, b)
           : byName;
     return [...factory, ...scanned].filter((e) => matches(e, query) && (!favouritesOnly || favourites.has(e.key))).sort(order);
-  }, [builtins, plugins, pluginsShown, hidden, source, cats, accept, pluginsOnly, query, favouritesOnly, favourites, usage, sort, t]);
+  }, [builtins, plugins, pluginsShown, hidden, visibility, source, cats, accept, pluginsOnly, query, favouritesOnly, favourites, usage, sort, t]);
   // The first row is active until the arrows move it (Enter right after typing picks it).
   const activeKey = entries.some((e) => e.key === active) ? active : (entries[0]?.key ?? null);
+
+  /** A plugin row's right-click: hide it from the list (every format, or this one), undoable from the toast. */
+  const hideMenu = (ev: MouseEvent, e: Entry) => {
+    const format = e.pluginFormat!;
+    const hide = (rule: PluginHideRule) => {
+      const vis = usePluginVisibility.getState();
+      if (!vis.hide(rule)) return;
+      notify("Info", t("plugins.visibility.hidden_toast", { name: e.name }), {
+        action: {
+          label: t("plugins.visibility.undo"),
+          onSelect: () => {
+            const i = usePluginVisibility.getState().rules.indexOf(rule);
+            if (i >= 0) usePluginVisibility.getState().removeRule(i);
+          },
+        },
+      });
+    };
+    openContextMenu(ev, [
+      { label: t("plugins.visibility.hide", { name: e.name }), onSelect: () => hide({ name: e.name, vendor: e.vendor ?? "", format: null }) },
+      { label: t("plugins.visibility.hide_format", { format: FORMAT_LABEL[format] }), onSelect: () => hide({ name: e.name, vendor: e.vendor ?? "", format }) },
+      "separator",
+      {
+        label: t("plugins.visibility.settings"),
+        onSelect: () => {
+          onClose?.();
+          openSettings("plugin-list");
+        },
+      },
+    ]);
+  };
 
   const onSearchKey = (ev: KeyboardEvent<HTMLInputElement>) => {
     if (ev.key === "Escape" && query) {
@@ -243,6 +290,7 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
           <TextInput
             size="sm"
             type="search"
+            {...NO_AUTOCORRECT}
             className="eth-devlib__search-input"
             aria-label={t("devices.library.search", { kind: noun })}
             placeholder={t("devices.library.search", { kind: noun })}
@@ -318,8 +366,27 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
               data-key={e.key}
               aria-label={e.name}
               role="button"
-              title={t("devices.library.add", { name: e.name })}
+              title={drag ? t("devices.library.add_or_drag", { name: e.name }) : t("devices.library.add", { name: e.name })}
               onClick={() => onPick(e.payload)}
+              onContextMenu={filtering && e.pluginFormat ? (ev) => hideMenu(ev, e) : undefined}
+              draggable={!!drag}
+              onDragStart={
+                drag &&
+                ((ev) => {
+                  ev.dataTransfer.setData(LIBRARY_DEVICE_DRAG_TYPE, JSON.stringify(e.payload));
+                  ev.dataTransfer.setData("text/plain", e.name);
+                  ev.dataTransfer.effectAllowed = "copy";
+                  setDraggingLibraryDevice(e.payload);
+                  drag.onStart();
+                })
+              }
+              onDragEnd={
+                drag &&
+                ((ev) => {
+                  setDraggingLibraryDevice(null);
+                  drag.onEnd(ev.dataTransfer.dropEffect !== "none");
+                })
+              }
             >
               <span className="eth-devlib__icon" aria-hidden>
                 {e.format ? <Plug /> : ICON[e.payload.category]}

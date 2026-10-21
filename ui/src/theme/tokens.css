@@ -162,6 +162,7 @@
   --eth-size-track-indent: 12px;
   --eth-size-track-badge: 26px;
   --eth-size-track-button: 20px;
+  --eth-size-track-header-button: 20px;
   --eth-size-track-meter-width: 3px;
   --eth-size-track-fader-width: 44px;
   --eth-size-track-fader-thumb: 8px;
@@ -170,6 +171,8 @@
   --eth-size-selected-glow-outer: 24px;
   --eth-size-add-track-height: 32px;
   --eth-size-track-pan-knob: 18px;
+  --eth-size-track-pan-knob-compact: 14px;
+  --eth-size-track-fader-width-compact: 30px;
   --eth-size-piano-zoom-grip: 8px;
   --eth-size-beat-row-height: 28px;
   --eth-size-beat-name-width: 120px;
@@ -199,6 +202,7 @@
   --eth-size-empty-state-icon: 22px;
   --eth-size-project-screen-width: 560px;
   --eth-size-welcome-width: 880px;
+  --eth-size-project-menu-projects-width: 420px;
   --eth-size-download-page-width: 1040px;
   --eth-size-download-primary-height: 64px;
   --eth-size-download-card-min-width: 260px;
@@ -227,7 +231,8 @@
   --eth-size-device-param-room-narrow: 14px;
   --eth-size-device-group-min-width: 220px;
   --eth-size-device-group-min-width-wide: 200px;
-  --eth-size-audio-settings-dialog-width: 520px;
+  --eth-size-audio-settings-dialog-width: 720px;
+  --eth-size-settings-nav-width: 168px;
   --eth-size-audio-settings-meter-name-width: 120px;
   --eth-size-tour-bubble-width: 380px;
   --eth-size-tour-illustration-max-height: 120px;

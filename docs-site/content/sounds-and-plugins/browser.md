@@ -114,7 +114,7 @@ Tags also show on the rows. Click one to filter by it. The active tag filters si
 
 ## choosing which files are listed
 
-By default the browser lists only files Ethereal can use, and hides system and sidecar files. To change that, open **settings**, go to the **general** tab and find **library files**:
+By default the browser lists only files Ethereal can use, and hides system and sidecar files. To change that, open **settings**, go to **general** › **library** and find **library files**:
 
 - **show**: rules for the files to list. With no rules, every file is listed.
 - **hide**: rules for files and folders to leave out. A hide rule wins over a show rule.

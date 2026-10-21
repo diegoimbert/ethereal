@@ -1,11 +1,11 @@
 /**
  * The WebGL2 backend of the arranger renderer (see backend.ts): the instanced pipelines of
  * shaders.ts, with the shared uniforms (`u_view`, `u_canvas`, `u_row`, `u_clip`, `u_bg`) set
- * once per pipeline and frame, `u_row` per lane.
+ * once per pipeline and frame, `u_row` and `u_clip` per lane.
  */
 
 import { mainHeight, type Row } from "../layout";
-import { CLIP_INSET, CLIP_TITLE } from "../laneBodyGeometry";
+import { CLIP_INSET, contentTop } from "../laneBodyGeometry";
 import type { FrameSetup, RenderBackend } from "./backend";
 import { GlContext, type Batch, type Pipeline } from "./glContext";
 import type { GlyphAtlas } from "./glyphAtlas";
@@ -60,7 +60,6 @@ export class WebglBackend implements RenderBackend {
         const bg = f.palette.bg;
         gl.uniform4f(p.uniform(this.ctx, "u_view"), scrollHi, f.scrollBeats - scrollHi, f.pxPerBeat, f.originX);
         gl.uniform4f(p.uniform(this.ctx, "u_canvas"), f.cssWidth, f.cssHeight, f.dpr, f.originY);
-        gl.uniform2f(p.uniform(this.ctx, "u_clip"), CLIP_INSET, CLIP_TITLE);
         gl.uniform3f(p.uniform(this.ctx, "u_bg"), bg[0], bg[1], bg[2]);
         if (p === this.core.text) gl.uniform1i(p.uniform(this.ctx, "u_atlas"), 0);
         if (p === this.core.wave) {
@@ -75,6 +74,8 @@ export class WebglBackend implements RenderBackend {
     if (p === this.core.text) this.atlas.bind(this.ctx, 0);
     if (p === this.core.wave) this.tiles.bind(this.ctx, 1);
     gl.uniform2f(p.uniform(this.ctx, "u_row"), row.y, mainHeight(row));
+    // Per lane: a compact lane has no title band over its clips' content (their fades).
+    gl.uniform2f(p.uniform(this.ctx, "u_clip"), CLIP_INSET, contentTop(mainHeight(row)));
     return true;
   }
 

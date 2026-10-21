@@ -13,9 +13,9 @@ export function LanguageSettings() {
   if (import.meta.env.DEV || locale === PSEUDO_LOCALE) options.push({ value: PSEUDO_LOCALE, label: t("settings.language.pseudo") });
   return (
     <section className="eth-settings__section" aria-label={t("settings.language.heading")} data-testid="settings-language">
-      <h3 className="eth-settings__heading">{t("settings.language.heading")}</h3>
+      {/* The heading names the field: the menu on its line, no second "language" label. */}
       <div className="eth-settings__row">
-        <span>{t("settings.language.heading")}</span>
+        <h3 className="eth-settings__heading">{t("settings.language.heading")}</h3>
         <Select<Locale> size="sm" aria-label={t("settings.language.heading")} options={options} value={locale} onChange={(l) => void setLocale(l)} />
       </div>
       <p className="eth-settings__hint">{t("settings.language.hint")}</p>

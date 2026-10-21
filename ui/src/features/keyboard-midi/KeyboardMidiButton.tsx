@@ -1,6 +1,6 @@
 import "./keyboard-midi.css";
 import { useContext, useEffect } from "react";
-import { Piano } from "lucide-react";
+import { Keyboard } from "lucide-react";
 import { Button } from "@/kit";
 import { useShortcutLabel } from "@/features/keymap";
 import { useProjectStore } from "@/state";
@@ -50,7 +50,7 @@ export function KeyboardMidiButton({ className }: { className?: string }) {
         data-testid="keyboard-midi-toggle"
         onClick={toggleKeyboardMidi}
       >
-        <Piano aria-hidden />
+        <Keyboard aria-hidden />
       </Button>
       {enabled && <KeyboardMidiPopover low={low} velocity={velocity} playing={playing} />}
     </span>

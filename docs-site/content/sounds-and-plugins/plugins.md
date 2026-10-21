@@ -33,7 +33,7 @@ The web version can't load plugins. Its device library lists only Ethereal's bui
 
 ## where ethereal looks for plugins
 
-Open **settings** and go to the **plugins** tab.
+Open **settings**, then **plugins › folders & scan**.
 
 - **system folders**: the standard plugin folders of your computer, one row per format. A folder that doesn't exist is marked **not found**. The **scan** switch is on by default. Turning it off skips these folders and, on macOS, Audio Units.
 - **your folders**: click **add folder…** to scan a folder of your own, for example a drive where you keep plugins. Each folder can be limited to one format, or left on **any format**. Click **×** to remove a folder.
@@ -51,7 +51,11 @@ When some plugins couldn't be loaded, the scan row says how many and shows **fai
 
 ## the same plugin in several formats
 
-If a plugin is installed in several formats (for example as CLAP and VST3), the device library lists it once per format, each with a format chip. When the list holds two or more formats, toggles for each format appear at the top of the library. Turn off the formats you don't use to hide them, in the list and in its search. At least one format always stays on, and Ethereal remembers your choice.
+If a plugin is installed in several formats (for example as CLAP, VST3 and AU), the device library lists it once, in your preferred format: CLAP first, then VST3, AU and VST2. You choose it in **settings › plugins › plugin list**, under **preferred format**. To pick a specific format of a plugin, turn off **show each plugin once**: the library then lists each format, each with a format chip. The import resolver and **replace device…** always list every format.
+
+When the list holds two or more formats, toggles for each format appear at the top of the library. Turn off the formats you don't use to hide them, in the list and in its search. At least one format always stays on, and Ethereal remembers your choice.
+
+To hide a plugin, right-click it in the device library and choose **hide …** (every format) or **hide this … version** (that format only: another format of the plugin is listed instead). The toast that follows can undo it. The hidden plugins are listed under **hidden plugins** in **settings › plugins › plugin list**, where **×** shows one again.
 
 ## opening a plugin's window
 
@@ -82,10 +86,10 @@ Sandboxing adds one audio block of latency. To switch back, right-click the head
 
 ## opening a project without plugins
 
-If a project crashes or hangs because of a plugin, open it without plugins. Right-click the project in the project list (or click its **…** button) and choose **open without plugins**. The crash recovery dialog offers the same button. Every plugin is kept as a bypassed placeholder with its settings saved, marked **safe mode · bypassed**, and the top bar says **plugins disabled (safe mode)**. Then:
+If a project crashes or hangs because of a plugin, open it without plugins. Right-click the project in the project list (or click its **…** button) and choose **open without plugins**. The crash recovery dialog offers the same button. Every plugin is kept as a bypassed placeholder with its settings saved, marked **safe mode · bypassed**, and the status bar at the bottom says **plugins disabled (safe mode)**. Then:
 
 - click **⟳** on one device to load just that plugin, or
-- click **load plugins** in the top bar to load them all.
+- click **load plugins** in the status bar to load them all.
 
 See [safe mode](/docs/advanced/safe-mode) for more.
 
@@ -96,7 +100,7 @@ If a project uses a plugin that isn't installed on this computer, Ethereal keeps
 1. Install the plugin, then **rescan** in **settings › plugins**.
 2. The device now shows **found · reload**. Click it to load the plugin with the sound saved in the project.
 
-To use another plugin instead, right-click the **missing · bypassed** badge or the device's header and choose **resolve…**. Right-click any plugin's header and choose **replace plugin…** to swap it for another installed plugin. Values and automation carry over to parameters with the same name. See [missing plugins and samples](/docs/sounds-and-plugins/missing-plugins-and-samples).
+To use another plugin instead, right-click the **missing · bypassed** badge or the device's header and choose **resolve…**. Right-click any device's header and choose **replace device…** to swap it for another device of the same kind (an effect for an effect, an instrument for an instrument), factory or plugin: a popover under the header lists them like the device library, and a click replaces at once. With **retain automations and parameters** (hover it for what it keeps), values and automation carry over to parameters with the same name; racks can't be replaced. See [missing plugins and samples](/docs/sounds-and-plugins/missing-plugins-and-samples).
 
 ## how plugin sounds are saved
 

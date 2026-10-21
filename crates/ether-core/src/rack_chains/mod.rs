@@ -32,6 +32,9 @@
 //!   note-ons). `mute` already includes solo resolution (controller).
 //! - **PDC.** Every chain is aligned to the longest chain ([`chain_latency`], which the rack
 //!   entry reports on top of the rack node's own latency).
+//! - **Order.** Chains run in the desc's order: the controller puts a chain keyed by another
+//!   chain of the same rack first (`Project::chain_order`), so its points (`ScPoint::ChainIn`,
+//!   `After`, `ChainRaw`: before the alignment) are written when the other one reads them.
 //! - **Nesting.** A chain entry may itself be a rack listed in the same `chain_racks` (the
 //!   controller lists nested racks too; the model limits the depth): its chains run before
 //!   its node exactly like at a track-chain entry, and its longest chain counts in the
@@ -770,6 +773,9 @@ impl ChainRacksRt {
             if midi {
                 continue;
             }
+            // Before the alignment: what a later chain of this rack keys from.
+            sc.points
+                .write(ScPoint::ChainRaw(chain.id.0.0), &chain.a, n);
             {
                 let [l, rr] = &mut chain.a;
                 chain.delay.process(&mut l[..n], &mut rr[..n]);

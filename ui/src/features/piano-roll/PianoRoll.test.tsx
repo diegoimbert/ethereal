@@ -139,11 +139,11 @@ describe("PianoRoll", () => {
   it("edits project and custom track scales independently and can undo them", async () => {
     const { clip } = await setup();
     const track = store().project!.clips[clip]!.track;
-    expect(screen.getByTestId("scale-trigger")).toHaveTextContent("scale…");
+    expect(screen.getByTestId("scale-trigger")).toHaveTextContent("scale");
     expect(scaleControl("active scale type")).toHaveTextContent("chromatic / none");
     await pickScale("active scale type", "Minor");
     expect(store().project!.settings.scale).toEqual({ root: 0, kind: "Minor" });
-    expect(screen.getByTestId("scale-trigger")).toHaveTextContent("C minor…");
+    expect(screen.getByTestId("scale-trigger")).toHaveTextContent("C minor");
     expect(screen.getByTestId("scale-popover")).toHaveTextContent("project");
     await pickScale("track scale mode", "Custom");
     await pickScale("active scale root", "9");
@@ -301,7 +301,6 @@ describe("PianoRoll", () => {
     // The velocity sets the opacity (0.8 → 0.89).
     expect(drawnNote(a)!.opacity).toBeCloseTo(0.45 + 0.55 * 0.8);
     expect(screen.getByTestId("piano-roll-keys").textContent).toContain("C3");
-    expect(screen.getByTestId("piano-roll-step").textContent).toBe("1/4");
   });
 
   it("double-click and drag sets the new note's length", async () => {
@@ -424,7 +423,7 @@ describe("PianoRoll", () => {
     await drag(grid(), [x(2) - 1, y(60)], [x(2.3) - 1, y(60)], { altKey: true });
     expect(notesOf(clip).find((n) => n.id === a)!.duration).toBeCloseTo(1.3);
     // Draw mode: an alt press draws off the grid.
-    fireEvent.click(screen.getByRole("button", { name: "draw" }));
+    fireEvent.keyDown(screen.getByTestId("piano-roll"), { key: "b", code: "KeyB" }); // draw mode (B)
     fireEvent.pointerDown(grid(), { button: 0, clientX: x(5.3), clientY: y(67), altKey: true });
     fireEvent.pointerUp(window, { clientX: x(5.3), clientY: y(67), altKey: true });
     await flush();
@@ -510,7 +509,7 @@ describe("PianoRoll", () => {
     fireEvent.keyDown(window, { key: "Alt", altKey: true });
     expect(grid().style.cursor).toBe("ns-resize");
     fireEvent.keyUp(window, { key: "Alt", altKey: false });
-    fireEvent.click(screen.getByRole("button", { name: "draw" }));
+    fireEvent.keyDown(screen.getByTestId("piano-roll"), { key: "b", code: "KeyB" }); // draw mode (B)
     expect(hover(x(5), y(60))).toBe("crosshair");
     expect(hover(x(1.5), y(60))).toBe("move");
   });
@@ -660,7 +659,7 @@ describe("PianoRoll", () => {
     await doublePress(x(6.6), y(71));
     expect(notesOf(clip).find((n) => n.pitch === 71)!.velocity).toBeCloseTo(1);
     // Draw mode too, from the note just drawn (itself the last touched one).
-    fireEvent.click(screen.getByRole("button", { name: "draw" }));
+    fireEvent.keyDown(screen.getByTestId("piano-roll"), { key: "b", code: "KeyB" }); // draw mode (B)
     await drag(grid(), [x(5.2), y(48)], [x(5.2), y(48)]);
     expect(notesOf(clip).find((n) => n.pitch === 48)!.velocity).toBeCloseTo(1);
     expect(notesOf(clip).find((n) => n.id === b)!.velocity).toBe(0.5);
@@ -668,7 +667,7 @@ describe("PianoRoll", () => {
 
   it("draw mode: a drag draws a note and extends it, as one undo step", async () => {
     const { clip } = await setup();
-    fireEvent.click(screen.getByRole("button", { name: "draw" }));
+    fireEvent.keyDown(screen.getByTestId("piano-roll"), { key: "b", code: "KeyB" }); // draw mode (B)
     await drag(grid(), [x(5.2), y(48)], [x(7.1), y(48)]);
     const drawn = notesOf(clip).find((n) => n.pitch === 48)!;
     expect(drawn).toMatchObject({ start: 5, duration: 3 });

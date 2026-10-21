@@ -210,42 +210,34 @@
   align-self: flex-end;
 }
 
-/* ── Replace plugin… ──────────────────────────────────────────────── */
+/* ── Replace device… (ReplacePopover) ─────────────────────────────── */
 
-.eth-replace-dialog {
-  --dialog-width: min(var(--eth-size-dialog-width), calc(100vw - 2 * var(--eth-space-lg)));
+/* Where the popover hangs: under the device card's header, taking no room. */
+.eth-device__replace-anchor {
+  height: 0;
 }
-
-.eth-replace__plugin {
+.eth-replace {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+/* "Retain automations and parameters" above the library; what it keeps is its tooltip (the
+   info icon says there is one). */
+.eth-replace__options {
   display: flex;
   align-items: center;
   gap: var(--eth-space-sm);
   padding: var(--eth-space-sm);
-  border: var(--eth-border-width) solid var(--eth-color-border-light);
-  border-radius: var(--eth-radius-sm);
-  background: var(--eth-color-bg-inset);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
 }
-
-.eth-replace__arrow {
-  align-self: center;
-}
-
-.eth-replace .eth-resolver__why {
-  grid-column: auto;
+.eth-replace__info {
+  flex: none;
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+  color: var(--eth-color-text-dim);
+  cursor: help;
 }
 
 .eth-resolver__autoshow {
   margin-right: auto;
-}
-
-/* The top bar's "N missing": reachable after the dialog. */
-.eth-missing-badge {
-  color: var(--eth-color-warn);
-  gap: var(--eth-space-xs);
-  white-space: nowrap;
-}
-
-.eth-missing-badge__icon {
-  width: var(--eth-size-icon-md);
-  height: var(--eth-size-icon-md);
 }

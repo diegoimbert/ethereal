@@ -1,5 +1,5 @@
 //! Factory templates (`"factory/<slug>"`, read-only), built in code: track templates from
-//! the built-in devices at their default settings, and the example projects (`examples`). Their entity ids come from a fixed seed
+//! the built-in devices at their default settings. Their entity ids come from a fixed seed
 //! (they are replaced by `derive_id(seed, i)` on insert anyway).
 
 use std::collections::BTreeMap;
@@ -151,22 +151,14 @@ fn reverb_return() -> Template {
     b.finish("reverb return", &["return"], "return track with a reverb.")
 }
 
-/// Every factory template: `(slug, template)`, in listing order: the track templates, then
-/// the example projects ([`super::examples`]).
+/// Every factory template: `(slug, template)`, in listing order.
 pub fn all() -> Vec<(&'static str, Template)> {
-    let mut all = vec![
+    vec![
         ("vocal-chain", vocal_chain()),
         ("synth-keys", synth_keys()),
         ("drum-bus", drum_bus()),
         ("reverb-return", reverb_return()),
-    ];
-    // Each one builds (examples.rs tests); one that didn't would be left out of the list.
-    for (i, ex) in super::examples::all().iter().enumerate() {
-        if let Ok(t) = super::examples::template(ex, 0xE8_00 + i as u64) {
-            all.push((ex.slug, t));
-        }
-    }
-    all
+    ]
 }
 
 pub fn get(slug: &str) -> Option<Template> {

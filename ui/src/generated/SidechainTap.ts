@@ -20,8 +20,11 @@ import type { SidechainChain } from "./SidechainChain";
  * Rules (model invariants): the chain must be on the source track. When the source is the
  * device's own track, only signals finished before the device runs are allowed (anything
  * else would be a cycle): the track's `PreFx`, or a chain of a rack that comes before the
- * device (or before the rack/pad holding it) in the same chain. A rack never keys its own
- * chain devices; chains of the same rack never key each other.
+ * device (or before the rack/pad holding it) in the same chain, or another chain of a rack
+ * the device is in (any depth): the keyed chain runs first (`Project::chain_order`; chains
+ * never key each other in a loop), and a chain of the rack holding the device is tapped
+ * before the rack's alignment, so only its `PreFx` / `PostFx` (not `PostFader`). A device
+ * never keys its own chain of a rack holding it; pads of a drum rack never key each other.
  */
 export type SidechainTap = { point: InputTap, 
 /**

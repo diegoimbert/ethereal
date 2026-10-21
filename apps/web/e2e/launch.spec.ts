@@ -5,7 +5,7 @@
 // plugins" (safe mode) holds plugin devices as placeholders until "Load plugins".
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { createOnLaunch, createTrack, openOnLaunch, openProjectScreen, playButton, projectScreen } from "./ui";
+import { createOnLaunch, createTrack, openOnLaunch, openProjectScreen, playButton, projectScreen, settingsPage } from "./ui";
 
 interface Handle {
   state(): { project: Project | null; safeMode: string[] };
@@ -42,7 +42,7 @@ const trackCount = (page: Page) => state(page).then((s) => (s.project ? Object.k
 async function setReopenLast(page: Page, on: boolean): Promise<void> {
   await page.getByRole("button", { name: "settings", exact: true }).click();
   const settings = page.getByRole("dialog", { name: "settings" });
-  await settings.getByRole("tab", { name: "general" }).click();
+  await settingsPage(settings, "general");
   const toggle = settings.getByRole("switch", { name: "reopen last project on launch" });
   await expect(toggle).toHaveAttribute("aria-checked", on ? "false" : "true");
   await toggle.click();

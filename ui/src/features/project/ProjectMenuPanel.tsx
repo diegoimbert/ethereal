@@ -18,6 +18,9 @@ import { appProjectCommands, byId, deleteOpenProject, openProjectCommands } from
 import { docsCommands } from "@/features/docs/commands";
 import { newsCommands } from "@/features/news";
 import { Trans, useT } from "@/i18n";
+import { RecentProjects } from "./ProjectScreen";
+import { GetStarted } from "./GetStarted";
+import { useMobileUi } from "@/features/mobile/mode";
 
 /** Which submenu of the project menu is open (one at a time), shared by its items. */
 const OpenSub = createContext<{ open: string | null; setOpen(label: string | null): void }>({ open: null, setOpen: () => {} });
@@ -50,8 +53,23 @@ const SUBMENU_CLOSE_MS = 150;
 /**
  * A menu item that opens `children` as a submenu at its side: on hover, a click, Enter, Space
  * or →. Inside it ↑/↓ move, ← or Escape close it back to its item. One submenu at a time.
+ * `panel`: the submenu is a panel of its own (e.g. the recent projects with their search),
+ * not menu items: opened from the keyboard its first field gets the focus, ← or Escape still
+ * close it.
  */
-function SubMenu({ label, tour, children }: { label: string; tour?: string; children: ReactNode }) {
+function SubMenu({
+  label,
+  tour,
+  panel: isPanel,
+  className,
+  children,
+}: {
+  label: string;
+  tour?: string;
+  panel?: boolean;
+  className?: string;
+  children: ReactNode;
+}) {
   const sub = useContext(OpenSub);
   const open = sub.open === label;
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -70,7 +88,7 @@ function SubMenu({ label, tour, children }: { label: string; tour?: string; chil
   };
   const openAndFocus = () => {
     show();
-    requestAnimationFrame(() => menuItems(panel.current)[0]?.focus());
+    requestAnimationFrame(() => (isPanel ? panel.current?.querySelector<HTMLElement>("input, button") : menuItems(panel.current)[0])?.focus());
   };
   return (
     <div className="eth-project-menu__sub" data-tour={tour} onMouseEnter={show} onMouseLeave={hide}>
@@ -99,12 +117,13 @@ function SubMenu({ label, tour, children }: { label: string; tour?: string; chil
         // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- a menu: focus is on its items (roving, menuKeyDown)
         <div
           ref={panel}
-          className="eth-menu eth-project-menu__submenu"
-          role="menu"
+          className={clsx("eth-menu eth-project-menu__submenu", isPanel && "eth-project-menu__panel", className)}
+          role={isPanel ? "dialog" : "menu"}
           aria-label={label}
           onKeyDown={(e) => {
-            if (menuKeyDown(e, panel.current)) return;
-            if (e.key !== "ArrowLeft" && e.key !== "Escape") return;
+            if (!isPanel && menuKeyDown(e, panel.current)) return;
+            // In a panel ← moves in its fields: Escape alone closes it.
+            if (isPanel ? e.key !== "Escape" : e.key !== "ArrowLeft" && e.key !== "Escape") return;
             e.preventDefault();
             e.stopPropagation();
             sub.setOpen(null);
@@ -129,6 +148,7 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
   const confirmRef = useRef<HTMLDivElement>(null);
   const missing = useMissingCount();
   const entries = useContributions("project.menu");
+  const mobile = useMobileUi((s) => s.enabled);
   // Opens like the kit menus: the first item focused, then ↑/↓/Home/End.
   useFocusFirstItem(ref);
   // The delete confirmation replaces its item: keep the keyboard on it (its cancel).
@@ -195,8 +215,19 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
         aria-label={t("project.menu.label")}
         onKeyDown={(e) => menuKeyDown(e, ref.current)}
       >
+        {item("app:settings")}
+        <Separator />
         {item("project:new")}
-        {item("project:open")}
+        {/* The recent projects (the welcome screen's), as a submenu; on a phone or tablet (no
+            room beside the menu) "open project…" opens the project screen. */}
+        {mobile ? (
+          item("project:open")
+        ) : (
+          <SubMenu label={t("project.menu.open_project")} panel className="eth-project-menu__wide">
+            {/* The search takes the focus when it opens: type to find a project. */}
+            <RecentProjects commands={commands} onDone={close} focusSearch />
+          </SubMenu>
+        )}
         {extra("start")}
         {project && (
           <>
@@ -263,8 +294,15 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
         <Separator />
         {/* docs: the user documentation (in the app on desktop, /docs in a new tab on the web). */}
         {item("app:docs")}
-        {/* the example beats, on the welcome screen. */}
-        {item("app:examples")}
+        {/* tutorials: the guided tours, the welcome screen's "get started", as a submenu (none
+            on mobile: tours are desktop and web only). */}
+        {!mobile && (
+          <SubMenu label={t("project.menu.tutorials")} panel className="eth-project-menu__wide">
+            <GetStarted commands={commands} onStarted={close} />
+          </SubMenu>
+        )}
+        {/* The welcome (splash) screen itself. */}
+        {item("app:splash")}
         {/* news: past announcements (docs/NEWS.md). */}
         {item("app:news")}
         {extra("app")}

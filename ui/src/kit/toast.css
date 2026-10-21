@@ -26,13 +26,29 @@
   pointer-events: auto;
   animation: eth-context-menu-in var(--context-menu-enter-duration) var(--context-menu-enter-ease) both;
 }
-/* The accent stripe (e.g. the author's colour). */
-.eth-toast::before {
-  content: "";
-  flex: none;
-  align-self: stretch;
-  width: var(--eth-border-width-strong);
+/* Time left before it goes: a hairline along the bottom in the accent (e.g. the author's
+   colour), shrinking to nothing; paused while hovered, like the timer (Toast.tsx). */
+.eth-toast__life {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--eth-border-width);
   background: var(--eth-toast-accent);
+  transform-origin: left;
+  animation: eth-toast-life var(--eth-toast-life) linear both;
+  pointer-events: none;
+}
+.eth-toast:hover .eth-toast__life {
+  animation-play-state: paused;
+}
+@keyframes eth-toast-life {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
 }
 .eth-toast__body {
   display: flex;
@@ -72,6 +88,43 @@
   overflow-wrap: anywhere;
   white-space: pre-line;
 }
+.eth-toast__action {
+  flex: none;
+  align-self: center;
+  height: var(--eth-size-control-md);
+  padding: 0 var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-raised);
+  color: var(--eth-color-text);
+  font: inherit;
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.eth-toast__action:hover {
+  background: var(--eth-color-bg-hover);
+}
+.eth-toast__action:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+}
+/* Below the stack: "see all messages" when toasts left it unseen (NotificationToasts.tsx). */
+.eth-toast-more {
+  align-self: flex-end;
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--popover-border);
+  border-radius: var(--eth-radius-pill);
+  background: var(--popover-bg);
+  box-shadow: var(--popover-shadow);
+  color: var(--eth-color-text);
+  font: inherit;
+  font-size: var(--eth-fs-xs);
+  pointer-events: auto;
+  cursor: pointer;
+}
+.eth-toast-more:hover {
+  background: var(--eth-color-bg-hover);
+}
 .eth-toast__close {
   display: inline-flex;
   flex: none;
@@ -97,6 +150,10 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .eth-toast {
+    animation: none;
+  }
+  /* No shrinking bar: a still one in the accent. */
+  .eth-toast__life {
     animation: none;
   }
 }

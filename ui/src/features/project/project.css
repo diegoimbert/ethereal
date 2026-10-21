@@ -115,28 +115,12 @@
   gap: var(--eth-space-xl);
   align-items: start;
 }
-/* The left column: get started, then the example beats. */
-.eth-welcome__guides {
-  display: flex;
-  flex-direction: column;
-  gap: var(--eth-space-lg);
-  min-width: 0;
-}
-/* An example: the row opens it, "show me how" next to it starts its tour. */
-.eth-welcome__example {
-  align-items: center;
-  gap: var(--eth-space-xs);
-}
-.eth-welcome__example-guide {
-  flex: none;
-}
-.eth-welcome__example-guide[data-done] .lucide {
-  color: var(--eth-color-ok);
-}
+/* The left column: get started. */
 .eth-welcome__start {
   display: flex;
   flex-direction: column;
   gap: var(--eth-space-xs);
+  min-width: 0;
 }
 .eth-welcome__articles {
   display: flex;
@@ -181,17 +165,15 @@
 }
 .eth-welcome__article--tour {
   flex: 1;
-  border: var(--eth-space-hair) solid transparent;
+  border: none;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition:
-    background var(--eth-duration-fast) var(--eth-ease-standard),
-    border-color var(--eth-duration-fast) var(--eth-ease-standard);
+  transition: background var(--eth-duration-fast) var(--eth-ease-standard);
 }
+/* Borderless: the hover only lightens it. */
 .eth-welcome__article--tour:hover:not(:disabled) {
-  border-color: var(--eth-color-border);
   background: var(--eth-color-bg-hover);
 }
 .eth-welcome__article--tour:focus-visible {
@@ -200,6 +182,13 @@
 }
 .eth-welcome__article--tour:disabled {
   cursor: progress;
+}
+/* The light theme: pure white cards, a touch darker on hover. */
+[data-theme="light"] .eth-welcome__article {
+  background: var(--eth-ink-light);
+}
+[data-theme="light"] .eth-welcome__article--tour:hover:not(:disabled) {
+  background: var(--eth-color-bg-hover);
 }
 .eth-welcome__done {
   display: inline-flex;
@@ -322,6 +311,10 @@
   max-height: 40vh;
   overflow: auto;
 }
+/* The welcome screen's list: a little shorter (the screen stays compact with many projects). */
+.eth-welcome .eth-project-screen__list {
+  max-height: 34vh;
+}
 .eth-project-screen__item {
   display: flex;
   align-items: center;
@@ -432,27 +425,6 @@
   justify-self: end;
 }
 
-/* Safe mode: plugins held as placeholders until "Load plugins". */
-.eth-safe-mode {
-  display: flex;
-  align-items: center;
-  gap: var(--eth-space-sm);
-  padding: var(--eth-space-xs) var(--eth-space-xs) var(--eth-space-xs) var(--eth-space-sm);
-  border: var(--eth-border-width) solid var(--eth-color-warn);
-  border-radius: var(--eth-radius-md);
-  background: var(--eth-color-bg-raised);
-  color: var(--eth-color-warn);
-  white-space: nowrap;
-}
-.eth-safe-mode__icon {
-  width: var(--eth-size-icon-sm);
-  height: var(--eth-size-icon-sm);
-  flex: none;
-}
-.eth-safe-mode__text {
-  font-weight: var(--eth-fw-medium);
-}
-
 .eth-project__menu {
   color: var(--eth-color-text-dim);
   border-radius: var(--eth-radius-lg);
@@ -523,6 +495,15 @@
   border-radius: var(--popover-radius);
   box-shadow: var(--popover-shadow);
   animation: eth-context-menu-in var(--context-menu-enter-duration) var(--context-menu-enter-ease) both;
+}
+/* A submenu that is a panel of its own: the recent projects (their search and list), the
+   tutorials (Get started). */
+.eth-project-menu__wide {
+  width: var(--eth-size-project-menu-projects-width);
+  padding: var(--eth-space-sm);
+}
+.eth-project-menu__wide .eth-project-screen__list {
+  max-height: 50vh;
 }
 
 /* Shown before the engine is up. A quiet line by the version; the recent projects are

@@ -1,6 +1,13 @@
-/* A roomier dialog than the default; the content fills it and never overflows it. */
+/* A roomier dialog than the default; the content fills it and never overflows it. One fixed
+   height whatever the tab (switching tabs never resizes it): the tabs stay, the panel scrolls. */
 .eth-audio-settings {
   --dialog-width: var(--eth-size-audio-settings-dialog-width);
+  height: min(calc(var(--eth-size-detail-height) * 2), calc(100vh - 2 * var(--eth-space-xl)));
+}
+.eth-audio-settings > .eth-dialog__body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .eth-audio-settings__body {
   display: flex;
@@ -77,20 +84,91 @@
   }
 }
 
-/* Settings tabs (Audio | Sharing | Advanced). */
+/* Settings: the categories' sidebar (a category with several pages lists them under it
+   when open), and the page. */
 .eth-settings {
   display: flex;
+  flex: 1;
+  gap: var(--eth-space-xl);
+  min-width: 0;
+  min-height: 0;
+}
+.eth-settings__nav {
+  display: flex;
+  flex: none;
   flex-direction: column;
-  gap: var(--eth-space-lg);
-  min-width: 0;
+  gap: var(--eth-space-hair);
+  width: var(--eth-size-settings-nav-width);
+  overflow-y: auto;
 }
-.eth-settings__tabs {
-  align-self: flex-start;
+.eth-settings__nav-item {
+  display: block;
+  width: 100%;
+  padding: var(--eth-space-sm) var(--eth-space-md);
+  border: none;
+  border-radius: var(--eth-radius-md);
+  background: transparent;
+  color: var(--eth-color-text-dim);
+  font: inherit;
+  font-size: var(--eth-fs-sm);
+  text-align: left;
+  cursor: pointer;
 }
+.eth-settings__nav-item:hover {
+  background: var(--eth-color-bg-hover);
+  color: var(--eth-color-text);
+}
+.eth-settings__nav-item[data-current] {
+  color: var(--eth-color-text);
+}
+/* The page shown: a category alone, or the page under its open category. */
+.eth-settings__nav-item[aria-current="page"] {
+  background: var(--eth-color-bg-active);
+}
+.eth-settings__nav-item:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: calc(-1 * var(--eth-focus-ring-width));
+}
+/* A category's pages: folded to no height, unfolding (and fading in) when it opens. */
+.eth-settings__nav-pages {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--eth-duration-medium) var(--eth-ease-out),
+    opacity var(--eth-duration-medium) var(--eth-ease-out);
+}
+.eth-settings__nav-pages[data-open] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.eth-settings__nav-pages-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-hair);
+  min-height: 0;
+  overflow: hidden;
+  padding-left: var(--eth-space-md);
+}
+.eth-settings__nav-pages[data-open] .eth-settings__nav-pages-inner {
+  padding-block: var(--eth-space-hair) var(--eth-space-sm);
+}
+.eth-settings__nav-pages-inner > .eth-settings__nav-item {
+  transform: translateY(calc(-1 * var(--eth-space-sm)));
+  transition: transform var(--eth-duration-medium) var(--eth-ease-out);
+}
+.eth-settings__nav-pages[data-open] .eth-settings__nav-pages-inner > .eth-settings__nav-item {
+  transform: none;
+}
+.eth-settings__nav-page {
+  font-size: var(--eth-fs-xs);
+}
+
 .eth-settings__panel {
+  flex: 1;
   min-width: 0;
-  /* Switching tabs keeps the dialog from jumping much. */
-  min-height: var(--eth-size-detail-height);
+  min-height: 0;
+  overflow-y: auto;
 }
 .eth-settings__stack {
   display: flex;
@@ -142,4 +220,23 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--eth-space-md);
+}
+
+/* A section still loading (SettingsPlaceholder): muted bars at the content's height. */
+.eth-settings__placeholder {
+  gap: var(--eth-space-sm);
+}
+.eth-settings__placeholder-heading,
+.eth-settings__placeholder-line {
+  display: block;
+  height: var(--eth-fs-md);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+}
+.eth-settings__placeholder-heading {
+  width: 30%;
+}
+.eth-settings__placeholder-line {
+  width: 85%;
+  height: var(--eth-size-control-sm);
 }

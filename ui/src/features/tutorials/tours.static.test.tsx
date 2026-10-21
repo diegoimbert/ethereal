@@ -11,7 +11,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { zIndex } from "@/theme/tokens";
 import { HOST_TARGETS, PLATFORM_ENVS } from "./targets";
-import { EXAMPLES, TOURS } from "./tours";
+import { TOURS } from "./tours";
 import { textOf, type TourContext, type TourDef, type TourPlatform, type TourStep } from "./types";
 import { visibleSteps } from "./store";
 
@@ -62,7 +62,7 @@ const plain = (node: unknown) => (isValidElement(node) ? renderToStaticMarkup(no
 
 describe("tour definitions", () => {
   it("found the tours and the data-tour names (sanity)", () => {
-    expect(tours.length).toBeGreaterThanOrEqual(3);
+    expect(tours.length).toBeGreaterThanOrEqual(2);
     expect(DECLARED.names.size).toBeGreaterThan(10);
   });
 
@@ -128,17 +128,8 @@ describe("tour definitions", () => {
 
   it("every tour is offered on the welcome screen", () => {
     const getStarted = read(join(SRC, "features/project/GetStarted.tsx"));
-    // The example beats' tours are offered by the examples section (Examples.tsx lists EXAMPLES).
-    const examples = new Set(EXAMPLES.map((e) => e.tour));
-    const unlisted = tours.filter((t) => !examples.has(t) && !new RegExp(`tour:\\s*${exportName(t)}\\b`).test(getStarted)).map((t) => t.id);
+    const unlisted = tours.filter((t) => !new RegExp(`tour:\\s*${exportName(t)}\\b`).test(getStarted)).map((t) => t.id);
     expect(unlisted, "tours missing from GetStarted.tsx's ARTICLES").toEqual([]);
-    expect(read(join(SRC, "features/project/Examples.tsx"))).toMatch(/EXAMPLES\.map\(/);
-    expect(read(join(SRC, "features/project/ProjectScreen.tsx"))).toMatch(/<Examples\b/);
-    // Every example's tour is listed (TOURS), and makes the example's own project.
-    for (const e of EXAMPLES) {
-      expect(TOURS[e.tour.id], e.slug).toBe(e.tour);
-      expect(e.tour.project, e.slug).toEqual({ template: e.template });
-    }
   });
 
   it("renders every step's text on every platform it runs on, without overflowing the bubble", () => {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Command, Device } from "@/generated";
-import { Badge, Button, openContextMenu, type ContextMenuEntry } from "@/kit";
+import { RotateCw } from "lucide-react";
+import { Badge, Button, IconButton, openContextMenu, type ContextMenuEntry } from "@/kit";
 import { resolvePluginEntries } from "@/features/import-resolver/menus";
 import { useProjectStore } from "@/state";
 import { cmd, useTransport, type EngineTransport } from "@/transport";
@@ -74,16 +75,15 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
               {t("plugins.device.safe_mode")}
             </span>
           </Badge>
-          <Button
+          <IconButton
             size="sm"
-            variant="ghost"
+            tone="ghost"
             disabled={busy}
-            aria-label={t("plugins.device.load", { name })}
+            label={t("plugins.device.load", { name })}
             title={t("plugins.device.load_hint")}
+            icon={<RotateCw />}
             onClick={load}
-          >
-            ⟳
-          </Button>
+          />
         </>
       ) : missing ? (
         <>
@@ -97,16 +97,15 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
               {t("plugins.device.missing")}
             </span>
           </Badge>
-          <Button
+          <IconButton
             size="sm"
-            variant="ghost"
+            tone="ghost"
             disabled={busy}
-            aria-label={t("plugins.device.reload", { name })}
+            label={t("plugins.device.reload", { name })}
             title={t("plugins.device.reload_missing_hint")}
+            icon={<RotateCw />}
             onClick={reload}
-          >
-            ⟳
-          </Button>
+          />
         </>
       ) : found ? (
         <Button
@@ -125,16 +124,15 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
           <span className="eth-plugin-controls__crashed" role="status" title={crash}>
             {t("plugins.device.crashed")}
           </span>
-          <Button
+          <IconButton
             size="sm"
-            variant="ghost"
+            tone="ghost"
             disabled={busy}
-            aria-label={t("plugins.device.reload", { name })}
+            label={t("plugins.device.reload", { name })}
             title={t("plugins.device.reload_crashed_hint")}
+            icon={<RotateCw />}
             onClick={reload}
-          >
-            ⟳
-          </Button>
+          />
         </>
       ) : null}
       {error && (

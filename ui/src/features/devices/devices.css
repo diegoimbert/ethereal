@@ -114,8 +114,7 @@
 .eth-device__power[aria-pressed="false"] {
   color: var(--eth-color-text-dim);
 }
-/* Move/remove appear on hover (and stay reachable by keyboard). */
-/* Move and remove: always shown. */
+/* Move and remove: always shown (the parameters button on hover, below). */
 .eth-device__actions {
   display: flex;
   gap: var(--eth-space-xs);
@@ -544,6 +543,21 @@
   margin-inline-start: 0;
   opacity: 1;
 }
+/* The parameters button, like them: shown while the header is hovered or focused, or the
+   parameters are open (no room taken otherwise; it sits left of the remove button, which
+   stays put). */
+@media (hover: hover) {
+  .eth-device__header:not(:hover, :focus-within) .eth-device__params-toggle[aria-expanded="false"] {
+    /* Hidden like them: no width (the actions' gap taken back), still focusable and announced. */
+    width: 0;
+    min-width: 0;
+    padding: 0;
+    border-width: 0;
+    margin-inline-end: calc(var(--eth-space-xs) * -1);
+    overflow: hidden;
+    opacity: 0;
+  }
+}
 /* Touch (no hover): always shown. */
 @media (hover: none) {
   .eth-device__on-hover {
@@ -638,4 +652,9 @@
 }
 :root:not([data-translucency="off"]) .eth-eq .eth-plot.eth-plot--eq {
   background: color-mix(in srgb, var(--eth-color-bg-inset) 55%, transparent);
+}
+
+/* A cut card (⌘X): dimmed until pasted (the paste moves it). */
+.eth-device--cut {
+  opacity: var(--eth-opacity-muted);
 }

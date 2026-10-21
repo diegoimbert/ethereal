@@ -8,6 +8,7 @@ import { ConnectDialog, ENGINE_SERVER_SHOWN_KEY, reloadEngineServerShown, Remote
 import { URL_KEY } from "./engineServer";
 import { buildCommands } from "@/app/shell/commands";
 import { useAudioSettings } from "@/features/audio-settings/store";
+import { useNotices } from "@/features/notifications";
 
 /**
  * A WebSocket whose "server" is a MockTransport (the remote engine): hello with token
@@ -173,7 +174,13 @@ describe("ConnectDialog", () => {
     await waitFor(() => expect(screen.getByTestId("probe").dataset.kind).toBe("mock"), {
       timeout: 5000,
     });
-    expect(screen.getByRole("alert").textContent).toMatch(/connection to studio lost/);
+    // Why, as a toast.
+    expect(
+      useNotices
+        .getState()
+        .notices.map((n) => n.message)
+        .join(),
+    ).toMatch(/connection to studio lost/);
   });
 });
 

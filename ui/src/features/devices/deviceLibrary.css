@@ -216,3 +216,13 @@
   padding-bottom: var(--eth-space-sm);
   border-bottom: var(--eth-border-width) solid var(--eth-color-border-light);
 }
+
+/* A row dragged out onto the device chain: its popover steps aside (still open, see-through to
+   the pointer) so the chain's drop places show; it comes back if the drag is cancelled. */
+.eth-popover.eth-devlib-popover--dragging {
+  opacity: 0;
+  pointer-events: none;
+}
+.eth-devlib__row[draggable="true"] {
+  -webkit-user-drag: element;
+}

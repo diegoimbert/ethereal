@@ -30,6 +30,7 @@ import { cmd, commandErrorText, isCommandFailed, type EngineTransport } from "@/
 import { t } from "@/i18n";
 import { activeConnection, aiProvider, hasAiConsent, runAi, setAiConsent, wantsAi } from "./ai";
 import { loadCatalog } from "./catalog";
+import { notify, useNotices } from "@/features/notifications/store";
 
 export interface PluginItem {
   key: string;
@@ -222,10 +223,32 @@ export async function openResolver(focus?: Focus, transport: EngineTransport | n
 export async function openIfMissing(transport: EngineTransport | null = current): Promise<boolean> {
   if (!transport || useResolver.getState().open) return false;
   const n = await proposeResolution(transport);
+  if (n > 0 && !autoShow()) missingNotice(transport);
   if (n === 0 || !autoShow() || useResolver.getState().open) return false;
   useResolver.setState({ open: true, focus: null, section: null, search: null });
   if (useResolver.getState().media.length > 0) await searchMedia(transport);
   return true;
+}
+
+/** The opened project's "some plugins / samples are missing" toast: which kinds it named, and its id. */
+let notice: { kinds: string; id: number } | null = null;
+
+/**
+ * When the dialog doesn't open by itself: one toast for everything missing ("some plugins and
+ * samples are missing", "resolve"), never one per item. Shown again only when a new kind
+ * turns up (the samples are found as the engine loads them, after the plugins).
+ */
+function missingNotice(transport: EngineTransport): void {
+  const s = useResolver.getState();
+  const plugins = s.plugins.length + s.devices.length > 0;
+  const samples = s.media.length > 0;
+  if (!plugins && !samples) return;
+  const kinds = `${plugins}/${samples}`;
+  if (notice?.kinds === kinds) return;
+  if (notice) useNotices.getState().dismiss(notice.id);
+  const message = plugins && samples ? t("resolver.notice.both") : plugins ? t("resolver.notice.plugins") : t("resolver.notice.samples");
+  const id = notify("Warning", message, { action: { label: t("resolver.notice.resolve"), onSelect: () => void openResolver(undefined, transport) } });
+  notice = { kinds, id };
 }
 
 /** How long after a project opens newly detected missing files still bring up the dialog. */
@@ -241,6 +264,7 @@ let autoTimer: ReturnType<typeof setTimeout> | undefined;
  */
 export function armAutoShow(transport: EngineTransport | null = current, now = Date.now()): void {
   armedUntil = now + AUTO_SHOW_WINDOW_MS;
+  notice = null;
   scheduleAutoShow(transport);
 }
 

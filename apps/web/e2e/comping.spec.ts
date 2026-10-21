@@ -151,10 +151,10 @@ test("loop recording makes take lanes; swipe, next/previous take, audition, flat
   await expect.poll(() => state(page).then((s) => s.armedTracks)).toContain(track.id);
 
   // --- Record ~2.5 passes of the 1-bar loop (2 s each at 120 bpm), then stop.
-  const record = page.getByRole("button", { name: "record armed tracks" });
+  const record = page.getByRole("toolbar", { name: "transport" }).getByRole("button", { name: "record", exact: true });
   await expect(record).toBeEnabled({ timeout: 15_000 });
   await record.click();
-  await expect(record).toHaveAttribute("title", "stop recording");
+  await expect(record).toHaveAttribute("aria-pressed", "true");
   await page.waitForTimeout(5_000);
   await record.click();
   await stopButton(page).click();

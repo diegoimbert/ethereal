@@ -146,14 +146,19 @@ export function Popover({
     closeRef.current = close;
   });
 
+  // A press outside closes it: seen in the capture phase, as controls that keep their presses
+  // to themselves (a track header, a fader: stopPropagation) are presses outside too. A press
+  // in another floating panel (a popover opened from this one, in its own portal) keeps it.
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
       const t = e.target as Node;
-      if (!anchor.current?.contains(t) && !panel.current?.contains(t)) closeRef.current();
+      if (anchor.current?.contains(t) || panel.current?.contains(t)) return;
+      if (t instanceof Element && t.closest(".eth-popover")) return;
+      closeRef.current();
     };
-    document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
   }, [open]);
 
   const onKeyDown = (e: KeyboardEvent) => {
