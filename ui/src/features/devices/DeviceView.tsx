@@ -3,7 +3,7 @@ import { useContributions } from "@/ext";
 import { useId, useState, type DragEvent } from "react";
 import type { Device, DeviceId } from "@/generated";
 import { PluginDeviceControls, pluginMenuEntries } from "@/features/plugins";
-import { MissingDeviceControls, replaceDeviceEntries, resolvePluginEntries } from "@/features/import-resolver";
+import { MissingDeviceControls, ReplacePopover, replaceDeviceEntries, resolvePluginEntries } from "@/features/import-resolver";
 import { PresetMenu } from "@/features/presets";
 import { SidechainSelector } from "@/features/sidechain";
 import { AddModulatorButton, addModulatorEntries, ModulatorsPanel, useModulatorKinds } from "@/features/modulation";
@@ -17,8 +17,8 @@ import { midiTarget } from "@/features/midi-learn/targets";
 import { switchMenu, switchTarget } from "./layout/automation";
 import { cmd, useTransport } from "@/transport";
 import { useT } from "@/i18n";
-import { DEVICE_DRAG_TYPE, deviceCategory, draggingDevice, setDraggingDevice } from "./chainUtils";
-import { pasteDevice, useDeviceClipboard, useDeviceClipboardKeys } from "./deviceClipboard";
+import { DEVICE_DRAG_TYPE, currentChainDrag, deviceCategory, droppedChainDrag, isChainDrag, setDraggingDevice, type ChainDrag } from "./chainUtils";
+import { copyFrom, pasteDevice, selectModeOf, useDeviceClipboard, useDeviceClipboardKeys } from "./deviceClipboard";
 import { usePluginStore } from "@/features/plugins/pluginStore";
 import { shortcutLabel } from "@/features/keymap";
 import { useBuiltinTypes, useDescriptor } from "./descriptors";
@@ -35,13 +35,13 @@ export interface DeviceViewProps {
   prev: DeviceId | null;
   /** `before` target for "move right" (the device after next, or `null` = end); `undefined` = already last. */
   moveRightBefore: DeviceId | null | undefined;
-  /** Drop handler for a dragged device, inserted before this one. */
-  onDropBefore(dragged: DeviceId): void;
+  /** Drop handler for a dragged device (or a library device), inserted before this one. */
+  onDropBefore(dragged: ChainDrag): void;
   /**
-   * Whether the device being dragged (`null`: unknown, e.g. from another window) may land
-   * before this one; refused drops show no insertion line. Default: any.
+   * Whether what is dragged (`null`: unknown, e.g. from another window) may land before this
+   * one; refused drops show no insertion line. Default: any.
    */
-  acceptsBefore?(dragged: DeviceId | null): boolean;
+  acceptsBefore?(dragged: ChainDrag | null): boolean;
   /**
    * "row" (default): cards side by side, move left/right. "stack": full-width cards one
    * above the other (the inspector), reordered by dragging the header.
@@ -72,8 +72,9 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
   const setEnabled = (enabled: boolean) => void send(cmd("Device", { type: "SetEnabled", id: device.id, enabled }));
   const transport = useTransport();
   // Copy / paste (deviceClipboard.ts): the selected card, what's copied, device kinds.
-  const selected = useDeviceClipboard((s) => s.selected === device.id);
-  const copied = useDeviceClipboard((s) => s.copied !== null);
+  const selected = useDeviceClipboard((s) => s.selected.includes(device.id));
+  const copied = useDeviceClipboard((s) => s.copied.length > 0);
+  const isCut = useDeviceClipboard((s) => s.cut && s.copied.includes(device.id));
   const builtins = useBuiltinTypes();
   const plugins = usePluginStore((s) => s.plugins);
   const categoryOf = (d: Device) => deviceCategory(d, builtins, plugins);
@@ -93,18 +94,20 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
   const move = (before: DeviceId | null) => (onMove ? onMove(before) : void send(cmd("Device", { type: "Move", id: device.id, track: device.track, before })));
 
   const onDragOver = (e: DragEvent) => {
-    if (!e.dataTransfer.types.includes(DEVICE_DRAG_TYPE)) return;
-    if (draggingDevice() === device.id || (acceptsBefore && !acceptsBefore(draggingDevice()))) return;
+    if (!isChainDrag(e.dataTransfer.types)) return;
+    const drag = currentChainDrag();
+    if ((drag?.type === "device" && drag.id === device.id) || (acceptsBefore && !acceptsBefore(drag))) return;
     e.preventDefault();
     e.stopPropagation();
     setDropTarget(true);
   };
   const onDrop = (e: DragEvent) => {
     setDropTarget(false);
-    const id = e.dataTransfer.getData(DEVICE_DRAG_TYPE);
-    if (!id || id === device.id) return;
+    const drag = droppedChainDrag(e.dataTransfer);
+    if (!drag || (drag.type === "device" && drag.id === device.id)) return;
     e.preventDefault();
-    onDropBefore(id);
+    e.stopPropagation();
+    onDropBefore(drag);
   };
 
   return (
@@ -118,18 +121,20 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
           !paramsOpen && "eth-device--collapsed",
           !on && "eth-device--bypassed",
           selected && "eth-device--selected",
+          isCut && "eth-device--cut",
           frozen && "eth-device--frozen",
         )}
         data-frozen={frozen || undefined}
         data-device={device.id}
         aria-label={device.name}
         // A click selects the card (the innermost one: a device in a rack chain, not its rack)
-        // and focuses it, so ⌘C / ⌘V copy / paste it (deviceClipboard.ts).
+        // and focuses it, so ⌘C / ⌘V copy / paste it (deviceClipboard.ts); ⌘ / Ctrl-click adds
+        // or removes it, Shift-click selects the cards between.
         tabIndex={-1}
         onPointerDown={(e) => {
           // A rack chain's own space inside this card is that chain's (DeviceChain.tsx).
           if (e.button !== 0 || (e.target as HTMLElement).closest(".eth-device, [data-paste-chain]") !== e.currentTarget) return;
-          useDeviceClipboard.getState().select(device.id);
+          useDeviceClipboard.getState().select(device.id, selectModeOf(e));
           if (!(e.target as HTMLElement).closest("input, textarea, select, [contenteditable='true']")) e.currentTarget.focus({ preventScroll: true });
         }}
         onDragOver={onDragOver}
@@ -147,7 +152,8 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
                 // A plugin that isn't installed; any device but a rack can be replaced.
                 [...resolvePluginEntries(device, transport), ...replaceDeviceEntries(device, transport)],
                 [
-                  { label: t("devices.device.copy"), shortcut: shortcutLabel("edit.copy"), onSelect: () => useDeviceClipboard.getState().copy(device.id) },
+                  { label: t("devices.device.copy"), shortcut: shortcutLabel("edit.copy"), onSelect: () => copyFrom(device.id) },
+                  { label: t("devices.device.cut"), shortcut: shortcutLabel("edit.cut"), onSelect: () => copyFrom(device.id, true) },
                   ...(copied
                     ? [
                         {
@@ -165,7 +171,13 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
                     onSelect: () => setEnabled(!device.enabled),
                   },
                 ],
-                groupEntries(device, descriptor, send),
+                groupEntries(device, descriptor, send, {
+                  project: useProjectStore.getState().project!,
+                  ids: useDeviceClipboard.getState().selected,
+                  categoryOf,
+                  shortcut: shortcutLabel("device.group"),
+                  onGrouped: (rack) => useDeviceClipboard.setState({ selected: [rack], anchor: rack }),
+                }),
                 freezeDeviceEntries(transport, device, categoryOf),
                 device.pad === null && device.chain == null ? addModulatorEntries(modulatorKinds, device, send) : [],
                 pluginMenuEntries(device, transport),
@@ -176,13 +188,12 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
           draggable={!renaming}
           onDragStart={(e) => {
             e.dataTransfer.setData(DEVICE_DRAG_TYPE, device.id);
-            e.dataTransfer.effectAllowed = "move";
+            // Moved in its chain or onto a track in the arranger (⌘ / Ctrl there copies).
+            e.dataTransfer.effectAllowed = "copyMove";
             setDraggingDevice(device.id);
           }}
           onDragEnd={() => setDraggingDevice(null)}
         >
-          {/* A chain rack has no window (its macros and chains are on this card). */}
-          {hasWindow(device) && <DeviceWindowButton device={device} control={deviceWindow} />}
           <IconButton
             size="sm"
             tone="ghost"
@@ -203,6 +214,9 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
             onContextMenu={(e) => switchMenu(e, device, setEnabled)}
             {...midiTarget({ type: "Param", target: switchTarget(device) })}
           />
+          {/* After the power button. A chain rack has no window (its macros and chains are on
+              this card). */}
+          {hasWindow(device) && <DeviceWindowButton device={device} control={deviceWindow} />}
           {renaming ? (
             <input
               className="eth-device__rename"
@@ -281,6 +295,8 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
             <IconButton size="sm" tone="ghost" label={t("devices.device.remove", { name: device.name })} icon={<X />} onClick={remove} />
           </span>
         </header>
+        {/* "Replace device…" (the header's menu): its popover hangs here, under the header. */}
+        <ReplacePopover device={device} />
         {/* The card body: the parameter list (when shown), a rack's chains, the modulators.
             The device's own UI is in its window, never here. */}
         <div className="eth-device__inline" inert={frozen || undefined}>

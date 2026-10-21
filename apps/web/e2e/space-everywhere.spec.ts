@@ -9,7 +9,7 @@
 // No sleeps: every step waits on UI or engine state (`window.__ether`, apps/web/src/main.tsx).
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Device, Project, TransportState } from "@/generated";
-import { addDevice, createTrack, deviceCard, launch, openDeviceTab, openDeviceWindow, playButton, headerButton } from "./ui";
+import { addDevice, createTrack, deviceCard, launch, openDeviceTab, openDeviceWindow, playButton, headerButton, paletteCommand } from "./ui";
 
 interface Handle {
   state(): { project: Project | null; transport: TransportState | null };
@@ -124,8 +124,7 @@ test("Space plays / stops from any focused control, but types in text fields", a
   await expect(menu).toHaveCount(0);
 
   // --- a dialog's button: plays, the dialog stays and nothing is pressed ------------------
-  await page.getByRole("button", { name: "projects" }).click();
-  await page.getByRole("menu", { name: "project" }).getByRole("menuitem", { name: "open project…", exact: true }).click();
+  await paletteCommand(page, "open project…");
   const dialog = page.getByRole("dialog", { name: "open project" });
   await expect(dialog).toBeVisible();
   const newBtn = dialog.getByRole("button", { name: "new project" });

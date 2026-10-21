@@ -5,7 +5,7 @@ import type { ContextMenuItem } from "@/kit";
 import { useProjectStore } from "@/state";
 import { type EngineTransport } from "@/transport";
 import { createDemoProject } from "@/transport/mock";
-import { MissingMediaNotice } from "./MediaRefsRoot";
+import { MissingMediaStatus } from "./MediaRefsRoot";
 import { mediaRefCommands, withMediaRefClipEntries } from "./menus";
 import { RelinkDialog } from "./RelinkDialog";
 import { applyMediaRefEvent, openRelink, refreshMissing, resetMediaRefs, useMediaRefs } from "./store";
@@ -77,7 +77,7 @@ describe("missing media state", () => {
   });
 
   it("adds Relink to the clip menu and a notice", () => {
-    render(<MissingMediaNotice />);
+    render(<MissingMediaStatus />);
     expect(screen.queryByTestId("missing-media-notice")).toBeNull();
     act(() => applyMediaRefEvent({ type: "Media", event: { type: "Missing", media: media.id } }));
     expect(screen.getByTestId("missing-media-notice")).toHaveTextContent("1 sample is missing");

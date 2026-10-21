@@ -41,6 +41,20 @@
   color: var(--eth-color-text-inverse);
   font-size: var(--eth-size-icon-md);
 }
+/* The kind square as the color picker's button. */
+.eth-inspector__kind--pick {
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  transition: filter var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-inspector__kind--pick:hover {
+  filter: brightness(1.1);
+}
+.eth-inspector__kind--pick:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: var(--eth-focus-ring-offset);
+}
 .eth-inspector__name {
   flex: 1;
   min-width: 0;
@@ -83,38 +97,6 @@
 }
 .eth-inspector__actions .eth-button {
   flex: 1;
-}
-
-.eth-inspector__swatches {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, var(--eth-size-icon-lg));
-  gap: var(--eth-space-xs);
-  flex: 1;
-}
-.eth-inspector__swatch {
-  width: var(--eth-size-icon-lg);
-  height: var(--eth-size-icon-lg);
-  padding: 0;
-  border: var(--eth-border-width) solid transparent;
-  border-radius: var(--eth-radius-round);
-  background: var(--swatch);
-  cursor: pointer;
-  transition:
-    transform var(--eth-duration-fast) var(--eth-ease-out),
-    box-shadow var(--eth-duration-fast) var(--eth-ease-out);
-}
-.eth-inspector__swatch:hover {
-  transform: scale(1.12);
-}
-.eth-inspector__swatch[aria-checked="true"] {
-  box-shadow:
-    0 0 0 var(--eth-border-width-strong) var(--eth-color-bg-panel),
-    0 0 0 calc(var(--eth-border-width-strong) * 2) var(--swatch);
-}
-/* "Follow the track color": a ring in the track color. */
-.eth-inspector__swatch--inherit {
-  background: transparent;
-  border: var(--eth-border-width-strong) solid var(--swatch);
 }
 
 .eth-inspector__mixer {
@@ -174,13 +156,6 @@
 .eth-inspector__color {
   flex: none;
 }
-.eth-inspector__palette {
-  padding: var(--eth-space-sm);
-}
-.eth-inspector__palette .eth-inspector__swatches {
-  grid-template-columns: repeat(6, var(--eth-size-icon-lg));
-}
-
 /* Compact fields, several per row: a small label over each control. */
 /* Fields take their natural width and share the row; they wrap only when it is full. */
 .eth-inspector__fields {

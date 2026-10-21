@@ -457,3 +457,11 @@
   font-style: italic;
   background: var(--eth-color-bg-inset);
 }
+
+/* The value menu's "set value…" (valueMenu.tsx): a zero-size anchor under the control. */
+.eth-value-edit-anchor {
+  position: fixed;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}

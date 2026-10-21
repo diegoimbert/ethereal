@@ -85,9 +85,9 @@ describe("clip fades layer", () => {
     expect(layer.decor("a")).toEqual({ lines: 2, crossfadeIn: false, crossfadeOut: false, handles: false });
   });
 
-  it("shows the handles while the clip is selected or hovered", () => {
+  it("shows the handles only while the clip is hovered (selected: its fades, no handles)", () => {
     const sel = build([audio("a", 0, 8, { fade_in: 1 })], { selected: ["a"] }).inst.map((i) => i.mode);
-    expect(sel).toEqual([FadeMode.Shade, FadeMode.Line, FadeMode.Handle, FadeMode.Handle, FadeMode.CurveHandle, FadeMode.CurveHandle]);
+    expect(sel).toEqual([FadeMode.Shade, FadeMode.Line]);
     const hov = build([audio("a", 0, 8)], { hover: { clip: "a", part: "body" } }).inst.map((i) => i.mode);
     expect(hov).toEqual([FadeMode.Handle, FadeMode.Handle, FadeMode.CurveHandle, FadeMode.CurveHandle]);
   });
@@ -130,6 +130,13 @@ describe("fade model", () => {
       [-Infinity, 2],
       [4, 6],
     ]);
+  });
+
+  it("in a compact lane the fades span the whole clip (no title band above them)", () => {
+    const it = item(audio("a", 0, 8, { fade_in: 2 }));
+    const g = fadeGeometry(it, { scrollBeats: 0, pxPerBeat: 24 }, 36)!;
+    expect(g.top).toBe(CLIP_INSET);
+    expect(g.bodyH).toBe(36 - 2 * CLIP_INSET);
   });
 
   it("hit-tests handles with their priorities", () => {

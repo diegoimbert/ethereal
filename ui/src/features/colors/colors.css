@@ -1,0 +1,39 @@
+/* Color swatches (ColorSwatches): the palette as round swatches, the current one ringed. */
+.eth-color-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, var(--eth-size-icon-lg));
+  gap: var(--eth-space-xs);
+  flex: 1;
+}
+.eth-color-swatch {
+  width: var(--eth-size-icon-lg);
+  height: var(--eth-size-icon-lg);
+  padding: 0;
+  border: var(--eth-border-width) solid transparent;
+  border-radius: var(--eth-radius-round);
+  background: var(--swatch);
+  cursor: pointer;
+  transition:
+    transform var(--eth-duration-fast) var(--eth-ease-out),
+    box-shadow var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-color-swatch:hover {
+  transform: scale(1.12);
+}
+.eth-color-swatch[aria-checked="true"] {
+  box-shadow:
+    0 0 0 var(--eth-border-width-strong) var(--eth-color-bg-panel),
+    0 0 0 calc(var(--eth-border-width-strong) * 2) var(--swatch);
+}
+/* "Follow the track color": a ring in the track color. */
+.eth-color-swatch--inherit {
+  background: transparent;
+  border: var(--eth-border-width-strong) solid var(--swatch);
+}
+/* In a popover: six per row. */
+.eth-color-palette {
+  padding: var(--eth-space-sm);
+}
+.eth-color-palette .eth-color-swatches {
+  grid-template-columns: repeat(6, var(--eth-size-icon-lg));
+}

@@ -18,11 +18,18 @@ import { normalizeServerUrl } from "./url";
 const SERVER_COMMAND = "ether-server";
 const DEV_COMMAND = "just dev-server";
 
+/** Whether the engine server's settings show (it was turned on, or is in use). */
+export function useEngineServerSettingsShown(): boolean {
+  const s = useEngineServer();
+  const shown = useEngineServerShown((v) => v.shown);
+  return s.available && (shown || !!s.remote);
+}
+
 export function RemoteEngineSettings() {
   const t = useT();
   const s = useEngineServer();
-  const shown = useEngineServerShown((v) => v.shown);
-  if (!s.available || (!shown && !s.remote)) return null;
+  const visible = useEngineServerSettingsShown();
+  if (!visible) return null;
   const submit = (e?: FormEvent) => {
     e?.preventDefault();
     // Connected: the whole window switched engines; the settings close (like the old dialog).

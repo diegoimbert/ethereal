@@ -191,8 +191,16 @@ function PadChain({ pad }: { pad: DrumPad }) {
         layout="stack"
         label={t("drum_rack.pad.chain", { name: pad.name })}
         accept={acceptInPad}
-        onAdd={(p, category) =>
-          void send(cmd("DrumRack", { type: "InsertDevice", id: newId(), pad: pad.id, device: deviceSpec(p), before: insertBefore(category) }))
+        onAdd={(p, category, before) =>
+          void send(
+            cmd("DrumRack", {
+              type: "InsertDevice",
+              id: newId(),
+              pad: pad.id,
+              device: deviceSpec(p),
+              before: before !== undefined ? before : insertBefore(category),
+            }),
+          )
         }
         onMove={(id, before) => void send(cmd("DrumRack", { type: "MoveDevice", id, pad: pad.id, before }))}
         pasteChain={{ type: "Pad", pad: pad.id }}

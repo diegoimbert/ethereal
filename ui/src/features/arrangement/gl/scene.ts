@@ -26,7 +26,7 @@ import type { EngineTransport } from "@/transport";
 import { clipSourceMapper } from "@/domain/warpMap";
 import { dbToGain, drumRows, noteRects, pitchRange, playsDrumRack } from "../clipDraw";
 import { contentSegments } from "../clipTime";
-import { CLIP_INSET, CLIP_MIN_PX, CLIP_RADIUS, CLIP_TITLE } from "../laneBodyGeometry";
+import { CLIP_INSET, CLIP_MIN_PX, CLIP_RADIUS, CLIP_TITLE, isCompactLane, titleHeight } from "../laneBodyGeometry";
 import { laneItemsOf, previewTouches, type LaneItem } from "../laneItems";
 import { SMALL_CLIP_PX } from "../smallClips";
 import { peakLevel, TILE_PEAKS, type PeakCache } from "../peaks";
@@ -155,14 +155,18 @@ export function titleLayout(clip: Clip, width: number, atlas: GlyphAtlas, input:
   return { leftStart, nameStart, nameRoom: rightStart - nameStart - 2 * NAME_PAD_X, rightStart };
 }
 
+/** Top of a line `height` px tall centered in a title band `titleH` px tall (px from the row top). */
+const titleLineTop = (titleH: number, height: number) => CLIP_INSET + TITLE_PAD_TOP + (titleH - TITLE_PAD_TOP - height) / 2;
+
 /**
  * Where a clip's name is drawn (px from the clip box's left edge and the row top): its text
  * box (the line box of `LINE_HEIGHT` px, as the title band lays it out) and its room.
+ * `titleH`: the title band's height (the whole clip in a compact lane: `titleHeight`).
  */
-export function nameBox(layout: TitleLayout): { left: number; top: number; room: number; height: number } {
+export function nameBox(layout: TitleLayout, titleH = CLIP_TITLE): { left: number; top: number; room: number; height: number } {
   return {
     left: layout.nameStart + NAME_PAD_X,
-    top: CLIP_INSET + TITLE_PAD_TOP + (CLIP_TITLE - TITLE_PAD_TOP - LINE_HEIGHT) / 2,
+    top: titleLineTop(titleH, LINE_HEIGHT),
     room: layout.nameRoom,
     height: LINE_HEIGHT,
   };
@@ -261,6 +265,10 @@ export class LaneScene {
   private staticDirty = true;
   /** Opacity of all the lane's clips (`setAlpha`: e.g. dimmed take lanes). */
   private alphaMul = 1;
+  /** The clips' title band height (`titleHeight` of the lane's height: all of a compact lane). */
+  titleHeight = CLIP_TITLE;
+  /** A compact lane: its clips are a title band alone (no notes, waveform or loop seams). */
+  compact = false;
   /** Bumped at each static rebuild (the view data depends on it). */
   staticVersion = 0;
 
@@ -307,10 +315,21 @@ export class LaneScene {
     return this.under.bytes + this.glow.bytes + this.notes.bytes + this.over.bytes + this.text.bytes + this.waves.bytes;
   }
 
-  /** Brings the lane's clip list and static instances up to date. */
-  sync(track: Track, input: SceneInput): void {
+  /**
+   * Brings the lane's clip list and static instances up to date. `laneHeight`: the lane's
+   * height when known (a compact lane draws its clips differently); else the last one given.
+   */
+  sync(track: Track, input: SceneInput, laneHeight?: number): void {
     const { project } = input;
     let itemsChanged = false;
+    if (laneHeight !== undefined) {
+      const th = titleHeight(laneHeight);
+      if (th !== this.titleHeight) {
+        this.titleHeight = th;
+        this.compact = isCompactLane(laneHeight);
+        this.staticDirty = true;
+      }
+    }
     if (track !== this.track) {
       if (track.color !== this.track.color) this.staticDirty = true;
       this.track = track;
@@ -484,16 +503,24 @@ export class LaneScene {
       writeRect(out.glow, { x: box, y: BOX_Y, radius: CLIP_RADIUS, blur: 14, fill: colors.glowOuter, flags: RectFlag.NoClip, fx, alpha });
       writeRect(out.glow, { x: box, y: BOX_Y, radius: CLIP_RADIUS, blur: 6, fill: colors.glowInner, flags: RectFlag.NoClip, fx, alpha });
     }
-    // The box, then its title band (the clip's grab zone).
-    writeRect(out.under, { x: box, y: BOX_Y, radius: CLIP_RADIUS, fill: selected ? colors.bodySelected : colors.body, flags: RectFlag.Snap, fx, alpha });
-    // `.eth-clip__title:hover` comes after `.eth-clip--selected .eth-clip__title`: hover wins.
-    const title = hover === "header" ? colors.titleHover : selected ? colors.titleSelected : colors.strong;
-    writeRect(out.under, { x: box, y: TITLE_Y, fill: title, flags: RectFlag.Snap, clip: clipBox, fx, alpha });
+    if (this.compact) {
+      // A compact lane: the clip is drawn like a body alone (its fill, a thin border in the
+      // clip's color), the name on it in that color (clipText); all of it is the grab zone.
+      const fill = selected || hover === "header" ? colors.bodySelected : colors.body;
+      writeRect(out.under, { x: box, y: BOX_Y, radius: CLIP_RADIUS, fill, flags: RectFlag.Snap, fx, alpha });
+      if (!selected) writeRect(out.over, { x: box, y: BOX_Y, radius: CLIP_RADIUS, stroke: colors.strong, strokeWidth: 1, flags: RectFlag.Snap, fx, alpha });
+    } else {
+      // The box, then its title band (the clip's grab zone).
+      writeRect(out.under, { x: box, y: BOX_Y, radius: CLIP_RADIUS, fill: selected ? colors.bodySelected : colors.body, flags: RectFlag.Snap, fx, alpha });
+      // `.eth-clip__title:hover` comes after `.eth-clip--selected .eth-clip__title`: hover wins.
+      const title = hover === "header" ? colors.titleHover : selected ? colors.titleSelected : colors.strong;
+      writeRect(out.under, { x: box, y: TITLE_Y, fill: title, flags: RectFlag.Snap, clip: clipBox, fx, alpha });
+    }
 
     // MIDI note preview (shaped by the bounds, e.g. mid-drag), loops unrolled.
     const looping = bounds.looping ?? clip.looping;
     const shaped = { ...clip, length: bounds.length, offset: bounds.offset, looping };
-    if (clip.content.type === "Midi" && notes.length) {
+    if (clip.content.type === "Midi" && notes.length && !this.compact) {
       const noteBox = { b0: box.b0, b1: box.b1, minW: CLIP_MIN_PX };
       const rects = noteRects(shaped, bounds.start, notes, bounds.start, bounds.start + bounds.length);
       if (playsDrumRack(input.project, clip.track)) {
@@ -514,7 +541,7 @@ export class LaneScene {
       }
     }
     // Loop seams: where a looped clip wraps around to its loop start.
-    if (clip.looping.enabled) {
+    if (clip.looping.enabled && !this.compact) {
       for (const seg of contentSegments(shaped, bounds.start)) {
         if (seg.t0 <= bounds.start || seg.c0 !== looping.start) continue;
         writeRect(out.over, { x: { b0: seg.t0, b1: seg.t0, p1: 1 }, y: BODY_Y, fill: input.palette.seam, flags: RectFlag.Snap, clip: clipBox, fx, alpha });
@@ -547,7 +574,7 @@ export class LaneScene {
       if (end < win.from || it.bounds.start > win.to) continue;
       const group = isRaised(it, sel) ? "raised" : "base";
       this.clipText(it, text[group], input, win);
-      if (it.clip.content.type === "Audio") this.clipWave(it, waves[group], input, win, rows);
+      if (it.clip.content.type === "Audio" && !this.compact) this.clipWave(it, waves[group], input, win, rows);
     }
     this.text.set(text.base, text.raised);
     this.waves.set(waves.base, waves.raised);
@@ -560,9 +587,11 @@ export class LaneScene {
     const width = Math.max(CLIP_MIN_PX, bounds.length * win.ppb);
     const fx = this.fxOf(it);
     const alpha = (it.ghost ? 0.45 : it.dragging ? 0.85 : 1) * this.alphaMul;
-    const color = input.palette.titleText;
+    // On the title band, the band's text color; a compact lane's clip (a body alone): the clip's.
+    const color = this.compact ? clipColors(input.palette, clip.color ?? this.track.color).strong : input.palette.titleText;
     const box: XSpec = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_MIN_PX };
-    const lineTop = CLIP_INSET + TITLE_PAD_TOP + (CLIP_TITLE - TITLE_PAD_TOP - LINE_HEIGHT) / 2;
+    // Centered in the title band (the whole clip in a compact lane).
+    const lineTop = titleLineTop(this.titleHeight, LINE_HEIGHT);
     const baseline = atlas.baseline(lineTop, LINE_HEIGHT, TITLE_FONT);
     if (width < SMALL_CLIP_PX && !this.source?.elements) {
       // Small clips: no icon, the name
@@ -590,7 +619,7 @@ export class LaneScene {
     }
     if (clip.looping.enabled) {
       const icon = atlas.repeatIcon(ICON, ICON_STROKE);
-      const y = CLIP_INSET + TITLE_PAD_TOP + (CLIP_TITLE - TITLE_PAD_TOP - ICON) / 2;
+      const y = titleLineTop(this.titleHeight, ICON);
       writeGlyph(out, {
         beat: bounds.start,
         px: TITLE_PAD_X,

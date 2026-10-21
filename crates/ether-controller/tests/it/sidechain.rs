@@ -447,3 +447,84 @@ fn chain_taps_compile_to_engine_points_and_go_with_the_chain() {
     let d = &h.project().devices[&comp];
     assert_eq!((d.sidechain, d.sidechain_tap), (None, None));
 }
+
+#[test]
+fn a_chain_keys_another_chain_of_its_rack_which_runs_first() {
+    let mut h = Harness::with_project();
+    let bass = track(&mut h, TrackKind::Audio);
+    // Audio Effect Rack: its first chain holds the compressor, a second chain "Key" a gate.
+    let fx = device(&mut h, bass, BuiltinDeviceType::AudioEffectRack);
+    let first = h.project().chains_of(fx)[0].id;
+    let key: RackChainId = h.id();
+    h.ok(Command::Rack(RackCommand::AddChain {
+        id: key,
+        rack: fx,
+        name: Some("Key".into()),
+        before: None,
+    }));
+    let insert = |h: &mut Harness, chain, kind| {
+        let id: DeviceId = h.id();
+        h.ok(Command::Rack(RackCommand::InsertDevice {
+            id,
+            chain,
+            device: DeviceSpec::Builtin {
+                device: BuiltinDevice::new(kind),
+            },
+            before: None,
+        }));
+        id
+    };
+    let comp = insert(&mut h, first, BuiltinDeviceType::Compressor);
+    let gate = insert(&mut h, key, BuiltinDeviceType::Gate);
+    let on = |chain, point| SidechainTap {
+        point,
+        chain: Some(SidechainChain::Rack { chain }),
+    };
+    let run = |h: &mut Harness| {
+        h.tick();
+        let g = h.ctl.bridge.last_graph();
+        let t = g.tracks.iter().find(|t| t.id == bass).unwrap();
+        let order: Vec<RackChainId> = t.chain_racks[0].chains.iter().map(|c| c.id).collect();
+        (order, t.sidechain_taps.clone())
+    };
+    // Before: the chains in their own order.
+    assert_eq!(run(&mut h).0, vec![first, key]);
+    h.ok(Command::Device(DeviceCommand::SetSidechain {
+        device: comp,
+        source: Some(bass),
+        tap: Some(on(key, InputTap::PostFx)),
+    }));
+    // The keyed chain runs first; post-FX is its output before the rack's alignment.
+    let (order, taps) = run(&mut h);
+    assert_eq!(order, vec![key, first]);
+    assert_eq!(taps.len(), 1);
+    assert_eq!(taps[0].point, ScPoint::ChainRaw(key.0.0));
+    // Pre-FX: the chain's input.
+    h.ok(Command::Device(DeviceCommand::SetSidechain {
+        device: comp,
+        source: Some(bass),
+        tap: Some(on(key, InputTap::PreFx)),
+    }));
+    assert_eq!(run(&mut h).1[0].point, ScPoint::ChainIn(key.0.0));
+    // Post-fader (after the chain's volume, aligned with every chain): not for a sibling.
+    let out = h.send(Command::Device(DeviceCommand::SetSidechain {
+        device: comp,
+        source: Some(bass),
+        tap: Some(on(key, InputTap::PostFader)),
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    // The gate keying the compressor's chain back would loop: rejected.
+    let out = h.send(Command::Device(DeviceCommand::SetSidechain {
+        device: gate,
+        source: Some(bass),
+        tap: Some(on(first, InputTap::PostFx)),
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    // Unkeyed: back to the chains' own order.
+    h.ok(Command::Device(DeviceCommand::SetSidechain {
+        device: comp,
+        source: None,
+        tap: None,
+    }));
+    assert_eq!(run(&mut h).0, vec![first, key]);
+}

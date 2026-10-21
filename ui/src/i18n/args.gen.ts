@@ -56,6 +56,7 @@ export interface MessageArgs {
   "arrangement.clip_menu.edit_in_piano_roll": { count: string | number };
   "arrangement.header.arm_named": { name: string | number };
   "arrangement.header.choose_instrument": { name: string | number };
+  "arrangement.header.color_named": { name: string | number };
   "arrangement.header.fold_named": { name: string | number };
   "arrangement.header.kind": { kind: string };
   "arrangement.header.mute_named": { name: string | number };
@@ -109,6 +110,7 @@ export interface MessageArgs {
   "browser.empty.nothing_matches": { query: string | number };
   "browser.filter.count": { hidden: number; shown: number; total: number };
   "browser.filter.hide_rule": { n: number };
+  "browser.filter.kind_of": { rule: string | number };
   "browser.filter.remove_hide_rule": { n: number };
   "browser.filter.remove_show_rule": { n: number };
   "browser.filter.show_rule": { n: number };
@@ -161,7 +163,9 @@ export interface MessageArgs {
   "debug.window.label": { title: string | number };
   "devices.chain.label": { name: string | number };
   "devices.clipboard.paste_failed": { error: string | number; name: string | number };
+  "devices.clipboard.replace_body": { name: string | number; with: string | number };
   "devices.device.bypass_name": { name: string | number };
+  "devices.device.delete_failed": { error: string | number };
   "devices.device.enable_name": { name: string | number };
   "devices.device.move_left": { name: string | number };
   "devices.device.move_right": { name: string | number };
@@ -171,6 +175,7 @@ export interface MessageArgs {
   "devices.device.show_params_name": { name: string | number };
   "devices.eq.band": { n: string | number };
   "devices.eq.curve": { count: string | number; on: string | number };
+  "devices.group.failed": { error: string | number };
   "devices.insert.add_failed": { error: string | number; name: string | number };
   "devices.insert.instrument_needs_midi": { name: string | number };
   "devices.insert.midi_effect_needs_midi": { name: string | number };
@@ -185,6 +190,7 @@ export interface MessageArgs {
   "devices.lfo_curve.label": { count: number };
   "devices.lfo_curve.point": { n: string | number; x: string | number; y: string | number };
   "devices.library.add": { name: string | number };
+  "devices.library.add_or_drag": { name: string | number };
   "devices.library.empty": { kind: string };
   "devices.library.empty_formats": { kind: string };
   "devices.library.empty_scanned": { kind: string };
@@ -336,6 +342,8 @@ export interface MessageArgs {
   "import_audio.phase.uploading": { name: string | number };
   "import_audio.reject.extension": { ext: string | number };
   "import_audio.reject.too_large": { limit: string | number; size: string | number };
+  "import_audio.status.failed": { count: number };
+  "import_audio.status.importing": { count: number };
   "keyboard_midi.octave_down_title": { key: string | number };
   "keyboard_midi.octave_up_title": { key: string | number };
   "keyboard_midi.plays_on": { track: string | number };
@@ -485,6 +493,12 @@ export interface MessageArgs {
   "plugins.scan.failed_count": { count: number };
   "plugins.scan.progress": { done: string | number; total: string | number };
   "plugins.scan.scan_failed": { error: string | number };
+  "plugins.visibility.count": { listed: string | number; total: string | number };
+  "plugins.visibility.hidden_toast": { name: string | number };
+  "plugins.visibility.hide": { name: string | number };
+  "plugins.visibility.hide_format": { format: string | number };
+  "plugins.visibility.rule_format": { name: string | number };
+  "plugins.visibility.show_again": { name: string | number };
   "presets.dialog.delete_title": { name: string | number };
   "presets.dialog.exists": { name: string | number };
   "presets.dialog.exists_replace": { name: string | number };
@@ -499,10 +513,6 @@ export interface MessageArgs {
   "project.actions.open_named": { name: string | number };
   "project.actions.rename_input": { name: string | number };
   "project.duplicated": { name: string | number };
-  "project.examples.failed": { error: string | number };
-  "project.examples.guide_done_named": { title: string | number };
-  "project.examples.guide_named": { title: string | number };
-  "project.examples.open_named": { title: string | number };
   "project.export.done_file": { file: string | number; name: string | number };
   "project.export.done_path": { name: string | number; path: string | number };
   "project.menu.delete_confirm": { name: string | number };
@@ -549,7 +559,7 @@ export interface MessageArgs {
   "resolver.apply": { count: number };
   "resolver.apply_file": { name: string | number };
   "resolver.apply_replacement": { name: string | number };
-  "resolver.badge.count": { count: string | number };
+  "resolver.badge.count": { count: number };
   "resolver.choose_device_for": { name: string | number };
   "resolver.choose_plugin_for": { name: string | number };
   "resolver.count.devices": { count: number };
@@ -561,12 +571,9 @@ export interface MessageArgs {
   "resolver.file_for": { name: string | number };
   "resolver.lost": { count: string | number };
   "resolver.lost_one": { name: string | number };
-  "resolver.replace.by_index": { count: number };
-  "resolver.replace.by_name": { count: number };
-  "resolver.replace.cant_keep": { count: string | number };
-  "resolver.replace.cant_keep_one": { name: string | number };
-  "resolver.replace.lanes_removed": { count: number };
-  "resolver.replace.reset_lanes": { count: number };
+  "resolver.replace.done_lanes": { count: number };
+  "resolver.replace.done_lost": { lost: string | number; name: string | number };
+  "resolver.replace.failed": { error: string | number; name: string | number };
   "resolver.replace.title_named": { name: string | number };
   "resolver.replacement_for": { name: string | number };
   "resolver.saved_params": { count: number };
@@ -629,6 +636,8 @@ export interface MessageArgs {
   "shell.keymap.sheet_drag": { keys: string | number };
   "shell.keymap.sheet_preset": { preset: string | number };
   "shell.keymap.sheet_preset_customized": { preset: string | number };
+  "shell.notice.repeated": { count: string | number; title: string | number };
+  "shell.notice.see_all": { count: string | number };
   "shell.pane.close": { pane: string | number };
   "shell.pane.collapse": { pane: string | number };
   "shell.pane.expand": { pane: string | number };
@@ -660,14 +669,6 @@ export interface MessageArgs {
   "templates.rename.title": { name: string | number };
   "templates.save_tracks.title": { count: number };
   "tempo.menu.delete_points": { count: number };
-  "tutorials.examples.bassline.bass": { b: Tag };
-  "tutorials.examples.drums.body": { b: Tag; sounds: string | number };
-  "tutorials.examples.hip_hop.beat": { b: Tag };
-  "tutorials.examples.hip_hop.keys": { b: Tag };
-  "tutorials.examples.house.bass": { b: Tag };
-  "tutorials.examples.lofi.keys": { b: Tag };
-  "tutorials.examples.tempo.body": { bars: number; bpm: string | number };
-  "tutorials.examples.tracks.body": { b: Tag };
   "tutorials.first_track.add_track.body": { b: Tag };
   "tutorials.first_track.clip.body": { b: Tag };
   "tutorials.first_track.instrument.p1": { b: Tag };

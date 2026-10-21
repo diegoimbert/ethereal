@@ -43,6 +43,16 @@ const QUEUE: usize = 256;
 /// Relative level of a normal click (accents are at full level).
 const NORMAL_LEVEL: f32 = 0.6;
 
+/// Each sound's level, so they sound about as loud at the same volume: the square-wave
+/// beep carries much more energy than the decaying blips at the same peak, so it plays
+/// 6 dB lower.
+fn sound_level(sound: MetronomeSound) -> f32 {
+    match sound {
+        MetronomeSound::Beep => 0.501_187, // -6 dB
+        MetronomeSound::Classic | MetronomeSound::Wood => 1.0,
+    }
+}
+
 const SOUNDS: [MetronomeSound; 3] = [
     MetronomeSound::Classic,
     MetronomeSound::Wood,
@@ -273,7 +283,7 @@ impl Metronome {
 /// (a click, not a note), then decays.
 fn synth(sound: MetronomeSound, accent: bool, sample_rate: f32) -> Vec<f32> {
     let sr = sample_rate.max(1.0);
-    let level = if accent { 1.0 } else { NORMAL_LEVEL };
+    let level = if accent { 1.0 } else { NORMAL_LEVEL } * sound_level(sound);
     let tau = std::f32::consts::TAU;
     let (seconds, f): (f32, &dyn Fn(f32) -> f32) = match sound {
         // Short sine blip, higher on accents.
@@ -500,6 +510,15 @@ mod tests {
             assert!(buf[0].abs() > 0.1);
             assert!(buf.iter().all(|s| s.abs() <= 1.0 + 1e-6));
         }
+    }
+
+    #[test]
+    fn the_beep_is_6_db_lower() {
+        let peak = |b: &[f32]| b.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+        let classic = synth(MetronomeSound::Classic, true, SR);
+        let beep = synth(MetronomeSound::Beep, true, SR);
+        let db = 20.0 * (peak(&beep) / peak(&classic)).log10();
+        assert!((db + 6.0).abs() < 0.01, "{db} dB");
     }
 
     #[test]

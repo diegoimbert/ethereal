@@ -1,19 +1,21 @@
 import { useContext, useEffect, useState } from "react";
 import type { AudioConfig, TrackId } from "@/generated";
 import { RefreshCw } from "lucide-react";
-import { Button, Dialog, IconButton, Meter, Select, Tabs, Toggle, type SelectOption } from "@/kit";
+import { Button, Dialog, IconButton, Meter, Select, Toggle, type SelectOption } from "@/kit";
 import { useProjectStore, useTrackMeter } from "@/state";
 import { cmd, commandErrorText, isCommandFailed, isTauri, TransportContext, type EngineTransport } from "@/transport";
 import { PluginFoldersPanel } from "@/features/plugins";
+import { PluginListSettings } from "@/features/plugins/PluginListSettings";
 import { useEngineEvent } from "@/features/transport-bar/engine";
 import { LaunchSettings } from "@/features/project/LaunchSettings";
 import { FileFilterSettings } from "@/features/browser/settings/FileFilterSettings";
 import { StorageSettings } from "@/features/storage";
 import { NewsSettings } from "@/features/news";
-import { AdvancedSettings } from "./AdvancedSettings";
+import { AdvancedSettings, DiagnosticsSettings } from "./AdvancedSettings";
 import { AppearanceSettings } from "./AppearanceSettings";
-import { InputSettings } from "./InputSettings";
+import { InputSettings, ShortcutSettings } from "./InputSettings";
 import { LanguageSettings } from "./LanguageSettings";
+import { SettingsPlaceholder } from "./SettingsPlaceholder";
 import { bufferChoice } from "./buffer";
 import { loadAudioDevices, useAudioSettings, type BuiltinSettingsTab } from "./store";
 import { useContributions, type SettingsSectionContribution } from "@/ext";
@@ -29,36 +31,80 @@ function errorText(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-const TABS: ReadonlyArray<{ id: BuiltinSettingsTab; label: MessageKey }> = [
-  { id: "general", label: "settings.tabs.general" },
-  { id: "appearance", label: "settings.tabs.appearance" },
-  { id: "audio", label: "settings.tabs.audio" },
-  { id: "input", label: "settings.tabs.input" },
-  { id: "plugins", label: "settings.tabs.plugins" },
-  { id: "privacy", label: "settings.tabs.privacy" },
-  { id: "advanced", label: "settings.tabs.advanced" },
-];
-
-/** The tabs shown without an engine (the others say "no engine connected"). */
-const NO_ENGINE_TABS: ReadonlySet<string> = new Set(["general", "appearance", "input", "privacy"]);
+/** A category of the settings (the sidebar), and its pages (shown one at a time). */
+interface Category {
+  id: string;
+  label: string;
+  pages: Array<{ id: string; label: string }>;
+}
 
 /**
- * Settings, in tabs:
+ * The app's categories and pages. A page id is what `openSettings(id)` takes (the former tab
+ * ids still name the first page of their category).
+ */
+const CATEGORIES: ReadonlyArray<{ id: string; label: MessageKey; pages: ReadonlyArray<{ id: BuiltinSettingsTab; label: MessageKey }> }> = [
+  {
+    id: "general",
+    label: "settings.tabs.general",
+    pages: [
+      { id: "general", label: "settings.pages.startup" },
+      { id: "library", label: "settings.pages.library" },
+    ],
+  },
+  { id: "appearance", label: "settings.tabs.appearance", pages: [{ id: "appearance", label: "settings.tabs.appearance" }] },
+  { id: "audio", label: "settings.tabs.audio", pages: [{ id: "audio", label: "settings.tabs.audio" }] },
+  {
+    id: "input",
+    label: "settings.tabs.input",
+    pages: [
+      { id: "input", label: "settings.pages.mouse" },
+      { id: "shortcuts", label: "settings.pages.shortcuts" },
+    ],
+  },
+  {
+    id: "plugins",
+    label: "settings.tabs.plugins",
+    pages: [
+      { id: "plugins", label: "settings.pages.plugin_folders" },
+      { id: "plugin-list", label: "settings.pages.plugin_list" },
+    ],
+  },
+  { id: "privacy", label: "settings.tabs.privacy", pages: [{ id: "privacy", label: "settings.tabs.privacy" }] },
+  {
+    id: "advanced",
+    label: "settings.tabs.advanced",
+    pages: [
+      { id: "advanced", label: "settings.pages.engine" },
+      { id: "diagnostics", label: "settings.pages.diagnostics" },
+    ],
+  },
+];
+
+/** The pages shown without an engine (the others say "no engine connected"). */
+const NO_ENGINE_PAGES: ReadonlySet<string> = new Set(["general", "appearance", "input", "shortcuts", "plugin-list", "privacy", "diagnostics"]);
+
+/**
+ * Settings: a sidebar of categories (a category with several pages lists them under it when
+ * open) and one page at a time:
+ * - General > Language & startup: language, startup ("Reopen last project on launch").
+ *   General > Library: where the projects are kept (web), the library browser's file rules.
  * - Appearance: theme, interface zoom, translucency (kept on this device; needs no engine).
- * - General: startup ("Reopen last project on launch"); library files (
- *   which files the library browser lists, regex rules; needs the engine).
  * - Audio: driver (host API), output and input devices, sample rate and buffer size, the
  *   engine's status, and an input check (the level of armed, monitored tracks). Every change
  *   applies at once (`Engine::SetAudioConfig`, only the changed field); the engine persists
  *   the settings.
- * - Input: mouse wheel and buttons (zoom/scroll sensitivity, inversion, which
- *   modifier zooms, middle and side buttons). Kept on this device; needs no engine.
- * - Plugins: the folders scanned for plugins (system folders on/off, the user's
- *   folders with a format filter), Rescan and Full rescan.
+ * - Mouse & keyboard > Mouse & trackpad: wheel and buttons (zoom/scroll sensitivity,
+ *   inversion, modifier zooms, middle and side buttons; kept on this device). Keyboard
+ *   shortcuts: the shortcuts editor.
+ * - Plugins > Folders & scan: the folders scanned for plugins (system folders on/off, the
+ *   user's folders with a format filter), Rescan and Full rescan. Plugin list: one format per
+ *   plugin (the preferred one) and the hidden plugins (kept on this device).
  * - Privacy: "check for news" (docs/NEWS.md). Kept on this device; needs no engine.
- * - Advanced: the engine server (remote engine), the engine log and the debug panels.
- * Extensions add tabs (`@/ext` "settings.tab") and sections to any tab ("settings.section").
- * Mounted once by the app shell; open it with `openSettings(tab)` or `openAudioSettings()`.
+ * - Advanced > Engine: the engine server (remote engine). Diagnostics: the engine log and
+ *   the debug panels.
+ * Extensions add categories or pages (`@/ext` "settings.tab": `parent` makes it a page of a
+ * category) and sections to any page ("settings.section"). Mounted once by the app shell;
+ * open it with `openSettings(page)` or `openAudioSettings()`.
  */
 export function AudioSettingsDialog() {
   const t = useT();
@@ -74,13 +120,22 @@ export function AudioSettingsDialog() {
   const close = useAudioSettings((s) => s.close);
   const extraTabs = useContributions("settings.tab");
   const sections = useContributions("settings.section");
-  const tabs: Array<{ id: string; label: string; tour: string }> = TABS.map((tab) => ({ id: tab.id, label: t(tab.label), tour: `settings-tab-${tab.id}` }));
+  const categories: Category[] = CATEGORIES.map((c) => ({ id: c.id, label: t(c.label), pages: c.pages.map((p) => ({ id: p.id, label: t(p.label) })) }));
+  // Extensions: a page under its category (`parent`), else a category of its own.
   for (const x of extraTabs) {
-    const at = tabs.findIndex((tab) => tab.id === (x.before ?? "advanced"));
-    tabs.splice(at < 0 ? tabs.length : at, 0, { id: x.id, label: x.label(), tour: `settings-tab-${x.id}` });
+    const parent = x.parent && categories.find((c) => c.id === x.parent);
+    if (parent) {
+      parent.pages.push({ id: x.id, label: x.label() });
+      continue;
+    }
+    const at = categories.findIndex((c) => c.id === (x.before ?? "advanced"));
+    categories.splice(at < 0 ? categories.length : at, 0, { id: x.id, label: x.label(), pages: [{ id: x.id, label: (x.pageLabel ?? x.label)() }] });
   }
-  const extra = extraTabs.find((x) => x.id === tab);
-  const noEngine = NO_ENGINE_TABS.has(tab) || !!extra?.noEngine;
+  // An unknown page (an extension gone): the first one.
+  const category = categories.find((c) => c.pages.some((p) => p.id === tab)) ?? categories[0]!;
+  const page = category.pages.find((p) => p.id === tab) ?? category.pages[0]!;
+  const extra = extraTabs.find((x) => x.id === page.id);
+  const noEngine = NO_ENGINE_PAGES.has(page.id) || !!extra?.noEngine || sections.some((x) => x.tab === page.id && x.noEngine);
   return (
     <Dialog
       open={open}
@@ -95,31 +150,76 @@ export function AudioSettingsDialog() {
     >
       {open && (
         <div className="eth-settings">
-          <Tabs label={t("settings.title")} value={tab} onChange={setTab} items={tabs} className="eth-settings__tabs" />
-          <div className="eth-settings__panel" role="tabpanel" aria-label={tabs.find((x) => x.id === tab)?.label}>
+          <nav className="eth-settings__nav" aria-label={t("settings.title")}>
+            {categories.map((c) => {
+              const current = c.id === category.id;
+              return (
+                <div key={c.id} className="eth-settings__nav-group">
+                  <button
+                    type="button"
+                    className="eth-settings__nav-item"
+                    aria-current={current && c.pages.length === 1 ? "page" : undefined}
+                    data-current={current || undefined}
+                    data-tour={`settings-tab-${c.id}`}
+                    onClick={() => setTab(c.pages[0]!.id)}
+                  >
+                    {c.label}
+                  </button>
+                  {/* Always there, animated open / closed (its height); closed, out of the
+                      tab order. */}
+                  {c.pages.length > 1 && (
+                    <div className="eth-settings__nav-pages" data-open={current || undefined} inert={!current}>
+                      <div className="eth-settings__nav-pages-inner">
+                        {c.pages.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className="eth-settings__nav-item eth-settings__nav-page"
+                            aria-current={p.id === page.id ? "page" : undefined}
+                            data-current={p.id === page.id || undefined}
+                            onClick={() => setTab(p.id)}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </nav>
+          <div className="eth-settings__panel" role="region" aria-label={page.label}>
             {!transport && !noEngine && <p className="eth-audio-settings__note">{t("settings.no_engine")}</p>}
-            <Sections at="start" tab={tab} sections={sections} transport={transport} />
-            {tab === "general" && (
+            <Sections at="start" tab={page.id} sections={sections} transport={transport} />
+            {page.id === "general" && (
               <div className="eth-settings__stack">
                 <LanguageSettings />
                 <LaunchSettings />
+              </div>
+            )}
+            {page.id === "library" && (
+              <div className="eth-settings__stack">
                 {/* The browser keeps the projects; the desktop app's are files. */}
                 {!isTauri() && <StorageSettings />}
                 {transport && <FileFilterSettings transport={transport} />}
               </div>
             )}
-            {tab === "appearance" && <AppearanceSettings />}
-            {tab === "input" && <InputSettings />}
-            {tab === "privacy" && (
+            {page.id === "appearance" && <AppearanceSettings />}
+            {page.id === "input" && <InputSettings />}
+            {page.id === "shortcuts" && <ShortcutSettings />}
+            {page.id === "privacy" && (
               <div className="eth-settings__stack">
                 <NewsSettings />
               </div>
             )}
-            {transport && tab === "audio" && <AudioSettingsBody transport={transport} reason={reason} />}
-            {transport && tab === "plugins" && <PluginFoldersPanel transport={transport} />}
-            {transport && tab === "advanced" && <AdvancedSettings transport={transport} />}
-            {extra && (transport || extra.noEngine) && <extra.Component transport={transport} />}
-            <Sections at="end" tab={tab} sections={sections} transport={transport} />
+            {transport && page.id === "audio" && <AudioSettingsBody transport={transport} reason={reason} />}
+            {transport && page.id === "plugins" && <PluginFoldersPanel transport={transport} />}
+            {page.id === "plugin-list" && <PluginListSettings />}
+            {transport && page.id === "advanced" && <AdvancedSettings transport={transport} />}
+            {page.id === "diagnostics" && <DiagnosticsSettings />}
+            {extra?.Component && (transport || extra.noEngine) && <extra.Component transport={transport} />}
+            <Sections at="end" tab={page.id} sections={sections} transport={transport} />
           </div>
         </div>
       )}
@@ -193,7 +293,8 @@ function AudioSettingsBody({ transport, reason }: { transport: EngineTransport; 
       </p>
     );
   }
-  if (!devices) return <p className="eth-audio-settings__note">{loading ? t("settings.audio.loading") : t("settings.audio.no_devices")}</p>;
+  // Loading: placeholder rows where the devices go (no jump when they come).
+  if (!devices) return loading ? <SettingsPlaceholder rows={4} /> : <p className="eth-audio-settings__note">{t("settings.audio.no_devices")}</p>;
 
   const cur = devices.current;
   const defaultOutput = devices.outputs.find((d) => d.is_default)?.name ?? devices.outputs[0]?.name ?? "";

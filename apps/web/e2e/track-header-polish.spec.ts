@@ -1,6 +1,6 @@
 // Track header polish on the web build (real wasm engine), both arranger renderers:
-// - the track name extends under the buttons hidden while the pointer is away, up to the
-//   next button that stays visible (armed record); hovering brings the others back;
+// - mute / solo / arm / automation always show (under the volume and pan): the name keeps its
+//   room whether the header is hovered or not;
 // - folding / unfolding a group updates the lanes at once (no click needed);
 // - a selected clip gives its track's header the hover look.
 //
@@ -39,20 +39,15 @@ test("track header: name room, group fold redraw, selected clip hover look", asy
   await page.mouse.move(0, 0);
   await expect(name).toBeVisible();
   const idle = (await name.boundingBox())!;
-  await header.hover();
-  await expect.poll(async () => (await name.boundingBox())!.width).toBeLessThan(idle.width - 40);
+  // The buttons show without hovering: arming needs no hover, and the name never moves.
   const arm = header.getByRole("button", { name: `arm ${b.name}` });
+  await expect(arm).toBeVisible();
+  await header.hover();
+  await expect.poll(async () => Math.abs((await name.boundingBox())!.width - idle.width)).toBeLessThan(1);
   await arm.click();
   await expect(arm).toHaveAttribute("aria-pressed", "true");
   await page.mouse.move(0, 0);
-  // Armed and not hovered: the name stops at the arm button, but is wider than hovered.
-  await expect
-    .poll(async () => {
-      const n = (await name.boundingBox())!;
-      const r = (await arm.boundingBox())!;
-      return n.x + n.width <= r.x + 0.5 && n.width < idle.width - 10 && n.width > idle.width - 70;
-    })
-    .toBe(true);
+  await expect.poll(async () => Math.abs((await name.boundingBox())!.width - idle.width)).toBeLessThan(1);
   await shot("armed-not-hovered");
 
   // --- group fold ------------------------------------------------------------------------

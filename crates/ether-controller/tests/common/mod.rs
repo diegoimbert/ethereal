@@ -77,6 +77,20 @@ pub struct FakeBridge {
     pub offline_plugins: bool,
     /// `set_plugin_state` fails (a plugin that cannot load a state while running).
     pub live_state_fails: bool,
+    /// Capture: `None` = unsupported (web), else what the host records.
+    pub recording: Option<FakeRecording>,
+}
+
+/// A fake capture host: what `poll_recording` hands out next and what `stop_recording`
+/// returns (the test writes the take files into the store itself).
+#[derive(Debug, Default)]
+pub struct FakeRecording {
+    /// A session is open (`start_recording` .. `stop_recording`).
+    pub active: bool,
+    pub sessions: Vec<ether_controller::RecordSession>,
+    pub live_audio: Vec<ether_core::protocol::recording::LiveAudioChunk>,
+    pub live_midi: Vec<ether_core::protocol::recording::LiveMidiNote>,
+    pub takes: ether_controller::RecordedTakes,
 }
 
 impl FakeBridge {
@@ -332,6 +346,40 @@ impl EngineBridge for FakeBridge {
 
     fn probe_plugin(&mut self, plugin: &PluginInstance) -> Option<DeviceDescriptor> {
         self.plugins.as_ref()?.get(&plugin.plugin_id).cloned()
+    }
+
+    fn start_recording(
+        &mut self,
+        session: &ether_controller::RecordSession,
+    ) -> Result<(), BridgeError> {
+        let r = self
+            .recording
+            .as_mut()
+            .ok_or_else(|| BridgeError::Unsupported("no capture".into()))?;
+        r.active = true;
+        r.sessions.push(session.clone());
+        Ok(())
+    }
+
+    fn poll_recording(
+        &mut self,
+        audio: &mut Vec<ether_core::protocol::recording::LiveAudioChunk>,
+        midi: &mut Vec<ether_core::protocol::recording::LiveMidiNote>,
+    ) {
+        // Also right after `stop_recording` (what the host flushed while closing the takes).
+        if let Some(r) = self.recording.as_mut() {
+            audio.append(&mut r.live_audio);
+            midi.append(&mut r.live_midi);
+        }
+    }
+
+    fn stop_recording(&mut self) -> Result<ether_controller::RecordedTakes, BridgeError> {
+        let r = self
+            .recording
+            .as_mut()
+            .ok_or_else(|| BridgeError::Unsupported("no capture".into()))?;
+        r.active = false;
+        Ok(std::mem::take(&mut r.takes))
     }
 }
 

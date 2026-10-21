@@ -3,6 +3,7 @@
  * take-lane context menus and the next/previous take shortcuts.
  */
 
+import { notify } from "@/features/notifications";
 import type { Beats, Clip, Command, CompRegion, TakeLane, TakeLaneId, TrackId } from "@/generated";
 import { matchesAction, type ChordEvent } from "@/features/keymap";
 import { useConfirm, type ContextMenuEntry } from "@/kit";
@@ -12,11 +13,8 @@ import { t } from "@/i18n";
 import { compOf, lanesOf, laneClipsOf, regionAt } from "@/domain/comping";
 import { useCompingUi } from "./store";
 
-/** How long an edit error stays on screen (ms). */
-export const ERROR_MS = 5000;
-let errorTimer: ReturnType<typeof setTimeout> | null = null;
-
-function showError(track: TrackId, err: unknown): void {
+/** A refused edit (a frozen track, a lane deleted by a peer, ...): a warning toast. */
+function showError(err: unknown): void {
   const message = isCommandFailed(err)
     ? commandErrorText(err.error)
     : err instanceof Error
@@ -24,22 +22,20 @@ function showError(track: TrackId, err: unknown): void {
       : typeof err === "object" && err && "message" in err
         ? String(err.message)
         : String(err);
-  useCompingUi.getState().setError({ track, message });
-  if (errorTimer) clearTimeout(errorTimer);
-  errorTimer = setTimeout(() => useCompingUi.getState().setError(null), ERROR_MS);
+  notify("Warning", message);
 }
 
 /**
  * Send one edit as its own gesture. Failures (a frozen track, a lane deleted by a peer, ...)
- * are shown under the track's take lanes. Resolves `true` on success.
+ * are a warning toast. Resolves `true` on success.
  */
-export async function sendTakeEdit(transport: EngineTransport, track: TrackId, command: Command): Promise<boolean> {
+export async function sendTakeEdit(transport: EngineTransport, command: Command): Promise<boolean> {
   const gesture = nextGestureId();
   try {
     await transport.send(command, { gesture });
     return true;
   } catch (err) {
-    showError(track, err);
+    showError(err);
     return false;
   } finally {
     transport.send(cmd("Edit", { type: "EndGesture", gesture })).catch(() => {});
@@ -52,7 +48,7 @@ const project = () => useProjectStore.getState().project;
 export async function swipeComp(transport: EngineTransport, track: TrackId, lane: TakeLaneId, start: Beats, end: Beats): Promise<string | null> {
   const [a, b] = start <= end ? [start, end] : [end, start];
   const id = newId();
-  const ok = await sendTakeEdit(transport, track, cmd("Take", { type: "SetComp", id, split_id: newId(), track, lane, start: Math.max(0, a), end: b }));
+  const ok = await sendTakeEdit(transport, cmd("Take", { type: "SetComp", id, split_id: newId(), track, lane, start: Math.max(0, a), end: b }));
   return ok ? id : null;
 }
 
@@ -103,24 +99,24 @@ export function pickHere(transport: EngineTransport, track: TrackId, lane: TakeL
 
 export function newLane(transport: EngineTransport, track: TrackId): void {
   useCompingUi.getState().toggle(track, true);
-  void sendTakeEdit(transport, track, cmd("Take", { type: "CreateLane", id: newId(), track, name: null, before: null }));
+  void sendTakeEdit(transport, cmd("Take", { type: "CreateLane", id: newId(), track, name: null, before: null }));
 }
 
 export function renameLane(transport: EngineTransport, lane: TakeLane, name: string): void {
   const n = name.trim();
-  if (n && n !== lane.name) void sendTakeEdit(transport, lane.track, cmd("Take", { type: "RenameLane", id: lane.id, name: n }));
+  if (n && n !== lane.name) void sendTakeEdit(transport, cmd("Take", { type: "RenameLane", id: lane.id, name: n }));
 }
 
 export function toggleAudition(transport: EngineTransport, lane: TakeLane): void {
   const ui = useCompingUi.getState();
   const on = ui.audition.get(lane.track) === lane.id;
-  void sendTakeEdit(transport, lane.track, cmd("Take", { type: "Audition", track: lane.track, lane: on ? null : lane.id })).then((ok) => {
+  void sendTakeEdit(transport, cmd("Take", { type: "Audition", track: lane.track, lane: on ? null : lane.id })).then((ok) => {
     if (ok) useCompingUi.getState().setAudition(lane.track, on ? null : lane.id);
   });
 }
 
 export function flattenComp(transport: EngineTransport, track: TrackId, keepLanes: boolean): void {
-  void sendTakeEdit(transport, track, cmd("Take", { type: "Flatten", track, seed: newId(), seed_notes: newId(), keep_lanes: keepLanes })).then((ok) => {
+  void sendTakeEdit(transport, cmd("Take", { type: "Flatten", track, seed: newId(), seed_notes: newId(), keep_lanes: keepLanes })).then((ok) => {
     if (ok && !keepLanes) useCompingUi.getState().toggle(track, false);
   });
 }
@@ -178,7 +174,7 @@ export function laneMenu(
   const auditioning = useCompingUi.getState().audition.get(lane.track) === lane.id;
   const clips = laneClipsOf(p, lane.id);
   const span = clips.length ? { start: Math.min(...clips.map((c) => c.start)), end: Math.max(...clips.map((c) => c.start + c.length)) } : null;
-  const edit = (c: Command) => () => void sendTakeEdit(transport, lane.track, c);
+  const edit = (c: Command) => () => void sendTakeEdit(transport, c);
   const out: ContextMenuEntry[] = [
     { label: auditioning ? t("comping.menu.stop_audition") : t("comping.menu.audition"), onSelect: () => toggleAudition(transport, lane) },
     {

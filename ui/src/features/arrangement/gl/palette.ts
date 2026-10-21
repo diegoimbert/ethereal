@@ -6,7 +6,7 @@
  * Colors are `[r, g, b, a]` floats in 0–1 (straight alpha).
  */
 
-import { getGlow, getTheme, readToken, tokenName, themes, type ColorKey, type ThemeName } from "@/theme";
+import { displayColor, getGlow, getTheme, readToken, tokenName, themes, type ColorKey, type ThemeName } from "@/theme";
 
 export type Rgba = readonly [number, number, number, number];
 
@@ -37,9 +37,10 @@ function parseHex(h: string): Rgba | null {
   return [n(0), n(2), n(4), full.length === 8 ? n(6) : 1];
 }
 
-/** A 0xRRGGBB clip/track color. */
+/** A 0xRRGGBB clip/track color, as shown (`displayColor`: an imported color in the palette's range). */
 export function rgbOf(color: number): Rgba {
-  return [((color >> 16) & 0xff) / 255, ((color >> 8) & 0xff) / 255, (color & 0xff) / 255, 1];
+  const c = displayColor(color);
+  return [((c >> 16) & 0xff) / 255, ((c >> 8) & 0xff) / 255, (c & 0xff) / 255, 1];
 }
 
 /** `color-mix(in srgb, a p, b)`: `p` of `a` (0–1), alpha mixed too. */

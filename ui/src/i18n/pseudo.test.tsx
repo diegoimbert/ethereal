@@ -23,7 +23,7 @@ import { ArrangementView } from "@/features/arrangement/ArrangementView";
 import { Toolbar } from "@/features/arrangement/Toolbar";
 import { ArrangementContext, type ArrangementContextValue } from "@/features/arrangement/context";
 import { UngroupConfirmDialog, useUngroupConfirm } from "@/features/groups";
-import { MetronomeSettings } from "@/features/tempo/MetronomeSettings";
+import { MetronomePanel } from "@/features/tempo/MetronomeSettings";
 import { timeSelectionMenu } from "@/features/time-edits/actions";
 import { ProjectMenu } from "@/features/project";
 import { useExportProject } from "@/features/project/exportProjectStore";
@@ -34,10 +34,10 @@ import { RemoteEngineSettings, useEngineServerShown } from "@/features/remote";
 import { MissingDeviceControls, ResolverDialog, resetResolver, useResolver } from "@/features/import-resolver";
 import { ExportDialog } from "@/features/export";
 import { useExportAudio } from "@/features/export/store";
-import { MissingMediaNotice } from "@/features/media-refs/MediaRefsRoot";
+import { MissingMediaStatus } from "@/features/media-refs/MediaRefsRoot";
 import { RelinkDialog } from "@/features/media-refs/RelinkDialog";
 import { applyMediaRefEvent, openRelink, resetMediaRefs } from "@/features/media-refs/store";
-import { ImportStatus } from "@/features/import/ImportRoot";
+import { ImportList } from "@/features/import/ImportStatus";
 import { useImportStore } from "@/features/import/importStore";
 import type { Device } from "@/generated";
 import { useProjectStore } from "@/state";
@@ -168,14 +168,14 @@ describe("the pseudo-locale finds no untranslated text", () => {
     await renderWithMock(<AudioSettingsDialog />);
     await act(async () => openSettings("general"));
     const dialog = await screen.findByRole("dialog");
-    const frame = [dialog.querySelector(".eth-dialog__header"), screen.getByRole("tablist"), dialog.querySelector(".eth-dialog__footer")];
+    const frame = [dialog.querySelector(".eth-dialog__header"), screen.getByRole("navigation"), dialog.querySelector(".eth-dialog__footer")];
     for (const el of [...frame, screen.getByTestId("settings-language"), screen.getByTestId("settings-general")]) {
       expect(el).not.toBeNull();
       expect(untranslated(el!)).toEqual([]);
     }
   });
 
-  for (const tab of ["appearance", "input", "audio", "privacy"] satisfies SettingsTab[]) {
+  for (const tab of ["library", "appearance", "input", "shortcuts", "audio", "privacy", "diagnostics"] satisfies SettingsTab[]) {
     it(`in settings > ${tab}`, async () => {
       await renderWithMock(<AudioSettingsDialog />);
       await act(async () => openSettings(tab));
@@ -267,8 +267,8 @@ describe("the pseudo-locale finds no untranslated text", () => {
     expect(screen.getByRole("menu")).toBeTruthy();
     expect(untranslated(bar.container.ownerDocument.body)).toEqual([]);
     bar.unmount();
-    await renderWithMock(<MetronomeSettings />);
-    fireEvent.click(await screen.findByTestId("metronome-settings"));
+    await renderWithMock(<MetronomePanel />);
+    await screen.findAllByRole("switch");
     expect(untranslated(document.body)).toEqual([]);
     cleanup();
     const transport = {} as EngineTransport;
@@ -422,7 +422,7 @@ describe("the pseudo-locale finds no untranslated text", () => {
     act(() => useExportAudio.getState().hide());
 
     act(() => applyMediaRefEvent({ type: "Media", event: { type: "Missing", media } }));
-    const notice = render(<MissingMediaNotice />);
+    const notice = render(<MissingMediaStatus />);
     expect(untranslated(notice.container)).toEqual([]);
     notice.unmount();
     act(() => openRelink());
@@ -441,7 +441,7 @@ describe("the pseudo-locale finds no untranslated text", () => {
         ],
       }),
     );
-    const { container, unmount } = render(<ImportStatus />);
+    const { container, unmount } = render(<ImportList />);
     // A failed import's row shows its error (the file name and the engine's reason).
     for (const el of container.querySelectorAll('[data-phase="error"] .eth-import__text')) el.setAttribute("data-i18n-exempt", "");
     expect(untranslated(container)).toEqual([]);

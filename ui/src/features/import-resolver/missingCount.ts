@@ -18,10 +18,10 @@ export function missingCount(project: Project | null, transport: EngineTransport
   return groups.size + missingMedia;
 }
 
-/** How many missing items the open project has (kept current as it changes). */
-export function useMissingCount(): number {
+/** How many missing items the open project has (kept current as it changes); `media: false`: plugins and devices only. */
+export function useMissingCount({ media = true }: { media?: boolean } = {}): number {
   const transport = useContext(TransportContext)?.transport;
   const project = useProjectStore((s) => s.project);
-  const media = useMediaRefs((s) => s.missing.size);
-  return missingCount(project, transport, media);
+  const missingMedia = useMediaRefs((s) => s.missing.size);
+  return missingCount(project, transport, media ? missingMedia : 0);
 }

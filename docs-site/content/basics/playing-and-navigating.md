@@ -89,7 +89,7 @@ With a mouse or trackpad, in the arrangement:
 
 A pinch always zooms. On Windows the zoom direction is flipped by default, so pushing the wheel forward zooms in like on a Mac.
 
-All of this can be changed in **settings › input**: the zoom and scroll sensitivity, which modifier zooms (or whether the plain wheel zooms), inverting each direction, what the middle button does and what the mouse's back and forward buttons do. The command palette has **mouse and wheel settings…** to get there quickly, and **zoom to fit** to show the whole song.
+All of this can be changed in **settings › mouse & keyboard**: the zoom and scroll sensitivity, which modifier zooms (or whether the plain wheel zooms), inverting each direction, what the middle button does and what the mouse's back and forward buttons do. The command palette has **mouse and wheel settings…** to get there quickly, and **zoom to fit** to show the whole song.
 
 ### how far you can zoom out
 

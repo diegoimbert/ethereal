@@ -4,9 +4,9 @@ import "./transport-bar.css";
 import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { EngineStatus, GestureId, TimeSignaturePoint } from "@/generated";
-import { Circle, Pause, Play, Redo2, Repeat, Square, Timer, Undo2 } from "lucide-react";
-import { Button, DismissibleError } from "@/kit";
-import { timeSignaturePoints, useCpuLoad, usePlayhead, useProjectStore, useReadOnly } from "@/state";
+import { Circle, Metronome, Pause, Play, Redo2, Repeat, Square, Undo2 } from "lucide-react";
+import { Button, DismissibleError, Popover } from "@/kit";
+import { timeSignaturePoints, useCpuLoad, usePlayhead, useProjectStore, useReadOnly, useRecordSupport } from "@/state";
 import { inputSettings } from "@/timeline";
 import { cmd, nextGestureId } from "@/transport";
 import { chordsFor, dispatchPaused, firstMatch, useKeymapStore, useShortcutLabel } from "@/features/keymap";
@@ -14,13 +14,29 @@ import { playOrStopHere, playOrStopToStart, stopButton } from "@/features/time-e
 import { asKeyboardEvent, chordCodes, onPluginWindowKey, setEditorKeyCapture } from "@/features/plugin-keys";
 import { CaptureButton } from "@/features/capture";
 import { KeyboardMidiButton } from "@/features/keyboard-midi";
+import { MetronomePanel } from "@/features/tempo";
 import { midiTarget } from "@/features/midi-learn/targets";
 import { tText, useT } from "@/i18n";
 import { CommitField } from "./CommitField";
 import { diskTitle, useDiskStore } from "./disk";
 import { isTextEntry, useEngineCommands, useEngineEvent, useOptionalConnection, useOptionalTransport } from "./engine";
 import { blurAfterPointer, installTransportKeys, transportActionFor, type TransportKeyAction } from "./keys";
-import { barPosition, clampBpm, formatBarPosition, formatBpm, formatCpu, formatSeconds, formatSignature, parseBpm, parseSignature } from "./format";
+import {
+  barPosition,
+  clampBpm,
+  formatBarPosition,
+  formatBpm,
+  formatCpu,
+  formatSeconds,
+  formatSecondsShort,
+  formatSignature,
+  parseBpm,
+  parseSignature,
+} from "./format";
+import { useCompactTopBar } from "./compact";
+import { useMobileUi } from "@/features/mobile/mode";
+
+export { COMPACT_TOP_BAR_QUERY, useCompactTopBar } from "./compact";
 
 const EMPTY_POINTS: TimeSignaturePoint[] = [];
 
@@ -46,6 +62,10 @@ export function TransportBar() {
   const readOnly = useReadOnly();
   // An extension says nothing here can play now (e.g. joined with no engine): the reason.
   const blocked = useTransportBlocked();
+  const compact = useCompactTopBar();
+  const recordUnsupported = useRecordSupport((s) => s.unsupported);
+  // The metronome's settings: a right-click on its button.
+  const [metronomeMenu, setMetronomeMenu] = useState(false);
 
   const playing = state?.playing ?? false;
   const recording = state?.recording ?? false;
@@ -130,18 +150,23 @@ export function TransportBar() {
             <Square aria-hidden />
           </Button>
           {!readOnly && (
-            <Button
-              tone="ghost"
-              aria-label={t("shell.transport.record")}
-              title={blocked ?? t("shell.transport.record_title")}
-              active={recording}
-              className="eth-tb__btn eth-tb__record"
-              {...midiTarget({ type: "Transport", action: "ToggleRecord" })}
-              disabled={disabled || (!!blocked && !recording)}
-              onClick={() => void send(cmd("Recording", { type: "SetRecording", enabled: !recording }))}
-            >
-              <Circle aria-hidden />
-            </Button>
+            // The record button (the tour's "record-button"). A host that can't record (no inputs,
+            // web) disables it with the reason; a disabled button shows no tooltip in every
+            // browser, so the wrapper carries it too.
+            <span className="eth-tb__record-wrap" title={recordUnsupported ?? undefined} data-tour="record-button">
+              <Button
+                tone="ghost"
+                aria-label={t("shell.transport.record")}
+                title={recordUnsupported ?? blocked ?? t("shell.transport.record_title")}
+                active={recording}
+                className="eth-tb__btn eth-tb__record"
+                {...midiTarget({ type: "Transport", action: "ToggleRecord" })}
+                disabled={disabled || !!recordUnsupported || (!!blocked && !recording)}
+                onClick={() => void send(cmd("Recording", { type: "SetRecording", enabled: !recording }))}
+              >
+                <Circle aria-hidden />
+              </Button>
+            </span>
           )}
           {/* capture-midi: always listening; turns what was just played into a clip. */}
           {!readOnly && <CaptureButton className="eth-tb__btn" />}
@@ -172,19 +197,6 @@ export function TransportBar() {
             drag={tempoDragHandlers}
           />
           <span className="eth-tb__unit">bpm</span>
-          {!readOnly && (
-            <Button
-              size="sm"
-              tone="ghost"
-              className="eth-tb__tap"
-              {...midiTarget({ type: "Transport", action: "TapTempo" })}
-              title={t("shell.transport.tap_title")}
-              disabled={disabled}
-              onClick={() => void send(cmd("Transport", { type: "TapTempo" }))}
-            >
-              {t("shell.transport.tap")}
-            </Button>
-          )}
           <CommitField
             label={t("shell.transport.signature")}
             title={t("shell.transport.signature_title")}
@@ -216,18 +228,33 @@ export function TransportBar() {
             <Repeat aria-hidden />
           </Button>
           {!readOnly && (
-            <Button
-              tone="ghost"
-              aria-label={t("shell.transport.metronome")}
-              title={t("shell.transport.metronome")}
-              className="eth-tb__btn eth-tb__toggle"
-              {...midiTarget({ type: "Transport", action: "ToggleMetronome" })}
-              active={state?.metronome ?? false}
-              disabled={disabled}
-              onClick={() => void send(cmd("Transport", { type: "SetMetronome", enabled: !(state?.metronome ?? false) }))}
+            <Popover
+              open={metronomeMenu}
+              onOpenChange={setMetronomeMenu}
+              placement="bottom-start"
+              aria-label={t("tempo.metronome.settings")}
+              trigger={() => (
+                <Button
+                  tone="ghost"
+                  aria-label={t("shell.transport.metronome")}
+                  title={t("shell.transport.metronome_title")}
+                  className="eth-tb__btn eth-tb__toggle"
+                  data-testid="metronome-toggle"
+                  {...midiTarget({ type: "Transport", action: "ToggleMetronome" })}
+                  active={state?.metronome ?? false}
+                  disabled={disabled}
+                  onClick={() => void send(cmd("Transport", { type: "SetMetronome", enabled: !(state?.metronome ?? false) }))}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    if (!disabled) setMetronomeMenu(true);
+                  }}
+                >
+                  <Metronome aria-hidden />
+                </Button>
+              )}
             >
-              <Timer aria-hidden />
-            </Button>
+              <MetronomePanel />
+            </Popover>
           )}
         </div>
       </div>
@@ -264,19 +291,42 @@ export function TransportBar() {
         )}
         {!readOnly && <CpuMeter />}
         {!readOnly && <DiskIndicator />}
-        {!readOnly && <EngineStatusIndicator />}
+        {/* Compact, in the recording controls' "more" menu. */}
+        {!readOnly && !compact && <EngineStatusIndicator />}
       </div>
     </div>
   );
 }
 
-/** Bars.beats.sixteenths and minutes:seconds of the playhead (re-renders at playhead rate). */
+/**
+ * Bars.beats.sixteenths and minutes:seconds of the playhead (re-renders at playhead rate).
+ * Compact top bar: one of them, the time (hundredths) until a click switches to bars and back.
+ */
 export function PositionDisplay() {
   const t = useT();
   const frame = usePlayhead();
   const points = useProjectStore(useShallow((s) => (s.project ? timeSignaturePoints(s.project) : EMPTY_POINTS)));
+  // The mobile shell keeps the plain display (no tap target this small on a touch screen).
+  const mobile = useMobileUi((s) => s.enabled);
+  const compact = useCompactTopBar() && !mobile;
+  const [showBars, setShowBars] = useState(false);
   const beats = frame?.transport.position ?? 0;
   const seconds = frame?.transport.seconds ?? 0;
+  if (compact) {
+    return (
+      <button
+        type="button"
+        className="eth-tb__position eth-tb__position--compact"
+        aria-label={t("shell.transport.position")}
+        title={showBars ? t("shell.transport.position_show_time") : t("shell.transport.position_show_bars")}
+        onClick={() => setShowBars((b) => !b)}
+      >
+        <output className="eth-tb__bars" data-testid={showBars ? "position-bars" : "position-time"}>
+          {showBars ? formatBarPosition(barPosition(beats, points)) : formatSecondsShort(seconds)}
+        </output>
+      </button>
+    );
+  }
   return (
     <div className="eth-tb__position" aria-label={t("shell.transport.position")}>
       <output className="eth-tb__bars" data-testid="position-bars">
@@ -328,7 +378,7 @@ function DiskIndicator() {
 }
 
 /** Connection + audio backend status (dot), details in the tooltip. */
-function EngineStatusIndicator() {
+export function EngineStatusIndicator() {
   const t = useT();
   const connection = useOptionalConnection();
   const transport = useOptionalTransport();

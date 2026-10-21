@@ -8,7 +8,7 @@ import { TAKE_LANE_HEIGHT } from "@/features/comping/height";
 import { createDemoProject, makeClip } from "@/transport/mock/demoProject";
 import type { Row } from "../../layout";
 import type { LaneLayerContext, LayerOutput } from "../layers";
-import type { Palette } from "../palette";
+import { rgbOf, type Palette } from "../palette";
 import { InstanceWriter, RECT_STRIDE } from "../pipelines";
 import type { LaneScene, SceneInput, ViewWindow } from "../scene";
 import { automationLayer, automationPointAt, baselineDashes, buildAutomationLane, envelope, type GlAutomationLane } from "./automationLanes";
@@ -221,7 +221,13 @@ describe("group summary", () => {
     const bar = rectAt(rects, 0);
     expect(bar.slice(0, 2)).toEqual([0, 6]);
     expect(bar.slice(8, 12).map((v) => +v.toFixed(5))).toEqual([0, 0.4, 0, 0.6]);
-    expect(bar.slice(12, 16).map((v) => +v.toFixed(3))).toEqual([1, 0, 0, 0.5]);
+    // The group's color as shown (displayColor), at half alpha.
+    expect(bar.slice(12, 16).map((v) => +v.toFixed(3))).toEqual([
+      ...rgbOf(0xff0000)
+        .slice(0, 3)
+        .map((v) => +v.toFixed(3)),
+      0.5,
+    ]);
   });
 });
 
@@ -261,7 +267,7 @@ describe("comping", () => {
     window: win(0, 10),
   });
 
-  beforeEach(() => useCompingUi.setState({ expanded: new Set(["t"]), selected: { track: "t", region: "r2" }, swipe: null, audition: new Map(), error: null }));
+  beforeEach(() => useCompingUi.setState({ expanded: new Set(["t"]), selected: { track: "t", region: "r2" }, swipe: null, audition: new Map() }));
   afterEach(() => useCompingUi.setState({ expanded: new Set(), selected: null, swipe: null, audition: new Map() }));
 
   it("shapes the comp's pieces from their take clips, named after the take", () => {

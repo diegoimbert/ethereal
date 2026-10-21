@@ -2,7 +2,7 @@
 
 import type { Beats, Clip, Color, Track } from "@/generated";
 import type { GridSetting, TempoMap } from "@/timeline";
-import { ink } from "@/theme";
+import { displayColorCss, ink } from "@/theme";
 import type { MessageKey } from "@/i18n";
 import { isArrangementClip, startOf } from "./clipTime";
 
@@ -32,8 +32,9 @@ export function inkOn(color: Color): string {
   return dark >= light ? DARK_INK : LIGHT_INK;
 }
 
+/** A track / clip color as shown (`displayColor`: an imported color in the palette's range). */
 export function colorCss(color: Color): string {
-  return `#${(color & 0xffffff).toString(16).padStart(6, "0")}`;
+  return displayColorCss(color);
 }
 
 /** Grid choices of the toolbar selector (`label`: a message key). */

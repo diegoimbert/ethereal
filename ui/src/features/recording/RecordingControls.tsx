@@ -1,8 +1,10 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { AudioDeviceList, Command, Event, InputList, ReplyValue, Track } from "@/generated";
-import { Button, DismissibleError, Popover, Select } from "@/kit";
-import { tracksOrdered, useProjectStore } from "@/state";
+import { MoreHorizontal } from "lucide-react";
+import { Button, DismissibleError, IconButton, Popover, Select } from "@/kit";
+import { EngineStatusIndicator, useCompactTopBar } from "@/features/transport-bar";
+import { tracksOrdered, useProjectStore, useRecordSupport } from "@/state";
 import { cmd, commandErrorText, isCommandFailed, TransportContext, type EngineTransport } from "@/transport";
 import { useLiveRecordingFeed } from "./live/liveStore";
 import {
@@ -62,9 +64,10 @@ function useEvents(transport: EngineTransport | null, listener: (e: Event) => vo
 }
 
 /**
- * Recording controls: record button + indicator, count-in, punch in/out (loop region), and
- * an inputs panel (input device, per-track arm, input and monitoring). The record button is
- * disabled with a tooltip when the host has no inputs (`ListInputs` → `Unsupported`, web).
+ * Recording controls: the recording indicator, count-in, punch in/out (loop region), and an
+ * inputs panel (input device, per-track arm, input and monitoring). The record button is the
+ * transport bar's; when the host has no inputs (`ListInputs` → `Unsupported`, web) these
+ * controls tell it (`useRecordSupport`): it is disabled with that reason as its tooltip.
  */
 export function RecordingControls() {
   const t = useT();
@@ -80,6 +83,8 @@ export function RecordingControls() {
   const [support, setSupport] = useState<Support>({ state: "unknown" });
   const [punch, setPunch] = useState(false);
   const [open, setOpen] = useState(false);
+  // A narrow window: count-in, punch and the engine status in a "more" menu.
+  const compact = useCompactTopBar();
 
   // Bumped to list the inputs again (after the input device changed).
   const [inputsVersion, setInputsVersion] = useState(0);
@@ -110,31 +115,14 @@ export function RecordingControls() {
 
   const unsupported = support.state === "unsupported";
   const disabled = !transport || !hasProject;
-  const recordTitle = unsupported ? unsupportedTooltip() : recording ? t("recording.stop_title") : t("recording.record_title");
+  // The top bar's record button (the one record button) reads why it can't record.
+  const unsupportedReason = unsupported ? unsupportedTooltip() : null;
+  useEffect(() => {
+    useRecordSupport.getState().setUnsupported(unsupportedReason);
+  }, [unsupportedReason]);
 
-  return (
-    <div className="eth-rec" data-feature="recording" role="toolbar" aria-label={t("recording.toolbar")}>
-      <span className="eth-rec__indicator" data-testid="recording-indicator" data-active={recording} role="status" aria-live="polite">
-        {recording ? (
-          <>
-            <span className="eth-rec__dot" aria-hidden />
-            {t("recording.rec")}
-          </>
-        ) : null}
-      </span>
-      {/* A disabled button shows no tooltip in every browser: the wrapper carries it too. */}
-      <span title={recordTitle} className="eth-rec__record-wrap" data-tour="record-button">
-        <Button
-          aria-label={t("recording.record_aria")}
-          title={recordTitle}
-          active={recording}
-          className="eth-rec__record"
-          disabled={disabled || unsupported}
-          onClick={() => void send(cmd("Recording", { type: "SetRecording", enabled: !recording }))}
-        >
-          ●
-        </Button>
-      </span>
+  const countInAndPunch = (
+    <>
       <label className="eth-rec__field" title={t("recording.count_in_title")}>
         <span>{t("recording.count_in")}</span>
         <Select
@@ -159,6 +147,34 @@ export function RecordingControls() {
       >
         {t("recording.punch")}
       </Button>
+    </>
+  );
+
+  return (
+    <div className="eth-rec" data-feature="recording" role="toolbar" aria-label={t("recording.toolbar")}>
+      <span className="eth-rec__indicator" data-testid="recording-indicator" data-active={recording} role="status" aria-live="polite">
+        {recording ? (
+          <>
+            <span className="eth-rec__dot" aria-hidden />
+            {t("recording.rec")}
+          </>
+        ) : null}
+      </span>
+      {compact ? (
+        <Popover
+          placement="bottom-end"
+          aria-label={t("recording.more")}
+          className="eth-rec__more-popover"
+          trigger={(p) => <IconButton {...p} size="sm" tone="ghost" label={t("recording.more")} icon={<MoreHorizontal />} data-testid="recording-more" />}
+        >
+          <div className="eth-rec__more">
+            {countInAndPunch}
+            <EngineStatusIndicator />
+          </div>
+        </Popover>
+      ) : (
+        countInAndPunch
+      )}
       <Popover
         open={open && !!transport}
         onOpenChange={setOpen}

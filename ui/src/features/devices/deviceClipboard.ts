@@ -1,15 +1,25 @@
 /**
- * Device copy / paste. A click on a device card selects it (and focuses it); ⌘C / Ctrl+C
- * copies the selected device, ⌘V / Ctrl+V pastes it after the selected one, in whatever chain
- * that one is in (a track's, a rack chain, a drum pad's). The header's context menu has
- * "Copy" and "Paste After". A paste is `Device::Duplicate` onto the target's track (params,
- * plugin state, a rack's chains, a drum rack's pads) then a move to its place, in one
- * `Edit::Batch`: one undo step, and all or nothing (a refused move used to leave the
- * copy on the source track).
+ * Device copy / cut / paste. A click on a device card selects it (and focuses it); ⌘ / Ctrl-click
+ * adds or removes a card, Shift-click selects the cards between the last clicked one and
+ * this one (in its chain); MIDI effects, instruments and audio effects together. ⌘C / Ctrl+C
+ * copies the selection (or the focused card when it isn't selected), ⌘V / Ctrl+V pastes it
+ * after the selected card, in whatever chain that one is in (a track's, a rack chain, a drum
+ * pad's), each copy in its own section: the target's kind right after it, the others at the
+ * end of their section. A pasted instrument replaces the chain's instrument, asked first. The
+ * header's context menu has "Copy", "Cut" and "Paste After". ⌘X / Ctrl+X cuts: the cards
+ * dim and stay until pasted, then the paste moves them (copies placed, originals removed, one
+ * undo step), like a cut rack chain. A paste is `Device::Duplicate` onto
+ * the target's track (params, plugin state, a rack's chains, a drum rack's pads) then a move
+ * to its place for each device, in one `Edit::Batch`: one undo step, and all or nothing (a
+ * refused move used to leave the copy on the source track).
  *
  * With no device selected (a click on a chain's empty space clears the selection and focuses
- * the chain), ⌘V appends the copy at the end of that chain (the end of its section: an
- * instrument still goes before the audio effects), an empty chain included.
+ * the chain), ⌘V pastes at the end of each section of that chain, an empty chain included;
+ * with the focus on no chain at all (and not in an editor), at the end of the selected
+ * track's chain.
+ *
+ * ⌘A / Ctrl+A selects every device of the focused chain; ⌘G / Ctrl+G groups the selection
+ * into a rack (`@/features/racks/group`); Delete / Backspace removes it.
  *
  * The keys come in as the document's `copy` / `paste` events (the desktop app's Edit menu
  * sends them), taken only while the focus is in a device card (copy, paste) or a device chain
@@ -18,26 +28,75 @@
 import { create } from "zustand";
 import type { Command, Device, DeviceCategory, DeviceId, DrumPadId, Project, RackChainId, TrackId } from "@/generated";
 import { notify } from "@/features/notifications";
+import { useConfirm } from "@/kit/confirmStore";
 import { t } from "@/i18n";
-import { errorMessage } from "@/features/transport-bar/engine";
-import { useProjectStore } from "@/state";
+import { errorMessage, isTextEntry } from "@/features/transport-bar/engine";
+import { useProjectStore, useSelectionStore } from "@/state";
 import { cmd, newId, type EngineTransport } from "@/transport";
+import { CHAIN_SECTIONS } from "./chainUtils";
+import { canHost } from "./libraryInsert";
+import { cannotHostMessage } from "./userInsert";
+import { matchesAction } from "@/features/keymap";
+import { groupDevices } from "@/features/racks/group";
+
+/** How a click changes the selection: plain, ⌘ / Ctrl (toggle), Shift (range). */
+export type DeviceSelectMode = "replace" | "toggle" | "range";
 
 interface DeviceClipboardState {
-  /** The selected device card (the paste target). */
-  selected: DeviceId | null;
-  /** The copied device (pasting duplicates it, so it must still exist). */
-  copied: DeviceId | null;
-  select(id: DeviceId | null): void;
-  copy(id: DeviceId): void;
+  /** The selected device cards (the paste target is the last one clicked, focused). */
+  selected: DeviceId[];
+  /** Where a Shift-click range starts (the last plain or ⌘-click). */
+  anchor: DeviceId | null;
+  /** The copied devices (pasting duplicates them, so they must still exist). */
+  copied: DeviceId[];
+  /** They were cut: the next paste moves them (the copies land, the originals go). */
+  cut: boolean;
+  select(id: DeviceId | null, mode?: DeviceSelectMode): void;
+  copy(ids: DeviceId | readonly DeviceId[], cut?: boolean): void;
 }
 
-export const useDeviceClipboard = create<DeviceClipboardState>((set) => ({
-  selected: null,
-  copied: null,
-  select: (selected) => set({ selected }),
-  copy: (copied) => set({ copied }),
+export const useDeviceClipboard = create<DeviceClipboardState>((set, get) => ({
+  selected: [],
+  anchor: null,
+  copied: [],
+  cut: false,
+  select: (id, mode = "replace") => {
+    if (id === null) return set({ selected: [], anchor: null });
+    const { selected, anchor } = get();
+    if (mode === "toggle") return set({ selected: selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id], anchor: id });
+    if (mode === "range" && anchor) {
+      const range = rangeIn(anchor, id);
+      if (range) return set({ selected: [...selected.filter((x) => !range.includes(x)), ...range] });
+    }
+    set({ selected: [id], anchor: id });
+  },
+  copy: (ids, cut = false) => set({ copied: typeof ids === "string" ? [ids] : [...ids], cut }),
 }));
+
+/** The selection mode of a click on a card. */
+export const selectModeOf = (e: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }): DeviceSelectMode =>
+  e.shiftKey ? "range" : e.metaKey || e.ctrlKey ? "toggle" : "replace";
+
+/** The devices from `a` to `b` (both included) when they are in the same chain, else null. */
+function rangeIn(a: DeviceId, b: DeviceId): DeviceId[] | null {
+  const p = useProjectStore.getState().project;
+  const from = p?.devices[a];
+  const to = p?.devices[b];
+  if (!p || !from || !to || pasteChainAttr(chainOf(from)) !== pasteChainAttr(chainOf(to))) return null;
+  const ids = chainDevices(p, chainOf(from)).map((d) => d.id);
+  const i = ids.indexOf(a);
+  const j = ids.indexOf(b);
+  return ids.slice(Math.min(i, j), Math.max(i, j) + 1);
+}
+
+/**
+ * What ⌘C / "Copy" (or ⌘X / "Cut": `cut`) on `id` takes: the selection when `id` is in it,
+ * else `id` alone. Cut devices stay until pasted (like a cut rack chain): the paste moves them.
+ */
+export function copyFrom(id: DeviceId, cut = false): void {
+  const { selected, copy } = useDeviceClipboard.getState();
+  copy(selected.includes(id) ? selected : [id], cut);
+}
 
 const byOrder = (a: Device, b: Device) => (a.order < b.order ? -1 : a.order > b.order ? 1 : a.id < b.id ? -1 : 1);
 
@@ -73,59 +132,145 @@ function chainTrack(p: Project, chain: PasteChain): TrackId | undefined {
 }
 
 /**
- * Where a pasted device of `category` goes in `chain`: right after `target` when they are of
- * the same kind, else (and with no target) at the end of its own section (MIDI effects first,
- * then the instrument, then audio effects). `null`: the end.
+ * Where pasted devices of `category` go in `chain`: right after `target` when they are of
+ * the same kind, else (and with no target) at the end of their own section (MIDI effects
+ * first, then the instrument, then audio effects). `null`: the end.
  */
-export function pastePlace(
-  chain: Device[],
-  target: Device | null,
-  category: DeviceCategory,
-  categoryOf: (d: Device) => DeviceCategory,
-  skip: DeviceId,
-): DeviceId | null {
-  const list = chain.filter((d) => d.id !== skip);
-  if (target && categoryOf(target) === category) return list[list.indexOf(target) + 1]?.id ?? null;
+export function pastePlace(chain: Device[], target: Device | null, category: DeviceCategory, categoryOf: (d: Device) => DeviceCategory): DeviceId | null {
+  if (target && categoryOf(target) === category) return chain[chain.indexOf(target) + 1]?.id ?? null;
   if (category === "AudioEffect") return null;
   const after: DeviceCategory[] = category === "NoteEffect" ? ["Instrument", "AudioEffect"] : ["AudioEffect"];
-  return list.find((d) => after.includes(categoryOf(d)))?.id ?? null;
+  return chain.find((d) => after.includes(categoryOf(d)))?.id ?? null;
+}
+
+const SECTION_ORDER = CHAIN_SECTIONS.map((s) => s.id);
+
+/**
+ * Pastes the copied devices after the device `to`, or at the end of the chain `to` (one undo
+ * step), each in its section; says why when it can't. A pasted instrument where the chain has
+ * one replaces it, once confirmed. Cut devices move (the next paste copies them again). The
+ * copies become the selection.
+ */
+export async function pasteDevice(transport: EngineTransport, to: DeviceId | PasteChain, categoryOf: (d: Device) => DeviceCategory): Promise<void> {
+  const { copied, cut } = useDeviceClipboard.getState();
+  // Moved: the next paste copies what landed.
+  await placeDevices(transport, copied, to, categoryOf, cut, (ids) => cut && useDeviceClipboard.setState({ copied: ids, cut: false }));
 }
 
 /**
- * Pastes the copied device after the device `to`, or at the end of the chain `to` (one undo
- * step); says why when it can't. The copy becomes the selection.
+ * Copies (or moves: `move`) devices `ids` after the device `to`, or to the end of the chain
+ * `to`, each in its own section (one undo step): the paste, and devices dropped on a track in
+ * the arranger. Says why when it can't; a placed instrument where the chain has one replaces
+ * it, once confirmed (it resolves once asked). `onPlaced` gets the new devices' ids, which
+ * become the selection.
  */
-export async function pasteDevice(transport: EngineTransport, to: DeviceId | PasteChain, categoryOf: (d: Device) => DeviceCategory): Promise<void> {
-  const { copied } = useDeviceClipboard.getState();
+export async function placeDevices(
+  transport: EngineTransport,
+  ids: readonly DeviceId[],
+  to: DeviceId | PasteChain,
+  categoryOf: (d: Device) => DeviceCategory,
+  move = false,
+  onPlaced?: (ids: DeviceId[]) => void,
+): Promise<void> {
   const project = useProjectStore.getState().project;
   if (!project) return;
-  const source = copied ? project.devices[copied] : undefined;
   const target = typeof to === "string" ? project.devices[to] : null;
   if (target === undefined) return;
   const chain = target ? chainOf(target) : (to as PasteChain);
   const track = target ? target.track : chainTrack(project, chain);
   if (!track) return;
-  if (!source) {
+  const sources = ids
+    .map((id) => project.devices[id])
+    .filter((d): d is Device => !!d)
+    .sort((a, b) => SECTION_ORDER.indexOf(categoryOf(a)) - SECTION_ORDER.indexOf(categoryOf(b)) || byOrder(a, b));
+  if (sources.length === 0) {
     notify("Warning", t("devices.clipboard.nothing_to_paste"));
     return;
   }
-  const id = newId();
-  // Placed among the target chain as it is now (the copy isn't in it yet).
-  const before = pastePlace(chainDevices(project, chain), target, categoryOf(source), categoryOf, id);
-  const move: Command =
-    chain.type === "Pad"
-      ? cmd("DrumRack", { type: "MoveDevice", id, pad: chain.pad, before })
-      : chain.type === "Chain"
-        ? cmd("Rack", { type: "MoveDevice", id, chain: chain.chain, before })
-        : cmd("Device", { type: "Move", id, track, before });
-  // The copy is made on the target's track (a rack with its chains can't move tracks).
-  const duplicate = cmd("Device", { type: "Duplicate", id: source.id, new_id: id, ...(track !== source.track ? { track } : {}) });
+  // A track's chain takes what its kind hosts (an audio track: no instrument, no MIDI effect).
+  const host = chain.type === "Track" ? project.tracks[chain.track] : undefined;
+  const refused = host ? sources.filter((d) => !canHost(categoryOf(d), host)) : [];
+  for (const d of refused) notify("Warning", cannotHostMessage(d.name, categoryOf(d), host!));
+  // One instrument per chain: the first copied one.
+  const instrument = sources.find((d) => categoryOf(d) === "Instrument" && !refused.includes(d));
+  const pasted = sources.filter((d) => !refused.includes(d) && (categoryOf(d) !== "Instrument" || d === instrument));
+  if (pasted.length === 0) return;
+
+  // Placed among the target chain as it is now (the copies aren't in it yet).
+  const devices = chainDevices(project, chain);
+  const replaced = instrument ? devices.find((d) => categoryOf(d) === "Instrument") : undefined;
+  const commands: Command[] = [];
+  const placed: DeviceId[] = [];
+  for (const source of pasted) {
+    const id = newId();
+    placed.push(id);
+    const before = source === instrument && replaced ? replaced.id : pastePlace(devices, target, categoryOf(source), categoryOf);
+    // The copy is made on the target's track (a rack with its chains can't move tracks).
+    commands.push(cmd("Device", { type: "Duplicate", id: source.id, new_id: id, ...(track !== source.track ? { track } : {}) }));
+    commands.push(
+      chain.type === "Pad"
+        ? cmd("DrumRack", { type: "MoveDevice", id, pad: chain.pad, before })
+        : chain.type === "Chain"
+          ? cmd("Rack", { type: "MoveDevice", id, chain: chain.chain, before })
+          : cmd("Device", { type: "Move", id, track, before }),
+    );
+  }
+  // The replaced instrument and, for a move, the originals go last (the moves above are placed
+  // against them).
+  const removed = new Set([...(replaced ? [replaced.id] : []), ...(move ? pasted.map((d) => d.id) : [])]);
+  for (const id of removed) commands.push(cmd("Device", { type: "Remove", id }));
+  const names = pasted.map((d) => d.name).join(", ");
+  const run = async () => {
+    try {
+      // The label is the English for agents; the UI shows the key's message.
+      await transport.send(cmd("Edit", { type: "Batch", label: "paste device", key: { id: "undo.device.paste", args: {} }, commands })); // i18n-ignore
+      useDeviceClipboard.setState({ selected: placed, anchor: placed.at(-1) ?? null });
+      onPlaced?.(placed);
+    } catch (e) {
+      notify("Error", t("devices.clipboard.paste_failed", { name: names, error: errorMessage(e) }));
+    }
+  };
+  if (!replaced || !instrument) return run();
+  useConfirm.getState().ask({
+    title: t("devices.clipboard.replace_title"),
+    body: t("devices.clipboard.replace_body", { name: replaced.name, with: instrument.name }),
+    action: t("devices.clipboard.replace_action"),
+    danger: true,
+    run: () => void run(),
+  });
+}
+
+/**
+ * Removes `ids` (one undo step); a drum pad left without devices goes with them (like its
+ * last device's ×). Nothing is selected afterwards.
+ */
+export async function deleteDevices(transport: EngineTransport, ids: readonly DeviceId[]): Promise<void> {
+  const project = useProjectStore.getState().project;
+  if (!project) return;
+  const devices = ids.map((id) => project.devices[id]).filter((d): d is Device => !!d);
+  // Inside a removed rack: it goes with the rack.
+  const gone = new Set(devices.map((d) => d.id));
+  const inside = (d: Device): boolean => {
+    const rack = d.chain != null ? project.rack_chains[d.chain]?.rack : d.pad !== null ? project.drum_pads[d.pad]?.rack : undefined;
+    return rack !== undefined && (gone.has(rack) || (!!project.devices[rack] && inside(project.devices[rack])));
+  };
+  const top = devices.filter((d) => !inside(d));
+  if (top.length === 0) return;
+  const pads = new Set(top.flatMap((d) => (d.pad !== null ? [d.pad] : [])));
+  const emptied = [...pads].filter((pad) => chainDevices(project, { type: "Pad", pad }).every((d) => gone.has(d.id)));
+  const commands: Command[] = [
+    ...top.filter((d) => d.pad === null || !emptied.includes(d.pad)).map((d) => cmd("Device", { type: "Remove", id: d.id })),
+    ...emptied.map((pad) => cmd("DrumRack", { type: "RemovePad", id: pad })),
+  ];
   try {
-    // The label is the English for agents; the UI shows the key's message.
-    await transport.send(cmd("Edit", { type: "Batch", label: "paste device", key: { id: "undo.device.paste", args: {} }, commands: [duplicate, move] })); // i18n-ignore
-    useDeviceClipboard.getState().select(id);
+    await transport.send(
+      commands.length === 1
+        ? commands[0]!
+        : cmd("Edit", { type: "Batch", label: "delete devices", key: { id: "undo.device.remove_selected", args: {} }, commands }), // i18n-ignore
+    );
+    useDeviceClipboard.getState().select(null);
   } catch (e) {
-    notify("Error", t("devices.clipboard.paste_failed", { name: source.name, error: errorMessage(e) }));
+    notify("Error", t("devices.device.delete_failed", { error: errorMessage(e) }));
   }
 }
 
@@ -147,6 +292,19 @@ export function pasteTarget(): DeviceId | PasteChain | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Where ⌘V pastes copied devices when the focus is on no card nor chain: the end of the
+ * selected track's chain (each device at the end of its section). Not while an editor (the
+ * arranger, the piano roll: their own paste), a field or a rack chain row has the focus.
+ */
+export function fallbackPasteTarget(): PasteChain | null {
+  if (useDeviceClipboard.getState().copied.length === 0) return null;
+  const el = document.activeElement;
+  if (el instanceof HTMLElement && el.closest("input, textarea, select, [contenteditable='true'], [data-keymap-scope], .eth-rack__row")) return null;
+  const track = useSelectionStore.getState().selectedTrack;
+  return track ? { type: "Track", track } : null;
 }
 
 /** The device card holding the focus (not while typing in a field), if any. */
@@ -175,10 +333,50 @@ export function useDeviceClipboardKeys(transport: EngineTransport, categoryOf: (
     const id = focusedDevice();
     if (!id) return;
     e.preventDefault();
-    useDeviceClipboard.getState().copy(id);
+    copyFrom(id);
+  });
+  document.addEventListener("cut", (e) => {
+    const id = focusedDevice();
+    if (!id) return;
+    e.preventDefault();
+    copyFrom(id, true);
+  });
+  // ⌘A / Ctrl+A (keymap `edit.selectAll`): every device of the focused card's (or chain's) chain.
+  document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || !matchesAction("edit.selectAll", e) || isTextEntry(e.target)) return;
+    const at = pasteTarget();
+    const project = useProjectStore.getState().project;
+    if (!at || !project) return;
+    const chain = typeof at === "string" ? (project.devices[at] ? chainOf(project.devices[at]) : null) : at;
+    if (!chain) return;
+    e.preventDefault();
+    const ids = chainDevices(project, chain).map((d) => d.id);
+    useDeviceClipboard.setState({ selected: ids, anchor: ids[0] ?? null });
+  });
+  // Delete / Backspace (keymap `edit.delete`): the selection (or the focused card) goes.
+  document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || !matchesAction("edit.delete", e) || isTextEntry(e.target)) return;
+    const id = focusedDevice();
+    if (!id || !current.transport) return;
+    e.preventDefault();
+    const { selected } = useDeviceClipboard.getState();
+    void deleteDevices(current.transport, selected.includes(id) ? selected : [id]);
+  });
+  // ⌘G / Ctrl+G (keymap `device.group`): the selection (or the focused card) into a rack.
+  document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || !matchesAction("device.group", e) || isTextEntry(e.target)) return;
+    const id = focusedDevice();
+    const project = useProjectStore.getState().project;
+    if (!id || !project || !current.transport || !current.categoryOf) return;
+    e.preventDefault();
+    const { selected } = useDeviceClipboard.getState();
+    const transport = current.transport;
+    void groupDevices((c) => transport.send(c), project, selected.includes(id) ? selected : [id], current.categoryOf).then(
+      (rack) => rack && useDeviceClipboard.setState({ selected: [rack], anchor: rack }),
+    );
   });
   document.addEventListener("paste", (e) => {
-    const to = pasteTarget();
+    const to = pasteTarget() ?? fallbackPasteTarget();
     if (!to || !current.transport || !current.categoryOf) return;
     e.preventDefault();
     void pasteDevice(current.transport, to, current.categoryOf);

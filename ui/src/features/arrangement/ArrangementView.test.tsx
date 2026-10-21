@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { act, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Clip, Command, Track } from "@/generated";
-import { playheadStore, tracksOrdered, useEditorStore, useProjectStore, useSelectionStore } from "@/state";
+import { devicesOfTrack, playheadStore, tracksOrdered, useEditorStore, useProjectStore, useSelectionStore } from "@/state";
+import { DEVICE_DRAG_TYPE } from "@/features/devices/chainUtils";
 import { itemSelection, wheelZoomFactor } from "@/timeline";
 import { cmd, newId, TransportProvider } from "@/transport";
 import { MockTransport } from "@/transport/mock";
@@ -406,20 +407,19 @@ describe("ArrangementView: track header polish", () => {
     expect(after.slice(1)).toEqual(before);
   });
 
-  it("header buttons never move: each keeps its slot, and hover / state only fade them in", () => {
+  it("header buttons are always shown, small, under the volume and pan", () => {
     const css = readFileSync(resolve(__dirname, "arrangement.css"), "utf8");
     const rule = (sel: string) => css.split("}").find((b) => b.includes(sel)) ?? "";
-    const base = rule(".eth-arr-header__toggle {");
-    expect(base).toMatch(/width: var\(--eth-size-track-button\)/);
-    expect(base).toMatch(/opacity: 0;/);
-    expect(base).not.toMatch(/transition:[^;]*\bwidth\b/);
-    const shown = rule(".eth-arr-header:hover .eth-arr-header__toggle");
-    for (const sel of ['[aria-pressed="true"]', ".eth-takes-toggle", ".eth-freeze__cancel", ".eth-auto-toggle--has"]) {
-      expect(shown).toContain(sel);
-    }
-    // Showing a button changes nothing about the layout.
+    // Elsewhere (racks, drum pads) the shared toggle is hidden until hovered or on.
+    expect(rule(".eth-arr-header__toggle {")).toMatch(/opacity: 0;/);
+    const shown = rule(".eth-arr-header__buttons .eth-arr-header__toggle,");
     expect(shown).toMatch(/opacity: 1;/);
-    expect(shown).not.toMatch(/\b(width|margin)/);
+    expect(rule(".eth-arr-header__buttons .eth-arr-header__toggle {")).toMatch(/width: var\(--eth-size-track-header-button\)/);
+    // The volume and pan sit in the same controls block as the buttons, above them.
+    const controls = headerOf("Bass").querySelector(".eth-arr-header__controls");
+    expect(controls?.querySelector(".eth-arr-header__buttons")).toBeTruthy();
+    expect(controls?.querySelector(".eth-arr-header__mix .eth-arr-vol")).toBeTruthy();
+    expect(rule(".eth-arr-header__controls {")).toMatch(/flex-direction: column-reverse;/);
   });
 
   it("a selected clip gives its track's header the hover look, without selecting the track", async () => {
@@ -825,6 +825,28 @@ describe("ArrangementView: clip editing", () => {
     await drag(content, 0, 0, { x: HEADER_WIDTH + 10, y: ROW + 5 });
     expect(itemSelection.getState().selected.clip.size).toBe(0);
     expect(useSelectionStore.getState().selectedTrack).toBe(trackByName("Bass").id);
+  });
+
+  it("keeps the clips the marquee covered selected when the view scrolls them off the left edge", async () => {
+    const content = screen.getByTestId("arrangement-content");
+    const [x, y] = [HEADER_WIDTH + 10, 30];
+    await act(async () => {
+      fireEvent.pointerDown(content, { button: 0, pointerId: 1, clientX: x, clientY: y });
+    });
+    await act(async () => {
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: x + 200, clientY: y + 75 });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: x + 400, clientY: y + 150 });
+    });
+    const chords = clipByName("Chords").id;
+    expect(itemSelection.getState().selected.clip.has(chords)).toBe(true);
+    // The edge scroll (or the wheel) moves the view far right: Chords is off screen, left of
+    // the lanes, still inside the drag.
+    act(() => arrangementView.getState().scrollByPx(3000));
+    expect(itemSelection.getState().selected.clip.has(chords)).toBe(true);
+    expect(itemSelection.getState().selected.clip.has(clipByName("Bassline").id)).toBe(true);
+    await act(async () => {
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: x + 400, clientY: y + 150 });
+    });
   });
 
   it("opens MIDI clips in the editor on double-click", () => {
@@ -1676,6 +1698,40 @@ describe("ArrangementView: track multi-selection (base-151)", () => {
     expect(itemSelection.getState().selected.clip.size).toBe(arrangementClips.length);
   });
 
+  it("Mod+A after a click on a lane's empty space (which selects its track) selects every clip, not the tracks", async () => {
+    const { selectAtLaneClick } = await import("./actions");
+    act(() => selectAtLaneClick(trackByName("Keys").id, null, "replace"));
+    expect(useArrangementUi.getState().selectedTracks.has(trackByName("Keys").id)).toBe(true);
+    await key("a");
+    const arrangementClips = Object.values(project().clips).filter((c) => !c.lane);
+    expect(itemSelection.getState().selected.clip.size).toBe(arrangementClips.length);
+    expect(useArrangementUi.getState().selectedTracks.size).toBe(0);
+    // A header click again: Mod+A selects the tracks.
+    fireEvent.click(header("Keys"));
+    await key("a");
+    expect(useArrangementUi.getState().selectedTracks.size).toBeGreaterThan(1);
+  });
+
+  it("hovering a group's header gives its tracks, at any depth, the hover look (not the selection)", async () => {
+    const [keys, bass] = [trackByName("Keys"), trackByName("Bass")];
+    const [inner, outer] = [newId(), newId()];
+    await act(async () => {
+      await mock.send(cmd("Track", { type: "GroupSelected", ids: [keys.id], group: inner, name: "Inner" }));
+      await mock.send(cmd("Track", { type: "GroupSelected", ids: [inner, bass.id], group: outer, name: "Outer" }));
+    });
+    await flush();
+    const headerOf = (name: string) => screen.getByRole("group", { name: `${name} track` });
+    const outerHeader = headerOf("Outer");
+    fireEvent.pointerEnter(outerHeader);
+    await waitFor(() => expect(headerOf("Keys")).toHaveAttribute("data-group-hover"));
+    expect(headerOf("Bass")).toHaveAttribute("data-group-hover");
+    expect(headerOf("Inner")).toHaveAttribute("data-group-hover");
+    expect(outerHeader).not.toHaveAttribute("data-group-hover");
+    expect(useArrangementUi.getState().selectedTracks.size).toBe(0);
+    fireEvent.pointerLeave(outerHeader);
+    await waitFor(() => expect(headerOf("Keys")).not.toHaveAttribute("data-group-hover"));
+  });
+
   it("allSelectableTracks: the shown rows in display order, children of folded groups and the master left out", async () => {
     const { allSelectableTracks } = await import("./actions");
     const [keys, bass] = [trackByName("Keys"), trackByName("Bass")];
@@ -1799,6 +1855,43 @@ describe("ArrangementView: audio and drops", () => {
     // Track + clip are one undo step (media was already in the project).
     await undo();
     expect(Object.keys(project().tracks)).toHaveLength(tracksBefore);
+  });
+});
+
+describe("ArrangementView: device cards dropped on a track", () => {
+  const chainOf = (track: Track) => devicesOfTrack(project(), track.id).map((d) => d.name);
+  /** A device-card drag event at track row `i` (jsdom has no DragEvent). */
+  function fireDeviceDrag(type: "dragOver" | "drop", id: string, i: number, mods: { ctrlKey?: boolean } = {}) {
+    const content = screen.getByTestId("arrangement-content");
+    const ev = createEvent[type](content, {
+      dataTransfer: { types: [DEVICE_DRAG_TYPE], getData: (t: string) => (t === DEVICE_DRAG_TYPE ? id : ""), dropEffect: "none" },
+    });
+    Object.defineProperty(ev, "ctrlKey", { value: !!mods.ctrlKey });
+    Object.defineProperty(ev, "clientX", { value: HEADER_WIDTH + 4 * PX });
+    Object.defineProperty(ev, "clientY", { value: i * ROW + 20 });
+    fireEvent(content, ev);
+  }
+
+  it("moves the dragged device to the end of its section on the track under it (⌘ / Ctrl: copies)", async () => {
+    const keys = trackByName("Keys");
+    const ordered = tracksOrdered(project());
+    const i = ordered.findIndex((t) => t.kind === "Audio");
+    const target = ordered[i]!;
+    const before = chainOf(target);
+    const comp = devicesOfTrack(project(), keys.id).find((d) => d.name === "Compressor")!;
+    fireDeviceDrag("dragOver", comp.id, i);
+    expect(useArrangementUi.getState().deviceDrop).toBe(target.id);
+    fireDeviceDrag("drop", comp.id, i);
+    await flush();
+    expect(useArrangementUi.getState().deviceDrop).toBeNull();
+    expect(chainOf(target)).toEqual([...before, "Compressor"]);
+    expect(chainOf(keys)).not.toContain("Compressor");
+    // Back on Keys, copied: both keep one.
+    const moved = devicesOfTrack(project(), target.id).find((d) => d.name === "Compressor")!;
+    fireDeviceDrag("drop", moved.id, ordered.indexOf(keys), { ctrlKey: true });
+    await flush();
+    expect(chainOf(keys)).toContain("Compressor");
+    expect(chainOf(target)).toContain("Compressor");
   });
 });
 

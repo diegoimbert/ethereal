@@ -85,6 +85,16 @@ export function formatSeconds(seconds: number): string {
   return `${sign}${m}:${String(s).padStart(2, "0")}.${String(ms).padStart(3, "0")}`;
 }
 
+/** `formatSeconds` with hundredths (`"1:05.42"`): the compact top bar's position. */
+export function formatSecondsShort(seconds: number): string {
+  const sign = seconds < 0 ? "-" : "";
+  const totalCs = Math.floor(Math.abs(seconds) * 100 + 1e-6);
+  const m = Math.floor(totalCs / 6000);
+  const s = Math.floor((totalCs % 6000) / 100);
+  const cs = totalCs % 100;
+  return `${sign}${m}:${String(s).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
+}
+
 /** `"120.00"` */
 export function formatBpm(bpm: number): string {
   return bpm.toFixed(2);

@@ -17,7 +17,7 @@ import { usePluginStore } from "@/features/plugins/pluginStore";
 import { DeviceChain } from "@/features/devices";
 import { ImportResolverRoot } from "./ImportResolverRoot";
 import { ProjectMenu } from "@/features/project";
-import { MissingItemsBadge } from "./MissingItems";
+import { MissingPluginsStatus } from "./MissingItems";
 import { missingCount } from "./missingCount";
 import { autoShow, openResolver, resetResolver, setAutoShow, setResolverTransport, useResolver } from "./store";
 
@@ -123,11 +123,11 @@ describe("missing devices in the resolver", () => {
     expect(await screen.findByRole("dialog", { name: "resolve “Live's Hybrid Reverb”" })).toBeTruthy();
   });
 
-  it("the top bar badge counts what is missing and opens the dialog", async () => {
-    const { t } = await setup(<MissingItemsBadge />);
+  it("the status bar counts the missing plugins and devices and opens the dialog", async () => {
+    const { t } = await setup(<MissingPluginsStatus />);
     expect(missingCount(project(), t, 0)).toBe(1);
     const badge = await screen.findByTestId("missing-items-badge");
-    expect(badge.textContent).toBe("1 missing");
+    expect(badge.textContent).toBe("1 plugin is missing");
     fireEvent.click(badge);
     expect(await screen.findByRole("dialog", { name: "resolve missing items" })).toBeTruthy();
   });

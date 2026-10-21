@@ -1,24 +1,16 @@
-/* Import status list (file-import): floats at the bottom center of the window, above the
-   workspace panes and below popovers. */
+/* Import status list (file-import): in a popover above the status bar's import item. */
 .eth-import {
-  position: fixed;
-  left: 50%;
-  bottom: var(--eth-space-2xl);
-  transform: translateX(-50%);
-  z-index: var(--eth-z-popover);
   display: flex;
   flex-direction: column;
   gap: var(--eth-space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.eth-import-popover {
   width: var(--eth-size-inspector-width);
   max-width: calc(100vw - 2 * var(--eth-space-lg));
-  margin: 0;
   padding: var(--eth-space-sm);
-  list-style: none;
-  background: var(--eth-color-bg-overlay);
-  border: var(--eth-border-width) solid var(--eth-color-border);
-  border-radius: var(--eth-radius-md);
-  box-shadow: var(--eth-shadow-lg);
-  animation: eth-fade-in var(--eth-duration-normal) var(--eth-ease-out);
 }
 
 .eth-import__row {
@@ -92,7 +84,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .eth-import,
   .eth-import__fill {
     animation: none;
     transition: none;

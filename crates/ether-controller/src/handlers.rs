@@ -678,6 +678,9 @@ where
             self.engine_transport(TransportControl::Stop)?;
             self.transport.playing = false;
         } else {
+            // Stop again while stopped: a panic (the engine restarts every device, tails
+            // cut) and back to the start position.
+            self.engine_transport(TransportControl::Stop)?;
             let start = self.transport.start_position;
             self.engine_transport(TransportControl::Locate { position: start })?;
             self.transport.position = start;

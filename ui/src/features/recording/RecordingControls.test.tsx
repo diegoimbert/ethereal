@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Command, Event, ReplyValue } from "@/generated";
-import { playheadStore, tracksOrdered, useProjectStore } from "@/state";
+import { playheadStore, tracksOrdered, useProjectStore, useRecordSupport } from "@/state";
 import { cmd, CommandFailedError, TransportProvider, type SendOptions, type Unsubscribe } from "@/transport";
 import { MockTransport } from "@/transport/mock";
 import { pickOption } from "@/kit/testing";
@@ -72,30 +72,27 @@ afterEach(() => {
 describe("RecordingControls", () => {
   it("renders disabled without an engine", () => {
     render(<RecordingControls />);
-    expect(screen.getByRole("button", { name: "record armed tracks" })).toBeDisabled();
     expect(screen.getByLabelText("count-in")).toBeDisabled();
+    // The record button is the transport bar's (no second one here).
+    expect(screen.queryByRole("button", { name: /^record/ })).toBeNull();
   });
 
-  it("records and shows the recording indicator", async () => {
+  it("shows the recording indicator while recording", async () => {
     const mock = await renderControls();
-    const record = screen.getByRole("button", { name: "record armed tracks" });
-    await waitFor(() => expect(record).toBeEnabled());
     expect(screen.getByTestId("recording-indicator")).toHaveTextContent("");
-    fireEvent.click(record);
+    await act(async () => {
+      await mock.send(cmd("Recording", { type: "SetRecording", enabled: true }));
+    });
     await waitFor(() => expect(screen.getByTestId("recording-indicator")).toHaveTextContent("rec"));
-    expect(record).toHaveAttribute("aria-pressed", "true");
-    expect(mock.sent).toContainEqual(cmd("Recording", { type: "SetRecording", enabled: true }));
-    fireEvent.click(record);
+    await act(async () => {
+      await mock.send(cmd("Recording", { type: "SetRecording", enabled: false }));
+    });
     await waitFor(() => expect(screen.getByTestId("recording-indicator")).toHaveTextContent(""));
-    expect(mock.sent).toContainEqual(cmd("Recording", { type: "SetRecording", enabled: false }));
   });
 
-  it("disables recording with a tooltip when the host has no inputs (web)", async () => {
+  it("tells the record button why the host can't record (no inputs, web), and disables punch", async () => {
     await renderControls("unsupported");
-    const record = screen.getByRole("button", { name: "record armed tracks" });
-    await waitFor(() => expect(record).toBeDisabled());
-    expect(record).toHaveAttribute("title", unsupportedTooltip());
-    expect(record.parentElement).toHaveAttribute("title", unsupportedTooltip());
+    await waitFor(() => expect(useRecordSupport.getState().unsupported).toBe(unsupportedTooltip()));
     expect(screen.getByRole("button", { name: "punch in/out" })).toBeDisabled();
   });
 

@@ -5,7 +5,6 @@ import { Knob, Popover, type TriggerProps } from "@/kit";
 import { trackColor } from "@/theme";
 import { addTrackAndSelect, type NewTrackKind } from "./actions";
 import { useArrangement } from "./context";
-import { inkOn } from "./helpers";
 import { startTrackDrag } from "./trackDrag";
 import { useArrangementUi } from "./uiStore";
 import { useT, type MessageKey } from "@/i18n";
@@ -110,7 +109,7 @@ function NewTrackItem({ kind, label, aria, hint, icon, color, close }: (typeof K
     >
       {/* Looks like a track header: the badge, the name, then a pan knob that is only
           decoration (inert). */}
-      <span className="eth-arr-header__badge" style={{ color: inkOn(parseInt(trackColor(color).slice(1), 16)) }} aria-hidden>
+      <span className="eth-arr-header__badge" aria-hidden>
         {icon}
       </span>
       <span className="eth-menu__label">{t(label)}</span>

@@ -102,6 +102,10 @@
   font-size: var(--eth-fs-sm);
 }
 
+.eth-metronome__tap {
+  align-self: flex-start;
+}
+
 .eth-metronome__field {
   display: flex;
   align-items: center;

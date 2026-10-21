@@ -9,7 +9,7 @@ import { MockTransport } from "@/transport/mock";
 import { createTimelineViewStore, itemSelection } from "@/timeline";
 import { resetTimeSelection, useTimeSelection } from "@/features/time-edits/store";
 import { TempoRuler as Ruler } from "./TempoRuler";
-import { MetronomeSettings } from "./MetronomeSettings";
+import { MetronomePanel } from "./MetronomeSettings";
 import { signatureMenu } from "./menus";
 import { TempoAutomationLane } from "./TempoAutomationLane";
 import {
@@ -397,10 +397,9 @@ describe("ruler tempo editing", () => {
   });
 });
 
-describe("MetronomeSettings", () => {
+describe("MetronomePanel", () => {
   it("toggles the metronome and edits volume, accent and sound", async () => {
-    await setup(<MetronomeSettings />);
-    fireEvent.click(await screen.findByRole("button", { name: "metronome settings" }));
+    await setup(<MetronomePanel />);
     const on = await screen.findByRole("switch", { name: "metronome" });
     fireEvent.click(on);
     await waitFor(() => expect(project().settings.metronome).toBe(true));

@@ -50,8 +50,8 @@ test("tempo-metronome: metronome settings, tempo map editing", async ({ page }) 
   await expect.poll(async () => Object.keys((await doc(page)).clips).length).toBe(0);
   await expect.poll(async () => (await tempoPoints(page)).length).toBe(1);
 
-  // --- Metronome settings -------------------------------------------------------------------
-  await page.getByRole("button", { name: "metronome settings" }).click();
+  // --- Metronome settings (a right-click on the metronome button) ----------------------------
+  await page.getByRole("toolbar", { name: "transport" }).getByRole("button", { name: "metronome" }).click({ button: "right" });
   await page.getByRole("switch", { name: "metronome" }).click();
   await expect.poll(async () => (await doc(page)).settings.metronome).toBe(true);
   await expect(page.getByRole("toolbar", { name: "transport" }).getByRole("button", { name: "metronome" })).toHaveAttribute("aria-pressed", "true");

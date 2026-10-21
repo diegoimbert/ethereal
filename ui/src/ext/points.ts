@@ -4,7 +4,7 @@
  * any module may contribute or read without import cycles.
  */
 import type { ComponentType, ReactNode, RefObject } from "react";
-import type { Clip, ClipId, Device, Project, ProjectSummary, TrackId } from "@/generated";
+import type { Beats, Clip, ClipId, Color, Device, Project, ProjectSummary, TrackId } from "@/generated";
 import type { DeviceDescriptor } from "@/generated";
 import type { ContextMenuEntry } from "@/kit";
 import type { EngineTransport } from "@/transport";
@@ -25,6 +25,21 @@ export interface ArrangementLayerProps {
   scrollRef: RefObject<HTMLDivElement | null>;
   rows: ReadonlyArray<unknown>;
   masterRow: unknown;
+}
+
+/**
+ * One audio or MIDI track's lane (`arrangement.lane`): positions in beats from `origin`
+ * (the lane's `LaneLayer`), like its clips.
+ */
+export interface ArrangementLaneProps {
+  transport: EngineTransport;
+  track: TrackId;
+  color: Color;
+  origin: Beats;
+  /** Visible timeline range. */
+  visible: { start: Beats; end: Beats };
+  /** Settled zoom the lane is laid out at. */
+  pxPerBeat: number;
 }
 
 /** The piano roll grid: px ⇄ the focused clip's content beats and pitch (the key plus how far up it). */
@@ -97,7 +112,8 @@ export interface ShellRoot {
   /**
    * Where: `overlay` (dialogs and runtimes, after the app's; default), `device-windows` (with
    * the floating device windows), `top-bar` (the top bar's end, before settings),
-   * `status-bar` (below the workspace).
+   * `status-bar` (items at the end of the status bar below the workspace: a `StatusButton`,
+   * with any details in a popover above it; the UI has no floating cards but toasts).
    */
   slot?: "overlay" | "device-windows" | "top-bar" | "status-bar";
   /** `top-bar`: its wrapper's `data-slot` (default: `name`). */
@@ -178,20 +194,29 @@ export interface ProjectRowAction {
 }
 
 /** A settings tab of its own (`AudioSettingsDialog`). */
+/**
+ * A settings page: a category of its own in the sidebar, or with `parent` a page of that
+ * category (listed under it). Its content: `Component`, and the sections contributed to it.
+ */
 export interface SettingsTabContribution {
   id: string;
   label(): string;
+  /** A page of this category (e.g. "sharing", "advanced"), after its own pages. */
+  parent?: string;
+  /** A category's own page, when pages are added under it: its name there (default `label`). */
+  pageLabel?(): string;
   /** Shown without an engine (else the "no engine connected" note replaces it). */
   noEngine?: boolean;
-  /** Placed before this tab (default: before "advanced"). */
+  /** A category placed before this one (default: before "advanced"). */
   before?: string;
-  Component: ComponentType<{ transport: EngineTransport | null }>;
+  Component?: ComponentType<{ transport: EngineTransport | null }>;
 }
 
-/** A section added to a settings tab (built-in or contributed). */
+/** A section added to a settings page (built-in or contributed). */
 export interface SettingsSectionContribution {
+  /** The page (its id: e.g. "general", "privacy", "diagnostics", or a contributed one). */
   tab: string;
-  /** `start` or `end` (default) of the tab. */
+  /** `start` or `end` (default) of the page. */
   at?: "start" | "end";
   /** Shown without an engine too (default: only with one). */
   noEngine?: boolean;
@@ -304,7 +329,7 @@ export interface ExtensionPoints {
   "project.leaveGuard": (action: () => void | Promise<unknown>, confirm: string | undefined) => Promise<boolean> | null;
   /** Badges after a project's name in the project picker (`ProjectScreen`). */
   "project.badges": ComponentType<{ project: ProjectSummary }>;
-  /** Buttons on the project picker's welcome row (after "new project"; `onDone` closes the picker). */
+  /** Buttons on the project picker's welcome row (before "new project"; `onDone` closes the picker). */
   "project.welcomeActions": ComponentType<{ busy: boolean; ready: boolean; onDone(): void }>;
   /** Entries of a stored project's menu in the picker (before "delete"). */
   "project.rowActions": (project: ProjectSummary) => ReadonlyArray<ProjectRowAction>;
@@ -362,6 +387,8 @@ export interface ExtensionPoints {
   "edit.activity": (activity: EditActivity | null) => void;
   /** Layers over the arranger's tracks (DOM, in the arrangement's scroll content). */
   "arrangement.layer": ComponentType<ArrangementLayerProps>;
+  /** Content drawn in each audio and MIDI track's lane, over its clips (e.g. clips being recorded elsewhere). */
+  "arrangement.lane": ComponentType<ArrangementLaneProps>;
   /** Layers of the WebGL arranger (`gl/layers/overlays.ts`): mounted with the renderer. */
   "arrangement.glLayer": (renderer: unknown) => { onTheme(): void; remove(): void };
   /** The clips the arranger shows (the edited one first), every quarter second while contributed. */

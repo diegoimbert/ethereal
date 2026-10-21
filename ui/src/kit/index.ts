@@ -12,6 +12,7 @@ initTheme();
 if (import.meta.env.MODE !== "test") initMotionLevel();
 
 export { Button, type ButtonProps } from "./Button";
+export { AttachedButton, type AttachedButtonProps, type ButtonAttachment } from "./AttachedButton";
 export { ConfirmDialog } from "./confirm";
 export { DismissibleError, type DismissibleErrorProps } from "./DismissibleError";
 export { useConfirm, type ConfirmRequest } from "./confirmStore";
@@ -29,7 +30,7 @@ export {
   type FloatingWindowProps,
   type WindowRect,
 } from "./floatingWindows";
-export { NumberField, TextInput, type NumberFieldProps, type TextInputProps } from "./fields";
+export { NO_AUTOCORRECT, NumberField, TextInput, type NumberFieldProps, type TextInputProps } from "./fields";
 export { SEARCH_OVER, Select, type SelectOption, type SelectProps } from "./Select";
 export { VIRTUAL_MAX_ROWS, VirtualList, type VirtualListProps } from "./VirtualList";
 export { IconButton, type IconButtonProps } from "./IconButton";
@@ -63,4 +64,5 @@ export * from "./theme";
 export { Toast, ToastStack, type ToastProps } from "./Toast";
 export { Toggle, type ToggleProps } from "./Toggle";
 export { clamp01, useVerticalDrag, type VerticalDragOptions } from "./useVerticalDrag";
+export { useMediaQuery } from "./useMediaQuery";
 export { resolveTone, SIZES, STATUS_TONES, TONES, type Size, type StatusTone, type Tone } from "./variants";

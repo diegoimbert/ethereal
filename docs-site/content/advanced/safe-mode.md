@@ -21,9 +21,9 @@ The project opens with every plugin bypassed: it makes no sound and doesn't run,
 
 ## while in safe mode
 
-- The top bar says **plugins disabled (safe mode)**.
+- The status bar (at the bottom) says **plugins disabled (safe mode)**.
 - Each plugin shows **safe mode · bypassed**, with a **⟳** button that loads just that plugin. Loading them one by one is how you find the one that crashes.
-- **load plugins** in the top bar loads them all and leaves safe mode.
+- **load plugins** next to it loads them all and leaves safe mode.
 
 Opening in safe mode doesn't change the saved project: each plugin keeps its state.
 

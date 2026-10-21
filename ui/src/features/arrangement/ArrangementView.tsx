@@ -7,7 +7,8 @@ import { droppedFiles, hasOsFiles, importAudio, noteHover, openImportDialog, typ
 import { AddTrackRow } from "./newTrack";
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
 import type { Beats, TrackId } from "@/generated";
-import { isReadOnly, useEditorStore, useReadOnly, dismissOnRelease, openClipOnClick, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
+import { useShellStore } from "@/state/shell";
+import { isReadOnly, useEditorStore, useReadOnly, dismissOnRelease, showClipOnClick, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
 import {
   BeatCanvas,
   gridLines,
@@ -28,7 +29,6 @@ import { handleTakeKey, useTakesHeight } from "@/features/comping";
 import {
   clipboardAction,
   runTimeAction,
-  TimeEditNotice,
   bindPlayFrom,
   isTimeTrack,
   placeInsertMarker,
@@ -41,6 +41,7 @@ import { groupTracks, ungroupSelected, UngroupConfirmDialog } from "@/features/g
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
 import { actionForKey, bindSingleSelection, newTrackMenu, runClipAction, selectAtLaneClick, selectTrackEntity } from "./actions";
 import { dropBrowserMedia, hasBrowserDrag, hasBrowserMidiDrag, readBrowserDrag } from "./browserDrop";
+import { acceptsDevices, dropDevicesOnTrack, isDeviceDrag } from "@/features/devices/trackDrop";
 import { importMidiFile, isMidiName } from "@/features/midi-file/importMidi";
 import { sourceName } from "@/features/import/sources";
 import { ArrangementContext, type ArrangementContextValue } from "./context";
@@ -259,15 +260,14 @@ function ConnectedArrangementView() {
   const timeEdits = useArrangementTimeEdits(transport, rowsRef);
   const marquee = useMarquee({
     kind: "clip",
+    // The lanes start after the header column; dragging past their edges scrolls the timeline.
+    timeline: { view, originPx: () => useArrangementUi.getState().headerWidth },
+    // The whole drag, past the lanes' edges too: clips the edge scroll moved off screen (left
+    // of the lanes, under the header column) stay selected.
     hitTest: (rect) => {
       const project = useProjectStore.getState().project;
       const hw = useArrangementUi.getState().headerWidth;
-      const lanes = {
-        ...rect,
-        x0: Math.max(rect.x0, hw),
-        x1: Math.max(rect.x1, hw),
-      };
-      return project ? marqueeHits(lanes, clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw)) : [];
+      return project ? marqueeHits(rect, clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw)) : [];
     },
     onEnd: timeEdits.onMarqueeEnd,
     section: {
@@ -310,9 +310,10 @@ function ConnectedArrangementView() {
   });
 
   /**
-   * Pointer press in the tracks (capture, so clips' own handlers can't hide it): on a MIDI
-   * clip it opens that clip in the piano roll; anywhere else it dismisses the piano roll
-   * (the shell keeps it when pinned).
+   * Pointer press in the tracks (capture, so clips' own handlers can't hide it). On a clip it
+   * shows that clip in the editor drawer and the inspector, each as a bar unless already
+   * expanded (a click never expands a pane: a double-click expands the drawer). Anywhere else it collapses the drawer, and on the lanes'
+   * empty space the inspector too (a track header expands it: TrackRow); pinned, each stays.
    */
   const onTracksPointerDownCapture = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -327,11 +328,24 @@ function ConnectedArrangementView() {
       ? clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw).find(({ rect: r }) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1)
       : undefined;
     const clip = hit ? project.clips[hit.id] : undefined;
-    if (!clip) dismissOnRelease();
-    else if (clip.content.type === "Midi") useEditorStore.getState().openClip(clip.id);
-    // Audio: a click (no drag) opens its editor; a modifier press (multi-select) leaves the
-    // drawer as it is.
-    else if (!(e.shiftKey || e.metaKey || e.ctrlKey)) openClipOnClick(clip.id, e);
+    const shell = useShellStore.getState();
+    if (!clip) {
+      dismissOnRelease();
+      if (inTracks && x >= hw && !shell.right.pinned) shell.setCollapsed("right", true);
+      return;
+    }
+    // The clip gets selected: an inspector not showing yet appears as its bar (a click never
+    // expands a pane); one already showing stays as it is.
+    if (!shell.right.open && !shell.right.pinned) shell.setCollapsed("right", true);
+    const show = () => {
+      const { bottom, setCollapsed } = useShellStore.getState();
+      if (!bottom.open || bottom.collapsed) setCollapsed("bottom", true);
+      useEditorStore.getState().openClip(clip.id);
+    };
+    if (clip.content.type === "Midi") show();
+    // Audio: a click (no drag) shows it; a modifier press (multi-select) leaves the drawer as
+    // it is.
+    else if (!(e.shiftKey || e.metaKey || e.ctrlKey)) showClipOnClick(e, show);
   };
 
   const tempo = useTempoMap();
@@ -378,8 +392,24 @@ function ConnectedArrangementView() {
     void importAudio(transport, audio, t);
   };
 
+  /** The track row under a drag (`null`: below the tracks). */
+  const rowTrackAt = (e: DropPoint) => {
+    const box = contentRef.current?.getBoundingClientRect();
+    return rowsRef.current[rowIndexAt(rowsRef.current, e.clientY - (box?.top ?? 0))]?.track ?? null;
+  };
+  // Device cards dragged from a chain onto a track (header or lane): moved there (copied
+  // with ⌘ / Ctrl), `@/features/devices/trackDrop`.
+  const onDeviceDragOver = (e: DragEvent<HTMLDivElement>) => {
+    const track = rowTrackAt(e);
+    const ok = track !== null && acceptsDevices(track);
+    if (ok) e.preventDefault();
+    e.dataTransfer.dropEffect = !ok ? "none" : e.metaKey || e.ctrlKey ? "copy" : "move";
+    useArrangementUi.getState().setDeviceDrop(ok ? track.id : null);
+  };
+
   const onDragOver = (e: DragEvent<HTMLDivElement>) => {
     if (isReadOnly()) return;
+    if (isDeviceDrag(e.dataTransfer.types)) return onDeviceDragOver(e);
     const files = hasOsFiles(e.dataTransfer);
     if (!files && !hasBrowserDrag(e.dataTransfer)) return;
     e.preventDefault();
@@ -394,6 +424,14 @@ function ConnectedArrangementView() {
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     if (isReadOnly()) return;
+    if (isDeviceDrag(e.dataTransfer.types)) {
+      useArrangementUi.getState().setDeviceDrop(null);
+      const track = rowTrackAt(e);
+      if (!track || !acceptsDevices(track)) return;
+      e.preventDefault();
+      void dropDevicesOnTrack(transport, e.dataTransfer, track.id, e.metaKey || e.ctrlKey);
+      return;
+    }
     if (hasOsFiles(e.dataTransfer)) {
       e.preventDefault();
       importAt(droppedFiles(e.dataTransfer), e);
@@ -505,7 +543,12 @@ function ConnectedArrangementView() {
               }
             }}
             onDragOver={onDragOver}
-            onDragLeave={() => useArrangementUi.getState().setDropHint(null)}
+            onDragLeave={(e) => {
+              // Leaving the content (not moving between its children).
+              if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return;
+              useArrangementUi.getState().setDropHint(null);
+              useArrangementUi.getState().setDeviceDrop(null);
+            }}
             onDrop={onDrop}
             data-testid="arrangement-content"
           >
@@ -537,6 +580,8 @@ function ConnectedArrangementView() {
               <div
                 className="eth-arr__marquee"
                 data-testid="marquee"
+                // Past the lanes' left edge (under the header column) it goes on: no left border.
+                data-cut={[marquee.cut, m.x0 < headerWidth && !marquee.cut.includes("left") ? "left" : ""].join(" ").trim() || undefined}
                 style={{
                   left: Math.max(m.x0, headerWidth),
                   top: m.y0,
@@ -563,7 +608,6 @@ function ConnectedArrangementView() {
           <Layer key={i} rootRef={rootRef} scrollRef={scrollRef} rows={rows} masterRow={masterRow} />
         ))}
         <HeaderColumnResizer />
-        <TimeEditNotice />
         <UngroupConfirmDialog />
       </div>
     </ArrangementContext.Provider>

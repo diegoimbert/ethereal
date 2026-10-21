@@ -37,7 +37,7 @@ Several windows can connect to the same server at once. They share one project a
 
 ## adding audio files
 
-Your audio files have to reach the server. While connected, drop audio files onto the browser: they are uploaded to the server and imported into the project. The top bar shows the progress of each upload. If you disconnect before an upload finishes, that upload is lost.
+Your audio files have to reach the server. While connected, drop audio files onto the browser: they are uploaded to the server and imported into the project. The status bar (at the bottom) shows the progress of each upload. If you disconnect before an upload finishes, that upload is lost.
 
 ## security
 

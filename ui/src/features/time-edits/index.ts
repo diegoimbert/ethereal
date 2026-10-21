@@ -29,5 +29,5 @@ export {
   playOrStopToStart,
 } from "./marker";
 export { clearTimeSelection, isMarker, rangeOf, trackRangeOf, resetTimeSelection, useTimeSelection, type TimeRangeSelection } from "./store";
-export { TimeEditNotice, TimeSelectionLayer } from "./TimeSelectionLayer";
+export { TimeSelectionLayer } from "./TimeSelectionLayer";
 export { useArrangementTimeEdits, type ArrangementTimeEdits } from "./useArrangementTimeEdits";

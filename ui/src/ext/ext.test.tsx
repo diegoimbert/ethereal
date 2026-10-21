@@ -142,11 +142,10 @@ describe("settings", () => {
     act(() => openSettings("general"));
     const dialog = await screen.findByRole("dialog", { name: "settings" });
     expect(within(dialog).getByText("general extra")).toBeInTheDocument();
-    const tabs = within(dialog)
-      .getAllByRole("tab")
-      .map((t) => t.textContent);
-    expect(tabs.indexOf("sync")).toBe(tabs.indexOf("advanced") - 1);
-    fireEvent.click(within(dialog).getByRole("tab", { name: "sync" }));
+    // The sidebar's categories: a contributed tab is one, before "advanced".
+    const categories = [...dialog.querySelectorAll(".eth-settings__nav-group > .eth-settings__nav-item")].map((t) => t.textContent);
+    expect(categories.indexOf("sync")).toBe(categories.indexOf("advanced") - 1);
+    fireEvent.click(within(dialog).getByRole("button", { name: "sync" }));
     expect(within(dialog).getByText("sync body")).toBeInTheDocument();
     expect(within(dialog).queryByText("no engine connected.")).toBeNull();
   });

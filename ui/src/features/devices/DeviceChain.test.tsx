@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { useDeviceClipboard } from "./deviceClipboard";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Device } from "@/generated";
 import { devicesOfTrack, useProjectStore, useSelectionStore } from "@/state";
@@ -398,6 +399,104 @@ describe("DeviceChain: stacked layout (inspector)", () => {
     expect(chainNames("Keys")).toEqual(["Synth", "delay", "Compressor"]);
     expect(screen.queryByTestId("device-insert")).toBeNull();
     fireEvent.dragEnd(header);
+  });
+
+  it("drags a device out of a section's library onto the chain: in its section only", async () => {
+    await renderStack();
+    const add = within(screen.getByRole("group", { name: "audio effects" })).getAllByRole("button", { name: "add audio effect" })[0]!;
+    fireEvent.click(add);
+    const popover = await screen.findByRole("dialog", { name: "add audio effect" });
+    const row = await within(popover).findByRole("button", { name: "delay" });
+    expect(row).toHaveAttribute("draggable", "true");
+    const data = new Map<string, string>();
+    const dataTransfer = {
+      get types() {
+        return [...data.keys()];
+      },
+      getData: (k: string) => data.get(k) ?? "",
+      setData: (k: string, v: string) => void data.set(k, v),
+      dropEffect: "copy",
+    };
+    fireEvent.dragStart(row, { dataTransfer });
+    expect(data.get("application/x-ethereal-library-device")).toContain('"category":"AudioEffect"');
+    // Not before the instrument (another section)...
+    fireEvent.dragOver(deviceEl("Synth"), { dataTransfer });
+    expect(screen.queryByTestId("device-insert")).toBeNull();
+    // ...before an audio effect: the line, and the drop adds it there.
+    fireEvent.dragOver(deviceEl("Compressor"), { dataTransfer });
+    expect(screen.getByTestId("device-insert")).toBeInTheDocument();
+    fireEvent.drop(deviceEl("Compressor"), { dataTransfer });
+    fireEvent.dragEnd(row, { dataTransfer });
+    await flush();
+    expect(chainNames("Keys")).toEqual(["Synth", "delay", "Compressor"]);
+    // Dropped: the library closed.
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "add audio effect" })).toBeNull());
+  });
+
+  it("selects several cards (⌘-click, Shift-click) and copies them all", async () => {
+    await renderStack();
+    const press = (name: string, mods: { metaKey?: boolean; shiftKey?: boolean } = {}) =>
+      fireEvent.pointerDown(deviceEl(name).querySelector("header")!, { button: 0, ...mods });
+    press("Synth");
+    press("Compressor", { metaKey: true });
+    expect(deviceEl("Synth")).toHaveClass("eth-device--selected");
+    expect(deviceEl("Compressor")).toHaveClass("eth-device--selected");
+    act(() => void document.dispatchEvent(new Event("copy")));
+    expect(useDeviceClipboard.getState().copied).toEqual([deviceOf("Keys", "Synth").id, deviceOf("Keys", "Compressor").id]);
+    // ⌘-click again: out of the selection; a plain click: only that one.
+    press("Synth", { metaKey: true });
+    expect(deviceEl("Synth")).not.toHaveClass("eth-device--selected");
+    press("Synth");
+    press("Compressor", { shiftKey: true });
+    expect(useDeviceClipboard.getState().selected).toEqual([deviceOf("Keys", "Synth").id, deviceOf("Keys", "Compressor").id]);
+  });
+
+  it("⌘G / Ctrl+G groups the selected cards into a rack (an instrument among them: an instrument rack), one undo step", async () => {
+    await renderStack();
+    const press = (name: string, mods: { shiftKey?: boolean } = {}) => fireEvent.pointerDown(deviceEl(name).querySelector("header")!, { button: 0, ...mods });
+    press("Synth");
+    press("Compressor", { shiftKey: true });
+    fireEvent.keyDown(deviceEl("Compressor"), { key: "g", code: "KeyG", ctrlKey: true });
+    await flush();
+    const top = devicesOfTrack(store().project!, trackByName("Keys").id);
+    expect(top.map((d) => d.kind.type === "Builtin" && d.kind.device.type)).toEqual(["InstrumentRack"]);
+    const rack = top[0]!;
+    const inside = Object.values(store().project!.devices).filter((d) => d.chain != null && store().project!.rack_chains[d.chain]?.rack === rack.id);
+    expect(inside.map((d) => d.name).sort()).toEqual(["Compressor", "Synth"]);
+    expect(useDeviceClipboard.getState().selected).toEqual([rack.id]);
+    await act(() => mock!.send(cmd("Edit", { type: "Undo" })));
+    expect(chainNames("Keys")).toEqual(["Synth", "Compressor"]);
+  });
+
+  it("⌘X dims the cards until pasted; Delete removes the selected cards", async () => {
+    await renderStack();
+    fireEvent.pointerDown(deviceEl("Compressor").querySelector("header")!, { button: 0 });
+    act(() => void document.dispatchEvent(new Event("cut")));
+    expect(deviceEl("Compressor")).toHaveClass("eth-device--cut");
+    expect(chainNames("Keys")).toEqual(["Synth", "Compressor"]);
+    fireEvent.keyDown(deviceEl("Compressor"), { key: "Delete" });
+    await flush();
+    expect(chainNames("Keys")).toEqual(["Synth"]);
+  });
+
+  it("⌘V with the focus on no card pastes at the end of the selected track's chain", async () => {
+    await renderStack();
+    act(() => useSelectionStore.getState().selectTrack(trackByName("Keys").id));
+    fireEvent.pointerDown(deviceEl("Compressor").querySelector("header")!, { button: 0 });
+    act(() => void document.dispatchEvent(new Event("copy")));
+    act(() => (document.activeElement as HTMLElement | null)?.blur());
+    expect(document.activeElement).toBe(document.body);
+    act(() => void document.dispatchEvent(new Event("paste")));
+    await flush();
+    expect(chainNames("Keys")).toEqual(["Synth", "Compressor", "Compressor"]);
+  });
+
+  it("⌘A / Ctrl+A on a card selects every device of its chain", async () => {
+    await renderStack();
+    fireEvent.pointerDown(deviceEl("Compressor").querySelector("header")!, { button: 0 });
+    fireEvent.keyDown(deviceEl("Compressor"), { key: "a", code: "KeyA", ctrlKey: true });
+    expect(deviceEl("Synth")).toHaveClass("eth-device--selected");
+    expect(deviceEl("Compressor")).toHaveClass("eth-device--selected");
   });
 
   it("labels the sections; stacked cards have no up/down buttons (drag the header)", async () => {

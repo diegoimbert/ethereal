@@ -37,7 +37,7 @@ Plusieurs fenêtres peuvent se connecter au même serveur en même temps. Elles 
 
 ## ajouter des fichiers audio {#adding-audio-files}
 
-Vos fichiers audio doivent parvenir au serveur. Pendant la connexion, déposez des fichiers audio sur le navigateur : ils sont envoyés au serveur et importés dans le projet. La barre du haut affiche la progression de chaque envoi. Si vous vous déconnectez avant la fin d’un envoi, cet envoi est perdu.
+Vos fichiers audio doivent parvenir au serveur. Pendant la connexion, déposez des fichiers audio sur le navigateur : ils sont envoyés au serveur et importés dans le projet. La barre d’état (en bas) affiche la progression de chaque envoi. Si vous vous déconnectez avant la fin d’un envoi, cet envoi est perdu.
 
 ## sécurité {#security}
 

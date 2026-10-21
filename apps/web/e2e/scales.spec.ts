@@ -54,7 +54,7 @@ test("scales: project scale, folded rows, custom track scale", async ({ page }) 
   const popover = page.getByTestId("scale-popover");
   await pickOption(popover, "active scale type", "minor");
   await expect.poll(async () => (await doc(page)).settings.scale).toEqual({ root: 0, kind: "Minor" });
-  await expect(trigger).toHaveText("C minor…");
+  await expect(trigger).toHaveText("C minor");
   await expect(roll.locator('.eth-pr-key[data-pitch="60"]')).toHaveAttribute("data-scale-tone", "root");
 
   await popover.getByRole("switch", { name: "scale notes only" }).click();
@@ -88,7 +88,7 @@ test("scales: project scale, folded rows, custom track scale", async ({ page }) 
   await roll.focus();
   for (let i = 0; i < 3; i++) await page.keyboard.press("ControlOrMeta+z");
   await expect.poll(async () => (await doc(page)).tracks[midi.id]!.scale).toEqual({ type: "FollowProject" });
-  await expect(trigger).toHaveText("C minor…");
+  await expect(trigger).toHaveText("C minor");
   await expect.poll(async () => (await drawn()).map((n) => n.pitch)).toEqual([63]);
   // Every visible key is in C minor.
   const pitches = await keys.evaluateAll((els) => els.map((el) => Number((el as HTMLElement).dataset.pitch)));

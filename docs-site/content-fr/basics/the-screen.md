@@ -13,7 +13,7 @@ covers:
 
 Cette page est une visite rapide de l’éditeur : la fenêtre dans laquelle vous travaillez une fois un projet ouvert. Vous n’avez rien à configurer avant. Si vous êtes sur un téléphone, voyez plutôt [la bêta mobile](/docs/mobile/mobile-beta) : sa disposition est différente.
 
-De haut en bas, l’éditeur comporte une **barre du haut**, l’**arrangement** au milieu, et trois panneaux qui glissent par-dessus l’arrangement : le **navigateur** à gauche, l’**inspecteur** à droite et le **tiroir d’édition** en bas.
+De haut en bas, l’éditeur comporte une **barre du haut**, l’**arrangement** au milieu, une fine **barre d’état** en bas, et trois panneaux qui glissent par-dessus l’arrangement : le **navigateur** à gauche, l’**inspecteur** à droite et le **tiroir d’édition** en bas.
 
 ## la barre du haut {#the-top-bar}
 
@@ -25,7 +25,7 @@ De gauche à droite :
 - **Le transport.** Lecture, arrêt, enregistrement, puis la position, le tempo et la signature rythmique, puis la boucle et le métronome. Voir [lire et se déplacer](/docs/basics/playing-and-navigating) et [tempo, signature rythmique et gamme](/docs/basics/tempo-and-time-signature).
 - **Annuler et rétablir**, avec le nom de l’étape que chacun annulerait ou rétablirait quand vous le survolez.
 - **Les indicateurs du moteur** : la charge cpu, une alerte disque et un voyant d’état. Ils sont décrits [plus bas](#cpu-disk-and-engine-status).
-- **Les réglages du métronome, les commandes d’enregistrement** (enregistrer les pistes armées, décompte, punch, entrées) et la roue dentée des **réglages**. Pendant un export audio dont la fenêtre est fermée, un bouton **export %** en montre la progression.
+- **Les réglages du métronome, les commandes d’enregistrement** (enregistrer les pistes armées, décompte, punch, entrées). Pendant un export audio dont la fenêtre est fermée, un bouton **export %** en montre la progression.
 
 ## l’arrangement {#the-arrangement}
 
@@ -68,6 +68,10 @@ Le navigateur, l’inspecteur et le tiroir flottent par-dessus l’arrangement 
 - Faites glisser le bord intérieur d’un panneau pour le redimensionner.
 
 La palette de commandes propose aussi **épingler le navigateur**, **épingler l’inspecteur** et **épingler le tiroir d’édition** (et leurs versions **désépingler**).
+
+## la barre d’état {#the-status-bar}
+
+La fine barre en bas de la fenêtre montre ce qui demande votre attention, tant que ça dure : **plug-ins désactivés (mode sans échec)** avec **charger les plug-ins** (voir [le mode sans échec](/docs/advanced/safe-mode)), les plug-ins ou samples manquants, et les imports en cours. La roue dentée des **réglages** est à son extrémité droite.
 
 ## les messages en bas {#messages-at-the-bottom}
 

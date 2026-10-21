@@ -267,10 +267,27 @@ fn own_track_only_before_the_device() {
     let late = s.f.chain(after, "m");
     let c = Some(SidechainChain::Rack { chain: late });
     assert!(invariant(s.f.key(comp, bass, tap(InputTap::PostFx, c))));
-    // A sibling chain of the same rack: rejected.
-    let sibling = s.f.chain(s.outer, "a");
+    // Another chain of the rack holding it: that chain runs first, keyed before the rack's
+    // alignment (pre- or post-FX; not post-fader).
+    let sibling = s.f.chain(s.outer, "z");
     let c = Some(SidechainChain::Rack { chain: sibling });
-    assert!(invariant(s.f.key(comp, bass, tap(InputTap::PostFx, c))));
+    s.f.key(comp, bass, tap(InputTap::PostFx, c)).unwrap();
+    assert_eq!(
+        s.f.p.chain_order(s.outer).unwrap(),
+        vec![sibling, s.outer_chain]
+    );
+    assert!(invariant(s.f.key(comp, bass, tap(InputTap::PostFader, c))));
+    // A device of that chain keying the comp's chain back: a loop, rejected.
+    let back =
+        s.f.device(bass, BuiltinDevice::Compressor, "m", Some(sibling), None);
+    let own = Some(SidechainChain::Rack {
+        chain: s.outer_chain,
+    });
+    // (The refused key above left the comp unkeyed: `key` isn't atomic.)
+    s.f.key(comp, bass, tap(InputTap::PostFx, c)).unwrap();
+    assert!(invariant(s.f.key(back, bass, tap(InputTap::PostFx, own))));
+    // ...or the device's own chain of the rack (it needs the device).
+    assert!(invariant(s.f.key(comp, bass, tap(InputTap::PreFx, own))));
     // A rack earlier in the same (outer) chain: fine.
     let early = s.f.device(
         bass,

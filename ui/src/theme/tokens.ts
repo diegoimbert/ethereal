@@ -442,6 +442,8 @@ export const size = {
   trackIndent: "12px",
   trackBadge: "26px",
   trackButton: "20px",
+  /** Track header buttons (mute, solo, arm, ...), under the volume and pan. */
+  trackHeaderButton: "20px",
   trackMeterWidth: "3px",
   trackFaderWidth: "44px",
   trackFaderThumb: "8px",
@@ -454,6 +456,9 @@ export const size = {
   addTrackHeight: "32px",
   /** The pan knob in a track header (HeaderPan). */
   trackPanKnob: "18px",
+  /** A compact (short) track header: a smaller pan knob and a short fader. */
+  trackPanKnobCompact: "14px",
+  trackFaderWidthCompact: "30px",
   /** The piano roll's key-height grip, along the keyboard's left edge. */
   pianoZoomGrip: "8px",
   /** The step sequencer (Drum Rack tracks): row height, pad-name column, cell width. */
@@ -494,6 +499,8 @@ export const size = {
   projectScreenWidth: "560px",
   /** The welcome screen (the project screen's home): get started | recent projects. */
   welcomeWidth: "880px",
+  /** The project menu's "Open project" submenu (the recent projects). */
+  projectMenuProjectsWidth: "420px",
   /** The download page (`/download`): its column, the big download button, a platform card. */
   downloadPageWidth: "1040px",
   downloadPrimaryHeight: "64px",
@@ -529,7 +536,9 @@ export const size = {
   deviceGroupMinWidth: "220px",
   deviceGroupMinWidthWide: "200px",
   // Audio settings dialog.
-  audioSettingsDialogWidth: "520px",
+  audioSettingsDialogWidth: "720px",
+  /** The settings dialog's sidebar (categories and their pages). */
+  settingsNavWidth: "168px",
   audioSettingsMeterNameWidth: "120px",
   // Guided tours (features/tutorials).
   /** The tour's step bubble (narrower on small screens), and the most an illustration in it takes. */

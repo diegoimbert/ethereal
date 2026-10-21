@@ -64,7 +64,7 @@ L’appareil réagit alors à la source au lieu de sa propre entrée : un compr
 
 ### déclencher depuis votre propre piste ou une piste muette {#keying-from-your-own-track-or-a-muted-track}
 
-- Un appareil peut écouter le signal **pré-fx** de sa propre piste, ou une chaîne d’un rack placé avant lui sur la même piste. Sa propre piste apparaît dans la liste comme **(cette piste)**.
+- Un appareil peut écouter le signal **pré-fx** de sa propre piste, ou une chaîne d’un rack placé avant lui sur la même piste. Dans un rack, il peut aussi écouter une autre chaîne de ce rack, à son point **pré-fx** ou **post-fx** : par exemple un compresseur dans une chaîne d’un rack d’effets audio, atténué par une deuxième chaîne. Cette chaîne est alors jouée en premier ; deux chaînes ne peuvent pas s’écouter l’une l’autre. Sa propre piste apparaît dans la liste comme **(cette piste)**.
 - Mettre en muet ou en solo la piste source ne coupe pas le sidechain : une piste muette déclenche toujours l’appareil. Vous pouvez utiliser une piste muette comme simple déclencheur, par exemple une grosse caisse muette qui ne sert qu’à piloter un compresseur de ducking.
 
 ## et ensuite {#where-next}

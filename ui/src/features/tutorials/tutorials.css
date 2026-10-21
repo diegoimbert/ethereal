@@ -68,6 +68,12 @@
     box-shadow: 0 0 0 var(--eth-space-sm) var(--eth-color-accent-glow);
   }
 }
+/* No glow (the setting off, or the light theme): the ring alone. */
+:root[data-glow="off"] .eth-tour__ring,
+:root[data-glow="off"] .eth-tour__ring[data-interactive] {
+  box-shadow: none;
+  animation: none;
+}
 
 .eth-tour__bubble {
   position: fixed;

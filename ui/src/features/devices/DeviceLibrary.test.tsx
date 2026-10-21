@@ -1,9 +1,10 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { usePluginStore } from "@/features/plugins/pluginStore";
 import { AU_DELAY, DesktopFake, EQ, plugin, SYNTH, VERB, VST2_VERB, VST_VERB } from "@/features/plugins/testing";
 import { platformFormats } from "@/features/plugins/filter";
+import { usePluginVisibility } from "@/features/plugins/visibility";
 import { useProjectStore, useSelectionStore } from "@/state";
 import { TransportProvider, type EngineTransport } from "@/transport";
 import { MockTransport } from "@/transport/mock";
@@ -14,6 +15,8 @@ import { pickOption } from "@/kit/testing";
 import { useAudioSettings } from "@/features/audio-settings/store";
 import { DevicePicker } from "./DevicePicker";
 import { DeviceLibrary } from "./DeviceLibrary";
+import { useContextMenuStore } from "@/kit/contextMenuStore";
+import { useNotices } from "@/features/notifications";
 import { resetI18nForTests, setLocale } from "@/i18n/runtime";
 
 let transport: EngineTransport | undefined;
@@ -25,6 +28,8 @@ afterEach(() => {
   useSelectionStore.getState().selectTrack(null);
   usePluginStore.getState().reset();
   resetLibraryStats();
+  localStorage.removeItem("eth.plugins.visibility");
+  usePluginVisibility.getState().reload();
   resetI18nForTests();
 });
 
@@ -297,10 +302,62 @@ describe("DeviceLibrary", () => {
   });
 });
 
-// A plugin installed in several formats is listed once per format; format toggles filter.
+// A plugin installed in several formats is listed once, in the preferred format (by default),
+// or once per format; hidden plugins aren't listed.
+describe("DeviceLibrary: one format per plugin, hidden plugins", () => {
+  it("lists each plugin once by default, CLAP first; the preferred format and hide rules apply", async () => {
+    const t = new DesktopFake();
+    t.plugins = [VERB, VST_VERB, VST2_VERB, EQ];
+    await renderWith(t, <DeviceLibrary category="AudioEffect" onPick={() => undefined} />);
+    const list = await rows("effects");
+    fireEvent.click(screen.getByRole("button", { name: "plugins" }));
+    await waitFor(() => expect(names(list)).toEqual(["Air EQOtherclap", "VerbAcmeclap"]));
+    act(() => usePluginVisibility.getState().setPreferred("Vst3"));
+    expect(names(list)).toEqual(["Air EQOtherclap", "VerbAcmevst3"]);
+    // Its VST3 version hidden: the next format in line (CLAP).
+    act(() => void usePluginVisibility.getState().hide({ name: "Verb", vendor: "Acme", format: "Vst3" }));
+    expect(names(list)).toEqual(["Air EQOtherclap", "VerbAcmeclap"]);
+    // Every format of a plugin hidden: gone.
+    act(() => void usePluginVisibility.getState().hide({ name: "Air EQ", vendor: "Other", format: null }));
+    expect(names(list)).toEqual(["VerbAcmeclap"]);
+    // Off: every format, the hidden ones still out.
+    act(() => usePluginVisibility.getState().setDedupe(false));
+    expect(names(list)).toEqual(["VerbAcmeclap", "VerbAcmevst2"]);
+  });
+
+  it("a row's right-click hides the plugin (every format or this one), undoable from the toast", async () => {
+    const t = new DesktopFake();
+    t.plugins = [VERB, VST_VERB, EQ];
+    await renderWith(t, <DeviceLibrary category="AudioEffect" onPick={() => undefined} />);
+    const list = await rows("effects");
+    fireEvent.click(screen.getByRole("button", { name: "plugins" }));
+    await waitFor(() => expect(names(list)).toEqual(["Air EQOtherclap", "VerbAcmeclap"]));
+    fireEvent.contextMenu(list.getByRole("button", { name: "Verb" }));
+    const menu = useContextMenuStore.getState().menu!.items;
+    const item = (label: string) => menu.find((i) => i !== "separator" && i.label === label) as Exclude<(typeof menu)[number], "separator">;
+    expect(item("hide Verb")).toBeTruthy();
+    act(() => item("hide this clap version").onSelect());
+    expect(usePluginVisibility.getState().rules).toEqual([{ name: "Verb", vendor: "Acme", format: "Clap" }]);
+    expect(names(list)).toEqual(["Air EQOtherclap", "VerbAcmevst3"]);
+    const toast = useNotices.getState().notices.at(-1)!;
+    expect(toast.message).toBe("Verb is hidden from the plugin list.");
+    act(() => toast.action!.onSelect());
+    expect(names(list)).toEqual(["Air EQOtherclap", "VerbAcmeclap"]);
+  });
+
+  it("the resolver's and Replace plugin's lists keep every format", async () => {
+    act(() => void usePluginVisibility.getState().hide({ name: "Verb", vendor: "Acme", format: null }));
+    await renderWith(new DesktopFake(), <DeviceLibrary pluginsOnly plugins={[VERB, VST_VERB]} onPick={() => undefined} />);
+    const list = await rows("plugins");
+    await waitFor(() => expect(names(list)).toEqual(["VerbAcmeclap", "VerbAcmevst3"]));
+  });
+});
+
+// Every format listed (one format per plugin turned off); format toggles filter.
 describe("DeviceLibrary plugin formats", () => {
   const formatGroup = () => screen.getByRole("group", { name: "plugin formats" });
   const toggle = (label: string) => within(formatGroup()).getByRole("button", { name: label });
+  beforeEach(() => usePluginVisibility.getState().setDedupe(false));
 
   it("lists a plugin once per format, each with its chip; the toggles (the formats present) filter the list and its search", async () => {
     const t = new DesktopFake();

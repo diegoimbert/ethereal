@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetI18nForTests, setLocale } from "@/i18n/runtime";
 import { ToastStack } from "@/kit";
 import { commandErrorText } from "@/transport";
-import { NotificationToastItems } from "./NotificationToasts";
-import { INFO_TOAST_MS, MAX_NOTICES, notify, onNotificationEvent, sentence, toastLook, useNotices } from "./store";
+import { NotificationLog, NotificationToastItems } from "./NotificationToasts";
+import { ALERT_TOAST_MS, INFO_TOAST_MS, MAX_NOTICES, notify, onNotificationEvent, sentence, skipNotifications, toastLook, useNotices } from "./store";
 
 afterEach(() => {
   act(() => useNotices.getState().clear());
@@ -39,8 +39,8 @@ describe("engine notifications and errors in the user's language (#667)", () => 
 describe("engine notifications as toasts", () => {
   it("maps severity to the toast's title, colour and auto-dismiss", () => {
     expect(toastLook("Info")).toEqual({ title: "info", accent: "var(--eth-color-info)", timeoutMs: INFO_TOAST_MS });
-    expect(toastLook("Warning")).toEqual({ title: "warning", accent: "var(--eth-color-warn)", timeoutMs: undefined });
-    expect(toastLook("Error")).toEqual({ title: "error", accent: "var(--eth-color-danger)", timeoutMs: undefined });
+    expect(toastLook("Warning")).toEqual({ title: "warning", accent: "var(--eth-color-warn)", timeoutMs: ALERT_TOAST_MS });
+    expect(toastLook("Error")).toEqual({ title: "error", accent: "var(--eth-color-danger)", timeoutMs: ALERT_TOAST_MS });
   });
 
   it("turns Event::Notification into a notice (as a sentence) and ignores other events", () => {
@@ -50,7 +50,7 @@ describe("engine notifications as toasts", () => {
     expect(sentence("  ")).toBe("");
   });
 
-  it("auto-dismisses info toasts and keeps warnings until dismissed", () => {
+  it("auto-dismisses info toasts, and warnings a little later", () => {
     vi.useFakeTimers();
     renderToasts();
     act(() => {
@@ -61,9 +61,21 @@ describe("engine notifications as toasts", () => {
     expect(screen.getByText("info")).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(INFO_TOAST_MS + 200));
     expect(screen.queryByText(/local version/)).toBeNull();
-    // The warning stays until its close button.
-    act(() => vi.advanceTimersByTime(60_000));
+    // The warning stays longer, then goes too.
     expect(screen.getByText("warning")).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(ALERT_TOAST_MS - INFO_TOAST_MS));
+    expect(screen.queryByText("warning")).toBeNull();
+  });
+
+  it("shows the time left as a bar that lasts as long as the toast", () => {
+    renderToasts();
+    act(() => notify("Error", "export failed"));
+    expect(screen.getByTestId("toast-life").style.getPropertyValue("--eth-toast-life")).toBe(`${ALERT_TOAST_MS}ms`);
+  });
+
+  it("closes a toast early with its close button", () => {
+    renderToasts();
+    act(() => notify("Warning", "export: a plugin could not render offline"));
     fireEvent.click(screen.getByRole("button", { name: "dismiss" }));
     expect(screen.queryByText("warning")).toBeNull();
   });
@@ -73,5 +85,61 @@ describe("engine notifications as toasts", () => {
       for (let i = 0; i < MAX_NOTICES + 2; i++) notify("Error", `e${i}`);
     });
     expect(useNotices.getState().notices.map((n) => n.message)).toEqual(["e2", "e3", "e4"]);
+  });
+
+  it("offers 'see all messages' when toasts left the stack unseen; the dialog lists them all, newest first", () => {
+    render(
+      <>
+        <ToastStack>
+          <NotificationToastItems />
+        </ToastStack>
+        <NotificationLog />
+      </>,
+    );
+    act(() => notify("Info", "one"));
+    expect(screen.queryByTestId("notices-see-all")).toBeNull();
+    act(() => {
+      for (let i = 0; i < MAX_NOTICES + 1; i++) notify("Warning", `w${i}`);
+    });
+    const more = screen.getByTestId("notices-see-all");
+    expect(more.textContent).toBe("see all messages (5)");
+    fireEvent.click(more);
+    const rows = screen.getAllByTestId("notice-log-row").map((r) => r.textContent);
+    expect(rows).toHaveLength(5);
+    expect(rows[0]).toContain("w3");
+    expect(rows.at(-1)).toContain("one");
+    // The toasts are all in the dialog now.
+    expect(useNotices.getState().notices).toEqual([]);
+    expect(screen.queryByTestId("notices-see-all")).toBeNull();
+  });
+
+  it("the same message again while it shows is one toast counting them", () => {
+    renderToasts();
+    act(() => {
+      for (let i = 0; i < 381; i++) notify("Error", "engine rejected the graph: engine queue full");
+    });
+    expect(useNotices.getState().notices).toHaveLength(1);
+    expect(screen.getByText("error ×381")).toBeInTheDocument();
+    expect(useNotices.getState().history).toHaveLength(1);
+    expect(screen.queryByTestId("notices-see-all")).toBeNull();
+  });
+
+  it("an action button runs and dismisses its toast", () => {
+    const resolve = vi.fn();
+    renderToasts();
+    act(() => notify("Warning", "some plugins are missing", { action: { label: "resolve", onSelect: resolve } }));
+    fireEvent.click(screen.getByRole("button", { name: "resolve" }));
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(useNotices.getState().notices).toEqual([]);
+  });
+
+  it("engine notifications a feature summarizes are skipped while it is registered", () => {
+    const off = skipNotifications((e) => e.key?.id === "notice.engine.device_failed");
+    const failed = { id: "notice.engine.device_failed", args: { device: "Serum", error: "not installed" } };
+    onNotificationEvent({ type: "Notification", level: "Error", message: 'could not create device "Serum": not installed', key: failed });
+    expect(useNotices.getState().notices).toEqual([]);
+    off();
+    onNotificationEvent({ type: "Notification", level: "Error", message: 'could not create device "Serum": not installed', key: failed });
+    expect(useNotices.getState().notices).toHaveLength(1);
   });
 });

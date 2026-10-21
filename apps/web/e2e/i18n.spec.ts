@@ -22,14 +22,17 @@ async function clipped(scope: Locator): Promise<string[]> {
   });
 }
 
-/** The settings dialog (opened with the top bar's gear when it isn't open), on tab `tab` (a name, or an index). */
+/** The sidebar's categories of the settings dialog. */
+const categories = (dialog: Locator) => dialog.locator(".eth-settings__nav-group > .eth-settings__nav-item");
+
+/** The settings dialog (opened with the status bar's gear when it isn't open), on category `tab` (a name, or an index). */
 async function openSettings(page: Page, tab: string | number): Promise<Locator> {
-  const dialog = page.getByRole("dialog").filter({ has: page.getByRole("tablist") });
-  // The top bar's gear, in whatever language the page is in.
+  const dialog = page.getByRole("dialog").filter({ has: page.locator(".eth-settings__nav") });
+  // The status bar's gear, in whatever language the page is in.
   if (!(await dialog.isVisible())) await page.locator('[data-tour="settings-button"]').click();
-  const target = typeof tab === "number" ? dialog.getByRole("tab").nth(tab) : dialog.getByRole("tab", { name: tab, exact: true });
+  const target = typeof tab === "number" ? categories(dialog).nth(tab) : categories(dialog).filter({ hasText: new RegExp(`^${tab}$`) });
   await target.click();
-  await expect(target).toHaveAttribute("aria-selected", "true");
+  await expect(target).toHaveAttribute("data-current", "true");
   return dialog;
 }
 
@@ -44,19 +47,19 @@ test("switching to French applies live, persists, fits, and French number fields
   // By the element: its name changes with the language.
   await pickOption(dialog, language(), "Français");
   await expect(page.locator("html")).toHaveAttribute("lang", "fr");
-  await expect(dialog.getByRole("tab", { name: "général", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(categories(dialog).filter({ hasText: /^général$/ })).toHaveAttribute("data-current", "true");
   await expect(page.getByRole("dialog", { name: "réglages" })).toBeVisible();
   await expect(dialog.getByRole("heading", { name: "démarrage" })).toBeVisible();
   await expect(dialog.getByRole("button", { name: "terminé" })).toBeVisible();
   expect(await page.evaluate(() => (window as unknown as { __noReload?: boolean }).__noReload)).toBe(true);
 
-  for (const tab of ["général", "apparence", "souris", "audio"]) {
+  for (const tab of ["général", "apparence", "souris et clavier", "audio"]) {
     dialog = await openSettings(page, tab);
     expect(await clipped(dialog), `clipped text in réglages > ${tab}`).toEqual([]);
   }
 
   // Decimal comma: shown "1,00"; "1,5" and "1.25" both commit.
-  dialog = await openSettings(page, "souris");
+  dialog = await openSettings(page, "souris et clavier");
   const sensitivity = dialog.getByRole("spinbutton", { name: "sensibilité du zoom" });
   await expect(sensitivity).toHaveValue("1,00");
   for (const [typed, shown] of [
@@ -80,7 +83,7 @@ test("switching to French applies live, persists, fits, and French number fields
   // And back to English, live.
   await pickOption(dialog, language(), "English");
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
-  await expect(dialog.getByRole("tab", { name: "general", exact: true })).toBeVisible();
+  await expect(categories(dialog).filter({ hasText: /^general$/ })).toBeVisible();
 });
 
 test("the pseudo-locale's longer text fits the settings", async ({ page }) => {
@@ -91,7 +94,7 @@ test("the pseudo-locale's longer text fits the settings", async ({ page }) => {
   // General, appearance, audio, input (the localized tabs so far).
   for (const i of [0, 1, 2, 3]) {
     const dialog = await openSettings(page, i);
-    await expect(dialog.getByRole("tab").nth(i)).toContainText("⟦");
+    await expect(categories(dialog).nth(i)).toContainText("⟦");
     expect(await clipped(dialog), `clipped text in the pseudo-locale's tab ${i}`).toEqual([]);
   }
 });

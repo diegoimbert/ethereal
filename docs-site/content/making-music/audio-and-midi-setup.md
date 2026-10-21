@@ -22,7 +22,7 @@ This page is about getting sound in and out: which device plays, which one recor
 
 ## the audio settings [[desktop]]
 
-Click the gear at the top right of the window to open **settings**, then go to the **audio** tab. You can also open it from the command palette ([[action:palette.open]]) with **audio settings…**.
+Click the gear at the bottom right of the window to open **settings**, then go to the **audio** page. You can also open it from the command palette ([[action:palette.open]]) with **audio settings…**.
 
 | setting | what it is |
 |---|---|
@@ -96,7 +96,7 @@ If the audio engine stalls, for example while a plugin is busy opening its edito
 
 ### the engine log [[desktop]]
 
-In **settings › advanced**, **open engine log** opens a terminal window that follows the engine's log as it runs: warnings, plugin problems and why the engine stopped responding. It is useful when you [report an issue](https://github.com/diegoimbert/ethereal/issues).
+In **settings › advanced › diagnostics**, **open engine log** opens a terminal window that follows the engine's log as it runs: warnings, plugin problems and why the engine stopped responding. It is useful when you [report an issue](https://github.com/diegoimbert/ethereal/issues).
 
 ## where next
 

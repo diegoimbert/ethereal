@@ -94,11 +94,6 @@
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);
 }
-.eth-tb__tap {
-  color: var(--eth-color-text-dim);
-  letter-spacing: var(--eth-tracking-caps);
-}
-
 .eth-tb-field {
   height: var(--eth-size-control-md);
   padding: 0 var(--eth-space-sm);
@@ -240,4 +235,33 @@
 /* Settings > Appearance > Glow off: status lights without their halo. */
 :root[data-glow="off"] .eth-tb__engine[data-level="ok"] .eth-tb__engine-dot {
   box-shadow: none;
+}
+
+.eth-tb__record-wrap {
+  display: inline-flex;
+}
+
+/* Compact top bar (a narrow window: transport-bar/compact.ts): the position is one button (the
+   time, or the bars after a click); the computer keyboard's chip shows its base note alone. */
+.eth-tb__position--compact {
+  /* No native button look (WebKit draws its bezel otherwise): the bare text, as when wide. */
+  -webkit-appearance: none;
+  appearance: none;
+  padding: 0;
+  border: none;
+  border-radius: var(--eth-radius-sm);
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.eth-tb__position--compact:focus {
+  outline: none;
+}
+.eth-tb__position--compact:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+}
+.eth-shell__top[data-compact] .eth-kbmidi__velocity {
+  display: none;
 }

@@ -4,7 +4,7 @@
  *
  * Chunks go out as binary frames when the transport can (`WsTransport.uploadChunk`), else
  * as base64 JSON. A few chunks are kept in flight (the server applies them in order); any
- * failure cancels the upload. Progress is published to `uploadStore` for the top bar.
+ * failure cancels the upload. Progress is published to `uploadStore` for the status bar.
  */
 import { useSyncExternalStore } from "react";
 import type { GestureId, MediaRef, ReplyValue } from "@/generated";
@@ -127,7 +127,7 @@ export async function withUpload<T>(
   }
 }
 
-// ---- Progress store (top bar status) ---------------------------------------------------
+// ---- Progress store (status bar) ---------------------------------------------------
 
 type Listener = () => void;
 let uploads: readonly UploadProgress[] = [];

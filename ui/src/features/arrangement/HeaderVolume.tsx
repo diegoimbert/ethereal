@@ -4,6 +4,7 @@ import { useGestureSender } from "@/features/devices/gesture";
 import { paramToPlain } from "@/domain/paramScale";
 import { useLiveAutomation } from "@/features/automation/live";
 import { VOLUME_INFO } from "@/features/automation/params";
+import { openValueMenu } from "@/features/automation/valueMenu";
 import { midiTarget } from "@/features/midi-learn/targets";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
@@ -72,6 +73,15 @@ export function HeaderVolume({ track }: { track: Track }) {
       // A drag moves the selection captured at its start, a key the current one; a reset
       // (double-click) only this track.
       onChange={(v, from) => set(v, from === "drag" ? group.current : from === "key" ? selectionSnapshot() : null)}
+      // The value menu: its lane, set value…, reset (this track only, like a reset).
+      onContextMenu={(e) =>
+        openValueMenu(e, {
+          info: VOLUME_INFO,
+          plain: db,
+          set: (v) => set(v, null),
+          automation: { track: track.id, target: { type: "TrackVolume", track: track.id } },
+        })
+      }
     />
   );
 }

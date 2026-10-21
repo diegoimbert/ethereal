@@ -7,9 +7,9 @@ import { guardLeave } from "./leaveGuard";
 import { useProjectScreen } from "./screenStore";
 
 /**
- * Starting a tour from the welcome screen (the get-started items, the examples' "show me
- * how"): its project is made, the welcome screen hides, and finishing or leaving it comes
- * back here. In a collaboration session it asks first.
+ * Starting a tour from the welcome screen (the get-started items): its project is made, the
+ * welcome screen hides, and finishing or leaving it comes back here. In a collaboration
+ * session it asks first.
  */
 export function useStartTour(commands: EngineCommands, onStarted: () => void) {
   const t = useT();

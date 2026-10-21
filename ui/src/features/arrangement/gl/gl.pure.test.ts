@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Clip } from "@/generated";
 import type { LaneItem } from "../laneItems";
 import { boxX, cursorFor, EDGE_HANDLE_MIN_PX, EDGE_HANDLE_PX, handleWidth, hitLane, MIN_RESIZE_PX } from "./hitTest";
-import { clipColors, mix, parseColor, type Palette } from "./palette";
+import { clipColors, mix, parseColor, rgbOf, type Palette } from "./palette";
 import { InstanceWriter, RECT_STRIDE, RectFlag, writeRect } from "./pipelines";
 import { cullRange, type CullIndex } from "./scene";
 
@@ -46,6 +46,10 @@ describe("hitLane", () => {
     // Outside the clip box (its 2 px inset) or the lane: nothing.
     expect(hitLane([a, b], none, "t", 40, 1, H, view)).toBeNull();
     expect(hitLane([a, b], none, "t", 40, 60, H, view)).toBeNull();
+  });
+
+  it("in a compact lane the whole clip is its title band (no body)", () => {
+    expect(hitLane([a, b], none, "t", 40, 30, 36, view)).toEqual({ clip: "a", track: "t", part: "header" });
   });
 
   it("handles are 6 px wide (a quarter of the clip at most)", () => {
@@ -202,8 +206,10 @@ describe("palette", () => {
     } as const;
     const dark = clipColors({ ...base, theme: "dark" } as unknown as Palette, 0xff0000);
     const light = clipColors({ ...base, theme: "light" } as unknown as Palette, 0xff0000);
-    expect(dark.strong).toEqual([1, 0, 0, 1]);
-    expect(light.strong.map((v) => +v.toFixed(2))).toEqual([0.7, 0, 0, 1]);
+    // The color as shown (an off-palette red is softened: displayColor).
+    const red = rgbOf(0xff0000);
+    expect(dark.strong).toEqual(red);
+    expect(light.strong.map((v) => +v.toFixed(2))).toEqual([...red.slice(0, 3).map((v) => +(v * 0.7).toFixed(2)), 1]);
     expect(dark.glowInner).not.toBeNull();
     expect(light.glowInner).toBeNull();
   });

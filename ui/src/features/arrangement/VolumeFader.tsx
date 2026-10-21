@@ -1,9 +1,10 @@
-import { useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import { formatDb } from "@/domain/paramScale";
 import { setDragCursor } from "@/kit";
 import { isReadOnly } from "@/state";
 import { useT } from "@/i18n";
 import { dbToFader, faderToDb } from "./faderLaw";
+import { readoutBelow } from "./readoutPlacement";
 
 export interface VolumeFaderProps {
   /** The level shown (dB; at or below -144: -inf). */
@@ -17,6 +18,8 @@ export interface VolumeFaderProps {
   onEnd(): void;
   /** Extra attributes on the slider (e.g. the MIDI-learn target). */
   attrs?: Record<string, string>;
+  /** Right-click (the app's value menu: automation, set value, reset). */
+  onContextMenu?: (e: MouseEvent<HTMLDivElement>) => void;
 }
 
 /**
@@ -24,11 +27,13 @@ export interface VolumeFaderProps {
  * chains: drag left / right (Shift: fine) as one gesture, arrows step it, Home / End go to
  * the ends, double-click resets to 0 dB; the dB value shows while hovering or dragging.
  */
-export function VolumeFader({ db, label, onChange, onBegin, onEnd, attrs }: VolumeFaderProps) {
+export function VolumeFader({ db, label, onChange, onBegin, onEnd, attrs, onContextMenu }: VolumeFaderProps) {
   const t = useT();
   const pos = dbToFader(db);
   const drag = useRef<{ x: number; pos: number; width: number } | null>(null);
   const [active, setActive] = useState(false);
+  const [below, setBelow] = useState(false);
+  const place = (el: HTMLDivElement) => setBelow(readoutBelow(el, el.querySelector(".eth-arr-vol__readout")));
   const set = (n: number, from: "drag" | "key" | "reset") => onChange(faderToDb(Math.min(1, Math.max(0, n))), from);
 
   const onPointerDown = (e: PointerEvent<HTMLDivElement>) => {
@@ -39,6 +44,7 @@ export function VolumeFader({ db, label, onChange, onBegin, onEnd, attrs }: Volu
     }
     e.stopPropagation(); // not a header / row press
     if (e.button !== 0) return;
+    place(e.currentTarget);
     e.preventDefault();
     e.currentTarget.setPointerCapture?.(e.pointerId);
     e.currentTarget.focus({ preventScroll: true });
@@ -82,7 +88,10 @@ export function VolumeFader({ db, label, onChange, onBegin, onEnd, attrs }: Volu
       aria-valuemax={1}
       aria-valuenow={pos}
       aria-valuetext={formatDb(db)}
+      data-readout={below ? "below" : undefined}
       title={t("arrangement.header.volume_title", { value: formatDb(db) })}
+      onPointerEnter={(e) => place(e.currentTarget)}
+      onContextMenu={onContextMenu}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={end}

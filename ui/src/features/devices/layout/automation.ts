@@ -10,6 +10,7 @@ import { useProjectStore } from "@/state";
 import { targetKey } from "@/features/automation/params";
 import { hasEnabledLane } from "@/features/automation/live";
 import { useAutomationUi } from "@/features/automation/uiStore";
+import { openValueMenu } from "@/features/automation/valueMenu";
 import type { ParamBinding } from "./context";
 import { t } from "@/i18n";
 
@@ -50,22 +51,24 @@ interface TargetMenu {
 
 function targetMenu(e: MouseEvent, m: TargetMenu): void {
   openContextMenu(e, [
-    { label: t("devices.param.show_automation"), disabled: !m.automatable, onSelect: m.showAutomation },
-    "separator",
+    // Not automatable: no automation entry at all.
+    ...(m.automatable ? [{ label: t("devices.param.show_automation"), onSelect: m.showAutomation }, "separator" as const] : []),
     { label: t("devices.param.reset"), disabled: m.isDefault, onSelect: m.reset },
   ]);
 }
 
 /**
- * The param context menu: automation and reset (MIDI learn has its own mode menu). Shared by
- * the device's widgets and the "Show all parameters" list.
+ * The param context menu: the app's value menu (its automation lane when automatable, set
+ * value…, reset; MIDI learn has its own mode menu). Shared by the device's widgets and the
+ * "Show all parameters" list.
  */
-export function paramMenu(e: MouseEvent, b: Pick<ParamBinding, "device" | "info" | "plain" | "reset">): void {
-  targetMenu(e, {
-    automatable: b.info.automatable,
-    showAutomation: () => showAutomation(b.device, b.info),
-    isDefault: b.plain === b.info.default,
+export function paramMenu(e: MouseEvent, b: Pick<ParamBinding, "device" | "info" | "plain" | "reset" | "setPlain">): void {
+  openValueMenu(e, {
+    info: b.info,
+    plain: b.plain,
+    set: b.setPlain,
     reset: b.reset,
+    automation: b.info.automatable ? { show: () => showAutomation(b.device, b.info) } : undefined,
   });
 }
 

@@ -1,9 +1,10 @@
 import clsx from "clsx";
 import { surfaceMenuEntries } from "@/ext/surfaces";
+import { useContributions } from "@/ext";
 import { useStore } from "zustand";
 import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { AudioLines, ChevronDown, Circle, CornerDownRight, Folder, Headphones, Piano, Speaker, SlidersVertical, Spline, Volume2, VolumeX } from "lucide-react";
-import type { Beats, Color, Track, TrackId } from "@/generated";
+import type { Beats, Track, TrackId } from "@/generated";
 import { promptForInputIfNone } from "@/features/audio-settings";
 import { animateGroupFold, AutomationToggleButton, TrackAutomationLanes } from "@/features/automation";
 import { groupsTrackMenu, VcaLane } from "@/features/groups";
@@ -12,8 +13,10 @@ import { LiveRecordLane } from "@/features/recording/live/LiveRecordLane";
 import { tapArmBlocked } from "@/features/recording/tapRecording";
 import { TakeLanes, TakesToggle, trackTakeEntries } from "@/features/comping";
 import { templateTrackEntries } from "@/features/templates";
-import { meterPosition, openContextMenu, ReadOnlySurface, setDragCursor, type ContextMenuEntry } from "@/kit";
+import { meterPosition, openContextMenu, Popover, ReadOnlySurface, setDragCursor, type ContextMenuEntry } from "@/kit";
+import { ColorSwatches } from "@/features/colors";
 import { shortcutLabel } from "@/features/keymap";
+import { useShellStore } from "@/state/shell";
 import { isReadOnly, listenBlockedReason, useProjectStore, useTrackMeter, useViewer, defaultTrackName } from "@/state";
 import { pxToBeats, resolveGrid, selectModeFromEvent, snapToGrid, itemSelection, useTempoMap, useTimelineView } from "@/timeline";
 import { cmd } from "@/transport";
@@ -22,7 +25,8 @@ import { additiveClick } from "@/domain/soloPlan";
 import { selectTrackEntity, trackMenu } from "./actions";
 import { hasClipboard, pasteClips } from "./clipboard";
 import { onLaneInsertPointerDown, type InsertSpan } from "./clipInsert";
-import { colorCss, inkOn } from "./helpers";
+import { colorCss } from "./helpers";
+import { isCompactLane } from "./laneBodyGeometry";
 import { sendEdit, useArrangement } from "./context";
 import { beatsCss, settledZoom, subscribeSettledZoom, useSettledZoom, widthCss } from "./laneGeometry";
 import { midiTarget } from "@/features/midi-learn/targets";
@@ -41,6 +45,9 @@ const INDENT_PX = 12;
 
 // Rows stack in flow and nothing below reads `y`: rows that only move (automation lanes
 // animating above them) don't re-render.
+/** `VcaLane`, re-rendered only when its track changes (not on a lane height change). */
+const VcaLaneMemo = memo(VcaLane);
+
 export const TrackRow = memo(
   function TrackRow({ row }: { row: Row }) {
     return <RealTrackRow row={row} />;
@@ -70,17 +77,19 @@ function RealTrackRow({ row }: { row: Row }) {
     () => (
       <>
         <div className="eth-arr-row__main" style={{ height: mainHeight(mainRow) }}>
-          <TrackHeader row={mainRow} />
+          {/* Memoized on what they show (not the height: CSS sizes them), so a vertical zoom
+              step re-renders none of them unless the lane turns compact or back. */}
+          <TrackHeader track={track} depth={depth} compact={isCompactLane(mainHeight(mainRow))} />
           {/* On the edge between the header column and the lanes (outside the card). */}
-          <HeaderMeter track={track.id} height={mainHeight(mainRow)} />
+          <HeaderMeter track={track.id} />
           <ResizeHandle row={mainRow} />
-          {track.kind === "Group" ? <GroupLane track={track} /> : track.kind === "Vca" ? <VcaLane track={track} /> : <TrackLane track={track} />}
+          {track.kind === "Group" ? <GroupLane track={track} /> : track.kind === "Vca" ? <VcaLaneMemo track={track} /> : <TrackLane track={track} />}
         </div>
         {/* v0.2 (`comping`): expanded take lanes, part of the row's lane height. */}
         {takesHeight > 0 && <TakesSection track={track} />}
       </>
     ),
-    [mainRow, track, takesHeight],
+    [mainRow, track, depth, takesHeight],
   );
   return (
     <div
@@ -122,35 +131,81 @@ const TRACK_ICONS: Record<Track["kind"], ReactNode> = {
 };
 
 /**
- * A round badge in the track color with the track type's icon, in dark or light ink,
- * whichever contrasts more with the color (`inkOn`).
+ * The track type's icon in the track color (CSS; compact, a short lane: smaller). With
+ * `onPick` (an editable track's color), a double-click opens the palette under it.
  */
-function TrackBadge({ kind, color, compact }: { kind: Track["kind"]; color: Color; compact: boolean }) {
+function TrackBadge({ track, onPick }: { track: Track; onPick?: (color: number) => void }) {
   const t = useT();
+  const [open, setOpen] = useState(false);
+  const kind = t("arrangement.header.kind", { kind: track.kind.toLowerCase() });
+  if (!onPick) {
+    return (
+      <span className="eth-arr-header__badge" aria-hidden title={kind}>
+        {TRACK_ICONS[track.kind]}
+      </span>
+    );
+  }
   return (
-    <span
-      className="eth-arr-header__badge"
-      aria-hidden
-      title={t("arrangement.header.kind", { kind: kind.toLowerCase() })}
-      // Compact (a short lane): no circle, the icon in the track color (CSS).
-      style={compact ? undefined : { color: inkOn(color) }}
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      placement="bottom-start"
+      aria-label={t("arrangement.header.color_named", { name: track.name })}
+      trigger={() => (
+        // A pointer shortcut (the inspector's color square is the keyboard's way).
+        <span
+          className="eth-arr-header__badge"
+          aria-hidden
+          title={`${kind} · ${t("arrangement.header.color_hint")}`}
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            setOpen(true);
+          }}
+        >
+          {TRACK_ICONS[track.kind]}
+        </span>
+      )}
     >
-      {TRACK_ICONS[kind]}
-    </span>
+      {(close) => (
+        // Picks stay in the palette (not a press / click on the track header behind it).
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
+        <div className="eth-color-palette" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+          <ColorSwatches
+            label={t("arrangement.header.color_named", { name: track.name })}
+            value={track.color}
+            onPick={(c) => {
+              if (c !== null) onPick(c);
+              close();
+            }}
+          />
+        </div>
+      )}
+    </Popover>
   );
 }
 
-/** Below this lane height (px) the header's badge is the icon alone, without its circle. */
-const COMPACT_HEADER_HEIGHT = 38;
+/** Whether `group` contains `track` (as a child, or deeper). */
+function hasAncestor(track: Track, group: TrackId): boolean {
+  const tracks = useProjectStore.getState().project?.tracks;
+  let parent = track.parent;
+  for (let depth = 0; parent && tracks && depth < 64; depth++) {
+    if (parent === group) return true;
+    parent = tracks[parent]?.parent ?? null;
+  }
+  return false;
+}
 
-function TrackHeader({ row }: { row: Row }) {
+const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track: Track; depth: number; compact: boolean }) {
   const headerWidth = useArrangementUi((s) => s.headerWidth);
   const t = useT();
-  const { track, depth } = row;
+  // Inside a group whose header is hovered (at any depth): the hover look too.
+  const inHoveredGroup = useArrangementUi((s) => s.hoveredGroup !== null && hasAncestor(track, s.hoveredGroup));
   const ctx = useArrangement();
   const { transport } = ctx;
   const dragging = useArrangementUi((s) => s.trackDrag?.track === track.id);
   const dropInto = useArrangementUi((s) => s.trackDrag?.into === track.id);
+  // Device cards dragged over the track (they land on its chain).
+  const deviceDrop = useArrangementUi((s) => s.deviceDrop === track.id);
   const dropBlocked = useArrangementUi((s) => s.trackDrag?.track === track.id && !!s.trackDrag.blocked);
   // Highlighted only as the arrangement's selected entity (not while one of its clips is).
   const selected = useArrangementUi((s) => s.selectedTracks.has(track.id));
@@ -171,8 +226,6 @@ function TrackHeader({ row }: { row: Row }) {
   const canArm = track.kind === "Audio" || track.kind === "Midi";
   const armBlocked = tapArmBlocked(transport.kind, track.input, armed);
   const stop = (e: MouseEvent) => e.stopPropagation();
-  // Too short for the round badge: the icon alone, in the track color.
-  const compact = mainHeight(row) < COMPACT_HEADER_HEIGHT;
   // A shared project's viewer: Solo / Mute play the share's stems (tracks with a stem, groups
   // holding some); nothing else in the header edits.
   const viewer = useViewer();
@@ -189,7 +242,6 @@ function TrackHeader({ row }: { row: Row }) {
           aria-hidden
           style={{
             width: headerWidth,
-            height: mainHeight(row),
             ["--eth-track-color" as string]: colorCss(track.color),
             ["--eth-track-depth" as string]: depth,
           }}
@@ -201,13 +253,22 @@ function TrackHeader({ row }: { row: Row }) {
           "eth-arr-header",
           selected && "eth-arr-header--selected",
           dragging && "eth-arr-header--dragging",
-          dropInto && "eth-arr-header--drop-into",
+          (dropInto || deviceDrop) && "eth-arr-header--drop-into",
           dropBlocked && "eth-arr-header--drop-blocked",
           compact && "eth-arr-header--compact",
           inert && "eth-arr-header--inert",
           `eth-arr-header--${track.kind.toLowerCase()}`,
         )}
         data-clip-selected={clipSelected || undefined}
+        data-group-hover={inHoveredGroup || undefined}
+        onPointerEnter={track.kind === "Group" ? () => useArrangementUi.getState().setHoveredGroup(track.id) : undefined}
+        onPointerLeave={
+          track.kind === "Group"
+            ? () => {
+                if (useArrangementUi.getState().hoveredGroup === track.id) useArrangementUi.getState().setHoveredGroup(null);
+              }
+            : undefined
+        }
         data-track={track.id}
         data-tour="track-header"
         style={{
@@ -220,7 +281,12 @@ function TrackHeader({ row }: { row: Row }) {
           stop(e);
           if (!renaming && !readOnly) onTrackHeaderPointerDown(e, track, ctx);
         }}
-        onClick={(e) => selectTrackEntity(track.id, selectModeFromEvent(e))}
+        onClick={(e) => {
+          selectTrackEntity(track.id, selectModeFromEvent(e));
+          // A header click expands the inspector on the track (the press collapsed the drawer:
+          // ArrangementView).
+          useShellStore.getState().setCollapsed("right", false);
+        }}
         onContextMenu={(e) => {
           const items = trackMenu(transport, track);
           const selected = [...useArrangementUi.getState().selectedTracks];
@@ -246,7 +312,6 @@ function TrackHeader({ row }: { row: Row }) {
             aria-expanded={!folded}
             aria-label={folded ? t("arrangement.header.unfold_named", { name: track.name }) : t("arrangement.header.fold_named", { name: track.name })}
             title={folded ? t("arrangement.header.unfold") : t("arrangement.header.fold")}
-            style={compact ? undefined : { color: inkOn(track.color) }}
             onClick={(e) => {
               stop(e);
               animateGroupFold(track.id, folded);
@@ -256,10 +321,13 @@ function TrackHeader({ row }: { row: Row }) {
             <ChevronDown />
           </button>
         ) : (
-          <TrackBadge kind={track.kind} color={track.color} compact={compact} />
+          <TrackBadge
+            track={track}
+            onPick={
+              readOnly || track.kind === "Master" ? undefined : (color) => void sendEdit(transport, cmd("Track", { type: "SetColor", id: track.id, color }))
+            }
+          />
         )}
-        {/* The name runs under the buttons (an overlay at fixed positions) up to the leftmost
-          visible one (arrangement.css: .eth-arr-header__main). */}
         <span className="eth-arr-header__main">
           {renaming ? (
             <TrackNameInput
@@ -294,8 +362,14 @@ function TrackHeader({ row }: { row: Row }) {
               {displayName}
             </span>
           )}
+        </span>
+        {/* The volume and pan at the header's right end, the buttons (always shown, small) under
+          them. The buttons come first in the DOM (the touch layouts lay them out before the
+          volume and pan: mobile.css); arrangement.css puts them below. */}
+        <span className="eth-arr-header__controls">
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- only keeps its events from reaching the track header around it */}
           <span className="eth-arr-header__buttons" onClick={stop}>
+            <FreezeHeaderStatus track={track} transport={transport} />
             {/* First: the takes button must not move the others (their positions are the same
             with or without take lanes). */}
             {canArm && <TakesToggle track={track} className="eth-arr-header__toggle" />}
@@ -362,16 +436,16 @@ function TrackHeader({ row }: { row: Row }) {
             )}
             <AutomationToggle track={track} />
           </span>
+          <span className="eth-arr-header__mix">
+            <HeaderVolume track={track} />
+            <HeaderPan track={track} />
+          </span>
         </span>
-        <FreezeHeaderStatus track={track} transport={transport} />
-        {/* The volume and pan at the header's right end, after the buttons. */}
-        <HeaderVolume track={track} />
-        <HeaderPan track={track} />
         {track.kind === "Midi" && !readOnly && <InstrumentPick track={track} />}
       </div>
     </>
   );
-}
+});
 
 /** Inline rename field: Enter or blur commits, Escape cancels (`onDone(null)`). */
 function TrackNameInput({ name, onDone }: { name: string; onDone: (name: string | null) => void }) {
@@ -404,15 +478,15 @@ function TrackNameInput({ name, onDone }: { name: string; onDone: (name: string 
 }
 
 /** Live level along the header's right edge (its own component: re-renders at meter rate). */
-function HeaderMeter({ track, height }: { track: TrackId; height: number }) {
+const HeaderMeter = memo(function HeaderMeter({ track }: { track: TrackId }) {
   const meter = useTrackMeter(track);
   const level = meter ? meterPosition(Math.max(meter.peak[0], meter.peak[1])) : 0;
   return (
-    <span className="eth-arr-header__meter" style={{ height }} aria-hidden>
+    <span className="eth-arr-header__meter" aria-hidden>
       <span className="eth-arr-header__meter-fill" style={{ transform: `scaleY(${level})` }} />
     </span>
   );
-}
+});
 
 /**
  * Bottom edge of a track's header (not the lane, so clips keep their edges): drag to resize
@@ -533,7 +607,7 @@ function LaneLayer({ origin, children }: { origin: Beats; children: ReactNode })
  * (gl/) draws and hit-tests the clips; the lane keeps the DOM overlays (MIDI insert preview,
  * drop hint, imports, live recording) and the presses that reach it (insert, paste menu).
  */
-function TrackLane({ track }: { track: Track }) {
+const TrackLane = memo(function TrackLane({ track }: { track: Track }) {
   const ctx = useArrangement();
   const dropHint = useArrangementUi((s) => (s.dropHint?.track === track.id ? s.dropHint.at : null));
   const imports = useArrangementUi((s) => s.imports);
@@ -542,6 +616,7 @@ function TrackLane({ track }: { track: Track }) {
   const { vp, visible } = useLaneView();
 
   const [insert, setInsert] = useState<InsertSpan | null>(null);
+  const laneExts = useContributions("arrangement.lane");
 
   return (
     <div
@@ -582,18 +657,24 @@ function TrackLane({ track }: { track: Track }) {
         {dropHint !== null && <div className="eth-arr-lane__drop-hint" style={{ left: beatsCss(dropHint - vp.scrollBeats) }} />}
         {imports.map((i) => (i.track === track.id ? <ImportPlaceholder key={i.id} item={i} style={{ left: beatsCss(i.at - vp.scrollBeats) }} /> : null))}
         {(track.kind === "Audio" || track.kind === "Midi") && (
-          <LiveRecordLane transport={ctx.transport} track={track.id} color={track.color} origin={vp.scrollBeats} visible={visible} pxPerBeat={vp.pxPerBeat} />
+          <>
+            <LiveRecordLane transport={ctx.transport} track={track.id} color={track.color} origin={vp.scrollBeats} visible={visible} pxPerBeat={vp.pxPerBeat} />
+            {/* Extensions' lane content (`@/ext` "arrangement.lane"). */}
+            {laneExts.map((Lane, i) => (
+              <Lane key={i} transport={ctx.transport} track={track.id} color={track.color} origin={vp.scrollBeats} visible={visible} pxPerBeat={vp.pxPerBeat} />
+            ))}
+          </>
         )}
       </LaneLayer>
     </div>
   );
-}
+});
 
 /** v0.2 (`comping`): a track's take lanes (headers; the canvas draws their clips). */
-function TakesSection({ track }: { track: Track }) {
+const TakesSection = memo(function TakesSection({ track }: { track: Track }) {
   const headerWidth = useArrangementUi((s) => s.headerWidth);
   return <TakeLanes track={track} headerWidth={headerWidth} />;
-}
+});
 
 /** Take entries (`comping`) go before the track menu's last group (Delete). */
 function withTakeEntries(menu: ContextMenuEntry[], takes: ContextMenuEntry[]): ContextMenuEntry[] {
@@ -626,9 +707,9 @@ export function ImportPlaceholder({ item, style }: { item: PendingImport; style?
 }
 
 /** Group lane: the summary of its tracks' clips is drawn by the canvas (gl/layers/groupSummary.ts). */
-function GroupLane({ track }: { track: Track }) {
+const GroupLane = memo(function GroupLane({ track }: { track: Track }) {
   return <div className="eth-arr-lane eth-arr-lane--group" data-lane={track.id} />;
-}
+});
 
 /**
  * Clips dragged below the last track: the new tracks the drop will create, as

@@ -1,7 +1,7 @@
 // The link to the ethereal discord community (the splash screen, the web's top band).
 import type { SVGProps } from "react";
 import { useT } from "@/i18n";
-import { Button, IconButton } from "@/kit";
+import { Button } from "@/kit";
 import { openExternal } from "@/transport";
 
 /** The discord invite (the only place it is written). */
@@ -32,8 +32,11 @@ export function DiscordIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export interface DiscordLinkProps {
-  /** "icon": a square icon button (the splash screen); "label": icon and text (the web band). */
-  variant?: "icon" | "label";
+  /**
+   * "button": a full button, "join discord" (the splash screen); "label": a quiet ghost button,
+   * "discord" (the web band).
+   */
+  variant?: "button" | "label";
   className?: string;
   /** Open the invite (injectable for tests); default: the browser (`openExternal`). */
   open?: (url: string) => void;
@@ -43,17 +46,12 @@ export interface DiscordLinkProps {
 export function DiscordLink({ variant = "label", className, open }: DiscordLinkProps) {
   const t = useT();
   const onClick = () => (open ?? openExternal)(DISCORD_INVITE_URL);
-  if (variant === "icon") {
+  if (variant === "button") {
     return (
-      <IconButton
-        size="sm"
-        tone="ghost"
-        className={className}
-        label={t("community.discord.join")}
-        icon={<DiscordIcon />}
-        onClick={onClick}
-        data-testid="discord-link"
-      />
+      <Button size="sm" className={className} onClick={onClick} data-testid="discord-link">
+        <DiscordIcon />
+        {t("community.discord.join_button")}
+      </Button>
     );
   }
   return (

@@ -68,7 +68,7 @@ async function boot(invite: string | null): Promise<void> {
     // One tab owns the project store: wait here (no engine) while another one has it.
     const owner = await ownStore();
     // Ask the browser to keep the projects; never holds up the start.
-    void ensurePersistentStorage({ onOpenSettings: () => openSettings("general") });
+    void ensurePersistentStorage({ onOpenSettings: () => openSettings("library") });
     const { createWebEndpoint } = await import("./engine/endpoint");
     const endpoint = createWebEndpoint();
     // Debug / e2e handle on the live engine (AudioContext, worklet node, workers).

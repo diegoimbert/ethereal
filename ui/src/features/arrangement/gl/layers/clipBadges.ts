@@ -10,7 +10,7 @@
 import type { Clip, ClipId } from "@/generated";
 import { useMediaRefs } from "@/features/media-refs";
 import { contributions, type ClipBadgeProvider } from "@/ext";
-import { CLIP_INSET, CLIP_MIN_PX, CLIP_RADIUS, CLIP_TITLE } from "../../laneBodyGeometry";
+import { CLIP_INSET, CLIP_MIN_PX, CLIP_RADIUS } from "../../laneBodyGeometry";
 import type { GlyphAtlas, FontSpec } from "../glyphAtlas";
 import type { ArrangerLayer } from "../layers";
 import { Fx, writeGlyph, writeRect, type FxCode, type XSpec } from "../pipelines";
@@ -176,7 +176,7 @@ export function clipBadgesLayer(pipeline: Pipeline): ClipBadgesLayer {
         const left = badgesStart(clip);
         for (const b of layoutBadges(m, badges)) {
           const x = left + b.x;
-          const top = CLIP_INSET + TITLE_PAD_TOP + (CLIP_TITLE - TITLE_PAD_TOP - b.height) / 2;
+          const top = CLIP_INSET + TITLE_PAD_TOP + (lane.titleHeight - TITLE_PAD_TOP - b.height) / 2;
           const fill = b.kind === "reversed" ? colors.accent : b.text !== undefined ? colors.dim : colors.warn;
           writeRect(out.rects, {
             x: { b0: bounds.start, b1: bounds.start, p0: x, p1: x + b.width },

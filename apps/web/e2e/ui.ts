@@ -223,6 +223,8 @@ export async function addToRackChain(panel: Locator, chainName: string, trigger:
 export async function showDeviceParams(page: Page, id: string): Promise<Locator> {
   const card = deviceCard(page, id);
   const toggle = card.locator(":scope > header .eth-device__params-toggle");
+  // Shown while the header is hovered (or the list is open).
+  await card.locator(":scope > header").hover();
   if ((await toggle.getAttribute("aria-pressed")) !== "true") await toggle.click();
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
   const params = card.getByTestId("device-params").first();
@@ -421,10 +423,28 @@ export const playingButton = (page: Page): Locator =>
  */
 export const stopButton = (page: Page): Locator => page.getByTestId("transport-stop");
 
-/** Opens Settings (top-bar gear) on the Advanced tab. */
+/**
+ * Expands the inspector when it shows as its collapsed bar (a click on a clip or a lane never
+ * expands a pane; a track header's click does).
+ */
+export async function showInspector(page: Page): Promise<void> {
+  const bar = page.getByRole("button", { name: "expand the inspector panel" });
+  if (await bar.isVisible()) await bar.click();
+  await expect(page.getByTestId("inspector")).toBeVisible();
+}
+
+/**
+ * Shows a page of the settings dialog: its category in the sidebar (its first page), or a page
+ * of the open category by its name.
+ */
+export async function settingsPage(dialog: Locator, name: string): Promise<void> {
+  await dialog.locator(".eth-settings__nav").getByRole("button", { name, exact: true }).click();
+}
+
+/** Opens Settings (the status bar's gear) on the Advanced category (its Engine page). */
 export async function openAdvancedSettings(page: Page): Promise<void> {
   await page.getByRole("button", { name: "settings", exact: true }).click();
-  await page.getByRole("dialog", { name: "settings" }).getByRole("tab", { name: "advanced" }).click();
+  await settingsPage(page.getByRole("dialog", { name: "settings" }), "advanced");
 }
 
 /**
@@ -486,12 +506,32 @@ export async function projectMenu(page: Page, item: string): Promise<void> {
   await page.getByRole("menu", { name: "project" }).getByRole("menuitem", { name: item, exact: true }).click();
 }
 
-/** Opens the project picker from the project menu ("Open project…"). */
+/**
+ * Opens the project picker: the command palette's "open project…" (the project menu's
+ * "open project ›" is a submenu of recent projects).
+ */
 export async function openProjectScreen(page: Page): Promise<Locator> {
-  await projectMenu(page, "open project…");
+  await paletteCommand(page, "open project…");
   const screen = projectScreen(page);
   await expect(screen).toBeVisible();
   return screen;
+}
+
+/**
+ * Picks `source` ("dawproject…", "reaper…", …) in the project menu's "Import from another DAW"
+ * submenu (the file chooser follows). On the launch project screen, Escape first: the draft
+ * behind it opens. Retries the hover and click (a re-render can close the submenu between them).
+ */
+export async function importFromAnotherDaw(page: Page, source: string): Promise<void> {
+  if (await projectScreen(page).isVisible()) {
+    await page.keyboard.press("Escape");
+    await expect(projectScreen(page)).toHaveCount(0);
+  }
+  await page.getByRole("button", { name: "projects" }).click();
+  await expect(async () => {
+    await page.getByRole("menu", { name: "project" }).getByRole("menuitem", { name: "import from another DAW" }).hover();
+    await page.getByRole("menu", { name: "import from another DAW" }).getByRole("menuitem", { name: source }).click({ timeout: 3000 });
+  }).toPass({ timeout: 20_000 });
 }
 
 /** Runs a command palette entry by its label (⌘K, search, pick the matching option). */

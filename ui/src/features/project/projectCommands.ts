@@ -7,6 +7,7 @@
  * confirmation); the labels and what an action does live here.
  */
 import { notify } from "@/features/notifications";
+import { openSettings } from "@/features/audio-settings";
 import { errorMessage } from "@/features/transport-bar/engine";
 import { useExportAudio } from "@/features/export";
 import { openSnapshotPrompt, openVersions } from "@/features/versions/store";
@@ -64,6 +65,14 @@ function contributed(transport: EngineTransport, project: { id: string; name: st
 /** The actions available with no project open (and with one). */
 export function appProjectCommands(transport: EngineTransport): ProjectCommand[] {
   return [
+    {
+      // The settings window, on the page shown last (like the top bar's gear).
+      id: "app:settings",
+      group: "Appearance",
+      label: t("shell.command.settings"),
+      keywords: "settings preferences options configure gear",
+      run: () => openSettings(),
+    },
     {
       id: "project:new",
       group: "Project",

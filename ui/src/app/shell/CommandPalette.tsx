@@ -1,4 +1,5 @@
 import clsx from "clsx";
+import { NO_AUTOCORRECT } from "@/kit";
 import { Search } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { DeviceDescriptor } from "@/generated";
@@ -236,6 +237,7 @@ function Palette({ closing, onClose, onClosed }: { closing: boolean; onClose(): 
           <input
             ref={input}
             className="eth-palette__input"
+            {...NO_AUTOCORRECT}
             role="combobox"
             aria-label={t("shell.palette.search")}
             aria-expanded

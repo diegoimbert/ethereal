@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { SettingsPlaceholder } from "@/features/audio-settings/SettingsPlaceholder";
 import { useContributions } from "@/ext";
 import { FolderPlus, X } from "lucide-react";
 import type { PluginCommand, PluginFolders, PluginFormat } from "@/generated";
@@ -28,6 +29,12 @@ function errorText(e: unknown): string {
  * lists the ones that couldn't be loaded, each retryable on its own. Desktop only: the
  * browser and remote UIs have no native plugins (or no local folder picker).
  */
+/** The folders as last loaded (this session): a later visit shows them at once, then refreshes. */
+let lastFolders: PluginFolders | null = null;
+const rememberFolders = (f: PluginFolders) => {
+  lastFolders = f;
+};
+
 export function PluginFoldersPanel({ transport }: { transport: EngineTransport }) {
   const t = useT();
   if (transport.kind !== "tauri") {
@@ -48,7 +55,11 @@ function FoldersBody({ transport }: { transport: EngineTransport }) {
   const setScan = usePluginStore((s) => s.setScan);
   const failed = usePluginStore((s) => s.failed);
   const setFailed = usePluginStore((s) => s.setFailed);
-  const [folders, setFolders] = useState<PluginFolders | null>(null);
+  const [folders, setFoldersState] = useState<PluginFolders | null>(() => lastFolders);
+  const setFolders = useCallback((f: PluginFolders) => {
+    rememberFolders(f);
+    setFoldersState(f);
+  }, []);
   const [showFailed, setShowFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const picker = hasFolderPicker(transport) ? transport : null;
@@ -66,7 +77,7 @@ function FoldersBody({ transport }: { transport: EngineTransport }) {
         setError(errorText(e));
       }
     },
-    [transport, setScan],
+    [transport, setScan, setFolders],
   );
 
   useEffect(() => {
@@ -82,7 +93,7 @@ function FoldersBody({ transport }: { transport: EngineTransport }) {
     return () => {
       live = false;
     };
-  }, [transport]);
+  }, [transport, setFolders]);
 
   // Failures are known before any scan this session (the engine remembers the last one's).
   useEffect(() => {
@@ -111,7 +122,8 @@ function FoldersBody({ transport }: { transport: EngineTransport }) {
     });
   };
 
-  if (!folders) return <p className="eth-plugin-folders__note">{error ?? t("plugins.folders.loading")}</p>;
+  // Loading: placeholder rows where the folders go (no jump when they come).
+  if (!folders) return error ? <p className="eth-plugin-folders__note">{error}</p> : <SettingsPlaceholder rows={4} />;
   const failures = failed.filter((f) => f.path).length;
   const formatChoices: SelectOption<FormatChoice>[] = [
     { value: "Any", label: t("plugins.folders.any_format") },

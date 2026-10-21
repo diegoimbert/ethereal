@@ -33,7 +33,7 @@ La version web ne peut pas charger de plug-ins. Sa bibliothèque d’appareils n
 
 ## où ethereal cherche les plug-ins {#where-ethereal-looks-for-plugins}
 
-Ouvrez les **réglages** et allez dans l’onglet **plug-ins**.
+Ouvrez les **réglages**, puis **plug-ins › dossiers et analyse**.
 
 - **dossiers système** : les dossiers de plug-ins standard de votre ordinateur, une ligne par format. Un dossier qui n’existe pas est marqué **introuvable**. L’interrupteur **analyser** est activé par défaut. Le désactiver ignore ces dossiers et, sur macOS, les Audio Units.
 - **vos dossiers** : cliquez sur **ajouter un dossier…** pour analyser un dossier à vous, par exemple un disque où vous gardez des plug-ins. Chaque dossier peut être limité à un format, ou laissé sur **tous les formats**. Cliquez sur **×** pour retirer un dossier.
@@ -51,7 +51,11 @@ Quand certains plug-ins n’ont pas pu être chargés, la ligne d’analyse indi
 
 ## le même plug-in dans plusieurs formats {#the-same-plugin-in-several-formats}
 
-Si un plug-in est installé dans plusieurs formats (par exemple en CLAP et VST3), la bibliothèque d’appareils le liste une fois par format, chacun avec une pastille de format. Quand la liste contient au moins deux formats, des interrupteurs pour chaque format apparaissent en haut de la bibliothèque. Désactivez les formats que vous n’utilisez pas pour les masquer, dans la liste et dans sa recherche. Au moins un format reste toujours activé, et Ethereal retient votre choix.
+Si un plug-in est installé dans plusieurs formats (par exemple en CLAP, VST3 et AU), la bibliothèque d’appareils ne le liste qu’une fois, dans votre format préféré : CLAP d’abord, puis VST3, AU et VST2. Vous le choisissez dans **réglages › plug-ins › liste des plug-ins**, sous **format préféré**. Pour choisir un format précis d’un plug-in, désactivez **afficher chaque plug-in une seule fois** : la bibliothèque liste alors chaque format, chacun avec une pastille de format. L’outil de résolution des imports et **remplacer l’appareil…** listent toujours tous les formats.
+
+Quand la liste contient au moins deux formats, des interrupteurs pour chaque format apparaissent en haut de la bibliothèque. Désactivez les formats que vous n’utilisez pas pour les masquer, dans la liste et dans sa recherche. Au moins un format reste toujours activé, et Ethereal retient votre choix.
+
+Pour masquer un plug-in, faites un clic droit dessus dans la bibliothèque d’appareils et choisissez **masquer …** (tous les formats) ou **masquer cette version …** (ce format seulement : un autre format du plug-in est listé à la place). La notification qui suit permet d’annuler. Les plug-ins masqués sont listés sous **plug-ins masqués** dans **réglages › plug-ins › liste des plug-ins**, où **×** en affiche un de nouveau.
 
 ## ouvrir la fenêtre d’un plug-in {#opening-a-plugins-window}
 
@@ -82,10 +86,10 @@ L’isolation ajoute un bloc audio de latence. Pour revenir en arrière, faites 
 
 ## ouvrir un projet sans les plug-ins {#opening-a-project-without-plugins}
 
-Si un projet plante ou se bloque à cause d’un plug-in, ouvrez-le sans les plug-ins. Faites un clic droit sur le projet dans la liste des projets (ou cliquez sur son bouton **…**) et choisissez **ouvrir sans plug-ins**. La fenêtre de récupération après plantage propose le même bouton. Chaque plug-in est gardé comme un emplacement contourné avec ses réglages enregistrés, marqué **mode sans échec · contourné**, et la barre du haut indique **plug-ins désactivés (mode sans échec)**. Ensuite :
+Si un projet plante ou se bloque à cause d’un plug-in, ouvrez-le sans les plug-ins. Faites un clic droit sur le projet dans la liste des projets (ou cliquez sur son bouton **…**) et choisissez **ouvrir sans plug-ins**. La fenêtre de récupération après plantage propose le même bouton. Chaque plug-in est gardé comme un emplacement contourné avec ses réglages enregistrés, marqué **mode sans échec · contourné**, et la barre d’état en bas indique **plug-ins désactivés (mode sans échec)**. Ensuite :
 
 - cliquez sur **⟳** sur un appareil pour charger seulement ce plug-in, ou
-- cliquez sur **charger les plug-ins** dans la barre du haut pour les charger tous.
+- cliquez sur **charger les plug-ins** dans la barre d’état pour les charger tous.
 
 Voir [le mode sans échec](/docs/advanced/safe-mode) pour en savoir plus.
 
@@ -96,7 +100,7 @@ Si un projet utilise un plug-in qui n’est pas installé sur cet ordinateur, Et
 1. Installez le plug-in, puis **réanalyser** dans **réglages › plug-ins**.
 2. L’appareil affiche maintenant **trouvé · recharger**. Cliquez dessus pour charger le plug-in avec le son enregistré dans le projet.
 
-Pour utiliser un autre plug-in à la place, faites un clic droit sur le badge **manquant · contourné** ou sur l’en-tête de l’appareil et choisissez **résoudre…**. Faites un clic droit sur l’en-tête de n’importe quel plug-in et choisissez **remplacer le plug-in…** pour l’échanger contre un autre plug-in installé. Les valeurs et l’automation sont reportées sur les paramètres de même nom. Voir [plug-ins et échantillons manquants](/docs/sounds-and-plugins/missing-plugins-and-samples).
+Pour utiliser un autre plug-in à la place, faites un clic droit sur le badge **manquant · contourné** ou sur l’en-tête de l’appareil et choisissez **résoudre…**. Faites un clic droit sur l’en-tête de n’importe quel appareil et choisissez **remplacer l’appareil…** pour l’échanger contre un autre appareil du même type (un effet contre un effet, un instrument contre un instrument), d’usine ou plug-in : une fenêtre sous l’en-tête les liste comme la bibliothèque d’appareils, et un clic remplace aussitôt. Avec **garder l’automation et les paramètres** (survolez-le pour voir ce qu’il garde), les valeurs et l’automation sont reportées sur les paramètres de même nom ; les racks ne peuvent pas être remplacés. Voir [plug-ins et échantillons manquants](/docs/sounds-and-plugins/missing-plugins-and-samples).
 
 ## comment le son des plug-ins est enregistré {#how-plugin-sounds-are-saved}
 

@@ -2,7 +2,7 @@
 // CONTRACTS.md §12.9).
 import "./mediaRefs.css";
 
-export { MediaRefsRoot, MissingMediaNotice } from "./MediaRefsRoot";
+export { MediaRefsRoot, MissingMediaStatus } from "./MediaRefsRoot";
 export { RelinkDialog } from "./RelinkDialog";
 export { mediaRefClipEntries, mediaRefCommands, withMediaRefClipEntries, type MediaRefPaletteCommand } from "./menus";
 export { hasFolderPicker, locationLabel, pickRelinkSource, sourceLabel, stageUpload, type FolderPickerHost } from "./sources";

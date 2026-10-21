@@ -33,14 +33,11 @@ export type Action = (page: Page) => Promise<void>;
 /** What the user does on a step. A step left out gets "next" (or "finish" on the last one); a waiting step must be listed. */
 export type Script = Readonly<Record<string, Action>>;
 /** A tour of the welcome screen and how a user walks it. */
-export type Tour = { title: string; id: string; script: Script; example?: true };
+export type Tour = { title: string; id: string; script: Script };
 
 const bubble = (page: Page) => page.getByTestId("tour-bubble");
 const tourEl = (page: Page) => page.getByTestId("tour");
 const press = (name: string) => (page: Page) => bubble(page).getByRole("button", { name, exact: true }).click();
-
-/** The play button: the example tours wait for playback. */
-export const play: Action = (page) => page.getByRole("toolbar", { name: "transport" }).getByRole("button", { name: "play", exact: true }).click();
 
 /** The open project's first MIDI track and its first clip (the first-track tour makes them). */
 async function firstMidi(page: Page): Promise<{ track: string; clip: string | null }> {
@@ -79,10 +76,7 @@ const FIRST_TRACK: Script = {
   stop: (page) => page.locator('[data-tour="play"]').click(),
 };
 
-/**
- * The web walk of every tour on this build's welcome screen, by its item's title. `example`: an example
- * beat's tour, started by its "show me how" button in the examples section.
- */
+/** The web walk of every tour on this build's welcome screen, by its item's title. */
 export const TOURS: ReadonlyArray<Tour> = [
   { title: "make your first track", id: "first-track", script: FIRST_TRACK },
   {
@@ -101,14 +95,10 @@ export const TOURS: ReadonlyArray<Tour> = [
       arm: (page) => page.locator('[data-tour="rec-inputs-panel"]').getByRole("button", { name: /^arm / }).first().click(),
     },
   },
-  { title: "house beat", id: "example-house-beat", example: true, script: { play } },
-  { title: "hip-hop loop", id: "example-hip-hop-loop", example: true, script: { play } },
-  { title: "lo-fi chords", id: "example-lofi-chords", example: true, script: { play } },
-  { title: "simple bassline", id: "example-simple-bassline", example: true, script: { play } },
 ];
 
 /** The welcome screen's button that starts a tour (accessible name), and the same once the tour is done. */
-const startName = (tour: Tour) => (tour.example ? `show me how: ${tour.title}` : tour.title);
+const startName = (tour: Tour) => tour.title;
 const doneName = (tour: Tour) => `${startName(tour)} (completed)`;
 
 /** A common laptop, a small one, and a small window. */
@@ -308,23 +298,7 @@ export function walkthroughTours(tours: ReadonlyArray<Tour>): void {
     const offered = (
       await section.locator(".eth-welcome__article--tour:not([data-testid])").evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")))
     ).sort();
-    expect(offered).toEqual(
-      tours
-        .filter((t) => !t.example)
-        .map((t) => t.title)
-        .sort(),
-    );
-    // The example beats' tours: each example's "show me how".
-    const examples = screen.getByRole("region", { name: "examples" });
-    const guides = examples.getByRole("button", { name: /^show me how: / });
-    await expect(guides.first()).toBeEnabled({ timeout: 30_000 });
-    const guided = (await guides.evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")))).sort();
-    expect(guided).toEqual(
-      tours
-        .filter((t) => t.example)
-        .map(startName)
-        .sort(),
-    );
+    expect(offered).toEqual(tours.map((t) => t.title).sort());
   });
 
   test.describe("on the mobile shell", () => {
@@ -337,16 +311,12 @@ export function walkthroughTours(tours: ReadonlyArray<Tour>): void {
       const screen = projectScreen(page);
       await expect(screen).toBeVisible({ timeout: 30_000 });
       const section = screen.getByRole("region", { name: "get started" });
-      for (const t of tours.filter((t) => !t.example)) {
+      for (const t of tours) {
         const item = section.locator(".eth-welcome__article", { hasText: t.title });
         await expect(item).toHaveAttribute("data-soon", "true");
         await expect(item).toContainText("soon");
         await expect(item.getByRole("button")).toHaveCount(0);
       }
-      // The examples still open there, without their tours.
-      const examples = screen.getByRole("region", { name: "examples" });
-      await expect(examples.getByRole("button", { name: "open house beat", exact: true })).toBeVisible();
-      await expect(examples.getByRole("button", { name: /^show me how/ })).toHaveCount(0);
     });
   });
 }

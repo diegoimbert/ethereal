@@ -90,21 +90,6 @@
   touch-action: none;
 }
 
-.eth-takes__error {
-  position: absolute;
-  right: var(--eth-space-md);
-  bottom: var(--eth-space-xs);
-  z-index: 7;
-  padding: var(--eth-space-xs) var(--eth-space-sm);
-  border-radius: var(--eth-radius-sm);
-  background: var(--eth-color-bg-raised);
-  box-shadow:
-    var(--eth-shadow-sm),
-    inset 0 0 0 var(--eth-border-width) var(--eth-color-danger);
-  color: var(--eth-color-danger);
-  font-size: var(--eth-fs-sm);
-}
-
 /* Track header: takes toggle with the number of takes (always visible when there are takes). */
 .eth-takes-toggle.eth-arr-header__toggle {
   position: relative;

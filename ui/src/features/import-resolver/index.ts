@@ -6,7 +6,7 @@ import "./resolver.css";
 
 export { ImportResolverRoot } from "./ImportResolverRoot";
 export { ResolverDialog } from "./ResolverDialog";
-export { ReplaceDialog } from "./ReplaceDialog";
+export { ReplacePopover } from "./ReplacePopover";
 export {
   replaceDeviceLabel,
   resolveLabel,
@@ -34,5 +34,5 @@ export {
   type Focus,
   type Section,
 } from "./store";
-export { MissingDeviceControls, MissingItemsBadge } from "./MissingItems";
+export { MissingDeviceControls, MissingPluginsStatus } from "./MissingItems";
 export { missingCount, useMissingCount } from "./missingCount";

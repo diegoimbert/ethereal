@@ -26,14 +26,9 @@
     visibility: hidden;
   }
 }
-.eth-rec__record-wrap {
-  display: inline-flex;
-}
-.eth-rec__record,
 .eth-rec__arm {
   color: var(--eth-color-record);
 }
-.eth-rec__record[aria-pressed="true"],
 .eth-rec__arm[aria-pressed="true"] {
   background: var(--eth-color-record);
   color: var(--eth-color-text-inverse);
@@ -117,4 +112,13 @@
 }
 .eth-clip--live-handoff .eth-clip__title {
   visibility: hidden;
+}
+
+/* The compact top bar's "more" menu: count-in, punch and the engine status, stacked. */
+.eth-rec__more {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-sm);
 }

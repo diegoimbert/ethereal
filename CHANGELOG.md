@@ -8,7 +8,30 @@ merged pull request. Versions follow [`VERSION`](VERSION); see
 
 ## Unreleased
 
-Changes on `main` since 0.6.0. They are summarized here when the next version is released.
+Changes on `main` since 0.7.0. They are summarized here when the next version is released.
+
+## 0.7.0 (2026-10-21)
+
+[Release notes](docs/release-notes/0.7.0.md) ·
+[GitHub Release](https://github.com/diegoimbert/ethereal/releases/tag/v0.7.0)
+
+Desktop users on 0.6.0 must reinstall once from
+[ethereal.ws/download](https://ethereal.ws/download); updates install from the app after that.
+The app's data moves to its new identifier (`ws.ethereal.daw`) on first launch, and macOS asks
+for microphone and screen recording access again.
+
+- **Devices:** select several devices (MIDI effects, instruments and audio effects together),
+  copy, cut, paste each into its own section, delete, or group them into a rack; drag devices
+  from the add menu into the chain or onto another track; replace a device from a popover; a
+  rack chain can sidechain another chain of its rack; freeze a track up to a device.
+- **Plugins:** each plugin listed once in your preferred format, with hidden plugins and a
+  per-format opt-out in the settings.
+- **Arrangement:** track headers with always-visible buttons and value readouts, exact values
+  from any value's right-click, a selection box that scrolls the view, smoother vertical zoom.
+- **Interface:** settings in categories and pages, a status bar for ongoing state (missing
+  items, imports, safe mode, uploads, settings), a compact top bar, tooltips on every control,
+  plain-language library rules, no autocorrect in search fields.
+- **Audio:** tails ring out when playback stops; Linux audio device and Audio Unit fixes.
 
 ## 0.6.0 (2026-10-15)
 

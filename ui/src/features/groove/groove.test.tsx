@@ -133,7 +133,7 @@ describe("groove commands", () => {
 describe("GrooveControls (piano roll)", () => {
   it("quantizes with strength 50% halfway and swing on off-beats", async () => {
     await setup("controls");
-    fireEvent.click(screen.getByRole("button", { name: "quantize…" }));
+    fireEvent.click(screen.getByRole("button", { name: "quantize settings" }));
     // A real press in the (portaled) list must not close the Quantize popover.
     const grid = screen.getByRole("combobox", { name: "quantize grid" });
     fireEvent.click(grid);
@@ -154,7 +154,7 @@ describe("GrooveControls (piano roll)", () => {
   it("humanizes the selection deterministically from the seed (one undo step)", async () => {
     await setup("controls", [A]);
     vi.spyOn(Math, "random").mockReturnValue(0.25);
-    fireEvent.click(screen.getByRole("button", { name: "humanize…" }));
+    fireEvent.click(screen.getByRole("button", { name: "humanize" }));
     setPercent("timing (±1/16)", 40);
     setPercent("velocity", 20);
     const spy = vi.spyOn(mock!, "send");
