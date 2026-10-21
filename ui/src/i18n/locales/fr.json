@@ -50,6 +50,7 @@
   "settings.appearance.color_blobs_hint": "des couleurs douces qui dérivent derrière les fenêtres modales et, discrètement, derrière l’arrangement.",
   "settings.appearance.glow": "halo",
   "settings.appearance.glow_hint": "le halo doux autour des notes, clips et pistes sélectionnés, de la tête de lecture et des voyants d’état.",
+  "settings.appearance.glow_light": "pas de lueur avec le thème clair.",
   "settings.appearance.translucency": "transparence",
   "settings.appearance.translucency_amount": "intensité",
   "settings.appearance.translucency_disable": "désactiver la transparence",

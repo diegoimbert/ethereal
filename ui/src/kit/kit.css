@@ -577,8 +577,8 @@
 /* A button that opens a dropdown (`chevron`): the chevron after the label, a step quieter. */
 .eth-button .eth-button__chevron {
   flex: none;
-  width: 0.9em;
-  height: 0.9em;
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
   margin-left: calc(-1 * var(--eth-space-xs));
   opacity: 0.7;
 }

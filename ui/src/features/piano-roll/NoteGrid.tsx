@@ -798,7 +798,7 @@ export function NoteGrid({
 /** The grid's colors and sizes for the current theme (re-read on a theme switch). */
 function useGridPalette(): GridPalette {
   const [theme] = useTheme();
-  const [glow] = useGlow();
+  const glow = useGlow();
   const accent = useThemeColor("accent");
   const accentDim = useThemeColor("accentDim");
   const accentGlow = useThemeColor("accentGlow");

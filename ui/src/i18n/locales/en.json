@@ -50,6 +50,7 @@
   "settings.appearance.color_blobs_hint": "soft colors drifting behind modals and, faintly, behind the arrangement.",
   "settings.appearance.glow": "glow",
   "settings.appearance.glow_hint": "the soft halo around selected notes, clips and tracks, the playhead and status lights.",
+  "settings.appearance.glow_light": "no glow in the light theme.",
   "settings.appearance.translucency": "translucency",
   "settings.appearance.translucency_amount": "amount",
   "settings.appearance.translucency_disable": "disable translucency",
