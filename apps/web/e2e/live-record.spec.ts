@@ -120,7 +120,7 @@ test("live recording clip grows while recording, then becomes the real clip", as
   const live = lane.getByTestId("live-clip");
 
   // --- Record: the live clip appears and grows (peaks and width) while recording.
-  const record = page.getByRole("button", { name: "record armed tracks" });
+  const record = page.getByRole("toolbar", { name: "transport" }).getByRole("button", { name: "record", exact: true });
   await expect(record).toBeEnabled({ timeout: 15_000 });
   await record.click();
   await expect(live).toHaveCount(1, { timeout: 15_000 });
@@ -142,7 +142,7 @@ test("live recording clip grows while recording, then becomes the real clip", as
       if (el.getAttribute("data-live-phase") === "handoff") requestAnimationFrame(() => (w.__liveHandoffWidth ??= el.getBoundingClientRect().width));
     }).observe(el, { attributes: true });
   });
-  await expect(record).toHaveAttribute("title", "stop recording");
+  await expect(record).toHaveAttribute("aria-pressed", "true");
   await record.click();
   await expect.poll(async () => Object.values((await project(page)).clips).filter((c) => c.track === track.id).length, { timeout: 15_000 }).toBe(1);
   const clipId = Object.values((await project(page)).clips).find((c) => c.track === track.id)!.id;

@@ -62,7 +62,10 @@ test("theme switch and MIDI learn targets", async ({ page }) => {
   expect(await targetOf(page, ".eth-tb__record")).toEqual({ type: "Transport", action: "ToggleRecord" });
   expect(await targetOf(page, '.eth-tb [aria-label="loop"]')).toEqual({ type: "Transport", action: "ToggleLoop" });
   expect(await targetOf(page, '.eth-tb [aria-label="metronome"]')).toEqual({ type: "Transport", action: "ToggleMetronome" });
-  expect(await targetOf(page, ".eth-tb__tap")).toEqual({ type: "Transport", action: "TapTempo" });
+  // Tap tempo: in the metronome's menu (a right-click on its button).
+  await page.locator('.eth-tb [aria-label="metronome"]').click({ button: "right" });
+  expect(await targetOf(page, ".eth-metronome__tap")).toEqual({ type: "Transport", action: "TapTempo" });
+  await page.keyboard.press("Escape");
 
   // Arrangement track header: volume, mute, solo and arm name the track.
   const header = `.eth-arr-row[data-track="${midi.id}"] .eth-arr-header`;

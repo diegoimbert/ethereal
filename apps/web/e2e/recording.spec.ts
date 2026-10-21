@@ -26,10 +26,13 @@ test("recording controls on the web: inputs unsupported, settings and arm work",
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => state(page).then((s) => s.project !== null), { timeout: 30_000 }).toBe(true);
 
-  // No inputs in the browser: record is disabled, and says why.
-  const record = page.getByRole("button", { name: "record armed tracks" });
+  // No inputs in the browser: the transport bar's record button is disabled, and says why.
+  const record = page.getByRole("toolbar", { name: "transport" }).getByRole("button", { name: "record", exact: true });
   await expect(record).toBeDisabled();
   await expect(record).toHaveAttribute("title", /desktop app/);
+  // A narrow window (the compact top bar) has count-in and punch in its "more" menu.
+  const more = page.getByTestId("recording-more");
+  if (await more.isVisible()) await more.click();
   await expect(page.getByRole("button", { name: "punch in/out" })).toBeDisabled();
 
   // Count-in is an undoable project setting handled by the wasm controller.

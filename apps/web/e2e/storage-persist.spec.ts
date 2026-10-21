@@ -1,7 +1,7 @@
 // The web app asks the browser to keep its storage (the projects in OPFS) permanently,
 // says once when it won't, and Settings > General shows the state and the usage.
 import { expect, test, type Page } from "@playwright/test";
-import { launch } from "./ui";
+import { launch, settingsPage } from "./ui";
 
 /** The browser's answer to `persist()` (Playwright's Chromium refuses; a real one may grant). */
 async function browserGrants(page: Page, grants: boolean): Promise<void> {
@@ -28,7 +28,8 @@ async function browserGrants(page: Page, grants: boolean): Promise<void> {
 const generalSettings = async (page: Page) => {
   await page.getByRole("button", { name: "settings", exact: true }).click();
   const settings = page.getByRole("dialog", { name: "settings" });
-  await settings.getByRole("tab", { name: "general" }).click();
+  await settingsPage(settings, "general");
+  await settingsPage(settings, "library");
   return settings.getByTestId("settings-storage");
 };
 

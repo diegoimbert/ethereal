@@ -1,7 +1,8 @@
 // "Replace device…" (owner requests: swap any plugin device's plugin, not only a missing one,
 // with "Retain automations and parameters"; then "it should rather just be replace device and
 // not limited to plugins": factory devices too, for factory devices or plugins of the same
-// role).
+// role; then "not in a modal: a popover, as if we were selecting a device": the device
+// library with "retain" on top, a row replaces at once, what can't be kept is a toast).
 //
 // 1. Real wasm engine: a REAPER project's "Kontakt 7" device gets values and an automation
 //    lane. The web has no plugin host, so the test stands in an installed list (Kontakt 7
@@ -15,7 +16,7 @@
 //    name, Knee's lane goes; one undo step puts the compressor back. The picker lists factory
 //    audio effects, not racks nor instruments.
 // 3. Mock engine (`?mock`, where plugins load): Mock Mega → Mock Mini, parameters matched by
-//    name; the dialog lists what can't be kept, the new plugin's parameters show.
+//    name; a toast says what can't be kept, the new plugin's parameters show.
 //
 // `REPLACE_SHOTS=<dir>` also writes the PR screenshots (1440x900, dark and light).
 import { expect, test, type Page } from "@playwright/test";
@@ -107,14 +108,16 @@ async function openReplace(page: Page, deviceName: string, menuShot?: string) {
   return dialog;
 }
 
-async function choose(page: Page, dialog: ReturnType<Page["getByRole"]>, option: string): Promise<void> {
-  // The shared searchable picker: rows are named by device ("Diva · CLAP 1.4.7" -> "Diva").
-  await dialog.getByRole("button", { name: "replacement device" }).click();
-  const picker = page.getByRole("dialog", { name: "replacement device" });
-  await expect(picker.getByRole("searchbox")).toBeVisible();
+/**
+ * Picks the replacement in the popover's device library (rows are named by device: "Diva ·
+ * CLAP 1.4.7" -> "Diva"): it replaces at once and the popover closes.
+ */
+async function choose(page: Page, popover: ReturnType<Page["getByRole"]>, option: string): Promise<void> {
+  await expect(popover.getByRole("searchbox")).toBeVisible();
   await page.mouse.move(0, 0);
   await shot(page, "replace-picker");
-  await picker.getByRole("button", { name: option.split(" · ")[0]!, exact: true }).click();
+  await popover.getByRole("button", { name: option.split(" · ")[0]!, exact: true }).click();
+  await expect(popover).toBeHidden();
 }
 
 // It imports a REAPER project to get a plugin to replace.
@@ -154,14 +157,11 @@ test.describe("real engine", () => {
     const before = await project(page);
 
     // Retain (default): Kontakt 8 is the same plugin family in the same format.
-    let dialog = await openReplace(page, "Kontakt 7");
-    await expect(dialog.getByRole("switch", { name: "retain automations and parameters" })).toHaveAttribute("aria-checked", "true");
-    await choose(page, dialog, "Kontakt 8 · VST3 8.2.0");
-    await expect(dialog.getByTestId("replace-summary")).toHaveText("same device (or another version of it): its state and every parameter are kept.");
+    let popover = await openReplace(page, "Kontakt 7");
+    await expect(popover.getByRole("switch", { name: "retain automations and parameters" })).toHaveAttribute("aria-checked", "true");
     await page.mouse.move(0, 0);
     await shot(page, "replace-retain");
-    await dialog.getByRole("button", { name: "replace", exact: true }).click();
-    await expect(dialog).toBeHidden();
+    await choose(page, popover, "Kontakt 8 · VST3 8.2.0");
     await expect.poll(async () => pluginId(await project(page))).toBe(KONTAKT_8);
     let after = await project(page);
     expect(pluginDevice(after).id).toBe(d.id);
@@ -174,14 +174,10 @@ test.describe("real engine", () => {
     expect((await project(page)).devices[d.id]).toEqual(before.devices[d.id]);
 
     // Without retaining: Diva at its defaults, the lane goes.
-    dialog = await openReplace(page, "Kontakt 7");
-    await choose(page, dialog, "Diva · CLAP 1.4.7");
-    await dialog.getByRole("switch", { name: "retain automations and parameters" }).click();
-    await expect(dialog.getByTestId("replace-summary")).toContainText(
-      "the new device starts at its defaults. 1 automation lane and the parameter mappings are removed",
-    );
+    popover = await openReplace(page, "Kontakt 7");
+    await popover.getByRole("switch", { name: "retain automations and parameters" }).click();
     await shot(page, "replace-reset");
-    await dialog.getByRole("button", { name: "replace", exact: true }).click();
+    await choose(page, popover, "Diva · CLAP 1.4.7");
     await expect.poll(async () => pluginId(await project(page))).toBe("com.u-he.diva");
     after = await project(page);
     expect(pluginDevice(after).params).toEqual({});
@@ -223,20 +219,16 @@ test("real engine: a factory device becomes another one (values, lanes and sidec
   await openDeviceTab(page, "Drums");
   const before = await project(page);
 
-  const dialog = await openReplace(page, "compressor");
-  await dialog.getByRole("button", { name: "replacement device" }).click();
-  const picker = page.getByRole("dialog", { name: "replacement device" });
+  const picker = await openReplace(page, "compressor");
   await expect(picker.getByRole("button", { name: "gate", exact: true })).toBeVisible();
   // Audio effects only, never a rack nor the compressor itself.
   await expect(picker.getByRole("button", { name: "audio effect rack", exact: true })).toHaveCount(0);
   await expect(picker.getByRole("button", { name: "synth", exact: true })).toHaveCount(0);
   await expect(picker.getByRole("button", { name: "compressor", exact: true })).toHaveCount(0);
   await picker.getByRole("button", { name: "gate", exact: true }).click();
-  const summary = dialog.getByTestId("replace-summary");
-  await expect(summary).toContainText("parameters matched by name");
-  await expect(summary).toContainText("1 automation lane of unmatched parameters will be removed.");
-  await dialog.getByRole("button", { name: "replace", exact: true }).click();
-  await expect(dialog).toBeHidden();
+  await expect(picker).toBeHidden();
+  // What couldn't be kept: a toast.
+  await expect(page.getByText(/1 automation lane of unmatched parameters removed/)).toBeVisible();
   await expect.poll(async () => (await project(page)).devices[comp]!.kind).toEqual({ type: "Builtin", device: { type: "Gate" } });
   const after = await project(page);
   const d = after.devices[comp]!;
@@ -285,15 +277,12 @@ test("mock engine: parameters matched by name, the new plugin loads", async ({ p
   );
   const card = page.locator(`section[data-device="${id}"]`);
   await expect(card).toBeVisible();
-  const dialog = await openReplace(page, "Mock Mega", "replace-menu");
-  await choose(page, dialog, "Mock Mini · CLAP 1.0.0");
-  const summary = dialog.getByTestId("replace-summary");
-  await expect(summary).toContainText("parameters matched by name: 1 parameter kept.");
-  await expect(summary).toContainText("can’t keep: Release 5");
+  const popover = await openReplace(page, "Mock Mega", "replace-menu");
+  await choose(page, popover, "Mock Mini · CLAP 1.0.0");
+  // What couldn't be kept: a toast.
+  await expect(page.getByText(/can’t keep: Release 5/)).toBeVisible();
   await page.mouse.move(0, 0);
   await shot(page, "replace-by-name");
-  await dialog.getByRole("button", { name: "replace", exact: true }).click();
-  await expect(dialog).toBeHidden();
   await expect(card).toHaveAttribute("aria-label", "Mock Mini");
   const after = await project(page);
   expect(after.devices[id]!.params).toEqual({ 101: 0.4 });

@@ -27,6 +27,8 @@ test("transport keys: Space always plays/stops, Shift+Space and Stop return to t
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
 
+  // A wide window: the top bar shows the bars position (compact, it shows the time).
+  await page.setViewportSize({ width: 1600, height: 900 });
   await launch(page, `Transport keys ${Date.now()}`);
   await expect(playButton(page)).toBeVisible({ timeout: 30_000 });
   const track = await createTrack(page, "Midi");

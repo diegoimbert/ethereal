@@ -11,7 +11,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import type { Note, Project } from "@/generated";
 import { openClip, selectClip } from "./clips";
-import { createTrack, newProject, pianoRollNote, pianoRollNotes, playButton } from "./ui";
+import { createTrack, newProject, pianoRollNote, pianoRollNotes, playButton, showInspector } from "./ui";
 
 test.use({ viewport: { width: 1440, height: 900 }, colorScheme: "dark" });
 
@@ -77,6 +77,7 @@ test("several selected MIDI clips edit together in the piano roll; one undo per 
   // B gets its own color (the inspector's color swatch opens the palette): the editor shows
   // each clip's notes in its color.
   await selectClip(page, b);
+  await showInspector(page);
   await page.getByRole("region", { name: "inspector" }).getByRole("button", { name: "clip color" }).click();
   await page.getByRole("radiogroup", { name: "clip color" }).getByRole("radio").nth(9).click();
   await expect.poll(async () => (await doc(page)).clips[b]!.color).not.toBeNull();
