@@ -67,16 +67,19 @@
   box-shadow: var(--eth-shadow-sm);
   transition:
     border-color var(--eth-duration-fast) var(--eth-ease-out),
+    background-color var(--eth-duration-fast) var(--eth-ease-out),
     box-shadow var(--eth-duration-fast) var(--eth-ease-out),
     opacity var(--eth-duration-fast) var(--eth-ease-out);
 }
 .eth-device:hover {
   border-color: var(--eth-color-border-strong);
 }
-/* The selected card (copy / paste target): a neutral, stronger frame. */
+/* The selected cards (copy / paste / group target): a neutral, stronger frame and a slightly
+   lifted surface. */
 .eth-device--selected,
 .eth-device--selected:hover {
   border-color: var(--eth-color-text-dim);
+  background: color-mix(in srgb, var(--eth-color-text) 6%, var(--eth-color-bg-card));
 }
 .eth-device:focus,
 .eth-devices__chain:focus {
