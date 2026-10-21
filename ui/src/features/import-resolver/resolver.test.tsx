@@ -326,7 +326,7 @@ describe("Resolve… entry points", () => {
         <PluginDeviceControls device={device} />
       </TransportProvider>,
     );
-    fireEvent.contextMenu(screen.getByText("missing · bypassed"));
+    fireEvent.contextMenu(screen.getByText("missing"));
     expect(menuLabels()).toEqual(["resolve…"]);
   });
 

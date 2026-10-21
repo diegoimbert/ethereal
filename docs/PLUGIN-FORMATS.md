@@ -162,7 +162,7 @@ How the native host uses the formats:
   `<FORMAT> plugin <name> (<id>) is not installed (rescan plugins)`. The controller reports it
   as an error notification and keeps the device in the document without an engine node, so
   the track plays the dry signal (bypassed). A rescan followed by a reload (or reopening the
-  project) loads it with its saved state. The UI shows such a device as "missing · bypassed",
+  project) loads it with its saved state. The UI shows such a device as "missing" (and bypassed),
   checked against the scanned list by `(format, id)`.
 - **Rescan.** `spawn_scan` scans `PluginFolderSettings::discover` (the default search paths
   and AU registry if enabled, plus the user folders) with `ScanRunner::scan_targets_cached`

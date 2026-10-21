@@ -169,8 +169,8 @@ describe("plugin formats", () => {
     t.plugins = [plugin(AU_DELAY.id, "AUDelay", "AudioEffect", "Apple", "Vst3")];
     await renderWith(t, <Header device={auDevice} />);
     inProject(auDevice);
-    const missing = await screen.findByText("missing · bypassed");
-    expect(missing).toHaveAttribute("title", "au plugin aufx:dely:appl is not installed. install it and rescan plugins.");
+    const missing = await screen.findByText("missing");
+    expect(missing).toHaveAttribute("title", "au plugin aufx:dely:appl is not installed: it is bypassed. install it and rescan plugins.");
     expect(screen.getByRole("button", { name: "open AUDelay window" })).toBeDisabled();
     expect(t.sent.filter((c) => c.command.type === "List")).toHaveLength(1);
 
@@ -180,7 +180,7 @@ describe("plugin formats", () => {
     const found = (await screen.findByText("found · reload")).closest("button")!;
     expect(found).toHaveAccessibleName("reload AUDelay");
     expect(found).toHaveAttribute("title", "au plugin aufx:dely:appl was found by the last scan. load it with the state saved in the project.");
-    expect(screen.queryByText("missing · bypassed")).toBeNull();
+    expect(screen.queryByText("missing")).toBeNull();
     expect(screen.getByRole("button", { name: "open AUDelay window" })).toBeDisabled();
 
     // One click re-instantiates it from the project's saved state; the hint goes, the window opens.
@@ -214,7 +214,7 @@ describe("plugin formats", () => {
     const t = new DesktopFake();
     t.plugins = [];
     await renderWith(t, <PluginDeviceControls device={auDevice} />);
-    await screen.findByText("missing · bypassed");
+    await screen.findByText("missing");
     fireEvent.click(screen.getByRole("button", { name: "reload AUDelay" }));
     await waitFor(() => expect(t.sent.at(-1)).toEqual({ domain: "Plugin", command: { type: "Reload", device: auDevice.id } }));
   });
