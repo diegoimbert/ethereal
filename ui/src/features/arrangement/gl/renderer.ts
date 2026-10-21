@@ -14,7 +14,7 @@
 import type { ClipId, Project, Track, TrackId } from "@/generated";
 import { settledZoom } from "@/timeline";
 import { mainHeight, rowIndexAt, type Row } from "../layout";
-import { CLIP_INSET, CLIP_TITLE } from "../laneBodyGeometry";
+import { CLIP_INSET, titleHeight } from "../laneBodyGeometry";
 import type { PeakCache } from "../peaks";
 import type { TimelineViewStore } from "@/timeline";
 import type { RenderBackend } from "./backend";
@@ -329,7 +329,7 @@ export class ArrangerRenderer {
       const lane = this.lane(track);
       seen.add(track.id);
       // Extra rows take no pointer (the ghost rows have `pointer-events: none`): no hover.
-      lane.sync(track, extraRow && input.hover ? { ...input, hover: null } : input);
+      lane.sync(track, extraRow && input.hover ? { ...input, hover: null } : input, mainHeight(row));
       lane.syncView(input, win, scroll, scroll + v.width / ppb);
       this.tiles.touch(lane.waveRows);
       const ctx: LaneLayerContext = { lane, row, track, input, window: win };
@@ -363,7 +363,7 @@ export class ArrangerRenderer {
         if (box.y >= bottom || box.y + box.height <= top) continue;
         const scene = this.extraLane(extra.key, track, extra.source);
         scene.setAlpha(extra.alpha ?? 1);
-        scene.sync(track, input);
+        scene.sync(track, input, extra.height);
         scene.syncView(input, win, scroll, scroll + v.width / ppb);
         this.tiles.touch(scene.waveRows);
         const drawIn = (p: Pipeline, b: Batch, first?: number, n?: number) => {
@@ -423,7 +423,7 @@ export class ArrangerRenderer {
     // neighbouring lanes' clips (drawn after).
     for (const [row, track, extraRow] of visible) {
       const lane = this.lane(track);
-      lane.sync(track, extraRow && input.hover ? { ...input, hover: null } : input);
+      lane.sync(track, extraRow && input.hover ? { ...input, hover: null } : input, mainHeight(row));
       if (lane.glow.count > 0 && backend.draw(this.pipelines.rect, lane.glow, row, 0, lane.glow.count)) {
         drawCalls++;
         instances += lane.glow.count;
@@ -528,12 +528,13 @@ export class ArrangerRenderer {
     const top = row.y + CLIP_INSET;
     const height = mainHeight(row) - 2 * CLIP_INSET;
     const hwid = handleWidth(x0, x1);
+    const th = titleHeight(mainHeight(row));
     switch (part) {
       case "header":
       case "small":
-        return { x: hw + x0, y: top, width: x1 - x0, height: CLIP_TITLE };
+        return { x: hw + x0, y: top, width: x1 - x0, height: th };
       case "body":
-        return { x: hw + x0, y: top + CLIP_TITLE, width: x1 - x0, height: height - CLIP_TITLE };
+        return { x: hw + x0, y: top + th, width: x1 - x0, height: height - th };
       case "resize-start":
         return { x: hw + x0, y: top, width: hwid, height };
       case "resize-end":
@@ -553,7 +554,7 @@ export class ArrangerRenderer {
     if (!box || !clip || !this.input) return null;
     const row = this.deps.rows().find((r) => r.track.id === clip.track);
     if (!row) return null;
-    const n = nameBox(titleLayout(clip, box.width, this.atlas, this.input, this.titleReserves));
+    const n = nameBox(titleLayout(clip, box.width, this.atlas, this.input, this.titleReserves), titleHeight(mainHeight(row)));
     return { x: box.x + n.left, y: row.y + n.top, width: n.room, height: n.height };
   }
 

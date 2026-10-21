@@ -24,6 +24,7 @@ import { selectTrackEntity, trackMenu } from "./actions";
 import { hasClipboard, pasteClips } from "./clipboard";
 import { onLaneInsertPointerDown, type InsertSpan } from "./clipInsert";
 import { colorCss } from "./helpers";
+import { isCompactLane } from "./laneBodyGeometry";
 import { sendEdit, useArrangement } from "./context";
 import { beatsCss, settledZoom, subscribeSettledZoom, useSettledZoom, widthCss } from "./laneGeometry";
 import { midiTarget } from "@/features/midi-learn/targets";
@@ -135,14 +136,6 @@ function TrackBadge({ kind }: { kind: Track["kind"] }) {
   );
 }
 
-/**
- * Below this lane height (px) the header is compact: the badge is the icon alone (no circle),
- * the buttons, a short fader and a small pan knob on one line. Vertical zoom steps by 1.12 from
- * 64 (57, 51, 46, 41, ...): compact from 41, where the volume / pan line over the buttons no
- * longer fits the card.
- */
-const COMPACT_HEADER_HEIGHT = 43;
-
 function TrackHeader({ row }: { row: Row }) {
   const headerWidth = useArrangementUi((s) => s.headerWidth);
   const t = useT();
@@ -172,7 +165,7 @@ function TrackHeader({ row }: { row: Row }) {
   const armBlocked = tapArmBlocked(transport.kind, track.input, armed);
   const stop = (e: MouseEvent) => e.stopPropagation();
   // Too short for the round badge: the icon alone, in the track color.
-  const compact = mainHeight(row) < COMPACT_HEADER_HEIGHT;
+  const compact = isCompactLane(mainHeight(row));
   // A shared project's viewer: Solo / Mute play the share's stems (tracks with a stem, groups
   // holding some); nothing else in the header edits.
   const viewer = useViewer();

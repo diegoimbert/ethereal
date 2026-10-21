@@ -17,7 +17,7 @@
  */
 
 import type { ClipId, TrackId } from "@/generated";
-import { CLIP_INSET, CLIP_MIN_PX, CLIP_TITLE } from "../laneBodyGeometry";
+import { CLIP_INSET, CLIP_MIN_PX, titleHeight } from "../laneBodyGeometry";
 import type { LaneItem } from "../laneItems";
 import { SMALL_CLIP_PX, smallClipAt } from "../smallClips";
 
@@ -119,7 +119,7 @@ export function hitLane(
     const at = (part: HitPart): Hit => ({ clip: it.clip.id, track, part });
     const edge = edgeAt(x, x0, x1);
     if (edge) return at(edge);
-    if (y < top + CLIP_TITLE) return at("header");
+    if (y < top + titleHeight(mainHeight)) return at("header");
     body ??= at("body");
   }
   if (small.length) {

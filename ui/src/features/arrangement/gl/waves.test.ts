@@ -209,6 +209,20 @@ describe("audio clip waveforms with the engine's peak replies", () => {
   }
 });
 
+describe("a compact lane", () => {
+  it("draws no waveform: its clips are a title band alone", async () => {
+    const { project, track } = projectWith({ sample_rate: 48000, channels: 2, frames: 48000 * 10 });
+    const { shared, input } = sceneFor(project);
+    const lane = new LaneScene(track, shared);
+    expect((await wavesAt(lane, input, track, 100, 0, 1200)).length).toBeGreaterThan(0);
+    lane.sync(track, input, 36);
+    expect(lane.compact).toBe(true);
+    expect(await wavesAt(lane, input, track, 100, 0, 1200)).toEqual([]);
+    lane.sync(track, input, 64);
+    expect((await wavesAt(lane, input, track, 100, 0, 1200)).length).toBeGreaterThan(0);
+  });
+});
+
 // ── WebGL upload of the peak rows ─────────────────────────────────────────────────────
 
 /** A WebGL2 context recording `texSubImage2D` rows (everything else is a no-op). */

@@ -16,9 +16,23 @@ export const CLIP_RADIUS = px(radius.md);
 /** Narrowest a clip is drawn, so it stays grabbable (title bar) when zoomed far out. */
 export const CLIP_MIN_PX = 8;
 
-/** Height of a clip's body (below its title) in a lane `laneHeight` px tall. */
+/**
+ * Below this lane height (px) a lane is compact: its track header on one line (TrackRow), its
+ * clips a title band alone, the name centered, no body (no notes, waveform or fades). Vertical
+ * zoom steps by 1.12 from 64 (57, 51, 46, 41, ...): compact from 41.
+ */
+export const COMPACT_LANE_HEIGHT = 43;
+
+export const isCompactLane = (laneHeight: number): boolean => laneHeight < COMPACT_LANE_HEIGHT;
+
+/** Height of a clip's title band in a lane `laneHeight` px tall: the whole clip when compact. */
+export function titleHeight(laneHeight: number): number {
+  return isCompactLane(laneHeight) ? Math.max(0, laneHeight - 2 * CLIP_INSET) : CLIP_TITLE;
+}
+
+/** Height of a clip's body (below its title) in a lane `laneHeight` px tall (none when compact). */
 export function bodyHeight(laneHeight: number): number {
-  return Math.max(0, laneHeight - 2 * CLIP_INSET - CLIP_TITLE);
+  return Math.max(0, laneHeight - 2 * CLIP_INSET - titleHeight(laneHeight));
 }
 
 /** Longest canvas side in device px (browsers cap canvases around 16k–32k). */

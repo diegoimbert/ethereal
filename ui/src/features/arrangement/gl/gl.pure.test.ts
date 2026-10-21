@@ -48,6 +48,10 @@ describe("hitLane", () => {
     expect(hitLane([a, b], none, "t", 40, 60, H, view)).toBeNull();
   });
 
+  it("in a compact lane the whole clip is its title band (no body)", () => {
+    expect(hitLane([a, b], none, "t", 40, 30, 36, view)).toEqual({ clip: "a", track: "t", part: "header" });
+  });
+
   it("handles are 6 px wide (a quarter of the clip at most)", () => {
     const n = item(clip("n", 0, 3)); // 60 px
     expect(hitLane([n], none, "t", 5, 8, H, view)?.part).toBe("resize-start");
