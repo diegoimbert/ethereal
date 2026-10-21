@@ -1,6 +1,13 @@
-/* A roomier dialog than the default; the content fills it and never overflows it. */
+/* A roomier dialog than the default; the content fills it and never overflows it. One fixed
+   height whatever the tab (switching tabs never resizes it): the tabs stay, the panel scrolls. */
 .eth-audio-settings {
   --dialog-width: var(--eth-size-audio-settings-dialog-width);
+  height: min(calc(var(--eth-size-detail-height) * 2), calc(100vh - 2 * var(--eth-space-xl)));
+}
+.eth-audio-settings > .eth-dialog__body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .eth-audio-settings__body {
   display: flex;
@@ -80,17 +87,20 @@
 /* Settings tabs (Audio | Sharing | Advanced). */
 .eth-settings {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--eth-space-lg);
   min-width: 0;
+  min-height: 0;
 }
 .eth-settings__tabs {
   align-self: flex-start;
 }
 .eth-settings__panel {
+  flex: 1;
   min-width: 0;
-  /* Switching tabs keeps the dialog from jumping much. */
-  min-height: var(--eth-size-detail-height);
+  min-height: 0;
+  overflow-y: auto;
 }
 .eth-settings__stack {
   display: flex;
