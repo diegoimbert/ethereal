@@ -50,8 +50,17 @@ export function Toolbar() {
       {!readOnly && (
         <AddTrackMenu
           trigger={(p) => (
-            <Button size="sm" tone="ghost" className="eth-arr-toolbar__add" data-tour="add-track" title={t("arrangement.toolbar.add_track_hint")} {...p}>
-              <Plus aria-hidden /> {t("arrangement.new_track.add")}
+            // Short in the toolbar (the lane's own button, under the tracks, says "add track").
+            <Button
+              size="sm"
+              tone="ghost"
+              className="eth-arr-toolbar__add"
+              data-tour="add-track"
+              aria-label={t("arrangement.new_track.add")}
+              title={t("arrangement.toolbar.add_track_hint")}
+              {...p}
+            >
+              <Plus aria-hidden /> {t("arrangement.toolbar.add")}
             </Button>
           )}
         />
