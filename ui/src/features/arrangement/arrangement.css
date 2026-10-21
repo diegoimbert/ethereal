@@ -556,10 +556,10 @@
   font-size: var(--eth-fs-md);
 }
 
-/* A group's badge is its fold button: the chevron in the track color; a short lane shows it
-   neutral. */
+/* A group's badge is its fold button: the chevron, neutral (not the track color). */
 .eth-arr-header__fold {
   padding: 0;
+  color: var(--eth-color-text-dim);
   cursor: pointer;
 }
 .eth-arr-header--compact .eth-arr-header__fold {
@@ -576,7 +576,7 @@
   transform: rotate(-90deg);
 }
 .eth-arr-header__fold:hover {
-  filter: brightness(1.1);
+  color: var(--eth-color-text);
 }
 .eth-arr-header__fold:focus-visible {
   outline: var(--eth-focus-ring-width) solid var(--eth-color-accent-subtle);
