@@ -414,7 +414,9 @@ describe("ArrangementView: track header polish", () => {
     expect(rule(".eth-arr-header__toggle {")).toMatch(/opacity: 0;/);
     const shown = rule(".eth-arr-header__buttons .eth-arr-header__toggle,");
     expect(shown).toMatch(/opacity: 1;/);
-    expect(rule(".eth-arr-header__buttons .eth-arr-header__toggle {")).toMatch(/width: var\(--eth-size-track-header-button\)/);
+    // Sized by the header (smaller when narrow and compact), the track-header button by default.
+    expect(rule(".eth-arr-header__buttons .eth-arr-header__toggle {")).toMatch(/width: var\(--arr-header-button\)/);
+    expect(css).toMatch(/--arr-header-button: var\(--eth-size-track-header-button\)/);
     // The volume and pan sit in the same controls block as the buttons, above them.
     const controls = headerOf("Bass").querySelector(".eth-arr-header__controls");
     expect(controls?.querySelector(".eth-arr-header__buttons")).toBeTruthy();

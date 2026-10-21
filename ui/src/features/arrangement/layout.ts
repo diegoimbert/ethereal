@@ -26,8 +26,19 @@ export const PHONE_HEADER_WIDTH = 140;
 export const NARROW_HEADER_WIDTH = 220;
 export const MAX_HEADER_WIDTH = 400;
 
+/** How far each group level shifts its tracks' headers right (`--eth-size-track-indent`). */
+export const HEADER_INDENT_PX = 12;
+
 export function clampHeaderWidth(px: number): number {
   return Math.min(MAX_HEADER_WIDTH, Math.max(MIN_HEADER_WIDTH, px));
+}
+
+/** The deepest group nesting among `tracks` (0: no track inside a group). */
+export function maxTrackDepth(tracks: ReadonlyArray<Track>): number {
+  const byId = new Map(tracks.map((t) => [t.id, t]));
+  let max = 0;
+  for (const t of tracks) max = Math.max(max, depthOf(t, byId));
+  return max;
 }
 /** Default lane height. Resized lanes stay within `[MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT]`. */
 export const TRACK_HEIGHT = 64;

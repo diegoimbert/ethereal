@@ -37,11 +37,9 @@ import { HeaderVolume } from "./HeaderVolume";
 import { sameTrackExceptVolume } from "./trackEquality";
 import { useTrackDisplayName } from "./trackDisplayName";
 import { onTrackHeaderPointerDown } from "./trackDrag";
-import { mainHeight, NARROW_HEADER_WIDTH, TRACK_HEIGHT_STEP, type Row } from "./layout";
+import { HEADER_INDENT_PX, mainHeight, NARROW_HEADER_WIDTH, TRACK_HEIGHT_STEP, type Row } from "./layout";
 import { arrangementView, useArrangementUi, type PendingImport } from "./uiStore";
 import { formatNumber, Trans, useT } from "@/i18n";
-
-const INDENT_PX = 12;
 
 // Rows stack in flow and nothing below reads `y`: rows that only move (automation lanes
 // animating above them) don't re-render.
@@ -288,7 +286,7 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
         data-tour="track-header"
         style={{
           width: headerWidth,
-          paddingLeft: 14 + depth * INDENT_PX,
+          paddingLeft: 14 + depth * HEADER_INDENT_PX,
           ["--eth-track-color" as string]: colorCss(track.color),
           ["--eth-track-depth" as string]: depth,
         }}

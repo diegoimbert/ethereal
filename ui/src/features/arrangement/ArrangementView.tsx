@@ -47,7 +47,7 @@ import { importMidiFile, isMidiName } from "@/features/midi-file/importMidi";
 import { sourceName } from "@/features/import/sources";
 import { ArrangementContext, type ArrangementContextValue } from "./context";
 import { clipDragActive, MODIFIER_KEYS } from "./dragGuard";
-import { clipRects, DROP_AREA_HEIGHT, HEADER_WIDTH, layoutRows, rowIndexAt, rowsHeight, type Row } from "./layout";
+import { clipRects, DROP_AREA_HEIGHT, HEADER_WIDTH, layoutRows, maxTrackDepth, rowIndexAt, rowsHeight, type Row } from "./layout";
 import { useLaneAnimation } from "./laneAnimation";
 import { PeakCache } from "./peaks";
 import { Toolbar } from "./Toolbar";
@@ -120,6 +120,9 @@ function ConnectedArrangementView() {
   });
 
   const tracks = useTracksOrdered();
+  // The header column widens to fit the deepest group nesting (each level shifts right).
+  const depth = useMemo(() => maxTrackDepth(tracks), [tracks]);
+  useEffect(() => useArrangementUi.getState().setHeaderDepth(depth), [depth]);
   const folded = useArrangementUi((s) => s.folded);
   const heights = useArrangementUi((s) => s.heights);
   const defaultHeight = useArrangementUi((s) => s.defaultHeight);

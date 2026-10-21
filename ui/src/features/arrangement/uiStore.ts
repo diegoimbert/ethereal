@@ -11,7 +11,7 @@ import { useProjectStore } from "@/state/projectStore";
 import { createTimelineViewStore, DEFAULT_GRID, type GridSetting, type TimelineViewStore } from "@/timeline";
 import type { ClipBounds } from "./editMath";
 import type { NewLane } from "./newTrackDrag";
-import { clampHeaderWidth, clampTrackHeight, HEADER_WIDTH, TRACK_HEIGHT } from "./layout";
+import { clampHeaderWidth, clampTrackHeight, HEADER_INDENT_PX, HEADER_WIDTH, MIN_HEADER_WIDTH, PHONE_HEADER_WIDTH, TRACK_HEIGHT } from "./layout";
 
 export interface DragPreview {
   /** New bounds per dragged clip. */
@@ -44,8 +44,6 @@ export interface ArrangementUiState {
    * arrangement has one selected entity at a time, so this is null while clips or
    * automation points are selected (see `bindSingleSelection`).
    */
-  /** Width of the track header column (px), resizable; remembered across sessions. */
-  headerWidth: number;
   trackFocus: TrackId | null;
   /** Tracks selected as entities (cmd-click toggles, shift-click a range); includes `trackFocus`. */
   selectedTracks: ReadonlySet<TrackId>;
@@ -71,7 +69,22 @@ export interface ArrangementUiState {
   deviceDrop: TrackId | null;
   imports: ReadonlyArray<PendingImport>;
 
+  /**
+   * The header column's width as shown: the chosen one (`headerChosen`), widened while the
+   * deepest group nesting needs more (each level shifts its headers right).
+   */
+  headerWidth: number;
+  /** The width the person dragged to (remembered), or the phone's fixed one. */
+  headerChosen: number;
+  /** The narrowest column with no nesting: `MIN_HEADER_WIDTH`, a phone's `PHONE_HEADER_WIDTH`. */
+  headerFloor: number;
+  /** The deepest group nesting in the project (`setHeaderDepth`). */
+  headerDepth: number;
   setHeaderWidth(px: number): void;
+  /** The project's deepest group nesting changed: the column widens (or back) to fit it. */
+  setHeaderDepth(depth: number): void;
+  /** A phone: the narrow fixed column (not remembered); otherwise the remembered one. */
+  setPhoneHeader(phone: boolean): void;
   /** Select just `track` (or nothing). */
   setTrackFocus(track: TrackId | null): void;
   /** Select several tracks; `focus` is the one the inspector shows (the anchor of a range). */
@@ -120,18 +133,34 @@ const INITIAL = {
   imports: [] as ReadonlyArray<PendingImport>,
 };
 
+/** The width shown: the chosen one, or wider when the nesting needs it. */
+function shownHeaderWidth(s: Pick<ArrangementUiState, "headerChosen" | "headerFloor" | "headerDepth">): number {
+  return Math.max(s.headerChosen, s.headerFloor + s.headerDepth * HEADER_INDENT_PX);
+}
+
+const INITIAL_HEADER = { headerChosen: HEADER_WIDTH, headerFloor: MIN_HEADER_WIDTH, headerDepth: 0, headerWidth: HEADER_WIDTH };
+
 export const useArrangementUi = create<ArrangementUiState>()((set) => ({
   ...INITIAL,
+  ...INITIAL_HEADER,
+  headerChosen: savedHeaderWidth(),
   headerWidth: savedHeaderWidth(),
   setHeaderWidth: (px) => {
-    const headerWidth = clampHeaderWidth(px);
-    set({ headerWidth });
+    const headerChosen = clampHeaderWidth(px);
+    set((s) => ({ headerChosen, headerWidth: shownHeaderWidth({ ...s, headerChosen }) }));
     try {
-      localStorage.setItem(HEADER_WIDTH_KEY, String(Math.round(headerWidth)));
+      localStorage.setItem(HEADER_WIDTH_KEY, String(Math.round(headerChosen)));
     } catch {
       /* not persisted */
     }
   },
+  setHeaderDepth: (headerDepth) => set((s) => (s.headerDepth === headerDepth ? s : { headerDepth, headerWidth: shownHeaderWidth({ ...s, headerDepth }) })),
+  setPhoneHeader: (phone) =>
+    set((s) => {
+      const headerFloor = phone ? PHONE_HEADER_WIDTH : MIN_HEADER_WIDTH;
+      const headerChosen = phone ? PHONE_HEADER_WIDTH : savedHeaderWidth();
+      return { headerFloor, headerChosen, headerWidth: shownHeaderWidth({ ...s, headerFloor, headerChosen }) };
+    }),
   setTrackFocus: (trackFocus) => set({ trackFocus, selectedTracks: new Set(trackFocus ? [trackFocus] : []) }),
   setTrackSelection: (tracks, focus) => set({ trackFocus: focus, selectedTracks: new Set(tracks) }),
   setTrackDrag: (trackDrag) => set({ trackDrag }),
@@ -174,7 +203,7 @@ export let arrangementView: TimelineViewStore = createTimelineViewStore({ pxPerB
 
 /** Reset all arrangement UI state (tests). */
 export function resetArrangementUi(): void {
-  useArrangementUi.setState({ ...INITIAL, folded: new Set(), heights: new Map(), selectedTracks: new Set(), headerWidth: HEADER_WIDTH });
+  useArrangementUi.setState({ ...INITIAL, ...INITIAL_HEADER, folded: new Set(), heights: new Map(), selectedTracks: new Set() });
   arrangementView = createTimelineViewStore({ pxPerBeat: DEFAULT_PX_PER_BEAT });
 }
 

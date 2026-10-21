@@ -44,7 +44,6 @@ import { ClipActionBar, DragBadge } from "./ClipActions";
 import { EditorPanel } from "./EditorPanel";
 import { MobileMixer } from "./MobileMixer";
 import { useMobileView } from "./viewState";
-import { PHONE_HEADER_WIDTH } from "@/features/arrangement/layout";
 import { arrangementView, useArrangementUi } from "@/features/arrangement/uiStore";
 import { TransportDock } from "./TransportDock";
 
@@ -65,8 +64,8 @@ function useMobileLayout() {
   // Tablets: the desktop's header column, its rows tall enough for the two lines (mobile.css).
   const phone = isPhone(layout);
   useEffect(() => {
+    useArrangementUi.getState().setPhoneHeader(phone);
     useArrangementUi.setState((s) => ({
-      headerWidth: phone ? PHONE_HEADER_WIDTH : s.headerWidth,
       defaultHeight: Math.max(s.defaultHeight, phone ? PHONE_TRACK_HEIGHT : TABLET_TRACK_HEIGHT),
     }));
   }, [phone]);
