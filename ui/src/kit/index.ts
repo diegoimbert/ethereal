@@ -12,6 +12,7 @@ initTheme();
 if (import.meta.env.MODE !== "test") initMotionLevel();
 
 export { Button, type ButtonProps } from "./Button";
+export { AttachedButton, type AttachedButtonProps, type ButtonAttachment } from "./AttachedButton";
 export { ConfirmDialog } from "./confirm";
 export { DismissibleError, type DismissibleErrorProps } from "./DismissibleError";
 export { useConfirm, type ConfirmRequest } from "./confirmStore";

@@ -103,8 +103,7 @@
 }
 
 .eth-metronome__tap {
-  justify-content: center;
-  width: 100%;
+  align-self: flex-start;
 }
 
 .eth-metronome__field {

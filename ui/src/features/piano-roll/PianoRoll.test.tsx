@@ -139,11 +139,11 @@ describe("PianoRoll", () => {
   it("edits project and custom track scales independently and can undo them", async () => {
     const { clip } = await setup();
     const track = store().project!.clips[clip]!.track;
-    expect(screen.getByTestId("scale-trigger")).toHaveTextContent("scale…");
+    expect(screen.getByTestId("scale-trigger")).toHaveTextContent("scale");
     expect(scaleControl("active scale type")).toHaveTextContent("chromatic / none");
     await pickScale("active scale type", "Minor");
     expect(store().project!.settings.scale).toEqual({ root: 0, kind: "Minor" });
-    expect(screen.getByTestId("scale-trigger")).toHaveTextContent("C minor…");
+    expect(screen.getByTestId("scale-trigger")).toHaveTextContent("C minor");
     expect(screen.getByTestId("scale-popover")).toHaveTextContent("project");
     await pickScale("track scale mode", "Custom");
     await pickScale("active scale root", "9");

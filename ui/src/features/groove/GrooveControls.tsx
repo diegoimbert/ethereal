@@ -1,6 +1,6 @@
 /**
- * Piano-roll groove controls: a Quantize split button (the button quantizes with the current
- * settings; the "…" attached to it opens them: grid, strength, swing, ends) and a Humanize
+ * Piano-roll groove controls: Quantize, an `AttachedButton` (the button quantizes with the
+ * current settings; its "…" attachment opens them: grid, strength, swing, ends) and a Humanize
  * popover (timing, velocity). Each apply is one command = one undo step and acts on the
  * selected notes, or on every note of the clip when nothing is selected.
  */
@@ -8,8 +8,7 @@
 import { useCallback } from "react";
 import type { Beats, ClipId, Command, NoteId } from "@/generated";
 import { t as tr, useT } from "@/i18n";
-import { MoreHorizontal } from "lucide-react";
-import { Button, NumberField, Popover, Select, Toggle } from "@/kit";
+import { AttachedButton, Button, NumberField, Popover, Select, Toggle } from "@/kit";
 import { useTransport } from "@/transport";
 import { grooveQuantizeCommand, humanizeCommand, newSeed, QUANTIZE_GRIDS, useGrooveSettings, type QuantizeGrid } from "./grooveCommands";
 import "./groove.css";
@@ -57,25 +56,14 @@ export function GrooveControls({ clip, selected, rollStep, quantizeTitle, quanti
 
   return (
     <>
-      <span className="eth-groove__split">
-        <Button
-          size="sm"
-          className="eth-groove__split-main"
-          title={quantizeTitle ?? t("piano_roll.quantize_title")}
-          disabled={quantizeDisabled}
-          onClick={() => send(grooveQuantizeCommand(clip, selected, quantize, rollStep))}
-        >
-          {t("piano_roll.quantize")}
-        </Button>
-        <Popover
-          aria-label={t("groove.quantize.label")}
-          trigger={(p) => (
-            <Button size="sm" className="eth-groove__split-more" aria-label={t("groove.quantize.title")} title={t("groove.quantize.title")} {...p}>
-              <MoreHorizontal aria-hidden />
-            </Button>
-          )}
-        >
-          {(close) => (
+      <AttachedButton
+        size="sm"
+        title={quantizeTitle ?? t("piano_roll.quantize_title")}
+        disabled={quantizeDisabled}
+        onClick={() => send(grooveQuantizeCommand(clip, selected, quantize, rollStep))}
+        attachment={{
+          label: t("groove.quantize.title"),
+          popover: (close: () => void) => (
             <div className="eth-groove__popover" data-testid="groove-quantize">
               <label className="eth-groove__field">
                 <span className="eth-groove__label">{t("groove.quantize.grid")}</span>
@@ -101,13 +89,15 @@ export function GrooveControls({ clip, selected, rollStep, quantizeTitle, quanti
                 {t("groove.quantize.apply", { count: selected.length })}
               </Button>
             </div>
-          )}
-        </Popover>
-      </span>
+          ),
+        }}
+      >
+        {t("piano_roll.quantize")}
+      </AttachedButton>
       <Popover
         aria-label={t("groove.humanize.label")}
         trigger={(p) => (
-          <Button size="sm" title={t("groove.humanize.title")} {...p}>
+          <Button size="sm" chevron title={t("groove.humanize.title")} {...p}>
             {t("groove.humanize.button")}
           </Button>
         )}
