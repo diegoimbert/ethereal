@@ -22,7 +22,7 @@
 import type { MessageKey } from "@/i18n";
 
 /** Where an action's key handler listens. `global` overlaps every other scope. */
-export type KeymapScope = "global" | "arrangement" | "pianoRoll" | "automation";
+export type KeymapScope = "global" | "arrangement" | "pianoRoll" | "automation" | "devices";
 
 /** Where an action works, as shown (message keys). */
 export const SCOPE_LABELS: Record<KeymapScope, MessageKey> = {
@@ -30,6 +30,7 @@ export const SCOPE_LABELS: Record<KeymapScope, MessageKey> = {
   arrangement: "shell.keymap.scope_arrangement",
   pianoRoll: "shell.keymap.scope_piano_roll",
   automation: "shell.keymap.scope_automation",
+  devices: "shell.keymap.scope_devices",
 };
 
 export interface KeymapAction {
@@ -144,6 +145,8 @@ export const BUILTIN_ACTIONS: ReadonlyArray<KeymapAction> = [
   },
   { id: "track.group", labelKey: "shell.action.track_group", group: "Arrangement", scopes: ["arrangement"], chords: ["Mod+G"], handled: true },
   { id: "track.ungroup", labelKey: "shell.action.track_ungroup", group: "Arrangement", scopes: ["arrangement"], chords: ["Mod+Shift+G"], handled: true },
+  // The selected device cards (a device card focused: features/devices/deviceClipboard.ts).
+  { id: "device.group", labelKey: "shell.action.device_group", group: "Devices", scopes: ["devices"], chords: ["Mod+G"], handled: true, keywords: "rack" },
   { id: "track.addAudio", labelKey: "shell.action.track_add_audio", group: "Arrangement", scopes: G, chords: [], ableton: ["Mod+T"], palette: "track:audio" },
   {
     id: "track.addMidi",

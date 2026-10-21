@@ -451,6 +451,23 @@ describe("DeviceChain: stacked layout (inspector)", () => {
     expect(useDeviceClipboard.getState().selected).toEqual([deviceOf("Keys", "Synth").id, deviceOf("Keys", "Compressor").id]);
   });
 
+  it("⌘G / Ctrl+G groups the selected cards into a rack (an instrument among them: an instrument rack), one undo step", async () => {
+    await renderStack();
+    const press = (name: string, mods: { shiftKey?: boolean } = {}) => fireEvent.pointerDown(deviceEl(name).querySelector("header")!, { button: 0, ...mods });
+    press("Synth");
+    press("Compressor", { shiftKey: true });
+    fireEvent.keyDown(deviceEl("Compressor"), { key: "g", code: "KeyG", ctrlKey: true });
+    await flush();
+    const top = devicesOfTrack(store().project!, trackByName("Keys").id);
+    expect(top.map((d) => d.kind.type === "Builtin" && d.kind.device.type)).toEqual(["InstrumentRack"]);
+    const rack = top[0]!;
+    const inside = Object.values(store().project!.devices).filter((d) => d.chain != null && store().project!.rack_chains[d.chain]?.rack === rack.id);
+    expect(inside.map((d) => d.name).sort()).toEqual(["Compressor", "Synth"]);
+    expect(useDeviceClipboard.getState().selected).toEqual([rack.id]);
+    await act(() => mock!.send(cmd("Edit", { type: "Undo" })));
+    expect(chainNames("Keys")).toEqual(["Synth", "Compressor"]);
+  });
+
   it("labels the sections; stacked cards have no up/down buttons (drag the header)", async () => {
     await renderStack();
     // Every section a MIDI track holds, empty ones included.

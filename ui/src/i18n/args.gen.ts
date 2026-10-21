@@ -174,6 +174,7 @@ export interface MessageArgs {
   "devices.device.show_params_name": { name: string | number };
   "devices.eq.band": { n: string | number };
   "devices.eq.curve": { count: string | number; on: string | number };
+  "devices.group.failed": { error: string | number };
   "devices.insert.add_failed": { error: string | number; name: string | number };
   "devices.insert.instrument_needs_midi": { name: string | number };
   "devices.insert.midi_effect_needs_midi": { name: string | number };

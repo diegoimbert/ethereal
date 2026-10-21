@@ -14,6 +14,8 @@
  * With no device selected (a click on a chain's empty space clears the selection and focuses
  * the chain), ⌘V pastes at the end of each section of that chain, an empty chain included.
  *
+ * ⌘G / Ctrl+G groups the selection into a rack (`@/features/racks/group`).
+ *
  * The keys come in as the document's `copy` / `paste` events (the desktop app's Edit menu
  * sends them), taken only while the focus is in a device card (copy, paste) or a device chain
  * (paste): the arranger takes them while the focus is in the arranger.
@@ -23,12 +25,14 @@ import type { Command, Device, DeviceCategory, DeviceId, DrumPadId, Project, Rac
 import { notify } from "@/features/notifications";
 import { useConfirm } from "@/kit/confirmStore";
 import { t } from "@/i18n";
-import { errorMessage } from "@/features/transport-bar/engine";
+import { errorMessage, isTextEntry } from "@/features/transport-bar/engine";
 import { useProjectStore } from "@/state";
 import { cmd, newId, type EngineTransport } from "@/transport";
 import { CHAIN_SECTIONS } from "./chainUtils";
 import { canHost } from "./libraryInsert";
 import { cannotHostMessage } from "./userInsert";
+import { matchesAction } from "@/features/keymap";
+import { groupDevices } from "@/features/racks/group";
 
 /** How a click changes the selection: plain, ⌘ / Ctrl (toggle), Shift (range). */
 export type DeviceSelectMode = "replace" | "toggle" | "range";
@@ -250,6 +254,19 @@ export function useDeviceClipboardKeys(transport: EngineTransport, categoryOf: (
     if (!id) return;
     e.preventDefault();
     copyFrom(id);
+  });
+  // ⌘G / Ctrl+G (keymap `device.group`): the selection (or the focused card) into a rack.
+  document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || !matchesAction("device.group", e) || isTextEntry(e.target)) return;
+    const id = focusedDevice();
+    const project = useProjectStore.getState().project;
+    if (!id || !project || !current.transport || !current.categoryOf) return;
+    e.preventDefault();
+    const { selected } = useDeviceClipboard.getState();
+    const transport = current.transport;
+    void groupDevices((c) => transport.send(c), project, selected.includes(id) ? selected : [id], current.categoryOf).then(
+      (rack) => rack && useDeviceClipboard.setState({ selected: [rack], anchor: rack }),
+    );
   });
   document.addEventListener("paste", (e) => {
     const to = pasteTarget();
