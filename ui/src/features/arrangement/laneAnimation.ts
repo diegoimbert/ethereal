@@ -43,7 +43,7 @@ export function animatedRows(rows: ReadonlyArray<Row>, slot: (row: Row) => numbe
         ? r
         : f === 1
           ? { ...r, y, height }
-          : { ...r, y, height, laneHeight: r.laneHeight * f, takesHeight: (r.takesHeight ?? 0) * f };
+          : { ...r, y, height, laneHeight: r.laneHeight * f, takesHeight: (r.takesHeight ?? 0) * f, folding: r };
     y += height;
     return out;
   });

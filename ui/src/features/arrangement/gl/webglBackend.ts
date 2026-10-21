@@ -85,8 +85,24 @@ export class WebglBackend implements RenderBackend {
     return true;
   }
 
+  cut(band: { top: number; bottom: number } | null): void {
+    const gl = this.ctx.gl;
+    const f = this.frame;
+    if (!gl || !f) return;
+    if (!band) {
+      gl.disable(gl.SCISSOR_TEST);
+      return;
+    }
+    // Device px, from the canvas bottom.
+    const top = Math.max(0, Math.floor((band.top - f.originY) * f.dpr));
+    const bottom = Math.min(f.height, Math.ceil((band.bottom - f.originY) * f.dpr));
+    gl.enable(gl.SCISSOR_TEST);
+    gl.scissor(0, f.height - Math.max(top, bottom), f.width, Math.max(0, bottom - top));
+  }
+
   end(): void {
     this.ctx.gl?.bindVertexArray(null);
+    this.ctx.gl?.disable(this.ctx.gl.SCISSOR_TEST);
     this.frame = null;
   }
 

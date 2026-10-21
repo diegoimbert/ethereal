@@ -64,6 +64,11 @@ export interface Row {
   takesHeight?: number;
   /** Total height including the automation slot. */
   height: number;
+  /**
+   * A row of a group folding / unfolding (`animatedRows`): the row as laid out. Its clips draw
+   * at that size (never compact on the way), cut at this row's height, without their text.
+   */
+  folding?: Row;
 }
 
 /**

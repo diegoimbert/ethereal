@@ -50,6 +50,11 @@ export interface RenderBackend {
    * drawn (the pipeline isn't usable).
    */
   draw(p: Pipeline, batch: Batch, row: Row, first: number, count: number): boolean;
+  /**
+   * Cut the next draws to the content-px band `[top, bottom)` (a folding row's on-screen
+   * extent), or no longer (null).
+   */
+  cut(band: { top: number; bottom: number } | null): void;
   end(): void;
   /**
    * RGBA bytes of a device-px rect of the canvas as last drawn (from its top-left), or
