@@ -36,6 +36,25 @@ cargo target dirs are their own (`full-*` job ids), and the hooks empty `ee/` fr
 workspace after every job and again before the next (`scripts/ci/runner/clean-workspace.sh`), so an
 open-source job that lands on the same slot, whose artifacts are public, never sees private code.
 
+## Runs on `main`
+
+Each of CI, CI (Windows), Full product and Full product (macOS, Windows) has one concurrency group
+for pushes to `main`. A streak of merges builds only its last commit: the runs waiting in the group
+are skipped (GitHub reports them as cancelled), and `Supersede main runs` (`main-supersede.yml`,
+`scripts/ci/main-supersede.mjs`) cancels the running one as soon as a newer push's run waits, so the
+newest starts at once. Starvation guard: when a workflow has had no green or red push run on `main`
+for more than ~2 h (counted from the later of its last finished run and the first push after it),
+the running run is let finish. Manual runs, re-runs, `release.yml` and EE sync are never cancelled.
+`Main status` (`main-status.yml`) reads only green and red runs: a cancelled run never opens,
+comments on or closes the `ci-main` issue.
+
+A cancelled job saves no Rust cache (a last `if: cancelled()` step turns rust-cache's
+`cache-on-failure` off; the superseding run saves instead). On the pool, a cancelled job ends its
+runner, and systemd then stops the rest of its unit (cargo, sccache, the target dir's lock holder):
+the dir is free for the next job, and cargo rebuilds whatever was cut short (its fingerprints are
+written last). The e2e build drops its target dir's stamp before it builds, so a build cut short
+never passes for the earlier one; a cancelled shard records no times.
+
 ## The pool
 
 `scripts/ci/runner/pool.mjs run` keeps `CI_POOL_SLOTS` ephemeral runners alive. Each one is a
