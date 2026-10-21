@@ -17,6 +17,7 @@ import {
   type SelectableKind,
   type SelectMode,
 } from "./selection";
+import type { TimelineViewStore } from "./viewStore";
 
 export interface Point {
   x: number;
@@ -60,6 +61,13 @@ export interface MarqueeOptions<K extends SelectableKind> {
   /** Called when a drag ends. */
   onEnd?: (rect: Rect) => void;
   /**
+   * The element shows a horizontal timeline (`view`), its lanes from `originPx()` px to the
+   * element's right edge: the drag's start stays on its beat while the view scrolls, and the
+   * view scrolls while the pointer is past the lanes' left or right edge (the element itself
+   * never scrolls sideways).
+   */
+  timeline?: { view: TimelineViewStore; originPx?: () => number };
+  /**
    * Section mode: while Shift is held (pressed or released mid-drag switches modes), the
    * drag selects no items (the selection stays as it was at the press) and previews a time
    * section instead: `onPreview` follows the drag (`null` when back in item mode), `onEnd`
@@ -78,7 +86,11 @@ export interface MarqueeOptions<K extends SelectableKind> {
 }
 
 export interface MarqueeHandle {
-  /** The live marquee rectangle (element-local px), or `null` when not dragging (or in section mode). */
+  /**
+   * The live marquee rectangle (element-local px) as drawn, within the element's box (the hit
+   * test gets the whole drag: past the edges while the view scrolls), or `null` when not
+   * dragging (or in section mode).
+   */
   rect: Rect | null;
   /** Attach to the background element's `onPointerDown`. */
   onPointerDown: (e: ReactPointerEvent<Element>) => void;
@@ -110,6 +122,11 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
     };
     const start = local(e);
     let pointer = { clientX: e.clientX, clientY: e.clientY };
+    // On a timeline, the press is kept as a beat: its x follows the view's scroll and zoom.
+    const tl = optsRef.current.timeline;
+    const origin = () => tl?.originPx?.() ?? 0;
+    const startBeat = tl ? beatAtPx(tl.view, start.x - origin()) : 0;
+    const anchor = (): Point => (tl ? { x: origin() + pxAtBeat(tl.view, startBeat), y: start.y } : start);
     const sectionable = !!optsRef.current.section;
     const mode: SelectMode = sectionable ? selectModeFromEvent({ ...e, shiftKey: false }) : selectModeFromEvent(e);
     const { kind, store = itemSelection } = optsRef.current;
@@ -123,7 +140,7 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
     /** Show the drag at `p` in the current mode (items or section). */
     const update = (p: Point) => {
       last = p;
-      const r = rectFromPoints(start, p);
+      const r = rectFromPoints(anchor(), p);
       if (inSection()) {
         // Leaving item mode: the items the drag had selected go back to the press's selection.
         if (itemsShown) store.getState().select(kind, base, "replace");
@@ -134,7 +151,7 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
       }
       optsRef.current.section?.onPreview(null);
       itemsShown = true;
-      setRect(r);
+      setRect(clipTo(r, el));
       const hits = optsRef.current.hitTest(r);
       store.getState().select(kind, combineSelection(base, hits, mode), "replace");
     };
@@ -146,7 +163,24 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
       if (!active && Math.hypot(p.x - start.x, p.y - start.y) < threshold) return;
       active = true;
       update(p);
+      edge.check();
     };
+    // Past the lanes' left / right edge: the view scrolls, faster the farther out.
+    const edge = edgeScroller(
+      () => {
+        if (!tl || !active) return 0;
+        const x = local(pointer).x;
+        const right = el.clientWidth;
+        if (x > right) return x - right;
+        if (x < origin()) return x - origin();
+        return 0;
+      },
+      (dx) => tl?.view.getState().scrollByPx(dx),
+    );
+    // The view scrolled or zoomed (edge scrolling, the wheel): the start follows its beat.
+    const unsubView = tl?.view.subscribe(() => {
+      if (active) update(local(pointer));
+    });
     // The view scrolled under a still pointer (auto-scroll at its edge, the wheel): the
     // marquee's far corner follows the content.
     const onScroll = () => {
@@ -162,7 +196,7 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
       shift = ev.shiftKey;
       done();
       if (active) {
-        const r = rectFromPoints(start, local(ev));
+        const r = rectFromPoints(anchor(), local(ev));
         if (inSection()) {
           optsRef.current.section!.onPreview(null);
           optsRef.current.section!.onEnd(r);
@@ -181,6 +215,8 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKey);
       window.removeEventListener("scroll", onScroll, true);
+      edge.stop();
+      unsubView?.();
       cleanup.current = null;
       setRect(null);
     };
@@ -195,4 +231,66 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
   }, []);
 
   return { rect, onPointerDown };
+}
+
+const beatAtPx = (view: TimelineViewStore, px: number): number => {
+  const s = view.getState();
+  return s.scrollBeats + px / s.pxPerBeat;
+};
+
+const pxAtBeat = (view: TimelineViewStore, beat: number): number => {
+  const s = view.getState();
+  return (beat - s.scrollBeats) * s.pxPerBeat;
+};
+
+/** Edge scrolling speed: px per second per px the pointer is past the edge, and its cap. */
+const EDGE_SPEED = 12;
+const EDGE_MAX_SPEED = 2400;
+/** Longest frame step counted (s): after a stall, the view doesn't jump the whole way at once. */
+const EDGE_MAX_FRAME_S = 0.25;
+
+/**
+ * While `overshoot()` (px past an edge, signed) isn't 0, `scroll(dx)` each frame at a speed
+ * growing with it. `check()` starts it after a pointer move; it stops by itself back inside.
+ */
+function edgeScroller(overshoot: () => number, scroll: (dx: number) => void): { check(): void; stop(): void } {
+  let raf = 0;
+  let last = 0;
+  const frame = (t: number) => {
+    const o = overshoot();
+    if (o === 0) {
+      raf = 0;
+      return;
+    }
+    // Real elapsed time (slow frames, e.g. a heavy section preview, scroll as far per second),
+    // capped only after a stall.
+    const dt = last ? Math.min(EDGE_MAX_FRAME_S, (t - last) / 1000) : 1 / 60;
+    last = t;
+    scroll(Math.sign(o) * Math.min(EDGE_MAX_SPEED, Math.abs(o) * EDGE_SPEED) * dt);
+    raf = requestAnimationFrame(frame);
+  };
+  return {
+    check() {
+      if (raf || overshoot() === 0) return;
+      last = 0;
+      raf = requestAnimationFrame(frame);
+    },
+    stop() {
+      if (raf) cancelAnimationFrame(raf);
+      raf = 0;
+    },
+  };
+}
+
+/**
+ * `r` within `el`'s box: drawn past it, the marquee would make the element (or its scroll
+ * container) overflow, and the browser would scroll that while dragging, then back on
+ * release. An axis the element has no size on (not laid out) is left as is.
+ */
+function clipTo(r: Rect, el: Element): Rect {
+  const w = el.clientWidth;
+  const h = el.clientHeight;
+  const cx = (v: number) => (w > 0 ? Math.min(w, Math.max(0, v)) : v);
+  const cy = (v: number) => (h > 0 ? Math.min(h, Math.max(0, v)) : v);
+  return { x0: cx(r.x0), y0: cy(r.y0), x1: cx(r.x1), y1: cy(r.y1) };
 }

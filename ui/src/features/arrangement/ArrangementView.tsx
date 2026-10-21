@@ -259,6 +259,8 @@ function ConnectedArrangementView() {
   const timeEdits = useArrangementTimeEdits(transport, rowsRef);
   const marquee = useMarquee({
     kind: "clip",
+    // The lanes start after the header column; dragging past their edges scrolls the timeline.
+    timeline: { view, originPx: () => useArrangementUi.getState().headerWidth },
     hitTest: (rect) => {
       const project = useProjectStore.getState().project;
       const hw = useArrangementUi.getState().headerWidth;

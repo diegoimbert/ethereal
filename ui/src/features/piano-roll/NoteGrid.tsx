@@ -213,6 +213,8 @@ export function NoteGrid({
     );
   const marquee = useMarquee({
     kind: "note",
+    // Dragging past the grid's left / right edge scrolls the timeline.
+    timeline: { view },
     hitTest: hitNotes,
     section: {
       onPreview: (rect) => {
