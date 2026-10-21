@@ -95,6 +95,7 @@ function RealTrackRow({ row }: { row: Row }) {
       style={{ height: row.height }}
       data-track={row.track.id}
     >
+      <GroupGuides depth={depth} group={track.kind === "Group"} />
       {main}
       {/* Automation slot: its height is fed to `layoutRows` via `useAutomationHeight`. */}
       <div className="eth-arr-row__automation" data-slot="automation" data-track={row.track.id}>
@@ -103,6 +104,23 @@ function RealTrackRow({ row }: { row: Row }) {
         </ReadOnlySurface>
       </div>
     </div>
+  );
+}
+
+/**
+ * The group guides left of a row's header: a thin line per group the track is in (and one for
+ * a group itself, from its own row), so consecutive rows draw one line down each group, from
+ * its header to its last track. They add no indent.
+ */
+function GroupGuides({ depth, group }: { depth: number; group: boolean }) {
+  const levels = depth + (group ? 1 : 0);
+  if (levels === 0) return null;
+  return (
+    <span className="eth-arr-row__guides" aria-hidden>
+      {Array.from({ length: levels }, (_, level) => (
+        <span key={level} className={clsx(group && level === depth && "eth-arr-row__guide--start")} style={{ ["--eth-guide-level" as string]: level }} />
+      ))}
+    </span>
   );
 }
 

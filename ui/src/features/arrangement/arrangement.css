@@ -388,6 +388,28 @@
 
 /* ── Rows ─────────────────────────────────────────────────────────── */
 
+/* Group guides (TrackRow's GroupGuides): a line per group level, left of that level's cards,
+   down every row of the group. Over the header (the row's content-visibility makes it a
+   stacking context), under the pointer. */
+.eth-arr-row__guides {
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 6;
+  pointer-events: none;
+}
+.eth-arr-row__guides > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--eth-size-track-card-inset-left) / 2 + var(--eth-guide-level) * var(--eth-size-track-indent));
+  width: var(--eth-border-width);
+  background: var(--eth-color-border-light);
+}
+/* A group's own line starts at its card, not at the row above. */
+.eth-arr-row__guides > .eth-arr-row__guide--start {
+  top: var(--eth-size-track-card-inset-y);
+}
+
 .eth-arr-row {
   position: relative;
   display: flex;
