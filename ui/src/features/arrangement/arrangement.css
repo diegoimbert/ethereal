@@ -388,8 +388,9 @@
 
 /* ── Rows ─────────────────────────────────────────────────────────── */
 
-/* Group guides (TrackRow's GroupGuides): a line per group level, left of that level's cards,
-   down every row of the group. Over the header (the row's content-visibility makes it a
+/* Group guides (TrackRow's GroupGuides): a line per nested group level, down every row of the
+   group, one indent apart, the column's left edge standing for the top level (so the first line
+   is one indent from it, like the others from each other). Over the header (the row's content-visibility makes it a
    stacking context), under the pointer. */
 .eth-arr-row__guides {
   position: absolute;
@@ -401,7 +402,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(var(--eth-size-track-card-inset-left) / 2 + var(--eth-guide-level) * var(--eth-size-track-indent));
+  left: calc(var(--eth-guide-level) * var(--eth-size-track-indent));
   width: var(--eth-border-width);
   background: var(--eth-color-border-light);
 }
