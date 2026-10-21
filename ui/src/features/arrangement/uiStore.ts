@@ -56,6 +56,8 @@ export interface ArrangementUiState {
   trackDrag: { track: TrackId; y: number | null; into: TrackId | null; blocked?: { top: number; height: number } } | null;
   /** A MIDI track just dragged into place from Add track: its header offers the instruments. */
   instrumentPick: TrackId | null;
+  /** A group whose header is hovered: its tracks (at any depth) look hovered too, not selected. */
+  hoveredGroup: TrackId | null;
   folded: ReadonlySet<TrackId>;
   /** Lane height of resized tracks; the others use `defaultHeight`. */
   heights: ReadonlyMap<TrackId, number>;
@@ -74,6 +76,7 @@ export interface ArrangementUiState {
   setTrackSelection(tracks: Iterable<TrackId>, focus: TrackId | null): void;
   setTrackDrag(drag: ArrangementUiState["trackDrag"]): void;
   setInstrumentPick(track: TrackId | null): void;
+  setHoveredGroup(group: TrackId | null): void;
   toggleFold(track: TrackId): void;
   /** Resize one lane (clamped); `null` resets it to the default. */
   setHeight(track: TrackId, height: number | null): void;
@@ -103,6 +106,7 @@ const INITIAL = {
   selectedTracks: new Set<TrackId>() as ReadonlySet<TrackId>,
   trackDrag: null as ArrangementUiState["trackDrag"],
   instrumentPick: null as TrackId | null,
+  hoveredGroup: null as TrackId | null,
   folded: new Set<TrackId>() as ReadonlySet<TrackId>,
   heights: new Map<TrackId, number>() as ReadonlyMap<TrackId, number>,
   defaultHeight: TRACK_HEIGHT,
@@ -128,6 +132,7 @@ export const useArrangementUi = create<ArrangementUiState>()((set) => ({
   setTrackSelection: (tracks, focus) => set({ trackFocus: focus, selectedTracks: new Set(tracks) }),
   setTrackDrag: (trackDrag) => set({ trackDrag }),
   setInstrumentPick: (instrumentPick) => set({ instrumentPick }),
+  setHoveredGroup: (hoveredGroup) => set((s) => (s.hoveredGroup === hoveredGroup ? s : { hoveredGroup })),
   toggleFold: (track) =>
     set((s) => {
       const folded = new Set(s.folded);

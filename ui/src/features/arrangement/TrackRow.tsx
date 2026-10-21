@@ -183,9 +183,22 @@ function TrackBadge({ track, onPick }: { track: Track; onPick?: (color: number) 
   );
 }
 
+/** Whether `group` contains `track` (as a child, or deeper). */
+function hasAncestor(track: Track, group: TrackId): boolean {
+  const tracks = useProjectStore.getState().project?.tracks;
+  let parent = track.parent;
+  for (let depth = 0; parent && tracks && depth < 64; depth++) {
+    if (parent === group) return true;
+    parent = tracks[parent]?.parent ?? null;
+  }
+  return false;
+}
+
 const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track: Track; depth: number; compact: boolean }) {
   const headerWidth = useArrangementUi((s) => s.headerWidth);
   const t = useT();
+  // Inside a group whose header is hovered (at any depth): the hover look too.
+  const inHoveredGroup = useArrangementUi((s) => s.hoveredGroup !== null && hasAncestor(track, s.hoveredGroup));
   const ctx = useArrangement();
   const { transport } = ctx;
   const dragging = useArrangementUi((s) => s.trackDrag?.track === track.id);
@@ -244,6 +257,15 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
           `eth-arr-header--${track.kind.toLowerCase()}`,
         )}
         data-clip-selected={clipSelected || undefined}
+        data-group-hover={inHoveredGroup || undefined}
+        onPointerEnter={track.kind === "Group" ? () => useArrangementUi.getState().setHoveredGroup(track.id) : undefined}
+        onPointerLeave={
+          track.kind === "Group"
+            ? () => {
+                if (useArrangementUi.getState().hoveredGroup === track.id) useArrangementUi.getState().setHoveredGroup(null);
+              }
+            : undefined
+        }
         data-track={track.id}
         data-tour="track-header"
         style={{

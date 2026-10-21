@@ -1689,6 +1689,26 @@ describe("ArrangementView: track multi-selection (base-151)", () => {
     expect(useArrangementUi.getState().selectedTracks.size).toBeGreaterThan(1);
   });
 
+  it("hovering a group's header gives its tracks, at any depth, the hover look (not the selection)", async () => {
+    const [keys, bass] = [trackByName("Keys"), trackByName("Bass")];
+    const [inner, outer] = [newId(), newId()];
+    await act(async () => {
+      await mock.send(cmd("Track", { type: "GroupSelected", ids: [keys.id], group: inner, name: "Inner" }));
+      await mock.send(cmd("Track", { type: "GroupSelected", ids: [inner, bass.id], group: outer, name: "Outer" }));
+    });
+    await flush();
+    const headerOf = (name: string) => screen.getByRole("group", { name: `${name} track` });
+    const outerHeader = headerOf("Outer");
+    fireEvent.pointerEnter(outerHeader);
+    await waitFor(() => expect(headerOf("Keys")).toHaveAttribute("data-group-hover"));
+    expect(headerOf("Bass")).toHaveAttribute("data-group-hover");
+    expect(headerOf("Inner")).toHaveAttribute("data-group-hover");
+    expect(outerHeader).not.toHaveAttribute("data-group-hover");
+    expect(useArrangementUi.getState().selectedTracks.size).toBe(0);
+    fireEvent.pointerLeave(outerHeader);
+    await waitFor(() => expect(headerOf("Keys")).not.toHaveAttribute("data-group-hover"));
+  });
+
   it("allSelectableTracks: the shown rows in display order, children of folded groups and the master left out", async () => {
     const { allSelectableTracks } = await import("./actions");
     const [keys, bass] = [trackByName("Keys"), trackByName("Bass")];

@@ -447,9 +447,11 @@
     box-shadow var(--eth-duration-fast) var(--eth-ease-out);
 }
 
-/* A track with a selected clip looks hovered (not selected): data-clip-selected. */
+/* A track with a selected clip looks hovered (not selected): data-clip-selected; so do the
+   tracks of a group whose header is hovered (data-group-hover). */
 .eth-arr-header:hover::before,
-.eth-arr-header[data-clip-selected]::before {
+.eth-arr-header[data-clip-selected]::before,
+.eth-arr-header[data-group-hover]::before {
   background: color-mix(in srgb, var(--eth-track-color) 8%, transparent);
 }
 
