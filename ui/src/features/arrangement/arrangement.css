@@ -603,7 +603,6 @@
   outline: none;
 }
 
-/* Mute / solo / arm: shown on hover (and whenever one is on). */
 /* Compact volume fader in the header (the mixer view is gone). */
 /* The instrument picker's anchor (InstrumentPick): the header's card, so the library opens
    right under it (or above). */
@@ -703,78 +702,45 @@
   transform: translate(-50%, 0);
 }
 
-/* The name and, over its right end, the buttons at fixed positions (they never move). The
-   name runs under the hidden ones and stops before the leftmost visible one: shown on hover
-   (or a selected clip), or carrying state. */
+/* The name, then the controls at the header's right end: the volume and pan, and under them
+   the buttons (always shown, small and tight). */
 .eth-arr-header__main {
-  position: relative;
   display: flex;
   flex: 1;
   align-items: center;
   min-width: 0;
 }
 
-.eth-arr-header__buttons {
-  position: absolute;
-  top: 50%;
-  right: 0;
+/* The buttons come first in the DOM (the touch layouts' order, mobile.css): column-reverse
+   puts them under the volume and pan. */
+.eth-arr-header__controls {
+  flex: none;
   display: flex;
-  /* Every button keeps its slot (shown or not), so nothing moves on hover. */
-  gap: var(--eth-space-xs);
-  transform: translateY(-50%);
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  gap: var(--eth-space-hair);
 }
 
-/* Never narrower than its buttons (a narrow header clips at its right end instead, so they
-   don't spill over the badge): k slots for k buttons. */
-.eth-arr-header__main:has(> .eth-arr-header__buttons > :nth-child(1)) {
-  min-width: calc(1 * (var(--eth-size-track-button) + var(--eth-space-xs)));
+.eth-arr-header__mix {
+  display: flex;
+  align-items: center;
 }
-.eth-arr-header__main:has(> .eth-arr-header__buttons > :nth-child(2)) {
-  min-width: calc(2 * (var(--eth-size-track-button) + var(--eth-space-xs)));
-}
-.eth-arr-header__main:has(> .eth-arr-header__buttons > :nth-child(3)) {
-  min-width: calc(3 * (var(--eth-size-track-button) + var(--eth-space-xs)));
-}
-.eth-arr-header__main:has(> .eth-arr-header__buttons > :nth-child(4)) {
-  min-width: calc(4 * (var(--eth-size-track-button) + var(--eth-space-xs)));
-}
-.eth-arr-header__main:has(> .eth-arr-header__buttons > :nth-child(5)) {
-  min-width: calc(5 * (var(--eth-size-track-button) + var(--eth-space-xs)));
-}
-.eth-arr-header__main:has(> .eth-arr-header__buttons > :nth-child(6)) {
-  min-width: calc(6 * (var(--eth-size-track-button) + var(--eth-space-xs)));
+
+.eth-arr-header__buttons {
+  display: flex;
+  gap: var(--eth-space-hair);
 }
 
 /* Renaming: the field takes the whole width. */
-.eth-arr-header__main:has(.eth-arr-header__rename) .eth-arr-header__buttons {
+.eth-arr-header:has(.eth-arr-header__rename) .eth-arr-header__controls {
   display: none;
 }
 
-/* Room for the buttons from the leftmost visible one to the right end: k slots when the
-   visible one is the k-th from the end (the later, wider rule wins). */
-.eth-arr-header:has(.eth-arr-header__buttons > :nth-last-child(1):is([aria-pressed="true"], .eth-takes-toggle, .eth-auto-toggle--has)) .eth-arr-header__name,
-.eth-arr-header:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(1)) .eth-arr-header__name {
-  margin-right: calc(1 * (var(--eth-size-track-button) + var(--eth-space-xs)));
-}
-.eth-arr-header:has(.eth-arr-header__buttons > :nth-last-child(2):is([aria-pressed="true"], .eth-takes-toggle, .eth-auto-toggle--has)) .eth-arr-header__name,
-.eth-arr-header:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(2)) .eth-arr-header__name {
-  margin-right: calc(2 * (var(--eth-size-track-button) + var(--eth-space-xs)));
-}
-.eth-arr-header:has(.eth-arr-header__buttons > :nth-last-child(3):is([aria-pressed="true"], .eth-takes-toggle, .eth-auto-toggle--has)) .eth-arr-header__name,
-.eth-arr-header:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(3)) .eth-arr-header__name {
-  margin-right: calc(3 * (var(--eth-size-track-button) + var(--eth-space-xs)));
-}
-.eth-arr-header:has(.eth-arr-header__buttons > :nth-last-child(4):is([aria-pressed="true"], .eth-takes-toggle, .eth-auto-toggle--has)) .eth-arr-header__name,
-.eth-arr-header:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(4)) .eth-arr-header__name {
-  margin-right: calc(4 * (var(--eth-size-track-button) + var(--eth-space-xs)));
-}
-.eth-arr-header:has(.eth-arr-header__buttons > :nth-last-child(5):is([aria-pressed="true"], .eth-takes-toggle, .eth-auto-toggle--has)) .eth-arr-header__name,
-.eth-arr-header:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(5)) .eth-arr-header__name {
-  margin-right: calc(5 * (var(--eth-size-track-button) + var(--eth-space-xs)));
-}
-.eth-arr-header:has(.eth-arr-header__buttons > :nth-last-child(6):is([aria-pressed="true"], .eth-takes-toggle, .eth-auto-toggle--has)) .eth-arr-header__name,
-.eth-arr-header:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(6)) .eth-arr-header__name {
-  margin-right: calc(6 * (var(--eth-size-track-button) + var(--eth-space-xs)));
+/* A short lane: no room for two lines, the buttons before the volume and pan. */
+.eth-arr-header--compact .eth-arr-header__controls {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--eth-space-sm);
 }
 
 .eth-arr-header__toggle {
@@ -802,10 +768,9 @@
     color var(--eth-duration-fast) var(--eth-ease-out);
 }
 
-/* Shown: on hover, and whenever the button carries state (on, takes, automation dot, freeze
-   status) or has focus. */
-.eth-arr-header:hover .eth-arr-header__toggle,
-.eth-arr-header[data-clip-selected] .eth-arr-header__toggle,
+/* Shown: always in a track header (small: eth-arr-header__buttons); elsewhere whenever the
+   button carries state (on, takes, automation dot, freeze status) or has focus. */
+.eth-arr-header__buttons .eth-arr-header__toggle,
 .eth-arr-header__toggle:focus-visible,
 .eth-arr-header__toggle[aria-pressed="true"],
 .eth-arr-header__toggle.eth-takes-toggle,
@@ -820,6 +785,12 @@
 .eth-arr-header__toggle:hover {
   background: var(--eth-color-bg-hover);
   color: var(--eth-color-text);
+}
+
+.eth-arr-header__buttons .eth-arr-header__toggle {
+  width: var(--eth-size-track-header-button);
+  height: var(--eth-size-track-header-button);
+  font-size: var(--eth-fs-xs);
 }
 
 .eth-arr-header__automation[aria-pressed="true"] {

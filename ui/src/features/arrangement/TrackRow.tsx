@@ -258,8 +258,6 @@ function TrackHeader({ row }: { row: Row }) {
         ) : (
           <TrackBadge kind={track.kind} color={track.color} compact={compact} />
         )}
-        {/* The name runs under the buttons (an overlay at fixed positions) up to the leftmost
-          visible one (arrangement.css: .eth-arr-header__main). */}
         <span className="eth-arr-header__main">
           {renaming ? (
             <TrackNameInput
@@ -294,8 +292,14 @@ function TrackHeader({ row }: { row: Row }) {
               {displayName}
             </span>
           )}
+        </span>
+        {/* The volume and pan at the header's right end, the buttons (always shown, small) under
+          them. The buttons come first in the DOM (the touch layouts lay them out before the
+          volume and pan: mobile.css); arrangement.css puts them below. */}
+        <span className="eth-arr-header__controls">
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- only keeps its events from reaching the track header around it */}
           <span className="eth-arr-header__buttons" onClick={stop}>
+            <FreezeHeaderStatus track={track} transport={transport} />
             {/* First: the takes button must not move the others (their positions are the same
             with or without take lanes). */}
             {canArm && <TakesToggle track={track} className="eth-arr-header__toggle" />}
@@ -362,11 +366,11 @@ function TrackHeader({ row }: { row: Row }) {
             )}
             <AutomationToggle track={track} />
           </span>
+          <span className="eth-arr-header__mix">
+            <HeaderVolume track={track} />
+            <HeaderPan track={track} />
+          </span>
         </span>
-        <FreezeHeaderStatus track={track} transport={transport} />
-        {/* The volume and pan at the header's right end, after the buttons. */}
-        <HeaderVolume track={track} />
-        <HeaderPan track={track} />
         {track.kind === "Midi" && !readOnly && <InstrumentPick track={track} />}
       </div>
     </>

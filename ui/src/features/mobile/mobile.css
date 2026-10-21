@@ -274,6 +274,12 @@ html[data-eth-mobile] textarea {
   opacity: 1;
   pointer-events: auto;
 }
+/* The desktop's controls block (volume and pan over the buttons) is laid out with the rest of
+   the header here: the buttons, then the volume and pan. */
+.eth-mshell .eth-arr-header__controls,
+.eth-mshell .eth-arr-header__mix {
+  display: contents;
+}
 /* Phones: two lines in the narrow column, the desktop's badge and the name, then the buttons
    at touch size; volume, pan, takes and automation live in the track sheet (a tap on the
    selected header). */
@@ -286,17 +292,13 @@ html[data-eth-mobile] textarea {
 .eth-mshell[data-layout^="phone"] .eth-arr-header__main {
   display: contents;
 }
-/* The desktop reserves room for the buttons beside the name (by hover state): here they are
-   on their own line. */
+/* The buttons on their own line. */
 .eth-mshell[data-layout^="phone"] .eth-arr-header .eth-arr-header__name {
   flex: 1 1 0;
   min-width: 0;
-  margin-right: 0 !important;
 }
 .eth-mshell[data-layout^="phone"] .eth-arr-header__buttons {
-  position: static;
   flex-basis: 100%;
-  transform: none;
 }
 .eth-mshell[data-layout^="phone"] .eth-arr-header__toggle {
   width: var(--eth-size-mobile-track-button);
@@ -306,9 +308,8 @@ html[data-eth-mobile] textarea {
 .eth-mshell[data-layout^="phone"] .eth-arr-header :is(.eth-arr-vol, .eth-arr-pan, .eth-takes-toggle, .eth-arr-header__automation) {
   display: none;
 }
-/* Tablets: the desktop header (volume and pan stay) on two lines, as its buttons are always
-   shown here (the desktop overlays them on the name on hover): the badge and the name, then
-   mute / solo / arm, volume and pan. */
+/* Tablets: the desktop header (volume and pan stay) on two lines, the buttons at touch size:
+   the badge and the name, then mute / solo / arm, volume and pan. */
 .eth-mshell[data-layout="tablet"] .eth-arr-header {
   flex-wrap: wrap;
   align-content: center;
@@ -319,12 +320,9 @@ html[data-eth-mobile] textarea {
 }
 .eth-mshell[data-layout="tablet"] .eth-arr-header .eth-arr-header__name {
   flex: 1 1 60%;
-  margin-right: 0 !important;
 }
 .eth-mshell[data-layout="tablet"] .eth-arr-header__buttons {
-  position: static;
   flex: none;
-  transform: none;
 }
 .eth-mshell[data-layout="tablet"] .eth-arr-header .eth-arr-vol {
   flex: 1;

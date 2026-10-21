@@ -406,20 +406,19 @@ describe("ArrangementView: track header polish", () => {
     expect(after.slice(1)).toEqual(before);
   });
 
-  it("header buttons never move: each keeps its slot, and hover / state only fade them in", () => {
+  it("header buttons are always shown, small, under the volume and pan", () => {
     const css = readFileSync(resolve(__dirname, "arrangement.css"), "utf8");
     const rule = (sel: string) => css.split("}").find((b) => b.includes(sel)) ?? "";
-    const base = rule(".eth-arr-header__toggle {");
-    expect(base).toMatch(/width: var\(--eth-size-track-button\)/);
-    expect(base).toMatch(/opacity: 0;/);
-    expect(base).not.toMatch(/transition:[^;]*\bwidth\b/);
-    const shown = rule(".eth-arr-header:hover .eth-arr-header__toggle");
-    for (const sel of ['[aria-pressed="true"]', ".eth-takes-toggle", ".eth-freeze__cancel", ".eth-auto-toggle--has"]) {
-      expect(shown).toContain(sel);
-    }
-    // Showing a button changes nothing about the layout.
+    // Elsewhere (racks, drum pads) the shared toggle is hidden until hovered or on.
+    expect(rule(".eth-arr-header__toggle {")).toMatch(/opacity: 0;/);
+    const shown = rule(".eth-arr-header__buttons .eth-arr-header__toggle,");
     expect(shown).toMatch(/opacity: 1;/);
-    expect(shown).not.toMatch(/\b(width|margin)/);
+    expect(rule(".eth-arr-header__buttons .eth-arr-header__toggle {")).toMatch(/width: var\(--eth-size-track-header-button\)/);
+    // The volume and pan sit in the same controls block as the buttons, above them.
+    const controls = headerOf("Bass").querySelector(".eth-arr-header__controls");
+    expect(controls?.querySelector(".eth-arr-header__buttons")).toBeTruthy();
+    expect(controls?.querySelector(".eth-arr-header__mix .eth-arr-vol")).toBeTruthy();
+    expect(rule(".eth-arr-header__controls {")).toMatch(/flex-direction: column-reverse;/);
   });
 
   it("a selected clip gives its track's header the hover look, without selecting the track", async () => {
