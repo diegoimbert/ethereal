@@ -450,19 +450,21 @@
   background: color-mix(in srgb, var(--eth-track-color) 8%, transparent);
 }
 
-/* Round badge in the track color with the track type's icon. */
+/* Round badge: the track type's icon in the track color, in a thin ring of that color. */
 .eth-arr-header__badge {
   flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   width: var(--eth-size-track-badge);
   height: var(--eth-size-track-badge);
   /* A bit more room before the track name than the header's gap. */
   margin-right: var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-track-color);
   border-radius: var(--eth-radius-round);
-  background: var(--eth-track-color);
-  /* Icon color: set inline from the track color's contrast (inkOn). */
+  background: transparent;
+  color: var(--eth-track-color);
   font-size: var(--eth-fs-lg);
 }
 
@@ -543,22 +545,21 @@
     0 0 var(--eth-size-selected-glow-outer) color-mix(in srgb, var(--eth-track-color) 30%, transparent);
 }
 
-/* A short lane: the badge is the icon alone, in the track color (no circle). */
+/* A short lane: the badge is the icon alone, in the track color (no ring). */
 .eth-arr-header--compact .eth-arr-header__badge {
   width: var(--eth-size-icon-md);
   height: var(--eth-size-icon-md);
   margin-right: var(--eth-space-xs);
+  border: none;
   background: transparent;
   color: var(--eth-track-color);
   font-size: var(--eth-fs-md);
 }
 
-/* A group's badge is its fold button: the chevron on the badge's circle in the track color
-   (ink set inline, like the other badges' icons); a short lane shows the chevron alone,
-   neutral. */
+/* A group's badge is its fold button: the chevron in the badge's ring, in the track color; a
+   short lane shows the chevron alone, neutral. */
 .eth-arr-header__fold {
   padding: 0;
-  border: none;
   cursor: pointer;
 }
 .eth-arr-header--compact .eth-arr-header__fold {

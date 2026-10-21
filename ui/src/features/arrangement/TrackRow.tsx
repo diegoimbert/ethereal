@@ -3,7 +3,7 @@ import { surfaceMenuEntries } from "@/ext/surfaces";
 import { useStore } from "zustand";
 import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { AudioLines, ChevronDown, Circle, CornerDownRight, Folder, Headphones, Piano, Speaker, SlidersVertical, Spline, Volume2, VolumeX } from "lucide-react";
-import type { Beats, Color, Track, TrackId } from "@/generated";
+import type { Beats, Track, TrackId } from "@/generated";
 import { promptForInputIfNone } from "@/features/audio-settings";
 import { animateGroupFold, AutomationToggleButton, TrackAutomationLanes } from "@/features/automation";
 import { groupsTrackMenu, VcaLane } from "@/features/groups";
@@ -23,7 +23,7 @@ import { additiveClick } from "@/domain/soloPlan";
 import { selectTrackEntity, trackMenu } from "./actions";
 import { hasClipboard, pasteClips } from "./clipboard";
 import { onLaneInsertPointerDown, type InsertSpan } from "./clipInsert";
-import { colorCss, inkOn } from "./helpers";
+import { colorCss } from "./helpers";
 import { sendEdit, useArrangement } from "./context";
 import { beatsCss, settledZoom, subscribeSettledZoom, useSettledZoom, widthCss } from "./laneGeometry";
 import { midiTarget } from "@/features/midi-learn/targets";
@@ -123,19 +123,13 @@ const TRACK_ICONS: Record<Track["kind"], ReactNode> = {
 };
 
 /**
- * A round badge in the track color with the track type's icon, in dark or light ink,
- * whichever contrasts more with the color (`inkOn`).
+ * A round badge with the track type's icon, both in the track color (CSS; compact, a short
+ * lane: the icon alone).
  */
-function TrackBadge({ kind, color, compact }: { kind: Track["kind"]; color: Color; compact: boolean }) {
+function TrackBadge({ kind }: { kind: Track["kind"] }) {
   const t = useT();
   return (
-    <span
-      className="eth-arr-header__badge"
-      aria-hidden
-      title={t("arrangement.header.kind", { kind: kind.toLowerCase() })}
-      // Compact (a short lane): no circle, the icon in the track color (CSS).
-      style={compact ? undefined : { color: inkOn(color) }}
-    >
+    <span className="eth-arr-header__badge" aria-hidden title={t("arrangement.header.kind", { kind: kind.toLowerCase() })}>
       {TRACK_ICONS[kind]}
     </span>
   );
@@ -257,7 +251,6 @@ function TrackHeader({ row }: { row: Row }) {
             aria-expanded={!folded}
             aria-label={folded ? t("arrangement.header.unfold_named", { name: track.name }) : t("arrangement.header.fold_named", { name: track.name })}
             title={folded ? t("arrangement.header.unfold") : t("arrangement.header.fold")}
-            style={compact ? undefined : { color: inkOn(track.color) }}
             onClick={(e) => {
               stop(e);
               animateGroupFold(track.id, folded);
@@ -267,7 +260,7 @@ function TrackHeader({ row }: { row: Row }) {
             <ChevronDown />
           </button>
         ) : (
-          <TrackBadge kind={track.kind} color={track.color} compact={compact} />
+          <TrackBadge kind={track.kind} />
         )}
         <span className="eth-arr-header__main">
           {renaming ? (
