@@ -67,6 +67,8 @@ export interface ArrangementUiState {
   preview: DragPreview | null;
   /** Timeline position of a pending browser drop (indicator), with its track. */
   dropHint: { track: TrackId | null; at: Beats } | null;
+  /** The track device cards are dragged over (it takes them on drop: `@/features/devices/trackDrop`). */
+  deviceDrop: TrackId | null;
   imports: ReadonlyArray<PendingImport>;
 
   setHeaderWidth(px: number): void;
@@ -85,6 +87,7 @@ export interface ArrangementUiState {
   setGrid(grid: GridSetting): void;
   setPreview(preview: DragPreview | null): void;
   setDropHint(hint: ArrangementUiState["dropHint"]): void;
+  setDeviceDrop(track: TrackId | null): void;
   /** Add or update (by id) a pending import. */
   putImport(item: PendingImport): void;
   removeImport(id: string): void;
@@ -113,6 +116,7 @@ const INITIAL = {
   grid: DEFAULT_GRID,
   preview: null,
   dropHint: null,
+  deviceDrop: null,
   imports: [] as ReadonlyArray<PendingImport>,
 };
 
@@ -155,6 +159,7 @@ export const useArrangementUi = create<ArrangementUiState>()((set) => ({
   setGrid: (grid) => set({ grid }),
   setPreview: (preview) => set({ preview }),
   setDropHint: (dropHint) => set({ dropHint }),
+  setDeviceDrop: (deviceDrop) => set((s) => (s.deviceDrop === deviceDrop ? s : { deviceDrop })),
   putImport: (item) =>
     set((s) => ({
       imports: s.imports.some((i) => i.id === item.id) ? s.imports.map((i) => (i.id === item.id ? item : i)) : [...s.imports, item],

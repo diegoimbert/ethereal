@@ -203,6 +203,8 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
   const { transport } = ctx;
   const dragging = useArrangementUi((s) => s.trackDrag?.track === track.id);
   const dropInto = useArrangementUi((s) => s.trackDrag?.into === track.id);
+  // Device cards dragged over the track (they land on its chain).
+  const deviceDrop = useArrangementUi((s) => s.deviceDrop === track.id);
   const dropBlocked = useArrangementUi((s) => s.trackDrag?.track === track.id && !!s.trackDrag.blocked);
   // Highlighted only as the arrangement's selected entity (not while one of its clips is).
   const selected = useArrangementUi((s) => s.selectedTracks.has(track.id));
@@ -250,7 +252,7 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
           "eth-arr-header",
           selected && "eth-arr-header--selected",
           dragging && "eth-arr-header--dragging",
-          dropInto && "eth-arr-header--drop-into",
+          (dropInto || deviceDrop) && "eth-arr-header--drop-into",
           dropBlocked && "eth-arr-header--drop-blocked",
           compact && "eth-arr-header--compact",
           inert && "eth-arr-header--inert",

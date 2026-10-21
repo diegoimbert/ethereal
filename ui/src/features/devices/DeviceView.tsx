@@ -188,7 +188,8 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
           draggable={!renaming}
           onDragStart={(e) => {
             e.dataTransfer.setData(DEVICE_DRAG_TYPE, device.id);
-            e.dataTransfer.effectAllowed = "move";
+            // Moved in its chain or onto a track in the arranger (⌘ / Ctrl there copies).
+            e.dataTransfer.effectAllowed = "copyMove";
             setDraggingDevice(device.id);
           }}
           onDragEnd={() => setDraggingDevice(null)}

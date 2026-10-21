@@ -41,6 +41,7 @@ import { groupTracks, ungroupSelected, UngroupConfirmDialog } from "@/features/g
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
 import { actionForKey, bindSingleSelection, newTrackMenu, runClipAction, selectAtLaneClick, selectTrackEntity } from "./actions";
 import { dropBrowserMedia, hasBrowserDrag, hasBrowserMidiDrag, readBrowserDrag } from "./browserDrop";
+import { acceptsDevices, dropDevicesOnTrack, isDeviceDrag } from "@/features/devices/trackDrop";
 import { importMidiFile, isMidiName } from "@/features/midi-file/importMidi";
 import { sourceName } from "@/features/import/sources";
 import { ArrangementContext, type ArrangementContextValue } from "./context";
@@ -391,8 +392,24 @@ function ConnectedArrangementView() {
     void importAudio(transport, audio, t);
   };
 
+  /** The track row under a drag (`null`: below the tracks). */
+  const rowTrackAt = (e: DropPoint) => {
+    const box = contentRef.current?.getBoundingClientRect();
+    return rowsRef.current[rowIndexAt(rowsRef.current, e.clientY - (box?.top ?? 0))]?.track ?? null;
+  };
+  // Device cards dragged from a chain onto a track (header or lane): moved there (copied
+  // with ⌘ / Ctrl), `@/features/devices/trackDrop`.
+  const onDeviceDragOver = (e: DragEvent<HTMLDivElement>) => {
+    const track = rowTrackAt(e);
+    const ok = track !== null && acceptsDevices(track);
+    if (ok) e.preventDefault();
+    e.dataTransfer.dropEffect = !ok ? "none" : e.metaKey || e.ctrlKey ? "copy" : "move";
+    useArrangementUi.getState().setDeviceDrop(ok ? track.id : null);
+  };
+
   const onDragOver = (e: DragEvent<HTMLDivElement>) => {
     if (isReadOnly()) return;
+    if (isDeviceDrag(e.dataTransfer.types)) return onDeviceDragOver(e);
     const files = hasOsFiles(e.dataTransfer);
     if (!files && !hasBrowserDrag(e.dataTransfer)) return;
     e.preventDefault();
@@ -407,6 +424,14 @@ function ConnectedArrangementView() {
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
     if (isReadOnly()) return;
+    if (isDeviceDrag(e.dataTransfer.types)) {
+      useArrangementUi.getState().setDeviceDrop(null);
+      const track = rowTrackAt(e);
+      if (!track || !acceptsDevices(track)) return;
+      e.preventDefault();
+      void dropDevicesOnTrack(transport, e.dataTransfer, track.id, e.metaKey || e.ctrlKey);
+      return;
+    }
     if (hasOsFiles(e.dataTransfer)) {
       e.preventDefault();
       importAt(droppedFiles(e.dataTransfer), e);
@@ -518,7 +543,12 @@ function ConnectedArrangementView() {
               }
             }}
             onDragOver={onDragOver}
-            onDragLeave={() => useArrangementUi.getState().setDropHint(null)}
+            onDragLeave={(e) => {
+              // Leaving the content (not moving between its children).
+              if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return;
+              useArrangementUi.getState().setDropHint(null);
+              useArrangementUi.getState().setDeviceDrop(null);
+            }}
             onDrop={onDrop}
             data-testid="arrangement-content"
           >

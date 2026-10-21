@@ -479,6 +479,18 @@ describe("DeviceChain: stacked layout (inspector)", () => {
     expect(chainNames("Keys")).toEqual(["Synth"]);
   });
 
+  it("⌘V with the focus on no card pastes at the end of the selected track's chain", async () => {
+    await renderStack();
+    act(() => useSelectionStore.getState().selectTrack(trackByName("Keys").id));
+    fireEvent.pointerDown(deviceEl("Compressor").querySelector("header")!, { button: 0 });
+    act(() => void document.dispatchEvent(new Event("copy")));
+    act(() => (document.activeElement as HTMLElement | null)?.blur());
+    expect(document.activeElement).toBe(document.body);
+    act(() => void document.dispatchEvent(new Event("paste")));
+    await flush();
+    expect(chainNames("Keys")).toEqual(["Synth", "Compressor", "Compressor"]);
+  });
+
   it("labels the sections; stacked cards have no up/down buttons (drag the header)", async () => {
     await renderStack();
     // Every section a MIDI track holds, empty ones included.

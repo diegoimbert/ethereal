@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { act, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Clip, Command, Track } from "@/generated";
-import { playheadStore, tracksOrdered, useEditorStore, useProjectStore, useSelectionStore } from "@/state";
+import { devicesOfTrack, playheadStore, tracksOrdered, useEditorStore, useProjectStore, useSelectionStore } from "@/state";
+import { DEVICE_DRAG_TYPE } from "@/features/devices/chainUtils";
 import { itemSelection, wheelZoomFactor } from "@/timeline";
 import { cmd, newId, TransportProvider } from "@/transport";
 import { MockTransport } from "@/transport/mock";
@@ -1854,6 +1855,43 @@ describe("ArrangementView: audio and drops", () => {
     // Track + clip are one undo step (media was already in the project).
     await undo();
     expect(Object.keys(project().tracks)).toHaveLength(tracksBefore);
+  });
+});
+
+describe("ArrangementView: device cards dropped on a track", () => {
+  const chainOf = (track: Track) => devicesOfTrack(project(), track.id).map((d) => d.name);
+  /** A device-card drag event at track row `i` (jsdom has no DragEvent). */
+  function fireDeviceDrag(type: "dragOver" | "drop", id: string, i: number, mods: { ctrlKey?: boolean } = {}) {
+    const content = screen.getByTestId("arrangement-content");
+    const ev = createEvent[type](content, {
+      dataTransfer: { types: [DEVICE_DRAG_TYPE], getData: (t: string) => (t === DEVICE_DRAG_TYPE ? id : ""), dropEffect: "none" },
+    });
+    Object.defineProperty(ev, "ctrlKey", { value: !!mods.ctrlKey });
+    Object.defineProperty(ev, "clientX", { value: HEADER_WIDTH + 4 * PX });
+    Object.defineProperty(ev, "clientY", { value: i * ROW + 20 });
+    fireEvent(content, ev);
+  }
+
+  it("moves the dragged device to the end of its section on the track under it (⌘ / Ctrl: copies)", async () => {
+    const keys = trackByName("Keys");
+    const ordered = tracksOrdered(project());
+    const i = ordered.findIndex((t) => t.kind === "Audio");
+    const target = ordered[i]!;
+    const before = chainOf(target);
+    const comp = devicesOfTrack(project(), keys.id).find((d) => d.name === "Compressor")!;
+    fireDeviceDrag("dragOver", comp.id, i);
+    expect(useArrangementUi.getState().deviceDrop).toBe(target.id);
+    fireDeviceDrag("drop", comp.id, i);
+    await flush();
+    expect(useArrangementUi.getState().deviceDrop).toBeNull();
+    expect(chainOf(target)).toEqual([...before, "Compressor"]);
+    expect(chainOf(keys)).not.toContain("Compressor");
+    // Back on Keys, copied: both keep one.
+    const moved = devicesOfTrack(project(), target.id).find((d) => d.name === "Compressor")!;
+    fireDeviceDrag("drop", moved.id, ordered.indexOf(keys), { ctrlKey: true });
+    await flush();
+    expect(chainOf(keys)).toContain("Compressor");
+    expect(chainOf(target)).toContain("Compressor");
   });
 });
 
