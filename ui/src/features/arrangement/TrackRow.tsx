@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { surfaceMenuEntries } from "@/ext/surfaces";
 import { useContributions } from "@/ext";
 import { useStore } from "zustand";
-import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { AudioLines, ChevronDown, Circle, CornerDownRight, Folder, Headphones, Piano, Speaker, SlidersVertical, Spline, Volume2, VolumeX } from "lucide-react";
 import type { Beats, Track, TrackId } from "@/generated";
 import { promptForInputIfNone } from "@/features/audio-settings";
@@ -231,6 +231,19 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
   const viewer = useViewer();
   const readOnly = viewer !== null;
   const listenBlocked = listenBlockedReason(viewer, track.id);
+  // Turning compact or back, the buttons change places: for that frame they show or hide at
+  // once (their fade is for hover), never fading out where they were.
+  const [wasCompact, setWasCompact] = useState(compact);
+  const [relayout, setRelayout] = useState(false);
+  if (wasCompact !== compact) {
+    setWasCompact(compact);
+    setRelayout(true);
+  }
+  useEffect(() => {
+    if (!relayout) return;
+    const frame = requestAnimationFrame(() => setRelayout(false));
+    return () => cancelAnimationFrame(frame);
+  }, [relayout]);
 
   return (
     <>
@@ -261,6 +274,7 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
         )}
         data-clip-selected={clipSelected || undefined}
         data-group-hover={inHoveredGroup || undefined}
+        data-relayout={relayout || undefined}
         onPointerEnter={track.kind === "Group" ? () => useArrangementUi.getState().setHoveredGroup(track.id) : undefined}
         onPointerLeave={
           track.kind === "Group"

@@ -1001,6 +1001,11 @@
   pointer-events: auto;
 }
 
+/* Turning compact or back (TrackRow): the buttons move, so they show or hide at once. */
+.eth-arr-header[data-relayout] .eth-arr-header__toggle {
+  transition: none;
+}
+
 .eth-arr-header__toggle:hover {
   background: var(--eth-color-bg-hover);
   color: var(--eth-color-text);
