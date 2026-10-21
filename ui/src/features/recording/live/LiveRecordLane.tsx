@@ -5,6 +5,10 @@
  * inside the lane's `LaneLayer` (positions in beats from `origin`, like clips). It only
  * overlays: the user's clips are never restyled. On `Stopped` it freezes over the committed
  * clips (which land exactly where it was) until their waveform is loaded, then disappears.
+ *
+ * `LiveRecordView` draws any live view (`LiveTrackView`) against a clock: the local one uses
+ * this app's playhead; an extension shows a recording made elsewhere with its own model and
+ * clock (`arrangement.lane`), so it looks the same.
  */
 
 import clsx from "clsx";
@@ -13,13 +17,12 @@ import type { Beats, Color, Note, TrackId } from "@/generated";
 import { drawNotes, drawWaveform, pitchRange, type DrawArea } from "@/features/arrangement/clipDraw";
 import { clipInk, colorCss } from "@/features/arrangement/helpers";
 import { beatsCss, widthCss } from "@/features/arrangement/laneGeometry";
-import { playheadStore } from "@/state";
 import { useTheme } from "@/theme";
 import { useTempoMap, type TempoMap } from "@/timeline";
 import type { EngineTransport } from "@/transport";
 import { useT } from "@/i18n";
-import { liveEnd, noteSpans, takeEnd, type LiveNote, type LiveTake, type LivePhase } from "./liveModel";
-import { useLiveRecordingFeed, useLiveTrack } from "./liveStore";
+import { liveEnd, noteSpans, takeEnd, type LiveClock, type LiveNote, type LiveTake, type LivePhase, type LiveTrackView } from "./liveModel";
+import { localLiveClock, useLiveRecordingFeed, useLiveTrack } from "./liveStore";
 
 /** Longest canvas side in device px. */
 const MAX_CANVAS_PX = 16384;
@@ -41,6 +44,18 @@ export interface LiveRecordLaneProps {
 export function LiveRecordLane(props: LiveRecordLaneProps) {
   useLiveRecordingFeed(props.transport);
   const view = useLiveTrack(props.track);
+  return <LiveRecordView color={props.color} origin={props.origin} visible={props.visible} pxPerBeat={props.pxPerBeat} view={view} clock={localLiveClock} />;
+}
+
+export interface LiveRecordViewProps extends Omit<LiveRecordLaneProps, "transport" | "track"> {
+  view: LiveTrackView;
+  clock: LiveClock;
+  /** Tags the clips (`data-live-source`), e.g. the site recording them. */
+  source?: string;
+}
+
+/** The live clips of one lane's live view (see the file comment). */
+export function LiveRecordView({ view, ...props }: LiveRecordViewProps) {
   const tempo = useTempoMap();
   const [theme] = useTheme();
   if (view.takes.length === 0 && view.notes.length === 0) return null;
@@ -56,7 +71,7 @@ export function LiveRecordLane(props: LiveRecordLaneProps) {
   );
 }
 
-interface LiveClipProps extends LiveRecordLaneProps {
+interface LiveClipProps extends Omit<LiveRecordViewProps, "view"> {
   phase: LivePhase;
   tempo: TempoMap;
   ink: string;
@@ -103,7 +118,7 @@ function LiveClip(p: LiveClipProps) {
       const el = box.current;
       const cv = canvas.current;
       if (!el || !cv) return;
-      const playhead = playheadStore.getPlayhead()?.transport.position ?? null;
+      const playhead = q.clock.position();
       // The clip box follows the playhead every frame (CSS only).
       const { start, end, bpm } = extent(q, playhead);
       el.style.left = beatsCss(start - q.origin);
@@ -172,7 +187,7 @@ function LiveClip(p: LiveClipProps) {
       if (!frame) frame = requestAnimationFrame(draw);
     };
     draw();
-    const off = playheadStore.subscribePlayhead(schedule);
+    const off = p.clock.subscribe(schedule);
     return () => {
       off();
       if (frame) cancelAnimationFrame(frame);
@@ -191,6 +206,7 @@ function LiveClip(p: LiveClipProps) {
       data-live-peaks={p.take?.count}
       data-live-notes={p.notes?.length}
       data-live-phase={p.phase}
+      data-live-source={p.source}
       aria-hidden
     >
       <div className="eth-clip__title">
