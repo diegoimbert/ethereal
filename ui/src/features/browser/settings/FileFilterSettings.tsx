@@ -12,7 +12,7 @@
  *   sidecar files hidden). `FileFilterChanged` from elsewhere (another window) is followed.
  */
 import "./fileFilterSettings.css";
-import { useCallback, useEffect, useState, type FocusEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FocusEvent } from "react";
 import { Plus, X } from "lucide-react";
 import type { FileFilter, FileFilterCheck, FileFilterList } from "@/generated";
 import { useEngineEvent } from "@/features/transport-bar/engine";
@@ -118,6 +118,8 @@ export function FileFilterSettings({ transport }: { transport: EngineTransport }
   const [error, setError] = useState<string | null>(null);
   const [recount, setRecount] = useState(0);
   const [regexMode, setRegexModeState] = useState(loadRegexMode);
+  /** The row a press is in (until that press's events are over): its field's blur keeps it. */
+  const pressedRow = useRef<string | null>(null);
   const setRegexMode = (on: boolean) => {
     setRegexModeState(on);
     try {
@@ -230,10 +232,15 @@ export function FileFilterSettings({ transport }: { transport: EngineTransport }
     return next;
   };
 
-  /** A rule's field lost focus: save, dropping it when blank, unless focus stays in its row (its kind menu). */
+  /**
+   * A rule's field lost focus: save, dropping it when blank, unless the focus stays in its row
+   * or the blur comes from a press in it (its kind menu: WebKit doesn't focus a pressed button,
+   * so the press is what tells; it comes before the blur in every browser).
+   */
   const leaveRow = (e: FocusEvent<HTMLElement>, list: FileFilterList, row: Row) => {
     const to = e.relatedTarget;
     if (to instanceof Node && e.currentTarget.closest(".eth-file-filter__rule")?.contains(to)) return;
+    if (pressedRow.current === row.id) return;
     const current = lists[list].find((r) => r.id === row.id) ?? row;
     const next = current.text.trim() === "" ? edit(list, (rows) => rows.filter((r) => r.id !== row.id)) : lists;
     void save(next);
@@ -270,7 +277,16 @@ export function FileFilterSettings({ transport }: { transport: EngineTransport }
                 const message = rowError.get(row.id);
                 const errorId = `eth-file-filter-${row.id}`;
                 return (
-                  <li key={row.id} className="eth-file-filter__rule">
+                  <li
+                    key={row.id}
+                    className="eth-file-filter__rule"
+                    onPointerDownCapture={() => {
+                      pressedRow.current = row.id;
+                      setTimeout(() => {
+                        if (pressedRow.current === row.id) pressedRow.current = null;
+                      }, 0);
+                    }}
+                  >
                     <div className="eth-file-filter__rule-row">
                       {regexMode ? (
                         <TextInput

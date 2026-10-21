@@ -136,6 +136,20 @@ describe("FileFilterSettings (plain terms, the default)", () => {
     expect(values(show())).toEqual(["^take[0-9]+"]);
   });
 
+  it("a new rule stays when its kind menu is pressed (WebKit: the press doesn't move the focus)", async () => {
+    await setup();
+    fireEvent.click(screen.getByRole("button", { name: "add show rule" }));
+    const input = show().getByRole("textbox", { name: "show rule 4" });
+    const kind = show().getByRole("combobox", { name: "kind of show rule 4" });
+    fireEvent.pointerDown(kind);
+    fireEvent.blur(input, { relatedTarget: null });
+    expect(show().getByRole("textbox", { name: "show rule 4" })).toBeInTheDocument();
+    // Leaving it blank by other means still drops it.
+    await new Promise((r) => setTimeout(r, 0));
+    fireEvent.blur(show().getByRole("textbox", { name: "show rule 4" }), { relatedTarget: null });
+    await waitFor(() => expect(show().queryByRole("textbox", { name: "show rule 4" })).toBeNull());
+  });
+
   it("adds a file type in plain words: saved as the rule it means", async () => {
     const { mock } = await setup();
     fireEvent.click(screen.getByRole("button", { name: "add show rule" }));
