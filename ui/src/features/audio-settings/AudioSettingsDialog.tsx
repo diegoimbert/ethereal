@@ -180,7 +180,6 @@ export function AudioSettingsDialog() {
             })}
           </nav>
           <div className="eth-settings__panel" role="region" aria-label={page.label}>
-            <h2 className="eth-settings__page-title">{category.pages.length > 1 ? `${category.label} · ${page.label}` : page.label}</h2>
             {!transport && !noEngine && <p className="eth-audio-settings__note">{t("settings.no_engine")}</p>}
             <Sections at="start" tab={page.id} sections={sections} transport={transport} />
             {page.id === "general" && (

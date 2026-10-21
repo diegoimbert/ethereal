@@ -163,12 +163,7 @@
 .eth-settings__nav-page {
   font-size: var(--eth-fs-xs);
 }
-.eth-settings__page-title {
-  margin: 0 0 var(--eth-space-lg);
-  color: var(--eth-color-text);
-  font-size: var(--eth-fs-md);
-  font-weight: var(--eth-fw-medium);
-}
+
 .eth-settings__panel {
   flex: 1;
   min-width: 0;
