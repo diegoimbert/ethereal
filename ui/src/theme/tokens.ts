@@ -444,6 +444,8 @@ export const size = {
   trackButton: "20px",
   /** Track header buttons (mute, solo, arm, ...), under the volume and pan. */
   trackHeaderButton: "20px",
+  /** Their icons: most of the button (a thin hover frame around them). */
+  trackHeaderIcon: "14.5px",
   trackMeterWidth: "3px",
   trackFaderWidth: "44px",
   trackFaderThumb: "8px",

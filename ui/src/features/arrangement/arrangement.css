@@ -1012,6 +1012,11 @@
   font-size: var(--eth-fs-sm);
 }
 
+.eth-arr-header__buttons .eth-arr-header__toggle .lucide {
+  width: var(--eth-size-track-header-icon);
+  height: var(--eth-size-track-header-icon);
+}
+
 .eth-arr-header__automation[aria-pressed="true"] {
   background: var(--eth-color-accent-subtle);
   color: var(--eth-color-accent);
