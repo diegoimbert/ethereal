@@ -92,6 +92,11 @@ export interface MarqueeHandle {
    * dragging (or in section mode).
    */
   rect: Rect | null;
+  /**
+   * The sides of `rect` the element's box cut (the drag goes on past them), space-separated
+   * ("left top"...): drawn without their border, so the box reads as going on past the edge.
+   */
+  cut: string;
   /** Attach to the background element's `onPointerDown`. */
   onPointerDown: (e: ReactPointerEvent<Element>) => void;
 }
@@ -103,7 +108,7 @@ export interface MarqueeHandle {
  * kind's selection.
  */
 export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): MarqueeHandle {
-  const [rect, setRect] = useState<Rect | null>(null);
+  const [shown, setShown] = useState<{ rect: Rect; cut: string } | null>(null);
   const optsRef = useRef(opts);
   useEffect(() => {
     optsRef.current = opts;
@@ -145,13 +150,13 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
         // Leaving item mode: the items the drag had selected go back to the press's selection.
         if (itemsShown) store.getState().select(kind, base, "replace");
         itemsShown = false;
-        setRect(null);
+        setShown(null);
         optsRef.current.section!.onPreview(r);
         return;
       }
       optsRef.current.section?.onPreview(null);
       itemsShown = true;
-      setRect(clipTo(r, el));
+      setShown(clipTo(r, el));
       const hits = optsRef.current.hitTest(r);
       store.getState().select(kind, combineSelection(base, hits, mode), "replace");
     };
@@ -218,7 +223,7 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
       edge.stop();
       unsubView?.();
       cleanup.current = null;
-      setRect(null);
+      setShown(null);
     };
     cleanup.current?.();
     cleanup.current = done;
@@ -230,7 +235,7 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
     window.addEventListener("scroll", onScroll, true);
   }, []);
 
-  return { rect, onPointerDown };
+  return { rect: shown?.rect ?? null, cut: shown?.cut ?? "", onPointerDown };
 }
 
 const beatAtPx = (view: TimelineViewStore, px: number): number => {
@@ -283,14 +288,16 @@ function edgeScroller(overshoot: () => number, scroll: (dx: number) => void): { 
 }
 
 /**
- * `r` within `el`'s box: drawn past it, the marquee would make the element (or its scroll
+ * `r` within `el`'s box, and the sides it cut: drawn past it, the marquee would make the element (or its scroll
  * container) overflow, and the browser would scroll that while dragging, then back on
  * release. An axis the element has no size on (not laid out) is left as is.
  */
-function clipTo(r: Rect, el: Element): Rect {
+function clipTo(r: Rect, el: Element): { rect: Rect; cut: string } {
   const w = el.clientWidth;
   const h = el.clientHeight;
   const cx = (v: number) => (w > 0 ? Math.min(w, Math.max(0, v)) : v);
   const cy = (v: number) => (h > 0 ? Math.min(h, Math.max(0, v)) : v);
-  return { x0: cx(r.x0), y0: cy(r.y0), x1: cx(r.x1), y1: cy(r.y1) };
+  const rect = { x0: cx(r.x0), y0: cy(r.y0), x1: cx(r.x1), y1: cy(r.y1) };
+  const cut = [rect.x0 > r.x0 && "left", rect.x1 < r.x1 && "right", rect.y0 > r.y0 && "top", rect.y1 < r.y1 && "bottom"].filter(Boolean).join(" ");
+  return { rect, cut };
 }

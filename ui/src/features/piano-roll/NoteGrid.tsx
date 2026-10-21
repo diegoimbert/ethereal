@@ -772,6 +772,7 @@ export function NoteGrid({
         <div
           className="eth-pr-grid__marquee"
           data-testid="piano-roll-marquee"
+          data-cut={marquee.cut || undefined}
           style={{
             left: marquee.rect.x0,
             top: marquee.rect.y0,

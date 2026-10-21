@@ -221,6 +221,28 @@
   border-radius: var(--eth-radius-sm);
 }
 
+/* A side the view cuts (the drag goes on past it: data-cut): no border, square corners. */
+.eth-arr__marquee[data-cut~="left"] {
+  border-left-color: transparent;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.eth-arr__marquee[data-cut~="right"] {
+  border-right-color: transparent;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.eth-arr__marquee[data-cut~="top"] {
+  border-top-color: transparent;
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+.eth-arr__marquee[data-cut~="bottom"] {
+  border-bottom-color: transparent;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
 .eth-arr__drop-area {
   position: relative;
   display: flex;

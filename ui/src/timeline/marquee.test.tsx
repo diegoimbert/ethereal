@@ -51,9 +51,11 @@ describe("useMarquee", () => {
     const view = createTimelineViewStore({ pxPerBeat: 10, scrollBeats: 20, widthPx: 400 });
     const tested: Rect[] = [];
     let shown: Rect | null = null;
+    let cut = "";
     function Grid() {
       const m = useMarquee({ kind: "clip", store, hitTest: (r) => (tested.push(r), []), timeline: { view, originPx: () => 100 } });
       shown = m.rect;
+      cut = m.cut;
       return <div data-testid="grid" onPointerDown={m.onPointerDown} />;
     }
     const { getByTestId } = render(<Grid />);
@@ -81,6 +83,8 @@ describe("useMarquee", () => {
     expect(tested.at(-1)).toMatchObject({ x0: 150, y0: 50, y1: 400 });
     expect(tested.at(-1)!.x1).toBeGreaterThanOrEqual(700);
     expect(shown).toMatchObject({ x0: 150, y0: 50, x1: 500, y1: 300 });
+    // Drawn without the cut sides' borders: the box goes on past the edges.
+    expect(cut).toBe("right bottom");
     act(() => {
       window.dispatchEvent(new MouseEvent("pointerup", { clientX: 700, clientY: 400 }));
     });

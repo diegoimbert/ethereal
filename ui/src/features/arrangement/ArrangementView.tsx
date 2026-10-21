@@ -550,6 +550,8 @@ function ConnectedArrangementView() {
               <div
                 className="eth-arr__marquee"
                 data-testid="marquee"
+                // Past the lanes' left edge (under the header column) it goes on: no left border.
+                data-cut={[marquee.cut, m.x0 < headerWidth && !marquee.cut.includes("left") ? "left" : ""].join(" ").trim() || undefined}
                 style={{
                   left: Math.max(m.x0, headerWidth),
                   top: m.y0,
