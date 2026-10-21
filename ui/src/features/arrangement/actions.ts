@@ -280,7 +280,7 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
       itemSelection.getState().clear("clip");
       useArrangementUi.getState().setTrackFocus(null);
       // Escape also closes an unpinned piano roll.
-      useEditorStore.getState().dismiss();
+      useEditorStore.getState().dismiss(true);
       return Promise.resolve();
   }
 }
@@ -327,12 +327,12 @@ export function clipMenu(transport: EngineTransport, clip: Clip): ContextMenuEnt
           {
             label:
               clips.length > 1 && midi > 1 ? t("arrangement.clip_menu.edit_in_piano_roll", { count: midi }) : t("arrangement.clip_menu.open_in_piano_roll"),
-            onSelect: () => useEditorStore.getState().openClip(clip.id),
+            onSelect: () => useEditorStore.getState().revealClip(clip.id),
           },
           "separator" as const,
         ]
-      : // An audio clip opens in its editor (the drawer's audio tab), like a click on it.
-        [{ label: t("arrangement.clip_menu.open_in_editor"), onSelect: () => useEditorStore.getState().openClip(clip.id) }, "separator" as const]),
+      : // An audio clip opens in its editor (the drawer's audio tab), like a double-click on it.
+        [{ label: t("arrangement.clip_menu.open_in_editor"), onSelect: () => useEditorStore.getState().revealClip(clip.id) }, "separator" as const]),
     ...(clips.length <= 1 ? [{ label: t("arrangement.menu.rename"), onSelect: () => renameClipInPlace(clip.id) }, "separator" as const] : []),
     { label: t("arrangement.menu.cut"), shortcut: shortcutLabel("edit.cut"), onSelect: run("cut") },
     { label: t("arrangement.menu.copy"), shortcut: shortcutLabel("edit.copy"), onSelect: run("copy") },

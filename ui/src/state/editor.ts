@@ -11,13 +11,14 @@ export interface EditorState {
   request: number;
   /** Bumped by `dismiss`: the arrangement was clicked away from the edited clip. */
   dismissed: number;
-  /** Bumped by `revealClip`: the shell expands its collapsed editor drawer and inspector (or collapses both). */
+  /** The latest `dismiss` closes the drawer (Escape) rather than collapsing it (a click away). */
+  dismissCloses: boolean;
+  /** Bumped by `revealClip`: the shell expands the editor drawer and collapses the inspector. */
   revealed: number;
   openClip(id: ClipId): void;
   /**
-   * A double-click on a clip: `openClip`, and the shell force-expands the editor drawer and
-   * the inspector if they are collapsed. A plain click only opens the clip. A toggle:
-   * on the clip already open with both expanded, the shell collapses both instead.
+   * A double-click on a clip: `openClip`, and the shell expands the editor drawer and
+   * collapses the inspector to its bar (unless pinned).
    */
   revealClip(id: ClipId): void;
   /**
@@ -26,20 +27,24 @@ export interface EditorState {
    */
   focusClip(id: ClipId): void;
   close(): void;
-  /** A click away from the drawer (outside any clip): the shell closes an unpinned drawer. */
-  dismiss(): void;
+  /**
+   * A click away from the drawer (outside any clip): the shell collapses an unpinned drawer to
+   * its bar (closes it when it has no clip to show). `close`: Escape, it closes.
+   */
+  dismiss(close?: boolean): void;
 }
 
 export const useEditorStore = create<EditorState>()((set) => ({
   clip: null,
   request: 0,
   dismissed: 0,
+  dismissCloses: false,
   revealed: 0,
   openClip: (id) => set((s) => ({ clip: id, request: s.request + 1 })),
   revealClip: (id) => set((s) => ({ clip: id, request: s.request + 1, revealed: s.revealed + 1 })),
   focusClip: (id) => set((s) => (s.clip === id ? s : { clip: id })),
   close: () => set({ clip: null }),
-  dismiss: () => set((s) => ({ dismissed: s.dismissed + 1 })),
+  dismiss: (close = false) => set((s) => ({ dismissed: s.dismissed + 1, dismissCloses: close })),
 }));
 
 export const useEditedClipId = (): ClipId | null => useEditorStore((s) => s.clip);
@@ -64,19 +69,17 @@ function onNextRelease(done: (e: PointerEvent | null) => void): void {
   window.addEventListener("pointercancel", cancel);
 }
 
-/** A press away from the drawer: closes an unpinned drawer on release. */
+/** A press away from the drawer: collapses an unpinned drawer on release. */
 export function dismissOnRelease(): void {
   onNextRelease(() => useEditorStore.getState().dismiss());
 }
 
 /**
- * A press on a clip: opens it in the drawer on release, if the pointer did not travel (a
- * click, not a drag-to-move/resize).
+ * A press on a clip: runs `show` (shows the clip in the drawer) on release, if the pointer did
+ * not travel (a click, not a drag-to-move/resize).
  */
-export function openClipOnClick(id: ClipId, from: { clientX: number; clientY: number }): void {
+export function showClipOnClick(from: { clientX: number; clientY: number }, show: () => void): void {
   onNextRelease((e) => {
-    if (e && Math.hypot(e.clientX - from.clientX, e.clientY - from.clientY) <= CLICK_SLOP) {
-      useEditorStore.getState().openClip(id);
-    }
+    if (e && Math.hypot(e.clientX - from.clientX, e.clientY - from.clientY) <= CLICK_SLOP) show();
   });
 }

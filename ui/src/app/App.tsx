@@ -20,7 +20,6 @@ import { useT } from "@/i18n";
 import { ConfirmDialog, ContextMenuHost, IconButton, ReadOnlySurface, TitleTooltipHost, ToastStack } from "@/kit";
 import { dismissOnRelease, useEditorStore, useProjectStore, useReadOnly } from "@/state";
 import { size } from "@/theme";
-import type { ClipId } from "@/generated";
 import { ArrangementView } from "@/features/arrangement";
 import { AudioSettingsDialog, openSettings } from "@/features/audio-settings";
 import { MarkerLane } from "@/features/clip-editing";
@@ -78,9 +77,6 @@ const shellHeight = () => document.querySelector<HTMLElement>(".eth-shell")?.cli
 /** A pane's largest size: the arrangement keeps at least `MAIN_MIN` beside / above it. */
 const sideMax = () => window.innerWidth - MAIN_MIN;
 const bottomMax = () => shellHeight() - MAIN_MIN - px(size.topBarHeight) - px(size.statusBarHeight);
-/** A press this soon (ms) and this close (px) to the previous one continues its click sequence. */
-const DOUBLE_CLICK_MS = 500;
-const DOUBLE_CLICK_SLOP = 8;
 
 // The workspace re-renders whenever a pane opens, closes, resizes or (un)pins; its content
 // doesn't depend on that, so it is memoized (re-rendering the arrangement or the piano roll
@@ -121,69 +117,44 @@ function Workspace() {
   // Undo / redo bring back the sections (time selection, piano-roll section) of their step.
   useEffect(() => bindSelectionHistory(), []);
 
-  // The inspector opens with the selection (the store knows, for layout and tests).
+  // The inspector is there whenever something is selected (the store knows, for layout and
+  // tests); expanded or a bar: a track header click expands it, a click on the lanes' empty
+  // space or a double-click on a clip collapses it (TrackRow, ArrangementView, below).
   useEffect(() => {
     if (shell().right.open !== rightOpen) shell().setOpen("right", rightOpen);
   }, [rightOpen, shell]);
 
-  // The clip open in the editor when the latest click sequence began (its first press): a
-  // double-click's first click already opens the clip it lands on, so this tells a double-click
-  // on the clip that was already open from one on another clip. `undefined`: no press seen yet.
-  // Browsers report a pointerdown's `detail` as 0, so a press that follows the previous one
-  // quickly and nearby (the double-click window) continues its sequence.
-  const pressedClip = useRef<ClipId | null | undefined>(undefined);
-  useEffect(() => {
-    let last: { t: number; x: number; y: number } | null = null;
-    const onDown = (e: PointerEvent) => {
-      const near = last !== null && e.timeStamp - last.t < DOUBLE_CLICK_MS && Math.hypot(e.clientX - last.x, e.clientY - last.y) <= DOUBLE_CLICK_SLOP;
-      last = { t: e.timeStamp, x: e.clientX, y: e.clientY };
-      if (e.detail > 0 ? e.detail === 1 : !near) pressedClip.current = useEditorStore.getState().clip;
-    };
-    document.addEventListener("pointerdown", onDown, true);
-    return () => document.removeEventListener("pointerdown", onDown, true);
-  }, []);
-
-  // Opening a clip (a click on a clip, a double-click) shows its
-  // editor in the drawer.
+  // Showing a clip (a click on one, a double-click, "open in editor") opens the drawer on its
+  // editor; a click shows it collapsed unless the drawer is expanded (ArrangementView).
   useEffect(
     () =>
       useEditorStore.subscribe((s, prev) => {
-        // Clicked away from the drawer (and off any clip): an unpinned drawer closes.
+        // Clicked away from the drawer (and off any clip): an unpinned drawer collapses to its
+        // bar, or closes when it has no clip to show; Escape closes it.
         if (s.dismissed !== prev.dismissed) {
           const { bottom } = shell();
-          if (bottom.open && !bottom.pinned) shell().setOpen("bottom", false);
+          if (!bottom.open || bottom.pinned) return;
+          const clip = s.clip ? useProjectStore.getState().project?.clips[s.clip] : undefined;
+          if (s.dismissCloses || !clip) shell().setOpen("bottom", false);
+          else shell().setCollapsed("bottom", true);
           return;
         }
         if (s.request === prev.request || !s.clip) return;
         const clip = useProjectStore.getState().project?.clips[s.clip];
         if (!clip) return;
-        const revealed = s.revealed !== prev.revealed;
-        // A double-click toggles: on the clip already open, with the drawer and the inspector
-        // both expanded, it collapses both (each keeps its size for the next expand; the clip
-        // stays selected and open, so the next double-click expands back to it). On another
-        // clip the editor switches to it and both stay open: the user wants to see that clip.
-        if (revealed) {
-          const { bottom, right } = shell();
-          const was = pressedClip.current === undefined ? prev.clip : pressedClip.current;
-          if (was === s.clip && bottom.open && !bottom.collapsed && right.open && !right.collapsed) {
-            shell().setCollapsed("bottom", true);
-            shell().setCollapsed("right", true);
-            return;
-          }
-        }
         shell().openDrawer(clip.content.type === "Midi" ? "piano-roll" : "warp");
-        // A double-click also expands the drawer and the inspector if collapsed, at their last
-        // size, clamped like a resize so the arrangement keeps its minimum size (on a small
-        // window both still expand, each at most down to that limit, never below MIN).
-        if (revealed) {
+        // A double-click always shows the editor: the drawer expands at its last size, clamped
+        // like a resize so the arrangement keeps its minimum size; the inspector collapses to
+        // its bar (unless pinned), leaving the room to the editor.
+        if (s.revealed !== prev.revealed) {
           shell().expand("bottom", MIN, bottomMax());
-          shell().expand("right", MIN, sideMax());
+          if (!shell().right.pinned) shell().setCollapsed("right", true);
         }
       }),
     [shell],
   );
 
-  // A press anywhere outside the drawer closes it, unless pinned. Not the arrangement's
+  // A press anywhere outside the drawer collapses it, unless pinned. Not the arrangement's
   // tracks (they decide per clip: a clip opens/switches the drawer), nor the drawer itself
   // (its resize handle included), nor floating layers (popovers, menus, dialogs) opened
   // from it, nor the side panes and the top bar (see DRAWER_KEEPS).

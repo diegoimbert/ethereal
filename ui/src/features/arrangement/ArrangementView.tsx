@@ -7,7 +7,8 @@ import { droppedFiles, hasOsFiles, importAudio, noteHover, openImportDialog, typ
 import { AddTrackRow } from "./newTrack";
 import { useContext, useEffect, useLayoutEffect, useMemo, useRef, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
 import type { Beats, TrackId } from "@/generated";
-import { isReadOnly, useEditorStore, useReadOnly, dismissOnRelease, openClipOnClick, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
+import { useShellStore } from "@/state/shell";
+import { isReadOnly, useEditorStore, useReadOnly, dismissOnRelease, showClipOnClick, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
 import {
   BeatCanvas,
   gridLines,
@@ -309,9 +310,10 @@ function ConnectedArrangementView() {
   });
 
   /**
-   * Pointer press in the tracks (capture, so clips' own handlers can't hide it): on a MIDI
-   * clip it opens that clip in the piano roll; anywhere else it dismisses the piano roll
-   * (the shell keeps it when pinned).
+   * Pointer press in the tracks (capture, so clips' own handlers can't hide it). On a clip it
+   * shows that clip in the editor drawer and the inspector, each as a bar unless already
+   * expanded (a click never expands a pane: a double-click expands the drawer). Anywhere else it collapses the drawer, and on the lanes'
+   * empty space the inspector too (a track header expands it: TrackRow); pinned, each stays.
    */
   const onTracksPointerDownCapture = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -326,11 +328,24 @@ function ConnectedArrangementView() {
       ? clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw).find(({ rect: r }) => x >= r.x0 && x < r.x1 && y >= r.y0 && y < r.y1)
       : undefined;
     const clip = hit ? project.clips[hit.id] : undefined;
-    if (!clip) dismissOnRelease();
-    else if (clip.content.type === "Midi") useEditorStore.getState().openClip(clip.id);
-    // Audio: a click (no drag) opens its editor; a modifier press (multi-select) leaves the
-    // drawer as it is.
-    else if (!(e.shiftKey || e.metaKey || e.ctrlKey)) openClipOnClick(clip.id, e);
+    const shell = useShellStore.getState();
+    if (!clip) {
+      dismissOnRelease();
+      if (inTracks && x >= hw && !shell.right.pinned) shell.setCollapsed("right", true);
+      return;
+    }
+    // The clip gets selected: an inspector not showing yet appears as its bar (a click never
+    // expands a pane); one already showing stays as it is.
+    if (!shell.right.open && !shell.right.pinned) shell.setCollapsed("right", true);
+    const show = () => {
+      const { bottom, setCollapsed } = useShellStore.getState();
+      if (!bottom.open || bottom.collapsed) setCollapsed("bottom", true);
+      useEditorStore.getState().openClip(clip.id);
+    };
+    if (clip.content.type === "Midi") show();
+    // Audio: a click (no drag) shows it; a modifier press (multi-select) leaves the drawer as
+    // it is.
+    else if (!(e.shiftKey || e.metaKey || e.ctrlKey)) showClipOnClick(e, show);
   };
 
   const tempo = useTempoMap();

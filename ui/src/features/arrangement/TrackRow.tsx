@@ -14,6 +14,7 @@ import { TakeLanes, TakesToggle, trackTakeEntries } from "@/features/comping";
 import { templateTrackEntries } from "@/features/templates";
 import { meterPosition, openContextMenu, ReadOnlySurface, setDragCursor, type ContextMenuEntry } from "@/kit";
 import { shortcutLabel } from "@/features/keymap";
+import { useShellStore } from "@/state/shell";
 import { isReadOnly, listenBlockedReason, useProjectStore, useTrackMeter, useViewer, defaultTrackName } from "@/state";
 import { pxToBeats, resolveGrid, selectModeFromEvent, snapToGrid, itemSelection, useTempoMap, useTimelineView } from "@/timeline";
 import { cmd } from "@/transport";
@@ -220,7 +221,12 @@ function TrackHeader({ row }: { row: Row }) {
           stop(e);
           if (!renaming && !readOnly) onTrackHeaderPointerDown(e, track, ctx);
         }}
-        onClick={(e) => selectTrackEntity(track.id, selectModeFromEvent(e))}
+        onClick={(e) => {
+          selectTrackEntity(track.id, selectModeFromEvent(e));
+          // A header click expands the inspector on the track (the press collapsed the drawer:
+          // ArrangementView).
+          useShellStore.getState().setCollapsed("right", false);
+        }}
         onContextMenu={(e) => {
           const items = trackMenu(transport, track);
           const selected = [...useArrangementUi.getState().selectedTracks];
