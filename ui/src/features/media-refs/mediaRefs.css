@@ -3,6 +3,11 @@
 
 /* ── Relink dialog ────────────────────────────────────────────────── */
 
+/* As wide as the resolver's: long file names and paths fit; the list takes most of the height. */
+.eth-media-refs {
+  --dialog-width: min(calc(var(--eth-size-dialog-width) * 2), calc(100vw - 2 * var(--eth-space-lg)));
+}
+
 .eth-media-refs__summary {
   margin: 0 0 var(--eth-space-md);
   color: var(--eth-color-text-dim);
@@ -13,7 +18,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--eth-space-xs);
-  max-height: calc(8 * var(--eth-size-row-height));
+  max-height: max(calc(8 * var(--eth-size-row-height)), 60vh);
   margin: 0;
   padding: 0;
   overflow-y: auto;
