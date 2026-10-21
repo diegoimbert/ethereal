@@ -32,7 +32,7 @@ import { KeymapRoot } from "@/features/keymap";
 import { EngineLanguage } from "./EngineLanguage";
 import { MediaRefsRoot } from "@/features/media-refs";
 import { MidiLearnRoot } from "@/features/midi-learn";
-import { NotificationToastItems } from "@/features/notifications";
+import { NotificationLog, NotificationToastItems } from "@/features/notifications";
 import { ImportResolverRoot } from "@/features/import-resolver";
 import { ProjectMenu } from "@/features/project";
 import { RecordingControls, useKeepRecordingSetup } from "@/features/recording";
@@ -329,6 +329,7 @@ export function App() {
           <Toasts key={i} />
         ))}
       </ToastStack>
+      <NotificationLog />
     </PanelBoundary>
   );
 }

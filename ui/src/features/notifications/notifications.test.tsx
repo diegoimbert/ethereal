@@ -3,8 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { resetI18nForTests, setLocale } from "@/i18n/runtime";
 import { ToastStack } from "@/kit";
 import { commandErrorText } from "@/transport";
-import { NotificationToastItems } from "./NotificationToasts";
-import { ALERT_TOAST_MS, INFO_TOAST_MS, MAX_NOTICES, notify, onNotificationEvent, sentence, toastLook, useNotices } from "./store";
+import { NotificationLog, NotificationToastItems } from "./NotificationToasts";
+import { ALERT_TOAST_MS, INFO_TOAST_MS, MAX_NOTICES, notify, onNotificationEvent, sentence, skipNotifications, toastLook, useNotices } from "./store";
 
 afterEach(() => {
   act(() => useNotices.getState().clear());
@@ -85,5 +85,50 @@ describe("engine notifications as toasts", () => {
       for (let i = 0; i < MAX_NOTICES + 2; i++) notify("Error", `e${i}`);
     });
     expect(useNotices.getState().notices.map((n) => n.message)).toEqual(["e2", "e3", "e4"]);
+  });
+
+  it("offers 'see all messages' when toasts left the stack unseen; the dialog lists them all, newest first", () => {
+    render(
+      <>
+        <ToastStack>
+          <NotificationToastItems />
+        </ToastStack>
+        <NotificationLog />
+      </>,
+    );
+    act(() => notify("Info", "one"));
+    expect(screen.queryByTestId("notices-see-all")).toBeNull();
+    act(() => {
+      for (let i = 0; i < MAX_NOTICES + 1; i++) notify("Warning", `w${i}`);
+    });
+    const more = screen.getByTestId("notices-see-all");
+    expect(more.textContent).toBe("see all messages (5)");
+    fireEvent.click(more);
+    const rows = screen.getAllByTestId("notice-log-row").map((r) => r.textContent);
+    expect(rows).toHaveLength(5);
+    expect(rows[0]).toContain("w3");
+    expect(rows.at(-1)).toContain("one");
+    // The toasts are all in the dialog now.
+    expect(useNotices.getState().notices).toEqual([]);
+    expect(screen.queryByTestId("notices-see-all")).toBeNull();
+  });
+
+  it("an action button runs and dismisses its toast", () => {
+    const resolve = vi.fn();
+    renderToasts();
+    act(() => notify("Warning", "some plugins are missing", { action: { label: "resolve", onSelect: resolve } }));
+    fireEvent.click(screen.getByRole("button", { name: "resolve" }));
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(useNotices.getState().notices).toEqual([]);
+  });
+
+  it("engine notifications a feature summarizes are skipped while it is registered", () => {
+    const off = skipNotifications((e) => e.key?.id === "notice.engine.device_failed");
+    const failed = { id: "notice.engine.device_failed", args: { device: "Serum", error: "not installed" } };
+    onNotificationEvent({ type: "Notification", level: "Error", message: 'could not create device "Serum": not installed', key: failed });
+    expect(useNotices.getState().notices).toEqual([]);
+    off();
+    onNotificationEvent({ type: "Notification", level: "Error", message: 'could not create device "Serum": not installed', key: failed });
+    expect(useNotices.getState().notices).toHaveLength(1);
   });
 });

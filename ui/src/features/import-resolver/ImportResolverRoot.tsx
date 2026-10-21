@@ -1,11 +1,31 @@
 import { useContext, useEffect } from "react";
 import { TransportContext, type EngineTransport } from "@/transport";
+import { skipNotifications, type NotificationEvent } from "@/features/notifications/store";
+import { useProjectStore } from "@/state";
+import { catalogNow, isMissingPlugin } from "./catalog";
 import { ReplaceDialog } from "./ReplaceDialog";
 import { ResolverDialog } from "./ResolverDialog";
 import { setReplaceTransport } from "./replace";
 import { applyResolveEvent, armAutoShow, autoShow, disarmAutoShow, noteMissing, proposeResolution, setResolverTransport, useResolver } from "./store";
 
+/**
+ * "could not create device "X"" for a plugin that isn't installed (or a device of another
+ * DAW): opening a project with many would toast once per device. The status bar counts them
+ * and one toast says some are missing (`openIfMissing`); other failures still toast.
+ */
+function isMissingDeviceFailure(event: NotificationEvent, transport: EngineTransport): boolean {
+  if (event.key?.id !== "notice.engine.device_failed") return false;
+  const name = event.key.args.device;
+  const project = useProjectStore.getState().project;
+  if (typeof name !== "string" || !project) return false;
+  const catalog = catalogNow(transport);
+  return Object.values(project.devices).some(
+    (d) => d.name === name && (d.kind.type === "Missing" || (d.kind.type === "Plugin" && (catalog === null || isMissingPlugin(d, catalog)))),
+  );
+}
+
 function Sync({ transport }: { transport: EngineTransport }) {
+  useEffect(() => skipNotifications((e) => isMissingDeviceFailure(e, transport)), [transport]);
   useEffect(() => {
     setResolverTransport(transport);
     setReplaceTransport(transport);

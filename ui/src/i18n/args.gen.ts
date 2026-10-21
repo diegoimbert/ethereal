@@ -627,6 +627,7 @@ export interface MessageArgs {
   "shell.keymap.sheet_drag": { keys: string | number };
   "shell.keymap.sheet_preset": { preset: string | number };
   "shell.keymap.sheet_preset_customized": { preset: string | number };
+  "shell.notice.see_all": { count: string | number };
   "shell.pane.close": { pane: string | number };
   "shell.pane.collapse": { pane: string | number };
   "shell.pane.expand": { pane: string | number };
