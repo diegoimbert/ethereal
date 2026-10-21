@@ -113,6 +113,17 @@ describe("engine notifications as toasts", () => {
     expect(screen.queryByTestId("notices-see-all")).toBeNull();
   });
 
+  it("the same message again while it shows is one toast counting them", () => {
+    renderToasts();
+    act(() => {
+      for (let i = 0; i < 381; i++) notify("Error", "engine rejected the graph: engine queue full");
+    });
+    expect(useNotices.getState().notices).toHaveLength(1);
+    expect(screen.getByText("error ×381")).toBeInTheDocument();
+    expect(useNotices.getState().history).toHaveLength(1);
+    expect(screen.queryByTestId("notices-see-all")).toBeNull();
+  });
+
   it("an action button runs and dismisses its toast", () => {
     const resolve = vi.fn();
     renderToasts();

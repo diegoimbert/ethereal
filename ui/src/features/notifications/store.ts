@@ -19,6 +19,8 @@ export interface Notice {
   action?: NoticeAction;
   /** When it was shown (ms since the epoch; the messages dialog). */
   at: number;
+  /** How many times it came in a row while shown (the same level, title and text): one toast. */
+  count: number;
 }
 
 export interface NoticeAction {
@@ -92,8 +94,19 @@ export const useNotices = create<NoticeState>()((set) => ({
   logOpen: false,
   push: (level, message, opts) => {
     const id = nextId++;
-    const notice: Notice = { id, level, message: sentence(message), ...opts, at: Date.now() };
+    const notice: Notice = { id, level, message: sentence(message), ...opts, at: Date.now(), count: 1 };
     set((s) => {
+      // The same message again while it shows: one toast counting them (its timer restarts).
+      const same = (n: Notice) => n.level === notice.level && n.message === notice.message && n.title === notice.title;
+      const shown = s.notices.find(same);
+      if (shown) {
+        const again = { ...notice, count: shown.count + 1 };
+        const last = s.history.at(-1);
+        return {
+          notices: [...s.notices.filter((n) => n !== shown), again],
+          history: last && same(last) ? [...s.history.slice(0, -1), again] : [...s.history, again].slice(-MAX_HISTORY),
+        };
+      }
       const all = [...s.notices, notice];
       return {
         notices: all.slice(-MAX_NOTICES),

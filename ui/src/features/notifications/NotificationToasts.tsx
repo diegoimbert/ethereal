@@ -23,7 +23,7 @@ export function NotificationToastItems() {
           <Toast
             key={n.id}
             className="eth-notice"
-            title={n.title ?? look.title}
+            title={n.count > 1 ? t("shell.notice.repeated", { title: n.title ?? look.title, count: n.count }) : (n.title ?? look.title)}
             accent={look.accent}
             timeoutMs={look.timeoutMs}
             action={n.action}
@@ -51,13 +51,14 @@ export function NotificationToastItems() {
 }
 
 function LogRow({ notice: n }: { notice: Notice }) {
+  const t = useT();
   const look = toastLook(n.level);
   return (
     <li className="eth-notice-log__row" data-level={n.level} data-testid="notice-log-row">
       <span className="eth-notice-log__dot" style={{ background: look.accent }} aria-hidden />
       <div className="eth-notice-log__main">
         <span className="eth-notice-log__title">
-          {n.title ?? look.title}
+          {n.count > 1 ? t("shell.notice.repeated", { title: n.title ?? look.title, count: n.count }) : (n.title ?? look.title)}
           <time className="eth-notice-log__time" dateTime={new Date(n.at).toISOString()}>
             {formatDateTime(n.at, { timeStyle: "short" })}
           </time>
