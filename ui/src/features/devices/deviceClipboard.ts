@@ -18,8 +18,8 @@
  * with the focus on no chain at all (and not in an editor), at the end of the selected
  * track's chain.
  *
- * ⌘G / Ctrl+G groups the selection into a rack (`@/features/racks/group`); Delete /
- * Backspace removes it.
+ * ⌘A / Ctrl+A selects every device of the focused chain; ⌘G / Ctrl+G groups the selection
+ * into a rack (`@/features/racks/group`); Delete / Backspace removes it.
  *
  * The keys come in as the document's `copy` / `paste` events (the desktop app's Edit menu
  * sends them), taken only while the focus is in a device card (copy, paste) or a device chain
@@ -341,6 +341,18 @@ export function useDeviceClipboardKeys(transport: EngineTransport, categoryOf: (
     if (!id) return;
     e.preventDefault();
     copyFrom(id, true);
+  });
+  // ⌘A / Ctrl+A (keymap `edit.selectAll`): every device of the focused card's (or chain's) chain.
+  document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || !matchesAction("edit.selectAll", e) || isTextEntry(e.target)) return;
+    const at = pasteTarget();
+    const project = useProjectStore.getState().project;
+    if (!at || !project) return;
+    const chain = typeof at === "string" ? (project.devices[at] ? chainOf(project.devices[at]) : null) : at;
+    if (!chain) return;
+    e.preventDefault();
+    const ids = chainDevices(project, chain).map((d) => d.id);
+    useDeviceClipboard.setState({ selected: ids, anchor: ids[0] ?? null });
   });
   // Delete / Backspace (keymap `edit.delete`): the selection (or the focused card) goes.
   document.addEventListener("keydown", (e) => {
