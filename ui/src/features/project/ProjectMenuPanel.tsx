@@ -213,6 +213,8 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
         aria-label={t("project.menu.label")}
         onKeyDown={(e) => menuKeyDown(e, ref.current)}
       >
+        {item("app:settings")}
+        <Separator />
         {item("project:new")}
         {/* The recent projects (the welcome screen's), as a submenu. */}
         <SubMenu label={t("project.menu.open_project")} panel className="eth-project-menu__wide">

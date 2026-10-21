@@ -1259,6 +1259,7 @@
   "shell.command.unpin_right": "désépingler l’inspecteur",
   "shell.command.unpin_bottom": "désépingler le tiroir d’édition",
   "shell.command.audio_settings": "réglages audio…",
+  "shell.command.settings": "réglages…",
   "shell.command.print_shortcuts": "imprimer les raccourcis clavier",
   "shell.command.engine_server": "serveur de moteur…",
   "shell.command.input_settings": "réglages de la souris et de la molette…",

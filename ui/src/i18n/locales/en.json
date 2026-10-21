@@ -1259,6 +1259,7 @@
   "shell.command.unpin_right": "unpin inspector",
   "shell.command.unpin_bottom": "unpin editor drawer",
   "shell.command.audio_settings": "audio settings…",
+  "shell.command.settings": "settings…",
   "shell.command.print_shortcuts": "print keyboard shortcuts",
   "shell.command.engine_server": "engine server…",
   "shell.command.input_settings": "mouse and wheel settings…",

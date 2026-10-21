@@ -223,12 +223,12 @@ describe("ProjectMenu", () => {
     fireEvent.click(screen.getByRole("button", { name: "projects" }));
     const menu = await screen.findByRole("menu", { name: "project" });
     const item = (name: string) => within(menu).getByRole("menuitem", { name });
-    await waitFor(() => expect(item("new project")).toHaveFocus());
-    fireEvent.keyDown(item("new project"), { key: "ArrowDown" });
-    expect(item("open project")).toHaveFocus();
-    fireEvent.keyDown(item("open project"), { key: "ArrowUp" });
+    await waitFor(() => expect(item("settings…")).toHaveFocus());
+    fireEvent.keyDown(item("settings…"), { key: "ArrowDown" });
     expect(item("new project")).toHaveFocus();
-    fireEvent.keyDown(item("new project"), { key: "ArrowUp" }); // wraps to the last item
+    fireEvent.keyDown(item("new project"), { key: "ArrowUp" });
+    expect(item("settings…")).toHaveFocus();
+    fireEvent.keyDown(item("settings…"), { key: "ArrowUp" }); // wraps to the last item
     expect(within(menu).getAllByRole("menuitem").at(-1)).toHaveFocus();
   });
 
