@@ -10,7 +10,7 @@
 import type { Clip, ClipId } from "@/generated";
 import { useMediaRefs } from "@/features/media-refs";
 import { contributions, type ClipBadgeProvider } from "@/ext";
-import { CLIP_INSET, CLIP_MIN_PX, CLIP_RADIUS } from "../../laneBodyGeometry";
+import { CLIP_INSET, CLIP_DRAW_MIN_PX, CLIP_RADIUS } from "../../laneBodyGeometry";
 import type { GlyphAtlas, FontSpec } from "../glyphAtlas";
 import type { ArrangerLayer } from "../layers";
 import { Fx, writeGlyph, writeRect, type FxCode, type XSpec } from "../pipelines";
@@ -155,7 +155,7 @@ export function clipBadgesLayer(pipeline: Pipeline): ClipBadgesLayer {
         if (kinds.length === 0) return;
         const fx: FxCode = frozen ? Fx.Frozen : clip.muted ? Fx.Muted : Fx.None;
         const alpha = it.dragging ? 0.85 : 1;
-        const box: XSpec = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_MIN_PX };
+        const box: XSpec = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_DRAW_MIN_PX };
         const clipBox = { x: box, y: { a0: CLIP_INSET, a1: -CLIP_INSET, f1: 1 }, radius: CLIP_RADIUS };
         const small = isSmall(it, view);
         // Missing media: the hatch and the dashed outline over the whole clip. An extension's
@@ -165,7 +165,7 @@ export function clipBadgesLayer(pipeline: Pipeline): ClipBadgesLayer {
           const w = out.custom(pipeline);
           for (const [v0, v1] of spans[k]!) {
             const vis: [number, number] = [Math.max(v0, -FAR), Math.min(v1, FAR)];
-            const spec = { box: { b0: box.b0, b1: box.b1, minW: CLIP_MIN_PX }, f0: bounds.start, f1: bounds.start, vis, fx, alpha };
+            const spec = { box: { b0: box.b0, b1: box.b1, minW: CLIP_DRAW_MIN_PX }, f0: bounds.start, f1: bounds.start, vis, fx, alpha };
             writeFade(w, { ...spec, mode: FadeMode.Hatch, fill: isMissing ? colors.hatch : colors.softHatch });
             if (isMissing) writeFade(w, { ...spec, mode: FadeMode.Outline, fill: colors.warn });
           }

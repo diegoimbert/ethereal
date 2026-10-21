@@ -58,7 +58,7 @@ instance data:
 
 - **x** = a beat and a px offset: `x = (beat - scrollBeats) * pxPerBeat + px`, with an
   optional minimum width (`XSpec { b0, b1, p0, p1, minW }`: the box spans
-  `[x0, max(x0 + minW, x1)]`). Clip boxes are `{ b0: start, b1: end, minW: 8 }`.
+  `[x0, max(x0 + minW, x1)]`). Clip boxes are `{ b0: start, b1: end, minW: 1 }` (their true width; the hit area keeps 8 px).
 - **y** = offsets in the row: `y = a + f * mainHeight` from the row's top
   (`YSpec { a0, f0, a1, f1 }`). The clip box is `{ a0: 2, a1: -2, f1: 1 }`, its title band
   `{ a0: 2, a1: 16 }`.
@@ -113,7 +113,7 @@ const fades: ArrangerLayer = {
         x: { b0: it.bounds.start, b1: it.bounds.start + fadeIn },
         y: { a0: 16, a1: -2, f1: 1 },
         fill: [0, 0, 0, 0.2],
-        clip: { x: { b0: it.bounds.start, b1: it.bounds.start + it.bounds.length, minW: 8 }, y: { a0: 2, a1: -2, f1: 1 }, radius: 6 },
+        clip: { x: { b0: it.bounds.start, b1: it.bounds.start + it.bounds.length, minW: 1 }, y: { a0: 2, a1: -2, f1: 1 }, radius: 6 },
       });
     }
   },

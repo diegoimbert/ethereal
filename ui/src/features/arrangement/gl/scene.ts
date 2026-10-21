@@ -26,7 +26,7 @@ import type { EngineTransport } from "@/transport";
 import { clipSourceMapper } from "@/domain/warpMap";
 import { dbToGain, drumRows, noteRects, pitchRange, playsDrumRack } from "../clipDraw";
 import { contentSegments } from "../clipTime";
-import { CLIP_INSET, CLIP_MIN_PX, CLIP_RADIUS, CLIP_TITLE, isCompactLane, titleHeight } from "../laneBodyGeometry";
+import { CLIP_INSET, CLIP_DRAW_MIN_PX, CLIP_RADIUS, CLIP_TITLE, isCompactLane, titleHeight } from "../laneBodyGeometry";
 import { laneItemsOf, previewTouches, type LaneItem } from "../laneItems";
 import { SMALL_CLIP_PX } from "../smallClips";
 import { peakLevel, TILE_PEAKS, type PeakCache } from "../peaks";
@@ -493,7 +493,7 @@ export class LaneScene {
     const selected = !it.ghost && input.selected.has(clip.id);
     const fx = this.fxOf(it);
     const alpha = (it.ghost ? 0.45 : it.dragging ? 0.85 : 1) * this.alphaMul;
-    const box: XSpec = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_MIN_PX };
+    const box: XSpec = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_DRAW_MIN_PX };
     const clipBox = { x: box, y: BOX_Y, radius: CLIP_RADIUS };
     const hover = this.hoverKey && !it.ghost && this.hoverKey.startsWith(clip.id + "|") ? this.hoverKey.slice(clip.id.length + 1) : null;
 
@@ -521,7 +521,7 @@ export class LaneScene {
     const looping = bounds.looping ?? clip.looping;
     const shaped = { ...clip, length: bounds.length, offset: bounds.offset, looping };
     if (clip.content.type === "Midi" && notes.length && !this.compact) {
-      const noteBox = { b0: box.b0, b1: box.b1, minW: CLIP_MIN_PX };
+      const noteBox = { b0: box.b0, b1: box.b1, minW: CLIP_DRAW_MIN_PX };
       const rects = noteRects(shaped, bounds.start, notes, bounds.start, bounds.start + bounds.length);
       if (playsDrumRack(input.project, clip.track)) {
         // Drums: a row per used pitch over the whole body, taller hits (negative rows: drum
@@ -570,7 +570,7 @@ export class LaneScene {
     const waves = { base: new InstanceWriter(WAVE_STRIDE), raised: new InstanceWriter(WAVE_STRIDE) };
     const rows: number[] = [];
     for (const it of this.items) {
-      const end = it.bounds.start + Math.max(it.bounds.length, CLIP_MIN_PX / win.ppb);
+      const end = it.bounds.start + Math.max(it.bounds.length, CLIP_DRAW_MIN_PX / win.ppb);
       if (end < win.from || it.bounds.start > win.to) continue;
       const group = isRaised(it, sel) ? "raised" : "base";
       this.clipText(it, text[group], input, win);
@@ -584,12 +584,12 @@ export class LaneScene {
   private clipText(it: LaneItem, out: InstanceWriter, input: SceneInput, win: ViewWindow): void {
     const { clip, bounds } = it;
     const atlas = this.shared.atlas;
-    const width = Math.max(CLIP_MIN_PX, bounds.length * win.ppb);
+    const width = Math.max(CLIP_DRAW_MIN_PX, bounds.length * win.ppb);
     const fx = this.fxOf(it);
     const alpha = (it.ghost ? 0.45 : it.dragging ? 0.85 : 1) * this.alphaMul;
     // On the title band, the band's text color; a compact lane's clip (a body alone): the clip's.
     const color = this.compact ? clipColors(input.palette, clip.color ?? this.track.color).strong : input.palette.titleText;
-    const box: XSpec = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_MIN_PX };
+    const box: XSpec = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_DRAW_MIN_PX };
     // Centered in the title band (the whole clip in a compact lane).
     const lineTop = titleLineTop(this.titleHeight, LINE_HEIGHT);
     const baseline = atlas.baseline(lineTop, LINE_HEIGHT, TITLE_FONT);
@@ -672,7 +672,7 @@ export class LaneScene {
     const fx = this.fxOf(it);
     const alpha = (it.ghost ? 0.45 : it.dragging ? 0.85 : 1) * this.alphaMul;
     const gain = dbToGain(clip.content.gain);
-    const box = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_MIN_PX };
+    const box = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_DRAW_MIN_PX };
     const shaped = { length: bounds.length, offset: bounds.offset, looping: bounds.looping ?? clip.looping };
     const reversed = clip.content.reversed;
     const frames = media.frames;
