@@ -2994,6 +2994,7 @@
   "audio_to_midi.dialog.converting": "converting {name}",
   "keyboard_midi.action": "computer midi keyboard on / off",
   "arrangement.header.pan": "{name} pan",
+  "arrangement.header.pan_title": "pan: drag up or down, double-click to centre",
   "arrangement.header.volume": "{name} volume",
   "notice.engine.device_failed": "could not create device \"{device}\": {error}",
   "docs.untranslated": "this page isn't translated yet: here it is in english.",

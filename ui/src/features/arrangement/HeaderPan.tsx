@@ -45,6 +45,7 @@ export function HeaderPan({ track }: { track: Track }) {
         bipolar
         hideLabel
         label={t("arrangement.header.pan", { name: track.name })}
+        title={t("arrangement.header.pan_title")}
         value={(pan + 1) / 2}
         valueText={formatPan(pan)}
         onChange={set}

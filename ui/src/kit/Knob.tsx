@@ -31,6 +31,8 @@ export interface KnobProps {
   showValue?: boolean;
   disabled?: boolean;
   className?: string;
+  /** Hover tooltip: what the knob does (default: its `label`). */
+  title?: string;
   /** MIDI learn hook (`midiTarget()` in features/midi-learn): marks this control as mappable. */
   "data-midi-target"?: string;
 }
@@ -83,6 +85,7 @@ export function Knob({
   showValue = false,
   disabled: disabledProp = false,
   className,
+  title,
   "data-midi-target": midiTarget,
 }: KnobProps) {
   const disabled = useDisabled(disabledProp);
@@ -115,6 +118,7 @@ export function Knob({
       role="slider"
       tabIndex={disabled ? -1 : 0}
       aria-label={label}
+      title={title}
       aria-valuemin={0}
       aria-valuemax={1}
       aria-valuenow={v}

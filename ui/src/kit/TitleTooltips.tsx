@@ -1,5 +1,5 @@
 /**
- * App-wide tooltips for `title` attributes. Desktop webviews (Tauri on macOS) never show the
+ * App-wide tooltips for `title` attributes (and controls' labels: `TIPPED`). Desktop webviews (Tauri on macOS) never show the
  * native `title` tooltip, so the app would have none: this host shows every `title` as the
  * kit tooltip (`.eth-tooltip`, after the `--tooltip-delay`), above the hovered element (below
  * when it is near the top of the window). While shown, the element's `title` is held in
@@ -17,6 +17,25 @@ interface Tip {
   x: number;
   y: number;
   placement: "top" | "bottom";
+}
+
+/**
+ * What shows a tooltip: an element with a `title`, or a control with an accessible name and
+ * no `title` (an icon button, a knob, a switch...): its `aria-label`, so every control says
+ * what it is on hover.
+ */
+const CONTROL = ["button", '[role="button"]', '[role="slider"]', '[role="switch"]', '[role="combobox"]', '[role="tab"]', '[role="checkbox"]', '[role="radio"]']
+  .map((c) => `${c}[aria-label]`)
+  .join(", ");
+const TIPPED = `[title], ${CONTROL}`;
+
+/** The tooltip text of `el` (matched by `TIPPED`): its title, else its label unless it only repeats the visible text. */
+function tipText(el: HTMLElement): string {
+  const title = el.getAttribute("title");
+  if (title !== null) return title;
+  const label = el.getAttribute("aria-label") ?? "";
+  const visible = (el.textContent ?? "").trim().toLowerCase();
+  return label.trim().toLowerCase() === visible ? "" : label;
 }
 
 /** Elements this close to the window top get the tooltip below them. */
@@ -48,17 +67,22 @@ export function TitleTooltipHost() {
     };
     const over = (e: PointerEvent) => {
       if (e.pointerType === "touch") return;
-      const el = e.target instanceof Element ? e.target.closest<HTMLElement>("[title]") : null;
+      const el = e.target instanceof Element ? e.target.closest<HTMLElement>(TIPPED) : null;
       if (el === current) return;
       restore();
       if (!el) return setTip(null);
-      const text = el.getAttribute("title") ?? "";
-      el.dataset.ethTitle = text;
-      el.removeAttribute("title");
+      const text = tipText(el);
+      if (el.hasAttribute("title")) {
+        el.dataset.ethTitle = text;
+        el.removeAttribute("title");
+      }
       current = el;
       if (!text.trim()) return setTip(null);
       const r = el.getBoundingClientRect();
-      const below = r.top < TOP_ROOM_PX;
+      // A slider shows its value above it on hover (a fader's dB, a knob's value): its tooltip
+      // goes below, unless its value shows below (no room above: data-readout).
+      const readoutBelow = !!el.closest('[data-readout="below"]');
+      const below = !readoutBelow && (r.top < TOP_ROOM_PX || el.matches('[role="slider"]'));
       setTip({ id: next++, text, x: r.left + r.width / 2, y: below ? r.bottom : r.top, placement: below ? "bottom" : "top" });
     };
     const out = (e: PointerEvent) => {

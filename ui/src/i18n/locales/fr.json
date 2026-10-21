@@ -2994,6 +2994,7 @@
   "audio_to_midi.dialog.converting": "conversion de {name}",
   "keyboard_midi.action": "clavier midi de l’ordinateur activé / désactivé",
   "arrangement.header.pan": "panoramique de {name}",
+  "arrangement.header.pan_title": "panoramique : glissez vers le haut ou le bas, double-cliquez pour centrer",
   "arrangement.header.volume": "volume de {name}",
   "notice.engine.device_failed": "impossible de créer l’appareil « {device} » : {error}",
   "docs.untranslated": "cette page n’est pas encore traduite : la voici en anglais.",
