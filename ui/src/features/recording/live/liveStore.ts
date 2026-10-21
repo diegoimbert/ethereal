@@ -6,9 +6,9 @@
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import type { ClipId, MediaId, TrackId } from "@/generated";
-import { useProjectStore } from "@/state";
+import { playheadStore, useProjectStore } from "@/state";
 import type { EngineTransport } from "@/transport";
-import { LiveRecording, type LiveTrackView } from "./liveModel";
+import { LiveRecording, type LiveClock, type LiveTrackView } from "./liveModel";
 
 /** The media of a committed audio clip (what a handoff waits for). */
 export function mediaOfClip(id: ClipId): MediaId | null {
@@ -56,3 +56,9 @@ export function useLiveTrack(track: TrackId): LiveTrackView {
   const subscribe = useCallback((l: () => void) => liveRecording.subscribe(l), []);
   return useSyncExternalStore(subscribe, () => liveRecording.view(track));
 }
+
+/** This app's own playhead, as the local live view's clock. */
+export const localLiveClock: LiveClock = {
+  position: () => playheadStore.getPlayhead()?.transport.position ?? null,
+  subscribe: (changed) => playheadStore.subscribePlayhead(changed),
+};

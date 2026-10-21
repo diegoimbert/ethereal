@@ -17,13 +17,12 @@ import type { Beats, Color, Note, TrackId } from "@/generated";
 import { drawNotes, drawWaveform, pitchRange, type DrawArea } from "@/features/arrangement/clipDraw";
 import { clipInk, colorCss } from "@/features/arrangement/helpers";
 import { beatsCss, widthCss } from "@/features/arrangement/laneGeometry";
-import { playheadStore } from "@/state";
 import { useTheme } from "@/theme";
 import { useTempoMap, type TempoMap } from "@/timeline";
 import type { EngineTransport } from "@/transport";
 import { useT } from "@/i18n";
-import { liveEnd, noteSpans, takeEnd, type LiveNote, type LiveTake, type LivePhase, type LiveTrackView } from "./liveModel";
-import { useLiveRecordingFeed, useLiveTrack } from "./liveStore";
+import { liveEnd, noteSpans, takeEnd, type LiveClock, type LiveNote, type LiveTake, type LivePhase, type LiveTrackView } from "./liveModel";
+import { localLiveClock, useLiveRecordingFeed, useLiveTrack } from "./liveStore";
 
 /** Longest canvas side in device px. */
 const MAX_CANVAS_PX = 16384;
@@ -41,19 +40,6 @@ export interface LiveRecordLaneProps {
   /** Settled zoom the lane is laid out at. */
   pxPerBeat: number;
 }
-
-/** Where the recording is now (beats; `null`: unknown), and when that changes. */
-export interface LiveClock {
-  position(): number | null;
-  /** Calls `changed` whenever `position()` may have moved; returns the unsubscribe. */
-  subscribe(changed: () => void): () => void;
-}
-
-/** This app's own playhead. */
-export const localLiveClock: LiveClock = {
-  position: () => playheadStore.getPlayhead()?.transport.position ?? null,
-  subscribe: (changed) => playheadStore.subscribePlayhead(changed),
-};
 
 export function LiveRecordLane(props: LiveRecordLaneProps) {
   useLiveRecordingFeed(props.transport);

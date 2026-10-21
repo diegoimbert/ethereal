@@ -366,7 +366,8 @@ impl EngineBridge for FakeBridge {
         audio: &mut Vec<ether_core::protocol::recording::LiveAudioChunk>,
         midi: &mut Vec<ether_core::protocol::recording::LiveMidiNote>,
     ) {
-        if let Some(r) = self.recording.as_mut().filter(|r| r.active) {
+        // Also right after `stop_recording` (what the host flushed while closing the takes).
+        if let Some(r) = self.recording.as_mut() {
             audio.append(&mut r.live_audio);
             midi.append(&mut r.live_midi);
         }

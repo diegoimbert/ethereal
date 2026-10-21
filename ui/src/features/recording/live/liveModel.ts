@@ -172,6 +172,13 @@ export interface LiveNote {
   length: number | null;
 }
 
+/** Where the recording is now (beats; `null`: unknown), and when that changes (`LiveRecordView`). */
+export interface LiveClock {
+  position(): number | null;
+  /** Calls `changed` whenever `position()` may have moved; returns the unsubscribe. */
+  subscribe(changed: () => void): () => void;
+}
+
 export interface LiveTrackView {
   takes: ReadonlyArray<LiveTake>;
   notes: ReadonlyArray<LiveNote>;
