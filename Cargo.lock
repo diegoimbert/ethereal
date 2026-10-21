@@ -1277,7 +1277,7 @@ dependencies = [
 name = "ether-controller"
 version = "0.0.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "ed25519-dalek",
  "ether-core",
  "ether-devices",
@@ -1373,7 +1373,7 @@ dependencies = [
 name = "ether-model"
 version = "0.0.1"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "proptest",
  "serde",
  "serde_json",
@@ -1457,7 +1457,7 @@ name = "ether-sandbox"
 version = "0.0.1"
 dependencies = [
  "assert_no_alloc",
- "base64 0.22.1",
+ "base64 0.23.1",
  "ether-au",
  "ether-clap",
  "ether-core",
