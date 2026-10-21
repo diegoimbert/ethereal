@@ -442,6 +442,8 @@ export const size = {
   trackIndent: "12px",
   trackBadge: "26px",
   trackButton: "20px",
+  /** Track header buttons (mute, solo, arm, ...), under the volume and pan. */
+  trackHeaderButton: "20px",
   trackMeterWidth: "3px",
   trackFaderWidth: "44px",
   trackFaderThumb: "8px",
@@ -454,6 +456,9 @@ export const size = {
   addTrackHeight: "32px",
   /** The pan knob in a track header (HeaderPan). */
   trackPanKnob: "18px",
+  /** A compact (short) track header: a smaller pan knob and a short fader. */
+  trackPanKnobCompact: "14px",
+  trackFaderWidthCompact: "30px",
   /** The piano roll's key-height grip, along the keyboard's left edge. */
   pianoZoomGrip: "8px",
   /** The step sequencer (Drum Rack tracks): row height, pad-name column, cell width. */
