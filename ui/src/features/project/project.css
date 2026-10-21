@@ -318,6 +318,10 @@
   max-height: 40vh;
   overflow: auto;
 }
+/* The welcome screen's list: a little shorter (the screen stays compact with many projects). */
+.eth-welcome .eth-project-screen__list {
+  max-height: 34vh;
+}
 .eth-project-screen__item {
   display: flex;
   align-items: center;
