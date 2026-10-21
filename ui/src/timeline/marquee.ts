@@ -176,6 +176,8 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
         if (!tl || !active) return 0;
         const x = local(pointer).x;
         const right = el.clientWidth;
+        // Not laid out (no width): no edge to scroll past.
+        if (right === 0) return 0;
         if (x > right) return x - right;
         if (x < origin()) return x - origin();
         return 0;
