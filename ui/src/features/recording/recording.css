@@ -29,6 +29,10 @@
 .eth-rec__arm {
   color: var(--eth-color-record);
 }
+/* An icon, not the ● character: a glyph sits on the text baseline, off the button's center. */
+.eth-rec__arm .lucide {
+  fill: currentColor;
+}
 .eth-rec__arm[aria-pressed="true"] {
   background: var(--eth-color-record);
   color: var(--eth-color-text-inverse);

@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { AudioDeviceList, Command, Event, InputList, ReplyValue, Track } from "@/generated";
-import { MoreHorizontal } from "lucide-react";
+import { Circle, MoreHorizontal } from "lucide-react";
 import { Button, DismissibleError, IconButton, Popover, Select } from "@/kit";
 import { EngineStatusIndicator, useCompactTopBar } from "@/features/transport-bar";
 import { tracksOrdered, useProjectStore, useRecordSupport } from "@/state";
@@ -309,7 +309,7 @@ function InputsPanel({ transport, inputs, unsupported, send, onDeviceChanged }: 
                         disabled={armBlocked !== null}
                         onClick={() => void send(cmd("Recording", { type: "Arm", track: tr.id, armed: !isArmed, exclusive: false }))}
                       >
-                        ●
+                        <Circle />
                       </Button>
                     </span>
                   </td>
