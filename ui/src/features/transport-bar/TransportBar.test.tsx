@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { t } from "@/i18n";
-import { tempoPoints, useProjectStore } from "@/state";
+import { tempoPoints, useProjectStore, useRecordSupport } from "@/state";
 import { useNotices } from "@/features/notifications";
 import type { Event } from "@/generated";
 import { cmd, CommandFailedError } from "@/transport";
@@ -52,6 +52,39 @@ describe("TransportBar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "metronome" }));
     await waitFor(() => expect(store().transport!.metronome).toBe(true));
+  });
+
+  it("opens the metronome settings with a right-click on its button", async () => {
+    await renderWithMock(<TransportBar />);
+    fireEvent.contextMenu(screen.getByRole("button", { name: "metronome" }));
+    expect(await screen.findByRole("dialog", { name: "metronome settings" })).toBeInTheDocument();
+    expect(screen.getByRole("spinbutton", { name: "metronome volume" })).toBeInTheDocument();
+  });
+
+  it("disables the record button with the reason when the host can't record (no inputs)", async () => {
+    await renderWithMock(<TransportBar />);
+    const record = screen.getByRole("button", { name: "record" });
+    act(() => useRecordSupport.getState().setUnsupported("no audio inputs here"));
+    expect(record).toBeDisabled();
+    expect(record).toHaveAttribute("title", "no audio inputs here");
+    expect(record.parentElement).toHaveAttribute("title", "no audio inputs here");
+    act(() => useRecordSupport.getState().setUnsupported(null));
+    expect(record).toBeEnabled();
+  });
+
+  it("compact (a narrow window): the position is the time, a click shows the bars", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("max-width"), media: query, addEventListener: () => {}, removeEventListener: () => {} }));
+    try {
+      await renderWithMock(<TransportBar />);
+      const position = screen.getByRole("button", { name: "position" });
+      expect(within(position).getByTestId("position-time").textContent).toBe("0:00.00");
+      fireEvent.click(position);
+      expect(within(position).getByTestId("position-bars").textContent).toBe("1.1.1");
+      // Count-in, punch and the engine status are in the recording controls' "more" menu.
+      expect(screen.queryByTestId("engine-status")).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("drags the tempo up and down as one undo step; a plain click edits", async () => {

@@ -63,4 +63,5 @@ export * from "./theme";
 export { Toast, ToastStack, type ToastProps } from "./Toast";
 export { Toggle, type ToggleProps } from "./Toggle";
 export { clamp01, useVerticalDrag, type VerticalDragOptions } from "./useVerticalDrag";
+export { useMediaQuery } from "./useMediaQuery";
 export { resolveTone, SIZES, STATUS_TONES, TONES, type Size, type StatusTone, type Tone } from "./variants";

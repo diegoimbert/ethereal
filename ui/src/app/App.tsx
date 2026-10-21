@@ -36,8 +36,7 @@ import { ImportResolverRoot } from "@/features/import-resolver";
 import { ProjectMenu } from "@/features/project";
 import { RecordingControls, useKeepRecordingSetup } from "@/features/recording";
 import { ConnectDialog } from "@/features/remote";
-import { MetronomeSettings } from "@/features/tempo";
-import { TransportBar } from "@/features/transport-bar";
+import { TransportBar, useCompactTopBar } from "@/features/transport-bar";
 import { QuitRoot } from "@/features/quit";
 import { DesktopMenuRoot } from "@/features/desktop-menu";
 import { TourRoot } from "@/features/tutorials";
@@ -345,9 +344,10 @@ function Shell() {
  * that changes the project or the app. No context menus or command palette.
  */
 function ViewerShell() {
+  const compact = useCompactTopBar();
   return (
     <div className="eth-shell eth-shell--read-only">
-      <header className="eth-shell__top" data-slot="top">
+      <header className="eth-shell__top" data-slot="top" data-compact={compact || undefined}>
         <div className="eth-shell__transport" data-slot="transport-bar">
           <PanelBoundary name="transport bar">
             <PanelBoundary name="transport bar">
@@ -372,9 +372,10 @@ function EditorShell() {
   const t = useT();
   // Arms and punch come back when a project opens again.
   useKeepRecordingSetup();
+  const compact = useCompactTopBar();
   return (
     <div className="eth-shell">
-      <header className="eth-shell__top" data-slot="top">
+      <header className="eth-shell__top" data-slot="top" data-compact={compact || undefined}>
         <div data-slot="project">
           <PanelBoundary name="project menu">
             <ProjectMenu />
@@ -382,11 +383,6 @@ function EditorShell() {
         </div>
         <div className="eth-shell__transport" data-slot="transport-bar">
           <TransportBar />
-        </div>
-        <div data-slot="metronome">
-          <PanelBoundary name="metronome">
-            <MetronomeSettings />
-          </PanelBoundary>
         </div>
         <div data-slot="recording">
           <PanelBoundary name="recording controls">

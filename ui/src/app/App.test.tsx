@@ -46,7 +46,7 @@ afterEach(() => {
 describe("App shell", () => {
   it("mounts the top bar slots and the arrangement as the main view", () => {
     const { container } = render(<App />);
-    for (const slot of ["project", "transport-bar", "metronome", "recording", "export", "remote", "markers", "main"]) {
+    for (const slot of ["project", "transport-bar", "recording", "export", "remote", "markers", "main"]) {
       expect(container.querySelector(`[data-slot="${slot}"]`), slot).not.toBeNull();
     }
     expect(container.querySelector('[data-slot="main"] [data-feature="arrangement"]')).not.toBeNull();
