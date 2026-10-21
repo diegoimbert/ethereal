@@ -1567,6 +1567,7 @@
   "project.recent.title": "projets récents",
   "project.recent.search": "rechercher des projets",
   "project.recent.no_match": "aucun projet ne correspond à « {query} ».",
+  "project.recent.none": "aucun autre projet pour l’instant.",
   "project.recent.stored": "projets enregistrés",
   "project.notice.missing": "ce projet n’est pas enregistré dans ce navigateur",
   "project.leave.create": "quitter et créer",

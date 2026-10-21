@@ -568,6 +568,7 @@
 }
 /* Context menu: flies out of the click point (transform-origin is set inline to it). */
 .eth-popover--context {
+  z-index: var(--eth-z-context-menu);
   /* Size to the menu's content even when opened near the right edge (the clamp then moves it
      left); without this the shrink-to-fit width is limited to the space right of the click. */
   width: max-content;

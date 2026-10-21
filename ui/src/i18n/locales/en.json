@@ -1567,6 +1567,7 @@
   "project.recent.title": "recent projects",
   "project.recent.search": "search projects",
   "project.recent.no_match": "no project matches “{query}”.",
+  "project.recent.none": "no other projects yet.",
   "project.recent.stored": "stored projects",
   "project.notice.missing": "this project isn't saved in this browser",
   "project.leave.create": "leave & create",

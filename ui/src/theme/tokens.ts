@@ -313,6 +313,8 @@ export const zIndex = {
   dialog: "100",
   tourDim: "150",
   popover: "200",
+  /** The context menu: above the popovers (one opened from a popover's row, e.g. the project menu's projects). */
+  contextMenu: "210",
   tourRing: "240",
   tourBubble: "250",
   tooltip: "300",
