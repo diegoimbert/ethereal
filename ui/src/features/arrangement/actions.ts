@@ -64,6 +64,7 @@ export function addTrackCommand(
  * in display order.
  */
 export function selectTrackEntity(track: TrackId, mode: SelectMode = "replace"): void {
+  tracksFromLanes = false;
   itemSelection.getState().clear("clip");
   itemSelection.getState().clear("automationPoint");
   const ui = useArrangementUi.getState();
@@ -127,6 +128,8 @@ export function selectAllTracks(): void {
 export function selectAtLaneClick(track: TrackId | null, clip: Clip["id"] | null, mode: SelectMode): void {
   if (track && !clip) {
     selectTrackEntity(track, mode);
+    // Clicked in the lanes, not on the header: Mod+A still selects the clips (`select-all`).
+    tracksFromLanes = true;
     return;
   }
   useArrangementUi.getState().setTrackFocus(null);
@@ -199,6 +202,8 @@ export function editTarget(): "tracks" | "clips" {
   return tracks ? "tracks" : "clips";
 }
 
+/** The track selection comes from a click on a lane's empty space (not its header). */
+let tracksFromLanes = false;
 let selectionSeq = 0;
 let trackSelectedAt = 0;
 let clipSelectedAt = 0;
@@ -251,8 +256,9 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
       consolidateIfAllowed(transport, clips);
       return Promise.resolve();
     case "select-all": {
-      // A track selected (header or empty lane clicked): every track; else every clip.
-      if (onTracks) {
+      // A track selected from its header: every track; else (clips, or a track selected by a
+      // click in its lane: the lanes are what was clicked) every clip.
+      if (onTracks && !tracksFromLanes) {
         selectAllTracks();
         return Promise.resolve();
       }

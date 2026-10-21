@@ -1675,6 +1675,20 @@ describe("ArrangementView: track multi-selection (base-151)", () => {
     expect(itemSelection.getState().selected.clip.size).toBe(arrangementClips.length);
   });
 
+  it("Mod+A after a click on a lane's empty space (which selects its track) selects every clip, not the tracks", async () => {
+    const { selectAtLaneClick } = await import("./actions");
+    act(() => selectAtLaneClick(trackByName("Keys").id, null, "replace"));
+    expect(useArrangementUi.getState().selectedTracks.has(trackByName("Keys").id)).toBe(true);
+    await key("a");
+    const arrangementClips = Object.values(project().clips).filter((c) => !c.lane);
+    expect(itemSelection.getState().selected.clip.size).toBe(arrangementClips.length);
+    expect(useArrangementUi.getState().selectedTracks.size).toBe(0);
+    // A header click again: Mod+A selects the tracks.
+    fireEvent.click(header("Keys"));
+    await key("a");
+    expect(useArrangementUi.getState().selectedTracks.size).toBeGreaterThan(1);
+  });
+
   it("allSelectableTracks: the shown rows in display order, children of folded groups and the master left out", async () => {
     const { allSelectableTracks } = await import("./actions");
     const [keys, bass] = [trackByName("Keys"), trackByName("Bass")];
