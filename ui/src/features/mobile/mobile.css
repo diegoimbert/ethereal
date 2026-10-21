@@ -280,7 +280,7 @@ html[data-eth-mobile] textarea {
 .eth-mshell .eth-arr-header__mix {
   display: contents;
 }
-/* The desktop's pan readout is placed against that block (gone here): no readout on touch. */
+/* No pan readout on touch: no hover (a tap would leave it shown). */
 .eth-mshell .eth-arr-pan__readout {
   display: none;
 }

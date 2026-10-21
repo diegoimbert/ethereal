@@ -13,7 +13,7 @@ import { useT } from "@/i18n";
 /**
  * Pan knob in a track header, right of the volume fader. Drag up / down as one undo step;
  * double-click centers it. Follows pan automation while playing. The value ("43R", "C") shows
- * while hovering or dragging, where the volume's dB shows (left of the fader).
+ * above it while hovering or dragging, like the fader's dB.
  */
 export function HeaderPan({ track }: { track: Track }) {
   const t = useT();

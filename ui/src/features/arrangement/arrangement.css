@@ -702,28 +702,32 @@
   transform: translate(-50%, 0);
 }
 
-/* In a track header: the dB (and the pan, HeaderPan) left of the fader, over the name's end,
-   not above it (rows are paint-contained, content-visibility: a readout above the row is cut). */
-.eth-arr-header__mix {
+/* A header's readouts float above their control: lift the row's paint containment
+   (content-visibility) while they can show, or the row's top edge cuts them. */
+.eth-arr-row:has(.eth-arr-header:hover),
+.eth-arr-row:has(.eth-arr-vol--active, .eth-arr-pan--active) {
+  content-visibility: visible;
+}
+/* The fader starts where the buttons under it do (a track's usual four: mute, solo, arm,
+   automation), the pan knob ending with them. */
+.eth-arr-header .eth-arr-vol {
+  width: calc(
+    4 * var(--eth-size-track-header-button) + 3 * var(--eth-space-hair) - var(--eth-space-sm) - var(--eth-size-track-pan-knob)
+  );
+}
+/* The pan's value ("43R", "C") above the knob, like the fader's dB. */
+.eth-arr-header .eth-arr-pan {
   position: relative;
 }
-.eth-arr-header .eth-arr-vol__readout,
-.eth-arr-pan__readout {
-  top: 50%;
-  right: calc(100% + var(--eth-space-sm));
-  bottom: auto;
-  left: auto;
-  transform: translate(var(--eth-space-xs), -50%);
-}
-.eth-arr-header .eth-arr-vol:hover .eth-arr-vol__readout,
-.eth-arr-header .eth-arr-vol--active .eth-arr-vol__readout,
 .eth-arr-pan:hover .eth-arr-pan__readout,
 .eth-arr-pan--active .eth-arr-pan__readout {
   opacity: 1;
-  transform: translate(0, -50%);
+  transform: translate(-50%, 0);
 }
 .eth-arr-pan__readout {
   position: absolute;
+  bottom: 100%;
+  left: 50%;
   z-index: 2;
   padding: 0 var(--eth-space-xs);
   border-radius: var(--eth-radius-sm);
@@ -734,6 +738,7 @@
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
+  transform: translate(-50%, var(--eth-space-xs));
   transition:
     opacity var(--eth-duration-fast) var(--eth-ease-out),
     transform var(--eth-duration-fast) var(--eth-ease-out);
@@ -827,7 +832,7 @@
 .eth-arr-header__buttons .eth-arr-header__toggle {
   width: var(--eth-size-track-header-button);
   height: var(--eth-size-track-header-button);
-  font-size: var(--eth-fs-xs);
+  font-size: var(--eth-fs-sm);
 }
 
 .eth-arr-header__automation[aria-pressed="true"] {
