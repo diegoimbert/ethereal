@@ -187,13 +187,25 @@ export function GlClipLayer({ ctx, scrollRef, backend }: GlClipLayerProps) {
       return { x: e.clientX - box.left, y: e.clientY - box.top };
     };
     /** Presses on the lanes themselves (not on DOM overlays that take the pointer). */
-    const onLanes = (e: Event) => {
-      const t = e.target;
-      return t instanceof HTMLElement && (t === content || t.classList.contains("eth-arr-lane"));
-    };
+    const isLaneEl = (t: unknown) => t instanceof HTMLElement && (t === content || t.classList.contains("eth-arr-lane"));
+    const onLanes = (e: Event) => isLaneEl(e.target);
     const hitAt = (e: MouseEvent): Hit | null => {
       if (!onLanes(e)) return null;
       const p = local(e);
+      return r.hitTest(p.x, p.y);
+    };
+    /**
+     * A double-click's hit. Its target can be the track's row rather than its lane: the first
+     * press selects the track, and a selected row changes `content-visibility`, so until the
+     * next rendering update the browser hit-tests the row without its content. The row's own
+     * structure (not a control, nor the header column) counts as the lane.
+     */
+    const hitForDoubleClick = (e: MouseEvent): Hit | null => {
+      const t = e.target;
+      const structural = t instanceof HTMLElement && (isLaneEl(t) || t.classList.contains("eth-arr-row") || t.classList.contains("eth-arr-row__main"));
+      if (!structural) return null;
+      const p = local(e);
+      if (p.x < useArrangementUi.getState().headerWidth) return null;
       return r.hitTest(p.x, p.y);
     };
     const clipOf = (id: ClipId): Clip | undefined => useProjectStore.getState().project?.clips[id];
@@ -261,7 +273,7 @@ export function GlClipLayer({ ctx, scrollRef, backend }: GlClipLayerProps) {
       setHover(null);
     };
     const onDoubleClick = (e: MouseEvent) => {
-      const hit = hitAt(e);
+      const hit = hitForDoubleClick(e);
       if (hit?.part === "layer") {
         if (isReadOnly()) return;
         r.layers.byId(hit.layer!)?.onDoubleClick?.(hit, e);
