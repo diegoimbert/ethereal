@@ -510,12 +510,13 @@
   box-shadow: var(--popover-shadow);
   animation: eth-context-menu-in var(--context-menu-enter-duration) var(--context-menu-enter-ease) both;
 }
-/* A submenu that is a panel of its own: the recent projects (their search and list). */
-.eth-project-menu__projects {
+/* A submenu that is a panel of its own: the recent projects (their search and list), the
+   tutorials (Get started). */
+.eth-project-menu__wide {
   width: var(--eth-size-project-menu-projects-width);
   padding: var(--eth-space-sm);
 }
-.eth-project-menu__projects .eth-project-screen__list {
+.eth-project-menu__wide .eth-project-screen__list {
   max-height: 50vh;
 }
 

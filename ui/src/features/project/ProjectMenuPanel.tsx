@@ -19,6 +19,7 @@ import { docsCommands } from "@/features/docs/commands";
 import { newsCommands } from "@/features/news";
 import { Trans, useT } from "@/i18n";
 import { RecentProjects } from "./ProjectScreen";
+import { GetStarted } from "./GetStarted";
 
 /** Which submenu of the project menu is open (one at a time), shared by its items. */
 const OpenSub = createContext<{ open: string | null; setOpen(label: string | null): void }>({ open: null, setOpen: () => {} });
@@ -214,7 +215,7 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
       >
         {item("project:new")}
         {/* The recent projects (the welcome screen's), as a submenu. */}
-        <SubMenu label={t("project.menu.open_project")} panel className="eth-project-menu__projects">
+        <SubMenu label={t("project.menu.open_project")} panel className="eth-project-menu__wide">
           {/* The search takes the focus when it opens: type to find a project. */}
           <RecentProjects commands={commands} onDone={close} focusSearch />
         </SubMenu>
@@ -284,8 +285,12 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
         <Separator />
         {/* docs: the user documentation (in the app on desktop, /docs in a new tab on the web). */}
         {item("app:docs")}
-        {/* tutorials: the guided tours, the welcome screen's "get started". */}
-        {item("app:tutorials")}
+        {/* tutorials: the guided tours, the welcome screen's "get started", as a submenu. */}
+        <SubMenu label={t("project.menu.tutorials")} panel className="eth-project-menu__wide">
+          <GetStarted commands={commands} onStarted={close} />
+        </SubMenu>
+        {/* The welcome (splash) screen itself. */}
+        {item("app:splash")}
         {/* news: past announcements (docs/NEWS.md). */}
         {item("app:news")}
         {extra("app")}

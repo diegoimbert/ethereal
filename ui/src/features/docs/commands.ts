@@ -28,5 +28,13 @@ export function docsCommands() {
       keywords: "tutorials tutorial tour guided get started learn help first track",
       run: () => useProjectScreen.getState().show("home"),
     },
+    {
+      // The welcome (splash) screen: get started and the recent projects.
+      id: "app:splash",
+      group: "Help",
+      label: t("docs.command.splash"),
+      keywords: "splash welcome home start screen recent projects get started",
+      run: () => useProjectScreen.getState().show("home"),
+    },
   ];
 }
