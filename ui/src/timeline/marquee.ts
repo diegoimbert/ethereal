@@ -102,12 +102,14 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
   const onPointerDown = useCallback((e: ReactPointerEvent<Element>) => {
     if (e.button !== 0) return;
     const el = e.currentTarget;
-    const box = el.getBoundingClientRect();
-    const local = (ev: { clientX: number; clientY: number }): Point => ({
-      x: ev.clientX - box.left,
-      y: ev.clientY - box.top,
-    });
+    // Local to the element as it is now: it may scroll during the drag (the view auto-scrolls
+    // when the pointer leaves it), and the press stays where it was in its content.
+    const local = (ev: { clientX: number; clientY: number }): Point => {
+      const box = el.getBoundingClientRect();
+      return { x: ev.clientX - box.left, y: ev.clientY - box.top };
+    };
     const start = local(e);
+    let pointer = { clientX: e.clientX, clientY: e.clientY };
     const sectionable = !!optsRef.current.section;
     const mode: SelectMode = sectionable ? selectModeFromEvent({ ...e, shiftKey: false }) : selectModeFromEvent(e);
     const { kind, store = itemSelection } = optsRef.current;
@@ -137,12 +139,18 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
       store.getState().select(kind, combineSelection(base, hits, mode), "replace");
     };
     const move = (ev: PointerEvent) => {
+      pointer = { clientX: ev.clientX, clientY: ev.clientY };
       const p = local(ev);
       shift = ev.shiftKey;
       const threshold = optsRef.current.threshold ?? 3;
       if (!active && Math.hypot(p.x - start.x, p.y - start.y) < threshold) return;
       active = true;
       update(p);
+    };
+    // The view scrolled under a still pointer (auto-scroll at its edge, the wheel): the
+    // marquee's far corner follows the content.
+    const onScroll = () => {
+      if (active) update(local(pointer));
     };
     // Shift pressed or released without moving: switch modes in place.
     const onKey = (ev: KeyboardEvent) => {
@@ -172,6 +180,7 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
       window.removeEventListener("pointercancel", done);
       window.removeEventListener("keydown", onKey);
       window.removeEventListener("keyup", onKey);
+      window.removeEventListener("scroll", onScroll, true);
       cleanup.current = null;
       setRect(null);
     };
@@ -182,6 +191,7 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
     window.addEventListener("pointercancel", done);
     window.addEventListener("keydown", onKey);
     window.addEventListener("keyup", onKey);
+    window.addEventListener("scroll", onScroll, true);
   }, []);
 
   return { rect, onPointerDown };
