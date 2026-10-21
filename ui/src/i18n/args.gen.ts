@@ -165,6 +165,7 @@ export interface MessageArgs {
   "devices.clipboard.paste_failed": { error: string | number; name: string | number };
   "devices.clipboard.replace_body": { name: string | number; with: string | number };
   "devices.device.bypass_name": { name: string | number };
+  "devices.device.delete_failed": { error: string | number };
   "devices.device.enable_name": { name: string | number };
   "devices.device.move_left": { name: string | number };
   "devices.device.move_right": { name: string | number };

@@ -468,6 +468,17 @@ describe("DeviceChain: stacked layout (inspector)", () => {
     expect(chainNames("Keys")).toEqual(["Synth", "Compressor"]);
   });
 
+  it("⌘X dims the cards until pasted; Delete removes the selected cards", async () => {
+    await renderStack();
+    fireEvent.pointerDown(deviceEl("Compressor").querySelector("header")!, { button: 0 });
+    act(() => void document.dispatchEvent(new Event("cut")));
+    expect(deviceEl("Compressor")).toHaveClass("eth-device--cut");
+    expect(chainNames("Keys")).toEqual(["Synth", "Compressor"]);
+    fireEvent.keyDown(deviceEl("Compressor"), { key: "Delete" });
+    await flush();
+    expect(chainNames("Keys")).toEqual(["Synth"]);
+  });
+
   it("labels the sections; stacked cards have no up/down buttons (drag the header)", async () => {
     await renderStack();
     // Every section a MIDI track holds, empty ones included.

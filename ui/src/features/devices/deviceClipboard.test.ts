@@ -7,7 +7,7 @@ import { useProjectStore } from "@/state";
 import { cmd, newId } from "@/transport";
 import { MockTransport } from "@/transport/mock";
 import { useConfirm } from "@/kit/confirmStore";
-import { pasteDevice, pasteTarget, useDeviceClipboard } from "./deviceClipboard";
+import { deleteDevices, pasteDevice, pasteTarget, useDeviceClipboard } from "./deviceClipboard";
 
 let mock: MockTransport;
 const store = () => useProjectStore.getState();
@@ -27,7 +27,7 @@ beforeEach(async () => {
 afterEach(() => {
   mock.dispose();
   store().reset();
-  useDeviceClipboard.setState({ selected: [], anchor: null, copied: [] });
+  useDeviceClipboard.setState({ selected: [], anchor: null, copied: [], cut: false });
   useNotices.getState().clear();
 });
 
@@ -253,5 +253,37 @@ describe("several devices (MIDI effects, instruments and audio effects together)
     await pasteDevice(mock, { type: "Track", track: a }, categoryOf);
     expect(onTrack(a).map(typeOf)).toEqual(["Eq"]);
     expect(useNotices.getState().notices.at(-1)?.message).toMatch(/is a midi effect: select a midi track/i);
+  });
+});
+
+describe("cut and delete", () => {
+  it("a cut moves the devices on paste (one undo step); the next paste copies", async () => {
+    const a = await track("Midi");
+    const arp = await insert(a, "Arpeggiator");
+    await insert(a, "Synth");
+    const eq = await insert(a, "Eq");
+    const b = await track("Midi");
+    await insert(b, "Delay");
+    useDeviceClipboard.getState().copy([arp, eq], true);
+    // Nothing moves until the paste.
+    expect(onTrack(a).map(typeOf)).toEqual(["Arpeggiator", "Synth", "Eq"]);
+    await pasteDevice(mock, { type: "Track", track: b }, categoryOf);
+    expect(onTrack(b).map(typeOf)).toEqual(["Arpeggiator", "Delay", "Eq"]);
+    expect(onTrack(a).map(typeOf)).toEqual(["Synth"]);
+    expect(useDeviceClipboard.getState().cut).toBe(false);
+    await mock.send(cmd("Edit", { type: "Undo" }));
+    expect(onTrack(a).map(typeOf)).toEqual(["Arpeggiator", "Synth", "Eq"]);
+    expect(onTrack(b).map(typeOf)).toEqual(["Delay"]);
+  });
+
+  it("deletes the selected devices in one undo step", async () => {
+    const a = await track("Midi");
+    const arp = await insert(a, "Arpeggiator");
+    await insert(a, "Synth");
+    const eq = await insert(a, "Eq");
+    await deleteDevices(mock, [arp, eq]);
+    expect(onTrack(a).map(typeOf)).toEqual(["Synth"]);
+    await mock.send(cmd("Edit", { type: "Undo" }));
+    expect(onTrack(a).map(typeOf)).toEqual(["Arpeggiator", "Synth", "Eq"]);
   });
 });

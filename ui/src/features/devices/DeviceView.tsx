@@ -74,6 +74,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
   // Copy / paste (deviceClipboard.ts): the selected card, what's copied, device kinds.
   const selected = useDeviceClipboard((s) => s.selected.includes(device.id));
   const copied = useDeviceClipboard((s) => s.copied.length > 0);
+  const isCut = useDeviceClipboard((s) => s.cut && s.copied.includes(device.id));
   const builtins = useBuiltinTypes();
   const plugins = usePluginStore((s) => s.plugins);
   const categoryOf = (d: Device) => deviceCategory(d, builtins, plugins);
@@ -120,6 +121,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
           !paramsOpen && "eth-device--collapsed",
           !on && "eth-device--bypassed",
           selected && "eth-device--selected",
+          isCut && "eth-device--cut",
           frozen && "eth-device--frozen",
         )}
         data-frozen={frozen || undefined}
@@ -151,6 +153,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
                 [...resolvePluginEntries(device, transport), ...replaceDeviceEntries(device, transport)],
                 [
                   { label: t("devices.device.copy"), shortcut: shortcutLabel("edit.copy"), onSelect: () => copyFrom(device.id) },
+                  { label: t("devices.device.cut"), shortcut: shortcutLabel("edit.cut"), onSelect: () => copyFrom(device.id, true) },
                   ...(copied
                     ? [
                         {

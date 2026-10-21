@@ -647,3 +647,8 @@
 :root:not([data-translucency="off"]) .eth-eq .eth-plot.eth-plot--eq {
   background: color-mix(in srgb, var(--eth-color-bg-inset) 55%, transparent);
 }
+
+/* A cut card (⌘X): dimmed until pasted (the paste moves it). */
+.eth-device--cut {
+  opacity: var(--eth-opacity-muted);
+}
