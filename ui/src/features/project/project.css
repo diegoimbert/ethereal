@@ -165,17 +165,15 @@
 }
 .eth-welcome__article--tour {
   flex: 1;
-  border: var(--eth-space-hair) solid transparent;
+  border: none;
   color: inherit;
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition:
-    background var(--eth-duration-fast) var(--eth-ease-standard),
-    border-color var(--eth-duration-fast) var(--eth-ease-standard);
+  transition: background var(--eth-duration-fast) var(--eth-ease-standard);
 }
+/* Borderless: the hover only lightens it. */
 .eth-welcome__article--tour:hover:not(:disabled) {
-  border-color: var(--eth-color-border);
   background: var(--eth-color-bg-hover);
 }
 .eth-welcome__article--tour:focus-visible {
