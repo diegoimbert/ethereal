@@ -196,19 +196,6 @@ export function TransportBar() {
             drag={tempoDragHandlers}
           />
           <span className="eth-tb__unit">bpm</span>
-          {!readOnly && (
-            <Button
-              size="sm"
-              tone="ghost"
-              className="eth-tb__tap"
-              {...midiTarget({ type: "Transport", action: "TapTempo" })}
-              title={t("shell.transport.tap_title")}
-              disabled={disabled}
-              onClick={() => void send(cmd("Transport", { type: "TapTempo" }))}
-            >
-              {t("shell.transport.tap")}
-            </Button>
-          )}
           <CommitField
             label={t("shell.transport.signature")}
             title={t("shell.transport.signature_title")}

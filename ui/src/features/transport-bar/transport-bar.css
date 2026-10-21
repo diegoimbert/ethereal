@@ -94,11 +94,6 @@
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);
 }
-.eth-tb__tap {
-  color: var(--eth-color-text-dim);
-  letter-spacing: var(--eth-tracking-caps);
-}
-
 .eth-tb-field {
   height: var(--eth-size-control-md);
   padding: 0 var(--eth-space-sm);

@@ -1,12 +1,13 @@
 /**
- * Metronome settings: the on/off switch (`Transport::SetMetronome`), click volume, accent and
+ * Metronome settings: tap tempo, the on/off switch (`Transport::SetMetronome`), click volume, accent and
  * sound (`Tempo::SetMetronomeSettings`, one undo step each), in the popover a right-click on
  * the top bar's metronome button opens. The click also sounds during a recording count-in,
  * even when the metronome is off.
  */
 
 import type { MetronomeSound } from "@/generated";
-import { NumberField, Select, Toggle } from "@/kit";
+import { Button, NumberField, Select, Toggle } from "@/kit";
+import { midiTarget } from "@/features/midi-learn/targets";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
 import { sendEdit, useTempoTransport } from "./gesture";
@@ -22,6 +23,16 @@ export function MetronomePanel() {
   const on = settings.metronome;
   return (
     <div className="eth-metronome" data-feature="metronome">
+      {/* Tap in time: the tempo follows the taps (MIDI-learnable). */}
+      <Button
+        size="sm"
+        className="eth-metronome__tap"
+        {...midiTarget({ type: "Transport", action: "TapTempo" })}
+        title={t("tempo.metronome.tap_title")}
+        onClick={() => void sendEdit(transport, cmd("Transport", { type: "TapTempo" }))}
+      >
+        {t("tempo.metronome.tap")}
+      </Button>
       <Toggle
         size="sm"
         label={t("tempo.metronome.label")}
