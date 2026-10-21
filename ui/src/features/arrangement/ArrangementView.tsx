@@ -261,15 +261,12 @@ function ConnectedArrangementView() {
     kind: "clip",
     // The lanes start after the header column; dragging past their edges scrolls the timeline.
     timeline: { view, originPx: () => useArrangementUi.getState().headerWidth },
+    // The whole drag, past the lanes' edges too: clips the edge scroll moved off screen (left
+    // of the lanes, under the header column) stay selected.
     hitTest: (rect) => {
       const project = useProjectStore.getState().project;
       const hw = useArrangementUi.getState().headerWidth;
-      const lanes = {
-        ...rect,
-        x0: Math.max(rect.x0, hw),
-        x1: Math.max(rect.x1, hw),
-      };
-      return project ? marqueeHits(lanes, clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw)) : [];
+      return project ? marqueeHits(rect, clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw)) : [];
     },
     onEnd: timeEdits.onMarqueeEnd,
     section: {

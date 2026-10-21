@@ -826,6 +826,28 @@ describe("ArrangementView: clip editing", () => {
     expect(useSelectionStore.getState().selectedTrack).toBe(trackByName("Bass").id);
   });
 
+  it("keeps the clips the marquee covered selected when the view scrolls them off the left edge", async () => {
+    const content = screen.getByTestId("arrangement-content");
+    const [x, y] = [HEADER_WIDTH + 10, 30];
+    await act(async () => {
+      fireEvent.pointerDown(content, { button: 0, pointerId: 1, clientX: x, clientY: y });
+    });
+    await act(async () => {
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: x + 200, clientY: y + 75 });
+      fireEvent.pointerMove(window, { pointerId: 1, clientX: x + 400, clientY: y + 150 });
+    });
+    const chords = clipByName("Chords").id;
+    expect(itemSelection.getState().selected.clip.has(chords)).toBe(true);
+    // The edge scroll (or the wheel) moves the view far right: Chords is off screen, left of
+    // the lanes, still inside the drag.
+    act(() => arrangementView.getState().scrollByPx(3000));
+    expect(itemSelection.getState().selected.clip.has(chords)).toBe(true);
+    expect(itemSelection.getState().selected.clip.has(clipByName("Bassline").id)).toBe(true);
+    await act(async () => {
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: x + 400, clientY: y + 150 });
+    });
+  });
+
   it("opens MIDI clips in the editor on double-click", () => {
     const chords = clipByName("Chords");
     const at = partAt(chords);

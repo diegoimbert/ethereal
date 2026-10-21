@@ -197,7 +197,8 @@ export function NoteGrid({
   const marqueeAlt = useRef(false);
   /** The section from a drag rectangle (snapped; alt: free). */
   const sectionFromRect = (rect: Rect): PianoRollSection | null => {
-    const at = (px: number) => Math.max(space.floor, snapToGrid(pxToBeats(px, vp), marqueeAlt.current ? null : sectionStep(step), tempo, "nearest"));
+    const at = (px: number) =>
+      Math.max(space.floor, snapToGrid(pxToBeats(px, view.getState()), marqueeAlt.current ? null : sectionStep(step), tempo, "nearest"));
     // The rows it was drawn over (like the arrangement's section covers its tracks).
     const a = yToPitch(rect.y0, keyH, rows);
     const b = yToPitch(Math.max(rect.y0, rect.y1 - 1e-3), keyH, rows);
@@ -206,11 +207,15 @@ export function NoteGrid({
   // A plain drag selects notes; a Shift-drag makes a section AND selects the notes under the
   // rectangle (notes and a section at once, like the arrangement's section covering its clips),
   // both live while dragging. Shift can be pressed or released mid-drag to switch.
-  const hitNotes = (rect: Rect) =>
-    marqueeHits(
+  // The view as it is now (not the last render's `vp`): the drag's edge scrolling moves it and
+  // updates the marquee before this component re-renders.
+  const hitNotes = (rect: Rect) => {
+    const now = view.getState();
+    return marqueeHits(
       rect,
-      notes.map((n) => ({ id: n.id, rect: noteRect(n, vp, keyH, rows) })),
+      notes.map((n) => ({ id: n.id, rect: noteRect(n, now, keyH, rows) })),
     );
+  };
   const marquee = useMarquee({
     kind: "note",
     // Dragging past the grid's left / right edge scrolls the timeline.
