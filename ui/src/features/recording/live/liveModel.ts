@@ -10,6 +10,8 @@
  * - `Started` clears everything. `Stopped` freezes the view ("handoff") until the committed
  *   clips' peaks are ready (`Media::PeaksReady`, plus a short grace for the tile fetch) or a
  *   timeout, so the live waveform is replaced by the real one without a blank frame.
+ * - `freeze()` stops the growth before `Stopped` without a timeout (a recording shown from
+ *   elsewhere whose clips are still on their way).
  *
  * Runtime only (never in the document or the undo history).
  */
@@ -170,6 +172,13 @@ export interface LiveNote {
   length: number | null;
 }
 
+/** Where the recording is now (beats; `null`: unknown), and when that changes (`LiveRecordView`). */
+export interface LiveClock {
+  position(): number | null;
+  /** Calls `changed` whenever `position()` may have moved; returns the unsubscribe. */
+  subscribe(changed: () => void): () => void;
+}
+
 export interface LiveTrackView {
   takes: ReadonlyArray<LiveTake>;
   notes: ReadonlyArray<LiveNote>;
@@ -192,6 +201,8 @@ export class LiveRecording {
   /** Committed media still waiting for `PeaksReady` during the handoff. */
   private waiting = new Set<MediaId>();
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** `freeze()`d: handoff with nothing to wait for yet (no timeout until `Stopped`). */
+  private frozen = false;
 
   constructor(
     /** Media of a committed clip (audio) or `null`. */
@@ -226,6 +237,14 @@ export class LiveRecording {
     }
   }
 
+  /** Stop growing (no more data is coming) and wait for `Stopped`, as long as it takes. */
+  freeze(): void {
+    if (this.phase !== "recording") return;
+    this.phase = "handoff";
+    this.frozen = true;
+    this.refresh(null);
+  }
+
   /** `Media::PeaksReady`. */
   peaksReady(media: MediaId): void {
     this.ready.add(media);
@@ -242,6 +261,7 @@ export class LiveRecording {
     this.ready.clear();
     this.waiting.clear();
     this.phase = "idle";
+    this.frozen = false;
     if (had) this.refresh(null);
   }
 
@@ -269,7 +289,8 @@ export class LiveRecording {
   }
 
   private stopped(clips: ReadonlyArray<ClipId>): boolean {
-    if (this.phase !== "recording") return false;
+    if (this.phase !== "recording" && !this.frozen) return false;
+    this.frozen = false;
     const media = clips.map(this.mediaOf).filter((m): m is MediaId => m !== null && !this.ready.has(m));
     this.phase = "handoff";
     this.waiting = new Set(media);
