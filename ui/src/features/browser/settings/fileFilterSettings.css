@@ -6,8 +6,8 @@
 }
 .eth-file-filter__lists {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--eth-space-md);
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--eth-space-lg);
   min-width: 0;
 }
 .eth-file-filter__list {
@@ -57,6 +57,14 @@
 .eth-file-filter__input {
   flex: 1;
   min-width: 0;
+}
+/* A rule's kind (plain terms): sized to its longest label. */
+.eth-file-filter__kind {
+  flex: none;
+  width: 18ch;
+}
+/* A regex (regex mode, or a custom pattern). */
+.eth-file-filter__input--regex {
   font-family: var(--eth-font-mono);
 }
 .eth-file-filter__rule-error {

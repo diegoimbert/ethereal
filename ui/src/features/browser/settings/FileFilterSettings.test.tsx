@@ -1,14 +1,18 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { useContext } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { FileFilter } from "@/generated";
 import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
 import { cmd, TransportContext } from "@/transport";
 import type { MockTransport } from "@/transport/mock/MockTransport";
 import { defaultFileFilter } from "@/transport/mock/roadmap/fileFilter";
+import { useConfirm } from "@/kit";
 import { FileFilterSettings } from "./FileFilterSettings";
 
-afterEach(resetStores);
+afterEach(() => {
+  resetStores();
+  localStorage.removeItem("eth.library.regexRules");
+});
 
 async function stored(mock: MockTransport): Promise<FileFilter> {
   const r = await mock.send(cmd("Browser", { type: "GetFileFilter" }));
@@ -32,7 +36,9 @@ const show = () => within(screen.getByRole("group", { name: "show rules" }));
 const hide = () => within(screen.getByRole("group", { name: "hide rules" }));
 const count = () => screen.getByTestId("file-filter-count");
 
-describe("FileFilterSettings", () => {
+describe("FileFilterSettings (regex mode)", () => {
+  beforeEach(() => localStorage.setItem("eth.library.regexRules", "1"));
+
   it("shows the default rules and how many library files they show", async () => {
     await setup();
     const defaults = defaultFileFilter();
@@ -65,6 +71,11 @@ describe("FileFilterSettings", () => {
     const reset = screen.getByRole("button", { name: "reset to defaults" });
     await waitFor(() => expect(reset).toBeEnabled());
     fireEvent.click(reset);
+    // It asks first.
+    expect(await stored(mock)).not.toEqual(defaultFileFilter());
+    const ask = useConfirm.getState().request!;
+    expect(ask.title).toBe("reset the library file rules?");
+    act(() => ask.run());
     await waitFor(() => expect(show().getAllByRole("textbox")).toHaveLength(3));
     expect(await stored(mock)).toEqual(defaultFileFilter());
   });
@@ -104,5 +115,33 @@ describe("FileFilterSettings", () => {
     await mock.send(cmd("Browser", { type: "SetFileFilter", filter: { whitelist: [], blacklist: ["x"] } }));
     await waitFor(() => expect(show().queryAllByRole("textbox")).toHaveLength(0));
     expect(hide().getByRole("textbox", { name: "hide rule 1" })).toHaveValue("x");
+  });
+});
+
+describe("FileFilterSettings (plain terms, the default)", () => {
+  const kinds = (g: ReturnType<typeof show>) => g.getAllByRole("combobox").map((c) => c.textContent);
+  const values = (g: ReturnType<typeof show>) => g.getAllByRole("textbox").map((i) => (i as HTMLInputElement).value);
+
+  it("shows each rule as a kind and its text; a custom pattern as its regex", async () => {
+    const { mock } = await setup();
+    expect(kinds(show())[0]).toBe("file type");
+    expect(values(show())[0]).toMatch(/^wav, wave, aif/);
+    const hidden = defaultFileFilter().blacklist.map((rule, i) => [rule, kinds(hide())[i], values(hide())[i]]);
+    expect(hidden).toContainEqual([String.raw`^\.`, "name starts with", "."]);
+    expect(hidden).toContainEqual([String.raw`^Thumbs\.db$`, "name is", "Thumbs.db"]);
+    await act(async () => {
+      await mock.send(cmd("Browser", { type: "SetFileFilter", filter: { whitelist: ["^take[0-9]+"], blacklist: [] } }));
+    });
+    await waitFor(() => expect(kinds(show())).toEqual(["pattern (regex)"]));
+    expect(values(show())).toEqual(["^take[0-9]+"]);
+  });
+
+  it("adds a file type in plain words: saved as the rule it means", async () => {
+    const { mock } = await setup();
+    fireEvent.click(screen.getByRole("button", { name: "add show rule" }));
+    const input = show().getByRole("textbox", { name: "show rule 4" });
+    fireEvent.change(input, { target: { value: "txt, als" } });
+    fireEvent.blur(input);
+    await waitFor(async () => expect((await stored(mock)).whitelist).toEqual([...defaultFileFilter().whitelist, String.raw`\.(txt|als)$`]));
   });
 });

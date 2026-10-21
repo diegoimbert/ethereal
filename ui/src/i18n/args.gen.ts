@@ -110,6 +110,7 @@ export interface MessageArgs {
   "browser.empty.nothing_matches": { query: string | number };
   "browser.filter.count": { hidden: number; shown: number; total: number };
   "browser.filter.hide_rule": { n: number };
+  "browser.filter.kind_of": { rule: string | number };
   "browser.filter.remove_hide_rule": { n: number };
   "browser.filter.remove_show_rule": { n: number };
   "browser.filter.show_rule": { n: number };
