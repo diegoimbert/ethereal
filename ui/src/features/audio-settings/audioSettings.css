@@ -129,11 +129,36 @@
   outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
   outline-offset: calc(-1 * var(--eth-focus-ring-width));
 }
+/* A category's pages: folded to no height, unfolding (and fading in) when it opens. */
 .eth-settings__nav-pages {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition:
+    grid-template-rows var(--eth-duration-medium) var(--eth-ease-out),
+    opacity var(--eth-duration-medium) var(--eth-ease-out);
+}
+.eth-settings__nav-pages[data-open] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.eth-settings__nav-pages-inner {
   display: flex;
   flex-direction: column;
   gap: var(--eth-space-hair);
-  margin: var(--eth-space-hair) 0 var(--eth-space-sm) var(--eth-space-md);
+  min-height: 0;
+  overflow: hidden;
+  padding-left: var(--eth-space-md);
+}
+.eth-settings__nav-pages[data-open] .eth-settings__nav-pages-inner {
+  padding-block: var(--eth-space-hair) var(--eth-space-sm);
+}
+.eth-settings__nav-pages-inner > .eth-settings__nav-item {
+  transform: translateY(calc(-1 * var(--eth-space-sm)));
+  transition: transform var(--eth-duration-medium) var(--eth-ease-out);
+}
+.eth-settings__nav-pages[data-open] .eth-settings__nav-pages-inner > .eth-settings__nav-item {
+  transform: none;
 }
 .eth-settings__nav-page {
   font-size: var(--eth-fs-xs);

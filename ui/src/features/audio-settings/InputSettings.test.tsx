@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { closeKeymapEditor, useKeymapStore } from "@/features/keymap";
-import { InputSettings, ShortcutSettings } from "./InputSettings";
+import { ShortcutSettings } from "./InputSettings";
 import { openSettings, useAudioSettings } from "./store";
 
 afterEach(() => {

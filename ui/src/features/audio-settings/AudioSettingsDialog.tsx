@@ -155,20 +155,24 @@ export function AudioSettingsDialog() {
                   >
                     {c.label}
                   </button>
-                  {current && c.pages.length > 1 && (
-                    <div className="eth-settings__nav-pages">
-                      {c.pages.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          className="eth-settings__nav-item eth-settings__nav-page"
-                          aria-current={p.id === page.id ? "page" : undefined}
-                          data-current={p.id === page.id || undefined}
-                          onClick={() => setTab(p.id)}
-                        >
-                          {p.label}
-                        </button>
-                      ))}
+                  {/* Always there, animated open / closed (its height); closed, out of the
+                      tab order. */}
+                  {c.pages.length > 1 && (
+                    <div className="eth-settings__nav-pages" data-open={current || undefined} inert={!current}>
+                      <div className="eth-settings__nav-pages-inner">
+                        {c.pages.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className="eth-settings__nav-item eth-settings__nav-page"
+                            aria-current={p.id === page.id ? "page" : undefined}
+                            data-current={p.id === page.id || undefined}
+                            onClick={() => setTab(p.id)}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
