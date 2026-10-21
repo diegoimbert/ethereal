@@ -53,7 +53,7 @@ The **gear** at the right end of the status bar (at the bottom) opens the settin
 | **appearance** | the theme (light or dark), the interface zoom, animations, the colour blobs and glow, and translucency. |
 | **audio** | the driver, output and input devices, sample rate and buffer size, and an input check. In the browser, the system picks the devices. See [audio and MIDI setup](/docs/making-music/audio-and-midi-setup). |
 | **mouse & keyboard** | **mouse & trackpad**: the mouse wheel and buttons: zoom and scroll sensitivity, which modifier zooms, inverted directions, the middle button and the back and forward buttons. See [zoom and scroll](/docs/basics/playing-and-navigating#zoom-and-scroll). **keyboard shortcuts**: **edit keyboard shortcuts…** opens the shortcuts editor (also **keyboard shortcuts…** in the palette). |
-| **plugins** | [[desktop]] the folders scanned for plugins, and rescanning. See [plugins](/docs/sounds-and-plugins/plugins). |
+| **plugins** | [[desktop]] **folders & scan**: the folders scanned for plugins, and rescanning. **plugin list**: each plugin listed once (in its preferred format) and the hidden plugins. See [plugins](/docs/sounds-and-plugins/plugins). |
 | **advanced** | **engine**: the engine server (once turned on). **diagnostics**: the engine log (desktop) and the debug panels. See [the settings reference](/docs/advanced/settings). |
 
 Appearance and mouse & keyboard settings are kept on this computer (or in this browser). The other settings need the audio engine to be running.

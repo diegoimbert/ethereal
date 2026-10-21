@@ -50,7 +50,12 @@ Le pilote audio, le **périphérique de sortie**, le **périphérique d’entré
 
 ## plug-ins [[desktop]] {#plugins}
 
-Les dossiers analysés pour trouver des plug-ins : les dossiers du système (chacun peut être désactivé) et vos propres dossiers, ainsi que les boutons d’analyse. Dans la version web, cette page indique seulement que les plug-ins demandent l’application de bureau. Voir [plug-ins](/docs/sounds-and-plugins/plugins).
+**dossiers et analyse** : les dossiers analysés pour trouver des plug-ins : les dossiers du système (chacun peut être désactivé) et vos propres dossiers, ainsi que les boutons d’analyse. Dans la version web, cette page indique seulement que les plug-ins demandent l’application de bureau. Voir [plug-ins](/docs/sounds-and-plugins/plugins).
+
+**liste des plug-ins** : les plug-ins que la bibliothèque d’appareils affiche, conservé sur cet appareil. Voir [le même plug-in dans plusieurs formats](/docs/sounds-and-plugins/plugins#the-same-plugin-in-several-formats).
+
+- **afficher chaque plug-in une seule fois** (activé par défaut) : un plug-in installé dans plusieurs formats n’est listé qu’une fois, dans le **format préféré** (clap, puis vst3, au, vst2). Désactivez-le pour lister tous les formats et en choisir un précis.
+- **plug-ins masqués** : les plug-ins que la bibliothèque n’affiche pas, chacun dans **tous les formats** ou dans un seul format. **masquer un plug-in…** en ajoute un, **×** l’affiche de nouveau, et **réinitialiser** (après confirmation) rétablit les valeurs par défaut.
 
 ## avancé {#advanced}
 

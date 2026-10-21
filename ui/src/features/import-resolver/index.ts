@@ -6,7 +6,7 @@ import "./resolver.css";
 
 export { ImportResolverRoot } from "./ImportResolverRoot";
 export { ResolverDialog } from "./ResolverDialog";
-export { ReplaceDialog } from "./ReplaceDialog";
+export { ReplacePopover } from "./ReplacePopover";
 export {
   replaceDeviceLabel,
   resolveLabel,

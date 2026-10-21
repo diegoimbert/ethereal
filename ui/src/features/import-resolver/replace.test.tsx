@@ -1,18 +1,18 @@
 // "Replace device…" (owner requests): any device but a rack, factory or plugin, can be
 // swapped for a factory device or a plugin of the same role, with "Retain automations and
-// parameters" (on by default) or without, in one undo step.
+// parameters" (on by default) or without, in one undo step: a popover under the device's
+// header, the device library and the retain toggle; a row replaces at once.
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import type { Device, DeviceId } from "@/generated";
 import { useContextMenuStore, type ContextMenuItem } from "@/kit";
-import { pickDevice } from "@/features/devices/testing";
+import { useNotices } from "@/features/notifications";
 import { useProjectStore, useSelectionStore } from "@/state";
 import { cmd, newId, TransportProvider, type EngineTransport } from "@/transport";
 import { MOCK_MEGA_PLUGIN_ID, MockTransport } from "@/transport/mock";
 import { MOCK_MINI_PLUGIN_ID } from "@/transport/mock/plugins";
 import { DeviceChain } from "@/features/devices";
 import { replaceDeviceEntries, replaceDeviceLabel } from "./menus";
-import { ReplaceDialog } from "./ReplaceDialog";
 import { resetReplace, setReplaceTransport, useReplace } from "./replace";
 
 let mock: MockTransport | undefined;
@@ -33,6 +33,7 @@ afterEach(() => {
   useProjectStore.getState().reset();
   useSelectionStore.getState().selectTrack(null);
   useContextMenuStore.setState({ menu: null });
+  useNotices.getState().clear();
 });
 
 const project = () => useProjectStore.getState().project!;
@@ -49,7 +50,6 @@ async function setup(): Promise<{ t: MockTransport; device: DeviceId; cutoffLane
   render(
     <TransportProvider transport={t}>
       <DeviceChain />
-      <ReplaceDialog transport={t} />
     </TransportProvider>,
   );
   await waitFor(() => expect(useProjectStore.getState().project).not.toBeNull());
@@ -87,38 +87,36 @@ async function openFromHeader(name = "Mock Mega"): Promise<HTMLElement> {
   return screen.findByRole("dialog", { name: `replace “${name}”` });
 }
 
+/** The popover's list of `kind` (effects, instruments…), loaded. */
+async function listIn(popover: HTMLElement, kind = "effects") {
+  const list = within(await within(popover).findByRole("list", { name: kind }));
+  await waitFor(() => expect(list.queryAllByRole("button").length).toBeGreaterThan(0));
+  return list;
+}
+
 const pluginId = (d: Device | undefined) => (d?.kind.type === "Plugin" ? d.kind.plugin.plugin_id : null);
 
 describe("Replace device…", () => {
-  it("chooses the replacement in the shared plugin picker: searchable, the current plugin left out", async () => {
+  it("is a popover with the device library (searchable, the current plugin left out) and the retain toggle", async () => {
     await setup();
-    const dialog = await openFromHeader();
-    const trigger = within(dialog).getByRole("button", { name: "replacement device" });
-    fireEvent.click(trigger);
-    const popover = await screen.findByRole("dialog", { name: "replacement device" });
+    const popover = await openFromHeader();
     expect(within(popover).getByRole("searchbox", { name: "search effects" })).toBeInTheDocument();
-    const list = within(await within(popover).findByRole("list", { name: "effects" }));
+    const list = await listIn(popover);
     await waitFor(() => expect(list.getByRole("button", { name: "Mock Mini" })).toBeInTheDocument());
     expect(list.queryByRole("button", { name: "Mock Mega" })).toBeNull();
+    expect(within(popover).getByRole("switch", { name: "retain automations and parameters" })).toHaveAttribute("aria-checked", "true");
+    // What it keeps: the toggle's tooltip (its title), not text under it.
+    expect(within(popover).getByRole("switch").closest("[title]")).toHaveAttribute("title", expect.stringMatching(/^matching parameters keep their values/));
     fireEvent.change(within(popover).getByRole("searchbox"), { target: { value: "zzz" } });
     expect(list.getByText("no match.")).toBeInTheDocument();
   });
 
-  it("retains values and automation by parameter name, reports what can't be kept, one undo step", async () => {
+  it("a row replaces at once, retaining values and automation by name; says what it couldn't keep; one undo step", async () => {
     const { t, device, cutoffLane, releaseLane } = await setup();
     const before = structuredClone(project());
-    const dialog = await openFromHeader();
-    expect(within(dialog).getByRole("switch", { name: "retain automations and parameters" })).toHaveAttribute("aria-checked", "true");
-    // The current plugin is not offered.
-    await pickDevice(within(dialog).getByRole("button", { name: "replacement device" }), "Mock Mini");
-    const summary = await within(dialog).findByTestId("replace-summary");
-    expect(summary).toHaveTextContent("parameters matched by name: 1 parameter kept.");
-    expect(summary).toHaveTextContent("can’t keep: Release 5");
-    expect(summary).toHaveTextContent("1 automation lane of unmatched parameters will be removed.");
-    // The preview changed nothing.
-    expect(pluginId(project().devices[device])).toBe(MOCK_MEGA_PLUGIN_ID);
-
-    fireEvent.click(within(dialog).getByRole("button", { name: "replace" }));
+    const popover = await openFromHeader();
+    const list = await listIn(popover);
+    fireEvent.click(await list.findByRole("button", { name: "Mock Mini" }));
     await waitFor(() => expect(pluginId(project().devices[device])).toBe(MOCK_MINI_PLUGIN_ID));
     const d = project().devices[device]!;
     expect(d.name).toBe("Mock Mini");
@@ -127,6 +125,9 @@ describe("Replace device…", () => {
     expect(project().automation_lanes[cutoffLane]?.target).toEqual({ type: "DeviceParam", device, param: 101 });
     expect(project().automation_lanes[releaseLane]).toBeUndefined();
     expect(useReplace.getState().open).toBe(false);
+    expect(useNotices.getState().notices.at(-1)?.message).toBe(
+      "replaced with Mock Mini. can’t keep: Release 5. 1 automation lane of unmatched parameters removed (undo brings them back).",
+    );
 
     await act(() => t.send(cmd("Edit", { type: "Undo" })));
     await waitFor(() => expect(pluginId(project().devices[device])).toBe(MOCK_MEGA_PLUGIN_ID));
@@ -136,16 +137,11 @@ describe("Replace device…", () => {
 
   it("without retain: defaults, and the parameter lanes are removed", async () => {
     const { device, cutoffLane, releaseLane } = await setup();
-    const dialog = await openFromHeader();
-    await pickDevice(within(dialog).getByRole("button", { name: "replacement device" }), "Mock Mini");
-    await within(dialog).findByTestId("replace-summary");
-    fireEvent.click(within(dialog).getByRole("switch", { name: "retain automations and parameters" }));
-    await waitFor(() =>
-      expect(within(dialog).getByTestId("replace-summary")).toHaveTextContent(
-        "the new device starts at its defaults. 2 automation lanes and the parameter mappings are removed",
-      ),
-    );
-    fireEvent.click(within(dialog).getByRole("button", { name: "replace" }));
+    const popover = await openFromHeader();
+    fireEvent.click(within(popover).getByRole("switch", { name: "retain automations and parameters" }));
+    expect(within(popover).getByRole("switch").closest("[title]")).toHaveAttribute("title", expect.stringMatching(/^the new device starts at its defaults/));
+    const list = await listIn(popover);
+    fireEvent.click(await list.findByRole("button", { name: "Mock Mini" }));
     await waitFor(() => expect(pluginId(project().devices[device])).toBe(MOCK_MINI_PLUGIN_ID));
     expect(project().devices[device]!.params).toEqual({});
     expect(project().automation_lanes[cutoffLane]).toBeUndefined();
@@ -154,10 +150,8 @@ describe("Replace device…", () => {
 
   it("lists factory devices and plugins of the same role, never a rack nor the device itself", async () => {
     await setup();
-    const dialog = await openFromHeader();
-    fireEvent.click(within(dialog).getByRole("button", { name: "replacement device" }));
-    const popover = await screen.findByRole("dialog", { name: "replacement device" });
-    const list = within(await within(popover).findByRole("list", { name: "effects" }));
+    const popover = await openFromHeader();
+    const list = await listIn(popover);
     await waitFor(() => expect(list.getByRole("button", { name: /^reverb$/i })).toBeInTheDocument());
     expect(list.getByRole("button", { name: "Mock Mini" })).toBeInTheDocument();
     expect(list.queryByRole("button", { name: "Mock Mega" })).toBeNull();
@@ -174,11 +168,9 @@ describe("Replace device…", () => {
     await t.send(cmd("Device", { type: "Insert", id: comp, track: track.id, device: { type: "Builtin", device: { type: "Compressor" } }, before: null }));
     await waitFor(() => expect(project().devices[comp]).toBeDefined());
     const before = structuredClone(project().devices[comp]!);
-    const dialog = await openFromHeader(before.name);
-    await pickDevice(within(dialog).getByRole("button", { name: "replacement device" }), /^gate$/i);
-    const summary = await within(dialog).findByTestId("replace-summary");
-    expect(summary).toHaveTextContent("parameters matched by name");
-    fireEvent.click(within(dialog).getByRole("button", { name: "replace" }));
+    const popover = await openFromHeader(before.name);
+    const list = await listIn(popover);
+    fireEvent.click(await list.findByRole("button", { name: /^gate$/i }));
     await waitFor(() => expect(project().devices[comp]?.kind).toEqual({ type: "Builtin", device: { type: "Gate" } }));
     const d = project().devices[comp]!;
     expect(d.name).toBe("gate");

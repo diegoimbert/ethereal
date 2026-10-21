@@ -569,12 +569,9 @@ export interface MessageArgs {
   "resolver.file_for": { name: string | number };
   "resolver.lost": { count: string | number };
   "resolver.lost_one": { name: string | number };
-  "resolver.replace.by_index": { count: number };
-  "resolver.replace.by_name": { count: number };
-  "resolver.replace.cant_keep": { count: string | number };
-  "resolver.replace.cant_keep_one": { name: string | number };
-  "resolver.replace.lanes_removed": { count: number };
-  "resolver.replace.reset_lanes": { count: number };
+  "resolver.replace.done_lanes": { count: number };
+  "resolver.replace.done_lost": { lost: string | number; name: string | number };
+  "resolver.replace.failed": { error: string | number; name: string | number };
   "resolver.replace.title_named": { name: string | number };
   "resolver.replacement_for": { name: string | number };
   "resolver.saved_params": { count: number };

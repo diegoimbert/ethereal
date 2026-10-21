@@ -35,7 +35,7 @@ Pour les plug-ins :
 - Remplacé par **le même plug-in** dans une autre version ou un autre format, le plug-in garde son son enregistré (« état du plug-in conservé »).
 - Remplacé par **un autre plug-in**, seules les valeurs des paramètres qui correspondent par nom (ou par position, pour le même plug-in) survivent. La fenêtre liste ce qui sera perdu.
 
-Pour échanger un plug-in qui n’est pas manquant, faites un clic droit sur son en-tête et choisissez **remplacer le plug-in…** (voir [plug-ins](/docs/sounds-and-plugins/plugins#missing-plugins)).
+Pour échanger un appareil qui n’est pas manquant, faites un clic droit sur son en-tête et choisissez **remplacer l’appareil…** (voir [plug-ins](/docs/sounds-and-plugins/plugins#missing-plugins)).
 
 ### suggestions de l’ia {#ai-suggestions}
 

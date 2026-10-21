@@ -138,7 +138,7 @@ La bibliothèque d’appareils retient quelques choix sur cet ordinateur :
 
 - cliquez sur l’étoile d’une ligne pour en faire un favori, et sur l’étoile du haut pour n’afficher que les favoris ;
 - le menu de tri : **nom**, **plus utilisés** ou **plus récents** ;
-- quand vos plug-ins existent en plusieurs formats, les puces **CLAP**, **VST3** et **AU** choisissent les formats affichés. Un plug-in installé en plusieurs formats apparaît une fois par format, avec son format sur la ligne. Au moins un format reste activé.
+- quand vos plug-ins existent en plusieurs formats, les puces **CLAP**, **VST3** et **AU** choisissent les formats affichés. Un plug-in installé en plusieurs formats n’apparaît qu’une fois, dans votre format préféré, sauf si vous désactivez **afficher chaque plug-in une seule fois** dans **réglages › plug-ins › liste des plug-ins** (voir [le même plug-in dans plusieurs formats](/docs/sounds-and-plugins/plugins#the-same-plugin-in-several-formats)). Au moins un format reste activé.
 
 ## et ensuite {#where-next}
 

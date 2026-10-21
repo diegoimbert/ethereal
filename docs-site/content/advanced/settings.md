@@ -50,7 +50,12 @@ The audio driver, the **output device**, the **input device**, the **sample rate
 
 ## plugins [[desktop]]
 
-The folders scanned for plugins: the system folders (each can be turned off) and your own folders, plus the scan buttons. In the web version this page only says plugins need the desktop app. See [plugins](/docs/sounds-and-plugins/plugins).
+**folders & scan**: the folders scanned for plugins: the system folders (each can be turned off) and your own folders, plus the scan buttons. In the web version this page only says plugins need the desktop app. See [plugins](/docs/sounds-and-plugins/plugins).
+
+**plugin list**: which plugins the device library lists, kept on this device. See [the same plugin in several formats](/docs/sounds-and-plugins/plugins#the-same-plugin-in-several-formats).
+
+- **show each plugin once** (on by default): a plugin installed in several formats is listed once, in the **preferred format** (clap, then vst3, au, vst2). Turn it off to list every format and choose a specific one.
+- **hidden plugins**: the plugins the library doesn't list, each in **every format** or in one format only. **hide a plugin…** adds one, **×** shows it again, and **reset** (it asks first) brings back the defaults.
 
 ## advanced
 

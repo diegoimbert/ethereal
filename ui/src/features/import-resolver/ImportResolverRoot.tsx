@@ -3,7 +3,6 @@ import { TransportContext, type EngineTransport } from "@/transport";
 import { skipNotifications, type NotificationEvent } from "@/features/notifications/store";
 import { useProjectStore } from "@/state";
 import { catalogNow, isMissingPlugin } from "./catalog";
-import { ReplaceDialog } from "./ReplaceDialog";
 import { ResolverDialog } from "./ResolverDialog";
 import { setReplaceTransport } from "./replace";
 import { applyResolveEvent, armAutoShow, autoShow, disarmAutoShow, noteMissing, proposeResolution, setResolverTransport, useResolver } from "./store";
@@ -59,8 +58,8 @@ function Sync({ transport }: { transport: EngineTransport }) {
 }
 
 /**
- * Mounted once by the app shell: the "Resolve missing items" and "Replace plugin…" dialogs
- * and their engine events.
+ * Mounted once by the app shell: the "Resolve missing items" dialog and its engine events
+ * ("Replace device…" is a popover on the device card: `ReplacePopover`).
  * Renders nothing without an engine connection.
  */
 export function ImportResolverRoot() {
@@ -70,7 +69,6 @@ export function ImportResolverRoot() {
     <>
       <Sync transport={transport} />
       <ResolverDialog transport={transport} />
-      <ReplaceDialog transport={transport} />
     </>
   );
 }

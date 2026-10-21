@@ -3,7 +3,7 @@ import { useContributions } from "@/ext";
 import { useId, useState, type DragEvent } from "react";
 import type { Device, DeviceId } from "@/generated";
 import { PluginDeviceControls, pluginMenuEntries } from "@/features/plugins";
-import { MissingDeviceControls, replaceDeviceEntries, resolvePluginEntries } from "@/features/import-resolver";
+import { MissingDeviceControls, ReplacePopover, replaceDeviceEntries, resolvePluginEntries } from "@/features/import-resolver";
 import { PresetMenu } from "@/features/presets";
 import { SidechainSelector } from "@/features/sidechain";
 import { AddModulatorButton, addModulatorEntries, ModulatorsPanel, useModulatorKinds } from "@/features/modulation";
@@ -285,6 +285,8 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
             <IconButton size="sm" tone="ghost" label={t("devices.device.remove", { name: device.name })} icon={<X />} onClick={remove} />
           </span>
         </header>
+        {/* "Replace device…" (the header's menu): its popover hangs here, under the header. */}
+        <ReplacePopover device={device} />
         {/* The card body: the parameter list (when shown), a rack's chains, the modulators.
             The device's own UI is in its window, never here. */}
         <div className="eth-device__inline" inert={frozen || undefined}>

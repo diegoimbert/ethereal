@@ -35,7 +35,7 @@ For plugins:
 - Replaced by **the same plugin** in another version or format, the plugin keeps its saved sound ("plugin state carried over").
 - Replaced by **a different plugin**, only parameter values that match by name (or by position, for the same plugin) survive. The dialog lists what will be lost.
 
-To swap a plugin that isn't missing, right-click its header and choose **replace plugin…** (see [plugins](/docs/sounds-and-plugins/plugins#missing-plugins)).
+To swap a device that isn't missing, right-click its header and choose **replace device…** (see [plugins](/docs/sounds-and-plugins/plugins#missing-plugins)).
 
 ### ai suggestions
 

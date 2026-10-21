@@ -138,7 +138,7 @@ The device library remembers a few choices on this computer:
 
 - click the star on a row to make it a favourite, and the star at the top to list only favourites;
 - the sort menu: **name**, **most used** or **most recent**;
-- when your plugins come in several formats, the **CLAP**, **VST3** and **AU** chips choose which formats are listed. A plugin installed in several formats appears once per format, with its format on the row. At least one format stays on.
+- when your plugins come in several formats, the **CLAP**, **VST3** and **AU** chips choose which formats are listed. A plugin installed in several formats appears once, in your preferred format, unless you turn off **show each plugin once** in **settings › plugins › plugin list** (see [the same plugin in several formats](/docs/sounds-and-plugins/plugins#the-same-plugin-in-several-formats)). At least one format stays on.
 
 ## where next
 
