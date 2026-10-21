@@ -1,5 +1,6 @@
 // Launch with no project open (the project screen first), "Reopen last project
 // on launch" (only after a clean close), and "open without plugins" (safe mode).
+import { SafeModeStatus } from "@/features/project/SafeModeStatus";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Project } from "@/generated";
@@ -42,6 +43,8 @@ function launchWith(setup?: (mock: MockTransport) => void) {
   render(
     <TransportProvider transport={new NothingOpen(mock)}>
       <ProjectMenu />
+      {/* Safe mode is a status bar item. */}
+      <SafeModeStatus />
     </TransportProvider>,
   );
   return mock;

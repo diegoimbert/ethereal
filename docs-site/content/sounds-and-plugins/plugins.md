@@ -82,10 +82,10 @@ Sandboxing adds one audio block of latency. To switch back, right-click the head
 
 ## opening a project without plugins
 
-If a project crashes or hangs because of a plugin, open it without plugins. Right-click the project in the project list (or click its **…** button) and choose **open without plugins**. The crash recovery dialog offers the same button. Every plugin is kept as a bypassed placeholder with its settings saved, marked **safe mode · bypassed**, and the top bar says **plugins disabled (safe mode)**. Then:
+If a project crashes or hangs because of a plugin, open it without plugins. Right-click the project in the project list (or click its **…** button) and choose **open without plugins**. The crash recovery dialog offers the same button. Every plugin is kept as a bypassed placeholder with its settings saved, marked **safe mode · bypassed**, and the status bar at the bottom says **plugins disabled (safe mode)**. Then:
 
 - click **⟳** on one device to load just that plugin, or
-- click **load plugins** in the top bar to load them all.
+- click **load plugins** in the status bar to load them all.
 
 See [safe mode](/docs/advanced/safe-mode) for more.
 

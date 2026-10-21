@@ -46,6 +46,19 @@
 .eth-status-bar__text {
   cursor: default;
 }
+/* An item and its action side by side (safe mode | load plugins). */
+.eth-status-bar__group {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+}
+.eth-status-bar__action {
+  color: var(--eth-color-accent);
+}
+.eth-status-bar__button:disabled {
+  opacity: var(--eth-opacity-disabled);
+  cursor: default;
+}
 .eth-status-bar__button svg,
 .eth-status-bar__text svg {
   flex: none;

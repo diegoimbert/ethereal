@@ -1,42 +1,42 @@
 import { useState } from "react";
 import { ShieldAlert } from "lucide-react";
-import { useEngineCommands } from "@/features/transport-bar/engine";
-import { Button, DismissibleError } from "@/kit";
+import { notify } from "@/features/notifications";
+import { StatusButton, StatusText } from "@/features/status-bar/StatusButton";
+import { errorMessage, useOptionalTransport } from "@/features/transport-bar/engine";
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
 import { useT } from "@/i18n";
 
 /**
- * Safe mode ("Open without plugins"): while the open project's plugin devices are
- * held as bypassed placeholders, the top bar says so, with "Load plugins" to instantiate
- * them (`Project::LoadPlugins`). Nothing shows otherwise.
+ * Safe mode ("Open without plugins"): while the open project's plugin devices are held as
+ * bypassed placeholders, the status bar says so, with "load plugins" to instantiate them
+ * (`Project::LoadPlugins`; a failure is a toast). Nothing shows otherwise.
  */
-export function SafeModeBanner() {
+export function SafeModeStatus() {
   const t = useT();
   const safe = useProjectStore((s) => s.safe);
   const held = useProjectStore((s) => s.safeMode.length);
-  const { send, error, clearError } = useEngineCommands();
+  const transport = useOptionalTransport();
   const [busy, setBusy] = useState(false);
   if (!safe) return null;
   const load = async () => {
+    if (!transport) return;
     setBusy(true);
-    await send(cmd("Project", { type: "LoadPlugins" }));
+    try {
+      await transport.send(cmd("Project", { type: "LoadPlugins" }));
+    } catch (e) {
+      notify("Error", errorMessage(e));
+    }
     setBusy(false);
   };
   return (
-    <div className="eth-safe-mode" role="status" aria-label={t("project.safe.label")} data-testid="safe-mode-banner">
-      <ShieldAlert aria-hidden className="eth-safe-mode__icon" />
-      <span className="eth-safe-mode__text" title={t("project.safe.hint", { count: held })}>
+    <span className="eth-status-bar__group" role="group" aria-label={t("project.safe.label")} data-testid="safe-mode-banner">
+      <StatusText tone="warn" icon={<ShieldAlert aria-hidden />} title={t("project.safe.hint", { count: held })}>
         {t("project.safe.text")}
-      </span>
-      <Button size="sm" tone="accent" disabled={busy} onClick={() => void load()}>
+      </StatusText>
+      <StatusButton className="eth-status-bar__action" disabled={busy} onClick={() => void load()}>
         {t("project.safe.load")}
-      </Button>
-      {error && (
-        <DismissibleError className="eth-project__error" onDismiss={clearError}>
-          {error}
-        </DismissibleError>
-      )}
-    </div>
+      </StatusButton>
+    </span>
   );
 }

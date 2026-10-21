@@ -49,7 +49,7 @@ Ethereal looks for a missing audio file by name, then checks the sample rate, ch
 
 Every item can wait. Click **resolve later** and the project keeps the missing items as they are. To come back to them:
 
-- the **n missing** badge in the top bar,
+- the **n missing** badge in the status bar,
 - **resolve missing devices and samples…** in the project menu or the command palette,
 - the **resolve…** button on a missing device,
 - right-click a missing clip or device and choose **resolve…**.

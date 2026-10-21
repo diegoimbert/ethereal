@@ -22,7 +22,7 @@ Cette page explique comment faire entrer et sortir le son : quel périphérique
 
 ## les réglages audio [[desktop]] {#the-audio-settings}
 
-Cliquez sur l’engrenage en haut à droite de la fenêtre pour ouvrir les **réglages**, puis allez dans l’onglet **audio**. Vous pouvez aussi l’ouvrir depuis la palette de commandes ([[action:palette.open]]) avec **réglages audio…**.
+Cliquez sur la roue dentée en bas à droite de la fenêtre pour ouvrir les **réglages**, puis allez sur la page **audio**. Vous pouvez aussi l’ouvrir depuis la palette de commandes ([[action:palette.open]]) avec **réglages audio…**.
 
 | réglage | ce que c’est |
 |---|---|
@@ -96,7 +96,7 @@ Si le moteur audio se bloque, par exemple pendant qu’un plug-in est occupé à
 
 ### le journal du moteur [[desktop]] {#the-engine-log}
 
-Dans **réglages › avancé**, **ouvrir le journal du moteur** ouvre une fenêtre de terminal qui suit le journal du moteur en direct : avertissements, problèmes de plug-ins et raisons pour lesquelles le moteur a cessé de répondre. C’est utile quand vous [signalez un problème](https://github.com/diegoimbert/ethereal/issues).
+Dans **réglages › avancé › diagnostic**, **ouvrir le journal du moteur** ouvre une fenêtre de terminal qui suit le journal du moteur en direct : avertissements, problèmes de plug-ins et raisons pour lesquelles le moteur a cessé de répondre. C’est utile quand vous [signalez un problème](https://github.com/diegoimbert/ethereal/issues).
 
 ## et ensuite {#where-next}
 

@@ -17,7 +17,7 @@ Work through these in order:
 
 1. **Is it playing?** Press [[action:transport.play]] and watch the playhead move. If it doesn't move at all, see [the engine is not responding](#the-engine-is-not-responding).
 2. **Do the meters move?** Track headers show a level meter. No level on a track means nothing reaches it: check that the clip isn't muted, that the track isn't muted, and that no other track is soloed.
-3. **Is the output right?** [[desktop]] Open **settings** (the gear in the top bar), then **audio**, and check **output device**. Use the **refresh devices** button after plugging in an interface or headphones.
+3. **Is the output right?** [[desktop]] Open **settings** (the gear at the right end of the status bar, at the bottom), then **audio**, and check **output device**. Use the **refresh devices** button after plugging in an interface or headphones.
 4. **In the browser** [[web]], the system picks the output device: change it in your operating system or browser, not in Ethereal. Browsers only allow sound after you interact with the page, so click or press a key once if the first playback is silent.
 
 ### the output device disappeared [[desktop]]
@@ -55,7 +55,7 @@ If Ethereal can't start its engine at all, it shows **the audio engine didn't st
 
 ## the engine log [[desktop]]
 
-**Settings › advanced › engine log › open engine log** opens a terminal window that follows the engine's log as it runs. It shows warnings, plugin problems and why the engine stopped responding, if it did. Copy the end of it into your report when you report a problem.
+**Settings › advanced › diagnostics › engine log › open engine log** opens a terminal window that follows the engine's log as it runs. It shows warnings, plugin problems and why the engine stopped responding, if it did. Copy the end of it into your report when you report a problem.
 
 ## plugins crash or fail to load [[desktop]]
 
@@ -85,7 +85,7 @@ Recording needs the desktop app. See [recording](/docs/making-music/recording).
 
 The web version keeps your projects in this browser's storage, on this computer only. Clearing the site's data, using a private window, or the browser freeing up space can delete them.
 
-- When Ethereal starts in the browser, it asks the browser to keep its storage. If the browser says no, a notice tells you once. **Settings › general › storage** shows the current state (**persistent**, or **may be cleared by the browser when space runs low**), how much space your projects use, and **request again**.
+- When Ethereal starts in the browser, it asks the browser to keep its storage. If the browser says no, a notice tells you once. **Settings › general › library › storage** shows the current state (**persistent**, or **may be cleared by the browser when space runs low**), how much space your projects use, and **request again**.
 - Browsers decide in their own way: Chrome and Edge are more willing for a site you've installed or bookmarked, Firefox asks you, and Safari has its own rules.
 - Whatever the state, keep backups of projects that matter: export them from the project menu, or use the desktop app. See [where your projects live](/docs/welcome/where-your-projects-live) and [moving projects between computers](/docs/basics/moving-projects).
 

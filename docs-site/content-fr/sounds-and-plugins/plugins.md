@@ -82,10 +82,10 @@ L’isolation ajoute un bloc audio de latence. Pour revenir en arrière, faites 
 
 ## ouvrir un projet sans les plug-ins {#opening-a-project-without-plugins}
 
-Si un projet plante ou se bloque à cause d’un plug-in, ouvrez-le sans les plug-ins. Faites un clic droit sur le projet dans la liste des projets (ou cliquez sur son bouton **…**) et choisissez **ouvrir sans plug-ins**. La fenêtre de récupération après plantage propose le même bouton. Chaque plug-in est gardé comme un emplacement contourné avec ses réglages enregistrés, marqué **mode sans échec · contourné**, et la barre du haut indique **plug-ins désactivés (mode sans échec)**. Ensuite :
+Si un projet plante ou se bloque à cause d’un plug-in, ouvrez-le sans les plug-ins. Faites un clic droit sur le projet dans la liste des projets (ou cliquez sur son bouton **…**) et choisissez **ouvrir sans plug-ins**. La fenêtre de récupération après plantage propose le même bouton. Chaque plug-in est gardé comme un emplacement contourné avec ses réglages enregistrés, marqué **mode sans échec · contourné**, et la barre d’état en bas indique **plug-ins désactivés (mode sans échec)**. Ensuite :
 
 - cliquez sur **⟳** sur un appareil pour charger seulement ce plug-in, ou
-- cliquez sur **charger les plug-ins** dans la barre du haut pour les charger tous.
+- cliquez sur **charger les plug-ins** dans la barre d’état pour les charger tous.
 
 Voir [le mode sans échec](/docs/advanced/safe-mode) pour en savoir plus.
 

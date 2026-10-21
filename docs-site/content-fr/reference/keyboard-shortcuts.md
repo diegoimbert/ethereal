@@ -44,7 +44,7 @@ Dans l’arrangement, quand il y a une sélection temporelle (glissement avec [[
 
 ## modifier les raccourcis {#changing-shortcuts}
 
-Ouvrez la palette de commandes et choisissez **raccourcis clavier…**, ou cliquez sur **modifier les raccourcis clavier…** dans **réglages › souris**. L’éditeur liste toutes les actions par groupe ; cherchez par nom ou par touche.
+Ouvrez la palette de commandes et choisissez **raccourcis clavier…**, ou cliquez sur **modifier les raccourcis clavier…** dans **réglages › souris et clavier › raccourcis clavier**. L’éditeur liste toutes les actions par groupe ; cherchez par nom ou par touche.
 
 - **+** sur une ligne enregistre un nouveau raccourci : appuyez sur les touches, puis sur **utiliser** (ou [[key:Enter]]). [[key:Escape]] annule. Une action peut avoir jusqu’à 4 raccourcis.
 - **×** à côté d’un raccourci le supprime.

@@ -8,7 +8,7 @@ covers:
   - app-shell/debug-panels-advanced #advanced
 ---
 
-Ouvrez les réglages avec le bouton en forme de roue dentée dans la barre du haut, ou lancez **réglages audio…** ou **réglages de la souris et de la molette…** depuis la [palette de commandes](/docs/basics/command-palette-and-settings). Les réglages sont rangés en catégories (la liste à gauche) ; une catégorie qui a plusieurs pages les liste en dessous quand vous l’ouvrez. Chaque changement s’applique immédiatement, et **terminé** ferme la fenêtre. Les options qui ont besoin du moteur audio indiquent **aucun moteur connecté** quand il ne tourne pas.
+Ouvrez les réglages avec le bouton en forme de roue dentée à droite de la barre d’état (en bas), ou lancez **réglages audio…** ou **réglages de la souris et de la molette…** depuis la [palette de commandes](/docs/basics/command-palette-and-settings). Les réglages sont rangés en catégories (la liste à gauche) ; une catégorie qui a plusieurs pages les liste en dessous quand vous l’ouvrez. Chaque changement s’applique immédiatement, et **terminé** ferme la fenêtre. Les options qui ont besoin du moteur audio indiquent **aucun moteur connecté** quand il ne tourne pas.
 
 Certains réglages appartiennent à un projet (tempo, swing, assignations MIDI) et se trouvent dans le projet, pas ici.
 

@@ -15,13 +15,12 @@
  * use `useTransport()` and read the document from `@/state`.
  */
 import { lazy, memo, Suspense, useContext, useEffect, useRef } from "react";
-import { Settings } from "lucide-react";
 import { useT } from "@/i18n";
-import { ConfirmDialog, ContextMenuHost, IconButton, ReadOnlySurface, TitleTooltipHost, ToastStack } from "@/kit";
+import { ConfirmDialog, ContextMenuHost, ReadOnlySurface, TitleTooltipHost, ToastStack } from "@/kit";
 import { dismissOnRelease, useEditorStore, useProjectStore, useReadOnly } from "@/state";
 import { size } from "@/theme";
 import { ArrangementView } from "@/features/arrangement";
-import { AudioSettingsDialog, openSettings } from "@/features/audio-settings";
+import { AudioSettingsDialog } from "@/features/audio-settings";
 import { MarkerLane } from "@/features/clip-editing";
 import { DebugPanelsRoot } from "@/features/debug";
 import { DeviceWindowsRoot } from "@/features/devices/window";
@@ -371,7 +370,6 @@ function ViewerShell() {
 }
 
 function EditorShell() {
-  const t = useT();
   // Arms and punch come back when a project opens again.
   useKeepRecordingSetup();
   const compact = useCompactTopBar();
@@ -402,15 +400,6 @@ function EditorShell() {
           </PanelBoundary>
         </div>
         <ExtensionRoots shell="editor" slot="top-bar" />
-        <IconButton
-          size="sm"
-          tone="ghost"
-          className="eth-shell__theme"
-          label={t("settings.title")}
-          icon={<Settings />}
-          data-tour="settings-button"
-          onClick={() => openSettings()}
-        />
       </header>
       <PanelBoundary name="workspace">
         <Workspace />

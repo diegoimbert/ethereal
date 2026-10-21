@@ -49,7 +49,7 @@ Ethereal cherche un fichier audio manquant par son nom, puis vérifie la fréque
 
 Chaque élément peut attendre. Cliquez sur **résoudre plus tard** et le projet garde les éléments manquants tels quels. Pour y revenir :
 
-- le badge **n manquants** dans la barre du haut,
+- le badge **n manquants** dans la barre d’état,
 - **résoudre les appareils et échantillons manquants…** dans le menu du projet ou la palette de commandes,
 - le bouton **résoudre…** sur un appareil manquant,
 - un clic droit sur un clip ou un appareil manquant, puis **résoudre…**.

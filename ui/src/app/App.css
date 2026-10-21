@@ -402,6 +402,3 @@
   color: var(--eth-color-text);
   box-shadow: var(--eth-shadow-sm);
 }
-.eth-shell__theme {
-  color: var(--eth-color-text-dim);
-}

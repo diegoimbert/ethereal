@@ -45,11 +45,11 @@ Ces commandes n’ont de bouton ni d’entrée de menu nulle part ailleurs :
 
 ## réglages {#settings}
 
-La **roue dentée** à l’extrémité droite de la barre du haut ouvre les réglages. Ils sont rangés en catégories, listées à gauche ; une catégorie qui a plusieurs pages les liste en dessous quand vous l’ouvrez :
+La **roue dentée** à l’extrémité droite de la barre d’état (en bas) ouvre les réglages. Ils sont rangés en catégories, listées à gauche ; une catégorie qui a plusieurs pages les liste en dessous quand vous l’ouvrez :
 
 | catégorie | contenu |
 |---|---|
-| **général** | **langue et démarrage** : la langue de l’interface, et **démarrage** (rouvrir le dernier projet au lancement, voir [projets et enregistrement](/docs/basics/projects#reopening-your-last-project)) ; dans le navigateur, **stockage** (si le navigateur garde vos projets en sécurité, voir [où vivent vos projets](/docs/welcome/where-your-projects-live)). **bibliothèque** : **fichiers de la bibliothèque** (les fichiers que liste le navigateur). |
+| **général** | **langue et démarrage** : la langue de l’interface, et **démarrage** (rouvrir le dernier projet au lancement, voir [projets et enregistrement](/docs/basics/projects#reopening-your-last-project)). **bibliothèque** : dans le navigateur, **stockage** (si le navigateur garde vos projets en sécurité, voir [où vivent vos projets](/docs/welcome/where-your-projects-live)) ; **fichiers de la bibliothèque** (les fichiers que liste le navigateur). |
 | **apparence** | le thème (clair ou sombre), le zoom de l’interface, les animations, les taches de couleur et le halo, et la transparence. |
 | **audio** | le pilote, les périphériques de sortie et d’entrée, la fréquence d’échantillonnage et la taille du buffer, et un contrôle de l’entrée. Dans le navigateur, c’est le système qui choisit les périphériques. Voir [configuration audio et MIDI](/docs/making-music/audio-and-midi-setup). |
 | **souris et clavier** | **souris et trackpad** : la molette et les boutons de la souris : sensibilité du zoom et du défilement, modificateur qui zoome, sens inversés, bouton du milieu et boutons précédent et suivant. Voir [zoom et défilement](/docs/basics/playing-and-navigating#zoom-and-scroll). **raccourcis clavier** : **modifier les raccourcis clavier…** ouvre l’éditeur de raccourcis (aussi **raccourcis clavier…** dans la palette). |

@@ -5,7 +5,8 @@ import { Menu } from "lucide-react";
 import { matchesAction } from "@/features/keymap";
 import { TemplateDialogs } from "@/features/templates";
 import { useEngineCommands, useOptionalConnection } from "@/features/transport-bar/engine";
-import { DismissibleError, IconButton, Popover } from "@/kit";
+import { IconButton, Popover } from "@/kit";
+import { notify } from "@/features/notifications";
 import { useProjectStore } from "@/state";
 import { cmd, WasmTransport } from "@/transport";
 import { launch, showPickerEarly, useLaunchBookkeeping } from "./launch";
@@ -15,7 +16,6 @@ import { bindProjectUrl, urlProjectId } from "./projectUrl";
 import { bindSaveOnHide } from "./saveOnHide";
 import { ProjectMenuPanel } from "./ProjectMenuPanel";
 import { ProjectScreen } from "./ProjectScreen";
-import { SafeModeBanner } from "./SafeModeBanner";
 import { useProjectScreen } from "./screenStore";
 import { useT } from "@/i18n";
 
@@ -56,6 +56,12 @@ export function ProjectMenu() {
     setSeenRequest(renameRequest);
     setRenaming(true);
   }
+  // A failed project action (rename, the menu's commands) is a toast; the project screen shows its own.
+  useEffect(() => {
+    if (!error || open) return;
+    notify("Error", error);
+    clearError();
+  }, [error, open, clearError]);
   // Draft projects (`drafts.ts`): kept once changed, deleted when left untouched.
   useEffect(() => (transport ? bindDrafts(transport) : undefined), [transport]);
   // The open project in the address bar (`/p/<slug>/<id>`, web only), Back / Forward.
@@ -185,12 +191,6 @@ export function ProjectMenu() {
         <span className="eth-project__dirty eth-project__dirty--clean" aria-hidden>
           ●
         </span>
-      )}
-      <SafeModeBanner />
-      {error && !open && (
-        <DismissibleError className="eth-project__error" onDismiss={clearError}>
-          {error}
-        </DismissibleError>
       )}
     </div>
   );

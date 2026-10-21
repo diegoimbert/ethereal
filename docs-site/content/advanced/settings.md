@@ -8,7 +8,7 @@ covers:
   - app-shell/debug-panels-advanced #advanced
 ---
 
-Open the settings with the gear button in the top bar, or run **audio settings…** or **mouse and wheel settings…** from the [command palette](/docs/basics/command-palette-and-settings). The settings are in categories (the list on the left); a category with several pages lists them under it when you open it. Every change applies at once, and **done** closes the window. Options that need the audio engine say **no engine connected** when it isn't running.
+Open the settings with the gear button at the right end of the status bar (at the bottom), or run **audio settings…** or **mouse and wheel settings…** from the [command palette](/docs/basics/command-palette-and-settings). The settings are in categories (the list on the left); a category with several pages lists them under it when you open it. Every change applies at once, and **done** closes the window. Options that need the audio engine say **no engine connected** when it isn't running.
 
 Some settings belong to a project (tempo, swing, MIDI mappings) and live in the project, not here.
 

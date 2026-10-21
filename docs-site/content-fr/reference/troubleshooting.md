@@ -17,7 +17,7 @@ Vérifiez ces points dans l’ordre :
 
 1. **Est-ce que ça joue ?** Appuyez sur [[action:transport.play]] et regardez la tête de lecture avancer. Si elle ne bouge pas du tout, voir [le moteur ne répond pas](#the-engine-is-not-responding).
 2. **Les vumètres bougent-ils ?** Les en-têtes de piste affichent un vumètre. Aucun niveau sur une piste signifie que rien ne lui arrive : vérifiez que le clip n’est pas muet, que la piste n’est pas muette, et qu’aucune autre piste n’est en solo.
-3. **La sortie est-elle la bonne ?** [[desktop]] Ouvrez les **réglages** (la roue dentée dans la barre du haut), puis **audio**, et vérifiez le **périphérique de sortie**. Utilisez le bouton **actualiser les périphériques** après avoir branché une interface ou un casque.
+3. **La sortie est-elle la bonne ?** [[desktop]] Ouvrez les **réglages** (la roue dentée à droite de la barre d’état, en bas), puis **audio**, et vérifiez le **périphérique de sortie**. Utilisez le bouton **actualiser les périphériques** après avoir branché une interface ou un casque.
 4. **Dans le navigateur** [[web]], c’est le système qui choisit le périphérique de sortie : changez-le dans votre système d’exploitation ou votre navigateur, pas dans Ethereal. Les navigateurs n’autorisent le son qu’après une interaction avec la page : cliquez ou appuyez une fois sur une touche si la première lecture est silencieuse.
 
 ### le périphérique de sortie a disparu [[desktop]] {#the-output-device-disappeared}
@@ -55,7 +55,7 @@ Si Ethereal ne parvient pas du tout à démarrer son moteur, il affiche **le mot
 
 ## le journal du moteur [[desktop]] {#the-engine-log}
 
-**Réglages › avancé › journal du moteur › ouvrir le journal du moteur** ouvre une fenêtre de terminal qui suit le journal du moteur pendant qu’il tourne. Il montre les avertissements, les problèmes de plug-ins et pourquoi le moteur a cessé de répondre, le cas échéant. Quand vous signalez un problème, copiez-en la fin dans votre signalement.
+**Réglages › avancé › diagnostic › journal du moteur › ouvrir le journal du moteur** ouvre une fenêtre de terminal qui suit le journal du moteur pendant qu’il tourne. Il montre les avertissements, les problèmes de plug-ins et pourquoi le moteur a cessé de répondre, le cas échéant. Quand vous signalez un problème, copiez-en la fin dans votre signalement.
 
 ## les plug-ins plantent ou ne se chargent pas [[desktop]] {#plugins-crash-or-fail-to-load}
 
@@ -85,7 +85,7 @@ L’enregistrement demande l’application de bureau. Voir [enregistrement](/doc
 
 La version web garde vos projets dans le stockage de ce navigateur, sur cet ordinateur uniquement. Effacer les données du site, utiliser une fenêtre de navigation privée, ou le navigateur qui libère de l’espace peut les supprimer.
 
-- Quand Ethereal démarre dans le navigateur, il demande au navigateur de conserver son stockage. Si le navigateur refuse, un avis vous le signale une fois. **Réglages › général › stockage** affiche l’état actuel (**persistant**, ou **peut être effacé par le navigateur quand l’espace vient à manquer**), l’espace qu’occupent vos projets, et **redemander**.
+- Quand Ethereal démarre dans le navigateur, il demande au navigateur de conserver son stockage. Si le navigateur refuse, un avis vous le signale une fois. **Réglages › général › bibliothèque › stockage** affiche l’état actuel (**persistant**, ou **peut être effacé par le navigateur quand l’espace vient à manquer**), l’espace qu’occupent vos projets, et **redemander**.
 - Chaque navigateur décide à sa façon : Chrome et Edge acceptent plus volontiers pour un site que vous avez installé ou mis en favori, Firefox vous pose la question, et Safari a ses propres règles.
 - Quel que soit l’état, gardez des sauvegardes des projets qui comptent : exportez-les depuis le menu du projet, ou utilisez l’application de bureau. Voir [où vivent vos projets](/docs/welcome/where-your-projects-live) et [déplacer des projets entre ordinateurs](/docs/basics/moving-projects).
 

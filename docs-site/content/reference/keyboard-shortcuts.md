@@ -44,7 +44,7 @@ In the arrangement, when there is a time selection ([[key:Shift]]-drag across th
 
 ## changing shortcuts
 
-Open the command palette and choose **keyboard shortcuts…**, or click **edit keyboard shortcuts…** in **settings › input**. The editor lists every action by group; search by name or by key.
+Open the command palette and choose **keyboard shortcuts…**, or click **edit keyboard shortcuts…** in **settings › mouse & keyboard › keyboard shortcuts**. The editor lists every action by group; search by name or by key.
 
 - **+** on a row records a new shortcut: press the keys, then **use** (or [[key:Enter]]). [[key:Escape]] cancels. An action can have up to 4 shortcuts.
 - **×** next to a shortcut removes it.
