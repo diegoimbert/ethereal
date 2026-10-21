@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MOTION } from "./motion";
 import {
   defaultInputSettings,
+  detectPlatform,
   isDiscreteWheel,
   LINE_PX,
   normalizeWheel,
@@ -167,5 +168,26 @@ describe("settings", () => {
       zoomSensitivity: 4,
       invertScrollX: true,
     });
+  });
+});
+
+describe("detectPlatform", () => {
+  const withNavigator = (nav: Partial<Navigator>, run: () => void) => {
+    const original = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+    Object.defineProperty(globalThis, "navigator", { value: nav, configurable: true });
+    try {
+      run();
+    } finally {
+      if (original) Object.defineProperty(globalThis, "navigator", original);
+    }
+  };
+
+  it("reads the OS, the Mac before Windows ('darwin' contains 'win')", () => {
+    withNavigator({ platform: "", userAgent: "Mozilla/5.0 (darwin) AppleWebKit/537.36 (KHTML, like Gecko) jsdom/26.1.0" }, () =>
+      expect(detectPlatform()).toBe("mac"),
+    );
+    withNavigator({ platform: "MacIntel", userAgent: "" }, () => expect(detectPlatform()).toBe("mac"));
+    withNavigator({ platform: "Win32", userAgent: "" }, () => expect(detectPlatform()).toBe("windows"));
+    withNavigator({ platform: "Linux x86_64", userAgent: "" }, () => expect(detectPlatform()).toBe("linux"));
   });
 });
