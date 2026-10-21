@@ -226,7 +226,7 @@
 /* Centred beside the arrangement: above an open (floating) editor drawer, whose top-right
    buttons it would cover otherwise. */
 .eth-float-bar--right {
-  top: calc((100% - var(--pane-bottom-overlay, 0px)) / 2);
+  top: calc((100% - var(--pane-bottom-overlay, 0%)) / 2);
   right: var(--eth-size-collapsed-bar-inset);
   width: var(--eth-size-collapsed-bar);
   flex-direction: column;
