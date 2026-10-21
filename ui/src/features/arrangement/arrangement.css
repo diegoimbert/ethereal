@@ -712,12 +712,13 @@
    automation), the pan knob ending with them. */
 .eth-arr-header .eth-arr-vol {
   width: calc(
-    4 * var(--eth-size-track-header-button) + 3 * var(--eth-space-hair) - var(--eth-space-sm) - var(--eth-size-track-pan-knob)
+    4 * var(--eth-size-track-header-button) + 3 * var(--eth-space-hair) - var(--eth-space-md) - var(--eth-size-track-pan-knob)
   );
 }
 /* The pan's value ("43R", "C") above the knob, like the fader's dB. */
 .eth-arr-header .eth-arr-pan {
   position: relative;
+  margin-left: var(--eth-space-md);
 }
 .eth-arr-pan:hover .eth-arr-pan__readout,
 .eth-arr-pan--active .eth-arr-pan__readout {
