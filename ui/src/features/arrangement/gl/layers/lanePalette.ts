@@ -3,7 +3,7 @@
  * CSS tokens once per arranger palette (a theme switch makes a new palette).
  */
 
-import { readToken, themes, tokenName, type ColorKey } from "@/theme";
+import { readToken, themeColorValue, tokenName, type ColorKey } from "@/theme";
 import { mix, parseColor, type Palette, type Rgba } from "../palette";
 
 export interface LanePalette {
@@ -28,7 +28,7 @@ const cache = new WeakMap<Palette, LanePalette>();
 export function lanePalette(p: Palette): LanePalette {
   let c = cache.get(p);
   if (c) return c;
-  const color = (key: Key): Rgba => parseColor(readToken(tokenName("color", key) as `--${string}`) || themes[p.theme].color[key]);
+  const color = (key: Key): Rgba => parseColor(readToken(tokenName("color", key) as `--${string}`) || themeColorValue(key));
   c = {
     accent: color("accent"),
     bgInset: color("bgInset"),

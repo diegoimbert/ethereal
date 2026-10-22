@@ -246,3 +246,107 @@
   width: 85%;
   height: var(--eth-size-control-sm);
 }
+
+/* Settings > Appearance: the theme cards (ThemePicker). The preview is drawn in the card's own
+   theme colors (`--preview-*`, set inline from the theme), whatever theme is applied. */
+.eth-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--eth-size-theme-card-min-width), 1fr));
+  gap: var(--eth-space-md);
+}
+.eth-theme-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  padding: var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-lg);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  font: inherit;
+  font-size: var(--eth-fs-xs);
+  text-align: start;
+  cursor: pointer;
+  transition: border-color var(--eth-duration-fast) var(--eth-ease-standard);
+}
+.eth-theme-card:hover {
+  border-color: var(--eth-color-border-strong);
+}
+.eth-theme-card[aria-pressed="true"] {
+  border-color: var(--eth-color-accent);
+  box-shadow: 0 0 0 var(--eth-border-width) var(--eth-color-accent);
+}
+.eth-theme-card:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+  outline-offset: var(--eth-focus-ring-offset);
+}
+.eth-theme-card__preview {
+  position: relative;
+  display: block;
+  height: var(--eth-size-theme-card-preview-height);
+  overflow: hidden;
+  border-radius: var(--eth-radius-md);
+  background: var(--preview-bg);
+  box-shadow: inset 0 0 0 var(--eth-border-width) var(--preview-border);
+}
+.eth-theme-card__bar {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 18%;
+  background: var(--preview-panel);
+  border-bottom: var(--eth-border-width) solid var(--preview-border);
+}
+.eth-theme-card__dot {
+  position: absolute;
+  top: 30%;
+  left: 6%;
+  width: 6%;
+  aspect-ratio: 1;
+  border-radius: var(--eth-radius-round);
+  background: var(--preview-ok);
+}
+.eth-theme-card__pane {
+  position: absolute;
+  top: 28%;
+  right: 6%;
+  bottom: 10%;
+  width: 40%;
+  display: flex;
+  flex-direction: column;
+  gap: 10%;
+  padding: 6%;
+  border-radius: var(--eth-radius-sm);
+  background: var(--preview-raised);
+}
+.eth-theme-card__line {
+  height: 12%;
+  width: 80%;
+  border-radius: var(--eth-radius-pill);
+  background: var(--preview-text);
+}
+.eth-theme-card__line--dim {
+  width: 55%;
+  background: var(--preview-dim);
+}
+.eth-theme-card__button {
+  margin-top: auto;
+  height: 22%;
+  width: 60%;
+  border-radius: var(--eth-radius-sm);
+  background: var(--preview-accent);
+}
+.eth-theme-card__clip {
+  position: absolute;
+  top: 40%;
+  left: 6%;
+  width: 40%;
+  height: 26%;
+  border-radius: var(--eth-radius-xs);
+  background: color-mix(in srgb, var(--preview-accent) 35%, var(--preview-panel));
+  border-top: var(--eth-border-width-strong) solid var(--preview-accent);
+}
+.eth-theme-card__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

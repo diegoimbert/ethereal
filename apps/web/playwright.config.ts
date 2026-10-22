@@ -69,6 +69,7 @@ const ARRANGER_SPECS = [
   "track-header-polish.spec.ts",
   "track-header-slots.spec.ts",
   "slip-edit.spec.ts",
+  "themes.spec.ts",
   "multi-clip-edit.spec.ts",
   "multi-clip-transpose.spec.ts",
   "clip-drag-new-track.spec.ts",

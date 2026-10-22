@@ -50,7 +50,7 @@ The **gear** at the right end of the status bar (at the bottom) opens the settin
 | category | what's in it |
 |---|---|
 | **general** | **language & startup**: the interface's language, and **startup** (reopen the last project on launch, see [projects and saving](/docs/basics/projects#reopening-your-last-project)). **library**: in the browser, **storage** (whether the browser keeps your projects safe, see [where your projects live](/docs/welcome/where-your-projects-live)); **library files** (which files the browser lists). |
-| **appearance** | the theme (light or dark), the interface zoom, animations, the colour blobs and glow, and translucency. |
+| **appearance** | the [theme](/docs/advanced/themes), the interface zoom, animations, the colour blobs and glow, and translucency. |
 | **audio** | the driver, output and input devices, sample rate and buffer size, and an input check. In the browser, the system picks the devices. See [audio and MIDI setup](/docs/making-music/audio-and-midi-setup). |
 | **mouse & keyboard** | **mouse & trackpad**: the mouse wheel and buttons: zoom and scroll sensitivity, which modifier zooms, inverted directions, the middle button and the back and forward buttons. See [zoom and scroll](/docs/basics/playing-and-navigating#zoom-and-scroll). **keyboard shortcuts**: **edit keyboard shortcuts…** opens the shortcuts editor (also **keyboard shortcuts…** in the palette). |
 | **plugins** | [[desktop]] **folders & scan**: the folders scanned for plugins, and rescanning. **plugin list**: each plugin listed once (in its preferred format) and the hidden plugins. See [plugins](/docs/sounds-and-plugins/plugins). |
