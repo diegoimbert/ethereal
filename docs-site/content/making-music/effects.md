@@ -130,6 +130,7 @@ Moves the pitch or the frequencies of a sound. Pick a **mode**:
 - **ring** multiplies the sound by a **carrier** tone (plus **fine**): audio rates give robotic, clangorous sidebands; a few hertz under some dry sound give a choppy tremolo. **drive** distorts the result (by **amount**).
 - the **lfo** moves the shift by itself: **lfo depth** in hertz (frequency and ring modes) or **lfo pitch** in semitones (pitch mode). Pick a **waveform** (sine, triangles, saws, rectangle with its **duty**, smooth or stepped random), a **rate** in hertz or **sync** it to the tempo. **stereo** offsets the right side by a **phase**, or makes it **spin** faster; **offset** moves the starting point, and **width** spreads the stepped random between the sides.
 - the envelope **follower** moves it with the input's level: **env depth** in hertz, **env pitch** in semitones (negative values go down), with its **attack** and **release**.
+- the **delay** comes after the shift: a **delay time** in milliseconds, or a **delay rate** with **delay sync**. Its **feedback** goes back through the shifter, so each repeat is shifted again (spirals in frequency mode, octave cascades in pitch mode); **tone** darkens the repeats.
 - **wide** mirrors the right channel (the opposite detune or shift; in ring mode the carrier is a quarter cycle apart, so the tremolo alternates between the sides). **mix** blends the dry sound.
 
 ## dynamics: gate, multiband compressor, transient shaper
