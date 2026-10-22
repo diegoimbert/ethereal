@@ -193,6 +193,29 @@ export interface ProjectRowAction {
   run(transport: EngineTransport): Promise<unknown>;
 }
 
+/**
+ * A choice offered when a stored project is deleted (`project.deleteChoices`): a switch in the
+ * confirmation, `run` once the project is deleted when it is on (e.g. "also delete it from
+ * the cloud"). A failure shows as an error; the project is deleted anyway.
+ */
+export interface ProjectDeleteChoice {
+  id: string;
+  label: string;
+  /** On by default. */
+  checked?: boolean;
+  run(): Promise<unknown>;
+}
+
+/** Content of the project picker after the stored projects (`project.listSection`). */
+export interface ProjectListSectionProps {
+  /** The picker's search text (empty when the picker shows no search). */
+  query: string;
+  /** Launch is done (the engine is up). */
+  ready: boolean;
+  /** Close the picker (a project was opened). */
+  onDone(): void;
+}
+
 /** A settings tab of its own (`AudioSettingsDialog`). */
 /**
  * A settings page: a category of its own in the sidebar, or with `parent` a page of that
@@ -333,6 +356,10 @@ export interface ExtensionPoints {
   "project.welcomeActions": ComponentType<{ busy: boolean; ready: boolean; onDone(): void }>;
   /** Entries of a stored project's menu in the picker (before "delete"). */
   "project.rowActions": (project: ProjectSummary) => ReadonlyArray<ProjectRowAction>;
+  /** Choices in a project's delete confirmation (the picker's rows, the project menu, the palette). */
+  "project.deleteChoices": (project: { id: string; name: string }) => ReadonlyArray<ProjectDeleteChoice>;
+  /** Sections of the project picker after the stored projects (e.g. projects in the cloud). */
+  "project.listSection": ComponentType<ProjectListSectionProps>;
   /** Whether launch must not show the project picker now (another screen takes its place). */
   "project.launchHeld": () => boolean;
   /** Paths whose address the project URL sync leaves alone (`features/project/projectUrl.ts`). */
