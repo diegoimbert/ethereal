@@ -8,12 +8,13 @@ import type { ContextMenuEntry } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd, newId } from "@/transport";
 import { t } from "@/i18n";
-import { canTarget, DEFAULT_DEPTH, isChainRack, MACROS, rackOf, sameSource, SELECTOR_PARAM, sourceName } from "./model";
+import { canTarget, DEFAULT_DEPTH, DEVICE_ENABLED_PARAM, isChainRack, MACROS, rackOf, sameSource, SELECTOR_PARAM, sourceName, switchDepth } from "./model";
 
 /** The racks whose macros can reach `device`'s `param`, nearest first. */
 function reachingRacks(project: Project, device: Device, param: number): Device[] {
   const out: Device[] = [];
-  if (isChainRack(device) && param >= SELECTOR_PARAM) out.push(device);
+  // A rack's own params after its macros, never its switch.
+  if (isChainRack(device) && param >= SELECTOR_PARAM && param !== DEVICE_ENABLED_PARAM) out.push(device);
   let cur: Device | undefined = device;
   for (let i = 0; cur && i < 16; i++) {
     const host = rackOf(project, cur);
@@ -26,8 +27,21 @@ function reachingRacks(project: Project, device: Device, param: number): Device[
 
 /** The context menu entries for `device`'s `info` (none outside a rack). */
 export function paramMenuEntries(device: Device, info: ParamInfo, send: (c: Command) => unknown): ContextMenuEntry[] {
+  return assignEntries(device, info.id, DEFAULT_DEPTH, send);
+}
+
+/**
+ * "Assign to macro ›" on a device's on/off button: the macro switches the device
+ * (`DEVICE_ENABLED_PARAM`, depth [`switchDepth`]).
+ */
+export function switchMenuEntries(device: Device, send: (c: Command) => unknown): ContextMenuEntry[] {
+  return assignEntries(device, DEVICE_ENABLED_PARAM, switchDepth(device), send);
+}
+
+function assignEntries(device: Device, param: number, depth: number, send: (c: Command) => unknown): ContextMenuEntry[] {
   const project = useProjectStore.getState().project;
   if (!project) return [];
+  const info = { id: param };
   const racks = reachingRacks(project, device, info.id);
   if (racks.length === 0) return [];
   const macros = (rack: Device): ContextMenuEntry[] =>
@@ -38,7 +52,7 @@ export function paramMenuEntries(device: Device, info: ParamInfo, send: (c: Comm
         label: sourceName(project, source),
         disabled: mapped || !canTarget(project, source, device, info.id),
         reason: mapped ? t("modulation.macro.assigned") : undefined,
-        onSelect: () => void send(cmd("Modulation", { type: "Map", id: newId(), source, device: device.id, param: info.id, depth: DEFAULT_DEPTH })),
+        onSelect: () => void send(cmd("Modulation", { type: "Map", id: newId(), source, device: device.id, param: info.id, depth })),
       };
     });
   const submenu: ContextMenuEntry[] =

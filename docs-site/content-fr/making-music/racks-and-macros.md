@@ -69,6 +69,8 @@ Pour associer une macro :
 
 Une macro peut piloter de nombreux paramètres, chacun avec sa propre profondeur. Par exemple, une macro « brillance » peut ouvrir un filtre et ajouter un peu de drive en même temps. Une macro peut aussi piloter le sélecteur de chaîne du rack lui-même. Les macros peuvent être automatisées et associées à un contrôleur MIDI comme n’importe quel bouton.
 
+Une macro peut aussi **activer et contourner un appareil** : déposez-la sur le bouton d’alimentation de l’appareil (ou faites un clic droit sur le bouton et choisissez **assigner à une macro**). Un appareil activé se contourne quand la macro passe le milieu, un appareil contourné s’active ; un clic droit sur la pastille colorée à côté du bouton l’inverse ou la retire. Le bouton montre l’état de l’appareil en direct. Les modulateurs peuvent commuter leur propre appareil de la même façon.
+
 ## presets de rack {#rack-presets}
 
 Enregistrer un preset sur un rack (avec son bouton **presets**) enregistre tout le rack : ses chaînes, leurs appareils et leurs réglages, ses modulateurs et ses associations de macros. Le charger reconstruit tout cela, en une seule étape d’annulation. C’est ainsi que vous gardez un son superposé ou une chaîne d’effets pour d’autres projets.

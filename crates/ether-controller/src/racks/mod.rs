@@ -1211,7 +1211,10 @@ pub fn modulation_command(ctx: &mut DocCtx, command: &ModulationCommand) -> CmdR
                 return Err(invalid("depth must be finite"));
             }
             let d = ctx.device(*device)?;
-            if let Some(desc) = ctx.host.descriptor(d.id, &d.kind) {
+            // The device's on/off switch is a target of every device (not a param).
+            if *param != DEVICE_ENABLED_PARAM
+                && let Some(desc) = ctx.host.descriptor(d.id, &d.kind)
+            {
                 let Some(info) = desc.params.iter().find(|p| p.id == *param) else {
                     return Err(not_found(format!("param {}", param.0)));
                 };

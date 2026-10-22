@@ -5,9 +5,10 @@
  * ring of the device is mounted).
  */
 
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import type { DeviceId, ParamId } from "@/generated";
-import { cmd, useTransport, type EngineTransport } from "@/transport";
+import { cmd, type EngineTransport } from "@/transport";
+import { TransportContext } from "@/transport/context";
 
 const watches = new WeakMap<EngineTransport, Map<DeviceId, number>>();
 
@@ -30,13 +31,14 @@ function watch(transport: EngineTransport, device: DeviceId): () => void {
 
 /**
  * The live effective value (normalized) of `device`'s `param`, or `null` until the engine
- * reports one. Only watches while `active`.
+ * reports one. Only watches while `active` (and inside a transport: hooks rendered without
+ * one, e.g. `useDeviceOn` in unit tests, get `null`).
  */
 export function useModulatedValue(device: DeviceId, param: ParamId, active: boolean): number | null {
-  const transport = useTransport();
+  const transport = useContext(TransportContext)?.transport ?? null;
   const [value, setValue] = useState<number | null>(null);
   useEffect(() => {
-    if (!active) return;
+    if (!active || !transport) return;
     const unwatch = watch(transport, device);
     const off = transport.onEvent((e) => {
       if (e.type !== "Analysis" || e.event.type !== "Frame" || e.event.device !== device) return;
