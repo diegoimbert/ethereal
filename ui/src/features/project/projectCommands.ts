@@ -6,6 +6,7 @@
  * The menu decides its layout (groups, submenus, the scale picker, the in-place delete
  * confirmation); the labels and what an action does live here.
  */
+import { createElement, Fragment } from "react";
 import { notify } from "@/features/notifications";
 import { openSettings } from "@/features/audio-settings";
 import { errorMessage } from "@/features/transport-bar/engine";
@@ -16,6 +17,7 @@ import { useConfirm } from "@/kit";
 import { cmd, type EngineTransport } from "@/transport";
 import { closeAndDelete, duplicateProject, importProject, saveProject } from "./actions";
 import { createDraftProject } from "./drafts";
+import { DeleteChoices, DeleteChoiceSwitches } from "./deleteChoices";
 import { useExportProject } from "./exportProjectStore";
 import { guardLeave } from "./leaveGuard";
 import { useProjectScreen } from "./screenStore";
@@ -44,18 +46,30 @@ function attempt(action: () => Promise<unknown>): void {
 
 /** Ask, then delete the open project (switching to another one first). */
 export function confirmDeleteProject(transport: EngineTransport, id: string, name: string): void {
+  // The extensions' choices (`@/ext` "project.deleteChoices") switch on and off in the dialog.
+  const choices = new DeleteChoices({ id, name });
   useConfirm.getState().ask({
     title: t("project.actions.delete_named", { name }),
-    body: t("project.actions.cannot_undo"),
+    body: createElement(Fragment, null, t("project.actions.cannot_undo"), createElement(DeleteChoiceSwitches, { choices })),
     action: t("project.actions.delete"),
     danger: true,
-    run: () => deleteOpenProject(transport, id),
+    run: () => deleteOpenProject(transport, id, choices),
   });
 }
 
-export function deleteOpenProject(transport: EngineTransport, id: string): void {
+/** Delete the open project; then the delete choices switched on, if any. */
+export function deleteOpenProject(transport: EngineTransport, id: string, choices?: DeleteChoices): void {
   // Deleted anyway: no "keep or discard?" for an untitled one.
-  attempt(() => guardLeave(() => closeAndDelete(transport, id), t("project.leave.delete"), { untitled: false }));
+  attempt(() =>
+    guardLeave(
+      async () => {
+        await closeAndDelete(transport, id);
+        await choices?.runChecked((e) => notify("Error", errorMessage(e)));
+      },
+      t("project.leave.delete"),
+      { untitled: false },
+    ),
+  );
 }
 
 /** The extensions' project commands (`@/ext` "project.commands") for `project` (`null`: app-level ones). */
