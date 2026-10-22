@@ -46,6 +46,13 @@
   width: var(--eth-size-number-field-narrow);
 }
 
+/* "3 audio clips selected": the toolbar's edits apply to all of them. */
+.eth-warp__clip-count {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+}
+
 .eth-warp__note {
   color: var(--eth-color-record);
 }
