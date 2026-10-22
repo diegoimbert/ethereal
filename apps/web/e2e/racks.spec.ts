@@ -157,7 +157,7 @@ test("racks: chains, a modulator and a macro mapped onto a synth", async ({ page
   const other = await paramId("Decay");
   // b8ad9f79: a rack has no window; its macros are on its card, behind the parameters toggle.
   const rackParams = await showDeviceParams(page, rack.id);
-  const handle = rackParams.getByRole("button", { name: "map Macro 1" });
+  const handle = rackParams.getByRole("button", { name: "map macro 1", exact: true });
   await handle.click();
   await param(synthCard, other).getByTestId("mod-target").click();
   await expect.poll(async () => (await mappings(page)).some((m) => m.source.type === "Macro" && m.param === other)).toBe(true);
@@ -230,7 +230,7 @@ test("racks: a rack nested in a rack chain", async ({ page }) => {
 
   // The outer rack's Macro 1 reaches the Reverb two levels down.
   // (A rack has no window: its macros are on its card, b8ad9f79.)
-  await (await showDeviceParams(page, outer.id)).getByRole("button", { name: "map Macro 1" }).first().click();
+  await (await showDeviceParams(page, outer.id)).getByRole("button", { name: "map macro 1", exact: true }).first().click();
   await reverbCard.getByTestId("mod-target").first().click();
   await expect
     .poll(async () => (await mappings(page)).some((m) => m.source.type === "Macro" && m.source.rack === outer.id && m.device === reverb.id))
