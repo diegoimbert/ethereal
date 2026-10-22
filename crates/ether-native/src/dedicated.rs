@@ -167,6 +167,10 @@ impl EngineBridge for DedicatedEngine {
         self.bridge.transport(control)
     }
 
+    fn set_suspended(&mut self, suspended: bool) -> Result<(), BridgeError> {
+        self.bridge.set_suspended(suspended)
+    }
+
     fn poll(&mut self, out: &mut EngineOutputs) {
         self.bridge.poll(out)
     }

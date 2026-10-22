@@ -90,6 +90,11 @@ pub struct AudioShared {
     pub render_crashed: AtomicBool,
     /// Smoothed DSP load 0..1 (`f32` bits): callback time / buffer duration.
     cpu_load: AtomicU32,
+    /// Callbacks that took longer than their buffer lasts (late buffers: the device ran
+    /// out of audio, or will once its queue drains). Diagnostics and tests.
+    pub overruns: AtomicU32,
+    /// The longest callback so far (µs).
+    pub worst_callback_us: AtomicU32,
     /// Last device buffer size in frames.
     pub buffer_size: AtomicU32,
     /// Frames rendered since start.
@@ -279,7 +284,14 @@ impl RtRenderer {
             .store(total as u32, Ordering::Relaxed);
         if total > 0 {
             let budget = total as f64 / self.sample_rate;
-            let load = (start.elapsed().as_secs_f64() / budget) as f32;
+            let elapsed = start.elapsed().as_secs_f64();
+            if elapsed > budget {
+                self.shared.overruns.fetch_add(1, Ordering::Relaxed);
+            }
+            self.shared
+                .worst_callback_us
+                .fetch_max((elapsed * 1e6) as u32, Ordering::Relaxed);
+            let load = (elapsed / budget) as f32;
             let prev = self.shared.cpu_load();
             let smoothed = prev + (load - prev) * 0.1;
             self.shared

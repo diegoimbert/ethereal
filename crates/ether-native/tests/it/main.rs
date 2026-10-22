@@ -47,6 +47,7 @@ mod plugin_folders_e2e;
 mod plugin_sidechain;
 #[cfg(all(feature = "plugins-clap", feature = "sandbox"))]
 mod plugins_e2e;
+mod project_load_xruns;
 mod quit_save;
 mod recording_e2e;
 mod sidechain_render;

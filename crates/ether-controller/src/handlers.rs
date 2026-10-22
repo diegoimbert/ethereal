@@ -211,6 +211,8 @@ where
     ) -> CmdResult<ReplyValue> {
         let current = self.doc.as_ref().map(|d| d.project.id);
         let command = &msg.command;
+        // A project still loading can't play yet (`loading`), whoever asks.
+        self.refuse_while_loading(command)?;
         // Extensions first (`ext` module): their domains, and app commands they take over.
         if let Some(r) = self.ext_command(command, now, out) {
             return r;
@@ -735,9 +737,16 @@ where
     }
 
     pub fn transport_state(&self) -> Option<TransportState> {
-        if let Some(s) = self.ext_transport_state() {
-            return Some(s);
-        }
+        let mut state = match self.ext_transport_state() {
+            Some(s) => s,
+            None => self.own_transport_state()?,
+        };
+        // This engine's load, whichever transport is shown.
+        state.loading = self.loading.progress();
+        Some(state)
+    }
+
+    fn own_transport_state(&self) -> Option<TransportState> {
         let doc = self.doc.as_ref()?;
         let p = &doc.project;
         let map = p.tempo_map();
@@ -751,6 +760,7 @@ where
             time_signature: map.signature_at(at),
             metronome: p.settings.metronome,
             start_position: self.transport.start_position,
+            loading: None,
         })
     }
 
@@ -1327,6 +1337,7 @@ where
         self.autosave_tick(now, out);
 
         self.publish_if_due(now, true, out);
+        self.load_tick(out);
         self.emit_transport_if_changed(out);
     }
 
