@@ -34,8 +34,10 @@
 //!   thread), unparks parked workers for them, claims sub-jobs itself (`fetch_add`), waits
 //!   for the last one, empties the slot and waits until no helper still looks at it (a
 //!   per-slot user count, SeqCst on both sides). Idle threads help before taking ready
-//!   graph jobs: workers waiting in or outside an epoch (they don't park while a fork is
-//!   published) and the audio thread waiting for the graph. Works without an epoch too (a
+//!   graph jobs: workers waiting in or outside an epoch (a worker about to park checks for
+//!   unclaimed sub-jobs after announcing it sleeps, so no wake-up is lost; one with nothing
+//!   left to claim parks as usual instead of spinning on a busy core) and the audio thread
+//!   waiting for the graph. Works without an epoch too (a
 //!   graph run on the audio thread alone).
 //! - **Flat batches** (`execute`, `execute_pinned`): indices claimed with one `fetch_add`
 //!   on the batch's counter; the audio thread runs the pinned ones, helps with the rest,
@@ -111,8 +113,9 @@ pub fn physical_cores() -> usize {
 }
 
 /// Non-RT (once per thread, before it renders): the real-time promotion the workers get
-/// (see the module docs), for another thread that renders device buffers.
-pub(crate) fn promote_current_thread(period: Duration) {
+/// (see the module docs), for another thread that renders device buffers (the device
+/// callback, a benchmark's render thread).
+pub fn promote_current_thread(period: Duration) {
     os::promote_current_thread(period);
 }
 
@@ -296,6 +299,20 @@ impl Shared {
             slot.users.fetch_sub(1, Ordering::Release);
         }
         ran
+    }
+
+    /// Whether a published fork batch still has unclaimed sub-jobs (a worker about to park
+    /// must not sleep through them).
+    fn fork_claimable(&self) -> bool {
+        self.forks_active.load(Ordering::SeqCst) > 0
+            && self.forks.iter().any(|slot| {
+                slot.users.fetch_add(1, Ordering::SeqCst);
+                let b = slot.batch.load(Ordering::SeqCst);
+                // SAFETY: counted in `users`, so a non-null batch is alive (see `help_forks`).
+                let open = !b.is_null() && unsafe { (*b).next.load(Ordering::Relaxed) < (*b).n };
+                slot.users.fetch_sub(1, Ordering::Release);
+                open
+            })
     }
 
     /// Claim and run sub-jobs of `b` until none is left; whether any ran here.
@@ -543,7 +560,7 @@ fn worker_main(s: &Shared, index: usize, options: PoolOptions) {
             let st = s.state.load(Ordering::SeqCst);
             let pushes = s.pushes.load(Ordering::SeqCst);
             if !wanted(st, pushes, seen_epoch, seen_push)
-                && s.forks_active.load(Ordering::SeqCst) == 0
+                && !s.fork_claimable()
                 && !s.shutdown.load(Ordering::SeqCst)
             {
                 std::thread::park();
