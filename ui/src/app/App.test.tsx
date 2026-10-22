@@ -197,6 +197,8 @@ describe("App shell: connected", () => {
     });
     await waitFor(() => expect(useShellStore.getState().bottom).toMatchObject({ open: true, collapsed: true }));
     expect(useShellStore.getState().right.collapsed).toBe(false);
+    const keys = Object.values(useProjectStore.getState().project!.tracks).find((t) => t.name === "Keys")!;
+    expect(useArrangementUi.getState().trackFocus).toBe(keys.id);
     // Another track's empty space: the inspector collapses too.
     const other = { button: 0, clientX: x, clientY: useArrangementUi.getState().defaultHeight + 5 };
     await act(async () => {
