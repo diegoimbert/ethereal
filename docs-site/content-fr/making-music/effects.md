@@ -50,7 +50,7 @@ Un égaliseur 8 bandes pour couper ou accentuer des fréquences.
 - **mix** : mélangez le son non compressé (compression parallèle).
 - **détecteur** : **crête** réagit à chaque crête, **RMS** au niveau moyen, et **expansion** le transforme en expandeur vers le bas qui rend les passages calmes plus calmes.
 - l’**anticipation** (jusqu’à 10 ms) attrape les transitoires rapides, et ajoute autant de latence, qu’Ethereal compense.
-- Il peut être déclenché par une autre piste (voir [sidechain](/docs/making-music/modulation-and-sidechain#sidechain)). Le **HPF du sidechain** filtre alors le grave du signal de déclenchement, pour que le sub d’une grosse caisse ne le déclenche pas trop.
+- Il peut être déclenché par une autre piste (voir [sidechain](/docs/making-music/modulation-and-sidechain#sidechain)). Le **HPF du sidechain** filtre alors le grave du signal de déclenchement, pour que le sub d’une grosse caisse ne le déclenche pas trop ; la **pente du sidechain** rend ce filtre doux (6 dB/oct) ou plus raide (12 dB/oct).
 
 ### réverbe {#reverb}
 

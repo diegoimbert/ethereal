@@ -52,6 +52,62 @@ fn pool_equals_sequential_with_real_devices() {
     }
 }
 
+/// Anticipative processing (`EngineConfig::anticipative`) on the real pool: the tracks
+/// render a block ahead of master, and the output stays bit-identical to sequential
+/// processing (real devices, and randomized projects with sends, sidechains and racks).
+#[test]
+fn pool_with_anticipation_equals_sequential() {
+    enable_flush_denormals();
+    let blocks = 120;
+    let mut seq = engine(24, Some(Box::new(SequentialExecutor)));
+    let (reference, _) = run(&mut seq.engine, blocks);
+    let ahead = ether_core::EngineConfig {
+        anticipative: true,
+        ..config()
+    };
+    for workers in [1usize, 2, 4] {
+        let mut par = engine_with(ahead.clone(), 24, Some(Box::new(pool(workers))));
+        let (out, _) = run(&mut par.engine, blocks);
+        assert_eq!(first_diff(&reference, &out), None, "{workers} workers");
+    }
+
+    let frames = graphs::SR as usize / 2;
+    for seed in 100..106u64 {
+        let render = |anticipative: bool, executor: Box<dyn ParallelExecutor>| {
+            let mut p = ether_core::create(ether_core::EngineConfig {
+                anticipative,
+                ..graphs::config()
+            });
+            let project = graphs::build(seed, &mut p.handle, false);
+            p.handle.publish(project.desc).unwrap();
+            p.engine.set_executor(executor);
+            p.handle
+                .transport(ether_core::TransportControl::Play)
+                .unwrap();
+            let block = 200;
+            let (mut l, mut r) = (vec![0.0f32; block], vec![0.0f32; block]);
+            let mut out = Vec::with_capacity(frames * 2);
+            for _ in 0..frames / block {
+                let mut outs: [&mut [f32]; 2] = [&mut l, &mut r];
+                p.engine.process(&[], &mut outs, block);
+                out.extend_from_slice(&l);
+                out.extend_from_slice(&r);
+                p.gc.collect();
+            }
+            out
+        };
+        let reference = render(false, Box::new(SequentialExecutor));
+        for workers in [1usize, 4] {
+            let out = render(true, Box::new(pool(workers)));
+            assert_eq!(
+                first_diff(&reference, &out),
+                None,
+                "seed {seed}, {workers} workers"
+            );
+        }
+    }
+}
+
 /// More workers than cores (oversubscribed, preempted mid-job): every dispatch still
 /// completes, results stay exact, and the whole run is bounded in time.
 #[test]

@@ -272,7 +272,7 @@ fn is_drum_rack(kind: &DeviceKind) -> bool {
     matches!(
         kind,
         DeviceKind::Builtin {
-            device: BuiltinDevice::DrumRack
+            device: BuiltinDevice::DrumRack { .. }
         }
     )
 }
@@ -1365,6 +1365,15 @@ impl Project {
     /// v0.2 device rules: rack chains, nesting, mappings that target the device.
     fn check_device_v2(&self, d: &Device) -> Result<(), ModelError> {
         let key = EntityKey::Device(d.id);
+        // A rack's macro bank: 1..=16 shown, at most 16 names (`RackMacros::normalize`).
+        if let DeviceKind::Builtin { device } = &d.kind
+            && let Some(m) = device.rack_macros()
+            && m != m.clone().normalized()
+        {
+            return Err(invalid(
+                "rack macros: 1..=16 visible, at most 16 names, no trailing empty name",
+            ));
+        }
         if let Some(chain) = d.chain {
             if d.pad.is_some() {
                 return Err(invariant(
@@ -1389,7 +1398,7 @@ impl Project {
                     matches!(
                         &r.kind,
                         DeviceKind::Builtin {
-                            device: BuiltinDevice::InstrumentRack
+                            device: BuiltinDevice::InstrumentRack { .. }
                         }
                     )
                 })

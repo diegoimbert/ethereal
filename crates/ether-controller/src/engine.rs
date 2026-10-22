@@ -41,7 +41,12 @@ enum NodeSig {
 
 fn sig_of(kind: &DeviceKind) -> NodeSig {
     match kind {
-        DeviceKind::Builtin { device } => NodeSig::Builtin(device.clone()),
+        // A rack's macro names and visible count are document data only: same node.
+        DeviceKind::Builtin { device } => NodeSig::Builtin(
+            device
+                .clone()
+                .with_rack_macros(ether_model::RackMacros::default()),
+        ),
         DeviceKind::Plugin { plugin } => NodeSig::Plugin {
             plugin_id: plugin.plugin_id.clone(),
             sandboxed: plugin.sandboxed,

@@ -165,6 +165,32 @@
 .eth-widget--missing {
   color: var(--eth-color-danger);
 }
+/* A rack's macro bank: the shown macros, a name field over the one being renamed, and the
+   show one more / hide the last buttons. */
+.eth-macros__cell {
+  position: relative;
+}
+.eth-macros__rename {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  min-width: 0;
+  padding: 0 var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-accent);
+  border-radius: var(--eth-radius-sm);
+  outline: none;
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text);
+  font: inherit;
+  font-size: var(--eth-fs-xs);
+  text-align: center;
+}
+.eth-macros__count {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--eth-space-xs);
+}
 .eth-widget--meter {
   align-items: center;
   min-width: 0;

@@ -42,6 +42,7 @@ Code: `ether-core/src/parallel.rs` (contract, `JobGraph`), `graph.rs` (builds it
 - **Bit-identical.** Each job collects its inputs at its start, in an order fixed at compile time, so the output does not depend on the schedule or the worker count (`tests/it/parallel.rs`, `ether-native/tests/it/multicore.rs`).
 - **Pool.** Epochs: the audio thread publishes the work, wakes at most `width - 1` parked workers (once per sub-block; a pure chain runs on the audio thread with no wake-up), works itself, and returns once the graph finished and every worker left the epoch. Idle workers spin briefly, then leave. A completion that readies several jobs unparks that many workers minus one. A missed wake-up only costs parallelism, because the audio thread never parks.
 - **Benchmark.** `cargo test -p ether-native --release --test it sched_bench:: -- --ignored --nocapture` (the OSS #196 shape: p50/p99/worst buffer time against the deadline for 4/8/16 workers); `multicore_bench::` for throughput.
+- **Anticipative processing** (`anticipation.rs`, CONTRACTS.md §11.7). Tracks not listened to live render one block ahead: per host block, the real-time side (master, live tracks and what feeds them) renders the block the anticipated tracks rendered during the previous one, reading their held copies, while those render the next block, in one pass of a job graph without the edges between the two sides. A heavy master chain then overlaps the tracks instead of following them. The transport plans each sub-block once, on the anticipated side, and the real-time side replays the queued plans, so the output is bit-identical to rendering without anticipation; controls reach anticipated tracks one block later.
 - **Thread priorities** (Windows MMCSS, Linux `SCHED_FIFO`, macOS time-constraint) are in `workers.rs`.
 
 ## Workspace layout
@@ -54,7 +55,7 @@ crates/
   ether-devices         synth, sampler, compressor, delay                   (native + wasm)
   ether-media           decode (symphonia), resample (rubato), peaks        (native + wasm)
   ether-controller      commands → model → patches; model → render snapshot (native + wasm)
-  ether-stretch         Stretcher trait + Signalsmith impl                  (native; trait wasm)
+  ether-stretch         Stretcher trait, Signalsmith impls, Complex+        (native + wasm)
   ether-clap            CLAP hosting (clack), PluginNode in-process         (native)
   ether-plugin-host     PluginFormatHost trait, format registry, scan runner (native)
   ether-vst3            VST3 hosting                                        (native)
@@ -90,7 +91,7 @@ removes a whole node (a plugin format or a stretcher) or a bridge hook.
 | Crate | Feature | Compiles in | When off |
 |---|---|---|---|
 | ether-stretch | `signalsmith` (crate default) | Signalsmith Stretch (C++) | trait only |
-| ether-stretch | `rust-stretch` (crate default) | the pure-Rust Signalsmith Stretch port (`rustfft`; builds for wasm32) | no `RustStretcher` |
+| ether-stretch | `rust-stretch` (crate default) | the pure-Rust Signalsmith Stretch port and Complex+ (`rustfft`, `realfft`; build for wasm32) | no `RustStretcher` / `PlusStretcher` |
 | ether-native | `plugins-clap`, `plugins-vst3`, `plugins-au` | that format's host crate | the format is not registered, so loading it is `Unsupported` ("not supported by this build") |
 | ether-native | `sandbox` | `ether-sandbox` (out-of-process instances) | a sandboxed instance fails `Unsupported` |
 | ether-native | `plugins` | all four formats + `sandbox` | |

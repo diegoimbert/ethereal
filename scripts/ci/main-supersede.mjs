@@ -9,19 +9,36 @@
 // ~2 h plus one run, however fast the merges come. The clock starts at the later of the last
 // finished run and the first push after it (a quiet `main` isn't starving).
 //
+// Nearly done: a running run that has been going (since its first job started) for at least 70%
+// of the workflow's typical run (the median of its last finished runs) is let finish too:
+// cancelling it would throw away most of its work for a verdict ~a third of a run away, and a
+// streak of merges a few minutes apart would otherwise keep `main` without one until the guard.
+//
 // Never touched: manual runs and re-runs (someone asked for them), other workflows (release, EE
 // sync, ...), the newest run of each workflow.
 //
 //   node scripts/ci/main-supersede.mjs   (GH_TOKEN, GH_REPO, SHA: the pushed commit; `--dry-run`)
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
-import { WORKFLOWS, latestFinished } from "./main-status.mjs";
+import { VERDICTS, WORKFLOWS, latestFinished } from "./main-status.mjs";
 
 export const STARVING_MS = 2 * 3600e3;
+export const NEARLY_DONE = 0.7;
+
+/** The median wall time of the last (up to 5) finished runs, or null. */
+export function typicalMs(runs) {
+  const d = runs
+    .filter((r) => r.status === "completed" && VERDICTS.has(r.conclusion))
+    .slice(0, 5)
+    .map((r) => Date.parse(r.updated_at) - Date.parse(r.run_started_at ?? r.created_at))
+    .filter((ms) => ms > 0)
+    .sort((a, b) => a - b);
+  return d.length ? d[d.length >> 1] : null;
+}
 
 /**
- * What to cancel among a workflow's push runs on `main` (newest first, any status). Returns
- * `{ cancel: [run], reason }`.
+ * What to cancel among a workflow's push runs on `main` (newest first, any status; a running run
+ * may carry `first_job_at`, when its first job started). Returns `{ cancel: [run], reason }`.
  */
 export function decide(runs, now, starvingMs = STARVING_MS) {
   const active = runs.filter((r) => r.status !== "completed");
@@ -35,6 +52,14 @@ export function decide(runs, now, starvingMs = STARVING_MS) {
   const quietSince = Math.max(Date.parse(last.updated_at), since.length ? Math.min(...since) : 0);
   const hours = ((now - quietSince) / 3600e3).toFixed(1);
   if (now - quietSince > starvingMs) return { cancel: [], reason: `no finished run for ${hours} h: let it finish` };
+  const typical = typicalMs(runs);
+  const done = (r) => (typical && r.first_job_at ? (now - Date.parse(r.first_job_at)) / typical : 0);
+  const nearly = cancel.filter((r) => done(r) >= NEARLY_DONE);
+  if (nearly.length) {
+    const rest = cancel.filter((r) => !nearly.includes(r));
+    const pct = nearly.map((r) => `${r.id} ~${Math.round(done(r) * 100)}%`).join(", ");
+    return { cancel: rest, reason: `nearly done (${pct} of a typical run): let it finish` };
+  }
   return { cancel, reason: `superseded by run ${newest.id} (last finished run ${hours} h ago)` };
 }
 
@@ -66,6 +91,15 @@ async function main() {
         runs = pushRuns(repo, w.file);
         if (runs.some((r) => r.head_sha === sha)) break;
         await sleep(5000);
+      }
+      // When the running runs' first jobs started (a run waiting in the group has none yet).
+      for (const r of runs.filter((r) => r.status === "in_progress")) {
+        try {
+          const starts = api(`repos/${repo}/actions/runs/${r.id}/jobs?per_page=100`)
+            .jobs.map((j) => Date.parse(j.started_at))
+            .filter((t) => t > 0);
+          if (starts.length) r.first_job_at = new Date(Math.min(...starts)).toISOString();
+        } catch {} // no start time: judged as just started
       }
       const d = decide(runs, Date.now());
       console.log(`${w.name}: ${d.cancel.length ? `cancel ${d.cancel.map((r) => r.id).join(", ")}, ` : ""}${d.reason}`);

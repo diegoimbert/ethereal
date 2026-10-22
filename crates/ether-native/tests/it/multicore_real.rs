@@ -197,7 +197,16 @@ pub fn build(h: &mut EngineHandle, tracks: usize) -> RenderGraphDesc {
 
 /// An engine with `build(tracks)` published and playing, with `executor`.
 pub fn engine(tracks: usize, executor: Option<Box<dyn ParallelExecutor>>) -> EngineParts {
-    let mut parts = create(config());
+    engine_with(config(), tracks, executor)
+}
+
+/// [`engine`] with another config (e.g. `EngineConfig::anticipative`).
+pub fn engine_with(
+    config: EngineConfig,
+    tracks: usize,
+    executor: Option<Box<dyn ParallelExecutor>>,
+) -> EngineParts {
+    let mut parts = create(config);
     let desc = build(&mut parts.handle, tracks);
     parts.handle.publish(desc).unwrap();
     parts.handle.transport(TransportControl::Play).unwrap();

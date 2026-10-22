@@ -18,4 +18,9 @@ instance: string,
  * or a participant's engine): other applications can use it, and
  * it opens again (with the saved settings) when the engine comes back.
  */
-device_released: boolean, };
+device_released: boolean, 
+/**
+ * Anticipative processing (`EngineCommand::SetAnticipative`); `None` where the engine
+ * can't anticipate (web, no worker threads).
+ */
+anticipative?: boolean, };

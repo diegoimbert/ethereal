@@ -13,6 +13,7 @@ export {
   genericLayout,
   PARAM_CARD_CAP,
   genericWidget,
+  macrosWidgetParams,
   referencedParams,
   resolveLayout,
   UNCAPPED_MAX,

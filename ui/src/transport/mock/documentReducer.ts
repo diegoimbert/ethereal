@@ -52,7 +52,7 @@ import { clipV2Command, isCrossfade } from "./roadmap/clipEditing";
 import { setTranspose } from "./roadmap/transpose";
 import { onTrackDeletedTakes } from "./roadmap/comping";
 import { checkDeviceMove, copyRackPads, onRackDeleted } from "./roadmap/drumRack";
-import { addFirstChain, copyTrackRackExtras, onDeviceDeletedRacks } from "./roadmap/racksModulation";
+import { addFirstChain, copyTrackRackExtras, onDeviceDeletedRacks, renameMacro, setRackMacros } from "./roadmap/racksModulation";
 import { swingOffset } from "./roadmap/groove";
 import {
   chainDevicesOf,
@@ -715,6 +715,12 @@ function deviceCommandInner(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
       tx.upsert("Device", { ...d, kind: { type: "Builtin", device: { type: "VolumeLfo", curve: { points } } } });
       break;
     }
+    case "RenameMacro":
+      renameMacro(ctx, c.device, c.index, c.name);
+      break;
+    case "SetMacroCount":
+      setRackMacros(ctx, c.device, (m) => (m.visible = c.count));
+      break;
     case "ListFactoryIrs":
       return listFactoryIrs();
     case "ListBuiltin":

@@ -219,7 +219,7 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         BuiltinDevice::Reverb => reverb::create(),
         BuiltinDevice::Limiter => limiter::create(),
         BuiltinDevice::Utility => utility::create(),
-        BuiltinDevice::DrumRack => drum_rack::create(),
+        BuiltinDevice::DrumRack { .. } => drum_rack::create(),
         // --- v0.2 groups ---
         BuiltinDevice::PolySynth => poly_synth::create(device),
         BuiltinDevice::MultiSampler { .. } => multisampler::create(device, samples),
@@ -246,9 +246,9 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         | BuiltinDevice::Randomizer
         | BuiltinDevice::Pitch
         | BuiltinDevice::NoteBlocker => midi_fx::create(device),
-        BuiltinDevice::InstrumentRack
-        | BuiltinDevice::AudioEffectRack
-        | BuiltinDevice::MidiEffectRack => racks::create(device),
+        BuiltinDevice::InstrumentRack { .. }
+        | BuiltinDevice::AudioEffectRack { .. }
+        | BuiltinDevice::MidiEffectRack { .. } => racks::create(device),
         // --- v0.3 groups ---
         BuiltinDevice::ConvolutionReverb { .. } => fx_space::create(device, samples),
         BuiltinDevice::ExternalInstrument { .. } | BuiltinDevice::ExternalAudioEffect { .. } => {

@@ -199,10 +199,13 @@ impl VcaRt {
 
     /// RT. Push the effective gain and mute of every VCA into its assigned tracks.
     /// Returns `true` if any track's VCA mute changed.
-    fn push(&self, tracks: &mut [TrackRt]) -> bool {
+    fn push(&self, tracks: &mut [TrackRt], of: &dyn Fn(usize) -> bool) -> bool {
         let mut mute_changed = false;
         for (i, v) in self.track_vca.iter().enumerate() {
             let Some(v) = *v else { continue };
+            if !of(i) {
+                continue;
+            }
             let Some(t) = tracks.get_mut(i) else { continue };
             let (gain, muted) = effective(&self.vcas, v);
             if t.vca.gain.target() != gain {
@@ -232,17 +235,27 @@ impl VcaRt {
         if let Some(vol) = volume {
             self.vcas[v].volume = vol.max(0.0);
         }
-        Some(self.push(tracks))
+        Some(self.push(tracks, &|_| true))
     }
 
     /// RT. Once per sub-block before the track jobs: evaluate VCA automation and push the
     /// resulting gains into the assigned tracks' [`TrackVcaRt`].
-    pub(crate) fn update(&mut self, tracks: &mut [TrackRt], timing: &Timing<'_>, playing: bool) {
+    /// Only the tracks `of` accepts (anticipative processing renders tracks at two
+    /// positions, `crate::anticipation`).
+    pub(crate) fn update(
+        &mut self,
+        tracks: &mut [TrackRt],
+        timing: &Timing<'_>,
+        playing: bool,
+        of: &dyn Fn(usize) -> bool,
+    ) {
         if self.vcas.is_empty() {
             return;
         }
-        for t in tracks.iter_mut() {
-            t.vca.knots.clear();
+        for (i, t) in tracks.iter_mut().enumerate() {
+            if of(i) {
+                t.vca.knots.clear();
+            }
         }
         let automated = self.vcas.iter().any(|v| !v.automation.is_empty());
         if playing && automated {
@@ -252,6 +265,9 @@ impl VcaRt {
                 let (Some(v), Some(t)) = (*v, tracks.get_mut(i)) else {
                     continue;
                 };
+                if !of(i) {
+                    continue;
+                }
                 if !chain_automated(&self.vcas, v) {
                     continue;
                 }
@@ -280,7 +296,7 @@ impl VcaRt {
         }
         // Mute never changes here (no mute automation): gates stay as they are. Tracks with
         // knots take their gain from them, `push` only sets the smoother target.
-        let _ = self.push(tracks);
+        let _ = self.push(tracks, of);
     }
 
     /// RT. Live fader/mute values survive a snapshot swap (the new desc carries the

@@ -23,6 +23,10 @@ pub enum EngineCommand {
     /// Refused while recording. Handled by the controller (not the host); replies `Unit`, and
     /// `EngineEvent::Running` says the new state.
     SetRunning { running: bool },
+    /// Anticipative processing on or off (tracks not listened to live render one buffer
+    /// ahead, so the master chain overlaps them; saved). Replies `Status`; `Unsupported` where
+    /// the engine can't anticipate (`EngineStatus::anticipative` is `None`).
+    SetAnticipative { on: bool },
 }
 
 /// Audio backend selection. `backend: "null"` (or env `ETHER_AUDIO=null`) runs the engine
@@ -84,6 +88,11 @@ pub struct EngineStatus {
     /// it opens again (with the saved settings) when the engine comes back.
     #[serde(default)]
     pub device_released: bool,
+    /// Anticipative processing (`EngineCommand::SetAnticipative`); `None` where the engine
+    /// can't anticipate (web, no worker threads).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub anticipative: Option<bool>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
