@@ -1,4 +1,4 @@
-//! fx-color devices (Saturator, Bitcrusher, Auto Filter): render tests. Every `process`
+//! fx-color devices (Saturator, Bitcrusher, Auto Filter, Erosion): render tests. Every `process`
 //! call runs under `assert_no_alloc` (debug builds abort on allocation on the audio path).
 //!
 //! CPU cost per instance: `cargo test --release -p ether-devices --test it fx_color:: -- --ignored
@@ -11,8 +11,8 @@ use ether_core::{
     ProcessEvent, TransportInfo,
 };
 use ether_devices::fx_color::{
-    AutoFilter, Bitcrusher, Saturator, auto_filter as af, bitcrusher as bc, saturator as sat,
-    saturator_device,
+    AutoFilter, Bitcrusher, Erosion, Saturator, auto_filter as af, bitcrusher as bc, erosion as er,
+    saturator as sat, saturator_device,
 };
 
 const SR: f32 = 48_000.0;
@@ -601,6 +601,158 @@ fn auto_filter_lfo_syncs_to_the_song_position() {
     assert_eq!(r, [false, true, false, true]);
 }
 
+// ─── Erosion ───────────────────────────────────────────────────────────────────────────
+
+/// Magnitude of the `freq` component of `x` (Goertzel, Hann window), relative to a
+/// full-scale sine.
+fn tone(x: &[f32], freq: f32) -> f32 {
+    let n = x.len();
+    let w = 2.0 * std::f64::consts::PI * f64::from(freq) / f64::from(SR);
+    let (mut s1, mut s2) = (0.0f64, 0.0f64);
+    for (i, v) in x.iter().enumerate() {
+        let hann = 0.5 - 0.5 * (2.0 * std::f64::consts::PI * i as f64 / n as f64).cos();
+        let s = f64::from(*v) * hann + 2.0 * w.cos() * s1 - s2;
+        s2 = s1;
+        s1 = s;
+    }
+    let p = s1 * s1 + s2 * s2 - 2.0 * w.cos() * s1 * s2;
+    (p.max(0.0).sqrt() / (n as f64 * 0.25)) as f32
+}
+
+fn erosion(mode: f64, amount: f64) -> Erosion {
+    let mut d = Erosion::new();
+    set(&mut d, er::MODE, mode);
+    set(&mut d, er::AMOUNT, amount);
+    prepared(&mut d);
+    d
+}
+
+/// RMS (dB) of `out` minus the input delayed by the latency: what the erosion added.
+fn residual_db(d: &Erosion, input: &[f32], out: &[f32]) -> f32 {
+    let lat = d.latency() as usize;
+    let diff: Vec<f32> = (2048..input.len())
+        .map(|i| out[i] - input[i - lat])
+        .collect();
+    db(rms(&diff))
+}
+
+#[test]
+fn erosion_extremes_are_finite_without_allocating() {
+    for mode in 0..3 {
+        let mut d = Erosion::new();
+        set(&mut d, er::MODE, f64::from(mode));
+        // Hermite overshoot on full-scale noise stays under 1.5, and Output reaches +24 dB.
+        extremes(&mut d, 1.5 * 16.0, "erosion");
+    }
+}
+
+#[test]
+fn erosion_at_zero_amount_or_dry_is_the_input_delayed_by_its_latency() {
+    let x = stereo(noise(9600, 0.7));
+    for (amount, mix) in [(0.0, 100.0), (100.0, 0.0)] {
+        let mut d = erosion(2.0, amount);
+        set(&mut d, er::MIX, mix);
+        let lat = d.latency() as usize;
+        assert!((24..=32).contains(&lat), "{lat}");
+        let out = render(&mut d, &x, &[]);
+        for c in 0..2 {
+            for i in lat..x[c].len() {
+                assert_eq!(out[c][i], x[c][i - lat], "amount {amount} mix {mix} at {i}");
+            }
+        }
+    }
+}
+
+#[test]
+fn erosion_keeps_the_level_and_erodes_with_amount_and_brightness() {
+    let n = 48_000;
+    for mode in [0.0, 1.0, 2.0] {
+        for f in [200.0, 1000.0, 5000.0] {
+            let x = sine(f, 0.5, n);
+            let mut d = erosion(mode, 100.0);
+            let out = render(&mut d, &stereo(x.clone()), &[]);
+            // Phase modulation moves energy around; it doesn't add or remove it.
+            let g = db(rms(&out[0][2048..])) - db(rms(&x[2048..]));
+            assert!(g.abs() < 1.5, "mode {mode} at {f} Hz: {g} dB");
+        }
+    }
+    // More amount, more grit.
+    let mut prev = -200.0;
+    for amount in [5.0, 25.0, 100.0] {
+        let x = sine(1000.0, 0.5, n);
+        let mut d = erosion(1.0, amount);
+        let out = render(&mut d, &stereo(x.clone()), &[]);
+        let r = residual_db(&d, &x, &out[0]);
+        assert!(r > prev + 6.0, "amount {amount}: {r} dB after {prev}");
+        prev = r;
+    }
+    // A brighter input erodes more.
+    let grit = |f: f32| {
+        let x = sine(f, 0.5, n);
+        let mut d = erosion(1.0, 25.0);
+        let out = render(&mut d, &stereo(x.clone()), &[]);
+        residual_db(&d, &x, &out[0])
+    };
+    let (low, high) = (grit(150.0), grit(4000.0));
+    assert!(high > low + 20.0, "low {low} dB, high {high} dB");
+}
+
+#[test]
+fn erosion_sine_mode_makes_sidebands_at_the_modulator_frequency() {
+    let x = sine(1000.0, 0.5, 48_000);
+    let mut d = erosion(0.0, 60.0);
+    set(&mut d, er::FREQUENCY, 3000.0);
+    let out = render(&mut d, &stereo(x), &[]);
+    let y = &out[0][4096..];
+    let carrier = db(tone(y, 1000.0));
+    for sb in [2000.0, 4000.0] {
+        let s = db(tone(y, sb)) - carrier;
+        assert!(s > -30.0, "sideband {sb} Hz: {s} dB");
+    }
+    // Nothing at an unrelated frequency.
+    let off = db(tone(y, 2500.0)) - carrier;
+    assert!(off < -60.0, "{off} dB");
+}
+
+#[test]
+fn erosion_noise_is_shared_and_wide_noise_is_per_channel() {
+    let x = stereo(sine(2000.0, 0.5, 24_000));
+    let mut d = erosion(1.0, 50.0);
+    let out = render(&mut d, &x, &[]);
+    assert_eq!(out[0], out[1]);
+    let mut d = erosion(2.0, 50.0);
+    let out = render(&mut d, &x, &[]);
+    let side: Vec<f32> = out[0].iter().zip(&out[1]).map(|(l, r)| l - r).collect();
+    assert!(db(rms(&side)) > -40.0, "{}", db(rms(&side)));
+}
+
+#[test]
+fn erosion_noise_band_follows_the_frequency() {
+    // A low sine eroded by noise around 2 kHz, then 12 kHz: the grit sits near the band.
+    let x = sine(300.0, 0.5, 48_000);
+    let band = |f: f64| {
+        let mut d = erosion(1.0, 100.0);
+        set(&mut d, er::FREQUENCY, f);
+        set(&mut d, er::WIDTH, 0.3);
+        let out = render(&mut d, &stereo(x.clone()), &[]);
+        let y = &out[0][4096..];
+        (tone(y, 2300.0), tone(y, 12_300.0))
+    };
+    let (a_lo, a_hi) = band(2000.0);
+    let (b_lo, b_hi) = band(12_000.0);
+    assert!(a_lo > b_lo * 2.0, "{a_lo} vs {b_lo}");
+    assert!(b_hi > a_hi * 2.0, "{b_hi} vs {a_hi}");
+}
+
+#[test]
+fn erosion_goes_silent_after_its_input() {
+    let mut d = erosion(2.0, 100.0);
+    let mut x = noise(4800, 0.5);
+    x.extend(vec![0.0; 48_000]);
+    let out = render(&mut d, &stereo(x), &[]);
+    assert!(out[0][40_000..].iter().all(|v| *v == 0.0));
+}
+
 /// Block-size independence (CONTRACTS §12.7): the same automation at the same absolute
 /// frames renders identically with blocks of 64 and 512.
 #[test]
@@ -611,7 +763,7 @@ fn renders_are_block_size_independent() {
         fn() -> Box<dyn Device>,
         Vec<(usize, EventKind)>,
     );
-    let devices: [Case; 3] = [
+    let devices: [Case; 4] = [
         (
             "saturator",
             || Box::new(Saturator::new()),
@@ -641,6 +793,17 @@ fn renders_are_block_size_independent() {
                 (6000, param(af::TYPE, 1.0)),
                 (10_000, param(af::CUTOFF, 300.0)),
                 (15_000, param(af::LFO_SYNC, 1.0)),
+            ],
+        ),
+        (
+            "erosion",
+            || Box::new(Erosion::new()),
+            vec![
+                (500, param(er::AMOUNT, 80.0)),
+                (3001, param(er::FREQUENCY, 9000.0)),
+                (7000, param(er::MODE, 2.0)),
+                (11_000, param(er::WIDTH, 2.0)),
+                (16_000, param(er::MODE, 0.0)),
             ],
         ),
     ];
@@ -696,6 +859,16 @@ fn cpu_cost() {
         set(&mut d, af::DRIVE, 12.0);
         set(&mut d, af::LFO_AMOUNT, 50.0);
         v.push(("auto filter ladder+drive", Box::new(d)));
+        for (name, mode) in [
+            ("erosion sine", 0.0),
+            ("erosion noise", 1.0),
+            ("erosion wide noise", 2.0),
+        ] {
+            let mut d = Erosion::new();
+            set(&mut d, er::MODE, mode);
+            set(&mut d, er::AMOUNT, 60.0);
+            v.push((name, Box::new(d)));
+        }
         v
     };
     for (name, mut d) in cases {

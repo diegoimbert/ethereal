@@ -1,0 +1,29 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "fizz",
+    "device": {
+      "type": "Builtin",
+      "device": "Erosion"
+    },
+    "meta": {
+      "tags": [
+        "digital",
+        "fizz",
+        "subtle"
+      ],
+      "author": "ethereal",
+      "description": "a light band of noise at 7 khz: digital sizzle that rides on the highs."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 7000.0,
+      "2": 0.3,
+      "3": 10.0,
+      "4": 0.0,
+      "5": 100.0
+    }
+  }
+}

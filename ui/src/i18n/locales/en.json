@@ -3177,6 +3177,7 @@
   "engine.envelope": "envelope",
   "engine.envelope_follower": "envelope follower",
   "engine.eq": "eq",
+  "engine.erosion": "erosion",
   "engine.expand": "expand",
   "engine.expander": "expander",
   "engine.external_audio_effect": "external audio effect",
@@ -3439,6 +3440,7 @@
   "engine.wavetable": "wavetable",
   "engine.wavetable_position": "wavetable position",
   "engine.whole_tone": "whole tone",
+  "engine.wide_noise": "wide noise",
   "engine.width": "width",
   "engine.width_mode": "width mode",
   "engine.zones": "zones"

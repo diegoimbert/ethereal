@@ -1,0 +1,29 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "broken codec",
+    "device": {
+      "type": "Builtin",
+      "device": "Erosion"
+    },
+    "meta": {
+      "tags": [
+        "destroyed",
+        "lo-fi",
+        "parallel"
+      ],
+      "author": "ethereal",
+      "description": "heavy, wide-band erosion under the dry signal: a struggling stream."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 4000.0,
+      "2": 2.0,
+      "3": 80.0,
+      "4": 0.0,
+      "5": 60.0
+    }
+  }
+}
