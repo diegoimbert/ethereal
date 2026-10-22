@@ -21,7 +21,7 @@ use super::shared::{
     CONTROL, CtlRamp, DELAY_SLEW, Glide, Lfo, LfoStep, ModLine, Params, Ramp, Rate, Shape, input,
     lfo_at, ms, soft_clip,
 };
-use crate::util::{self, db_to_amp};
+use crate::util::{self, LateEvents, Route, db_to_amp};
 
 const N: usize = p::COUNT;
 const MAX_DELAY_MS: f32 = 20.0;
@@ -55,12 +55,16 @@ pub(super) struct Flanger {
     loud: bool,
     /// Silence reporting.
     tail: crate::util::Tail,
+    /// Through zero, the output is the dry/wet pair read [`TZ_MS`] into the lines: every
+    /// param but the switch itself waits that long (else heard 10 ms early).
+    late: LateEvents,
 }
 
 impl Flanger {
     pub(super) fn new(desc: &DeviceDescriptor) -> Self {
         let mut s = Self {
             tail: crate::util::Tail::default(),
+            late: LateEvents::new(),
             lfo_m: [CtlRamp::default(); 2],
             ctl_left: 0,
             loud: false,
@@ -200,10 +204,16 @@ impl Node for Flanger {
     fn prepare(&mut self, config: &PrepareConfig) {
         self.sample_rate = config.sample_rate.max(1.0);
         self.allocate();
+        self.late.prepare(self.tz_samples, config);
         self.reset();
     }
 
     fn reset(&mut self) {
+        LateEvents::flush(self, |s| &mut s.late, |s, kind| {
+            if let EventKind::Param { param, value } = *kind {
+                s.apply(param, value, false);
+            }
+        });
         for l in self.wet.iter_mut().chain(self.dry.iter_mut()) {
             l.clear();
         }
@@ -226,10 +236,18 @@ impl Node for Flanger {
             self.ctl_left = 0;
         }
         self.loud = false;
-        util::split_at_events(
+        let latency = self.latency() as usize;
+        LateEvents::split(
             self,
-            c.events,
-            c.frames,
+            |s| &mut s.late,
+            c,
+            |kind| match kind {
+                EventKind::Param {
+                    param: p::THROUGH_ZERO,
+                    ..
+                } => Route::Now,
+                _ => Route::Late(latency),
+            },
             |s, a, b| s.render(c, audio, a, b),
             |s, kind| {
                 if let EventKind::Param { param, value } = *kind {
@@ -253,7 +271,8 @@ impl Node for Flanger {
             .any(|g| g.is_moving())
             && ![&self.feedback, &self.mix, &self.gain]
                 .iter()
-                .any(|r| r.is_smoothing());
+                .any(|r| r.is_smoothing())
+            && self.late.is_idle();
         let hold = self.wet[0].max_delay() as usize
             + util::samples(util::BASE_HOLD_SECONDS, self.sample_rate);
         self.tail
@@ -276,10 +295,11 @@ impl Device for Flanger {
     }
 
     fn param(&self, id: ParamId) -> Option<f64> {
-        self.params.plain(id)
+        self.late.readback(id, self.params.plain(id))
     }
 
     fn set_param(&mut self, id: ParamId, value: f64) {
+        self.late.cancel(id);
         self.apply(id, value, false);
     }
 }

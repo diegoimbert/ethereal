@@ -267,6 +267,7 @@ export interface MessageArgs {
   "engine.osc_n": { n: string | number };
   "engine.shift_n": { n: string | number };
   "engine.step_n": { n: string | number };
+  "engine.triangle_n": { n: string | number };
   "engine.velocity_n": { n: string | number };
   "error.device.missing": { device: string | number };
   "error.freeze.track_frozen": { track: string | number };

@@ -1,0 +1,51 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "synced sweep",
+    "device": {
+      "type": "Builtin",
+      "device": "Shifter"
+    },
+    "meta": {
+      "tags": [
+        "frequency",
+        "lfo",
+        "tempo"
+      ],
+      "author": "ethereal",
+      "description": "the frequency shift swept by a synced triangle, the sides half a cycle apart."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 80.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 100.0,
+      "7": 0.0,
+      "8": 6.0,
+      "9": 0.0,
+      "10": 60.0,
+      "11": 1.0,
+      "12": 1.0,
+      "13": 2.0,
+      "14": 9.0,
+      "15": 120.0,
+      "16": 0.0,
+      "17": 0.0,
+      "18": 180.0,
+      "19": 0.0,
+      "20": 0.0,
+      "21": 0.0,
+      "22": 50.0,
+      "23": 0.0,
+      "24": 6.0,
+      "25": 200.0,
+      "26": 0.0,
+      "27": 0.0
+    }
+  }
+}

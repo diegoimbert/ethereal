@@ -1472,7 +1472,9 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   Then `Shifter` (`ether_devices::shifter`, no kind data): pitch mode (a two-tap delay-line
   shifter over `Window`), frequency mode (single-sideband shift: an IIR allpass Hilbert pair
   and a complex carrier), ring mode (a cosine carrier, optional tanh `Drive`); `Wide`
-  mirrors the right channel; no latency reported.
+  mirrors the right channel; a stereo LFO (the fx-modulation `Lfo`, song-locked when synced)
+  and an envelope follower add to the shift (Hz) or the pitch (semitones); no latency
+  reported.
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.

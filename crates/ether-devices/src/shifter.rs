@@ -24,6 +24,14 @@
 //!   change over 20 ms (from the old sweep to the new one); every continuous
 //!   param glides.
 //!
+//! - **Modulation**: an LFO and an envelope follower add to the shift: `LFO Depth` /
+//!   `Env Depth` Hz in the frequency and ring modes, `LFO Pitch` / `Env Pitch` semitones in
+//!   the pitch mode. The LFO (Live's ten waveforms; `Duty` moves the middle of the cycle)
+//!   runs free or synced (song-locked while playing, the fx-modulation LFO); the right one
+//!   is `Phase` degrees ahead or, in `Spin` mode, faster by `Spin`. `Offset` shifts both
+//!   phases; `Width` blends an independent right draw into the stepped random. The
+//!   follower tracks the louder channel's peak (0..1) with `Attack` / `Release`.
+//!
 //! The delay lines are allocated in `prepare`; `process` allocates nothing.
 //!
 //! # Params (`BuiltinDeviceType::Shifter`, stable and append-only)
@@ -41,6 +49,23 @@
 //! | 8 | Ring | `Amount` | 0 ..= 24 Decibels (drive gain), default 6 |
 //! | 9 | Output | `Wide` | toggle, default off |
 //! | 10 | Output | `Mix` | 0 ..= 100 Percent, default 100 |
+//! | 11 | LFO | `Waveform` | [`WAVEFORMS`], default Sine |
+//! | 12 | LFO | `Sync` | toggle, default off |
+//! | 13 | LFO | `Rate` | 0.01 ..= 50 Hertz (log), default 2 |
+//! | 14 | LFO | `Sync Rate` | sync rate, default 1/4 |
+//! | 15 | LFO | `LFO Depth` | 0 ..= 5000 Hertz (cubic), default 0 |
+//! | 16 | LFO | `LFO Pitch` | 0 ..= 24 Semitones, default 0 |
+//! | 17 | LFO | `Stereo` | Phase / Spin, default Phase |
+//! | 18 | LFO | `Phase` | 0 ..= 360 degrees (right ahead), default 0 |
+//! | 19 | LFO | `Spin` | 0 ..= 50 Percent (right faster), default 0 |
+//! | 20 | LFO | `Offset` | 0 ..= 360 degrees, default 0 |
+//! | 21 | LFO | `Duty` | -100 ..= 100 Percent, default 0 |
+//! | 22 | LFO | `Width` | 0 ..= 100 Percent (random S&H), default 50 |
+//! | 23 | Envelope | `Follower` | toggle, default off |
+//! | 24 | Envelope | `Attack` | 0.1 ..= 30 Milliseconds (log), default 6 |
+//! | 25 | Envelope | `Release` | 0.1 ..= 400 Milliseconds (log), default 200 |
+//! | 26 | Envelope | `Env Depth` | -5000 ..= 5000 Hertz, default 0 |
+//! | 27 | Envelope | `Env Pitch` | -24 ..= 24 Semitones, default 0 |
 
 use std::f64::consts::{PI, TAU};
 
@@ -53,11 +78,18 @@ use ether_core::{
     AudioBuffers, Device, EventKind, Node, PrepareConfig, ProcessContext, ProcessStatus, Smoother,
 };
 
+use ether_core::TransportInfo;
+
 use crate::contract::{
-    FactoryPreset, choice, descriptor as build, item, knob, layout, param, section, toggle,
+    FactoryPreset, SYNC_RATES, choice, descriptor as build, item, knob, layout, param, section,
+    toggle,
 };
 use crate::dsp::flush;
+use crate::fx_modulation::shared::{Lfo, LfoStep, Rate};
 use crate::util::{self, split_at_events};
+
+/// Index of "1/4" in [`SYNC_RATES`].
+const SYNC_QUARTER: usize = 8;
 
 /// Param ids (stable, append-only).
 pub mod params {
@@ -73,9 +105,57 @@ pub mod params {
     pub const DRIVE_AMOUNT: ParamId = ParamId(8);
     pub const WIDE: ParamId = ParamId(9);
     pub const MIX: ParamId = ParamId(10);
+    pub const LFO_WAVEFORM: ParamId = ParamId(11);
+    pub const LFO_SYNC: ParamId = ParamId(12);
+    pub const LFO_RATE: ParamId = ParamId(13);
+    pub const LFO_SYNC_RATE: ParamId = ParamId(14);
+    pub const LFO_DEPTH: ParamId = ParamId(15);
+    pub const LFO_PITCH: ParamId = ParamId(16);
+    pub const LFO_STEREO: ParamId = ParamId(17);
+    pub const LFO_PHASE: ParamId = ParamId(18);
+    pub const LFO_SPIN: ParamId = ParamId(19);
+    pub const LFO_OFFSET: ParamId = ParamId(20);
+    pub const LFO_DUTY: ParamId = ParamId(21);
+    pub const LFO_WIDTH: ParamId = ParamId(22);
+    pub const ENV_ON: ParamId = ParamId(23);
+    pub const ENV_ATTACK: ParamId = ParamId(24);
+    pub const ENV_RELEASE: ParamId = ParamId(25);
+    pub const ENV_DEPTH: ParamId = ParamId(26);
+    pub const ENV_PITCH: ParamId = ParamId(27);
     /// Number of params.
-    pub const COUNT: usize = 11;
+    pub const COUNT: usize = 28;
 }
+
+/// `LFO Waveform` values (Live's Shifter order).
+pub mod waveform {
+    pub const SINE: usize = 0;
+    pub const TRIANGLE: usize = 1;
+    pub const TRIANGLE_ANALOG: usize = 2;
+    pub const TRIANGLE_8: usize = 3;
+    pub const TRIANGLE_16: usize = 4;
+    pub const SAW_UP: usize = 5;
+    pub const SAW_DOWN: usize = 6;
+    pub const RECTANGLE: usize = 7;
+    pub const RANDOM: usize = 8;
+    pub const RANDOM_SH: usize = 9;
+}
+
+/// `LFO Waveform` labels.
+pub const WAVEFORMS: [&str; 10] = [
+    "Sine",
+    "Triangle",
+    "Triangle Analog",
+    "Triangle 8",
+    "Triangle 16",
+    "Saw Up",
+    "Saw Down",
+    "Rectangle",
+    "Random",
+    "Random S&H",
+];
+
+/// `Stereo` labels: the right LFO `Phase` degrees apart, or `Spin` faster.
+pub const STEREO_MODES: [&str; 2] = ["Phase", "Spin"];
 use params as ids;
 
 /// `Mode` values.
@@ -176,6 +256,113 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                 (0.0, 100.0, 100.0),
                 ParamScale::Linear,
             ),
+            choice(11, "Waveform", "LFO", &WAVEFORMS, waveform::SINE),
+            toggle(12, "Sync", "LFO", false),
+            param(
+                13,
+                "Rate",
+                "LFO",
+                ParamUnit::Hertz,
+                (0.01, 50.0, 2.0),
+                ParamScale::Log,
+            ),
+            choice(14, "Sync Rate", "LFO", &SYNC_RATES, SYNC_QUARTER),
+            param(
+                15,
+                "LFO Depth",
+                "LFO",
+                ParamUnit::Hertz,
+                (0.0, 5000.0, 0.0),
+                ParamScale::Power { exponent: 3.0 },
+            ),
+            ParamInfo {
+                step: Some(1.0),
+                ..param(
+                    16,
+                    "LFO Pitch",
+                    "LFO",
+                    ParamUnit::Semitones,
+                    (0.0, 24.0, 0.0),
+                    ParamScale::Linear,
+                )
+            },
+            choice(17, "Stereo", "LFO", &STEREO_MODES, 0),
+            param(
+                18,
+                "Phase",
+                "LFO",
+                ParamUnit::None,
+                (0.0, 360.0, 0.0),
+                ParamScale::Linear,
+            ),
+            param(
+                19,
+                "Spin",
+                "LFO",
+                ParamUnit::Percent,
+                (0.0, 50.0, 0.0),
+                ParamScale::Linear,
+            ),
+            param(
+                20,
+                "Offset",
+                "LFO",
+                ParamUnit::None,
+                (0.0, 360.0, 0.0),
+                ParamScale::Linear,
+            ),
+            param(
+                21,
+                "Duty",
+                "LFO",
+                ParamUnit::Percent,
+                (-100.0, 100.0, 0.0),
+                ParamScale::Linear,
+            ),
+            param(
+                22,
+                "Width",
+                "LFO",
+                ParamUnit::Percent,
+                (0.0, 100.0, 50.0),
+                ParamScale::Linear,
+            ),
+            toggle(23, "Follower", "Envelope", false),
+            param(
+                24,
+                "Attack",
+                "Envelope",
+                ParamUnit::Milliseconds,
+                (0.1, 30.0, 6.0),
+                ParamScale::Log,
+            ),
+            param(
+                25,
+                "Release",
+                "Envelope",
+                ParamUnit::Milliseconds,
+                (0.1, 400.0, 200.0),
+                ParamScale::Log,
+            ),
+            param(
+                26,
+                "Env Depth",
+                "Envelope",
+                ParamUnit::Hertz,
+                (-5000.0, 5000.0, 0.0),
+                ParamScale::Linear,
+            ),
+            ParamInfo {
+                step: Some(1.0),
+                ..param(
+                    27,
+                    "Env Pitch",
+                    "Envelope",
+                    ParamUnit::Semitones,
+                    (-24.0, 24.0, 0.0),
+                    ParamScale::Linear,
+                )
+            },
         ],
         2,
         2,
@@ -230,6 +417,61 @@ fn device_layout() -> DeviceLayout {
             ],
         ),
         section("output", Some("Output"), 1, 1, vec![knob(ids::MIX, Large)]),
+        section(
+            "lfo",
+            Some("LFO"),
+            2,
+            6,
+            vec![
+                item(
+                    Widget::Lfo {
+                        shape: ids::LFO_WAVEFORM,
+                        rate: ids::LFO_RATE,
+                        amount: Some(ids::LFO_DEPTH),
+                    },
+                    Medium,
+                ),
+                knob(ids::LFO_RATE, Medium),
+                item(
+                    Widget::Toggle {
+                        param: ids::LFO_SYNC,
+                    },
+                    Small,
+                ),
+                item(
+                    Widget::Choice {
+                        param: ids::LFO_SYNC_RATE,
+                    },
+                    Small,
+                ),
+                knob(ids::LFO_DEPTH, Medium),
+                knob(ids::LFO_PITCH, Medium),
+                item(
+                    Widget::Choice {
+                        param: ids::LFO_STEREO,
+                    },
+                    Small,
+                ),
+                knob(ids::LFO_PHASE, Small),
+                knob(ids::LFO_SPIN, Small),
+                knob(ids::LFO_OFFSET, Small),
+                knob(ids::LFO_DUTY, Small),
+                knob(ids::LFO_WIDTH, Small),
+            ],
+        ),
+        section(
+            "envelope",
+            Some("Envelope"),
+            1,
+            5,
+            vec![
+                item(Widget::Toggle { param: ids::ENV_ON }, Small),
+                knob(ids::ENV_ATTACK, Small),
+                knob(ids::ENV_RELEASE, Small),
+                knob(ids::ENV_DEPTH, Medium),
+                knob(ids::ENV_PITCH, Medium),
+            ],
+        ),
     ])
 }
 
@@ -259,7 +501,10 @@ pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
             "barber-pole-swirl",
             "metallic-shift",
             "ring-tremolo",
-            "driven-ring"
+            "driven-ring",
+            "wide-vibrato",
+            "synced-sweep",
+            "envelope-ring"
         ),
         _ => &[],
     }
@@ -410,6 +655,135 @@ impl Hilbert {
     }
 }
 
+/// xorshift32: deterministic per instance, RT-safe. Uniform in `[-1, 1)`.
+#[derive(Clone, Copy)]
+struct Rng(u32);
+
+impl Rng {
+    #[inline]
+    fn next(&mut self) -> f32 {
+        let mut x = self.0;
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        self.0 = x;
+        (x >> 8) as f32 / (1u32 << 23) as f32 - 1.0
+    }
+}
+
+/// Random values of one channel's LFO: the one of the current cycle and the next (the
+/// smooth random glides from one to the other).
+#[derive(Clone, Copy)]
+struct RandomCycle {
+    rng: Rng,
+    now: f32,
+    next: f32,
+    /// LFO phase at the previous sample (a smaller phase = a new cycle).
+    last: f64,
+}
+
+impl RandomCycle {
+    fn new(seed: u32) -> Self {
+        let mut rng = Rng(seed);
+        let now = rng.next();
+        let next = rng.next();
+        Self {
+            rng,
+            now,
+            next,
+            last: 0.0,
+        }
+    }
+
+    #[inline]
+    fn advance(&mut self, phase: f64) {
+        if phase < self.last {
+            self.now = self.next;
+            self.next = self.rng.next();
+        }
+        self.last = phase;
+    }
+}
+
+/// The LFO's value (-1..=1) for waveform `w` at `phase` (cycles), `duty` (-1..1) moving
+/// the waveform's middle (the rectangle's high part is `(1 + duty) / 2` of a cycle).
+#[inline]
+fn lfo_value(w: usize, phase: f64, duty: f64, random: &RandomCycle) -> f32 {
+    let p = phase - phase.floor();
+    let split = ((1.0 + duty) * 0.5).clamp(0.01, 0.99);
+    let p = if p < split {
+        0.5 * p / split
+    } else {
+        0.5 + 0.5 * (p - split) / (1.0 - split)
+    };
+    let tri = |p: f64| {
+        if p < 0.25 {
+            4.0 * p
+        } else if p < 0.75 {
+            2.0 - 4.0 * p
+        } else {
+            4.0 * p - 4.0
+        }
+    };
+    let steps = |p: f64, n: f64| tri((p * n).floor() / n);
+    (match w {
+        waveform::TRIANGLE => tri(p),
+        // A triangle with rounded tips, between the triangle and the sine.
+        waveform::TRIANGLE_ANALOG => (std::f64::consts::FRAC_PI_2 * tri(p)).sin(),
+        waveform::TRIANGLE_8 => steps(p, 8.0),
+        waveform::TRIANGLE_16 => steps(p, 16.0),
+        waveform::SAW_UP => 2.0 * p - 1.0,
+        waveform::SAW_DOWN => 1.0 - 2.0 * p,
+        waveform::RECTANGLE => {
+            if p < 0.5 {
+                1.0
+            } else {
+                -1.0
+            }
+        }
+        waveform::RANDOM => {
+            let t = 0.5 - 0.5 * (PI * (phase - phase.floor())).cos();
+            f64::from(random.now) + (f64::from(random.next) - f64::from(random.now)) * t
+        }
+        waveform::RANDOM_SH => f64::from(random.now),
+        _ => (TAU * p).sin(),
+    }) as f32
+}
+
+/// The shift amount's modulation: a stereo LFO (the right one `Phase` apart or `Spin`
+/// faster) and an envelope follower of the input.
+struct Modulation {
+    lfo: [Lfo; 2],
+    random: [RandomCycle; 2],
+    /// The right channel's own random draws (`Width` of S&H blends them in).
+    random_r: RandomCycle,
+    env: f32,
+    attack: f32,
+    release: f32,
+}
+
+impl Modulation {
+    fn new() -> Self {
+        // Same seed on both sides: identical values when the LFOs are in phase.
+        Self {
+            lfo: [Lfo::default(); 2],
+            random: [RandomCycle::new(0x5EED_1F0A); 2],
+            random_r: RandomCycle::new(0x0DD_BA11),
+            env: 0.0,
+            attack: 0.0,
+            release: 0.0,
+        }
+    }
+
+    fn reset(&mut self) {
+        *self = Self {
+            attack: self.attack,
+            release: self.release,
+            ..Self::new()
+        };
+    }
+}
+
 /// A sweep of the two taps: tap 1's position in `[0, 1)` (tap 2 is half a sweep ahead)
 /// across `window` samples.
 #[derive(Clone, Copy)]
@@ -551,8 +925,9 @@ pub struct Shifter {
     sample_rate: f64,
     taps: [PitchTaps; 2],
     hilbert: [Hilbert; 2],
-    /// Carrier phase in cycles, `[0, 1)` (frequency and ring modes).
-    phase: f64,
+    /// Carrier phases per channel in cycles, `[0, 1)` (frequency and ring modes).
+    phase: [f64; 2],
+    modulation: Modulation,
     /// Current mode and the one being faded out (`fade` samples left of `fade_len`).
     mode: usize,
     prev_mode: usize,
@@ -583,7 +958,8 @@ impl Shifter {
             sample_rate: 48_000.0,
             taps: [PitchTaps::new(), PitchTaps::new()],
             hilbert: [Hilbert::default(); 2],
-            phase: 0.0,
+            phase: [0.0; 2],
+            modulation: Modulation::new(),
             mode: mode::PITCH,
             prev_mode: mode::PITCH,
             fade: 0,
@@ -672,6 +1048,12 @@ impl Shifter {
                 ramp(&mut self.drive, g);
             }
             ids::MIX => ramp(&mut self.mix, (v * 0.01) as f32),
+            ids::ENV_ATTACK => {
+                self.modulation.attack = util::tau_coef(v as f32, self.sample_rate as f32);
+            }
+            ids::ENV_RELEASE => {
+                self.modulation.release = util::tau_coef(v as f32, self.sample_rate as f32);
+            }
             _ => {}
         }
     }
@@ -682,42 +1064,71 @@ impl Shifter {
         }
     }
 
-    /// The wet output of mode `m` for this sample. `x`: input, `ratio`: pitch ratios per
-    /// channel, `taps`: the pitch taps' outputs, `ana`: analytic signals, `cs`: the
-    /// carrier's `(cos, sin)`, `drive`: the drive gain (0 = off).
-    #[allow(clippy::too_many_arguments)]
+    /// The wet output of mode `m` for this sample. `x`: input, `taps`: the pitch taps'
+    /// output, `ana`: the analytic signal, `cs`: the carrier's `(cos, sin)` (the ring's
+    /// already a quarter cycle back on a wide right), `drive`: the drive gain (0 = off).
     #[inline]
-    fn wet(
-        m: usize,
-        c: usize,
-        wide: bool,
-        x: f64,
-        taps: f32,
-        ana: (f64, f64),
-        cs: (f64, f64),
-        drive: f32,
-    ) -> f32 {
-        let right = c == 1 && wide;
+    fn wet(m: usize, x: f64, taps: f32, ana: (f64, f64), cs: (f64, f64), drive: f32) -> f32 {
         match m {
-            mode::FREQUENCY => {
-                // re·cos(ωt) + im·sin(ωt): every partial up by the shift (down on a wide right).
-                let (cos, sin) = cs;
-                let s = if right { -sin } else { sin };
-                (ana.0 * cos + ana.1 * s) as f32
-            }
+            // re·cos(ωt) + im·sin(ωt): every partial moves by the carrier's (signed) Hz.
+            mode::FREQUENCY => (ana.0 * cs.0 + ana.1 * cs.1) as f32,
             mode::RING => {
-                let (cos, sin) = cs;
-                let y = (x * if right { sin } else { cos }) as f32;
+                let y = (x * cs.0) as f32;
                 if drive > 0.0 { (drive * y).tanh() } else { y }
             }
             _ => taps,
         }
     }
 
-    fn render(&mut self, audio: &mut AudioBuffers<'_, '_>, start: usize, end: usize) {
+    /// The LFO's rate for one channel (`spin`: the right one's speed-up, 0 on the left).
+    fn lfo_rate(&self, spin: f64) -> Rate {
+        let sync = self.values.on(ids::LFO_SYNC);
+        let i =
+            (self.values.f(ids::LFO_SYNC_RATE).round().max(0.0) as usize).min(SYNC_RATES.len() - 1);
+        match Rate::of(sync, self.values.f(ids::LFO_RATE) as f32, i) {
+            Rate::Hz(hz) => Rate::Hz(hz * (1.0 + spin)),
+            Rate::Beats(b) => Rate::Beats(b / (1.0 + spin)),
+        }
+    }
+
+    /// The right LFO's speed-up (`Spin` mode) and phase lead in cycles (`Phase` mode).
+    fn stereo(&self) -> (f64, f64) {
+        if self.values.f(ids::LFO_STEREO) >= 0.5 {
+            (self.values.f(ids::LFO_SPIN) * 0.01, 0.0)
+        } else {
+            (0.0, self.values.f(ids::LFO_PHASE) / 360.0)
+        }
+    }
+
+    // Per-channel state lives in several arrays indexed by the channel.
+    #[allow(clippy::needless_range_loop)]
+    fn render(
+        &mut self,
+        audio: &mut AudioBuffers<'_, '_>,
+        transport: &TransportInfo,
+        start: usize,
+        end: usize,
+    ) {
         let n_ch = audio.outputs.len().min(2);
         let sr = self.sample_rate;
-        let wide = self.values.on(ids::WIDE);
+        let v = &self.values;
+        let wide = v.on(ids::WIDE);
+        let (spin, lead) = self.stereo();
+        let sr32 = sr as f32;
+        let steps = [
+            LfoStep::new(self.lfo_rate(0.0), transport, sr32),
+            LfoStep::new(self.lfo_rate(spin), transport, sr32),
+        ];
+        let spinning = spin > 0.0;
+        let wave = (v.f(ids::LFO_WAVEFORM).round().max(0.0) as usize).min(WAVEFORMS.len() - 1);
+        let duty = v.f(ids::LFO_DUTY) * 0.01;
+        let offset = v.f(ids::LFO_OFFSET) / 360.0;
+        let width = (v.f(ids::LFO_WIDTH) * 0.01) as f32;
+        let lfo_hz = v.f(ids::LFO_DEPTH);
+        let lfo_st = v.f(ids::LFO_PITCH);
+        let env_on = v.on(ids::ENV_ON);
+        let env_hz = if env_on { v.f(ids::ENV_DEPTH) } else { 0.0 };
+        let env_st = if env_on { v.f(ids::ENV_PITCH) } else { 0.0 };
         for i in start..end {
             let semis = self.semitones.tick();
             let detune = self.detune.tick();
@@ -735,37 +1146,59 @@ impl Shifter {
             // Only the modes heard run (the pitch lines are always written).
             let uses = |m: usize| self.mode == m || (fade > 0.0 && self.prev_mode == m);
             let (pitch, freq, ring) = (uses(mode::PITCH), uses(mode::FREQUENCY), uses(mode::RING));
-            // The frequency mode's carrier is `shift`, the ring mode's `carrier`: one phase
-            // (both run only during the 10 ms of a fade between them).
-            let (sin, cos) = if freq || ring {
-                let hz = if self.mode == mode::RING {
-                    carrier
+
+            // Modulation: the stereo LFO and the envelope follower (on the louder channel).
+            let m = &mut self.modulation;
+            m.lfo[0].advance(&steps[0], i);
+            m.lfo[1].advance(&steps[1], i);
+            let ph = [
+                m.lfo[0].phase() + offset,
+                if spinning {
+                    m.lfo[1].phase()
                 } else {
-                    shift
-                };
-                let sc = (TAU * self.phase).sin_cos();
-                self.phase += hz / sr;
-                self.phase -= self.phase.floor();
-                sc
-            } else {
-                (0.0, 1.0)
-            };
-            let ratio = ((semis + detune) / 12.0).exp2();
-            let ratio_r = if wide && pitch {
-                ((semis - detune) / 12.0).exp2()
-            } else {
-                ratio
-            };
+                    m.lfo[0].phase() + lead
+                } + offset,
+            ];
+            let mut lfo = [0.0f32; 2];
+            for c in 0..2 {
+                let p = ph[c] - ph[c].floor();
+                m.random[c].advance(p);
+                lfo[c] = lfo_value(wave, p, duty, &m.random[c]);
+            }
+            m.random_r.advance(ph[1] - ph[1].floor());
+            if wave == waveform::RANDOM_SH {
+                lfo[1] = m.random[1].now + (m.random_r.now - m.random[1].now) * width;
+            }
+            if env_on {
+                let level = (0..n_ch)
+                    .map(|c| {
+                        audio
+                            .inputs
+                            .get(c)
+                            .or(audio.inputs.first())
+                            .map_or(0.0, |b| b[i].abs())
+                    })
+                    .fold(0.0f32, f32::max)
+                    .min(1.0);
+                let k = if level > m.env { m.attack } else { m.release };
+                m.env = crate::dsp::flush32(level + (m.env - level) * k);
+            }
+            let env = f64::from(m.env);
+
             for c in 0..n_ch {
                 let x = audio
                     .inputs
                     .get(c)
                     .or(audio.inputs.first())
                     .map_or(0.0, |b| b[i]);
+                let l = f64::from(lfo[c]);
+                let right = c == 1 && wide;
                 let taps = &mut self.taps[c];
                 taps.push(x);
                 let taps = if pitch {
-                    taps.pitched(if c == 1 { ratio_r } else { ratio }, window)
+                    let d = if right { -detune } else { detune };
+                    let st = semis + d + l * lfo_st + env * env_st;
+                    taps.pitched((st / 12.0).exp2(), window)
                 } else {
                     0.0
                 };
@@ -774,10 +1207,34 @@ impl Shifter {
                 } else {
                     (0.0, 0.0)
                 };
+                // One carrier phase per channel: the frequency mode's at `shift` (the
+                // opposite on a wide right), the ring's at `carrier` (both run only during
+                // the 10 ms of a fade between them).
+                let cs = if freq || ring {
+                    let modu = l * lfo_hz + env * env_hz;
+                    let hz = if self.mode == mode::RING {
+                        (carrier + modu).abs()
+                    } else if right {
+                        -(shift + modu)
+                    } else {
+                        shift + modu
+                    };
+                    let back = if right && self.mode == mode::RING {
+                        0.25
+                    } else {
+                        0.0
+                    };
+                    let (s, co) = (TAU * (self.phase[c] - back)).sin_cos();
+                    self.phase[c] += hz / sr;
+                    self.phase[c] -= self.phase[c].floor();
+                    (co, s)
+                } else {
+                    (1.0, 0.0)
+                };
                 let xd = f64::from(x);
-                let mut y = Self::wet(self.mode, c, wide, xd, taps, ana, (cos, sin), drive);
+                let mut y = Self::wet(self.mode, xd, taps, ana, cs, drive);
                 if fade > 0.0 {
-                    let old = Self::wet(self.prev_mode, c, wide, xd, taps, ana, (cos, sin), drive);
+                    let old = Self::wet(self.prev_mode, xd, taps, ana, cs, drive);
                     y += (old - y) * fade;
                 }
                 audio.outputs[c][i] = x + (y - x) * mix;
@@ -798,7 +1255,8 @@ impl Node for Shifter {
             t.reset();
         }
         self.hilbert = [Hilbert::default(); 2];
-        self.phase = 0.0;
+        self.phase = [0.0; 2];
+        self.modulation.reset();
         self.fade = 0;
     }
 
@@ -807,11 +1265,22 @@ impl Node for Shifter {
         ctx: &mut ProcessContext<'_>,
         audio: &mut AudioBuffers<'_, '_>,
     ) -> ProcessStatus {
+        // Asleep for a while: the LFOs go on as if they had run.
+        let skipped = self.tail.skipped(ctx);
+        if skipped > 0 {
+            let sr = self.sample_rate as f32;
+            let (spin, _) = self.stereo();
+            for (k, s) in [0.0, spin].into_iter().enumerate() {
+                let step = LfoStep::new(self.lfo_rate(s), ctx.transport, sr);
+                self.modulation.lfo[k].skip(&step, skipped);
+            }
+        }
+        let transport = *ctx.transport;
         split_at_events(
             self,
             ctx.events,
             ctx.frames,
-            |s, a, b| s.render(audio, a, b),
+            |s, a, b| s.render(audio, &transport, a, b),
             |s, kind| {
                 if let EventKind::Param { param, value } = *kind {
                     s.set(param, value, true);
