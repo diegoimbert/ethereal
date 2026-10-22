@@ -425,12 +425,7 @@ function AudioSettingsBody({ transport, reason }: { transport: EngineTransport; 
       {/* Engines that can't anticipate (web, no worker threads) don't report it. */}
       {status?.anticipative != null && (
         <div className="eth-audio-settings__option" data-tour="audio-anticipative">
-          <Toggle
-            size="sm"
-            checked={status.anticipative}
-            label={t("settings.audio.anticipative")}
-            onChange={(on) => void setAnticipative(on)}
-          />
+          <Toggle size="sm" checked={status.anticipative} label={t("settings.audio.anticipative")} onChange={(on) => void setAnticipative(on)} />
           <p className="eth-audio-settings__note">{t("settings.audio.anticipative_hint")}</p>
         </div>
       )}

@@ -15,7 +15,9 @@
 //! - **Note expressions** become `EventKind::NoteExpression { note_id, .. }` for the
 //!   voice of the note (`crate::mixer::NoteSource` links a sounding note to its clip note),
 //!   between its `NoteOn` (the first value goes out at the note-on's offset, after it) and
-//!   its `NoteOff`. Times are beats from the note start (looped notes restart their curve).
+//!   its `NoteOff`. Times are beats from the note start (looped notes restart their curve;
+//!   a voice joined across a loop wrap, `crate::mixer::NoteJoin`, follows the loop start
+//!   note's curves from the wrap on).
 //!
 //! # Timing (sample accuracy)
 //! Values are evaluated at **knots**, exactly like node-param automation
@@ -65,7 +67,7 @@ use crate::automation::curve_fraction;
 use crate::automation_rt::{PARAM_GRID, grid};
 use crate::event::{EventBuffer, EventKind, ProcessEvent};
 use crate::graph::{ClipContentDesc, ClipDesc};
-use crate::mixer::{ActiveNote, MAX_ACTIVE_NOTES};
+use crate::mixer::{ActiveNote, MAX_ACTIVE_NOTES, NoteSource};
 use crate::sched::{self, Timing};
 
 /// One curve: `(time beats, value, shape to next)`, sorted by time. Times are
@@ -562,21 +564,28 @@ impl ExpressionRt {
         }
         let lo = timing.beat_at(-1.0);
         let (_, r1) = timing.event_range();
-        // The curves of a sounding note, if its clip note still is the one it started as.
-        let curves = |n: &ActiveNote| -> &[NoteExpressionDesc] {
-            let Some(cx) = desc.clip(n.source.clip) else {
+        // The curves of the clip note `src` a sounding note of `key` plays, if that clip
+        // note still is the one it started as.
+        let curves = |src: NoteSource, key: u8| -> &[NoteExpressionDesc] {
+            let Some(cx) = desc.clip(src.clip) else {
                 return &[];
             };
-            let curves = cx.note_curves(n.source.note);
+            let curves = cx.note_curves(src.note);
             if curves.is_empty() {
                 return curves;
             }
             let same = clips.iter().any(|c| {
-                c.id == n.source.clip
+                c.id == src.clip
                     && matches!(&c.content, ClipContentDesc::Midi { notes }
-                        if notes.get(n.source.note as usize).is_some_and(|d| d.key == n.key))
+                        if notes.get(src.note as usize).is_some_and(|d| d.key == key))
             });
             if same { curves } else { &[] }
+        };
+        // A voice joined across content loop wraps (`ActiveNote::join`) plays its first note
+        // until the first wrap, then the loop start note (restarted on each later wrap).
+        let joined = |n: &ActiveNote| {
+            n.join
+                .is_some_and(|j| !curves(n.source_at(j.at), n.key).is_empty())
         };
         // Sample range `[on, off)` of a note in this sub-block.
         let span = |n: &ActiveNote| -> (u32, u32) {
@@ -602,9 +611,21 @@ impl ExpressionRt {
         }
         knots.grid(timing);
         let mut any = false;
+        // Breakpoints of `src`'s curves in `[lo, until)`.
+        let breakpoints = |knots: &mut Knots, src: NoteSource, key: u8, until: f64| {
+            for c in curves(src, key) {
+                let first = c.points.partition_point(|q| src.start + q.0 <= lo);
+                for q in &c.points[first..] {
+                    let t = src.start + q.0;
+                    if t >= timing.b1 || t >= until {
+                        break;
+                    }
+                    knots.breakpoint(timing, lo, t);
+                }
+            }
+        };
         for n in notes {
-            let cs = curves(n);
-            if cs.is_empty() {
+            if curves(n.source, n.key).is_empty() && !joined(n) {
                 continue;
             }
             any = true;
@@ -616,14 +637,20 @@ impl ExpressionRt {
                 // Started in this sub-block: its first value goes with the note-on.
                 knots.insert(on as usize, n.source.start);
             }
-            for c in cs {
-                let first = c.points.partition_point(|q| n.source.start + q.0 <= lo);
-                for q in &c.points[first..] {
-                    let t = n.source.start + q.0;
-                    if t >= timing.b1 || t >= n.end {
+            let until = n.join.map_or(n.end, |j| j.at.min(n.end));
+            breakpoints(&mut knots, n.source, n.key, until);
+            if let Some(j) = n.join {
+                // Each wrap in the sub-block (the curve switches there) and the loop start
+                // note's breakpoints in that pass.
+                let k0 = ((lo - j.at) / j.period).floor().max(0.0);
+                for k in 0..MAX_KNOTS {
+                    let w = j.at + (k0 + k as f64) * j.period;
+                    if w >= timing.b1 || w >= n.end {
                         break;
                     }
-                    knots.breakpoint(timing, lo, t);
+                    knots.breakpoint(timing, lo, w);
+                    let until = (w + j.period).min(n.end);
+                    breakpoints(&mut knots, n.source_at(w), n.key, until);
                 }
             }
         }
@@ -633,7 +660,8 @@ impl ExpressionRt {
         for &(o, min_beat) in knots.as_slice() {
             let beat = timing.beat_at(f64::from(o)).max(min_beat);
             for n in notes {
-                let cs = curves(n);
+                let src = n.source_at(beat);
+                let cs = curves(src, n.key);
                 if cs.is_empty() {
                     continue;
                 }
@@ -641,7 +669,7 @@ impl ExpressionRt {
                 if o < on || o >= off {
                     continue;
                 }
-                let rel = (beat - n.source.start).max(0.0);
+                let rel = (beat - src.start).max(0.0);
                 for c in cs {
                     let Some(v) = evaluate(&c.points, rel) else {
                         continue;

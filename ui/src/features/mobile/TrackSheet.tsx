@@ -14,6 +14,7 @@ import { Button, type ContextMenuItem } from "@/kit";
 import { useDevicesOfTrack, useProjectStore } from "@/state";
 import { cmd } from "@/transport";
 import { trackSoloCommand } from "@/domain/soloCommands";
+import { muteOverriddenBySolo } from "@/domain/soloPlan";
 import { trackMenu } from "@/features/arrangement/actions";
 import { sendEdit } from "@/features/arrangement/context";
 import { HeaderPan } from "@/features/arrangement/HeaderPan";
@@ -104,6 +105,8 @@ function TrackSheetBody({ track }: { track: Track }) {
         <Button
           className="eth-track-sheet__toggle"
           active={mute}
+          data-solo-override={muteOverriddenBySolo(mute, solo) || undefined}
+          title={muteOverriddenBySolo(mute, solo) ? t("mixer.mute_overridden") : undefined}
           aria-label={t("mobile.track.mute_name", { name: track.name })}
           onClick={() => send(cmd("Mixer", { type: "SetMute", track: track.id, mute: !mute }))}
         >

@@ -33,7 +33,7 @@ import { MpeSettingsFields } from "@/features/mpe";
 import { IconButton, Knob, NumberField, Popover, Select, TextInput, Toggle } from "@/kit";
 import { useProjectStore, defaultClipName, defaultTrackName, tracksOrdered } from "@/state";
 import { trackSoloCommand } from "@/domain/soloCommands";
-import { additiveClick } from "@/domain/soloPlan";
+import { additiveClick, muteOverriddenBySolo } from "@/domain/soloPlan";
 import { ColorSwatches, colorSwatchCss } from "@/features/colors";
 import { formatBarBeat, formatDuration, useTempoMap } from "@/timeline";
 import { cmd, newId } from "@/transport";
@@ -680,10 +680,11 @@ function TrackMixer({ track, sender }: { track: Track; sender: GestureSender }) 
             tone="ghost"
             active={mute}
             className="eth-inspector__mute"
+            data-solo-override={muteOverriddenBySolo(mute, solo) || undefined}
             {...midiTarget({ type: "TrackMute", track: track.id })}
             label={t("shell.inspector.mute_named", { name: track.name })}
             disabled={!!inert}
-            title={inert ? inertTitle(inert) : undefined}
+            title={inert ? inertTitle(inert) : muteOverriddenBySolo(mute, solo) ? t("mixer.mute_overridden") : undefined}
             icon={mute ? <VolumeX /> : <Volume2 />}
             onClick={() => void send(cmd("Mixer", { type: "SetMute", track: track.id, mute: !mute }))}
           />

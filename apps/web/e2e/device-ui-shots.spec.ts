@@ -30,6 +30,7 @@ const EFFECTS: BuiltinDeviceType[] = [
   "Erosion",
   "Pedal",
   "GrainDelay",
+  "Shifter",
   "Chorus",
   "Phaser",
   "Flanger",

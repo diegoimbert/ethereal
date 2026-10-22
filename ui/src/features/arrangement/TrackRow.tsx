@@ -23,7 +23,7 @@ import { isReadOnly, listenBlockedReason, useProjectStore, useTrackMeter, useVie
 import { pxToBeats, resolveGrid, selectModeFromEvent, snapToGrid, itemSelection, useTempoMap, useTimelineView } from "@/timeline";
 import { cmd } from "@/transport";
 import { trackSoloCommand } from "@/domain/soloCommands";
-import { additiveClick } from "@/domain/soloPlan";
+import { additiveClick, muteOverriddenBySolo } from "@/domain/soloPlan";
 import { selectTrackEntity, trackMenu } from "./actions";
 import { hasClipboard, pasteClips } from "./clipboard";
 import { onLaneInsertPointerDown, type InsertSpan } from "./clipInsert";
@@ -419,9 +419,16 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
               className="eth-arr-header__toggle eth-arr-header__mute"
               {...midiTarget({ type: "TrackMute", track: track.id })}
               aria-pressed={mute}
+              data-solo-override={muteOverriddenBySolo(mute, solo) || undefined}
               aria-label={t("arrangement.header.mute_named", { name: track.name })}
               disabled={!!inert || loading || !!listenBlocked}
-              title={inert ? inertTitle(inert) : (loadingTitle ?? listenBlocked ?? (mute ? t("arrangement.header.unmute") : t("arrangement.header.mute")))}
+              title={
+                inert
+                  ? inertTitle(inert)
+                  : (loadingTitle ??
+                    listenBlocked ??
+                    (muteOverriddenBySolo(mute, solo) ? t("mixer.mute_overridden") : mute ? t("arrangement.header.unmute") : t("arrangement.header.mute")))
+              }
               onClick={() => void sendEdit(transport, cmd("Mixer", { type: "SetMute", track: track.id, mute: !mute }))}
             >
               {mute ? <VolumeX /> : <Volume2 />}

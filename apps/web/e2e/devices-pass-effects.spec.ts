@@ -59,6 +59,7 @@ const CASES: Case[] = [
   { type: "Bitcrusher", shows: [] },
   { type: "Pedal", shows: [], change: { param: 6, action: { toggle: "Sub" }, expect: (v) => v === 1 } },
   { type: "GrainDelay", shows: ["widget-xy-pad"], change: { param: 0, action: { toggle: "Sync" }, expect: (v) => v === 1 } },
+  { type: "Shifter", shows: [], change: { param: 0, action: { select: "Mode", option: "Ring" }, expect: (v) => v === 2 } },
   { type: "Erosion", shows: ["widget-xy-pad"], change: { param: 0, action: { select: "Mode", option: "Wide Noise" }, expect: (v) => v === 2 } },
   { type: "MultibandCompressor", shows: ["widget-crossover", "widget-meter"] },
   { type: "TransientShaper", shows: ["widget-meter"] },

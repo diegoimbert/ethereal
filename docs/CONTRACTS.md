@@ -84,6 +84,25 @@ Files: `ids.rs`, `value.rs`, `project.rs`, `track.rs`, `clip.rs`, `note.rs`, `au
   content starts at clip-relative `-offset`. Fades still apply at the clip edges. Repitch
   transposition scales around `max(offset, 0)`. Loop bounds stay `>= 0`; a looped clip
   with a negative offset plays the gap, then its content up to the loop end, then the loop.
+  **Notes in looped MIDI clips** (`ether_core::sched`): a note still sounding at a loop
+  wrap (the content loop end with more clip after it) is cut there, and a note starting
+  before the loop start does not sound in the repeats (only in the intro, from the offset).
+  **Loop join** (#272): at a wrap, if the note cut there (ending more than 1e-9 beats past
+  the loop end) has a *join partner*, an unmuted note of the same key (MIDI clip notes all
+  share one channel) that starts before the loop start and still sounds there (the
+  latest-ending one if several do), the two act as one note: no note-off at the wrap and
+  no note-on after it, the voice ends where the partner ends in the next pass. A partner
+  longer than the loop joins itself on every wrap, so the voice lasts to the clip end; the
+  clip end still cuts it. The voice keeps its first note-on (velocity, note id: no
+  retrigger); from the wrap on its note expressions are the partner's (from the partner's
+  position at the loop start, restarted on later wraps), and where a release velocity is
+  written (MIDI export) it is the partner's. The first pass plays as before (a partner
+  after the offset plays from its own start). Note chasing (play, locate, transport loop)
+  starts the joined part of a voice when the position is inside it. The join is planned at
+  the voice's note-on with the graph then playing; an edit while it sounds doesn't re-plan
+  it (like any note end). Offline renders use the engine; MIDI export (`midi_file`) and
+  MIDI consolidate (`freeze::edit::played_notes`) unroll loops the same way (one longer
+  note; consolidate splices the expressions).
   The UI produces negative offsets only on unlooped clips (dragging the left edge past the
   content start); on looped clips it wraps the offset into the loop region instead. Older
   documents are unchanged (their offsets are all `>= 0`); `ClipCommand::SetBounds` and
@@ -745,7 +764,9 @@ MIDI clips (`groove::swing_notes`).
 - Engine: `TrackDesc::racks: Vec<RackDesc { rack: NodeKey, pads: Vec<PadDesc> }>`. At the
   rack's chain entry the engine routes notes by key to pads (transposed to
   `PAD_PLAY_NOTE` = 60), applies choke groups, runs the pad chains (PDC-aligned to the
-  longest), mixes them (volume/pan/mute) and runs the rack node.
+  longest), mixes them (volume/pan/mute) and runs the rack node. Pad solo (runtime) compiles
+  as `PadDesc::mute`: in a rack with a soloed pad, soloed pads are unmuted (a soloed pad is
+  heard even if muted, its `mute` kept, as for tracks in §12.10) and the others muted.
 - Slicing: `BuiltinDevice::Sampler { sample, slices: SliceSettings { enabled, base_note,
   markers } }`. The data travels with the node; edits reach a live sampler in place through
   `EngineBridge::update_builtin` → `EngineHandle::set_node_data` → `Node::set_data`
@@ -1102,7 +1123,9 @@ runtime; `PresetEvent::Changed` after user-set changes. Sample-based presets car
   MIDI effect rack chains), never under a drum pad (directly or in a pad rack's chain).
   **Empty = nothing goes through:** a rack with no chains outputs silence (audio effect
   rack) / no notes (MIDI effect rack) / adds nothing (instrument rack); every chain muted
-  is silence. A chain with no devices passes what reaches it (the rack's input, or its
+  is silence. Chain solo compiles into `RackChainDesc::mute`: while a chain of the rack is
+  soloed the others are muted, and a soloed chain is heard even if muted (its `mute` kept;
+  unsolo = muted again, as for tracks in §12.10). A chain with no devices passes what reaches it (the rack's input, or its
   zone-filtered notes). A freshly inserted audio or MIDI effect rack (`Device::Insert`,
   `Rack::InsertDevice`, `DrumRack::InsertDevice`) starts with one empty chain "chain 1"
   (id `derive_id(rack, 0)`) in the same undo step; instrument racks start empty, and
@@ -1281,6 +1304,18 @@ Migration: v0.1 media are `Project`; nothing moves.
   muted VCA its tracks); while anything is soloed a track is audible if it is soloed, inside
   a soloed group, a group/bus on the output path of a soloed track (solo in place through the
   bus chain), a return, or master; soloing a VCA solos its tracks (folded at compile).
+- **Solo overrides the soloed track's own mute** (`TrackMixer::effective_mute` = mute && !solo,
+  for tracks, groups, returns and VCAs): a muted track that is itself soloed is heard while it
+  stays soloed; `mixer.mute` is untouched, so unsoloing makes it silent again. The controller
+  compiles `TrackDesc::mute` / `VcaDesc::mute` from it and sends the same value as the live
+  `ParamTarget::TrackMute` (a mute flip while soloed sends 0); switching goes through the
+  usual mute/solo gate ramp. **Not recursive:** only the exact soloed track's own mute is
+  overridden. A muted child of a soloed group stays muted; a soloed child of a muted group
+  stays silent (the group's mute still mutes everything inside); solo folded from a VCA
+  doesn't override its tracks' own mutes, and a soloed parent VCA doesn't unmute a muted
+  child VCA. UI: a mute button whose mute is overridden shows outlined instead of filled
+  (`data-solo-override`, tooltip `mixer.mute_overridden`); the same applies to rack chains and
+  drum pads (§12.6, §11.12).
 - `TrackInput::Track { track, tap: PreFx | PostFx | PostFader }` (default `PostFader`): a
   routing edge (no cycles, model and compiler). PDC: tap latency = `in_lat(source)` (PreFx)
   or `out_lat(source)`; the consumer's `in_lat` includes it and the tap is delayed by the
@@ -1434,6 +1469,10 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   round trip as latency). Then `GrainDelay` (`ether_devices::grain_delay`, no kind data): a
   delay line read by overlapping Hann grains (rate `Frequency`, transposed by `Pitch`,
   scattered by `Spray`, detuned by `Random Pitch`) with feedback; no latency.
+  Then `Shifter` (`ether_devices::shifter`, no kind data): pitch mode (a two-tap delay-line
+  shifter over `Window`), frequency mode (single-sideband shift: an IIR allpass Hilbert pair
+  and a complex carrier), ring mode (a cosine carrier, optional tanh `Drive`); `Wide`
+  mirrors the right channel; no latency reported.
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.
