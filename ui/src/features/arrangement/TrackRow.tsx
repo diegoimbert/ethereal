@@ -110,6 +110,15 @@ function RealTrackRow({ row }: { row: Row }) {
 }
 
 /**
+ * The empty slot of a header button a track doesn't have (no solo on the master, no record arm on
+ * a group, return or vca): the same size as the button, so mute, solo and the others stay in the
+ * same column on every row (#239).
+ */
+function HeaderSlot() {
+  return <span className="eth-arr-header__toggle eth-arr-header__slot" aria-hidden />;
+}
+
+/**
  * Shows / hides the track's automation lanes (under its row). A dot marks a track that has
  * automation even while its lanes are hidden.
  */
@@ -402,7 +411,7 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
             >
               {mute ? <VolumeX /> : <Volume2 />}
             </button>
-            {track.kind !== "Master" && (
+            {track.kind !== "Master" ? (
               <button
                 type="button"
                 className="eth-arr-header__toggle eth-arr-header__solo"
@@ -417,8 +426,10 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
               >
                 <Headphones />
               </button>
+            ) : (
+              <HeaderSlot />
             )}
-            {canArm && !readOnly && (
+            {readOnly ? null : canArm ? (
               // Right-click: the track's input and monitoring, in a popover.
               <Popover
                 open={recordSetup}
@@ -470,6 +481,8 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
                   <TrackRecordSetup track={track.id} />
                 </div>
               </Popover>
+            ) : (
+              <HeaderSlot />
             )}
             <AutomationToggle track={track} />
           </span>
