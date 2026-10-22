@@ -1,7 +1,7 @@
 {
-  "total": 377,
+  "total": 378,
   "removed": 1,
-  "covered": 376,
+  "covered": 377,
   "pending": 0,
   "percent": 100,
   "items": {
@@ -637,6 +637,9 @@
     ],
     "devices/grain-delay": [
       "making-music/effects#grain-delay"
+    ],
+    "devices/shifter": [
+      "making-music/effects#shifter"
     ],
     "devices/reverb": [
       "making-music/effects#reverb"

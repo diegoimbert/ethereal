@@ -1,0 +1,33 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "ring tremolo",
+    "device": {
+      "type": "Builtin",
+      "device": "Shifter"
+    },
+    "meta": {
+      "tags": [
+        "ring",
+        "tremolo"
+      ],
+      "author": "ethereal",
+      "description": "ring modulation at a few hertz under mostly dry signal: a choppy tremolo."
+    },
+    "params": {
+      "0": 2.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 80.0,
+      "4": 0.0,
+      "5": 0.0,
+      "6": 5.5,
+      "7": 0.0,
+      "8": 6.0,
+      "9": 0.0,
+      "10": 20.0
+    }
+  }
+}

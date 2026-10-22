@@ -1431,6 +1431,10 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   round trip as latency). Then `GrainDelay` (`ether_devices::grain_delay`, no kind data): a
   delay line read by overlapping Hann grains (rate `Frequency`, transposed by `Pitch`,
   scattered by `Spray`, detuned by `Random Pitch`) with feedback; no latency.
+  Then `Shifter` (`ether_devices::shifter`, no kind data): pitch mode (a two-tap delay-line
+  shifter over `Window`), frequency mode (single-sideband shift: an IIR allpass Hilbert pair
+  and a complex carrier), ring mode (a cosine carrier, optional tanh `Drive`); `Wide`
+  mirrors the right channel; no latency reported.
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.
