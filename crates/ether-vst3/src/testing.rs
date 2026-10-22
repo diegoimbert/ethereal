@@ -10,6 +10,8 @@ use std::path::{Path, PathBuf};
 pub const EFFECT_ID: &str = "E7E1E4A1000000000000000000000001";
 /// Class id of the fixture's instrument (single component).
 pub const INSTRUMENT_ID: &str = "E7E1E4A1000000000000000000000002";
+/// Class id of the fixture's tail effect (single component; sleep-on-silence tests).
+pub const TAIL_ID: &str = "E7E1E4A1000000000000000000000003";
 
 pub use ether_plugin_host::testing::{instance_id, temp_dir};
 

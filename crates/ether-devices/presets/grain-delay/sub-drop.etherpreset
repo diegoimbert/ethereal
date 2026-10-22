@@ -1,0 +1,32 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "sub drop",
+    "device": {
+      "type": "Builtin",
+      "device": "GrainDelay"
+    },
+    "meta": {
+      "tags": [
+        "dark",
+        "octave",
+        "pitch"
+      ],
+      "author": "ethereal",
+      "description": "echoes an octave down that keep falling into the lows."
+    },
+    "params": {
+      "0": 0.0,
+      "1": 150.0,
+      "2": 6.0,
+      "3": 40.0,
+      "4": 10.0,
+      "5": 15.0,
+      "6": -12.0,
+      "7": 0.0,
+      "8": 45.0
+    }
+  }
+}

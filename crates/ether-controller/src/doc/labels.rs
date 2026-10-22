@@ -578,6 +578,11 @@ pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
             Pl::SetSandboxed { sandboxed, .. } => {
                 pick(*sandboxed, "undo.plugin.sandbox", "undo.plugin.unsandbox")
             }
+            Pl::SetAlwaysProcess { always_process, .. } => pick(
+                *always_process,
+                "undo.plugin.always_process",
+                "undo.plugin.sleep_on_silence",
+            ),
             Pl::Reload { .. } => k("undo.plugin.reload"),
             Pl::ListFolders => k("undo.plugin.list_folders"),
             Pl::AddFolder { .. } => k("undo.plugin.add_folder"),

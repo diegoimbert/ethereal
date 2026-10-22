@@ -258,6 +258,7 @@ pub fn rack_command(ctx: &mut DocCtx, c: &DrumRackCommand) -> CmdResult<()> {
                             format.unwrap_or(PluginFormat::Clap),
                             plugin_id,
                         ),
+                        always_process: false,
                         state: None,
                     },
                 },

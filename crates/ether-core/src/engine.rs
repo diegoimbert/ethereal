@@ -937,6 +937,7 @@ impl Engine {
                 reset_nodes: plan.reset_nodes,
                 relocated: plan.relocated,
                 chase_notes: plan.chase_notes,
+                jump: plan.jump,
                 skip_silence: *silence_skipping,
             },
             info: &info,
@@ -1406,6 +1407,9 @@ struct JobFlags {
     reset_nodes: bool,
     relocated: bool,
     chase_notes: bool,
+    /// The timeline jumps here (Play from stopped, Locate, loop wrap): asleep nodes run
+    /// this sub-block (plugins may start sound on the transport).
+    jump: bool,
     /// Skip asleep nodes on silent input (`Engine::set_silence_skipping`).
     skip_silence: bool,
 }
@@ -1823,7 +1827,9 @@ impl JobCtx<'_> {
             // Silence skipping: a node that reported `Silent` stays asleep
             // while it gets no events and its input stays digital silence; its output is
             // then silence too (`ProcessStatus::Silent`'s contract), so don't call it.
+            // A timeline jump wakes it for one sub-block.
             let skip = flags.skip_silence
+                && !flags.jump
                 && node_rt.asleep
                 && !node_rt.watched
                 && entry.events.is_empty()

@@ -20,6 +20,9 @@
 //! temp file) MUST be named with [`ipc_name`], which embeds the dev instance id
 //! (`ETHER_INSTANCE`) and the host pid, so several app instances/agents never collide.
 
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+
 use ether_protocol::devices::{DeviceDescriptor, ParamInfo};
 use ether_protocol::model::ParamId;
 use serde::{Deserialize, Serialize};
@@ -32,6 +35,15 @@ pub trait PluginNode: Device {
     /// True after a crash/timeout (sandbox) or a fatal plugin error. The node then outputs
     /// silence until replaced.
     fn is_faulted(&self) -> bool;
+
+    /// The instance's "always process" switch (CONTRACTS.md §13.19, plugins sleep on silence): while
+    /// it is set the node never reports [`crate::ProcessStatus::Silent`] nor stops calling
+    /// the plugin, for plugins that make sound out of nothing without saying so. The host
+    /// keeps the handle and flips it from the main thread. `None`: the node never sleeps
+    /// anyway (the default).
+    fn always_process(&self) -> Option<Arc<AtomicBool>> {
+        None
+    }
 }
 
 /// Main-thread half of a plugin instance.
