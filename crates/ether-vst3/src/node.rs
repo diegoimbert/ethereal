@@ -926,7 +926,8 @@ impl Vst3Node {
         }
 
         // Sleep once nothing reached the plugin for its tail and its output is silent (no
-        // sound, no notes out).
+        // sound, no notes out). Plugins without audio output (note generators, which may
+        // follow the transport) never sleep: they are cheap anyway.
         if active {
             self.sleep.quiet = 0;
         } else {
@@ -935,6 +936,7 @@ impl Vst3Node {
         let tail = self.shared.tail.load(Ordering::Relaxed);
         self.sleep.asleep = !active
             && quiet
+            && self.layout.outputs.first().is_some_and(|&ch| ch > 0)
             && self.out_events.len() == 0
             && tail != kInfiniteTail
             && self.sleep.quiet >= u64::from(tail);

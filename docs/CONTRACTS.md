@@ -1685,7 +1685,8 @@ plugins (stopped transport, sparse tracks, empty returns) cost nothing.
   dBFS) and it must have sent no events that block. `kInfiniteTail` never sleeps;
   `kNoTail` sleeps as soon as input and output are silent. Instruments have no audio input,
   so they sleep once every note has ended, their tail has passed and their output is
-  silent. Asleep, the node skips `process` itself when it is called anyway (sandboxed
+  silent. Plugins without an audio output (note generators, which may follow the transport)
+  never sleep. Asleep, the node skips `process` itself when it is called anyway (sandboxed
   instances, watched analysis) and outputs silence. It wakes in the same block on any of
   the above, and through `Node::wake_requested` for immediate sets, GUI edits and
   all-notes-off. Input buses carry `kSilentFlag` for every channel of digital silence;
