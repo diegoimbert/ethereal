@@ -1516,6 +1516,12 @@ where
 
     /// Why an extension holds saves back, if one does.
     pub fn save_refused(&self) -> Option<CommandError> {
+        if self.discarded_open() {
+            return Some(crate::tx::keyed_err(
+                ether_core::protocol::ErrorCode::InvalidState,
+                crate::text::msg("error.project.discarded"),
+            ));
+        }
         self.ext_ask(|e, ctl| e.save_refused(ctl))
     }
 
