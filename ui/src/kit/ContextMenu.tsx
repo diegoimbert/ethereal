@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent } from "react";
-import { useContextMenuStore, type OpenMenu } from "./contextMenuStore";
+import { useContextMenuStore, type ContextMenuEntry, type OpenMenu } from "./contextMenuStore";
 import { MenuList, type MenuEntry } from "./overlays";
 import { clampToViewport, VIEWPORT_MARGIN } from "./placement";
 
@@ -27,13 +27,19 @@ export function ContextMenuHost() {
   return menu ? <ContextMenu key={menu.id} menu={menu} /> : null;
 }
 
+/** Context menu entries as `MenuList` entries (submenus too). */
+function toMenuEntries(items: ReadonlyArray<ContextMenuEntry>, prefix = ""): MenuEntry[] {
+  return items.map((it, i) =>
+    it === "separator"
+      ? { separator: true, id: `${prefix}s${i}` }
+      : { id: `${prefix}i${i}`, ...it, submenu: it.submenu ? toMenuEntries(it.submenu, `${prefix}${i}.`) : undefined },
+  );
+}
+
 function ContextMenu({ menu }: { menu: OpenMenu }) {
   const close = useContextMenuStore((s) => s.close);
   const ref = useRef<HTMLDivElement>(null);
-  const items = useMemo<MenuEntry[]>(
-    () => menu.items.map((it, i) => (it === "separator" ? { separator: true, id: `s${i}` } : { id: `i${i}`, ...it })),
-    [menu.items],
-  );
+  const items = useMemo<MenuEntry[]>(() => toMenuEntries(menu.items), [menu.items]);
 
   useEffect(() => {
     const onDown = (e: PointerEvent) => {

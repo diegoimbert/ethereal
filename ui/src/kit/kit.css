@@ -1196,3 +1196,25 @@
   color: var(--eth-color-text-dim);
   cursor: pointer;
 }
+
+/* A menu item with a submenu (MenuEntry.submenu): its chevron; the entries at its side. */
+.eth-menu__sub {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.eth-menu__chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--eth-color-text-dim);
+}
+.eth-menu__subpanel {
+  position: absolute;
+  top: calc(-1 * var(--eth-space-xs));
+  left: 100%;
+  width: max-content;
+}
+.eth-menu__subpanel--left {
+  left: auto;
+  right: 100%;
+}

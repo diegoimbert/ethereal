@@ -64,7 +64,7 @@ Every rack has 8 macros. Open the rack's parameter list (the sliders button on i
 
 To map a macro:
 
-1. Drag the macro's small map handle onto a parameter of a device inside the rack, or click the handle and then click the parameter.
+1. Drag the macro's small map handle onto a parameter of a device inside the rack, or click the handle and then click the parameter. You can also right-click the parameter and choose **assign to macro**, then the macro (in a rack inside another rack, first the rack).
 2. The mapping shows on that parameter as a coloured ring and a depth chip, as for [modulation](/docs/making-music/modulation-and-sidechain#depth-rings-and-chips). Drag the chip to set how far the macro moves it.
 
 One macro can drive many parameters, each with its own depth. For example, one "brightness" macro can open a filter and add some drive at the same time. A macro can also drive the rack's own chain selector. Macros can be automated and mapped to a MIDI controller like any knob.

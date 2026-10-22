@@ -3071,6 +3071,8 @@
   "piano_roll.draw_mode": "draw mode",
   "plugins.loading.track": "loading plugins: {done} of {total}",
   "plugins.loading.status": "loading plugins {done} / {total}",
+  "modulation.macro.assign": "assign to macro",
+  "modulation.macro.assigned": "already assigned",
   "engine.1_bar": "1 bar",
   "engine.2_bars": "2 bars",
   "engine.4_bars": "4 bars",

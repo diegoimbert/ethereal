@@ -18,6 +18,8 @@ export interface ContextMenuItem {
   /** Why it is disabled: shown as its tooltip and announced (see `MenuEntry.reason`). */
   reason?: string;
   onSelect: () => void;
+  /** A submenu (`onSelect` is then not called): its entries open at the item's side. */
+  submenu?: ReadonlyArray<ContextMenuEntry>;
 }
 
 export type ContextMenuEntry = ContextMenuItem | "separator";
