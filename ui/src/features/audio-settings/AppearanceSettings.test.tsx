@@ -27,7 +27,9 @@ describe("Settings > Appearance", () => {
 
   it("shows the six built-in themes as cards; a click applies one", () => {
     render(<AppearanceSettings />);
-    const cards = within(screen.getByRole("group", { name: "theme" })).getAllByRole("button");
+    const cards = within(screen.getByRole("group", { name: "theme" }))
+      .getAllByRole("button")
+      .filter((b) => b.hasAttribute("aria-pressed"));
     expect(cards.map((c) => c.textContent)).toEqual(["dark", "obsidian", "ember", "tide", "dusk", "light"]);
     expect(screen.getByRole("button", { name: "dark" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("button", { name: "obsidian" }));

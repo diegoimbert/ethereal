@@ -111,6 +111,16 @@ the playhead against `bg`, `bgPanel` and `bgRaised` at 3:1 (non-text contrast).
   profile): `eth-theme` (the scheme), `eth-theme-id`, `eth-theme-dark`, `eth-theme-light`,
   `eth-theme-mode` and `eth-custom-themes` (the user's definitions, a JSON array).
 
+## The user's themes
+
+Settings > Appearance (`ui/src/features/audio-settings/ThemePicker.tsx`): **create your own
+theme** copies the applied theme (a built-in's main colors, all of a user theme's colors) into
+the editor (`ThemeEditor.tsx`), which previews the draft on the whole app (`previewTheme`) and
+lists the contrast checks it fails. A card's menu edits, duplicates, exports or deletes.
+Export and import (`themeFiles.ts`) download / pick a file in the browser; the desktop app
+saves and opens it through its native dialogs (`text_file_save` / `text_file_open`,
+`apps/desktop/src-tauri/src/text_file.rs`), as its webview can do neither.
+
 ## Theme files
 
 A theme file is JSON (`serializeTheme`, `parseThemeFile` in `themeModel.ts`):

@@ -159,4 +159,12 @@ export function clipColors(p: Palette, color: number): ClipColors {
   return c;
 }
 
+/**
+ * A compact lane's clip name (drawn in the clip's color on its body): brightened like the
+ * border when the clip is selected (the selection rim's color), so both read as selected.
+ */
+export function compactNameColor(c: ClipColors, selected: boolean): Rgba {
+  return selected ? c.rim : c.strong;
+}
+
 const clipColorCache = new WeakMap<Palette, Map<number, ClipColors>>();

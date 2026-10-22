@@ -35,7 +35,7 @@ import { Batch, type Pipeline, type RenderContext } from "./glContext";
 import type { FontSpec, GlyphAtlas } from "./glyphAtlas";
 import type { HitPart } from "./hitTest";
 import { isRaised } from "./hitTest";
-import { clipColors, withAlpha, type Palette, type Rgba } from "./palette";
+import { clipColors, compactNameColor, withAlpha, type Palette, type Rgba } from "./palette";
 import {
   Fx,
   InstanceWriter,
@@ -604,8 +604,10 @@ export class LaneScene {
     const width = Math.max(CLIP_DRAW_MIN_PX, bounds.length * win.ppb);
     const fx = this.fxOf(it);
     const alpha = (it.ghost ? 0.45 : it.dragging ? 0.85 : 1) * this.alphaMul * this.loadAlpha;
-    // On the title band, the band's text color; a compact lane's clip (a body alone): the clip's.
-    const color = this.compact ? clipColors(input.palette, clip.color ?? this.track.color).strong : input.palette.titleText;
+    // On the title band, the band's text color; a compact lane's clip (a body alone): the clip's,
+    // brightened like its border when selected.
+    const selected = !it.ghost && input.selected.has(clip.id);
+    const color = this.compact ? compactNameColor(clipColors(input.palette, clip.color ?? this.track.color), selected) : input.palette.titleText;
     const box: XSpec = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_DRAW_MIN_PX };
     // Its name, or its track's when it has none of its own.
     const label = clip.name || this.track.name;

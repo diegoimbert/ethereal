@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Clip } from "@/generated";
 import type { LaneItem } from "../laneItems";
 import { boxX, cursorFor, EDGE_HANDLE_MIN_PX, EDGE_HANDLE_PX, handleWidth, hitLane, MIN_RESIZE_PX } from "./hitTest";
-import { clipColors, mix, parseColor, rgbOf, type Palette } from "./palette";
+import { clipColors, compactNameColor, mix, parseColor, rgbOf, type Palette } from "./palette";
 import { InstanceWriter, RECT_STRIDE, RectFlag, writeRect } from "./pipelines";
 import { cullRange, type CullIndex } from "./scene";
 
@@ -212,6 +212,29 @@ describe("palette", () => {
     expect(light.strong.map((v) => +v.toFixed(2))).toEqual([...red.slice(0, 3).map((v) => +(v * 0.7).toFixed(2)), 1]);
     expect(dark.glowInner).not.toBeNull();
     expect(light.glowInner).toBeNull();
+  });
+
+  it("compact clip name: brightened like the border when selected", () => {
+    const base = {
+      bg: [0, 0, 0, 1],
+      panel: [0.1, 0.1, 0.1, 1],
+      titleText: [0, 0, 0, 1],
+      seam: [0, 0, 0, 0.25],
+      over: [1, 0, 0, 1],
+      selection: [1, 0, 1, 1],
+      white: [1, 1, 1, 1],
+      black: [0, 0, 0, 1],
+    } as const;
+    const luma = (c: readonly [number, number, number, number]) => 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    for (const theme of ["dark", "light"] as const) {
+      const c = clipColors({ ...base, theme } as unknown as Palette, 0x3366cc);
+      expect(compactNameColor(c, false)).toEqual(c.strong);
+      // The selected name takes the selection rim's color (the border's).
+      expect(compactNameColor(c, true)).toEqual(c.rim);
+    }
+    // Dark theme: the selected name is brighter than the unselected one.
+    const dark = clipColors({ ...base, theme: "dark" } as unknown as Palette, 0x3366cc);
+    expect(luma(compactNameColor(dark, true))).toBeGreaterThan(luma(compactNameColor(dark, false)));
   });
 });
 

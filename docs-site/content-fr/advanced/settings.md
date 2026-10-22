@@ -26,7 +26,7 @@ Certains réglages appartiennent à un projet (tempo, swing, assignations MIDI) 
 
 ## apparence {#appearance}
 
-- **thème** : l’un des six thèmes intégrés, ou suivre le mode clair ou sombre du système. Voir [thèmes](/docs/advanced/themes).
+- **thème** : l’un des six thèmes intégrés ou l’un des vôtres (**créer votre thème**, **importer un thème…**), ou suivre le mode clair ou sombre du système. Voir [thèmes](/docs/advanced/themes).
 - **zoom** : met à l’échelle toute l’interface (texte, commandes et panneaux).
 - **animations** : classiques, rapides (chaque animation dure moitié moins longtemps) ou mouvements réduits (les changements s’appliquent immédiatement).
 - **taches de couleur** : les couleurs douces qui flottent derrière les boîtes de dialogue et, discrètement, derrière l’arrangement.
