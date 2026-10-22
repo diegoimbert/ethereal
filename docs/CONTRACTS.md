@@ -621,10 +621,12 @@ dirty project before exiting. Dev port offset `remote: 4`
 wasm32). The core never spawns threads; hosts supply an RT-safe `parallel::ParallelExecutor`
 through `Engine::set_executor`. Jobs get disjoint `&mut` access to their tracks through
 raw pointers on the engine side, sound only because the executor runs every index exactly
-once and returns after all jobs finished (see `parallel.rs`). The snapshot is
-partitioned into DAG levels (routing, sends, resampling inputs, sidechains). Tracks of one
-level run as independent jobs (clips → automation → chain → fader → meters, into their own
-buffers). Bus mixing gathers each destination's inputs (at the start of that destination's
+once, each only after its sources, and returns after all jobs finished (see `parallel.rs`).
+The snapshot compiles a `parallel::JobGraph`: one job per track (clips → automation →
+chain → fader → meters, into its own buffers), an edge from every source (routing, sends,
+input taps, sidechains) to what it feeds. A job starts as soon as its own sources finished
+(per-job atomic counters, a lock-free ready bitset), the longest remaining path first;
+there is no barrier between levels. Bus mixing gathers each destination's inputs (at the start of that destination's
 job) in the same fixed order as sequential processing, independent of worker count, so the
 output is bit-identical to sequential processing. Each node belongs to one chain, so jobs
 need no locks.
