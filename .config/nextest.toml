@@ -13,3 +13,11 @@ slow-timeout = { period = "60s", terminate-after = 5 }
 failure-output = "immediate-final"
 status-level = "slow"
 final-status-level = "slow"
+
+# Timing tests that count late callbacks of the `null` backend's audio thread (normal priority,
+# like any test thread): with the rest of the suite running beside them on a 4-vCPU hosted
+# runner, neighbours' threads preempt it for longer than a 5 ms buffer, which says nothing about
+# the engine. They take every test slot, so they run alone (seconds each).
+[[profile.ci.overrides]]
+filter = 'binary_id(ether-native::it) & test(/^project_load_xruns::/)'
+threads-required = 'num-test-threads'
