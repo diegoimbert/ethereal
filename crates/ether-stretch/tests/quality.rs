@@ -825,6 +825,65 @@ fn quality_tables() {
     });
 }
 
+/// Diagnostics: a transposed chord's log-spectral distance per octave band and its partials'
+/// levels (dB vs the ideal). `ST=<semitones>`, default +12.
+#[test]
+#[ignore = "diagnostics"]
+fn transposition_bands() {
+    let st: f32 = std::env::var("ST")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(12.0);
+    let p = (st / 12.0).exp2();
+    let x = chord((DUR * SR) as usize, 1.0);
+    for algo in [Algo::Plus, Algo::Complex] {
+        let y = drive(algo.make(None).as_mut(), &x, 1.0, st, 256);
+        let ideal = chord(y[0].len(), p);
+        let (a, b) = (stft_mag(&y[0], 4096, 1024), stft_mag(&ideal[0], 4096, 1024));
+        let mut bands = String::new();
+        let mut lo = 50.0f32;
+        while lo < 20_000.0 {
+            let hi = lo * 2.0;
+            let (k0, k1) = (
+                (lo / SR * 4096.0) as usize,
+                ((hi / SR * 4096.0) as usize).min(2048),
+            );
+            let (mut s, mut c) = (0.0f64, 0usize);
+            for (fa, fb) in a.iter().zip(&b).skip(10).take(a.len() - 20) {
+                let pk = fb.iter().fold(0.0f32, |m, v| m.max(*v));
+                for k in k0..k1 {
+                    if fa[k].max(fb[k]) < pk * 1e-3 {
+                        continue;
+                    }
+                    let d = 20.0 * ((fa[k] + pk * 1e-5) / (fb[k] + pk * 1e-5)).log10();
+                    s += (d * d) as f64;
+                    c += 1;
+                }
+            }
+            bands += &format!(
+                "{lo:.0}-{hi:.0}: {:.1} ({c})  ",
+                (s / c.max(1) as f64).sqrt()
+            );
+            lo = hi;
+        }
+        println!("{} lsd by band: {bands}", algo.name());
+        let mid = y[0].len() / 2;
+        let levels: Vec<String> = chord_partials()
+            .iter()
+            .filter(|q| q.freq * p < 20_000.0)
+            .map(|q| {
+                let (re, im) = tone(&y[0], mid - 8192, 16384, q.freq * p);
+                format!(
+                    "{:.0}:{:+.1}",
+                    q.freq * p,
+                    20.0 * ((re * re + im * im).sqrt() / q.amp).log10()
+                )
+            })
+            .collect();
+        println!("{} partials: {}", algo.name(), levels.join(" "));
+    }
+}
+
 /// Complex+ held to its measured quality (with margin), so regressions show.
 #[test]
 fn regression() {
@@ -846,8 +905,10 @@ fn regression() {
     assert!(att > 0.85, "drums ×4: attack {att}");
     let f = formant_metric(Algo::Plus, 7.0);
     assert!(f < 3.0, "vowel +7: formant error {f} dB");
-    let tr = transpose_lsd(Algo::Plus, -12.0);
-    assert!(tr < 6.0, "chord -12 st: lsd {tr} dB");
+    for (st, max) in [(-12.0, 4.0), (7.0, 2.5), (12.0, 3.0)] {
+        let tr = transpose_lsd(Algo::Plus, st);
+        assert!(tr < max, "chord {st:+} st: lsd {tr} dB");
+    }
     let u = unity_lsd(Algo::Plus, "drums");
     assert!(u < 0.1, "drums at ratio 1: lsd {u} dB");
 }
