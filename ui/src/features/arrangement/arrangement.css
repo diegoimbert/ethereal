@@ -1025,6 +1025,12 @@
   color: var(--eth-color-text);
 }
 
+/* A button the track doesn't have (TrackRow's HeaderSlot): its slot stays, empty, so the others
+   line up with the other rows' (#239). */
+.eth-arr-header__buttons .eth-arr-header__slot {
+  visibility: hidden;
+}
+
 /* The header buttons' size (and the room the compact name leaves them, above). */
 .eth-arr-header {
   --arr-header-button: var(--eth-size-track-header-button);
