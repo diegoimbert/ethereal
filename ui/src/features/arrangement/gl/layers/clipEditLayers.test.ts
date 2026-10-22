@@ -1,6 +1,7 @@
 /** The clip-editing layers' build output (instances per clip state) and hit tests, without GL. */
 import { describe, expect, it } from "vitest";
-import type { AudioContent, Clip, ClipId } from "@/generated";
+import type { AudioContent, Clip, ClipId, ExpressionLane, Project } from "@/generated";
+import { useProjectStore } from "@/state";
 import { MockTransport } from "@/transport/mock";
 import { CLIP_INSET, CLIP_RADIUS, CLIP_TITLE } from "../../laneBodyGeometry";
 import { stableBoundsOf, type LaneItem } from "../../laneItems";
@@ -159,5 +160,24 @@ describe("clip badges", () => {
     expect(badgesOf(audio("a", 0, 1, { reversed: true }), new Set())).toEqual(["reversed"]);
     expect(badgesOf(audio("a", 0, 1, { reversed: true }), new Set(["m"]))).toEqual(["reversed", "missing"]);
     expect(badgesOf(audio("a", 0, 1), new Set())).toEqual([]);
+  });
+
+  it("a MIDI clip with controller data shows a controllers badge (empty lanes don't)", () => {
+    const midi: Clip = { ...audio("m", 0, 4), content: { type: "Midi" } };
+    const lane = (id: string, clip: string, n: number): ExpressionLane => ({
+      id,
+      clip,
+      kind: { type: "Cc", controller: 64 },
+      points: Array.from({ length: n }, (_, i) => ({ time: i, value: 1, curve: { type: "Step" as const } })),
+    });
+    const before = useProjectStore.getState().project;
+    try {
+      useProjectStore.setState({ project: { expression_lanes: { a: lane("a", "m", 0) } } as unknown as Project });
+      expect(badgesOf(midi, new Set())).toEqual([]);
+      useProjectStore.setState({ project: { expression_lanes: { a: lane("a", "m", 2), b: lane("b", "other", 2) } } as unknown as Project });
+      expect(badgesOf(midi, new Set())).toEqual(["controllers"]);
+    } finally {
+      useProjectStore.setState({ project: before });
+    }
   });
 });

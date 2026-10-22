@@ -9,8 +9,8 @@
 // `window.__ether` (apps/web/src/main.tsx).
 import { expect, test, type Page } from "@playwright/test";
 import type { Project } from "@/generated";
-import { openClip } from "./clips";
-import { createTrack, launch, newProject, pickOption } from "./ui";
+import { clipDecor, openClip } from "./clips";
+import { createTrack, launch, newProject, openEditor, pickOption } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -88,6 +88,50 @@ test("midi expression: draw a pitch bend lane, undo, mod wheel, note pressure", 
   const note = Object.values((await doc(page)).notes)[0]!;
   await stroke(page, pressure, [0.001, 0.9], [0.2, 0.1]);
   await expect.poll(async () => Object.values((await doc(page)).note_expressions).map((e) => [e.note, e.kind])).toEqual([[note.id, "Pressure"]]);
+
+  expect(errors).toEqual([]);
+});
+
+// The clip's own controller data in the editor drawer's automation tab (#225): a sustain lane
+// added there, drawn on the song timeline, lands in the clip (content-relative), and the
+// arrangement badges the clip.
+test("midi expression: draw a clip's sustain lane in the automation tab", async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+
+  await launch(page);
+  await expect(page.getByRole("button", { name: "play", exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => project(page).then((p) => p !== null), { timeout: 30_000 }).toBe(true);
+  await newProject(page, `Clip controllers ${Date.now()}`);
+
+  const midi = await createTrack(page, "Midi");
+  await page.locator(`[data-lane="${midi.id}"]`).dblclick({ position: { x: 10, y: 20 } });
+  await expect.poll(async () => Object.keys((await doc(page)).clips).length).toBe(1);
+  const clip = Object.values((await doc(page)).clips)[0]!;
+  await openClip(page, clip.id);
+  await openEditor(page, "automation");
+  const section = page.getByTestId("clip-controller-lanes");
+  await expect(section).toContainText("this clip has no controller data");
+
+  await pickOption(section, "add a controller lane", { value: "cc64" });
+  const lane = section.getByTestId("expression-lane");
+  await expect(lane).toHaveAttribute("data-kind", "cc 64 Sustain");
+  // A short stroke at the lane's left edge (the clip's start: the tab's view starts at song
+  // beat 0, 24 px per beat, and the clip is there), near the top (sustain on).
+  const box = (await lane.boundingBox())!;
+  await page.mouse.move(box.x + 4, box.y + 6);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 20, box.y + 16, { steps: 8 });
+  await page.mouse.up();
+  await expect
+    .poll(async () => Object.values((await doc(page)).expression_lanes).map((l) => [l.clip, l.kind]))
+    .toEqual([[clip.id, { type: "Cc", controller: 64 }]]);
+  const sustain = Object.values((await doc(page)).expression_lanes)[0]!;
+  expect(sustain.points.length).toBeGreaterThan(1);
+  expect(sustain.points[0]!.value).toBeGreaterThan(0.7);
+  await expect(lane.getByTestId("expression-curve")).toBeVisible();
+  await expect.poll(async () => (await clipDecor(page, clip.id))?.badges).toContain("controllers");
 
   expect(errors).toEqual([]);
 });

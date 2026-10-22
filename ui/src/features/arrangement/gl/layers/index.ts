@@ -8,6 +8,7 @@ import { useMediaRefs } from "@/features/media-refs";
 import type { EngineTransport } from "@/transport";
 import { CLIP_RADIUS } from "../../laneBodyGeometry";
 import type { ArrangerRenderer } from "../renderer";
+import { useProjectStore } from "@/state";
 import { clipBadgesLayer, titleBadgesWidth, extensionBadgesChanged } from "./clipBadges";
 import { clipFadesLayer } from "./clipFades";
 import { fadePipeline } from "./fadePipeline";
@@ -29,6 +30,10 @@ export function mountClipEditLayers(renderer: ArrangerRenderer, transport: Engin
   offs.push(
     useMediaRefs.subscribe((s, prev) => {
       if (s.missing !== prev.missing) renderer.invalidateTitles();
+    }),
+    // A MIDI clip's controller lanes changed: its badge may come, go or change.
+    useProjectStore.subscribe((s, prev) => {
+      if (s.project?.expression_lanes !== prev.project?.expression_lanes) renderer.invalidateTitles();
     }),
     // An extension's badges changed (`@/ext` "clips.badge").
     ...contributions("clips.badge").map((p) =>
