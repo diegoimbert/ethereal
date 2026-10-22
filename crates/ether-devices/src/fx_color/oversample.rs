@@ -25,6 +25,11 @@ pub(crate) const LATENCY_2X: usize = (TAPS_1 - 1) / 2;
 /// Base-rate latency of a 4x round trip: stage 1 plus stage 2 (`(TAPS_2 - 1) / 4` = 5.5
 /// base samples), padded by one 2x-rate sample to a whole base sample.
 pub(crate) const LATENCY_4X: usize = LATENCY_2X + (TAPS_2 - 1) / 4 + 1;
+/// Base-rate delay of the up-sampling half of a 2x / 4x round trip (rounded): where an
+/// oversampled stage (a shaper, a filter) sees the input, so a param acting there
+/// changes the output at its offset + this + the down-sampling half.
+pub(crate) const UP_DELAY_2X: usize = (TAPS_1 - 1) / 4;
+pub(crate) const UP_DELAY_4X: usize = (2 * (TAPS_1 - 1) + (TAPS_2 - 1) + 4) / 8;
 
 fn bessel_i0(x: f64) -> f64 {
     let (mut sum, mut term, mut k) = (1.0, 1.0, 1.0);

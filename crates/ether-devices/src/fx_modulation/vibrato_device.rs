@@ -39,7 +39,7 @@ use ether_core::{
 
 use super::shared::{Glide, Lfo, LfoStep, ModLine, Params, Ramp, Rate, input, ms};
 use super::vibrato as p;
-use crate::util::{self, db_to_amp};
+use crate::util::{self, LateEvents, Route, db_to_amp};
 
 const N: usize = p::COUNT;
 /// Largest delay excursion around the centre (ms); the centre (latency) is a bit more.
@@ -292,6 +292,9 @@ pub(super) struct Vibrato {
     was_playing: bool,
     loud: bool,
     tail: crate::util::Tail,
+    /// Every param acts on the read side, `center` samples into the line: its events wait
+    /// that long (else they'd be heard 20 ms early).
+    late: LateEvents,
 }
 
 impl Vibrato {
@@ -321,6 +324,7 @@ impl Vibrato {
             was_playing: false,
             loud: false,
             tail: crate::util::Tail::default(),
+            late: LateEvents::new(),
         };
         v.allocate();
         v
@@ -512,10 +516,16 @@ impl Node for Vibrato {
     fn prepare(&mut self, config: &PrepareConfig) {
         self.sample_rate = config.sample_rate.max(1.0);
         self.allocate();
+        self.late.prepare(self.center, config);
         self.reset();
     }
 
     fn reset(&mut self) {
+        LateEvents::flush(self, |s| &mut s.late, |s, kind| {
+            if let EventKind::Param { param, value } = *kind {
+                s.apply(param, value, false);
+            }
+        });
         for l in &mut self.lines {
             l.clear();
         }
@@ -543,10 +553,12 @@ impl Node for Vibrato {
             self.fresh = true;
         }
         self.loud = false;
-        util::split_at_events(
+        let center = self.center;
+        LateEvents::split(
             self,
-            c.events,
-            c.frames,
+            |s| &mut s.late,
+            c,
+            |_| Route::Late(center),
             |s, a, b| s.render(c, audio, a, b),
             |s, kind| {
                 if let EventKind::Param { param, value } = *kind {
@@ -563,7 +575,8 @@ impl Node for Vibrato {
             && !self.stereo.is_moving()
             && !self.mix.is_smoothing()
             && !self.gain.is_smoothing()
-            && self.fade >= 1.0;
+            && self.fade >= 1.0
+            && self.late.is_idle();
         let hold = 2 * self.center + util::samples(util::BASE_HOLD_SECONDS, self.sample_rate);
         self.tail
             .status(!c.events.is_empty(), silent_in, quiet, settled, n, hold)
@@ -581,10 +594,11 @@ impl Device for Vibrato {
     }
 
     fn param(&self, id: ParamId) -> Option<f64> {
-        self.params.plain(id)
+        self.late.readback(id, self.params.plain(id))
     }
 
     fn set_param(&mut self, id: ParamId, value: f64) {
+        self.late.cancel(id);
         self.apply(id, value, false);
     }
 }
