@@ -341,6 +341,7 @@ fn run_audio(
     let mut inputs: Vec<&[f32]> = Vec::with_capacity(layout.in_channels);
     let mut outputs: Vec<&mut [f32]> = Vec::with_capacity(layout.out_channels);
     let mut sidechain: Vec<&[f32]> = Vec::with_capacity(layout.sc_channels);
+    let always = node.always_process();
     let mut last = 0u64;
     loop {
         sem.wait();
@@ -357,6 +358,9 @@ fn run_audio(
         let frames = (h.frames as usize).min(max);
         if h.reset != 0 {
             node.reset();
+        }
+        if let Some(always) = &always {
+            always.store(h.always_process != 0, Ordering::Relaxed);
         }
         let transport = h.transport.decode();
         events.clear();

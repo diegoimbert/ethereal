@@ -476,6 +476,7 @@ pub fn rack_command(ctx: &mut DocCtx, command: &RackCommand) -> CmdResult<()> {
                             format.unwrap_or(PluginFormat::Clap),
                             plugin_id,
                         ),
+                        always_process: false,
                         state: None,
                     };
                     let desc = ctx.host.instantiate_plugin(*id, &plugin)?;

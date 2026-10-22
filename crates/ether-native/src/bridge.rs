@@ -728,6 +728,7 @@ impl EngineBridge for NativeBridge {
                     // AUs have no bundle: their path is the component id.
                     path: PathBuf::from(desc.path),
                     plugin_id: plugin.plugin_id.clone(),
+                    always_process: plugin.always_process,
                 },
                 state.map(|s| s.0.clone()),
                 // Activated with the engine's max block size: backends never exceed it.
@@ -777,6 +778,7 @@ impl EngineBridge for NativeBridge {
                     format: desc.format,
                     path: PathBuf::from(desc.path),
                     plugin_id: plugin.plugin_id.clone(),
+                    always_process: plugin.always_process,
                 },
                 state.map(|s| s.0.clone()),
                 // Activated for the offline engine's blocks (never larger).
@@ -792,6 +794,11 @@ impl EngineBridge for NativeBridge {
             host: self.plugins.clone(),
             registry_id,
         }))
+    }
+
+    fn set_always_process(&mut self, device: DeviceId, on: bool) -> Result<(), BridgeError> {
+        self.plugins.set_always_process(self.reg(device), on);
+        Ok(())
     }
 
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError> {
@@ -1139,6 +1146,7 @@ impl EngineBridge for NativeBridge {
                     format: desc.format,
                     path: PathBuf::from(desc.path),
                     plugin_id: plugin.plugin_id.clone(),
+                    always_process: plugin.always_process,
                 },
                 None,
                 self.prepare,
@@ -1200,6 +1208,7 @@ impl EngineBridge for NativeBridge {
                     format: desc.format,
                     path: PathBuf::from(desc.path),
                     plugin_id: plugin.plugin_id.clone(),
+                    always_process: plugin.always_process,
                 },
                 state.map(|s| s.0.clone()),
             )
@@ -1748,6 +1757,7 @@ mod tests {
             vendor: "T".into(),
             version: "1".into(),
             sandboxed: false,
+            always_process: false,
             state: None,
         };
         b.create_plugin(d, &inst, None).unwrap();
@@ -1792,6 +1802,7 @@ mod tests {
             vendor: "T".into(),
             version: "1".into(),
             sandboxed: false,
+            always_process: false,
             state: None,
         };
         let key = b
@@ -1851,6 +1862,7 @@ mod tests {
             vendor: "T".into(),
             version: "1".into(),
             sandboxed: false,
+            always_process: false,
             state: None,
         };
         let saved = Base64Bytes(b"saved".to_vec());
@@ -1892,6 +1904,7 @@ mod tests {
             vendor: "T".into(),
             version: "1".into(),
             sandboxed: false,
+            always_process: false,
             state: None,
         };
         let state = Base64Bytes(b"abc".to_vec());
@@ -1938,6 +1951,7 @@ mod tests {
             vendor: "T".into(),
             version: "1".into(),
             sandboxed: false,
+            always_process: false,
             state: None,
         };
         b.create_plugin(d, &inst, None).unwrap(); // editor instance 1
@@ -2020,6 +2034,7 @@ mod tests {
             vendor: "T".into(),
             version: "1".into(),
             sandboxed: false,
+            always_process: false,
             state: None,
         };
         let mine = Base64Bytes(b"host".to_vec());
@@ -2057,6 +2072,7 @@ mod tests {
             vendor: "T".into(),
             version: "1".into(),
             sandboxed: false,
+            always_process: false,
             state: None,
         };
         let mine = Base64Bytes(b"main".to_vec());

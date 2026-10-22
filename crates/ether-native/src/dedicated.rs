@@ -136,6 +136,10 @@ impl EngineBridge for DedicatedEngine {
         self.bridge.destroy_node(key)
     }
 
+    fn set_always_process(&mut self, device: DeviceId, on: bool) -> Result<(), BridgeError> {
+        self.bridge.set_always_process(device, on)
+    }
+
     fn sandbox_by_default(
         &self,
         format: ether_core::protocol::model::PluginFormat,

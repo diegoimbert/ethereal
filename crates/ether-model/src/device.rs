@@ -588,6 +588,11 @@ pub struct PluginInstance {
     pub version: String,
     /// Run out-of-process (crash isolation, +1 block latency).
     pub sandboxed: bool,
+    /// Never sleep on silence (CONTRACTS.md §13.19): for plugins that make sound out of
+    /// nothing without reporting a tail. Off by default; omitted from JSON when off.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub always_process: bool,
     /// Last saved plugin state. `None` = fresh instance.
     pub state: Option<Base64Bytes>,
 }

@@ -1674,6 +1674,42 @@ shows the progress in the transport bar (`ui/src/features/transport-bar/loading.
 `AudioShared::overruns` counts native callbacks longer than their buffer
 (`ether-native/tests/it/project_load_xruns.rs` measures a load with and without the
 suspension).
+
+### 13.19 Plugins sleep on silence
+Plugin instances stop being processed while nothing reaches them, on by default, so idle
+plugins (stopped transport, sparse tracks, empty returns) cost nothing.
+- **VST3** (`ether-vst3/src/node.rs`): the node reports `ProcessStatus::Silent` once, for
+  longer than the plugin's tail (`IAudioProcessor::getTailSamples`, asked on the main
+  thread at activation and on every poll), nothing reached it: digital-silence input on
+  every bus (sidechain included), no engine event (notes, MIDI, param events), no
+  immediate set or GUI edit, no held note, no transport start, stop or jump. Its output
+  must also be silent (every main output channel flagged `kSilentFlag` or at most -120
+  dBFS) and it must have sent no events that block. `kInfiniteTail` never sleeps;
+  `kNoTail` sleeps as soon as input and output are silent. Instruments have no audio input,
+  so they sleep once every note has ended, their tail has passed and their output is
+  silent. Plugins without an audio output (note generators, which may follow the transport)
+  never sleep. Asleep, the node skips `process` itself when it is called anyway (sandboxed
+  instances, watched analysis) and outputs silence. It wakes in the same block on any of
+  the above, and through `Node::wake_requested` for immediate sets, GUI edits and
+  all-notes-off. Input buses carry `kSilentFlag` for every channel of digital silence;
+  output channels the plugin flags silent are silence (whatever their buffer holds).
+- **CLAP**: unchanged (`CLAP_PROCESS_SLEEP`, quiet `CONTINUE_IF_NOT_QUIET`,
+  `request_process`; `ether-clap/src/node.rs`).
+- **Engine**: a timeline jump (Play from stopped, Locate, loop wrap, the first block after a
+  suspension) processes asleep nodes for one sub-block (`JobFlags::jump`).
+- **Always process** (`PluginInstance::always_process`, `#[serde(default)]`, omitted when
+  false; `PluginCommand::SetAlwaysProcess { device, always_process }`, an undoable edit; the
+  device context menu): for plugins that make sound out of silence without reporting a
+  tail. The live instance is kept: `EngineBridge::set_always_process` flips the node's
+  switch (`PluginNode::always_process`, an `Arc<AtomicBool>`; sandboxed: carried by every
+  shm block, `Block::always_process`, shm `VERSION` 5). On, the VST3 node never sleeps and
+  the CLAP node ignores `SLEEP` / `CONTINUE_IF_NOT_QUIET`.
+- Output is sample-identical to always processing for plugins whose tail is honest and
+  whose silence is exact (`ether-vst3/tests/sleep.rs`, against the fixture's tail effect:
+  an echo, an infinite-tail generator, a generator that reports no tail, a plugin that
+  flags garbage silent). `engine_bench::idle_vst3_plugins` measures the CPU saved.
+- Not covered: AU and VST2 plugins never sleep; sandboxed CLAP plugins are called every
+  block (their `SLEEP` saves the plugin's own work only).
 ## 13. Agent API (docs/MCP.md)
 
 - Protocol (`ether_protocol::agent`, exported to TS): `Command::Agent(AgentCommand)`.

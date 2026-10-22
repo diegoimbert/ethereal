@@ -443,6 +443,7 @@ where
                     } else {
                         self.bridge.sandbox_by_default(to.format, &to.plugin_id)
                     },
+                    always_process: false,
                     state: None,
                 };
                 let pre = plan(
