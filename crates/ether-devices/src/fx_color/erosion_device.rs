@@ -343,11 +343,15 @@ impl Node for Erosion {
     }
 
     fn reset(&mut self) {
-        LateEvents::flush(self, |s| &mut s.late, |s, kind| {
-            if let EventKind::Param { param, value } = *kind {
-                s.set(param, value, false);
-            }
-        });
+        LateEvents::flush(
+            self,
+            |s| &mut s.late,
+            |s, kind| {
+                if let EventKind::Param { param, value } = *kind {
+                    s.set(param, value, false);
+                }
+            },
+        );
         self.lines = [Line::new(); 2];
         self.svf = [Svf::ZERO; 2];
         self.phase = 0.0;

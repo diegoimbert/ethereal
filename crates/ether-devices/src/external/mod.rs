@@ -449,11 +449,15 @@ impl Node for ExternalNode {
     }
 
     fn reset(&mut self) {
-        util::LateEvents::flush(self, |s| &mut s.late, |s, kind| {
-            if let EventKind::Param { param, value } = *kind {
-                s.apply(param, value, false);
-            }
-        });
+        util::LateEvents::flush(
+            self,
+            |s| &mut s.late,
+            |s, kind| {
+                if let EventKind::Param { param, value } = *kind {
+                    s.apply(param, value, false);
+                }
+            },
+        );
         for d in self.dry.iter_mut() {
             d.fill(0.0);
         }
@@ -495,7 +499,8 @@ impl Device for ExternalNode {
     }
 
     fn param(&self, id: ParamId) -> Option<f64> {
-        self.late.readback(id, self.values.get(id.0 as usize).copied())
+        self.late
+            .readback(id, self.values.get(id.0 as usize).copied())
     }
 
     fn set_param(&mut self, id: ParamId, value: f64) {
