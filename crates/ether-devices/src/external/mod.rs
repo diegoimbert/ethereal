@@ -253,6 +253,10 @@ struct ExternalNode {
     gain: Smoother,
     send: Smoother,
     mix: Smoother,
+    /// The return (and the dry path aligned with it) is `latency` samples late: the params
+    /// acting on it (gain, return gain, phase, mix) wait that long; the send gain and the
+    /// latency act on the input as it arrives.
+    late: util::LateEvents,
 }
 
 impl ExternalNode {
@@ -274,6 +278,7 @@ impl ExternalNode {
             gain: Smoother::new(1.0, SMOOTH_MS, 48_000.0),
             send: Smoother::new(1.0, SMOOTH_MS, 48_000.0),
             mix: Smoother::new(1.0, SMOOTH_MS, 48_000.0),
+            late: util::LateEvents::new(),
         };
         n.sync(false);
         n
@@ -389,10 +394,23 @@ impl ExternalNode {
         audio: &mut AudioBuffers<'_, '_>,
         ret: &[&[f32]],
     ) -> ProcessStatus {
-        util::split_at_events(
+        let latency = self.latency as usize;
+        let kind = self.kind;
+        let now = move |id: ParamId| match kind {
+            Kind::Instrument => id == external_instrument::LATENCY,
+            Kind::Effect => {
+                id == external_audio_effect::LATENCY || id == external_audio_effect::SEND_GAIN
+            }
+        };
+        let route = |kind: &EventKind| match kind {
+            EventKind::Param { param, .. } if !now(*param) => util::Route::Late(latency),
+            _ => util::Route::Now,
+        };
+        util::LateEvents::split(
             self,
-            ctx.events,
-            ctx.frames,
+            |s| &mut s.late,
+            ctx,
+            route,
             |s, a, b| s.render(audio, ret, a, b),
             |s, kind| {
                 if let EventKind::Param { param, value } = *kind {
@@ -426,9 +444,16 @@ impl Node for ExternalNode {
             self.pos = 0;
         }
         self.sync(false);
+        let max = latency_samples(MAX_LATENCY_MS, self.sample_rate) as usize;
+        self.late.prepare(max, config);
     }
 
     fn reset(&mut self) {
+        util::LateEvents::flush(self, |s| &mut s.late, |s, kind| {
+            if let EventKind::Param { param, value } = *kind {
+                s.apply(param, value, false);
+            }
+        });
         for d in self.dry.iter_mut() {
             d.fill(0.0);
         }
@@ -470,10 +495,11 @@ impl Device for ExternalNode {
     }
 
     fn param(&self, id: ParamId) -> Option<f64> {
-        self.values.get(id.0 as usize).copied()
+        self.late.readback(id, self.values.get(id.0 as usize).copied())
     }
 
     fn set_param(&mut self, id: ParamId, value: f64) {
+        self.late.cancel(id);
         self.apply(id, value, false);
     }
 }

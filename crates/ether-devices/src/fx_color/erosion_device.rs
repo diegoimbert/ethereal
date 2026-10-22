@@ -27,7 +27,7 @@ use ether_core::{
 use super::erosion as ids;
 use super::shared::{Rng, Values, db, glide};
 use crate::dsp::svf::{Coefs, Svf};
-use crate::util::split_at_events;
+use crate::util::{LateEvents, Route};
 
 /// Largest delay excursion at `Amount` 100 % (ms).
 pub const MAX_EXCURSION_MS: f32 = 0.5;
@@ -190,6 +190,9 @@ pub struct Erosion {
     lines: [Line; 2],
     /// Silence reporting.
     tail: crate::util::Tail,
+    /// Every param acts on the read side, `center` samples into the line: its events wait
+    /// that long.
+    late: LateEvents,
 }
 
 impl Default for Erosion {
@@ -223,6 +226,7 @@ impl Erosion {
             mix: Smoother::new(1.0, 0.0, 48_000.0),
             lines: [Line::new(); 2],
             tail: crate::util::Tail::default(),
+            late: LateEvents::new(),
         };
         s.sync_all();
         s
@@ -334,10 +338,16 @@ impl Node for Erosion {
     fn prepare(&mut self, config: &PrepareConfig) {
         self.sample_rate = config.sample_rate.max(1.0);
         self.sync_all();
+        self.late.prepare(self.center, config);
         self.reset();
     }
 
     fn reset(&mut self) {
+        LateEvents::flush(self, |s| &mut s.late, |s, kind| {
+            if let EventKind::Param { param, value } = *kind {
+                s.set(param, value, false);
+            }
+        });
         self.lines = [Line::new(); 2];
         self.svf = [Svf::ZERO; 2];
         self.phase = 0.0;
@@ -348,10 +358,12 @@ impl Node for Erosion {
         ctx: &mut ProcessContext<'_>,
         audio: &mut AudioBuffers<'_, '_>,
     ) -> ProcessStatus {
-        split_at_events(
+        let center = self.center;
+        LateEvents::split(
             self,
-            ctx.events,
-            ctx.frames,
+            |s| &mut s.late,
+            ctx,
+            |_| Route::Late(center),
             |s, a, b| s.render(audio, a, b),
             |s, kind| {
                 if let EventKind::Param { param, value } = *kind {
@@ -363,7 +375,8 @@ impl Node for Erosion {
         // emptied.
         let settled = ![&self.excursion, &self.output, &self.mix]
             .iter()
-            .any(|s| s.is_smoothing());
+            .any(|s| s.is_smoothing())
+            && self.late.is_idle();
         let hold = 2 * self.center
             + crate::util::samples(crate::util::BASE_HOLD_SECONDS, self.sample_rate);
         self.tail.status_of(ctx, audio, settled, hold)
@@ -381,10 +394,11 @@ impl Device for Erosion {
     }
 
     fn param(&self, id: ParamId) -> Option<f64> {
-        self.values.get(id)
+        self.late.readback(id, self.values.get(id))
     }
 
     fn set_param(&mut self, id: ParamId, value: f64) {
+        self.late.cancel(id);
         self.set(id, value, false);
     }
 }

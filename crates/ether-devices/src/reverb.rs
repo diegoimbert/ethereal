@@ -540,6 +540,11 @@ impl Reverb {
             return;
         };
         self.values[id.0 as usize] = util::clamp(value, min, max);
+        if matches!(id, params::DECAY | params::SIZE) {
+            // The loop gains follow from the event on (not from the next tick of the
+            // free-running control grid, up to 31 samples later).
+            self.control_countdown = 0;
+        }
         let v = match id {
             params::DECAY => self.value(params::DECAY),
             params::DAMPING => self.damping_coef(),
@@ -807,6 +812,53 @@ impl Device for Reverb {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Process `frames` of a tone with `events`.
+    fn run(r: &mut Reverb, frames: usize, events: &[ether_core::ProcessEvent]) {
+        let transport = ether_core::TransportInfo::STOPPED;
+        let mut out_events = ether_core::EventBuffer::with_capacity(4);
+        let x: Vec<f32> = (0..frames).map(|i| (i as f32 * 0.1).sin() * 0.5).collect();
+        let (mut l, mut rr) = (vec![0.0; frames], vec![0.0; frames]);
+        let inputs: [&[f32]; 2] = [&x, &x];
+        let mut outputs: [&mut [f32]; 2] = [&mut l, &mut rr];
+        let mut ctx = ProcessContext {
+            sample_rate: 48_000.0,
+            frames,
+            transport: &transport,
+            events,
+            out_events: &mut out_events,
+        };
+        let mut audio = AudioBuffers {
+            inputs: &inputs,
+            outputs: &mut outputs,
+        };
+        r.process(&mut ctx, &mut audio);
+    }
+
+    #[test]
+    fn decay_and_size_reach_the_loop_gains_at_their_offset() {
+        for (id, value) in [(params::DECAY, 20.0), (params::SIZE, 10.0)] {
+            let mut r = Reverb::new();
+            r.prepare(&PrepareConfig {
+                sample_rate: 48_000.0,
+                max_block_size: 512,
+                max_events_per_block: 16,
+            });
+            // 40 samples in: the control grid last ticked 8 samples ago.
+            run(&mut r, 40, &[]);
+            let before = r.gains;
+            let ev = ether_core::ProcessEvent {
+                offset: 3,
+                kind: EventKind::Param { param: id, value },
+            };
+            // Up to and including the event's sample.
+            run(&mut r, 4, &[ev]);
+            assert_ne!(r.gains, before, "{id:?}: gains not updated at the event");
+            let at_event = r.gains;
+            r.update_gains();
+            assert_eq!(r.gains, at_event, "{id:?}: gains from the event's sample");
+        }
+    }
 
     #[test]
     fn hadamard_is_orthogonal() {
