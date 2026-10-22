@@ -315,6 +315,7 @@ fn midi_fx_devices_insert_with_layouts_before_the_instrument() {
         BuiltinDeviceType::NoteLength,
         BuiltinDeviceType::Velocity,
         BuiltinDeviceType::Randomizer,
+        BuiltinDeviceType::NoteBlocker,
     ];
     group_inserts_and_compiles(&types);
     // Real devices with panels; ordering and scale pushes: tests/midi_fx.rs.

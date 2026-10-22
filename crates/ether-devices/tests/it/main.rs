@@ -35,6 +35,7 @@ mod instruments_synth_sampler;
 mod layouts;
 mod midi_fx;
 mod multisampler;
+mod note_blocker;
 mod perf_devices;
 mod poly_synth;
 mod racks;

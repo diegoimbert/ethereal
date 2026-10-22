@@ -1314,7 +1314,11 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   one wrapping cycle; `curve` omitted in JSON = the default pump). `Device::SetLfoCurve
   { device, curve }` replaces it (sanitized; one `DeviceChange::Kind`, one undo step); live
   nodes take it through `EngineBridge::update_builtin` → `Node::set_data`. Its presets
-  carry the curve in `Preset::kind`.
+  carry the curve in `Preset::kind`. Then `NoteBlocker` (`midi-fx`, no kind data): drops
+  every note-on (and the note-offs / per-note expressions of the notes it dropped); param 0
+  `Block Everything` (toggle, default off) drops every other MIDI message too. Note-offs of
+  notes it never saw and `AllNotesOff` pass; the engine's `AllNotesOff` on a MIDI-effect
+  change or switch releases what was held (`ether_devices::midi_fx`).
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.
