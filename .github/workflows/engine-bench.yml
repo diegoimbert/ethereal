@@ -65,7 +65,7 @@ jobs:
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Build
         shell: bash
-        run: cargo test --release -p ether-native --test it engine_bench:: --no-run
+        run: cargo test --release -p ether-native --test it "engine_bench::" --no-run
       - name: Bench, normal-priority workers
         shell: bash
         env:
