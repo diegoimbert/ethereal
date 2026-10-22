@@ -8,6 +8,12 @@ name: EE sync
 #   - the `ee/pointer` status on OSS PRs.
 # `feat push` and `feat ship` do the same for their own PR; this catches everything else.
 #
+# One run watches for an hour (scripts/ci/ee-sync-watch.mjs: `git ls-remote` of both repositories
+# every 20 s, a sync when a branch moves) and then starts the next run: GitHub's schedule fires
+# only every few hours in practice, so it is just the fallback that restarts the chain.
+# Cancelling a run stops the chain until the schedule fires; `gh workflow disable ee-sync.yml`
+# stops it all.
+#
 # Runs main's code only (schedule, manual): never pull-request code. Needs the ETHER_BOT_TOKEN
 # secret (write to this repository, read the private one); without it, nothing runs. Its output
 # names private branches and PRs, so it goes to the encrypted full log like the full build's.
@@ -15,9 +21,15 @@ on:
   schedule:
     - cron: "*/10 * * * *"
   workflow_dispatch:
+    inputs:
+      minutes:
+        description: Minutes to watch for changes (0 = one sync, and no next run)
+        required: false
+        default: "55"
 
 permissions:
   contents: read
+  actions: write # start the next run
 
 concurrency:
   group: ee-sync
@@ -27,7 +39,7 @@ jobs:
   sync:
     # Runner: repository variable SYNC_RUNNER (JSON), GitHub-hosted by default.
     runs-on: ${{ fromJSON(vars.SYNC_RUNNER || '"ubuntu-latest"') }}
-    timeout-minutes: 15
+    timeout-minutes: 75
     steps:
       - id: gate
         env:
@@ -50,10 +62,11 @@ jobs:
           FEAT_EE_TOKEN: ${{ secrets.ETHER_BOT_TOKEN }}
           FEAT_OSS_REPO: ${{ github.repository }}
           FEAT_EE_REPO: diegoimbert/ethereal-private
+          WATCH_MINUTES: ${{ inputs.minutes || '55' }}
         run: |
           git config user.name "ethereal-bot"
           git config user.email "ethereal-bot@users.noreply.github.com"
-          node scripts/ci/private-step.mjs sync -- node scripts/feat.mjs sync --ci
+          node scripts/ci/ee-sync-watch.mjs
       - name: ee/ (for the log recipients)
         if: always() && steps.gate.outputs.bot == 'true'
         env:
@@ -68,3 +81,8 @@ jobs:
         if: always() && steps.gate.outputs.bot == 'true'
         with:
           name: full-logs-sync
+      - name: Next run
+        if: ${{ !cancelled() && steps.gate.outputs.bot == 'true' && (inputs.minutes || '55') != '0' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run ee-sync.yml --ref main -R "${{ github.repository }}"
