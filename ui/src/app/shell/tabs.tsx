@@ -1,6 +1,7 @@
 import { History, Library, SlidersHorizontal, Sparkles } from "lucide-react";
 import type { ReactNode } from "react";
 import { AutomationLanes } from "@/features/automation";
+import { EditedClipControllerLanes } from "@/features/expression";
 import { PianoRoll } from "@/features/piano-roll";
 import { WarpEditor } from "@/features/warp";
 import { contributions, type LeftTabContribution } from "@/ext";
@@ -39,5 +40,9 @@ export function railTabs(contributed: ReadonlyArray<LeftTabContribution> = contr
 export const DRAWER_TABS: ReadonlyArray<{ id: DrawerTab; label: MessageKey; render: () => ReactNode }> = [
   { id: "piano-roll", label: "shell.tab.piano_roll", render: () => <PianoRoll /> },
   { id: "warp", label: "shell.tab.warp", render: () => <WarpEditor /> },
-  { id: "automation", label: "shell.tab.automation", render: () => <AutomationLanes /> },
+  {
+    id: "automation",
+    label: "shell.tab.automation",
+    render: () => <AutomationLanes clipLanes={(view, headerWidth) => <EditedClipControllerLanes view={view} headerWidth={headerWidth} />} />,
+  },
 ];

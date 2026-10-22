@@ -66,3 +66,83 @@
 .eth-expr-note--selected {
   fill: var(--eth-color-selection);
 }
+
+/* The open clip's controller lanes in the automation tab (ClipControllerLanes). */
+.eth-expr-clip {
+  display: flex;
+  flex-direction: column;
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+  border-bottom: var(--eth-border-width) solid var(--eth-color-border);
+  user-select: none;
+}
+
+.eth-expr-clip__bar,
+.eth-expr-clip__row {
+  display: flex;
+  flex: none;
+}
+
+.eth-expr-clip__row {
+  border-top: var(--eth-border-width) solid var(--eth-color-border);
+}
+
+.eth-expr-clip__head {
+  flex: none;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+  padding: var(--eth-space-xs) var(--eth-space-xs) var(--eth-space-xs) var(--eth-space-md);
+  /* Clip-owned data: the clip accent on the left edge, apart from the track's automation. */
+  border-left: var(--eth-border-width-strong) solid var(--eth-color-accent);
+}
+
+.eth-expr-clip__title {
+  flex: none;
+  color: var(--eth-color-text);
+}
+
+.eth-expr-clip__clip,
+.eth-expr-clip__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.eth-expr-clip__name {
+  color: var(--eth-color-text);
+  font-size: var(--eth-fs-sm);
+}
+
+.eth-expr-clip__tools {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+}
+
+.eth-expr-clip__empty {
+  font-style: italic;
+}
+
+.eth-expr-clip__lane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.eth-expr-clip__outside {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--eth-color-bg);
+  opacity: 0.6;
+  pointer-events: none;
+}
