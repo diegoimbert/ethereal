@@ -96,9 +96,7 @@ export function TransportDock() {
             aria-label={t("mobile.transport.record")}
             active={recording}
             className="eth-mdock__btn eth-mdock__record"
-            title={
-              noRecording ? unsupportedTooltip() : loading ? t("error.project.loading") : render ? t("error.render.running") : undefined
-            }
+            title={noRecording ? unsupportedTooltip() : loading ? t("error.project.loading") : render ? t("error.render.running") : undefined}
             disabled={disabled || noRecording || loading || (!!render && !recording)}
             onClick={() => void send(cmd("Recording", { type: "SetRecording", enabled: !recording }))}
           >

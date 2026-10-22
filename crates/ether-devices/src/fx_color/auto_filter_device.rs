@@ -40,7 +40,7 @@ use super::auto_filter as ids;
 use super::oversample::{self, LATENCY_4X, Stage1, Stage2};
 use super::shared::{FixedDelay, Values, db, flush, glide, hash_bipolar};
 use crate::contract::SYNC_RATE_BEATS;
-use crate::util::{split_at_events, tau_coef};
+use crate::util::{LateEvents, Route, tau_coef};
 
 const SIDECHAIN_CHANNELS: usize = 2;
 /// Octaves of cutoff movement at `Envelope Amount` ±100 %.
@@ -298,6 +298,9 @@ pub struct AutoFilter {
     common: Option<((u32, u32, bool), Coefs)>,
     /// Silence reporting.
     tail: crate::util::Tail,
+    /// Mix and output act on the filtered signal, [`LATENCY_4X`] samples into the path;
+    /// the filter's params where it sees the input (after the up-sampling filters).
+    late: LateEvents,
 }
 
 /// Control-rate chunk (samples) of the cutoff modulation.
@@ -316,6 +319,7 @@ impl AutoFilter {
         let z = || Smoother::new(0.0, 0.0, 48_000.0);
         let mut s = Self {
             tail: crate::util::Tail::default(),
+            late: LateEvents::new(),
             g: [0.0; 2],
             g_step: [0.0; 2],
             g_primed: false,
@@ -660,10 +664,18 @@ impl AutoFilter {
             self.g_primed = false;
             self.ctl_left = 0;
         }
-        split_at_events(
+        LateEvents::split(
             self,
-            ctx.events,
-            frames,
+            |s| &mut s.late,
+            ctx,
+            |kind| match kind {
+                EventKind::Param {
+                    param: ids::MIX | ids::OUTPUT,
+                    ..
+                } => Route::Late(LATENCY_4X),
+                EventKind::Param { .. } => Route::Late(oversample::UP_DELAY_4X),
+                _ => Route::Now,
+            },
             |s, a, b| s.render(transport, audio, sidechain, a, b),
             |s, kind| {
                 if let EventKind::Param { param, value } = *kind {
@@ -679,6 +691,7 @@ impl AutoFilter {
         // glide or type fade is in flight.
         let settled = self.env <= 1e-6
             && self.fade_left == 0
+            && self.late.is_idle()
             && ![
                 &self.cutoff,
                 &self.res,
@@ -711,10 +724,16 @@ impl Node for AutoFilter {
     fn prepare(&mut self, config: &PrepareConfig) {
         self.sample_rate = config.sample_rate.max(1.0);
         self.sync_all();
+        self.late.prepare(LATENCY_4X, config);
         self.reset();
     }
 
     fn reset(&mut self) {
+        LateEvents::flush(self, |s| &mut s.late, |s, kind| {
+            if let EventKind::Param { param, value } = *kind {
+                s.set(param, value, false);
+            }
+        });
         self.ch = [FilterState::default(); 2];
         for c in 0..2 {
             self.os1[c].reset();
@@ -761,10 +780,11 @@ impl Device for AutoFilter {
     }
 
     fn param(&self, id: ParamId) -> Option<f64> {
-        self.values.get(id)
+        self.late.readback(id, self.values.get(id))
     }
 
     fn set_param(&mut self, id: ParamId, value: f64) {
+        self.late.cancel(id);
         self.set(id, value, false);
     }
 }

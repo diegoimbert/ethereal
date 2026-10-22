@@ -30,7 +30,7 @@ use super::shared::{
     GainRamp, Params, SIDECHAIN_CHANNELS, Svf, SvfCoefs, level_at_least, samples, usable_sidechain,
 };
 use crate::dsp::delay_line::{DelayLine, LookaheadTap};
-use crate::util::{self, amp_to_db, db_to_amp, split_at_events};
+use crate::util::{self, LateEvents, Route, amp_to_db, db_to_amp};
 
 /// `Floor` at (or below) this is full silence.
 const FLOOR_OFF_DB: f32 = -80.0;
@@ -62,6 +62,9 @@ pub struct Gate {
     meter_peak: f32,
     /// Silence reporting.
     tail: util::Tail,
+    /// With lookahead the gain meets the audio `lookahead` samples into the line: every
+    /// param but the lookahead itself waits that long.
+    late: LateEvents,
 }
 
 impl Default for Gate {
@@ -88,6 +91,7 @@ impl Gate {
             meter_db: 0.0,
             meter_peak: 0.0,
             tail: util::Tail::default(),
+            late: LateEvents::new(),
         };
         g.alloc(48_000.0);
         g
@@ -289,10 +293,18 @@ impl Gate {
     ) -> ProcessStatus {
         let frames = ctx.frames;
         let sidechain = usable_sidechain(sidechain, frames);
-        split_at_events(
+        let lookahead = self.lookahead.len();
+        LateEvents::split(
             self,
-            ctx.events,
-            frames,
+            |s| &mut s.late,
+            ctx,
+            |kind| match kind {
+                EventKind::Param {
+                    param: p::LOOKAHEAD,
+                    ..
+                } => Route::Now,
+                _ => Route::Late(lookahead),
+            },
             |s, a, b| s.render(audio, sidechain, a, b),
             |s, kind| {
                 if let EventKind::Param { param, value } = *kind {
@@ -306,6 +318,7 @@ impl Gate {
         let settled = self.hold_left == 0
             && self.gr_db == self.silence_reduction()
             && !self.output.is_smoothing()
+            && self.late.is_idle()
             && util::all_zero(sidechain, frames);
         let hold =
             self.lookahead.len() + 1 + util::samples(util::BASE_HOLD_SECONDS, self.sample_rate);
@@ -337,10 +350,16 @@ impl Gate {
 impl Node for Gate {
     fn prepare(&mut self, config: &PrepareConfig) {
         self.alloc(config.sample_rate);
+        self.late.prepare(self.delay[0].max_delay(), config);
         self.reset();
     }
 
     fn reset(&mut self) {
+        LateEvents::flush(self, |s| &mut s.late, |s, kind| {
+            if let EventKind::Param { param, value } = *kind {
+                s.apply_param(param, value, false);
+            }
+        });
         self.hpf_state = [Svf::default(); SIDECHAIN_CHANNELS];
         for d in &mut self.delay {
             d.clear();
@@ -399,10 +418,11 @@ impl Device for Gate {
     }
 
     fn param(&self, id: ParamId) -> Option<f64> {
-        self.params.plain(id)
+        self.late.readback(id, self.params.plain(id))
     }
 
     fn set_param(&mut self, id: ParamId, value: f64) {
+        self.late.cancel(id);
         self.apply_param(id, value, false);
     }
 }

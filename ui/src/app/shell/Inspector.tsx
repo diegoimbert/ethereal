@@ -29,6 +29,7 @@ import {
 import { dbToFader, faderToDb } from "@/features/arrangement/faderLaw";
 import { defaultOutputLabel, outputTargets, outputValue, parseOutputValue } from "./outputRouting";
 import { GroupsRoutingRows } from "@/features/groups";
+import { FormantFields } from "@/features/warp/FormantFields";
 import { MpeSettingsFields } from "@/features/mpe";
 import { IconButton, Knob, NumberField, Popover, Select, TextInput, Toggle } from "@/kit";
 import { useProjectStore, defaultClipName, defaultTrackName, tracksOrdered } from "@/state";
@@ -77,9 +78,9 @@ function Section({ title, children, className }: { title?: ReactNode; children: 
   );
 }
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
+function Row({ label, title, children }: { label: string; title?: string; children: ReactNode }) {
   return (
-    <div className="eth-inspector__row">
+    <div className="eth-inspector__row" title={title}>
       <span className="eth-inspector__label">{label}</span>
       <div className="eth-inspector__control">{children}</div>
     </div>
@@ -363,9 +364,11 @@ function ManyAudioClipsSection({ clips }: { clips: ReadonlyArray<Clip> }) {
           options={[
             { value: "Repitch", label: t("shell.inspector.repitch") },
             { value: "Complex", label: t("shell.inspector.complex") },
+            { value: "ComplexPlus", label: t("shell.inspector.complex_plus") },
           ]}
         />
       </Row>
+      {mode === "ComplexPlus" && warped && <FormantFields targets={audio} row={formantRow} />}
     </Section>
   );
 }
@@ -499,9 +502,11 @@ function ClipInspector({ clip }: { clip: Clip }) {
               options={[
                 { value: "Repitch", label: t("shell.inspector.repitch") },
                 { value: "Complex", label: t("shell.inspector.complex") },
+                { value: "ComplexPlus", label: t("shell.inspector.complex_plus") },
               ]}
             />
           </Row>
+          {audio.warp.enabled && audio.warp.mode === "ComplexPlus" && <FormantFields targets={[{ clip, audio }]} row={formantRow} />}
         </Section>
       )}
 
@@ -798,5 +803,14 @@ function SendKnob({ track, ret, send, sender }: { track: Track; ret: Track; send
         {pre ? t("shell.inspector.pre") : t("shell.inspector.post")}
       </button>
     </div>
+  );
+}
+
+/** An inspector row for one of Complex+'s formant fields (`FormantFields`). */
+function formantRow(key: string, label: string, title: string, field: ReactNode) {
+  return (
+    <Row key={key} label={label} title={title}>
+      {field}
+    </Row>
   );
 }

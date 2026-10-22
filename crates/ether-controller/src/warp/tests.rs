@@ -185,6 +185,7 @@ const OFF: WarpSettings = WarpSettings {
     enabled: false,
     mode: WarpMode::Complex,
     source_bpm: None,
+    formants: WarpFormants::DEFAULT,
 };
 
 fn on(mode: WarpMode, source_bpm: Option<f64>) -> WarpSettings {
@@ -192,6 +193,7 @@ fn on(mode: WarpMode, source_bpm: Option<f64>) -> WarpSettings {
         enabled: true,
         mode,
         source_bpm,
+        formants: WarpFormants::DEFAULT,
     }
 }
 
@@ -224,6 +226,7 @@ fn source_bpm_alone_gives_the_slope() {
         Some(WarpDesc {
             mode: WarpMode::Repitch,
             markers: vec![(0.0, 0.0), (1.0, 0.6)],
+            formants: WarpFormants::DEFAULT,
         })
     );
     // One marker: the slope goes through it.
@@ -542,4 +545,33 @@ fn moving_a_middle_marker_only_retimes_between_its_neighbours() {
     assert_eq!(f.markers()[0], (-3.0, 0.0));
     f.move_marker(ids[0], 7.0, 0.0);
     assert_eq!(f.markers()[0], (4.0 - MARKER_MIN_GAP, 0.0));
+}
+
+/// Complex+'s formant settings: stored clamped to their ranges, refused when not numbers,
+/// and handed to the engine with the warp.
+#[test]
+fn formant_settings_are_clamped_and_reach_the_engine() {
+    let mut f = fixture(4.0, OFF);
+    let mut warp = on(WarpMode::ComplexPlus, Some(120.0));
+    warp.formants = WarpFormants {
+        amount: 1.5,
+        shift: -30.0,
+        envelope: 4.0,
+    };
+    f.set_warp(warp);
+    let want = WarpFormants {
+        amount: 1.0,
+        shift: -WarpFormants::SHIFT_MAX,
+        envelope: WarpFormants::ENVELOPE_MIN,
+    };
+    assert_eq!(f.warp().formants, want);
+    assert_eq!(f.warp().mode, WarpMode::ComplexPlus);
+    let desc = f.desc().expect("warped");
+    assert_eq!((desc.mode, desc.formants), (WarpMode::ComplexPlus, want));
+
+    warp.formants.amount = f32::NAN;
+    let clip = f.clip;
+    let err = f.run(WarpCommand::SetWarp { clip, warp });
+    assert!(err.is_err(), "NaN formants are refused");
+    assert_eq!(f.warp().formants, want);
 }

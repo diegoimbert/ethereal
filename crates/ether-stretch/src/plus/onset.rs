@@ -188,7 +188,7 @@ impl OnsetDetector {
             let (lo, hi) = (self.edges[b], self.edges[b + 1]);
             let mut sum = 0.0;
             for k in lo..hi {
-                let l = (1.0 + GAMMA * self.spec[k].norm() * norm).ln();
+                let l = fast_ln(1.0 + GAMMA * self.spec[k].norm_sqr().sqrt() * norm);
                 sum += (l - self.prev_log[k]).max(0.0);
                 self.prev_log[k] = l;
             }
@@ -288,8 +288,28 @@ impl OnsetDetector {
     }
 }
 
+/// `ln(x)` for `x >= 1`, within 2e-4 (a flux needs no more): exponent from the float's
+/// bits, mantissa by a short polynomial.
+#[inline]
+fn fast_ln(x: f32) -> f32 {
+    let bits = x.to_bits();
+    let e = ((bits >> 23) & 0xff) as i32 - 127;
+    let m = f32::from_bits((bits & 0x007f_ffff) | 0x3f80_0000); // in [1, 2)
+    // ln(m) on [1, 2): least-squares quartic in (m - 1), within 1.4e-4.
+    let t = m - 1.0;
+    let ln_m = t * (0.997_123_7 + t * (-0.470_003_4 + t * (0.224_309_7 - t * 0.058_413_7)));
+    e as f32 * std::f32::consts::LN_2 + ln_m
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn fast_ln_is_close() {
+        for x in [1.0f32, 1.3, 2.0, 7.7, 100.0, 12345.0] {
+            assert!((super::fast_ln(x) - x.ln()).abs() < 5e-4, "{x}");
+        }
+    }
+
     use super::*;
 
     const SR: f32 = 48_000.0;

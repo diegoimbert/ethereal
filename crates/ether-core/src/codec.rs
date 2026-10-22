@@ -21,7 +21,8 @@
 use ether_protocol::devices::ParamScale;
 use ether_protocol::model::{
     AutomationTarget, ClipId, CurveShape, DeviceId, DrumPadId, FadeCurve, InputTap, MediaId,
-    MetronomeSound, ParamId, SendId, TempoCurve, TimeSignature, TrackId, TrackKind, Ulid, WarpMode,
+    MetronomeSound, ParamId, SendId, TempoCurve, TimeSignature, TrackId, TrackKind, Ulid,
+    WarpFormants, WarpMode,
 };
 
 use crate::graph::{
@@ -90,8 +91,9 @@ impl BinaryCodec {
     /// clip envelopes of audio clips' gain and transposition (`ClipContentDesc::Audio::
     /// {gain_envelope, transpose_envelope}`, `AutomationTarget::{ClipGain, ClipTranspose}`).
     /// 6 = `MacroDesc::first` (drum rack macros follow its volume and pan). 7 = 16 macros
-    /// per rack (`MacroDesc::values` of 16, `MacroDesc::upper`).
-    pub const VERSION: u8 = 7;
+    /// per rack (`MacroDesc::values` of 16, `MacroDesc::upper`). 8 = `WarpMode::ComplexPlus`
+    /// and `WarpDesc::formants`.
+    pub const VERSION: u8 = 8;
 }
 
 /// v0.2 fields of a [`TrackDesc`] still outside the binary layout. Encoded as
@@ -573,15 +575,28 @@ impl Writer<'_> {
                 self.f64(*fade_in);
                 self.f64(*fade_out);
                 self.opt(warp, |w, warp| {
-                    let WarpDesc { mode, markers } = warp;
+                    let WarpDesc {
+                        mode,
+                        markers,
+                        formants,
+                    } = warp;
                     w.u8(match mode {
                         WarpMode::Repitch => 0,
                         WarpMode::Complex => 1,
+                        WarpMode::ComplexPlus => 2,
                     });
                     w.vec(markers, |w, &(a, b)| {
                         w.f64(a);
                         w.f64(b);
                     });
+                    let WarpFormants {
+                        amount,
+                        shift,
+                        envelope,
+                    } = formants;
+                    w.f32(*amount);
+                    w.f32(*shift);
+                    w.f32(*envelope);
                 });
                 self.fade(*fade_in_curve);
                 self.fade(*fade_out_curve);
@@ -1129,11 +1144,17 @@ impl Reader<'_> {
                     fade_out: self.f64()?,
                     warp: self.opt(|r| {
                         Ok(WarpDesc {
-                            mode: match r.tag(2, "warp mode")? {
+                            mode: match r.tag(3, "warp mode")? {
                                 0 => WarpMode::Repitch,
-                                _ => WarpMode::Complex,
+                                1 => WarpMode::Complex,
+                                _ => WarpMode::ComplexPlus,
                             },
                             markers: r.vec(min_size::MARKER, |r| Ok((r.f64()?, r.f64()?)))?,
+                            formants: WarpFormants {
+                                amount: r.f32()?,
+                                shift: r.f32()?,
+                                envelope: r.f32()?,
+                            },
                         })
                     })?,
                     fade_in_curve: self.fade()?,

@@ -41,7 +41,7 @@ use super::pedal as ids;
 use super::shared::{FixedDelay, Values, db, flush, glide};
 use crate::dsp::adaa::ln_cosh;
 use crate::dsp::svf::{Coefs, Shape, Svf};
-use crate::util::split_at_events;
+use crate::util::{LateEvents, Route, untag};
 
 /// Reported latency (samples): the 4x round trip.
 pub const LATENCY: usize = LATENCY_4X;
@@ -334,6 +334,14 @@ pub struct Pedal {
     ch: [Channel; 2],
     /// Silence reporting.
     tail: crate::util::Tail,
+    /// The params as the output stage sees them (`values` is the clipper's view): the
+    /// level trim follows the gain of the audio it multiplies, [`LATENCY`] samples after
+    /// it reaches the input.
+    out_values: Values<{ ids::COUNT }>,
+    /// The trim, tone stack, output and mix act on the clipped signal, [`LATENCY`]
+    /// samples into the path; the gain drives the clipper where it sees the input (after
+    /// the up-sampling filters). The type switch dips the whole wet path: at once.
+    late: LateEvents,
 }
 
 impl Default for Pedal {
@@ -347,6 +355,8 @@ impl Pedal {
     pub fn new() -> Self {
         let desc = descriptor();
         let mut s = Self {
+            out_values: Values::new(&desc),
+            late: LateEvents::new(),
             values: Values::new(&desc),
             sample_rate: 48_000.0,
             circuit: Circuit {
@@ -434,10 +444,12 @@ impl Pedal {
         Kind::from_index(self.values.index(ids::TYPE))
     }
 
-    /// Drive and trim for the current `Gain` and `kind`.
+    /// Drive and trim for the current `Gain` (as the clipper and the output stage see
+    /// it) and `kind`.
     fn drive_targets(&self, kind: Kind) -> (f32, f32) {
         let g = db(kind.drive_db(self.values.f(ids::GAIN) * 0.01));
-        (g, level_trim(kind, f64::from(g)))
+        let out = db(kind.drive_db(self.out_values.f(ids::GAIN) * 0.01));
+        (g, level_trim(kind, f64::from(out)))
     }
 
     fn eq_targets(&self) -> [Coefs; 4] {
@@ -486,11 +498,8 @@ impl Pedal {
                 }
             }
             ids::GAIN => {
-                let k = self.pending.unwrap_or(self.circuit.kind);
-                let (d, t) = self.drive_targets(k);
-                glide(&mut self.drive, d, smooth);
-                glide(&mut self.trim, t, smooth);
-                glide(&mut self.gain, self.values.f(ids::GAIN) * 0.01, smooth);
+                self.apply_drive(smooth);
+                self.apply_trim(smooth);
             }
             ids::BASS | ids::MID | ids::MID_FREQ | ids::TREBLE | ids::SUB => {
                 self.eq_target = self.eq_targets();
@@ -513,9 +522,60 @@ impl Pedal {
         }
     }
 
+    /// The clipper's part of a gain change (`values` updated).
+    fn apply_drive(&mut self, smooth: bool) {
+        let k = self.pending.unwrap_or(self.circuit.kind);
+        let (d, _) = self.drive_targets(k);
+        glide(&mut self.drive, d, smooth);
+        glide(&mut self.gain, self.values.f(ids::GAIN) * 0.01, smooth);
+    }
+
+    /// The trim's part (`out_values` updated).
+    fn apply_trim(&mut self, smooth: bool) {
+        let k = self.pending.unwrap_or(self.circuit.kind);
+        let (_, t) = self.drive_targets(k);
+        glide(&mut self.trim, t, smooth);
+    }
+
     fn set(&mut self, id: ParamId, value: f64, smooth: bool) {
-        if self.values.set(id, value) {
+        let clipper = self.values.set(id, value);
+        if self.out_values.set(id, value) || clipper {
             self.apply(id, smooth);
+        }
+    }
+
+    /// A param event as [`LateEvents`] delivers it (see [`Self::route`]).
+    fn on_event(&mut self, kind: &EventKind) {
+        let EventKind::Param { param, value } = *kind else {
+            return;
+        };
+        match untag(param) {
+            (id, true) => {
+                if self.out_values.set(id, value) {
+                    self.apply_trim(true);
+                }
+            }
+            (ids::GAIN, false) => {
+                if self.values.set(ids::GAIN, value) {
+                    self.apply_drive(true);
+                }
+            }
+            (id, false) => self.set(id, value, true),
+        }
+    }
+
+    /// Where each param acts (see `late`).
+    fn route(kind: &EventKind) -> Route {
+        match kind {
+            EventKind::Param { param, .. } => match *param {
+                ids::GAIN => Route::Split {
+                    early: oversample::UP_DELAY_4X,
+                    late: LATENCY,
+                },
+                ids::TYPE => Route::Now,
+                _ => Route::Late(LATENCY),
+            },
+            _ => Route::Now,
         }
     }
 
@@ -642,10 +702,22 @@ impl Node for Pedal {
     fn prepare(&mut self, config: &PrepareConfig) {
         self.sample_rate = config.sample_rate.max(1.0);
         self.sync_all();
+        self.late.prepare(LATENCY, config);
         self.reset();
     }
 
     fn reset(&mut self) {
+        LateEvents::flush(self, |s| &mut s.late, |s, kind| {
+            if let EventKind::Param { param, value } = *kind {
+                let (id, out) = untag(param);
+                if out {
+                    s.out_values.set(id, value);
+                    s.apply_trim(false);
+                } else {
+                    s.set(id, value, false);
+                }
+            }
+        });
         for c in &mut self.ch {
             c.reset();
         }
@@ -656,20 +728,18 @@ impl Node for Pedal {
         ctx: &mut ProcessContext<'_>,
         audio: &mut AudioBuffers<'_, '_>,
     ) -> ProcessStatus {
-        split_at_events(
+        LateEvents::split(
             self,
-            ctx.events,
-            ctx.frames,
+            |s| &mut s.late,
+            ctx,
+            Self::route,
             |s, a, b| s.render(audio, a, b),
-            |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
-                    s.set(param, value, true);
-                }
-            },
+            Self::on_event,
         );
         // Silence in gives silence out (every curve passes through 0); the fuzz envelope's
         // bias moves the DC blocker's input only while it releases.
         let settled = self.pending.is_none()
+            && self.late.is_idle()
             && self.hold == 0
             && !self.eq_gliding
             && self.ch.iter().all(|c| c.env < 1e-4)
@@ -698,10 +768,11 @@ impl Device for Pedal {
     }
 
     fn param(&self, id: ParamId) -> Option<f64> {
-        self.values.get(id)
+        self.late.readback(id, self.values.get(id))
     }
 
     fn set_param(&mut self, id: ParamId, value: f64) {
+        self.late.cancel(id);
         self.set(id, value, false);
     }
 }

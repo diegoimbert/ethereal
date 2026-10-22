@@ -92,14 +92,18 @@ async function main() {
         if (runs.some((r) => r.head_sha === sha)) break;
         await sleep(5000);
       }
-      // When the running runs' first jobs started (a run waiting in the group has none yet).
-      for (const r of runs.filter((r) => r.status === "in_progress")) {
+      // When the unfinished runs' first jobs started (a run waiting in the group has none yet;
+      // a running one can read "queued" while its next jobs wait for runners).
+      for (const r of runs.filter((r) => r.status !== "completed")) {
         try {
           const starts = api(`repos/${repo}/actions/runs/${r.id}/jobs?per_page=100`)
-            .jobs.map((j) => Date.parse(j.started_at))
+            .jobs.map((j) => Date.parse(j.started_at ?? ""))
             .filter((t) => t > 0);
           if (starts.length) r.first_job_at = new Date(Math.min(...starts)).toISOString();
-        } catch {} // no start time: judged as just started
+        } catch (e) {
+          console.log(`${w.name}: run ${r.id}: no job times (${String(e.stderr ?? e).trim()}); judged as just started`);
+        }
+        console.log(`${w.name}: run ${r.id} ${r.status}, first job ${r.first_job_at ?? "not started"}`);
       }
       const d = decide(runs, Date.now());
       console.log(`${w.name}: ${d.cancel.length ? `cancel ${d.cancel.map((r) => r.id).join(", ")}, ` : ""}${d.reason}`);

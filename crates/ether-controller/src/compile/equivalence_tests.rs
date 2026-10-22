@@ -201,6 +201,7 @@ impl Gen {
                     enabled: self.r.chance(60),
                     mode: WarpMode::Complex,
                     source_bpm: self.r.chance(50).then_some(100.0),
+                    formants: Default::default(),
                 },
                 fade_in_curve: FadeCurve::Linear,
                 fade_out_curve: FadeCurve::EqualPower,

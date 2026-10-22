@@ -518,12 +518,17 @@ impl NativeHost {
             tracing::info!(workers = pool.workers(), "audio worker pool started");
             parts.engine.set_executor(Box::new(pool));
         }
-        // Complex warp (feature `warp-complex`); without a stretcher Complex clips play
-        // Repitch (as on the web).
+        // Complex and Complex+ warp (feature `warp-complex`); without a stretcher those clips
+        // play Repitch.
         #[cfg(feature = "warp-complex")]
-        parts
-            .handle
-            .set_stretcher_factory(Arc::new(ether_stretch::SignalsmithFactory::default()));
+        {
+            parts
+                .handle
+                .set_stretcher_factory(Arc::new(ether_stretch::SignalsmithFactory::default()));
+            parts
+                .handle
+                .set_plus_stretcher_factory(Arc::new(ether_stretch::PlusStretchFactory));
+        }
         let shared = Arc::new(AudioShared::default());
         shared
             .recording

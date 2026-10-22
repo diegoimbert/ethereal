@@ -423,6 +423,7 @@ fn audio_clip(r: &mut Rng, id: u128, complex: bool) -> ClipDesc {
             warp: complex.then(|| WarpDesc {
                 mode: WarpMode::Complex,
                 markers: vec![(0.0, 0.0), (8.0, 3.0)],
+                formants: Default::default(),
             }),
             fade_in_curve: FadeCurve::default(),
             fade_out_curve: FadeCurve::default(),

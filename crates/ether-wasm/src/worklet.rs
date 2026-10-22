@@ -113,9 +113,10 @@ pub mod tap_clock {
     pub const LEN: usize = 14;
 }
 
-/// Most stretcher voices on the web (feature `warp-complex`): every voice runs on the one
-/// AudioWorklet thread (~31 µs per 128-frame stereo block in V8, ~1.2% of the quantum),
-/// so Complex clips beyond this play Repitch.
+/// Most stretcher voices on the web (feature `warp-complex`, Complex and Complex+ together):
+/// every voice runs on the one AudioWorklet thread (per 128-frame stereo block in V8:
+/// Complex ~31 µs, ~1.2% of the quantum; Complex+ ~50–60 µs, ~2%, `stretch.bench.test.ts`),
+/// so clips beyond this play Repitch.
 pub const WEB_STRETCH_VOICES: usize = 12;
 
 /// Engine config for the web: one render quantum per `process`, stereo out, no inputs yet.
@@ -216,8 +217,9 @@ impl<M: RingMemory> EngineHost<M> {
         let config = web_engine_config(sample_rate);
         let latency = LatencyTracker::new(sample_rate, RENDER_QUANTUM, config.max_nodes);
         let mut parts = ether_core::create(config);
-        // Complex warp (feature `warp-complex`): the pure-Rust Signalsmith Stretch with the
-        // web preset; without it Complex clips play Repitch.
+        // Complex and Complex+ warp (feature `warp-complex`): the pure-Rust Signalsmith
+        // Stretch with the web preset, and Complex+; without them those clips play Repitch.
+        // The voice limit covers both.
         #[cfg(feature = "warp-complex")]
         {
             parts
@@ -225,6 +227,9 @@ impl<M: RingMemory> EngineHost<M> {
                 .set_stretcher_factory(Arc::new(ether_stretch::RustStretchFactory {
                     preset: ether_stretch::RustPreset::Web,
                 }));
+            parts
+                .handle
+                .set_plus_stretcher_factory(Arc::new(ether_stretch::PlusStretchFactory));
             parts.handle.set_stretch_voice_limit(WEB_STRETCH_VOICES);
         }
         let (tap_writer, tap) = stream_tap_ring(TAP_RING_FRAMES);
