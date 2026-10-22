@@ -62,6 +62,11 @@ impl LoadState {
         self.current.is_some()
     }
 
+    /// The load holds the engine suspended (it hasn't resumed it yet).
+    pub fn suspends(&self) -> bool {
+        self.current.as_ref().is_some_and(|l| l.resumed.is_none())
+    }
+
     /// The progress of the load in progress.
     pub fn progress(&self) -> Option<LoadProgress> {
         self.current.as_ref().map(|l| l.progress)
@@ -102,12 +107,12 @@ where
         if self.transport.playing {
             let _ = self.stop();
         }
-        let _ = self.bridge.set_suspended(true);
         self.loading.current = Some(Load {
             media_total: 0,
             progress: LoadProgress::default(),
             resumed: None,
         });
+        self.sync_suspension();
     }
 
     /// Refuse `command` while a project loads (play, stop, record).
@@ -162,7 +167,6 @@ where
             || self.engine.off
             || (!self.engine.plugins_pending() && !self.engine.graph_dirty && pending_media == 0);
         if ready {
-            let _ = self.bridge.set_suspended(false);
             let clock_seen = self.loading.clock_seen;
             let load = self.loading.current.as_mut().expect("checked");
             // Only plugins prime (built-in devices have no costly first block).
@@ -171,6 +175,8 @@ where
             } else {
                 self.loading.current = None;
             }
+            // Resumed, unless a render holds it (`rendering`).
+            self.sync_suspension();
         }
         self.emit_transport_if_changed(out);
     }

@@ -13,6 +13,8 @@
 use std::collections::{BTreeSet, VecDeque};
 
 use ether_core::RenderGraphDesc;
+use ether_core::render_preview::{MAX_PREVIEW_FRAMES, PreviewSpec};
+use ether_core::tempo::TempoMapRt;
 use ether_core::protocol::export::{
     AudioContainer, ExportDownload, ExportFormat, ExportJobId, ExportMode, ExportRange,
     ExportRequest,
@@ -21,7 +23,7 @@ use ether_core::protocol::model::*;
 use ether_media::resampled_len;
 
 use super::encode::{self, Encoder, PeakScan, Sink, normalize_gain};
-use super::offline::{Capture, MediaLoader, NodeSetup, tempo_rt};
+use super::offline::{Capture, MediaLoader, NodeSetup, tempo_points, tempo_rt};
 use crate::EngineBridge;
 use crate::engine::EngineState;
 use crate::media::StreamResampler;
@@ -265,6 +267,13 @@ pub struct Job {
     /// User-facing warnings not reported yet.
     pub warnings: Vec<crate::text::Msg>,
     pub stats: UnitStats,
+    /// The render's tempo map (the render preview's beats).
+    tempo: TempoMapRt,
+    /// Render preview (CONTRACTS.md §13.19): frames of the first render's master given to
+    /// `EngineBridge::push_render_preview` so far; `None` when not previewing.
+    preview: Option<usize>,
+    /// The master block for the preview when no output of the run takes it.
+    preview_block: Vec<Vec<f32>>,
 }
 
 /// `name` made safe as a single, visible file-name segment.
@@ -481,7 +490,48 @@ impl Job {
             delivered: Vec::new(),
             warnings: Vec::new(),
             stats: UnitStats::default(),
+            tempo,
+            preview: None,
+            preview_block: vec![Vec::new(); CHANNELS],
         }
+    }
+
+    /// The render preview of this job (CONTRACTS.md §13.19): its first render's master,
+    /// when that render is the project's (the mix, or stems captured from it). `None` when
+    /// every file has a pass of its own (stems that need one): nothing to preview.
+    pub fn preview_spec(&self) -> Option<PreviewSpec> {
+        self.runs.first().filter(|r| r.full)?;
+        Some(PreviewSpec {
+            rate: self.engine_rate,
+            start_seconds: self.tempo.beats_to_seconds(self.start.0),
+            frames: self.frames + self.tail,
+            tempo: tempo_points(&self.project),
+        })
+    }
+
+    /// Feed the render preview from now on (the bridge took [`Job::preview_spec`]).
+    pub fn start_preview(&mut self) {
+        self.preview = Some(0);
+    }
+
+    /// The timeline the render covers, in beats: start, end (with the tail).
+    pub fn timeline(&self) -> (Beats, Beats) {
+        (self.start, self.beats_after(self.frames + self.tail))
+    }
+
+    /// How far the preview plays: the beat after its last frame (the start before the
+    /// first one; capped by what the preview can hold).
+    pub fn preview_until(&self) -> Beats {
+        let frames = self.preview.unwrap_or(0).min(MAX_PREVIEW_FRAMES);
+        self.beats_after(frames)
+    }
+
+    fn beats_after(&self, frames: usize) -> Beats {
+        let s0 = self.tempo.beats_to_seconds(self.start.0);
+        Beats(
+            self.tempo
+                .seconds_to_beats(s0 + frames as f64 / f64::from(self.engine_rate.max(1))),
+        )
     }
 
     /// Share of a run's progress that is the render (the rest: normalizing).
@@ -582,6 +632,24 @@ impl Job {
                         self.work.extend(
                             (0..out.chains.len()).map(|chain| Work::Feed { output: o, chain }),
                         );
+                    }
+                }
+                // The first render's master also plays as the render preview.
+                if let Some(pushed) = self.preview.as_mut()
+                    && self.run == 0
+                {
+                    let block = match self.outputs.iter().find(|o| o.track.is_none()) {
+                        Some(o) => &o.block,
+                        None => {
+                            r.drain_main(&mut self.preview_block);
+                            &self.preview_block
+                        }
+                    };
+                    if let [l, right] = &block[..]
+                        && !l.is_empty()
+                    {
+                        bridge.push_render_preview(l, right);
+                        *pushed += l.len();
                     }
                 }
                 if !done {
@@ -836,7 +904,9 @@ impl Job {
             capture
         } else {
             let tracks: Vec<TrackId> = run.stems.iter().map(|s| s.1).collect();
-            capture.with_stems(&tracks, run.main.is_some())
+            // The preview plays the master of a stems-only render too.
+            let preview = self.preview.is_some() && self.run == 0;
+            capture.with_stems(&tracks, run.main.is_some() || preview)
         }))
     }
 

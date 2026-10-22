@@ -115,6 +115,9 @@ pub struct NativeBridge {
     dedicated_notes: DedicatedNotes,
     /// Settings: the plugins new instances of which start sandboxed (`set_sandbox_defaults`).
     sandbox_defaults: crate::sandbox_defaults::SandboxDefaults,
+    /// The render preview being written (`EngineBridge::begin_render_preview`): the
+    /// engine reads its buffer while suspended.
+    render_preview: Option<ether_core::render_preview::PreviewWriter>,
 }
 
 /// An extension's part of the native bridge (docs/EXTENSIONS.md): made for every bridge (the
@@ -205,6 +208,7 @@ impl NativeBridge {
             spawned_engines: false,
             dedicated_notes: Default::default(),
             sandbox_defaults: Default::default(),
+            render_preview: None,
             disk_streaming: !std::env::var("ETHER_DISK_STREAMING")
                 .is_ok_and(|v| v == "0" || v == "off"),
         };
@@ -888,6 +892,33 @@ impl EngineBridge for NativeBridge {
     fn set_suspended(&mut self, suspended: bool) -> Result<(), BridgeError> {
         self.handle.set_suspended(suspended);
         Ok(())
+    }
+
+    fn begin_render_preview(
+        &mut self,
+        spec: ether_core::render_preview::PreviewSpec,
+    ) -> Result<(), BridgeError> {
+        // Written here, read by the audio thread (shared memory, no copies through rings).
+        let writer = ether_core::render_preview::PreviewWriter::new(spec);
+        self.handle
+            .set_render_preview(Some(writer.buffer()))
+            .map_err(engine_err)?;
+        self.render_preview = Some(writer);
+        Ok(())
+    }
+
+    fn push_render_preview(&mut self, left: &[f32], right: &[f32]) {
+        if let Some(w) = self.render_preview.as_mut() {
+            w.push(left, right);
+        }
+    }
+
+    fn end_render_preview(&mut self) {
+        if self.render_preview.take().is_some() {
+            // The engine drops its reference off the audio thread (retired); a full queue
+            // leaves the preview until the next one replaces it, harmless once resumed.
+            let _ = self.handle.set_render_preview(None);
+        }
     }
 
     fn transport(&mut self, control: TransportControl) -> Result<(), BridgeError> {

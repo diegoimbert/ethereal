@@ -2,6 +2,7 @@
 import type { BeatRange } from "./BeatRange";
 import type { Beats } from "./Beats";
 import type { LoadProgress } from "./LoadProgress";
+import type { RenderingState } from "./RenderingState";
 import type { TimeSignature } from "./TimeSignature";
 
 /**
@@ -22,4 +23,12 @@ start_position: Beats,
  * `error.project.loading` until it is ready. The project can be explored and edited
  * meanwhile; edits are heard once the load ends. Absent once loaded.
  */
-loading?: LoadProgress, };
+loading?: LoadProgress, 
+/**
+ * A render runs (an audio export, stems, a share snapshot; CONTRACTS.md §13.19): the
+ * live engine is suspended and the transport plays the render's master as far as it
+ * is rendered. Play needs a rendered position, `Locate` is clamped to the rendered
+ * part, and record is refused (`error.render.running`). Edits apply to the document
+ * but are heard once the render ends. Absent otherwise.
+ */
+rendering?: RenderingState, };

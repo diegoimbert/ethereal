@@ -48,5 +48,10 @@ test("export the loop region as a WAV download", async ({ page }) => {
   expect(bytes.length).toBeGreaterThan(8 * 44_100 * 4);
   await expect(dialog.getByTestId("export-done")).toContainText("Loop bounce.wav");
   await dialog.getByRole("button", { name: "close" }).click();
+  // The render paused the live engine (CONTRACTS.md §13.19); done, it is back: no render
+  // status, nothing frozen on the timeline, play available.
+  await expect(page.getByTestId("render-preview")).toHaveCount(0);
+  await expect(page.getByTestId("render-frozen")).toHaveCount(0);
+  await expect(playButton(page)).toBeEnabled();
   expect(errors).toEqual([]);
 });

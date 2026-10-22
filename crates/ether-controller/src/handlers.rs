@@ -214,6 +214,8 @@ where
         let command = &msg.command;
         // A project still loading can't play yet (`loading`), whoever asks.
         self.refuse_while_loading(command)?;
+        // A render plays what it rendered so far (`rendering`).
+        self.refuse_while_rendering(command)?;
         // Extensions first (`ext` module): their domains, and app commands they take over.
         if let Some(r) = self.ext_command(command, now, out) {
             return r;
@@ -659,12 +661,12 @@ where
                 if !(position.0.is_finite() && position.0 >= 0.0) {
                     return Err(invalid("position must be >= 0"));
                 }
-                self.engine_transport(TransportControl::Locate {
-                    position: *position,
-                })?;
-                self.transport.position = *position;
+                // While a render runs, only its rendered part plays.
+                let position = self.clamp_to_rendered(*position, out);
+                self.engine_transport(TransportControl::Locate { position })?;
+                self.transport.position = position;
                 if !self.transport.playing {
-                    self.transport.start_position = *position;
+                    self.transport.start_position = position;
                 }
             }
             TransportCommand::TapTempo => self.tap_tempo(now, out)?,
@@ -677,6 +679,7 @@ where
         self.require_engine()?;
         self.engine_transport(TransportControl::Play)?;
         self.transport.playing = true;
+        self.note_play();
         Ok(())
     }
 
@@ -746,8 +749,9 @@ where
             Some(s) => s,
             None => self.own_transport_state()?,
         };
-        // This engine's load, whichever transport is shown.
+        // This engine's load and render, whichever transport is shown.
         state.loading = self.loading.progress();
+        state.rendering = self.rendering.state();
         Some(state)
     }
 
@@ -766,6 +770,7 @@ where
             metronome: p.settings.metronome,
             start_position: self.transport.start_position,
             loading: None,
+            rendering: None,
         })
     }
 
@@ -1243,6 +1248,10 @@ where
             // have reached the audio thread yet).
             if self.transport.last_engine_playing != Some(ph.playing) {
                 if self.transport.last_engine_playing.is_some() {
+                    if self.transport.playing && !ph.playing {
+                        // Stopped by the engine: a render preview reached its end.
+                        self.preview_stopped(out);
+                    }
                     self.transport.playing = ph.playing;
                 }
                 self.transport.last_engine_playing = Some(ph.playing);
@@ -1260,6 +1269,8 @@ where
                 out.send(ServerMessage::Playhead(PlayheadFrame { transport: frame }));
             }
         }
+        self.outputs.playhead = outputs.playhead;
+        self.watch_preview_stop(out);
         if !outputs.meters.is_empty() {
             out.send(ServerMessage::Meters(MeterFrame {
                 tracks: outputs.meters.clone(),

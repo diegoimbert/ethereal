@@ -16,6 +16,7 @@ import {
   itemSelection,
   marqueeHits,
   PlayheadLine,
+  RenderFrozenLayer,
   pxToBeats,
   resolveGrid,
   selectModeFromEvent,
@@ -586,6 +587,8 @@ function ConnectedArrangementView() {
             <TrackDropLine />
             <div className="eth-arr__overlay" style={{ left: headerWidth }}>
               <TimeSelectionLayer rows={rows} view={view} headerWidth={0} />
+              {/* A render runs: past its rendered part (and before its start) is frozen. */}
+              <RenderFrozenLayer view={view} />
               <PlayheadLine view={view} />
               {/* The mobile UI: trim handles of the selected clips, the time range's handles. */}
               <ClipHandles rows={rows} />
@@ -614,6 +617,7 @@ function ConnectedArrangementView() {
             </div>
             <TrackRow row={masterRow} />
             <div className="eth-arr__overlay" style={{ left: headerWidth }}>
+              <RenderFrozenLayer view={view} />
               <PlayheadLine view={view} />
             </div>
           </div>

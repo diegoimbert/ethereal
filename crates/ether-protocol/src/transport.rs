@@ -64,6 +64,31 @@ pub struct TransportState {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub loading: Option<LoadProgress>,
+    /// A render runs (an audio export, stems, a share snapshot; CONTRACTS.md §13.19): the
+    /// live engine is suspended and the transport plays the render's master as far as it
+    /// is rendered. Play needs a rendered position, `Locate` is clamped to the rendered
+    /// part, and record is refused (`error.render.running`). Edits apply to the document
+    /// but are heard once the render ends. Absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub rendering: Option<RenderingState>,
+}
+
+/// The render in progress ([`TransportState::rendering`]).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct RenderingState {
+    /// The render's timeline, `start..end` (beats; `end` includes the tail).
+    pub start: Beats,
+    pub end: Beats,
+    /// The part that plays: `start..until`, rendered so far (`start` before the first
+    /// block, `end` once all of it is in). Nothing plays past it yet.
+    pub until: Beats,
+    /// Progress of the whole job, 0..=1 (every pass and the encoding).
+    pub progress: f32,
+    /// The transport plays the render's master. `false` when the render has none to play
+    /// (stems that each need a pass of their own, an engine that can't preview): the
+    /// whole timeline stays unavailable until the render ends.
+    pub preview: bool,
 }
 
 /// How far the open project's load is ([`TransportState::loading`]).

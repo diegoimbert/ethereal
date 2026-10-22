@@ -55,6 +55,7 @@ pub mod param;
 pub mod period;
 pub mod plugin;
 pub mod preview;
+pub mod render_preview;
 pub mod rack_chains;
 pub mod recording;
 mod sched;

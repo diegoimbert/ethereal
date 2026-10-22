@@ -114,7 +114,7 @@ struct Download {
 /// The running job and finished downloads.
 #[derive(Default)]
 pub struct ExportState {
-    job: Option<Box<Job>>,
+    pub(crate) job: Option<Box<Job>>,
     downloads: BTreeMap<String, Download>,
     last_progress: Option<f32>,
     /// Unit sizes of the last job (tests/diagnostics).
@@ -261,11 +261,14 @@ where
                     end,
                     passes,
                 )));
+                // The live engine is suspended and plays the render (`rendering`).
+                self.begin_render();
                 Ok(ReplyValue::ExportStarted { job: job.clone() })
             }
             ExportCommand::Cancel { job } => {
                 if self.export.job.as_ref().is_some_and(|j| &j.id == job) {
                     self.export.job = None;
+                    self.end_render();
                     export_event(out, ExportEvent::Cancelled { job: job.clone() });
                 }
                 Ok(ReplyValue::Unit)
@@ -309,6 +312,17 @@ where
 
     /// Called from every tick: steps the running job, emits `Event::Export`.
     pub fn export_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+        self.step_export(now, out);
+        // A job that ended (or was dropped) resumes the engine; a running one reports
+        // how far it is.
+        if self.export.job.is_none() {
+            self.end_render();
+        } else {
+            self.render_progress();
+        }
+    }
+
+    fn step_export(&mut self, now: u64, out: &mut dyn MessageSink) {
         let current = self.doc.as_ref().map(|d| d.project.id);
         // Closing/switching the project drops its downloads and stops its job.
         self.export

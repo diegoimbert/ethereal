@@ -38,6 +38,8 @@ pub enum Call {
     Suspend(bool),
     /// A state loaded into a running plugin instance in place (`set_plugin_state`).
     SetPluginState(DeviceId, Base64Bytes),
+    /// `begin_render_preview` (`true`) / `end_render_preview` (`false`).
+    RenderPreview(bool),
 }
 
 #[derive(Default)]
@@ -83,6 +85,11 @@ pub struct FakeBridge {
     pub recording: Option<FakeRecording>,
     /// The host's "sandboxed by default" list (`sandbox_by_default`).
     pub sandbox_defaults: Vec<(PluginFormat, String)>,
+    /// `begin_render_preview` says `Unsupported` (an engine that can't preview).
+    pub no_render_preview: bool,
+    /// The render preview begun last, and the frames pushed to it since (planar).
+    pub preview: Option<ether_core::render_preview::PreviewSpec>,
+    pub preview_audio: [Vec<f32>; 2],
 }
 
 /// A fake capture host: what `poll_recording` hands out next and what `stop_recording`
@@ -275,6 +282,28 @@ impl EngineBridge for FakeBridge {
     fn set_suspended(&mut self, suspended: bool) -> Result<(), BridgeError> {
         self.calls.push(Call::Suspend(suspended));
         Ok(())
+    }
+
+    fn begin_render_preview(
+        &mut self,
+        spec: ether_core::render_preview::PreviewSpec,
+    ) -> Result<(), BridgeError> {
+        if self.no_render_preview {
+            return Err(BridgeError::Unsupported("render preview".into()));
+        }
+        self.calls.push(Call::RenderPreview(true));
+        self.preview = Some(spec);
+        self.preview_audio = Default::default();
+        Ok(())
+    }
+
+    fn push_render_preview(&mut self, left: &[f32], right: &[f32]) {
+        self.preview_audio[0].extend_from_slice(left);
+        self.preview_audio[1].extend_from_slice(right);
+    }
+
+    fn end_render_preview(&mut self) {
+        self.calls.push(Call::RenderPreview(false));
     }
 
     fn poll(&mut self, out: &mut EngineOutputs) {

@@ -668,6 +668,7 @@ export interface MessageArgs {
   "shell.transport.loading_media": { done: string | number; total: string | number };
   "shell.transport.loading_plugins": { done: string | number; total: string | number };
   "shell.transport.play_key": { key: string | number };
+  "shell.transport.rendering": { percent: string | number };
   "shell.transport.stop_key": { key: string | number };
   "sidechain.source_label": { name: string | number };
   "sidechain.source_loop": { name: string | number };
