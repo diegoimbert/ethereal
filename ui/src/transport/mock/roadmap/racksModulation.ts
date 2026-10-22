@@ -58,6 +58,8 @@ import {
 } from "./shared";
 
 const SELECTOR_PARAM = 8;
+/** `ether_model::DEVICE_ENABLED_PARAM`: a mapping to the device's on/off switch. */
+const DEVICE_ENABLED_PARAM = 0xffff_ffff;
 const MACROS = 8;
 const FULL: Zone = { lo: 0, hi: 127 };
 export { MAX_RACK_DEPTH };
@@ -186,7 +188,8 @@ function checkScope(ctx: ReducerContext, source: ModSource, target: Device, para
     if (!(Number.isInteger(source.index) && source.index >= 0 && source.index < MACROS)) fail("InvalidArgument", "macro index must be < 8");
     rack(ctx, source.rack);
     const inside = inRack(ctx, target, source.rack);
-    const own = target.id === source.rack && param >= SELECTOR_PARAM;
+    // Never the rack's own switch.
+    const own = target.id === source.rack && param >= SELECTOR_PARAM && param !== DEVICE_ENABLED_PARAM;
     if (!inside && !own) fail("InvalidArgument", "a macro can only target devices inside its rack or the rack's own params");
   }
 }
@@ -464,7 +467,7 @@ export function modulationCommand(ctx: ReducerContext, c: ModulationCommand): vo
       if (tx.get("ModMapping", c.id)) return;
       if (!Number.isFinite(c.depth)) fail("InvalidArgument", "depth must be finite");
       const target = device(ctx, c.device);
-      if (target.kind.type === "Builtin") {
+      if (target.kind.type === "Builtin" && c.param !== DEVICE_ENABLED_PARAM) {
         const info = builtinDescriptor(target.kind.device).params.find((p) => p.id === c.param) ?? fail("NotFound", `param ${c.param}`);
         if (!info.automatable) fail("InvalidArgument", `"${info.name}" cannot be modulated`);
       }

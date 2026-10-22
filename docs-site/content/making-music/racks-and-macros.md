@@ -69,6 +69,8 @@ To map a macro:
 
 One macro can drive many parameters, each with its own depth. For example, one "brightness" macro can open a filter and add some drive at the same time. A macro can also drive the rack's own chain selector. Macros can be automated and mapped to a MIDI controller like any knob.
 
+A macro can also **switch a device on and off**: drop it on the device's power button (or right-click the button and choose **assign to macro**). An on device turns off when the macro passes the middle, an off one turns on; right-click the coloured dot by the button to invert or remove it. The button shows the device's live state. Modulators can switch their own device the same way.
+
 ## rack presets
 
 Saving a preset on a rack (with its **presets** button) stores the whole rack: its chains, their devices and settings, its modulators and macro mappings. Loading it rebuilds all of that, as one undo step. This is how you keep a layered sound or an effect chain for other projects.

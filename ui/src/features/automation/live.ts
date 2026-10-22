@@ -20,6 +20,8 @@ import { useCallback, useSyncExternalStore } from "react";
 import type { AutomationTarget, Clip, DeviceId, Project, TrackId } from "@/generated";
 import { compareOrderKeys, playheadStore, pointsOfLane, useProjectStore } from "@/state";
 import { contentBeatAt } from "@/features/arrangement/clipTime";
+import { DEVICE_ENABLED_PARAM } from "@/features/modulation/model";
+import { useModulatedValue } from "@/features/modulation/readback";
 import { evaluatePoints, type CurvePoint } from "./curve";
 import { targetKey } from "./params";
 
@@ -142,13 +144,19 @@ const subscribeBoth = (listener: () => void): (() => void) => {
 };
 
 /**
- * Whether `device` runs now: its "Device On" automation at the playhead when automated
- * (the engine switches it per block, overriding the document's switch), else
- * `device.enabled`.
+ * Whether `device` runs now: when a macro or modulator switches it (`modulated`), the
+ * engine's live switch state (modulation readback); else its "Device On" automation at the
+ * playhead when automated (the engine switches it per block, overriding the document's
+ * switch), else `device.enabled`.
  */
-export function useDeviceOn(device: { id: DeviceId; enabled: boolean }): { on: boolean; automated: boolean } {
+export function useDeviceOn(device: { id: DeviceId; enabled: boolean }): { on: boolean; automated: boolean; modulated: boolean } {
   const live = useLiveAutomation({ type: "DeviceEnabled", device: device.id });
-  return live === null ? { on: device.enabled, automated: false } : { on: live >= 0.5, automated: true };
+  const modulated = useProjectStore(
+    (s) => !!s.project && Object.values(s.project.mod_mappings).some((m) => m.device === device.id && m.param === DEVICE_ENABLED_PARAM),
+  );
+  const switched = useModulatedValue(device.id, DEVICE_ENABLED_PARAM, modulated);
+  const base = live === null ? device.enabled : live >= 0.5;
+  return { on: switched === null ? base : switched >= 0.5, automated: live !== null, modulated };
 }
 
 /**

@@ -23,7 +23,19 @@ import { useT } from "@/i18n";
 import { clamp01, openContextMenu, useVerticalDrag } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd, newId } from "@/transport";
-import { DEFAULT_DEPTH, MACROS, MOD_DRAG_TYPE, canTarget, isChainRack, mappingsOf, sourceName, sourceSlot, useModMapping } from "./model";
+import {
+  DEFAULT_DEPTH,
+  DEVICE_ENABLED_PARAM,
+  MACROS,
+  MOD_DRAG_TYPE,
+  canTarget,
+  isChainRack,
+  mappingsOf,
+  sourceName,
+  sourceSlot,
+  switchDepth,
+  useModMapping,
+} from "./model";
 import { useModulatedValue } from "./readback";
 import "./modulation.css";
 
@@ -53,6 +65,7 @@ function arc(from: number, to: number): string {
 }
 
 export function ParamModulation({ device, info, normalized }: ParamModulationProps) {
+  const t = useT();
   // Narrow subscriptions: this renders inside every param widget, so it must not re-render
   // them all on every patch (only when this param's mappings or device change).
   const table = useProjectStore((s) => s.project?.mod_mappings);
@@ -70,7 +83,7 @@ export function ParamModulation({ device, info, normalized }: ParamModulationPro
       <span className="eth-param__mod" aria-hidden="true" />
       {mappings.length > 0 && <Rings mappings={mappings} normalized={normalized} live={live} param={info.name} />}
       {isMacro && <MacroHandle rack={real.id} index={info.id} name={info.name} />}
-      {target && mapping && <DropTarget source={mapping} device={real} info={info} />}
+      {target && mapping && <DropTarget source={mapping} device={real} param={info.id} label={t("modulation.target.modulate", { name: info.name })} />}
     </>
   );
 }
@@ -164,13 +177,60 @@ function DepthChip({ mapping: m, name, slot, param }: { mapping: ModMapping; nam
   );
 }
 
-/** The highlighted drop target over a param while a source is being mapped. */
-function DropTarget({ source, device, info }: { source: ModSource; device: Device; info: ParamInfo }) {
+/**
+ * The modulation decoration of a device's on/off button (`DEVICE_ENABLED_PARAM`): a dot per
+ * source switching it (its colour; right-click to invert or remove), and the drop target
+ * while a source that may switch it is being mapped. The button itself shows the switch's
+ * live state (`useDeviceOn`).
+ */
+export function SwitchModulation({ device }: { device: Device }) {
   const t = useT();
   const send = useSend();
+  const table = useProjectStore((s) => s.project?.mod_mappings);
+  const project = useProjectStore((s) => s.project);
+  const mappings = useMemo(() => mappingsOf(table, device.id, DEVICE_ENABLED_PARAM), [table, device.id]);
+  const mapping = useModMapping((s) => s.source);
+  const target = useProjectStore((s) => mapping !== null && !!s.project && canTarget(s.project, mapping, device, DEVICE_ENABLED_PARAM));
+  if (!project) return null;
+  return (
+    <>
+      {mappings.length > 0 && (
+        <span className="eth-mod-switch" data-testid="mod-switch">
+          {mappings.map((m) => {
+            const name = sourceName(project, m.source);
+            return (
+              <span
+                key={m.id}
+                className={clsx("eth-mod-switch__dot", `eth-mod--slot-${sourceSlot(project, m.source)}`)}
+                role="img"
+                aria-label={t("modulation.switch.dot", { name })}
+                title={t("modulation.switch.dot", { name })}
+                onContextMenu={(e) =>
+                  openContextMenu(e, [
+                    { label: t("modulation.chip.invert"), onSelect: () => void send(cmd("Modulation", { type: "SetDepth", id: m.id, depth: -m.depth })) },
+                    "separator",
+                    { label: t("modulation.chip.remove", { name }), danger: true, onSelect: () => void send(cmd("Modulation", { type: "Unmap", id: m.id })) },
+                  ])
+                }
+              />
+            );
+          })}
+        </span>
+      )}
+      {target && mapping && (
+        <DropTarget source={mapping} device={device} param={DEVICE_ENABLED_PARAM} label={t("modulation.target.switch", { name: device.name })} />
+      )}
+    </>
+  );
+}
+
+/** The highlighted drop target over a param (or a device's switch) while a source is being mapped. */
+function DropTarget({ source, device, param, label }: { source: ModSource; device: Device; param: number; label: string }) {
+  const send = useSend();
   const stop = useModMapping((s) => s.stop);
+  const depth = param === DEVICE_ENABLED_PARAM ? switchDepth(device) : DEFAULT_DEPTH;
   const map = (keep: boolean) => {
-    void send(cmd("Modulation", { type: "Map", id: newId(), source, device: device.id, param: info.id, depth: DEFAULT_DEPTH }));
+    void send(cmd("Modulation", { type: "Map", id: newId(), source, device: device.id, param, depth }));
     if (!keep) stop();
   };
   const accepts = (e: DragEvent) => e.dataTransfer.types.includes(MOD_DRAG_TYPE);
@@ -178,7 +238,7 @@ function DropTarget({ source, device, info }: { source: ModSource; device: Devic
     <button
       type="button"
       className="eth-mod-target"
-      aria-label={t("modulation.target.modulate", { name: info.name })}
+      aria-label={label}
       data-testid="mod-target"
       onClick={(e) => {
         e.stopPropagation();
