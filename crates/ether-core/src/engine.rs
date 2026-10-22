@@ -20,7 +20,9 @@
 //!    (audio rendered, MIDI notes scheduled sample-accurately) → automation → device chain →
 //!    pre-fader sends → fader/pan → sidechain tap → mute/solo gate → post-fader sends →
 //!    meter → PDC-aligned output in the track's own buffers. Then master goes to the
-//!    hardware.
+//!    hardware. With anticipative processing ([`crate::anticipation`]) the tracks not
+//!    listened to live render the next block in the same pass, and the real-time side
+//!    renders the sub-blocks they planned one block earlier.
 //! 4. Publish playhead; every ~33 ms push meter readings.
 
 use std::sync::Arc;

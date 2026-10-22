@@ -30,6 +30,9 @@ on:
       anticip:
         description: ETHER_BENCH_ANTICIP (anticipative processing off/on, comma list)
         default: "0"
+      workers:
+        description: ETHER_BENCH_WORKERS (comma list; empty = 0,1,3,7 below the physical cores)
+        default: ""
 
 permissions:
   contents: read
@@ -55,6 +58,7 @@ jobs:
       ETHER_BENCH_SECONDS: ${{ inputs.seconds }}
       ETHER_BENCH_HOGS: ${{ inputs.hogs }}
       ETHER_BENCH_ANTICIP: ${{ inputs.anticip }}
+      ETHER_BENCH_WORKERS: ${{ inputs.workers }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

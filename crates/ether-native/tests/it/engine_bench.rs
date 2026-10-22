@@ -783,7 +783,8 @@ impl Drop for Hogs {
 }
 
 fn env_list<T: std::str::FromStr>(name: &str) -> Option<Vec<T>> {
-    let v = std::env::var(name).ok()?;
+    // Unset or empty: the default.
+    let v = std::env::var(name).ok().filter(|v| !v.trim().is_empty())?;
     Some(v.split(',').filter_map(|s| s.trim().parse().ok()).collect())
 }
 
