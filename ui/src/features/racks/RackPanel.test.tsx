@@ -285,6 +285,29 @@ describe("RackPanel", () => {
     expect(offered).not.toContain("audio effect rack");
   });
 
+  it("a param inside a rack: its context menu assigns it to one of the rack's macros", async () => {
+    await rackWithSynth();
+    const delay = await openWindow("delay");
+    const param = delay.querySelector<HTMLElement>("[data-param]")!;
+    fireEvent.contextMenu(param);
+    const items = useContextMenuStore.getState().menu!.items;
+    const assign = items.find((i) => i !== "separator" && i.label === "assign to macro");
+    if (!assign || assign === "separator" || !assign.submenu) throw new Error("no assign to macro submenu");
+    const macro3 = assign.submenu.find((i) => i !== "separator" && i.label === "macro 3");
+    if (!macro3 || macro3 === "separator") throw new Error("no macro 3");
+    act(() => macro3.onSelect());
+    await flush();
+    const maps = Object.values(store().project!.mod_mappings);
+    expect(maps).toHaveLength(1);
+    expect(maps[0]!.source).toMatchObject({ type: "Macro", index: 2 });
+    expect(maps[0]!.param).toBe(Number(param.dataset.param));
+    // Assigned: that macro is disabled next time.
+    fireEvent.contextMenu(param);
+    const again = useContextMenuStore.getState().menu!.items.find((i) => i !== "separator" && i.label === "assign to macro");
+    const sub = again !== undefined && again !== "separator" ? again.submenu! : [];
+    expect(sub.find((i) => i !== "separator" && i.label === "macro 3")).toMatchObject({ disabled: true });
+  });
+
   it("uses macros as sources", async () => {
     await rackWithSynth();
     const delay = await openWindow("delay");

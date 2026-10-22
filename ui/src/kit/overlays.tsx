@@ -13,10 +13,10 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { ChevronRight, X } from "lucide-react";
 import { useT } from "@/i18n";
 import { IconButton } from "./IconButton";
-import { disabledProps, menuKeyDown, useFocusFirstItem } from "./menuKeyboard";
+import { disabledProps, menuItems, menuKeyDown, useFocusFirstItem } from "./menuKeyboard";
 import { fitPlacement, type Fit, type Placement } from "./placement";
 import type { StatusTone } from "./variants";
 
@@ -213,10 +213,72 @@ export type MenuEntry =
       reason?: string;
       /** The label is user content (a track, device, file name…): keeps its case (`eth-user-text`). */
       userText?: boolean;
+      /**
+       * A submenu: the item opens these entries at its side (hover, a click, →; ← or Escape
+       * closes it) instead of running `onSelect`.
+       */
+      submenu?: ReadonlyArray<MenuEntry>;
     }
   | { separator: true; id: string };
 
+/** An item with a submenu: the entries open at its side, inside the menu's element (so a
+ * press in them is a press in the menu). */
+function SubmenuItem({ it, close }: { it: Extract<MenuEntry, { onSelect: () => void }>; close: () => void }) {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
+  // At the item's right, or its left when the window ends first.
+  useLayoutEffect(() => {
+    const el = panel.current;
+    if (!open || !el) return;
+    el.classList.toggle("eth-menu__subpanel--left", el.getBoundingClientRect().right > window.innerWidth);
+  }, [open]);
+  const show = (focus: boolean) => {
+    setOpen(true);
+    if (focus) requestAnimationFrame(() => menuItems(panel.current?.querySelector<HTMLElement>('[role="menu"]') ?? null)[0]?.focus());
+  };
+  return (
+    <div className="eth-menu__sub" onMouseEnter={() => !it.disabled && show(false)} onMouseLeave={() => setOpen(false)}>
+      <button
+        ref={button}
+        type="button"
+        role="menuitem"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={clsx("eth-menu__item", open && "eth-menu__item--open")}
+        {...disabledProps(it.disabled, it.reason)}
+        onClick={() => !it.disabled && show(true)}
+        onKeyDown={(e) => {
+          if (e.key !== "ArrowRight" || it.disabled) return;
+          e.preventDefault();
+          e.stopPropagation();
+          show(true);
+        }}
+      >
+        <span className={clsx("eth-menu__label", it.userText && "eth-user-text")}>{it.label}</span>
+        <ChevronRight className="eth-menu__chevron" aria-hidden />
+      </button>
+      {open && (
+        <div
+          ref={panel}
+          className="eth-popover eth-popover--menu eth-menu__subpanel"
+          onKeyDown={(e) => {
+            if (e.key !== "ArrowLeft" && e.key !== "Escape") return;
+            e.preventDefault();
+            e.stopPropagation();
+            setOpen(false);
+            button.current?.focus();
+          }}
+        >
+          <MenuList items={it.submenu ?? []} close={close} label={typeof it.label === "string" ? it.label : undefined} focusFirst={false} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MenuItemButton({ it, close }: { it: Extract<MenuEntry, { onSelect: () => void }>; close: () => void }) {
+  if (it.submenu) return <SubmenuItem it={it} close={close} />;
   return (
     <button
       type="button"
@@ -246,10 +308,23 @@ export interface MenuProps {
   "aria-label"?: string;
 }
 
+const NO_FOCUS = { current: null };
+
 /** The items of a menu (keyboard: ↑/↓ move focus); used by `Menu` and the context menu. */
-export function MenuList({ items, close, label }: { items: ReadonlyArray<MenuEntry>; close: () => void; label?: string }) {
+export function MenuList({
+  items,
+  close,
+  label,
+  focusFirst = true,
+}: {
+  items: ReadonlyArray<MenuEntry>;
+  close: () => void;
+  label?: string;
+  /** Focus the first item on mount (a submenu opened by hover doesn't take the focus). */
+  focusFirst?: boolean;
+}) {
   const ref = useRef<HTMLDivElement>(null);
-  useFocusFirstItem(ref);
+  useFocusFirstItem(focusFirst ? ref : NO_FOCUS);
   return (
     // eslint-disable-next-line jsx-a11y/interactive-supports-focus -- a menu: focus is on its items (roving, menuKeyDown)
     <div ref={ref} className="eth-menu" role="menu" aria-label={label} onKeyDown={(e) => menuKeyDown(e, ref.current)}>

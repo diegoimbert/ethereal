@@ -1,5 +1,6 @@
 import "./arrangement.css";
-import { rulerMenuEntries, surfaceMenuEntries } from "@/ext/surfaces";
+import { surfaceMenuEntries } from "@/ext/surfaces";
+import { timelineMenuExtras } from "@/features/clip-editing/timelineMenu";
 import { useContributions } from "@/ext";
 import { AmbientBlobs, Button, openContextMenu, setDragCursor, useThemeColor } from "@/kit";
 import { useProjectScreen } from "@/features/project/screenStore";
@@ -46,7 +47,7 @@ import { importMidiFile, isMidiName } from "@/features/midi-file/importMidi";
 import { sourceName } from "@/features/import/sources";
 import { ArrangementContext, type ArrangementContextValue } from "./context";
 import { clipDragActive, MODIFIER_KEYS } from "./dragGuard";
-import { clipRects, DROP_AREA_HEIGHT, HEADER_WIDTH, layoutRows, rowIndexAt, rowsHeight, type Row } from "./layout";
+import { clipRects, DROP_AREA_HEIGHT, HEADER_WIDTH, layoutRows, maxTrackDepth, rowIndexAt, rowsHeight, type Row } from "./layout";
 import { useLaneAnimation } from "./laneAnimation";
 import { PeakCache } from "./peaks";
 import { Toolbar } from "./Toolbar";
@@ -119,6 +120,9 @@ function ConnectedArrangementView() {
   });
 
   const tracks = useTracksOrdered();
+  // The header column widens to fit the deepest group nesting (each level shifts right).
+  const depth = useMemo(() => maxTrackDepth(tracks), [tracks]);
+  useEffect(() => useArrangementUi.getState().setHeaderDepth(depth), [depth]);
   const folded = useArrangementUi((s) => s.folded);
   const heights = useArrangementUi((s) => s.heights);
   const defaultHeight = useArrangementUi((s) => s.defaultHeight);
@@ -313,7 +317,8 @@ function ConnectedArrangementView() {
    * Pointer press in the tracks (capture, so clips' own handlers can't hide it). On a clip it
    * shows that clip in the editor drawer and the inspector, each as a bar unless already
    * expanded (a click never expands a pane: a double-click expands the drawer). Anywhere else it collapses the drawer, and on the lanes'
-   * empty space the inspector too (a track header expands it: TrackRow); pinned, each stays.
+   * empty space the inspector too (a track header expands it: TrackRow), unless it shows that
+   * row's track already; pinned, each stays.
    */
   const onTracksPointerDownCapture = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -331,7 +336,10 @@ function ConnectedArrangementView() {
     const shell = useShellStore.getState();
     if (!clip) {
       dismissOnRelease();
-      if (inTracks && x >= hw && !shell.right.pinned) shell.setCollapsed("right", true);
+      // Empty space of the track the inspector already shows (expanded): it stays open.
+      const row = rowsRef.current[rowIndexAt(rowsRef.current, y)];
+      const showing = !!row && row.track.id === useArrangementUi.getState().trackFocus && shell.right.open && !shell.right.collapsed;
+      if (inTracks && x >= hw && !shell.right.pinned && !showing) shell.setCollapsed("right", true);
       return;
     }
     // The clip gets selected: an inspector not showing yet appears as its bar (a click never
@@ -509,7 +517,8 @@ function ConnectedArrangementView() {
             view={view}
             grid={grid}
             className="eth-arr__ruler"
-            menuItems={rulerMenuEntries}
+            // After its tempo entries, the marker band's (one timeline menu on both).
+            menuItems={(at) => timelineMenuExtras(transport, at)}
           />
         </div>
         <div className="eth-arr__scroll" ref={scrollRef} onPointerDownCapture={onTracksPointerDownCapture}>

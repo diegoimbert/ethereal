@@ -21,14 +21,14 @@ import { useContributions } from "@/ext";
 import "./deviceLibrary.css";
 import clsx from "clsx";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
-import { AudioWaveform, FolderCog, Music2, Piano, Plug, Search, Star, X } from "lucide-react";
+import { AudioWaveform, FolderCog, Music2, Piano, Plug, Star } from "lucide-react";
 import type { DeviceCategory, DeviceDescriptor, PluginDescriptor, PluginFormat } from "@/generated";
 import { openSettings } from "@/features/audio-settings/store";
 import { isOffered } from "./chainUtils";
 import { fetchBuiltinTypes } from "./descriptors";
 import { FORMAT_LABEL, FORMAT_ORDER, platformFormats, pluginKey } from "@/features/plugins/filter";
 import { useOptionalTransport, usePluginEvents, usePluginStore } from "@/features/plugins/pluginStore";
-import { NO_AUTOCORRECT, Badge, Button, IconButton, Select, TextInput, openContextMenu, type SelectOption } from "@/kit";
+import { Badge, Button, IconButton, SearchField, Select, openContextMenu, type SelectOption } from "@/kit";
 import { notify } from "@/features/notifications";
 import { usePluginVisibility, visiblePlugins, type PluginHideRule, type PluginVisibility } from "@/features/plugins/visibility";
 import { cmd } from "@/transport";
@@ -285,26 +285,14 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
   return (
     <div className="eth-devlib" data-feature="device-library">
       <div className="eth-devlib__search">
-        <span className="eth-devlib__field">
-          <Search className="eth-devlib__search-icon" aria-hidden />
-          <TextInput
-            size="sm"
-            type="search"
-            {...NO_AUTOCORRECT}
-            className="eth-devlib__search-input"
-            aria-label={t("devices.library.search", { kind: noun })}
-            placeholder={t("devices.library.search", { kind: noun })}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onSearchKey}
-            autoFocus
-          />
-          {query && (
-            <button type="button" className="eth-devlib__search-clear" aria-label={t("devices.library.clear_search")} onClick={() => setQuery("")}>
-              <X aria-hidden />
-            </button>
-          )}
-        </span>
+        <SearchField
+          className="eth-devlib__field"
+          label={t("devices.library.search", { kind: noun })}
+          value={query}
+          onChange={setQuery}
+          onKeyDown={onSearchKey}
+          autoFocus
+        />
         <Select
           size="sm"
           className="eth-devlib__sort"

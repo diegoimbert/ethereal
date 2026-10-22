@@ -8,13 +8,13 @@
 import "./deviceLibrary.css";
 import clsx from "clsx";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { AudioLines, Search, Volume2, X } from "lucide-react";
+import { AudioLines, Volume2 } from "lucide-react";
 import type { LibraryItem } from "@/generated";
 import { libraryItemPayload, type BrowserDragPayload } from "@/features/browser/dragPayload";
 import { ALL_ROOTS, buildQuery, formatDuration, isFactoryRoot, itemDetail, loadSync } from "@/features/browser/v2/model";
 import { useItemPreview, type PreviewTarget } from "@/features/browser/v2/preview";
 import { useEngineCommands } from "@/features/transport-bar/engine";
-import { NO_AUTOCORRECT, TextInput } from "@/kit";
+import { SearchField } from "@/kit";
 import { cmd } from "@/transport";
 import { useT } from "@/i18n";
 
@@ -108,26 +108,7 @@ export function SamplePicker({ onPick }: { onPick(payload: BrowserDragPayload): 
   return (
     <div className="eth-devlib eth-sample-picker" data-feature="sample-picker">
       <div className="eth-devlib__search">
-        <span className="eth-devlib__field">
-          <Search className="eth-devlib__search-icon" aria-hidden />
-          <TextInput
-            size="sm"
-            type="search"
-            {...NO_AUTOCORRECT}
-            className="eth-devlib__search-input"
-            aria-label={t("devices.samples.search")}
-            placeholder={t("devices.samples.search")}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={onSearchKey}
-            autoFocus
-          />
-          {text && (
-            <button type="button" className="eth-devlib__search-clear" aria-label={t("devices.library.clear_search")} onClick={() => setText("")}>
-              <X aria-hidden />
-            </button>
-          )}
-        </span>
+        <SearchField className="eth-devlib__field" label={t("devices.samples.search")} value={text} onChange={setText} onKeyDown={onSearchKey} autoFocus />
       </div>
       <ul ref={list} className="eth-devlib__list" aria-label={t("devices.samples.list")} aria-busy={!current}>
         {items.map((item) => {

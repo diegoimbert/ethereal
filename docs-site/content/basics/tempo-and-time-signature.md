@@ -43,7 +43,7 @@ To change the meter partway through the song, add a time signature change on the
 
 ## changes during the song
 
-Right-click the ruler where you want a change and choose **add tempo change here** or **add time signature change here**. The changes show as small chips along the bottom edge of the ruler: the tempo ones read like ♩120, the signature ones like 3/4.
+Right-click the ruler (its numbers or the markers band above them: they share one menu, with **add marker here** too) where you want a change and choose **add tempo change here** or **add time signature change here**. The changes show as small chips along the bottom edge of the ruler: the tempo ones read like ♩120, the signature ones like 3/4.
 
 - **Drag** a chip to move it. It snaps to the grid; hold [[key:Alt]] to move it freely.
 - **Right-click** a tempo chip to switch between **ramp to next point** (the tempo glides to the next change) and **hold tempo (no ramp)** (it jumps), or to delete it.

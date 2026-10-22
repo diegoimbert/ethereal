@@ -246,6 +246,27 @@ describe("ProjectMenu", () => {
     await waitFor(() => expect(screen.queryByRole("menu", { name: "project" })).toBeNull());
   });
 
+  it("a project's delete from the submenu's row menu asks in place, the submenu staying open", async () => {
+    await renderWithMock(<ProjectMenu />);
+    fireEvent.click(screen.getByRole("button", { name: "projects" }));
+    const menu = await screen.findByRole("menu", { name: "project" });
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "open project" }));
+    const panel = await screen.findByRole("dialog", { name: "open project" });
+    fireEvent.click(await enabledButton(panel, "more actions for Beat sketch"));
+    // WebKit (the desktop app) doesn't focus a clicked button: nothing in the submenu has focus.
+    (document.activeElement as HTMLElement | null)?.blur();
+    // The pointer goes to the row menu (outside the submenu), then picks delete.
+    fireEvent.mouseLeave(panel.closest(".eth-project-menu__sub")!);
+    const del = useContextMenuStore.getState().menu!.items.find((i) => i !== "separator" && i.label === "delete…");
+    if (!del || del === "separator") throw new Error("no delete item");
+    act(() => {
+      del.onSelect();
+      useContextMenuStore.getState().close();
+    });
+    await act(() => new Promise((r) => setTimeout(r, 300)));
+    expect(within(screen.getByRole("dialog", { name: "open project" })).getByRole("button", { name: "confirm delete Beat sketch" })).toBeTruthy();
+  });
+
   it("closes on Escape", async () => {
     await renderWithMock(<ProjectMenu />);
     const dialog = await openManager();

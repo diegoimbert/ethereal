@@ -78,9 +78,11 @@ pub struct EngineState {
     deferred: BTreeSet<DeviceId>,
     /// Safe mode is on (the project was opened with `OpenSafe`, plugins not loaded yet).
     safe_mode: bool,
-    /// The last sync left plugins to instantiate (its time budget ran out): the graph stays
-    /// dirty so the next tick continues.
-    plugins_pending: bool,
+    /// The plugin devices the last sync left to instantiate (its time budget ran out): the
+    /// graph stays dirty so the next tick continues.
+    plugins_pending: Vec<DeviceId>,
+    /// `plugins_pending` as last reported to the UI (`take_loading_change`).
+    plugins_reported: Vec<DeviceId>,
     pub graph_dirty: bool,
     /// The engine refused the last published graph for lack of capacity (the message for
     /// the user); cleared by the next accepted publish.
@@ -111,6 +113,8 @@ pub struct EngineState {
     pub off: bool,
     /// The project the engine was turned off for (another project opens with the engine on).
     pub off_project: Option<ProjectId>,
+    /// `off` as last told to the UI (`EngineEvent::Running`).
+    pub off_reported: bool,
     /// A joined project that will load with the engine off (`AcceptInvite { engine }`).
     pub off_next: Option<ProjectId>,
     /// The message of the engine's last refusal of a graph (a project over its capacity),
@@ -287,6 +291,16 @@ impl EngineState {
         self.graph_dirty = true;
     }
 
+    /// The plugin devices still to load, when that changed since the last call (what
+    /// `PluginEvent::Loading` reports; empty once all are loaded).
+    pub fn take_loading_change(&mut self) -> Option<Vec<DeviceId>> {
+        if self.plugins_pending == self.plugins_reported {
+            return None;
+        }
+        self.plugins_reported = self.plugins_pending.clone();
+        Some(self.plugins_reported.clone())
+    }
+
     /// Plugin devices instantiated since the last call.
     pub fn take_created_plugins(&mut self) -> Vec<DeviceId> {
         std::mem::take(&mut self.created_plugins)
@@ -328,7 +342,7 @@ impl EngineState {
 
     /// The last sync left plugins to instantiate (the next tick continues).
     pub fn plugins_pending(&self) -> bool {
-        self.plugins_pending
+        !self.plugins_pending.is_empty()
     }
 
     /// Plugin devices held as placeholders (safe mode).
@@ -416,7 +430,7 @@ impl EngineState {
         let mut errors = Vec::new();
         let started = clock();
         let mut out_of_budget = false;
-        self.plugins_pending = false;
+        self.plugins_pending.clear();
         let empty = BTreeMap::new();
         let all = project.map_or(&empty, |p| &p.devices);
         // v0.2: frozen devices get no node (their CPU is saved; the track
@@ -475,7 +489,7 @@ impl EngineState {
                         None => self.failed.get(&device.id) != Some(&sig),
                     };
                 if needs_create {
-                    self.plugins_pending = true;
+                    self.plugins_pending.push(device.id);
                     continue;
                 }
             }
@@ -620,7 +634,7 @@ impl EngineState {
                 self.queue_full_since = None;
                 self.queue_full_told = false;
                 // Plugins left to load: publish again at the next tick.
-                self.graph_dirty = self.plugins_pending;
+                self.graph_dirty = !self.plugins_pending.is_empty();
                 for key in std::mem::take(&mut self.pending_destroy) {
                     let _ = bridge.destroy_node(key);
                 }

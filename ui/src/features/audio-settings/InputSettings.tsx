@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Button, NumberField, Select, Toggle } from "@/kit";
 import {
+  ACCELERATION_MAX,
   PLATFORM,
   SENSITIVITY_MAX,
   SENSITIVITY_MIN,
@@ -41,6 +42,19 @@ export function InputSettings() {
               unit="×"
               size="sm"
               onChange={(zoomSensitivity) => set({ zoomSensitivity })}
+            />
+          </Field>
+          <Field label={t("settings.input.zoom_acceleration")} hint={t("settings.input.zoom_acceleration_hint")}>
+            <NumberField
+              aria-label={t("settings.input.zoom_acceleration")}
+              value={s.zoomAcceleration}
+              min={0}
+              max={ACCELERATION_MAX}
+              step={0.25}
+              precision={2}
+              unit="×"
+              size="sm"
+              onChange={(zoomAcceleration) => set({ zoomAcceleration })}
             />
           </Field>
           <Field label={t("settings.input.scroll_sensitivity")}>
@@ -132,10 +146,12 @@ export function InputSettings() {
 }
 
 /** A labelled row (a plain container: the Select trigger is a button, which a <label> would click twice). */
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <div className="eth-audio-settings__field">
-      <span className="eth-audio-settings__label">{label}</span>
+      <span className="eth-audio-settings__label" title={hint}>
+        {label}
+      </span>
       {children}
     </div>
   );

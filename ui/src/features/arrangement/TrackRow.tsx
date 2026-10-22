@@ -2,10 +2,12 @@ import clsx from "clsx";
 import { surfaceMenuEntries } from "@/ext/surfaces";
 import { useContributions } from "@/ext";
 import { useStore } from "zustand";
-import { memo, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { AudioLines, ChevronDown, Circle, CornerDownRight, Folder, Headphones, Piano, Speaker, SlidersVertical, Spline, Volume2, VolumeX } from "lucide-react";
 import type { Beats, Track, TrackId } from "@/generated";
 import { promptForInputIfNone } from "@/features/audio-settings";
+import { TrackRecordSetup } from "@/features/recording";
+import { TrackPluginLoading } from "@/features/plugins";
 import { animateGroupFold, AutomationToggleButton, TrackAutomationLanes } from "@/features/automation";
 import { groupsTrackMenu, VcaLane } from "@/features/groups";
 import { FreezeHeaderStatus, inertTitle, useFrozenAncestor, withFreezeTrackEntries } from "@/features/freeze";
@@ -37,11 +39,9 @@ import { HeaderVolume } from "./HeaderVolume";
 import { sameTrackExceptVolume } from "./trackEquality";
 import { useTrackDisplayName } from "./trackDisplayName";
 import { onTrackHeaderPointerDown } from "./trackDrag";
-import { mainHeight, TRACK_HEIGHT_STEP, type Row } from "./layout";
+import { HEADER_INDENT_PX, mainHeight, NARROW_HEADER_WIDTH, TRACK_HEIGHT_STEP, type Row } from "./layout";
 import { arrangementView, useArrangementUi, type PendingImport } from "./uiStore";
 import { formatNumber, Trans, useT } from "@/i18n";
-
-const INDENT_PX = 12;
 
 // Rows stack in flow and nothing below reads `y`: rows that only move (automation lanes
 // animating above them) don't re-render.
@@ -94,7 +94,8 @@ function RealTrackRow({ row }: { row: Row }) {
   return (
     <div
       className={clsx("eth-arr-row", row.track.freeze && "eth-arr-row--frozen", inert && "eth-arr-row--inert", selected && "eth-arr-row--selected")}
-      style={{ height: row.height }}
+      // The automation lanes' headers indent and tint like the track's (arrangement.css).
+      style={{ height: row.height, ["--eth-track-depth" as string]: depth, ["--eth-track-color" as string]: colorCss(track.color) }}
       data-track={row.track.id}
     >
       {main}
@@ -220,6 +221,7 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
   const inert = useFrozenAncestor(track.id);
   const folded = useArrangementUi((s) => s.folded.has(track.id));
   const [renaming, setRenaming] = useState(false);
+  const [recordSetup, setRecordSetup] = useState(false);
   // An unnamed MIDI track shows its instrument's name.
   const displayName = useTrackDisplayName(track);
   const { mute, solo } = track.mixer;
@@ -231,6 +233,19 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
   const viewer = useViewer();
   const readOnly = viewer !== null;
   const listenBlocked = listenBlockedReason(viewer, track.id);
+  // Turning compact or back, the buttons change places: for that frame they show or hide at
+  // once (their fade is for hover), never fading out where they were.
+  const [wasCompact, setWasCompact] = useState(compact);
+  const [relayout, setRelayout] = useState(false);
+  if (wasCompact !== compact) {
+    setWasCompact(compact);
+    setRelayout(true);
+  }
+  useEffect(() => {
+    if (!relayout) return;
+    const frame = requestAnimationFrame(() => setRelayout(false));
+    return () => cancelAnimationFrame(frame);
+  }, [relayout]);
 
   return (
     <>
@@ -256,11 +271,13 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
           (dropInto || deviceDrop) && "eth-arr-header--drop-into",
           dropBlocked && "eth-arr-header--drop-blocked",
           compact && "eth-arr-header--compact",
+          headerWidth < NARROW_HEADER_WIDTH && "eth-arr-header--narrow",
           inert && "eth-arr-header--inert",
           `eth-arr-header--${track.kind.toLowerCase()}`,
         )}
         data-clip-selected={clipSelected || undefined}
         data-group-hover={inHoveredGroup || undefined}
+        data-relayout={relayout || undefined}
         onPointerEnter={track.kind === "Group" ? () => useArrangementUi.getState().setHoveredGroup(track.id) : undefined}
         onPointerLeave={
           track.kind === "Group"
@@ -273,7 +290,7 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
         data-tour="track-header"
         style={{
           width: headerWidth,
-          paddingLeft: 14 + depth * INDENT_PX,
+          paddingLeft: 14 + depth * HEADER_INDENT_PX,
           ["--eth-track-color" as string]: colorCss(track.color),
           ["--eth-track-depth" as string]: depth,
         }}
@@ -402,37 +419,57 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
               </button>
             )}
             {canArm && !readOnly && (
-              <button
-                type="button"
-                className="eth-arr-header__toggle eth-arr-header__arm"
-                {...midiTarget({ type: "TrackArm", track: track.id })}
-                aria-pressed={armed}
-                aria-label={t("arrangement.header.arm_named", { name: track.name })}
-                // Browser build: a tapped track can't record (no capture); say why.
-                aria-disabled={armBlocked || inert ? true : undefined}
-                style={armBlocked || inert ? { opacity: "var(--eth-opacity-disabled)", cursor: "not-allowed" } : undefined}
-                title={(inert ? inertTitle(inert) : armBlocked) ?? t("arrangement.header.arm_title")}
-                onClick={(e) =>
-                  !armBlocked &&
-                  !inert &&
-                  void transport
-                    .send(
-                      cmd("Recording", {
-                        type: "Arm",
-                        track: track.id,
-                        armed: !armed,
-                        exclusive: !(e.ctrlKey || e.metaKey),
-                      }),
-                    )
-                    // Arming an audio track with no input device open: offer to choose one.
-                    .then(() => {
-                      if (!armed && track.kind === "Audio" && track.input.type !== "Track") void promptForInputIfNone(transport);
-                    })
-                    .catch((err: unknown) => console.warn("arm failed", err))
-                }
+              // Right-click: the track's input and monitoring, in a popover.
+              <Popover
+                open={recordSetup}
+                onOpenChange={setRecordSetup}
+                placement="bottom-end"
+                aria-label={t("arrangement.header.record_setup_named", { name: track.name })}
+                trigger={() => (
+                  <button
+                    type="button"
+                    className="eth-arr-header__toggle eth-arr-header__arm"
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setRecordSetup(true);
+                    }}
+                    {...midiTarget({ type: "TrackArm", track: track.id })}
+                    aria-pressed={armed}
+                    aria-label={t("arrangement.header.arm_named", { name: track.name })}
+                    // Browser build: a tapped track can't record (no capture); say why.
+                    aria-disabled={armBlocked || inert ? true : undefined}
+                    style={armBlocked || inert ? { opacity: "var(--eth-opacity-disabled)", cursor: "not-allowed" } : undefined}
+                    title={(inert ? inertTitle(inert) : armBlocked) ?? t("arrangement.header.arm_title")}
+                    onClick={(e) =>
+                      !armBlocked &&
+                      !inert &&
+                      void transport
+                        .send(
+                          cmd("Recording", {
+                            type: "Arm",
+                            track: track.id,
+                            armed: !armed,
+                            exclusive: !(e.ctrlKey || e.metaKey),
+                          }),
+                        )
+                        // Arming an audio track with no input device open: offer to choose one.
+                        .then(() => {
+                          if (!armed && track.kind === "Audio" && track.input.type !== "Track") void promptForInputIfNone(transport);
+                        })
+                        .catch((err: unknown) => console.warn("arm failed", err))
+                    }
+                  >
+                    <Circle />
+                  </button>
+                )}
               >
-                <Circle />
-              </button>
+                {/* Picks stay in the popover (not a press / click on the track header behind it). */}
+                {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+                <div onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+                  <TrackRecordSetup track={track.id} />
+                </div>
+              </Popover>
             )}
             <AutomationToggle track={track} />
           </span>
@@ -441,6 +478,8 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
             <HeaderPan track={track} />
           </span>
         </span>
+        {/* A big project opening: how many of the track's plugins are loaded. */}
+        <TrackPluginLoading track={track.id} />
         {track.kind === "Midi" && !readOnly && <InstrumentPick track={track} />}
       </div>
     </>

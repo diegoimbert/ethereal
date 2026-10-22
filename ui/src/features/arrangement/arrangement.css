@@ -103,10 +103,13 @@
   background: var(--eth-color-border-light);
 }
 
+/* No reserved scrollbar gutter here or on the lanes: with classic (always shown) scrollbars it
+   was an empty band at the right end of the lanes whenever nothing scrolled. A scrollbar takes
+   room only while the tracks overflow (the ruler and the master then run past the lanes'
+   right end by its width; the beats line up from the left). */
 .eth-arr__top {
   display: flex;
   flex: none;
-  scrollbar-gutter: stable;
   overflow: hidden;
 }
 
@@ -143,18 +146,15 @@
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-gutter: stable;
 }
 
-/* The master track, pinned below the scrolling tracks (same scrollbar gutter, so the lanes
-   line up with the ones above). */
+/* The master track, pinned below the scrolling tracks. */
 .eth-arr__master {
   position: relative;
   flex: none;
   max-height: 40%;
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-gutter: stable;
   border-top: var(--eth-border-width) solid var(--eth-color-border);
 }
 
@@ -584,6 +584,14 @@
   font-size: var(--eth-fs-md);
 }
 
+/* A narrow column (the full height): a smaller badge, a little closer to the name. */
+.eth-arr-header--narrow:not(.eth-arr-header--compact) .eth-arr-header__badge {
+  width: var(--eth-size-track-header-button);
+  height: var(--eth-size-track-header-button);
+  margin-right: var(--eth-space-xs);
+  font-size: var(--eth-fs-lg);
+}
+
 /* A group's badge is its fold button: the chevron, neutral (not the track color). */
 .eth-arr-header__fold {
   padding: 0;
@@ -751,9 +759,9 @@
   content-visibility: visible;
 }
 /* The fader starts where the buttons under it do (a track's usual four: mute, solo, arm,
-   automation), the pan knob ending with them. */
+   automation), the pan knob ending with them (narrower with smaller buttons). */
 .eth-arr-header .eth-arr-vol {
-  width: calc(4 * var(--eth-size-track-header-button) + 3 * var(--eth-space-hair) - var(--eth-space-md) - var(--eth-size-track-pan-knob));
+  width: calc(4 * var(--arr-header-button) + 3 * var(--eth-space-hair) - var(--eth-space-md) - var(--arr-pan-knob));
 }
 .eth-arr-header--compact .eth-arr-vol {
   width: var(--eth-size-track-fader-width-compact);
@@ -866,6 +874,7 @@
     .eth-arr-header__buttons
       > :nth-last-child(1):is(
         [aria-pressed="true"],
+        :has(> [aria-pressed="true"]),
         .eth-takes-toggle,
         .eth-auto-toggle--has,
         .eth-freeze__toggle,
@@ -876,12 +885,13 @@
   )
   .eth-arr-header__name,
 .eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(1)) .eth-arr-header__name {
-  margin-right: calc(1 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+  margin-right: calc(1 * (var(--arr-header-button) + var(--eth-space-hair)));
 }
 .eth-arr-header--compact:has(
     .eth-arr-header__buttons
       > :nth-last-child(2):is(
         [aria-pressed="true"],
+        :has(> [aria-pressed="true"]),
         .eth-takes-toggle,
         .eth-auto-toggle--has,
         .eth-freeze__toggle,
@@ -892,12 +902,13 @@
   )
   .eth-arr-header__name,
 .eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(2)) .eth-arr-header__name {
-  margin-right: calc(2 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+  margin-right: calc(2 * (var(--arr-header-button) + var(--eth-space-hair)));
 }
 .eth-arr-header--compact:has(
     .eth-arr-header__buttons
       > :nth-last-child(3):is(
         [aria-pressed="true"],
+        :has(> [aria-pressed="true"]),
         .eth-takes-toggle,
         .eth-auto-toggle--has,
         .eth-freeze__toggle,
@@ -908,12 +919,13 @@
   )
   .eth-arr-header__name,
 .eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(3)) .eth-arr-header__name {
-  margin-right: calc(3 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+  margin-right: calc(3 * (var(--arr-header-button) + var(--eth-space-hair)));
 }
 .eth-arr-header--compact:has(
     .eth-arr-header__buttons
       > :nth-last-child(4):is(
         [aria-pressed="true"],
+        :has(> [aria-pressed="true"]),
         .eth-takes-toggle,
         .eth-auto-toggle--has,
         .eth-freeze__toggle,
@@ -924,12 +936,13 @@
   )
   .eth-arr-header__name,
 .eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(4)) .eth-arr-header__name {
-  margin-right: calc(4 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+  margin-right: calc(4 * (var(--arr-header-button) + var(--eth-space-hair)));
 }
 .eth-arr-header--compact:has(
     .eth-arr-header__buttons
       > :nth-last-child(5):is(
         [aria-pressed="true"],
+        :has(> [aria-pressed="true"]),
         .eth-takes-toggle,
         .eth-auto-toggle--has,
         .eth-freeze__toggle,
@@ -940,12 +953,13 @@
   )
   .eth-arr-header__name,
 .eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(5)) .eth-arr-header__name {
-  margin-right: calc(5 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+  margin-right: calc(5 * (var(--arr-header-button) + var(--eth-space-hair)));
 }
 .eth-arr-header--compact:has(
     .eth-arr-header__buttons
       > :nth-last-child(6):is(
         [aria-pressed="true"],
+        :has(> [aria-pressed="true"]),
         .eth-takes-toggle,
         .eth-auto-toggle--has,
         .eth-freeze__toggle,
@@ -956,10 +970,10 @@
   )
   .eth-arr-header__name,
 .eth-arr-header--compact:is(:hover, [data-clip-selected]):has(.eth-arr-header__buttons > :nth-last-child(6)) .eth-arr-header__name {
-  margin-right: calc(6 * (var(--eth-size-track-header-button) + var(--eth-space-hair)));
+  margin-right: calc(6 * (var(--arr-header-button) + var(--eth-space-hair)));
 }
-.eth-arr-header--compact .eth-arr-pan .eth-knob {
-  --knob-size: var(--eth-size-track-pan-knob-compact);
+.eth-arr-header .eth-arr-pan .eth-knob {
+  --knob-size: var(--arr-pan-knob);
 }
 
 .eth-arr-header__toggle {
@@ -1001,15 +1015,47 @@
   pointer-events: auto;
 }
 
+/* Turning compact or back (TrackRow): the buttons move, so they show or hide at once. */
+.eth-arr-header[data-relayout] .eth-arr-header__toggle {
+  transition: none;
+}
+
 .eth-arr-header__toggle:hover {
   background: var(--eth-color-bg-hover);
   color: var(--eth-color-text);
 }
 
+/* The header buttons' size (and the room the compact name leaves them, above). */
+.eth-arr-header {
+  --arr-header-button: var(--eth-size-track-header-button);
+  --arr-header-icon: var(--eth-size-track-header-icon);
+  --arr-pan-knob: var(--eth-size-track-pan-knob);
+}
+/* A short lane, or a narrow column: the small pan knob. */
+.eth-arr-header--compact,
+.eth-arr-header--narrow {
+  --arr-pan-knob: var(--eth-size-track-pan-knob-compact);
+}
+/* A narrow column: slightly smaller buttons (and the fader above them). */
+.eth-arr-header--narrow {
+  --arr-header-button: var(--eth-size-track-header-button-narrow);
+  --arr-header-icon: var(--eth-size-track-header-icon-narrow);
+}
+/* A short lane in a narrow column: smaller buttons, so that on hover they leave the name some room. */
+.eth-arr-header--compact.eth-arr-header--narrow {
+  --arr-header-button: var(--eth-size-track-header-button-small);
+  --arr-header-icon: var(--eth-size-icon-sm);
+}
+
 .eth-arr-header__buttons .eth-arr-header__toggle {
-  width: var(--eth-size-track-header-button);
-  height: var(--eth-size-track-header-button);
+  width: var(--arr-header-button);
+  height: var(--arr-header-button);
   font-size: var(--eth-fs-sm);
+}
+
+.eth-arr-header__buttons .eth-arr-header__toggle .lucide {
+  width: var(--arr-header-icon);
+  height: var(--arr-header-icon);
 }
 
 .eth-arr-header__automation[aria-pressed="true"] {
@@ -1371,4 +1417,41 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* A track's automation lanes (the bar and each lane's header) under its header: indented like
+   it (nested in groups), and a card behind them, tinted like the track's: when the track is
+   hovered (or looks hovered: a selected clip, its group hovered), more when it is selected.
+   --eth-track-depth / --eth-track-color come from the row (TrackRow). */
+.eth-arr-row__automation .eth-auto-bar__header,
+.eth-arr-row__automation .eth-auto-row__header {
+  position: relative;
+  isolation: isolate;
+  padding-left: calc(var(--eth-space-md) + var(--eth-track-depth, 0) * var(--eth-size-track-indent));
+}
+.eth-arr-row__automation .eth-auto-bar__header::before,
+.eth-arr-row__automation .eth-auto-row__header::before {
+  content: "";
+  position: absolute;
+  inset: var(--eth-border-width) var(--eth-space-lg) var(--eth-border-width)
+    calc(var(--eth-size-track-card-inset-left) + var(--eth-track-depth, 0) * var(--eth-size-track-indent));
+  z-index: -1;
+  border-radius: var(--eth-radius-md);
+  background: transparent;
+  pointer-events: none;
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-arr-row:has(.eth-arr-header:hover, .eth-arr-header[data-clip-selected], .eth-arr-header[data-group-hover])
+  .eth-arr-row__automation
+  .eth-auto-bar__header::before,
+.eth-arr-row:has(.eth-arr-header:hover, .eth-arr-header[data-clip-selected], .eth-arr-header[data-group-hover])
+  .eth-arr-row__automation
+  .eth-auto-row__header::before,
+.eth-arr-row__automation .eth-auto-bar__header:hover::before,
+.eth-arr-row__automation .eth-auto-row__header:hover::before {
+  background: color-mix(in srgb, var(--eth-track-color) 8%, transparent);
+}
+.eth-arr-row--selected .eth-arr-row__automation .eth-auto-bar__header::before,
+.eth-arr-row--selected .eth-arr-row__automation .eth-auto-row__header::before {
+  background: color-mix(in srgb, var(--eth-track-color) 14%, transparent);
 }

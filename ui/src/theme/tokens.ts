@@ -313,6 +313,8 @@ export const zIndex = {
   dialog: "100",
   tourDim: "150",
   popover: "200",
+  /** The context menu: above the popovers (one opened from a popover's row, e.g. the project menu's projects). */
+  contextMenu: "210",
   tourRing: "240",
   tourBubble: "250",
   tooltip: "300",
@@ -444,6 +446,13 @@ export const size = {
   trackButton: "20px",
   /** Track header buttons (mute, solo, arm, ...), under the volume and pan. */
   trackHeaderButton: "20px",
+  /** Their icons: most of the button (a thin hover frame around them). */
+  trackHeaderIcon: "14.5px",
+  /** In a narrow header column: slightly smaller. */
+  trackHeaderButtonNarrow: "18px",
+  trackHeaderIconNarrow: "13px",
+  /** Narrow and compact (a short lane in a narrow column): smaller, so they leave the name room. */
+  trackHeaderButtonSmall: "16px",
   trackMeterWidth: "3px",
   trackFaderWidth: "44px",
   trackFaderThumb: "8px",

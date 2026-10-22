@@ -1059,20 +1059,82 @@ fn opening_a_project_loads_its_plugins_progressively() {
     // Each plugin takes ~60 ms to load: the 100 ms budget fits 2 per sync.
     h.ctl.host.step_per_read = 60;
     let before = creates(&h);
-    h.ok(Command::Project(ProjectCommand::Open { id }));
+    // The UI is told which plugins are still to load, as that changes (a bar per track).
+    let loading = |out: &[ServerMessage]| -> Vec<usize> {
+        events(out)
+            .into_iter()
+            .filter_map(|e| match e {
+                Event::Plugin {
+                    event: PluginEvent::Loading { pending },
+                } => Some(pending.len()),
+                _ => None,
+            })
+            .collect()
+    };
+    let out = h.send(Command::Project(ProjectCommand::Open { id }));
+    ok(&out);
     assert_eq!(
         creates(&h) - before,
         2,
         "the open loads what fits in the budget"
     );
-    h.tick();
+    // Told at each tick (a command's reply stays its last message): what the open left,
+    // then what this tick left.
+    let out = h.tick();
     assert_eq!(creates(&h) - before, 4, "the next tick continues");
-    h.tick();
+    assert_eq!(loading(&out), vec![3, 1]);
+    let out = h.tick();
     assert_eq!(creates(&h) - before, 5);
+    assert_eq!(loading(&out), vec![0], "all loaded");
     // All loaded: no more publishes.
     let publishes = h.ctl.bridge.publishes();
     h.tick();
     h.tick();
     assert_eq!(h.ctl.bridge.publishes(), publishes);
     assert_eq!(creates(&h) - before, devices.len());
+}
+
+#[test]
+fn stopping_the_engine_unloads_everything_and_starting_it_loads_the_project_again() {
+    use ether_core::protocol::engine::{EngineCommand, EngineEvent};
+    let mut h = plugin_harness();
+    let t = track(&mut h, TrackKind::Audio, None);
+    insert_plugin(&mut h, t);
+    assert!(!h.ctl.bridge.live.is_empty());
+    let running = |out: &[ServerMessage]| -> Vec<bool> {
+        events(out)
+            .into_iter()
+            .filter_map(|e| match e {
+                Event::Engine {
+                    event: EngineEvent::Running { running },
+                } => Some(running),
+                _ => None,
+            })
+            .collect()
+    };
+
+    let out = h.send(Command::Engine(EngineCommand::SetRunning {
+        running: false,
+    }));
+    ok(&out);
+    assert_eq!(running(&out), vec![false]);
+    h.tick();
+    assert!(h.ctl.bridge.live.is_empty(), "every node is gone");
+    assert!(h.ctl.local_engine_off(), "the host closes the audio device");
+    // Edits still apply to the document; nothing is created meanwhile.
+    insert_plugin(&mut h, t);
+    assert!(h.ctl.bridge.live.is_empty());
+
+    let out = h.send(Command::Engine(EngineCommand::SetRunning { running: true }));
+    ok(&out);
+    assert_eq!(running(&out), vec![true]);
+    assert!(!h.ctl.local_engine_off());
+    assert_eq!(
+        h.ctl.bridge.live.len(),
+        h.project().devices.len(),
+        "the whole project is loaded again"
+    );
+    // Again: nothing to do, nothing said.
+    let out = h.send(Command::Engine(EngineCommand::SetRunning { running: true }));
+    assert!(running(&out).is_empty());
 }

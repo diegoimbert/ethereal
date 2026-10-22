@@ -302,7 +302,7 @@ export class MockLiveRecord {
             start: n.start - start,
             duration: Math.max(MIN_LENGTH, (n.end ?? p.end) - n.start),
           }));
-          commands.push(cmd("Clip", { type: "CreateMidi", id, track, start, length: end - start, name: project.tracks[track]?.name ?? null }));
+          commands.push(cmd("Clip", { type: "CreateMidi", id, track, start, length: end - start, name: null }));
           commands.push(cmd("Note", { type: "Add", clip: id, notes }));
           // v0.3 (`mpe`): the simulated MPE controller's per-note curves (MPE tracks only).
           commands.push(...mpeTakeCommands(project, track, notes, () => this.host.newId()));

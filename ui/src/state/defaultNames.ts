@@ -52,6 +52,14 @@ export function defaultMarkerName(project: Project, marker: Pick<Marker, "id">):
 }
 
 /** An audio clip: its sample's name (without the extension); a MIDI clip: none (shown as "MIDI clip"). */
+/**
+ * The name a clip shows: its own, else its track's. New clips have no name of their own, so
+ * they read as their track until renamed.
+ */
+export function clipDisplayName(project: Pick<Project, "tracks">, clip: Pick<Clip, "name" | "track">): string {
+  return clip.name || project.tracks[clip.track]?.name || "";
+}
+
 export function defaultClipName(project: Project, clip: Pick<Clip, "content">): string {
   if (clip.content.type !== "Audio") return "";
   const media = project.media[clip.content.media];

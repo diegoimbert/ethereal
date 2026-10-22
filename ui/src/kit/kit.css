@@ -568,6 +568,7 @@
 }
 /* Context menu: flies out of the click point (transform-origin is set inline to it). */
 .eth-popover--context {
+  z-index: var(--eth-z-context-menu);
   /* Size to the menu's content even when opened near the right edge (the clamp then moves it
      left); without this the shrink-to-fit width is limited to the space right of the click. */
   width: max-content;
@@ -730,6 +731,9 @@
   display: flex;
   align-items: center;
   gap: var(--eth-space-lg);
+  /* Full height in a menu that scrolls: a flex column at its max height would shrink its items
+     to their text (the sidechain picker's tracks, issue #216). */
+  flex-shrink: 0;
   height: var(--menu-item-height);
   padding: 0 var(--eth-space-md);
   border: 0;
@@ -1161,4 +1165,59 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* SearchField: a magnifier inside on the left, a clear button on the right. */
+.eth-search-field {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+}
+.eth-search-field__icon {
+  position: absolute;
+  left: var(--eth-space-sm);
+  color: var(--eth-color-text-dim);
+  pointer-events: none;
+}
+.eth-search-field__input {
+  flex: 1;
+  padding-left: calc(var(--eth-space-sm) * 2 + var(--eth-size-icon-md));
+}
+.eth-search-field__input::-webkit-search-cancel-button {
+  display: none;
+}
+.eth-search-field__clear {
+  position: absolute;
+  right: var(--eth-space-xs);
+  display: inline-flex;
+  padding: var(--eth-space-xs);
+  border: none;
+  border-radius: var(--eth-radius-sm);
+  background: none;
+  color: var(--eth-color-text-dim);
+  cursor: pointer;
+}
+
+/* A menu item with a submenu (MenuEntry.submenu): its chevron; the entries at its side. */
+.eth-menu__sub {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.eth-menu__chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--eth-color-text-dim);
+}
+.eth-menu__subpanel {
+  position: absolute;
+  top: calc(-1 * var(--eth-space-xs));
+  left: 100%;
+  width: max-content;
+}
+.eth-menu__subpanel--left {
+  left: auto;
+  right: 100%;
 }

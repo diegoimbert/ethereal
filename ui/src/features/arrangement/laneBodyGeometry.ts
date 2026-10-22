@@ -13,8 +13,14 @@ export const CLIP_INSET = px(space.xs);
 export const CLIP_TITLE = px(size.clipTitleHeight);
 /** Corner radius of a clip (`.eth-clip`). */
 export const CLIP_RADIUS = px(radius.md);
-/** Narrowest a clip is drawn, so it stays grabbable (title bar) when zoomed far out. */
+/** Narrowest a clip's hit area is, so it stays grabbable (title bar) when zoomed far out. */
 export const CLIP_MIN_PX = 8;
+/**
+ * Narrowest a clip is drawn: its true width (zoomed far out a short clip is a sliver, never
+ * drawn longer than it is), at least a pixel so it still shows. Its hit area keeps
+ * `CLIP_MIN_PX`.
+ */
+export const CLIP_DRAW_MIN_PX = 1;
 
 /**
  * Below this lane height (px) a lane is compact: its track header on one line (TrackRow), its

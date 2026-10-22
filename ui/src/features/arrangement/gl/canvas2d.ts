@@ -62,6 +62,8 @@ export class Canvas2DBackend implements RenderBackend {
   readonly ctx = new Canvas2DContext();
   private c: CanvasRenderingContext2D | null = null;
   private frame: FrameSetup | null = null;
+  /** `cut`: the band the draws are clipped to. */
+  private band: { top: number; bottom: number } | null = null;
   private painters: Record<string, Painter>;
   private sprites = new Map<string, CanvasImageSource>();
   private unknown = new Set<string>();
@@ -137,12 +139,22 @@ export class Canvas2DBackend implements RenderBackend {
     if (n <= 0) return false;
     const lane: Lane = { c: this.c, f, top: row.y - f.originY, h: mainHeight(row) };
     this.c.save();
+    if (this.band) {
+      this.c.beginPath();
+      this.c.rect(0, this.band.top - f.originY, f.cssWidth, Math.max(0, this.band.bottom - this.band.top));
+      this.c.clip();
+    }
     paint(lane, p, batch.data, first, n);
     this.c.restore();
     return true;
   }
 
+  cut(band: { top: number; bottom: number } | null): void {
+    this.band = band;
+  }
+
   end(): void {
+    this.band = null;
     this.frame = null;
   }
 

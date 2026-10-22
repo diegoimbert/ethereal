@@ -30,7 +30,7 @@ import {
   type CrossfadeSide,
 } from "@/features/clip-editing/clipEditing";
 import { fullClipMenu } from "../../clipContextMenu";
-import { bodyHeight, CLIP_MIN_PX } from "../../laneBodyGeometry";
+import { bodyHeight, CLIP_DRAW_MIN_PX, CLIP_MIN_PX } from "../../laneBodyGeometry";
 import type { LaneItem } from "../../laneItems";
 import { mainHeight, type Row } from "../../layout";
 import { arrangementView } from "../../uiStore";
@@ -105,7 +105,7 @@ export function clipFadesLayer(renderer: ArrangerRenderer, transport: EngineTran
       const len = bounds.length;
       const s = bounds.start;
       const e = s + len;
-      const box = { b0: s, b1: e, minW: CLIP_MIN_PX };
+      const box = { b0: s, b1: e, minW: CLIP_DRAW_MIN_PX };
       const fx: FxCode = frozen ? Fx.Frozen : clip.muted ? Fx.Muted : Fx.None;
       const alpha = it.dragging ? 0.85 : 1;
       const fin = Math.min(a.fade_in, len);

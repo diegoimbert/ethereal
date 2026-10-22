@@ -69,6 +69,7 @@
   --eth-z-dialog: 100;
   --eth-z-tour-dim: 150;
   --eth-z-popover: 200;
+  --eth-z-context-menu: 210;
   --eth-z-tour-ring: 240;
   --eth-z-tour-bubble: 250;
   --eth-z-tooltip: 300;
@@ -163,6 +164,10 @@
   --eth-size-track-badge: 26px;
   --eth-size-track-button: 20px;
   --eth-size-track-header-button: 20px;
+  --eth-size-track-header-icon: 14.5px;
+  --eth-size-track-header-button-narrow: 18px;
+  --eth-size-track-header-icon-narrow: 13px;
+  --eth-size-track-header-button-small: 16px;
   --eth-size-track-meter-width: 3px;
   --eth-size-track-fader-width: 44px;
   --eth-size-track-fader-thumb: 8px;

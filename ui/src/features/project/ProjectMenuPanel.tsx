@@ -7,7 +7,7 @@
  */
 import clsx from "clsx";
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { menuItems, menuKeyDown, useFocusFirstItem } from "@/kit";
+import { menuItems, menuKeyDown, useContextMenuStore, useFocusFirstItem } from "@/kit";
 import { ChevronRight } from "lucide-react";
 import { contributions, useContributions, type ProjectMenuEntry } from "@/ext";
 import { type EngineCommands } from "@/features/transport-bar/engine";
@@ -82,7 +82,12 @@ function SubMenu({
   };
   const hide = () => {
     clearTimeout(timer.current);
+    // Left for a context menu opened from it: stays open.
+    if (useContextMenuStore.getState().menu) return;
     timer.current = setTimeout(() => {
+      // The pointer went to a context menu opened from the submenu (a project row's "more"):
+      // it stays open (its row's actions, e.g. a delete asking in place, need it).
+      if (useContextMenuStore.getState().menu) return;
       if (!panel.current?.contains(document.activeElement)) sub.setOpen(null);
     }, SUBMENU_CLOSE_MS);
   };
@@ -225,7 +230,7 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
         ) : (
           <SubMenu label={t("project.menu.open_project")} panel className="eth-project-menu__wide">
             {/* The search takes the focus when it opens: type to find a project. */}
-            <RecentProjects commands={commands} onDone={close} focusSearch />
+            <RecentProjects commands={commands} onDone={close} focusSearch showEmpty />
           </SubMenu>
         )}
         {extra("start")}

@@ -23,7 +23,7 @@ import type { AudioContent, Beats, Clip, MediaRef, WarpMarker, WarpMarkerId, War
 import { Knob, openContextMenu, Select, useScopedDrag, useThemeColor, type SelectOption } from "@/kit";
 import { resolveClipEntries } from "@/features/import-resolver/menus";
 import { size } from "@/theme";
-import { useClip, useEditedClipId, useProjectStore, warpMarkersOfClip } from "@/state";
+import { clipDisplayName, useClip, useEditedClipId, useProjectStore, warpMarkersOfClip } from "@/state";
 import { createTimelineViewStore, useSelectedItems, useTempoMap } from "@/timeline";
 import { ClipEnvelopeStrip } from "@/features/automation";
 import { clipTempoMap } from "@/features/piano-roll/clipTime";
@@ -87,6 +87,8 @@ const snap = (b: Beats, free: boolean) => (free ? b : Math.round(b / MARKER_SNAP
 
 function WarpClipEditor({ clip, content }: { clip: Clip; content: AudioContent }) {
   const t = useT();
+  // Unnamed, the clip reads as its track.
+  const clipName = useProjectStore((s) => (s.project ? clipDisplayName(s.project, clip) : clip.name));
   const windowDrag = useScopedDrag(startDrag);
   const transport = useTransport();
   const tempo = useTempoMap();
@@ -210,8 +212,8 @@ function WarpClipEditor({ clip, content }: { clip: Clip; content: AudioContent }
       }}
     >
       <div className="eth-warp__toolbar">
-        <span className="eth-warp__title eth-user-text" title={clip.name}>
-          {clip.name}
+        <span className="eth-warp__title eth-user-text" title={clipName}>
+          {clipName}
         </span>
         <label className="eth-warp__field">
           <input type="checkbox" aria-label={t("warp.toggle")} checked={warp.enabled} onChange={(e) => setWarp({ enabled: e.target.checked })} />

@@ -32,24 +32,24 @@ There is no user setting. A hidden debug override forces the fallback:
 `localStorage["eth.arr.renderer"] = "canvas2d"` (read at startup), or
 `window.__ether.setArrangerRenderer("canvas2d" | "auto")`.
 
-| File | What |
-| --- | --- |
-| `GlClipLayer.tsx` | React glue: the canvas, store subscriptions, pointer hit-testing, rename field, aria-live, WebGL failure reporting |
-| `renderer.ts` | `ArrangerRenderer`: dirty-flag frame loop, per-lane draw passes, culling, test hooks |
-| `backend.ts` | `RenderBackend`: what draws the batches (`begin`, `draw`, `end`, `readPixels`) |
-| `webglBackend.ts` | The WebGL2 backend (uniforms, pipelines, batches) |
-| `canvas2d.ts` | The Canvas2D fallback backend (a painter per pipeline) |
-| `backendChoice.ts` | Which backend: WebGL2 support, failures, the debug override |
-| `scene.ts` | `LaneScene`: per-lane instance data built from the project mirror (incremental) |
-| `pipelines.ts` | The instanced pipelines (`rect`, `text`, `note`, `wave`) and their instance writers |
-| `shaders.ts` | GLSL of the pipelines |
-| `glContext.ts` | Context wrapper, `Pipeline`, `Batch` (instance buffer + VAO; its CPU copy is what Canvas2D reads), context-loss restore |
-| `glyphAtlas.ts` | Text atlas: browser-rasterized text sprites, layout with ellipsis, icons, shelf packing with LRU eviction |
-| `textRaster.ts` | The browser's text rasterizer (Canvas2D `fillText` in the DOM's font, features and gamma) |
-| `waveTiles.ts` | Peak tiles (`PeakCache`) as rows of an `RG32F` texture, LRU |
-| `palette.ts` | Colors from the CSS tokens and the clip color mixes of `arrangement.css` |
-| `hitTest.ts` | Pure hit test with the part priorities (handles > title band > body > small clips) |
-| `layers.ts` | The layers API (below) |
+| File               | What                                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `GlClipLayer.tsx`  | React glue: the canvas, store subscriptions, pointer hit-testing, rename field, aria-live, WebGL failure reporting      |
+| `renderer.ts`      | `ArrangerRenderer`: dirty-flag frame loop, per-lane draw passes, culling, test hooks                                    |
+| `backend.ts`       | `RenderBackend`: what draws the batches (`begin`, `draw`, `end`, `readPixels`)                                          |
+| `webglBackend.ts`  | The WebGL2 backend (uniforms, pipelines, batches)                                                                       |
+| `canvas2d.ts`      | The Canvas2D fallback backend (a painter per pipeline)                                                                  |
+| `backendChoice.ts` | Which backend: WebGL2 support, failures, the debug override                                                             |
+| `scene.ts`         | `LaneScene`: per-lane instance data built from the project mirror (incremental)                                         |
+| `pipelines.ts`     | The instanced pipelines (`rect`, `text`, `note`, `wave`) and their instance writers                                     |
+| `shaders.ts`       | GLSL of the pipelines                                                                                                   |
+| `glContext.ts`     | Context wrapper, `Pipeline`, `Batch` (instance buffer + VAO; its CPU copy is what Canvas2D reads), context-loss restore |
+| `glyphAtlas.ts`    | Text atlas: browser-rasterized text sprites, layout with ellipsis, icons, shelf packing with LRU eviction               |
+| `textRaster.ts`    | The browser's text rasterizer (Canvas2D `fillText` in the DOM's font, features and gamma)                               |
+| `waveTiles.ts`     | Peak tiles (`PeakCache`) as rows of an `RG32F` texture, LRU                                                             |
+| `palette.ts`       | Colors from the CSS tokens and the clip color mixes of `arrangement.css`                                                |
+| `hitTest.ts`       | Pure hit test with the part priorities (handles > title band > body > small clips)                                      |
+| `layers.ts`        | The layers API (below)                                                                                                  |
 
 ## Coordinates: lane space
 
@@ -58,7 +58,7 @@ instance data:
 
 - **x** = a beat and a px offset: `x = (beat - scrollBeats) * pxPerBeat + px`, with an
   optional minimum width (`XSpec { b0, b1, p0, p1, minW }`: the box spans
-  `[x0, max(x0 + minW, x1)]`). Clip boxes are `{ b0: start, b1: end, minW: 8 }`.
+  `[x0, max(x0 + minW, x1)]`). Clip boxes are `{ b0: start, b1: end, minW: 1 }` (their true width; the hit area keeps 8 px).
 - **y** = offsets in the row: `y = a + f * mainHeight` from the row's top
   (`YSpec { a0, f0, a1, f1 }`). The clip box is `{ a0: 2, a1: -2, f1: 1 }`, its title band
   `{ a0: 2, a1: 16 }`.
@@ -75,7 +75,7 @@ each frame, so vertical scrolling never shows clips a frame behind the rows.
   `RectFlag.HandleStart/End` make the rect the clip box's edge handle.
 - `text` (`writeGlyph`): text sprites and icons from the atlas, drawn 1:1 at device pixels,
   clipped horizontally to an `XSpec`. Lay text out with `atlas.layout(text, font, maxWidth,
-  ink)` (ellipsis like CSS; see Text below).
+ink)` (ellipsis like CSS; see Text below).
 - `note` (`writeNote`): note rects in the clip body, placed like `noteRects` (`../clipDraw.ts`).
 - `wave` (`writeWave`): waveform spans sampled from the peak tile texture.
 
@@ -113,7 +113,7 @@ const fades: ArrangerLayer = {
         x: { b0: it.bounds.start, b1: it.bounds.start + fadeIn },
         y: { a0: 16, a1: -2, f1: 1 },
         fill: [0, 0, 0, 0.2],
-        clip: { x: { b0: it.bounds.start, b1: it.bounds.start + it.bounds.length, minW: 8 }, y: { a0: 2, a1: -2, f1: 1 }, radius: 6 },
+        clip: { x: { b0: it.bounds.start, b1: it.bounds.start + it.bounds.length, minW: 1 }, y: { a0: 2, a1: -2, f1: 1 }, radius: 6 },
       });
     }
   },
@@ -143,7 +143,7 @@ Notes:
   view-dependent instances for (text).
 - Text: `out.atlas.layout(text, TITLE_FONT, maxWidth, ink)` then `writeGlyph` per glyph of
   the run (one sprite, plus the ellipsis when cut), at `out.atlas.baseline(top, height,
-  font)` + `glyph.top`. Pass the color the text is drawn in as `ink`. Widths:
+font)` + `glyph.top`. Pass the color the text is drawn in as `ink`. Widths:
   `atlas.measure(text, font)` (no rasterization).
 - For something that isn't per lane (e.g. presence cursors across the view), use `frame()`:
   it gets the GL context (`f.gl`) after the lanes are drawn on WebGL (bind your own
@@ -214,14 +214,14 @@ Text instances hold atlas positions: every layer is rebuilt when the atlas reset
 
 ## Lane layers (phase 2b, `layers/`)
 
-| File | What |
-| --- | --- |
-| `lanes.ts` | `mountLaneLayers(renderer)` (from `GlClipLayer`) |
-| `shapes.ts` | The `shape` pipeline: SDF segments, circles, dashed outlines |
+| File                 | What                                                                                                                                                           |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lanes.ts`           | `mountLaneLayers(renderer)` (from `GlClipLayer`)                                                                                                               |
+| `shapes.ts`          | The `shape` pipeline: SDF segments, circles, dashed outlines                                                                                                   |
 | `automationLanes.ts` | Automation lanes: `AutomationLaneView` (`gl`) publishes each lane; the layer draws background, step lines, envelope and points where the DOM lays the lane out |
-| `comping.ts` | The comp's pieces (extra lane + outlines, click selects the region) and take lanes (extra lanes, regions, swipe) |
-| `groupSummary.ts` | Group lane summaries |
-| `testApi.ts` | `automationPoint`, `compPiece`, `takeRegion`, `swipePreview`, `groupSummaryBars` on `window.__ether.arrangement` |
+| `comping.ts`         | The comp's pieces (extra lane + outlines, click selects the region) and take lanes (extra lanes, regions, swipe)                                               |
+| `groupSummary.ts`    | Group lane summaries                                                                                                                                           |
+| `testApi.ts`         | `automationPoint`, `compPiece`, `takeRegion`, `swipePreview`, `groupSummaryBars` on `window.__ether.arrangement`                                               |
 
 ## Interaction
 

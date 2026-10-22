@@ -26,6 +26,33 @@ describe("ContextMenu", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
+  it("opens a submenu at its item's side (hover or →) and runs its item; ← closes it", () => {
+    const pick = vi.fn();
+    setup([
+      {
+        label: "Assign",
+        onSelect: () => {},
+        submenu: [
+          { label: "Macro 1", onSelect: pick },
+          { label: "Macro 2", disabled: true, onSelect: pick },
+        ],
+      },
+    ]);
+    fireEvent.contextMenu(screen.getByTestId("target"), { clientX: 10, clientY: 10 });
+    const assign = screen.getByRole("menuitem", { name: "Assign" });
+    expect(assign).toHaveAttribute("aria-haspopup", "menu");
+    fireEvent.mouseEnter(assign.parentElement!);
+    expect(assign).toHaveAttribute("aria-expanded", "true");
+    fireEvent.keyDown(screen.getByRole("menuitem", { name: "Macro 1" }), { key: "ArrowLeft" });
+    expect(screen.queryByRole("menuitem", { name: "Macro 1" })).toBeNull();
+    fireEvent.keyDown(assign, { key: "ArrowRight" });
+    // A press in the submenu is a press in the menu: it stays open until the pick.
+    fireEvent.pointerDown(screen.getByRole("menuitem", { name: "Macro 1" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Macro 1" }));
+    expect(pick).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
   it("suppresses the native menu everywhere except text fields", () => {
     setup([]);
     const plain = createEvent.contextMenu(screen.getByTestId("plain"));

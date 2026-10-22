@@ -8,7 +8,7 @@ import { DiscordLink } from "@/features/community";
 import { notify } from "@/features/notifications";
 import { newProjectCommand, ProjectTemplatePicker, type ProjectTemplateChoice } from "@/features/templates";
 import { useProjectStore } from "@/state";
-import { cmd, newProjectId, type EngineTransport } from "@/transport";
+import { cmd, listProjects, newProjectId, type EngineTransport } from "@/transport";
 import { saveProjectAs } from "./actions";
 import { useExportProject } from "./exportProjectStore";
 import { guardLeave } from "./leaveGuard";
@@ -152,6 +152,7 @@ export function RecentProjects({
   onDone,
   ready = true,
   focusSearch = false,
+  showEmpty = false,
   extraError,
   clearExtraError,
 }: {
@@ -162,6 +163,8 @@ export function RecentProjects({
   ready?: boolean;
   /** Focus the search once ready (unless typing elsewhere). */
   focusSearch?: boolean;
+  /** Say so when there is no other project (the project menu's submenu; the screen has more). */
+  showEmpty?: boolean;
   /** An error of the surroundings to show on the error line too (e.g. "new project" failed). */
   extraError?: string | null;
   clearExtraError?(): void;
@@ -204,15 +207,18 @@ export function RecentProjects({
   // Refresh the list when shown, once the engine is up (it is also kept current by
   // `Project::ListChanged`).
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !transport) return;
     let active = true;
-    void send(cmd("Project", { type: "List" })).then((reply) => {
-      if (active && reply?.type === "Projects") useProjectStore.getState().setProjects(reply.projects);
-    });
+    listProjects(transport).then(
+      (reply) => {
+        if (active && reply.type === "Projects") useProjectStore.getState().setProjects(reply.projects);
+      },
+      (e: unknown) => active && setError(errorMessage(e)),
+    );
     return () => {
       active = false;
     };
-  }, [send, ready]);
+  }, [transport, ready]);
 
   const run = async (command: Parameters<typeof send>[0]) => {
     setBusy(true);
@@ -344,6 +350,7 @@ export function RecentProjects({
           </ul>
         </section>
       )}
+      {ready && others.length === 0 && showEmpty && <span className="eth-project-screen__empty">{t("project.recent.none")}</span>}
       {ready && others.length > 0 && (
         <section className="eth-project-screen__recent" aria-label={t("project.recent.title")}>
           <div className="eth-project-screen__recent-head">

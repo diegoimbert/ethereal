@@ -85,7 +85,7 @@ Short messages (toasts) appear in a corner of the window:
 
 At the right of the top bar:
 
-- **cpu** shows how busy the audio engine is (its DSP load). If it gets close to 100 %, you may hear clicks and dropouts.
+- **cpu** shows how busy the audio engine is (its DSP load). If it gets close to 100 %, you may hear clicks and dropouts. Click it for **stop engine**: nothing plays, plugins are unloaded and the audio device is free for other apps, and the meter reads **engine off**. Click again and choose **start engine** to load the project again. Opening another project starts it too.
 - **Disk** appears only after audio streamed from disk dropped out while playing, with the number of dropouts. Click it to reset the count.
 - **The status dot**, with the name of the audio system next to it, shows the engine's state. It's a warning colour while connecting or after dropouts, and an error colour when the engine failed or the audio stopped. It reads **closed** when the engine has let go of the audio device. Hover it for details: the audio system, sample rate, buffer size and the number of dropouts.
 

@@ -226,3 +226,24 @@
 .eth-plugin-list__add {
   align-self: flex-start;
 }
+
+/* Plugins loading (PluginLoading.tsx): along the bottom edge of the track's header card, like a
+   freeze's render progress. */
+.eth-plugin-loading {
+  position: absolute;
+  left: calc(var(--eth-size-track-card-inset-left) + var(--eth-track-depth, 0) * var(--eth-size-track-indent) + var(--eth-space-md));
+  right: calc(var(--eth-space-lg) + var(--eth-space-md));
+  bottom: calc(var(--eth-size-track-card-inset-y) + var(--eth-space-xs));
+  height: var(--eth-space-xs);
+  overflow: hidden;
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-bg-inset);
+}
+.eth-plugin-loading__fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  border-radius: inherit;
+  background: var(--eth-color-accent);
+  transition: transform var(--eth-duration-fast) var(--eth-ease-out);
+}

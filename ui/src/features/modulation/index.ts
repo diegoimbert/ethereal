@@ -5,3 +5,4 @@ export { ParamModulation, type ParamModulationProps } from "./ParamModulation";
 export { AddModulatorButton, ModulatorsPanel } from "./ModulatorsPanel";
 export { addModulatorEntries, useModulatorKinds } from "./kinds";
 export { canTarget, isChainRack, useModMapping } from "./model";
+export { paramMenuEntries } from "./macroMenu";

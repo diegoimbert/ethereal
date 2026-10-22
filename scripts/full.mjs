@@ -33,6 +33,11 @@ function run(cmd, args, opts = {}) {
   return r.status ?? 1;
 }
 
+/** pnpm is a `.cmd` shim on Windows, which only runs through a shell (keep paths out of `args`). */
+function pnpm(args, opts) {
+  return run("pnpm", args, { shell: process.platform === "win32", ...opts });
+}
+
 /** `ee/` and its own submodules, initialised when missing. */
 function ensureEe() {
   if (!existsSync(join(EE, "justfile"))) {
@@ -50,8 +55,8 @@ function ensureEe() {
 
 /** JS dependencies: this checkout's, then ee/'s, and ee/app's links to them. */
 function install() {
-  if (run("pnpm", ["install", "--frozen-lockfile", "--prefer-offline"], { cwd: ROOT }) !== 0) die("pnpm install failed");
-  if (existsSync(join(EE, "pnpm-lock.yaml")) && run("pnpm", ["--dir", EE, "install", "--frozen-lockfile", "--prefer-offline"], { cwd: ROOT }) !== 0) {
+  if (pnpm(["install", "--frozen-lockfile", "--prefer-offline"], { cwd: ROOT }) !== 0) die("pnpm install failed");
+  if (existsSync(join(EE, "pnpm-lock.yaml")) && pnpm(["install", "--frozen-lockfile", "--prefer-offline"], { cwd: EE }) !== 0) {
     die("pnpm install (ee/) failed");
   }
   if (existsSync(join(EE, "app", "link.mjs"))) run(process.execPath, [join(EE, "app", "link.mjs")], { cwd: ROOT });
