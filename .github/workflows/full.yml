@@ -132,14 +132,17 @@ jobs:
       - name: clippy
         run: node scripts/ci/private-step.mjs clippy -- "cd ee && cargo clippy --workspace --all-targets --all-features -- -D warnings"
       - name: test
+        id: test
         run: node scripts/ci/private-step.mjs test -- "cd ee && cargo nextest run --profile ci --workspace --all-features"
       # The app's controller, built by ee/'s workspace, has the full product's messages merged into its
       # tables (ETHER_EXTRA_LOCALES, ee/.cargo/config.toml): its own tests (catalog keys, labels,
       # formats, fr) on those tables. ci.yml tests it without them.
       - name: controller tests with the full product's catalogs
         run: node scripts/ci/private-step.mjs controller-catalogs -- "cd ee && cargo nextest run --profile ci -p ether-controller"
+      # Only after the tests built their binaries: after an fmt or clippy failure it would build
+      # them all itself (and time out).
       - name: Sweep stale test binaries (self-hosted target dir)
-        if: ${{ !cancelled() && runner.environment != 'github-hosted' }}
+        if: ${{ !cancelled() && steps.test.outcome != 'skipped' && runner.environment != 'github-hosted' }}
         continue-on-error: true
         timeout-minutes: 5
         run: node scripts/ci/private-step.mjs sweep -- "cd ee && node ../scripts/ci/sweep-test-binaries.mjs -- --workspace --all-features --also -p ether-controller"
