@@ -117,7 +117,7 @@ export function waveOf(label: string | null | undefined): WaveKind {
   if (/down|ramp/.test(l)) return "ramp-down";
   if (/saw/.test(l)) return "saw";
   if (/pulse/.test(l)) return "pulse";
-  if (/square|sqr/.test(l)) return "square";
+  if (/square|sqr|rect/.test(l)) return "square";
   return "sine";
 }
 

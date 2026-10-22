@@ -9,7 +9,7 @@ use ether_core::{
     AudioBuffers, Device, EventBuffer, EventKind, PrepareConfig, ProcessContext, ProcessEvent,
     TransportInfo,
 };
-use ether_devices::shifter::{mode, params as sh};
+use ether_devices::shifter::{mode, params as sh, waveform};
 
 const SR: f32 = 48_000.0;
 
@@ -309,12 +309,147 @@ fn renders_are_block_size_independent() {
         (30_000, set(sh::MODE, mode::RING as f64)),
         (30_500, set(sh::DRIVE, 1.0)),
         (40_000, set(sh::WIDE, 1.0)),
+        (2000, set(sh::LFO_PITCH, 5.0)),
+        (16_000, set(sh::LFO_DEPTH, 200.0)),
+        (25_000, set(sh::LFO_WAVEFORM, 9.0)),
+        (26_000, set(sh::LFO_STEREO, 1.0)),
+        (26_000, set(sh::LFO_SPIN, 20.0)),
+        (33_000, set(sh::ENV_ON, 1.0)),
+        (33_000, set(sh::ENV_DEPTH, -400.0)),
     ];
+    let mut events = events;
+    events.sort_by_key(|e| e.0);
     let mut a = device(&[]);
     let mut b = device(&[]);
     let ra = run(a.as_mut(), &x, &events, 64);
     let rb = run(b.as_mut(), &x, &events, 512);
     assert_eq!(ra, rb);
+}
+
+/// A sine LFO sweeps the ring's carrier: `x·cos(2π Σ hz / sr)` with `hz` = carrier +
+/// depth · sin(2π · lfo phase), the LFO advancing before each sample.
+#[test]
+fn the_lfo_sweeps_the_carrier() {
+    let (carrier, depth, rate) = (300.0, 200.0, 3.0);
+    let mut params = ring(carrier, 100.0);
+    params.push((sh::LFO_DEPTH, depth));
+    params.push((sh::LFO_RATE, rate));
+    let mut d = device(&params);
+    let x = vec![0.5f32; 24_000];
+    let out = render(d.as_mut(), &stereo(x));
+    let sr = f64::from(SR);
+    let mut phase = 0.0f64;
+    for (i, &y) in out[0].iter().enumerate() {
+        let want = (0.5 * (std::f64::consts::TAU * phase).cos()) as f32;
+        assert!((y - want).abs() < 2e-3, "{i}: {y} vs {want}");
+        let lfo = (std::f64::consts::TAU * rate * (i + 1) as f64 / sr).sin();
+        phase = (phase + (carrier + depth * lfo) / sr).fract();
+    }
+    // Phase 0: both sides the same.
+    assert_eq!(out[0], out[1]);
+}
+
+#[test]
+fn the_stereo_phase_and_spin_split_the_sides() {
+    for extra in [
+        vec![(sh::LFO_PHASE, 180.0)],
+        vec![(sh::LFO_STEREO, 1.0), (sh::LFO_SPIN, 25.0)],
+    ] {
+        let mut params = vec![
+            (sh::MODE, mode::FREQUENCY as f64),
+            (sh::SHIFT, 0.0),
+            (sh::LFO_DEPTH, 50.0),
+            (sh::MIX, 100.0),
+        ];
+        params.extend(extra);
+        let mut d = device(&params);
+        let out = render(d.as_mut(), &stereo(sine(1000.0, 0.5, 48_000)));
+        let side: Vec<f32> = out[0].iter().zip(&out[1]).map(|(l, r)| l - r).collect();
+        assert!(db(rms(&side[4800..])) > -20.0, "{params:?}");
+    }
+}
+
+#[test]
+fn sample_and_hold_width_decorrelates_the_sides() {
+    let base = vec![
+        (sh::MODE, mode::FREQUENCY as f64),
+        (sh::LFO_WAVEFORM, waveform::RANDOM_SH as f64),
+        (sh::LFO_RATE, 8.0),
+        (sh::LFO_DEPTH, 300.0),
+        (sh::MIX, 100.0),
+    ];
+    let x = stereo(sine(1000.0, 0.5, 48_000));
+    let mut narrow = base.clone();
+    narrow.push((sh::LFO_WIDTH, 0.0));
+    let out = render(device(&narrow).as_mut(), &x);
+    assert_eq!(out[0], out[1]);
+    let mut wide = base;
+    wide.push((sh::LFO_WIDTH, 100.0));
+    let out = render(device(&wide).as_mut(), &x);
+    assert_ne!(out[0], out[1]);
+}
+
+#[test]
+fn every_waveform_stays_in_range() {
+    for w in 0..10 {
+        let mut params = ring(1000.0, 100.0);
+        params.push((sh::LFO_WAVEFORM, f64::from(w)));
+        params.push((sh::LFO_DEPTH, 5000.0));
+        params.push((sh::LFO_RATE, 50.0));
+        params.push((sh::LFO_DUTY, 80.0));
+        let mut d = device(&params);
+        let out = render(d.as_mut(), &stereo(noise(24_000, 0.5)));
+        // |carrier ± depth| keeps it a ring modulation: never louder than the input.
+        assert!(out[0].iter().all(|v| v.is_finite() && v.abs() <= 0.5), "{w}");
+    }
+}
+
+#[test]
+fn the_envelope_follower_shifts_with_the_level() {
+    let x = sine(1000.0, 0.5, 48_000);
+    let mut d = device(&[
+        (sh::MODE, mode::FREQUENCY as f64),
+        (sh::ENV_ON, 1.0),
+        (sh::ENV_ATTACK, 0.1),
+        (sh::ENV_RELEASE, 400.0),
+        (sh::ENV_DEPTH, 500.0),
+        (sh::MIX, 100.0),
+    ]);
+    let out = render(d.as_mut(), &stereo(x));
+    // The follower sits near the 0.5 peak: about +250 Hz.
+    let y = &out[0][24_000..];
+    let near = (1200..=1300)
+        .step_by(10)
+        .map(|f| db(tone(y, f as f32)))
+        .fold(f32::MIN, f32::max);
+    assert!(near > db(tone(y, 1000.0)) + 20.0, "{near}");
+    // Off: no shift.
+    let mut d = device(&[
+        (sh::MODE, mode::FREQUENCY as f64),
+        (sh::ENV_DEPTH, 500.0),
+        (sh::MIX, 100.0),
+    ]);
+    let out = render(d.as_mut(), &stereo(sine(1000.0, 0.5, 48_000)));
+    assert!(db(tone(&out[0][24_000..], 1000.0)) > -10.0);
+}
+
+#[test]
+fn the_envelope_bends_the_pitch() {
+    let mut d = device(&[
+        (sh::ENV_ON, 1.0),
+        (sh::ENV_ATTACK, 0.1),
+        (sh::ENV_RELEASE, 400.0),
+        (sh::ENV_PITCH, 24.0),
+        (sh::MIX, 100.0),
+    ]);
+    // A 0.5 sine holds the follower near 0.5: +12 semitones.
+    let out = render(d.as_mut(), &stereo(sine(440.0, 0.5, 48_000)));
+    let y = &out[0][24_000..];
+    let up = (860..=900)
+        .step_by(5)
+        .map(|f| db(tone(y, f as f32)))
+        .fold(f32::MIN, f32::max);
+    assert!(up > db(tone(y, 440.0)) + 10.0, "{up}");
 }
 
 /// CPU cost per instance (stereo, 48 kHz, 128-sample blocks). Run in release.
@@ -325,6 +460,15 @@ fn cpu_cost() {
     let x = stereo(noise(48_000 * seconds, 0.5));
     for (name, params) in [
         ("shifter pitch +7", vec![(sh::PITCH, 7.0)]),
+        (
+            "shifter frequency, lfo + envelope",
+            vec![
+                (sh::MODE, mode::FREQUENCY as f64),
+                (sh::LFO_DEPTH, 100.0),
+                (sh::ENV_ON, 1.0),
+                (sh::ENV_DEPTH, 200.0),
+            ],
+        ),
         (
             "shifter frequency +100 Hz",
             vec![(sh::MODE, mode::FREQUENCY as f64), (sh::SHIFT, 100.0)],
