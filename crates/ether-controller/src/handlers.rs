@@ -852,6 +852,28 @@ where
                 })?;
                 Ok(ReplyValue::Unit)
             }
+            PluginCommand::SetAlwaysProcess {
+                device,
+                always_process,
+            } => {
+                let mut plugin = self.plugin_device(*device)?;
+                if plugin.always_process == *always_process {
+                    return Ok(ReplyValue::Unit);
+                }
+                let device = *device;
+                let label = if *always_process {
+                    "always process plugin"
+                } else {
+                    "let plugin sleep on silence"
+                };
+                // The live instance stays (the switch is flipped on it,
+                // `EngineBridge::set_always_process`): no re-instantiation, no state change.
+                self.edit_with(label, gesture, now, out, |ctx| {
+                    plugin.always_process = *always_process;
+                    ctx.set_device(device, DeviceChange::Plugin(plugin))
+                })?;
+                Ok(ReplyValue::Unit)
+            }
             PluginCommand::Reload { device } => {
                 self.plugin_device(*device)?;
                 self.engine.request_recreate(*device);

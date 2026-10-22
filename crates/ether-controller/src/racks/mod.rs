@@ -472,6 +472,7 @@ pub fn rack_command(ctx: &mut DocCtx, command: &RackCommand) -> CmdResult<()> {
                         vendor: String::new(),
                         version: String::new(),
                         sandboxed: sandboxed.unwrap_or(false),
+                        always_process: false,
                         state: None,
                     };
                     let desc = ctx.host.instantiate_plugin(*id, &plugin)?;

@@ -156,6 +156,7 @@ fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
                         vendor: String::new(),
                         version: String::new(),
                         sandboxed: sandboxed.unwrap_or(false),
+                        always_process: false,
                         state: None,
                     };
                     let desc = ctx.host.instantiate_plugin(*id, &plugin)?;

@@ -435,6 +435,7 @@ where
                     vendor: to.vendor.clone(),
                     version: to.version.clone(),
                     sandboxed: old.sandboxed,
+                    always_process: false,
                     state: None,
                 };
                 let pre = plan(

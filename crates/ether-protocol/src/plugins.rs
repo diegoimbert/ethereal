@@ -34,6 +34,13 @@ pub enum PluginCommand {
         device: DeviceId,
         sandboxed: bool,
     },
+    /// Let an instance sleep on silence (`false`, the default) or always process it
+    /// (`PluginInstance::always_process`, CONTRACTS.md §13.19). Undoable; the live instance
+    /// is kept.
+    SetAlwaysProcess {
+        device: DeviceId,
+        always_process: bool,
+    },
     /// Re-instantiate a crashed plugin from its last saved state.
     Reload {
         device: DeviceId,

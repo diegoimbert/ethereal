@@ -177,6 +177,9 @@ pub struct SandboxedNode {
     values: Vec<(u32, f64)>,
     /// `Device::set_param` calls not yet sent.
     pending: Vec<(u32, f64)>,
+    /// The instance's "always process" switch, passed to the helper's node with every
+    /// block (`Block::always_process`).
+    always: Arc<AtomicBool>,
 }
 
 impl std::fmt::Debug for SandboxedNode {
@@ -221,6 +224,7 @@ impl SandboxedNode {
             reset_pending: false,
             values,
             pending: Vec::with_capacity(pending_cap),
+            always: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -380,6 +384,7 @@ impl SandboxedNode {
         h.n_in_events = n as u32;
         h.reset = u32::from(std::mem::take(&mut self.reset_pending));
         h.sidechain = u32::from(has_sidechain);
+        h.always_process = u32::from(self.always.load(Ordering::Relaxed));
         h.transport = WireTransport::encode(ctx.transport);
         self.seq += 1;
         self.region
@@ -534,6 +539,10 @@ impl Device for SandboxedNode {
 impl PluginNode for SandboxedNode {
     fn is_faulted(&self) -> bool {
         self.crashed()
+    }
+
+    fn always_process(&self) -> Option<Arc<AtomicBool>> {
+        Some(self.always.clone())
     }
 }
 

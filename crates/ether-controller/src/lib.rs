@@ -235,6 +235,14 @@ pub trait EngineBridge {
 
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError>;
 
+    /// Flip the "always process" switch of a plugin device's live instance
+    /// (`PluginInstance::always_process`, CONTRACTS.md §13.19; `create_plugin` applies it
+    /// at creation). Hosts without plugins (or whose plugins never sleep) ignore it.
+    fn set_always_process(&mut self, device: DeviceId, on: bool) -> Result<(), BridgeError> {
+        let _ = (device, on);
+        Ok(())
+    }
+
     /// Make decoded media (already at the engine sample rate; decoded by the controller
     /// with `ether-media` from bytes read via the `ProjectStore`) available to the engine.
     fn load_media(

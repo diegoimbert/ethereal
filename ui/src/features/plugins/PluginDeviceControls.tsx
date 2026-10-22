@@ -147,11 +147,14 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
 
 /**
  * The plugin's entries of its device context menu (advanced): sandboxing, which runs the
- * plugin in its own process (crash-safe, +1 block latency) and re-instantiates it.
+ * plugin in its own process (crash-safe, +1 block latency) and re-instantiates it; and
+ * "always process", for plugins that make sound out of silence without saying so (plugins
+ * otherwise sleep on silence once their tail has passed, saving cpu).
  */
 export function pluginMenuEntries(device: Device, transport: EngineTransport): ContextMenuEntry[] {
   if (device.kind.type !== "Plugin") return [];
   const { sandboxed } = device.kind.plugin;
+  const always = device.kind.plugin.always_process ?? false;
   return [
     {
       label: sandboxed ? tr("plugins.device.run_in_process") : tr("plugins.device.run_sandboxed"),
@@ -160,6 +163,13 @@ export function pluginMenuEntries(device: Device, transport: EngineTransport): C
           .send(cmd("Plugin", { type: "SetSandboxed", device: device.id, sandboxed: !sandboxed }))
           .then(() => usePluginStore.getState().clearCrash(device.id))
           .catch((e: unknown) => console.warn("sandbox toggle failed", e)),
+    },
+    {
+      label: always ? tr("plugins.device.sleep_on_silence") : tr("plugins.device.always_process"),
+      onSelect: () =>
+        void transport
+          .send(cmd("Plugin", { type: "SetAlwaysProcess", device: device.id, always_process: !always }))
+          .catch((e: unknown) => console.warn("always-process toggle failed", e)),
     },
   ];
 }

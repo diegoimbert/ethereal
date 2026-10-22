@@ -254,6 +254,7 @@ pub fn rack_command(ctx: &mut DocCtx, c: &DrumRackCommand) -> CmdResult<()> {
                         vendor: String::new(),
                         version: String::new(),
                         sandboxed: sandboxed.unwrap_or(false),
+                        always_process: false,
                         state: None,
                     },
                 },

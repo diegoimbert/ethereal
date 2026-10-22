@@ -498,6 +498,7 @@ fn insert_device(
                 vendor: vendor.clone(),
                 version: String::new(),
                 sandboxed: false,
+                always_process: false,
                 state: pd.state.clone(),
             },
         },
