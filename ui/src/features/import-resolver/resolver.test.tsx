@@ -15,7 +15,8 @@ import { DeviceChain } from "@/features/devices";
 import { WarpEditor } from "@/features/warp";
 import { MOCK_MISSING_PLUGIN_ID } from "@/transport/mock/roadmap/resolver";
 import { AI_CONSENT_STORAGE, AiResponseError, buildAiPayload, parseAiResponse, runAi } from "./ai";
-import { isMissingPlugin } from "./catalog";
+import { catalogNow, isMissingPlugin } from "./catalog";
+import { missingCount } from "./missingCount";
 import { resolveClipEntries, resolvePluginEntries, resolverCommands, withResolveClipEntries } from "./menus";
 import { ResolverDialog } from "./ResolverDialog";
 import { applyResolution, applyResolveEvent, askAi, openResolver, resetResolver, resolutions, setResolverTransport, useResolver } from "./store";
@@ -74,6 +75,31 @@ const menuItem = (label: string) =>
   (useContextMenuStore.getState().menu?.items ?? []).find((e): e is ContextMenuItem => e !== "separator" && e.label === label)!;
 
 describe("resolver with the mock engine", () => {
+  it("counts a plugin missing on the engine host, not one only missing here", async () => {
+    const { device, t } = await setup();
+    const plugin = device.kind.type === "Plugin" ? device.kind.plugin : null;
+    expect(missingCount(project(), t, 0)).toBe(1);
+    // Another computer's engine plays the project; its list is on its way: nothing is known missing.
+    act(() => usePluginStore.getState().setRemotePending(true));
+    expect(catalogNow(t)).toBeNull();
+    expect(missingCount(project(), t, 0)).toBe(0);
+    // Its list has the plugin (this computer doesn't): not missing.
+    const there = {
+      format: plugin!.format,
+      id: plugin!.plugin_id,
+      name: plugin!.name,
+      vendor: plugin!.vendor,
+      version: plugin!.version,
+      category: "AudioEffect",
+      path: "",
+    } as PluginDescriptor;
+    act(() => usePluginStore.getState().setRemote({ name: "Ada", plugins: [there] }));
+    expect(missingCount(project(), t, 0)).toBe(0);
+    // Its list lacks it: missing.
+    act(() => usePluginStore.getState().setRemote({ name: "Ada", plugins: [] }));
+    expect(missingCount(project(), t, 0)).toBe(1);
+  });
+
   it("proposes the deterministic match and applies it in one undo step", async () => {
     const { device, t } = await setup();
     expect(isMissingPlugin(device, [])).toBe(true);

@@ -190,6 +190,31 @@ describe("plugin formats", () => {
     expect(screen.queryByText("found · reload")).toBeNull();
   });
 
+  it("says missing only when the engine host lacks the plugin, not this computer", async () => {
+    const t = new DesktopFake();
+    t.plugins = []; // not installed here
+    await renderWith(t, <Header device={auDevice} />);
+    inProject(auDevice);
+    await screen.findByText("missing");
+
+    // Another computer's engine plays the project; its list hasn't come yet: unknown, no badge.
+    act(() => usePluginStore.getState().setRemotePending(true));
+    expect(screen.queryByText("missing")).toBeNull();
+    // Its list has the plugin: still none (only missing here).
+    act(() => usePluginStore.getState().setRemote({ name: "Ada", plugins: [{ ...AU_DELAY, path: "" }] }));
+    expect(screen.queryByText("missing")).toBeNull();
+    // Its list lacks it: missing there, whatever this computer has.
+    act(() => usePluginStore.getState().setPlugins([AU_DELAY]));
+    act(() => usePluginStore.getState().setRemote({ name: "Ada", plugins: [] }));
+    expect(screen.getByText("missing")).toBeInTheDocument();
+    // Back to this computer's engine: its own scan again.
+    act(() => {
+      usePluginStore.getState().setRemote(null);
+      usePluginStore.getState().setRemotePending(false);
+    });
+    expect(screen.queryByText("missing")).toBeNull();
+  });
+
   it("offers found · reload only for devices that were missing, and forgets it with the project", async () => {
     const t = new DesktopFake();
     t.plugins = [AU_DELAY];

@@ -647,6 +647,7 @@ fn start_cpal(
                 &settings,
                 &device.1,
                 system_buffer,
+                callback_priority(asio),
                 shared.clone(),
             ) {
                 Ok((stream, info)) => {
@@ -697,22 +698,42 @@ fn start_cpal(
     }
 }
 
+/// Whether the device callback's thread needs the workers' real-time promotion
+/// (`crate::workers::promote_current_thread`): on Windows WASAPI (cpal only raises it to
+/// `THREAD_PRIORITY_TIME_CRITICAL`, not into MMCSS) and on Linux (cpal leaves its ALSA thread
+/// at normal priority). ASIO drivers and Core Audio run their callbacks on real-time threads
+/// of their own.
+fn callback_priority(asio: bool) -> bool {
+    cfg!(any(windows, target_os = "linux")) && !asio
+}
+
+/// **RT** (a syscall on the first call per thread only): see [`callback_priority`].
+fn promote_callback_thread(period: Duration) {
+    thread_local! {
+        static DONE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+    if !DONE.with(|d| d.replace(true)) {
+        crate::workers::promote_current_thread(period);
+    }
+}
+
 fn build_cpal(
     renderer: RtRenderer,
     settings: &AudioSettings,
     device: &cpal::Device,
     system_buffer: bool,
+    promote: bool,
     shared: Arc<AudioShared>,
 ) -> Result<(cpal::Stream, StreamInfo), AudioError> {
     let device = device.clone();
     let rate = renderer_rate(&renderer);
     let (config, format) = cpal_config(&device, settings, Some(rate), system_buffer)?;
     let stream = match format {
-        cpal::SampleFormat::F32 => build_typed::<f32>(&device, &config, renderer, shared),
-        cpal::SampleFormat::F64 => build_typed::<f64>(&device, &config, renderer, shared),
-        cpal::SampleFormat::I16 => build_typed::<i16>(&device, &config, renderer, shared),
-        cpal::SampleFormat::U16 => build_typed::<u16>(&device, &config, renderer, shared),
-        cpal::SampleFormat::I32 => build_typed::<i32>(&device, &config, renderer, shared),
+        cpal::SampleFormat::F32 => build_typed::<f32>(&device, &config, renderer, promote, shared),
+        cpal::SampleFormat::F64 => build_typed::<f64>(&device, &config, renderer, promote, shared),
+        cpal::SampleFormat::I16 => build_typed::<i16>(&device, &config, renderer, promote, shared),
+        cpal::SampleFormat::U16 => build_typed::<u16>(&device, &config, renderer, promote, shared),
+        cpal::SampleFormat::I32 => build_typed::<i32>(&device, &config, renderer, promote, shared),
         other => return Err(AudioError::Config(format!("sample format {other:?}"))),
     }?;
     stream
@@ -740,12 +761,20 @@ fn build_typed<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
     mut renderer: RtRenderer,
+    promote: bool,
     shared: Arc<AudioShared>,
 ) -> Result<cpal::Stream, AudioError>
 where
     T: SizedSample + FromSample<f32>,
 {
     let channels = config.channels as usize;
+    // The time-constraint period (macOS only, never promoted here): one buffer, or 10 ms.
+    let period = match config.buffer_size {
+        cpal::BufferSize::Fixed(n) => {
+            Duration::from_secs_f64(f64::from(n) / f64::from(config.sample_rate.max(1)))
+        }
+        cpal::BufferSize::Default => Duration::from_millis(10),
+    };
     let mut poisoned = false;
     let timing = shared.clone();
     device
@@ -753,6 +782,9 @@ where
             config,
             move |data: &mut [T], info| {
                 enable_flush_denormals();
+                if promote {
+                    promote_callback_thread(period);
+                }
                 crate::recording::output_timing(&timing, info);
                 if poisoned {
                     data.fill(T::EQUILIBRIUM);
