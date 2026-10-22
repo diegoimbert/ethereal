@@ -153,8 +153,13 @@ pub enum Widget {
     },
     /// Rack view: chains list with mix/zones, and the macro bank.
     RackChains,
-    /// The 8 macro knobs of a rack (params 0..8).
-    Macros,
+    /// The 8 macro knobs of a rack: params `first..first + 8` (0 for chain racks, a drum
+    /// rack's after its volume and pan; `ether_model::rack::macro_param`). `first` defaults to
+    /// 0 when absent.
+    Macros {
+        #[serde(default)]
+        first: ParamId,
+    },
     /// Interactive EQ curve (v0.2): the combined magnitude response of
     /// `bands` (`ether_protocol::eq_response`, mirrored in TS) on a log-frequency / dB grid,
     /// with a draggable handle per band: drag = freq (x) + gain (y), wheel or Alt-drag = Q,

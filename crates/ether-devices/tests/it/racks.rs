@@ -98,7 +98,7 @@ fn rack_nodes_pass_through_and_keep_macro_values() {
             .iter()
             .flat_map(|s| s.items.iter().map(|i| &i.widget))
             .collect();
-        assert!(widgets.contains(&&Widget::Macros));
+        assert!(widgets.contains(&&Widget::Macros { first: ParamId(0) }));
         assert!(widgets.contains(&&Widget::Knob { param: ParamId(8) }));
     }
 }

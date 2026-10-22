@@ -150,10 +150,10 @@ fn bound(w: &Widget) -> Vec<ParamId> {
         | W::Spectrum
         | W::Tuner
         | W::Meter { .. }
-        | W::RackChains
-        | W::Macros => {
+        | W::RackChains => {
             vec![]
         }
+        W::Macros { first } => (0..8).map(|i| ParamId(first.0 + i)).collect(),
     }
 }
 

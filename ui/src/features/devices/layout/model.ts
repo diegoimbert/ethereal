@@ -51,8 +51,8 @@ export function boundParams(w: Widget): ParamId[] {
     case "LfoCurve":
       return [w.sync, w.sync_rate, w.rate, w.phase, w.depth];
     case "Macros":
-      // The 8 macro knobs of a rack are params 0..8 (CONTRACTS.md §12.6).
-      return [0, 1, 2, 3, 4, 5, 6, 7];
+      // The 8 macro knobs of a rack: params `first..first + 8` (CONTRACTS.md §12.6).
+      return Array.from({ length: 8 }, (_, i) => (w.first ?? 0) + i);
     case "ZoneMap":
     case "HardwareRouting":
     case "Spectrum":

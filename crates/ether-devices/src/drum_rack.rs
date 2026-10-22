@@ -14,6 +14,11 @@
 //! |----|----------|------------------|
 //! | 0  | `Volume` | -60 ..= 6 dB     |
 //! | 1  | `Pan`    | -1 ..= 1 balance |
+//! | 2..=9 | `Macro 1`..`Macro 8` (group `Macros`) | 0 ..= 1, default 0 |
+//!
+//! The macros are modulation sources like every rack's (`ether_model::rack::macro_param`,
+//! `ether_core::modulation`): the engine consumes their changes, the node only keeps their
+//! values for readback.
 
 use ether_core::protocol::devices::{
     DeviceCategory, DeviceDescriptor, DeviceTypeRef, ParamInfo, ParamScale, ParamUnit,
@@ -30,15 +35,18 @@ pub mod params {
     use ether_core::protocol::model::ParamId;
     pub const VOLUME: ParamId = ParamId(0);
     pub const PAN: ParamId = ParamId(1);
+    /// Macro 1 (`MACRO_1 + i` is macro `i + 1`, `i < 8`).
+    pub const MACRO_1: ParamId = ParamId(2);
 }
 
-const NUM_PARAMS: usize = 2;
+const MACROS: usize = 8;
+const NUM_PARAMS: usize = 2 + MACROS;
 const SMOOTH_MS: f32 = 20.0;
 
 /// Parameter list (identical for every instance).
 pub fn param_infos() -> Vec<ParamInfo> {
     use util::param;
-    vec![
+    let mut out = vec![
         param(
             0,
             "Volume",
@@ -55,7 +63,18 @@ pub fn param_infos() -> Vec<ParamInfo> {
             (-1.0, 1.0, 0.0),
             ParamScale::Linear,
         ),
-    ]
+    ];
+    out.extend((0..MACROS as u32).map(|i| {
+        param(
+            params::MACRO_1.0 + i,
+            &format!("Macro {}", i + 1),
+            "Macros",
+            ParamUnit::None,
+            (0.0, 1.0, 0.0),
+            ParamScale::Linear,
+        )
+    }));
+    out
 }
 
 /// Descriptor of the `DrumRack` type.
@@ -78,15 +97,26 @@ pub fn descriptor() -> DeviceDescriptor {
 
 /// Declarative panel (v0.2; drawn by the shared device renderer).
 pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
-    use crate::contract::{knob, layout, section};
-    use ether_core::protocol::layout::WidgetSize::*;
-    layout(vec![section(
-        "rack",
-        Some("Rack"),
-        1,
-        2,
-        vec![knob(params::VOLUME, Large), knob(params::PAN, Large)],
-    )])
+    use crate::contract::{item, knob, layout, section};
+    use ether_core::protocol::layout::{Widget, WidgetSize::*};
+    // The macro bank first, like the other racks' panels.
+    let mut macros = item(
+        Widget::Macros {
+            first: params::MACRO_1,
+        },
+        Medium,
+    );
+    macros.colspan = 4;
+    layout(vec![
+        section("macros", Some("Macros"), 3, 4, vec![macros]),
+        section(
+            "rack",
+            Some("Rack"),
+            1,
+            2,
+            vec![knob(params::VOLUME, Large), knob(params::PAN, Large)],
+        ),
+    ])
 }
 
 /// Non-RT. A new instance with default params.

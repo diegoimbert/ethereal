@@ -8,19 +8,19 @@ import type { ContextMenuEntry } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd, newId } from "@/transport";
 import { t } from "@/i18n";
-import { canTarget, DEFAULT_DEPTH, DEVICE_ENABLED_PARAM, isChainRack, MACROS, rackOf, sameSource, SELECTOR_PARAM, sourceName, switchDepth } from "./model";
+import { canTarget, DEFAULT_DEPTH, DEVICE_ENABLED_PARAM, hasMacros, macroIndex, MACROS, rackOf, sameSource, sourceName, switchDepth } from "./model";
 
-/** The racks whose macros can reach `device`'s `param`, nearest first. */
+/** The racks (drum racks included) whose macros can reach `device`'s `param`, nearest first. */
 function reachingRacks(project: Project, device: Device, param: number): Device[] {
   const out: Device[] = [];
   // A rack's own params after its macros, never its switch.
-  if (isChainRack(device) && param >= SELECTOR_PARAM && param !== DEVICE_ENABLED_PARAM) out.push(device);
+  if (hasMacros(device) && macroIndex(device, param) === null && param !== DEVICE_ENABLED_PARAM) out.push(device);
   let cur: Device | undefined = device;
   for (let i = 0; cur && i < 16; i++) {
     const host = rackOf(project, cur);
     if (host === null) break;
     cur = project.devices[host];
-    if (cur && isChainRack(cur)) out.push(cur);
+    if (cur && hasMacros(cur)) out.push(cur);
   }
   return out;
 }

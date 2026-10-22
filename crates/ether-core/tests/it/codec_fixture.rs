@@ -666,6 +666,7 @@ pub fn fill_v02(d: &mut RenderGraphDesc) {
             macros: vec![MacroDesc {
                 rack: key(i + 20),
                 values: [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 1.0],
+                first: if i % 2 == 0 { 0 } else { 2 },
             }],
         };
     }

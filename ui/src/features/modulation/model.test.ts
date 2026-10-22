@@ -1,7 +1,7 @@
 /** Modulation reach (mirrors `ether_model::modulation`): sources reach inside nested racks. */
 import { describe, expect, it } from "vitest";
-import type { Device, Project, RackChain } from "@/generated";
-import { canTarget, isInsideRack } from "./model";
+import type { Device, DrumPad, Project, RackChain } from "@/generated";
+import { canTarget, isInsideRack, macroIndex, macroParam } from "./model";
 
 const rack = (id: string, chain?: string): Device =>
   ({
@@ -55,5 +55,60 @@ describe("modulation reach", () => {
     // The outer macro reaches the inner rack's params, the inner macro not the outer rack.
     expect(canTarget(project, { type: "Macro", rack: "outer", index: 0 }, project.devices.inner!, 0)).toBe(true);
     expect(canTarget(project, { type: "Macro", rack: "inner", index: 0 }, project.devices.outer!, 9)).toBe(false);
+  });
+});
+
+// inst ─ c1 ─ drums ─ p1 ─ [kick, padfx ─ c3 ─ chorus]; top (another drum rack).
+const dev = (id: string, type: string, at: { chain?: string; pad?: string } = {}): Device =>
+  ({
+    id,
+    track: "t",
+    order: "a",
+    name: id,
+    enabled: true,
+    kind: { type: "Builtin", device: { type } },
+    params: {},
+    sidechain: null,
+    pad: at.pad ?? null,
+    ...(at.chain ? { chain: at.chain } : {}),
+  }) as Device;
+const drumProject = {
+  devices: {
+    inst: dev("inst", "InstrumentRack"),
+    drums: dev("drums", "DrumRack", { chain: "c1" }),
+    kick: dev("kick", "Synth", { pad: "p1" }),
+    padfx: dev("padfx", "AudioEffectRack", { pad: "p1" }),
+    chorus: dev("chorus", "Chorus", { chain: "c3" }),
+    top: dev("top", "DrumRack"),
+  },
+  rack_chains: { c1: chain("c1", "inst"), c3: chain("c3", "padfx") },
+  drum_pads: { p1: { id: "p1", rack: "drums" } as DrumPad },
+  modulators: {},
+  mod_mappings: {},
+} as unknown as Project;
+
+describe("drum rack macros", () => {
+  const d = drumProject.devices;
+  it("are the drum rack's params 2..10, a chain rack's 0..8", () => {
+    expect(macroParam(d.drums, 0)).toBe(2);
+    expect(macroParam(d.drums, 7)).toBe(9);
+    expect(macroParam(d.drums, 8)).toBe(null);
+    expect(macroIndex(d.drums, 1)).toBe(null);
+    expect(macroIndex(d.drums, 5)).toBe(3);
+    expect(macroParam(d.inst, 0)).toBe(0);
+    expect(macroParam(d.kick, 0)).toBe(null);
+  });
+
+  it("reach the pads' devices at any depth, and outer racks' macros reach into the pads", () => {
+    expect(isInsideRack(drumProject, d.chorus!, "drums")).toBe(true);
+    expect(isInsideRack(drumProject, d.kick!, "inst")).toBe(true);
+    const drumMacro = { type: "Macro", rack: "drums", index: 0 } as const;
+    expect(canTarget(drumProject, drumMacro, d.kick!, 0)).toBe(true);
+    expect(canTarget(drumProject, drumMacro, d.chorus!, 0)).toBe(true);
+    expect(canTarget(drumProject, { type: "Macro", rack: "inst", index: 0 }, d.chorus!, 0)).toBe(true);
+    expect(canTarget(drumProject, { type: "Macro", rack: "top", index: 0 }, d.kick!, 0)).toBe(false);
+    // The rack's own volume and pan, never its macros.
+    expect(canTarget(drumProject, drumMacro, d.drums!, 0)).toBe(true);
+    expect(canTarget(drumProject, drumMacro, d.drums!, 2)).toBe(false);
   });
 });
