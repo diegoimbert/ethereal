@@ -44,7 +44,9 @@ are skipped (GitHub reports them as cancelled), and `Supersede main runs` (`main
 `scripts/ci/main-supersede.mjs`) cancels the running one as soon as a newer push's run waits, so the
 newest starts at once. Starvation guard: when a workflow has had no green or red push run on `main`
 for more than ~2 h (counted from the later of its last finished run and the first push after it),
-the running run is let finish. Manual runs, re-runs, `release.yml` and EE sync are never cancelled.
+the running run is let finish. So is a running run past 70% of the workflow's typical run (the
+median of its last finished runs, timed from its first job's start): a streak of merges a few
+minutes apart then still gets a verdict every run or so instead of every ~2 h. Manual runs, re-runs, `release.yml` and EE sync are never cancelled.
 `Main status` (`main-status.yml`) reads only green and red runs: a cancelled run never opens,
 comments on or closes the `ci-main` issue.
 

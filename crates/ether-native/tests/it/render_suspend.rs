@@ -1,4 +1,4 @@
-//! A render suspends the live engine (`ether_controller::rendering`, CONTRACTS.md §13.19):
+//! A render suspends the live engine (`ether_controller::rendering`, CONTRACTS.md §13.20):
 //! the real controller, the native bridge and the engine on the paced `null` backend (real
 //! time, with the worker pool), a project of CPU-burning plugins, and an audio export.
 //!
@@ -193,6 +193,8 @@ impl Rig {
             sample_rate: RATE,
             max_block_size: BLOCK,
             worker_threads: workers,
+            // As the native host runs it (anticipative processing on with workers).
+            anticipative: workers > 0,
             ..Default::default()
         });
         if workers > 0 {
@@ -316,6 +318,15 @@ impl Rig {
         }
     }
 
+    /// The engine's playhead, as of a fresh tick.
+    fn playhead(&mut self) -> ether_core::PlayheadState {
+        self.tick();
+        self.ctl
+            .outputs
+            .playhead
+            .expect("the engine reports its playhead")
+    }
+
     /// The export's files once it is done, from the events since the last call.
     fn export_ended(&mut self) -> Option<Vec<String>> {
         use ether_core::protocol::export::{ExportEvent, ExportResult};
@@ -433,12 +444,23 @@ fn live_plugins_rest_while_rendering() {
         OFFLINE_BLOCKS.load(Ordering::Relaxed) > offline,
         "rendering"
     );
+    // The transport plays the rendered part (the device callback reads the preview).
+    let until = rig.ctl.rendering.latest().expect("rendering").until.0;
+    assert!(until > 1.0, "rendered so far: {until}");
+    rig.ok("Transport", json!({"type": "Locate", "position": 0.0}));
+    rig.ok("Transport", json!({"type": "Play"}));
+    std::thread::sleep(Duration::from_millis(200));
+    let ph = rig.playhead();
+    assert!(ph.playing && ph.position.0 > 0.1, "{ph:?}");
+    assert_eq!(LIVE_BLOCKS.load(Ordering::Relaxed), live, "still suspended");
     rig.ok("Export", json!({"type": "Cancel", "job": "j"}));
     std::thread::sleep(Duration::from_millis(100));
     assert!(
         LIVE_BLOCKS.load(Ordering::Relaxed) > live,
         "resumed after the render"
     );
+    let ph = rig.playhead();
+    assert!(ph.playing, "the playback goes on, live: {ph:?}");
 }
 
 #[test]

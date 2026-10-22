@@ -1,7 +1,9 @@
 // @vitest-environment node
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { BUILTIN_THEMES, builtinTheme } from "./builtinThemes";
 import { renderTokensCss } from "./css";
+import { resolvedThemeEntries } from "./themeModel";
 import { trackColor } from "./index";
 import { componentEntries, themeEntries, THEME_NAMES, themes, TRACK_COLORS } from "./tokens";
 
@@ -46,6 +48,16 @@ describe("design tokens", () => {
     for (const theme of THEME_NAMES) {
       const declared = merged(theme);
       for (const [name, value] of themeEntries(theme)) expect(declared.get(name), `${theme} ${name}`).toBe(value);
+    }
+  });
+
+  it("every other built-in theme is declared under its data-theme-id", () => {
+    const b = blocks(css);
+    for (const d of BUILTIN_THEMES) {
+      if ((THEME_NAMES as string[]).includes(d.id)) continue;
+      const declared = b.get(`[data-theme-id="${d.id}"]`);
+      expect(declared, d.id).toBeDefined();
+      for (const [name, value] of resolvedThemeEntries(builtinTheme(d.id))) expect(declared!.get(name), `${d.id} ${name}`).toBe(value);
     }
   });
 

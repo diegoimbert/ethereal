@@ -25,6 +25,7 @@
 //! syscalls/I/O/logging, bounded runtime. Debug tests wrap `process` in `assert_no_alloc`.
 
 pub mod analysis;
+mod anticipation;
 pub mod automation;
 pub mod automation_rt;
 pub mod buffer;
@@ -70,7 +71,9 @@ pub use analysis::{AnalysisFrame, AnalysisKind, AnalysisSink};
 pub use buffer::AudioBuffers;
 pub use bus_tap::InputTapDesc;
 pub use config::{EngineConfig, PrepareConfig};
-pub use engine::{Engine, EngineError, EngineHandle, EngineParts, GarbageCollector, create};
+pub use engine::{
+    AnticipationSwitch, Engine, EngineError, EngineHandle, EngineParts, GarbageCollector, create,
+};
 pub use event::{EventBuffer, EventKind, ProcessEvent};
 pub use graph::{CompileError, NodeInfo, RenderGraphDesc, RenderSnapshot};
 pub use media::AudioSource;

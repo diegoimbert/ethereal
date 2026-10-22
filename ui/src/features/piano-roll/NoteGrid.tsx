@@ -52,7 +52,7 @@ import {
   type TimelineViewport,
   type TimelineViewStore,
 } from "@/timeline";
-import { border, opacity as opacityTokens, radius, readToken, size, useGlow, useTheme, useThemeColor } from "@/theme";
+import { border, opacity as opacityTokens, radius, readToken, size, useGlow, useTheme, useThemeColor, useThemeKey } from "@/theme";
 import { parseColor, type Rgba } from "@/features/arrangement/gl/palette";
 import { cmd, newId, useTransport } from "@/transport";
 import { NotePitchCurves } from "@/features/mpe";
@@ -805,6 +805,8 @@ export function NoteGrid({
 /** The grid's colors and sizes for the current theme (re-read on a theme switch). */
 function useGridPalette(): GridPalette {
   const [theme] = useTheme();
+  // Redraws on any theme change (another dark theme, the editor's preview), not only light/dark.
+  const themeKey = useThemeKey();
   const glow = useGlow();
   const accent = useThemeColor("accent");
   const accentDim = useThemeColor("accentDim");
@@ -835,7 +837,8 @@ function useGridPalette(): GridPalette {
       glowOuter: px("--eth-size-selected-glow-outer", size.selectedGlowOuter),
       scaleOutNote: px("--eth-opacity-scale-out-note", opacityTokens.scaleOutNote),
     });
-  }, [theme, glow, accent, accentDim, accentGlow, text, bgInset, scaleRow, scaleRootRow, scaleRootLine]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `themeKey`: the tokens read from the page above
+  }, [theme, themeKey, glow, accent, accentDim, accentGlow, text, bgInset, scaleRow, scaleRootRow, scaleRootLine]);
 }
 
 /** Whether Alt/Option is held (for the velocity-drag cursor over notes). */

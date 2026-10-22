@@ -8,6 +8,7 @@ covers:
   - devices/compressor #compressor
   - devices/eq #eq
   - devices/delay #delay
+  - devices/grain-delay #grain-delay
   - devices/reverb #reverb
   - devices/convolution-reverb #convolution-reverb
   - devices/limiter #limiter
@@ -48,7 +49,7 @@ Un égaliseur 8 bandes pour couper ou accentuer des fréquences.
 - **mix** : mélangez le son non compressé (compression parallèle).
 - **détecteur** : **crête** réagit à chaque crête, **RMS** au niveau moyen, et **expansion** le transforme en expandeur vers le bas qui rend les passages calmes plus calmes.
 - l’**anticipation** (jusqu’à 10 ms) attrape les transitoires rapides, et ajoute autant de latence, qu’Ethereal compense.
-- Il peut être déclenché par une autre piste (voir [sidechain](/docs/making-music/modulation-and-sidechain#sidechain)). Le **HPF du sidechain** filtre alors le grave du signal de déclenchement, pour que le sub d’une grosse caisse ne le déclenche pas trop.
+- Il peut être déclenché par une autre piste (voir [sidechain](/docs/making-music/modulation-and-sidechain#sidechain)). Le **HPF du sidechain** filtre alors le grave du signal de déclenchement, pour que le sub d’une grosse caisse ne le déclenche pas trop ; la **pente du sidechain** rend ce filtre doux (6 dB/oct) ou plus raide (12 dB/oct).
 
 ### réverbe {#reverb}
 
@@ -70,6 +71,15 @@ Des échos.
 - **coupe-bas** et **coupe-haut** agissent dans la boucle de feedback, donc chaque écho est plus sombre ou plus fin que le précédent.
 - **vitesse de mod** et **profondeur de mod** font onduler le temps de delay, comme une bande.
 - **geler** boucle ce qui est dans le delay à cet instant, sans prendre de nouvelle entrée.
+
+### délai granulaire {#grain-delay}
+
+Des échos découpés en minuscules grains qui se chevauchent, que vous pouvez transposer et disperser.
+
+- **hauteur** transpose les grains (de -36 à +12 demi-tons) ; avec du **feedback**, chaque écho est transposé à nouveau, donc les répétitions montent ou descendent.
+- **fréquence** règle combien de grains démarrent par seconde, et donc leur taille : des valeurs basses donnent des grains longs et doux (un transpositeur simple), des valeurs hautes une texture granuleuse qui bourdonne. Faites glisser le pavé : en travers pour la **fréquence**, vers le haut pour la **hauteur**.
+- **dispersion** éparpille le départ de chaque grain dans le temps (un peu étale le son, beaucoup le casse et l’élargit) ; **hauteur aléatoire** désaccorde chaque grain au hasard.
+- **temps** en millisecondes, ou activez **sync** pour une valeur de note qui suit le tempo. **mix** mélange le son sec.
 
 ### limiteur {#limiter}
 

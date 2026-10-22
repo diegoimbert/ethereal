@@ -6,15 +6,18 @@
 
 import { create } from "zustand";
 import type { Device, DeviceId, ModMapping, ModSource, Modulator, Project } from "@/generated";
+import { customMacroName, RACK_MACROS } from "@/features/devices/layout/macros";
 import { t } from "@/i18n";
 
 /** HTML drag type of a modulation source (JSON `ModSource`). */
 export const MOD_DRAG_TYPE = "application/x-ethereal-mod-source";
 /** Depth of a new mapping (normalized units). */
 export const DEFAULT_DEPTH = 0.5;
-/** Macros per rack: a chain rack's params `0..MACROS` (the chain selector follows), a drum
- *  rack's from `DRUM_RACK_FIRST_MACRO` (after its volume and pan). */
-export const MACROS = 8;
+/** Macros per rack (`ether_model::RACK_MACROS`): a chain rack's params `0..8`, then `9..17`
+ *  after its chain selector; a drum rack's `DRUM_RACK_FIRST_MACRO..+16` (after its volume
+ *  and pan). A rack shows `visible` of them (`RackMacros`, default `DEFAULT_VISIBLE_MACROS`). */
+export const MACROS = RACK_MACROS;
+export { customMacroName, DEFAULT_VISIBLE_MACROS, rackMacros, visibleMacros } from "@/features/devices/layout/macros";
 export const SELECTOR_PARAM = 8;
 export const DRUM_RACK_FIRST_MACRO = 2;
 /**
@@ -34,27 +37,27 @@ export function switchDepth(d: Pick<Device, "enabled">): number {
 
 const RACK_TYPES = new Set(["InstrumentRack", "AudioEffectRack", "MidiEffectRack"]);
 
-export function isChainRack(d: Device | undefined | null): boolean {
+export function isChainRack(d: Pick<Device, "kind"> | undefined | null): boolean {
   return !!d && d.kind.type === "Builtin" && RACK_TYPES.has(d.kind.device.type);
 }
 
 /** A chain rack or a drum rack: a device with macros. */
-export function hasMacros(d: Device | undefined | null): boolean {
+export function hasMacros(d: Pick<Device, "kind"> | undefined | null): boolean {
   return isChainRack(d) || (!!d && d.kind.type === "Builtin" && d.kind.device.type === "DrumRack");
 }
 
 /** Param id of `d`'s macro `index` (`ether_model::rack::macro_param`), or `null`. */
-export function macroParam(d: Device | undefined | null, index: number): number | null {
-  if (!hasMacros(d) || index < 0 || index >= MACROS) return null;
-  return (isChainRack(d) ? 0 : DRUM_RACK_FIRST_MACRO) + index;
+export function macroParam(d: Pick<Device, "kind"> | undefined | null, index: number): number | null {
+  if (!hasMacros(d) || !Number.isInteger(index) || index < 0 || index >= MACROS) return null;
+  if (!isChainRack(d)) return DRUM_RACK_FIRST_MACRO + index;
+  return index < 8 ? index : SELECTOR_PARAM + 1 + (index - 8);
 }
 
 /** Macro index of `d`'s param `param` (`ether_model::rack::macro_index`), or `null`. */
-export function macroIndex(d: Device | undefined | null, param: number): number | null {
-  const first = macroParam(d, 0);
-  if (first === null) return null;
-  const i = param - first;
-  return i >= 0 && i < MACROS ? i : null;
+export function macroIndex(d: Pick<Device, "kind"> | undefined | null, param: number): number | null {
+  if (!hasMacros(d)) return null;
+  for (let i = 0; i < MACROS; i++) if (macroParam(d, i) === param) return i;
+  return null;
 }
 
 /** Whether `d` may host modulators (a track-chain device). */
@@ -125,10 +128,15 @@ export function modulatorsOf(table: Record<string, Modulator> | undefined, devic
     .sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : a.id < b.id ? -1 : 1));
 }
 
-/** Display name of a source ("LFO", "Macro 3"). */
+/** Display name of a source ("LFO", "macro 3", or the macro's custom name). */
 export function sourceName(project: Project, s: ModSource): string {
   if (s.type === "Modulator") return project.modulators[s.modulator]?.name ?? t("modulation.source.modulator");
-  return t("modulation.source.macro", { n: s.index + 1 });
+  return customMacroName(project.devices[s.rack], s.index) ?? t("modulation.source.macro", { n: s.index + 1 });
+}
+
+/** Whether `sourceName` is user text (a modulator's or a renamed macro's name). */
+export function sourceNameIsUserText(project: Project, s: ModSource): boolean {
+  return s.type === "Modulator" ? !!project.modulators[s.modulator] : customMacroName(project.devices[s.rack], s.index) !== null;
 }
 
 /** Stable colour slot (0..3) of a source, for its rings and chips. */

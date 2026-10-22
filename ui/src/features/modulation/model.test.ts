@@ -89,13 +89,21 @@ const drumProject = {
 
 describe("drum rack macros", () => {
   const d = drumProject.devices;
-  it("are the drum rack's params 2..10, a chain rack's 0..8", () => {
+  it("are the drum rack's params 2..18, a chain rack's 0..8 then 9..17 (after its selector)", () => {
     expect(macroParam(d.drums, 0)).toBe(2);
     expect(macroParam(d.drums, 7)).toBe(9);
-    expect(macroParam(d.drums, 8)).toBe(null);
+    expect(macroParam(d.drums, 8)).toBe(10);
+    expect(macroParam(d.drums, 15)).toBe(17);
+    expect(macroParam(d.drums, 16)).toBe(null);
     expect(macroIndex(d.drums, 1)).toBe(null);
     expect(macroIndex(d.drums, 5)).toBe(3);
+    expect(macroIndex(d.drums, 17)).toBe(15);
     expect(macroParam(d.inst, 0)).toBe(0);
+    expect(macroParam(d.inst, 7)).toBe(7);
+    expect(macroParam(d.inst, 8)).toBe(9);
+    expect(macroParam(d.inst, 15)).toBe(16);
+    expect(macroIndex(d.inst, 8)).toBe(null);
+    expect(macroIndex(d.inst, 9)).toBe(8);
     expect(macroParam(d.kick, 0)).toBe(null);
   });
 

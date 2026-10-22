@@ -114,6 +114,7 @@ fn fx_color_devices_insert_with_layouts_and_an_auto_filter_sidechain() {
         BuiltinDeviceType::AutoFilter,
         BuiltinDeviceType::Erosion,
         BuiltinDeviceType::Pedal,
+        BuiltinDeviceType::GrainDelay,
     ]);
     let mut h = Harness::with_project();
     let kick = track(&mut h, TrackKind::Audio);

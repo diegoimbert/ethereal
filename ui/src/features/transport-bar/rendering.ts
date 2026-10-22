@@ -1,4 +1,4 @@
-// A render in progress (`TransportState.rendering`, CONTRACTS.md §13.19): an audio export,
+// A render in progress (`TransportState.rendering`, CONTRACTS.md §13.20): an audio export,
 // stems or a share snapshot renders while the live engine is paused. The transport plays the
 // render's master as far as it is rendered (`start..until`); past it, nothing plays yet. Record
 // waits until the render ends; edits apply at once and are heard once it ends.

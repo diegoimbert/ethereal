@@ -792,6 +792,66 @@ fn plugins_gui_edits_latency_crash_and_state() {
     );
 }
 
+/// "Always process" (CONTRACTS.md §13.19) is an undoable document edit that flips the live
+/// instance's switch: no re-instantiation, saved in the project only when on.
+#[test]
+fn always_process_flips_the_live_instance() {
+    let mut h = plugin_harness();
+    let t = track(&mut h, TrackKind::Audio, None);
+    let d = insert_plugin(&mut h, t);
+    h.tick();
+    let creates = |h: &Harness| {
+        h.ctl
+            .bridge
+            .calls
+            .iter()
+            .filter(|c| matches!(c, Call::CreatePlugin(..)))
+            .count()
+    };
+    let switches = |h: &Harness| {
+        h.ctl
+            .bridge
+            .calls
+            .iter()
+            .filter_map(|c| match c {
+                Call::SetAlwaysProcess(dev, on) if *dev == d => Some(*on),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    let before = creates(&h);
+    let always = |h: &Harness| matches!(&h.project().devices[&d].kind, DeviceKind::Plugin { plugin } if plugin.always_process);
+    assert!(!always(&h), "plugins sleep on silence by default");
+
+    h.ok(Command::Plugin(PluginCommand::SetAlwaysProcess {
+        device: d,
+        always_process: true,
+    }));
+    h.tick();
+    assert!(always(&h));
+    assert_eq!(switches(&h), [true]);
+    // Setting it again changes nothing.
+    h.ok(Command::Plugin(PluginCommand::SetAlwaysProcess {
+        device: d,
+        always_process: true,
+    }));
+    h.tick();
+    assert_eq!(switches(&h), [true]);
+
+    h.ok(Command::Project(ProjectCommand::Save { autosave: false }));
+    let id = h.project().id;
+    let saved = std::str::from_utf8(h.ctl.store.file(id, "project.ether").unwrap())
+        .unwrap()
+        .to_string();
+    assert!(saved.contains("\"always_process\": true"), "{saved}");
+
+    h.ok(Command::Edit(EditCommand::Undo));
+    h.tick();
+    assert!(!always(&h));
+    assert_eq!(switches(&h), [true, false]);
+    assert_eq!(creates(&h), before, "the live instance is kept");
+}
+
 #[test]
 fn plugins_unsupported_on_web() {
     let mut h = Harness::with_project();

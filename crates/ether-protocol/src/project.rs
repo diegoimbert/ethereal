@@ -58,6 +58,12 @@ pub enum ProjectCommand {
     Rename { id: ProjectId, name: String },
     /// Delete a stored project (not the current one). Not undoable.
     Delete { id: ProjectId },
+    /// The user discarded a project (an untitled one, on leaving it): delete it, its versions
+    /// and recovery data. A project that is not open: as `Delete`. The open one: nothing of
+    /// it is saved from now on (no autosave, no save before a switch or on quit), and its
+    /// folder is deleted once it closes (another project opens, or the engine stops).
+    /// Not undoable. Replies `Unit`.
+    Discard { id: ProjectId },
     /// Full current document. Replies `Project`. Used on (re)connect and on revision gaps.
     Get,
     /// Undoable project scale metadata; never restricts MIDI notes.

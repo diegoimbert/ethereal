@@ -440,7 +440,7 @@ fn a_drum_rack_in_a_rack_chain_loads_the_pads_without_the_modulators() {
         id: nested,
         chain,
         device: DeviceSpec::Builtin {
-            device: BuiltinDevice::DrumRack,
+            device: BuiltinDevice::DrumRack { macros: None },
         },
         before: None,
     }));

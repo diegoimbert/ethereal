@@ -1,6 +1,6 @@
 [package]
 name = "ether-stretch"
-description = "Stretcher trait + Signalsmith Stretch implementations (C++ native, pure-Rust port)."
+description = "Stretcher trait + Signalsmith Stretch (C++ native, pure-Rust port) and Complex+."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -18,16 +18,18 @@ default = ["signalsmith", "rust-stretch"]
 # Signalsmith Stretch (C++, MIT) is vendored in `csrc/` and built by `build.rs` with a
 # small C ABI wrapper (split computation, planar buffers).
 signalsmith = []
-# Pure-Rust port of Signalsmith Stretch (`src/rust/`): builds everywhere, including wasm32,
-# where it is the only stretcher (the web host's Complex warp).
-rust-stretch = ["dep:rustfft"]
+# Pure-Rust port of Signalsmith Stretch (`src/rust/`) and Complex+ (`src/plus/`): build
+# everywhere, including wasm32 (the web host's stretchers).
+rust-stretch = ["dep:rustfft", "dep:realfft"]
 
 [dependencies]
 rustfft = { workspace = true, optional = true }
+realfft = { workspace = true, optional = true }
 
 [dev-dependencies]
 assert_no_alloc.workspace = true
 rustfft.workspace = true
+realfft.workspace = true
 
 [build-dependencies]
 cc = "1"

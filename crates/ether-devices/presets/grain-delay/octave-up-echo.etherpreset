@@ -1,0 +1,32 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "octave up echo",
+    "device": {
+      "type": "Builtin",
+      "device": "GrainDelay"
+    },
+    "meta": {
+      "tags": [
+        "echo",
+        "octave",
+        "pitch"
+      ],
+      "author": "ethereal",
+      "description": "echoes an octave up, each repeat climbing again."
+    },
+    "params": {
+      "0": 0.0,
+      "1": 250.0,
+      "2": 6.0,
+      "3": 30.0,
+      "4": 5.0,
+      "5": 20.0,
+      "6": 12.0,
+      "7": 0.0,
+      "8": 40.0
+    }
+  }
+}

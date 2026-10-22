@@ -1,4 +1,4 @@
-//! A render suspends the live engine and plays its preview (CONTRACTS.md §13.19).
+//! A render suspends the live engine and plays its preview (CONTRACTS.md §13.20).
 //!
 //! An audio export (mix, stems, both; the private overlay's share snapshots render through
 //! it too) renders on an offline engine of its own, with fresh device and plugin

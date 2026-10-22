@@ -112,7 +112,7 @@ fn poll(plugin: &mut dyn PluginController) -> Vec<PluginNotification> {
 #[test]
 fn scan_lists_audio_module_classes() {
     let plugins = scan_bundle(&bundle()).expect("scan");
-    assert_eq!(plugins.len(), 2, "{plugins:?}"); // the controller class is not listed
+    assert_eq!(plugins.len(), 3, "{plugins:?}"); // the controller class is not listed
     let fx = &plugins[0];
     assert_eq!(fx.format, PluginFormat::Vst3);
     assert_eq!(fx.id, EFFECT_ID);

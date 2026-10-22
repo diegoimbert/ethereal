@@ -269,7 +269,7 @@ pub struct Job {
     pub stats: UnitStats,
     /// The render's tempo map (the render preview's beats).
     tempo: TempoMapRt,
-    /// Render preview (CONTRACTS.md §13.19): frames of the first render's master given to
+    /// Render preview (CONTRACTS.md §13.20): frames of the first render's master given to
     /// `EngineBridge::push_render_preview` so far; `None` when not previewing.
     preview: Option<usize>,
     /// The master block for the preview when no output of the run takes it.
@@ -500,7 +500,7 @@ impl Job {
         }
     }
 
-    /// The render preview of this job (CONTRACTS.md §13.19): its first render's master,
+    /// The render preview of this job (CONTRACTS.md §13.20): its first render's master,
     /// when that render is the project's (the mix, or stems captured from it). `None` when
     /// every file has a pass of its own (stems that need one): nothing to preview.
     pub fn preview_spec(&self) -> Option<PreviewSpec> {

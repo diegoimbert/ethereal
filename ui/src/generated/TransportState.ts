@@ -25,7 +25,7 @@ start_position: Beats,
  */
 loading?: LoadProgress, 
 /**
- * A render runs (an audio export, stems, a share snapshot; CONTRACTS.md §13.19): the
+ * A render runs (an audio export, stems, a share snapshot; CONTRACTS.md §13.20): the
  * live engine is suspended and the transport plays the render's master as far as it
  * is rendered. Play needs a rendered position, `Locate` is clamped to the rendered
  * part, and record is refused (`error.render.running`). Edits apply to the document

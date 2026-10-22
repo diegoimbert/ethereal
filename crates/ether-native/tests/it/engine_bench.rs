@@ -30,6 +30,8 @@
 //! - `ETHER_BENCH_HOGS`: that many normal-priority threads keep the CPU busy during the runs
 //!   (what the UI, plugin editors and other apps do to a real session; default 0), to see
 //!   what thread priorities buy;
+//! - `ETHER_BENCH_ANTICIP`: comma list of `0`/`1`, anticipative processing off/on
+//!   (`EngineConfig::anticipative`; default `0`); rows with it on read `<workers>a`;
 //! - `ETHER_BENCH_JSON`: append one JSON line per run to this file (compare runs over time).
 //!
 //! Only public API, so the same file measures the engine before and after a change.
@@ -614,8 +616,9 @@ fn build(
     }
 }
 
-fn config(block: usize) -> EngineConfig {
+fn config(block: usize, anticipative: bool) -> EngineConfig {
     EngineConfig {
+        anticipative,
         sample_rate: SR,
         max_block_size: block,
         max_nodes: 1024,
@@ -654,8 +657,9 @@ fn render(
     executor: Box<dyn ParallelExecutor>,
     opts: &Opts,
     ns_per_iter: f64,
+    anticipative: bool,
 ) -> Run {
-    let mut parts = create(config(opts.block));
+    let mut parts = create(config(opts.block, anticipative));
     let desc = build(&mut parts.handle, tracks, ns_per_iter, opts.scale);
     parts.handle.publish(desc).expect("graph compiles");
     parts.handle.transport(TransportControl::Play).unwrap();
@@ -779,7 +783,8 @@ impl Drop for Hogs {
 }
 
 fn env_list<T: std::str::FromStr>(name: &str) -> Option<Vec<T>> {
-    let v = std::env::var(name).ok()?;
+    // Unset or empty: the default.
+    let v = std::env::var(name).ok().filter(|v| !v.trim().is_empty())?;
     Some(v.split(',').filter_map(|s| s.trim().parse().ok()).collect())
 }
 
@@ -814,6 +819,7 @@ fn realtime_buffers() {
     });
     let wanted: Option<Vec<String>> = env_list("ETHER_BENCH_SCENARIOS");
     let json = std::env::var("ETHER_BENCH_JSON").ok();
+    let antic: Vec<usize> = env_list("ETHER_BENCH_ANTICIP").unwrap_or_else(|| vec![0]);
     if opts.realtime {
         // Like the host's device callback (`audio.rs`): the render thread gets the
         // workers' priority too, or real-time workers preempt it.
@@ -876,7 +882,11 @@ fn realtime_buffers() {
             "cores"
         );
         let mut reference: Option<Vec<f32>> = None;
-        for &w in &workers {
+        let runs = workers
+            .iter()
+            .flat_map(|&w| antic.iter().map(move |&a| (w, a != 0)))
+            .filter(|&(w, a)| !(a && w == 0));
+        for (w, ahead) in runs {
             let executor: Box<dyn ParallelExecutor> = if w == 0 {
                 Box::new(SequentialExecutor)
             } else {
@@ -889,12 +899,12 @@ fn realtime_buffers() {
                     },
                 ))
             };
-            let run = render(&tracks, executor, &opts, ns_per_iter);
+            let run = render(&tracks, executor, &opts, ns_per_iter, ahead);
             match &reference {
                 None => reference = Some(run.out.clone()),
                 Some(r) => assert!(
                     r == &run.out,
-                    "{name}: {w} workers differ from the sequential engine"
+                    "{name}: {w} workers (anticipative: {ahead}) differ from the sequential engine"
                 ),
             }
             let mut t = run.times.clone();
@@ -909,8 +919,9 @@ fn realtime_buffers() {
             let over = t.iter().filter(|&&x| x > budget).count();
             let ideal = m.critical.max(m.total / (w + 1) as f64);
             let (sim_levels, sim_dag) = (m.simulate(w + 1, true), m.simulate(w + 1, false));
+            let label = format!("{w}{}", if ahead { "a" } else { "" });
             println!(
-                "  {w:>7} {mean:>7.0} {p50:>7.0} {p99:>7.0} {p999:>7.0} {max:>7.0} {:>5.0}% {over:>6} {:>6} {ideal:>7.0} {sim_levels:>7.0} {sim_dag:>7.0} {:>6}",
+                "  {label:>7} {mean:>7.0} {p50:>7.0} {p99:>7.0} {p999:>7.0} {max:>7.0} {:>5.0}% {over:>6} {:>6} {ideal:>7.0} {sim_levels:>7.0} {sim_dag:>7.0} {:>6}",
                 p99 / budget * 100.0,
                 run.late_starts,
                 run.cores_busy
@@ -918,7 +929,7 @@ fn realtime_buffers() {
             );
             if let Some(path) = &json {
                 let line = format!(
-                    "{{\"scenario\":\"{name}\",\"workers\":{w},\"block\":{},\"paced\":{},\"scale\":{},\"rt\":{},\"hogs\":{hogs},\
+                    "{{\"scenario\":\"{name}\",\"workers\":{w},\"antic\":{ahead},\"block\":{},\"paced\":{},\"scale\":{},\"rt\":{},\"hogs\":{hogs},\
                      \"mean_us\":{mean:.1},\"p50_us\":{p50:.1},\"p99_us\":{p99:.1},\"p999_us\":{p999:.1},\
                      \"max_us\":{max:.1},\"budget_us\":{budget:.1},\"over\":{over},\"late\":{},\
                      \"ideal_us\":{ideal:.1},\"sim_levels_us\":{sim_levels:.1},\"sim_dag_us\":{sim_dag:.1},\"critical_us\":{:.1},\"levels_us\":{:.1},\"total_us\":{:.1},\
@@ -1126,7 +1137,8 @@ fn timeline() {
     };
     // The audio (test) thread is thread 0.
     assert_eq!(thread_index(), 0);
-    let run = render(&tracks, Box::new(tl), &opts, ns_per_iter);
+    let ahead = env_num("ETHER_BENCH_ANTICIP", 0.0) != 0.0;
+    let run = render(&tracks, Box::new(tl), &opts, ns_per_iter, ahead);
     let n = len.load(Ordering::Relaxed).min(capacity);
     let from = (run.measured_from - epoch).as_nanos() as u64;
     let all: Vec<Span> = spans[..n]
@@ -1229,5 +1241,136 @@ fn timeline() {
         pct(&job_us, 0.99),
         sum(&job_us) / buffers,
         model(&tracks, opts.block).total * opts.scale,
+    );
+}
+
+// ---------------------------------------------------------------------------------------
+// Idle plugins (sleep on silence).
+
+/// Many idle VST3 effects on silent tracks while playing: the fixture's tail effect
+/// (`ether_vst3::testing::TAIL_ID`, an echo whose `Cost` param makes it an expensive
+/// plugin), every instance always processing, then sleeping on silence (CONTRACTS.md
+/// §13.19, the default). One render thread, back to back: the time is the CPU spent.
+///
+/// ```text
+/// cargo test --release -p ether-native --features plugins-vst3 --test it \
+///   engine_bench::idle_vst3_plugins -- --ignored --nocapture --test-threads 1
+/// ```
+///
+/// `ETHER_BENCH_IDLE_TRACKS` (default 32), `ETHER_BENCH_IDLE_PLUGINS` per track (4),
+/// `ETHER_BENCH_IDLE_COST` (the `Cost` param, default 0.01 = 10 multiply-adds per frame),
+/// `ETHER_BENCH_BLOCK`, `ETHER_BENCH_SECONDS`.
+#[cfg(feature = "plugins-vst3")]
+#[test]
+#[ignore = "benchmark: run in release with --features plugins-vst3 --ignored --nocapture --test-threads 1"]
+fn idle_vst3_plugins() {
+    use ether_core::plugin::PluginController;
+    use ether_core::protocol::model::ParamId;
+    use std::sync::atomic::Ordering;
+
+    enable_flush_denormals();
+    let n_tracks = env_num("ETHER_BENCH_IDLE_TRACKS", 32.0) as u128;
+    let per_track = env_num("ETHER_BENCH_IDLE_PLUGINS", 4.0) as usize;
+    let cost = env_num("ETHER_BENCH_IDLE_COST", 0.01);
+    let block = env_num("ETHER_BENCH_BLOCK", 256.0) as usize;
+    let seconds = env_num("ETHER_BENCH_SECONDS", 4.0);
+    let dir = ether_vst3::testing::temp_dir("engine-bench-idle");
+    let bundle = ether_vst3::testing::make_bundle(&dir, "EtherBenchIdle");
+    let budget = block as f64 * 1e6 / SR as f64;
+    println!(
+        "idle_vst3_plugins: {n_tracks} silent tracks x {per_track} VST3 effects (cost {cost}), \
+         {block} frames ({budget:.0} µs budget), playing, 1 thread, back to back"
+    );
+    println!(
+        "  {:>16} {:>8} {:>8} {:>8} {:>7}",
+        "", "mean", "p50", "p99", "%budg"
+    );
+    let mut means = Vec::new();
+    let mut reference: Option<Vec<f32>> = None;
+    for always in [true, false] {
+        let mut parts = create(config(block));
+        let prepare = PrepareConfig {
+            sample_rate: SR as f32,
+            max_block_size: block,
+            max_events_per_block: 256,
+        };
+        let mut plugins = Vec::new();
+        let mut tracks = vec![track_desc(tid(MASTER), TrackKind::Master, None)];
+        for i in 0..n_tracks {
+            let mut t = track_desc(tid(100 + i), TrackKind::Audio, Some(tid(MASTER)));
+            for _ in 0..per_track {
+                let mut plugin =
+                    ether_vst3::Vst3Plugin::load(&bundle, ether_vst3::testing::TAIL_ID)
+                        .expect("load the tail effect");
+                plugin.set_param_value(ParamId(23), cost).expect("cost");
+                let node = plugin.activate(&prepare).expect("activate");
+                node.always_process()
+                    .expect("switch")
+                    .store(always, Ordering::Relaxed);
+                t.chain.push(ChainEntry {
+                    node: parts.handle.add_node(node).expect("node table"),
+                    enabled: true,
+                    sidechain: None,
+                });
+                plugins.push(plugin);
+            }
+            tracks.push(t);
+        }
+        parts
+            .handle
+            .publish(RenderGraphDesc {
+                version: 1,
+                tracks,
+                ..Default::default()
+            })
+            .expect("graph compiles");
+        parts.handle.transport(TransportControl::Play).unwrap();
+        let blocks = ((seconds * SR as f64) as usize / block).max(1);
+        let warmup = (0.25 * SR as f64) as usize / block;
+        let (mut l, mut r) = (vec![0.0f32; block], vec![0.0f32; block]);
+        let mut out = Vec::with_capacity(blocks * block * 2);
+        let mut times = Vec::with_capacity(blocks);
+        let mut polled = ether_core::EngineOutputs::default();
+        for b in 0..warmup + blocks {
+            let t = Instant::now();
+            {
+                let mut outs: [&mut [f32]; 2] = [&mut l, &mut r];
+                parts.engine.process(&[], &mut outs, block);
+            }
+            if b >= warmup {
+                times.push(t.elapsed().as_secs_f64() * 1e6);
+                out.extend_from_slice(&l);
+                out.extend_from_slice(&r);
+            }
+            if b % 8 == 0 {
+                parts.handle.poll(&mut polled);
+                parts.gc.collect();
+            }
+        }
+        match &reference {
+            None => reference = Some(out),
+            Some(r) => assert!(r == &out, "sleeping changed the output"),
+        }
+        times.sort_by(f64::total_cmp);
+        let mean = times.iter().sum::<f64>() / times.len() as f64;
+        let (p50, p99) = (percentile(&times, 0.5), percentile(&times, 0.99));
+        println!(
+            "  {:>16} {mean:>8.1} {p50:>8.1} {p99:>8.1} {:>6.1}%",
+            if always {
+                "always process"
+            } else {
+                "sleep on silence"
+            },
+            mean / budget * 100.0
+        );
+        means.push(mean);
+        // The nodes go back (and are dropped) with the engine, before their controllers.
+        drop(parts);
+        drop(plugins);
+    }
+    println!(
+        "  saved: {:.1} µs per buffer ({:.0}%)",
+        means[0] - means[1],
+        (1.0 - means[1] / means[0]) * 100.0
     );
 }

@@ -8,7 +8,8 @@ name: Supersede main runs
 # running one so the newest starts at once. A group with cancel-in-progress: true can't do it: it
 # would cancel during a long merge streak forever, and `main` would get no signal. So the guard:
 # when a workflow has had no finished (green or red) push run for more than ~2 h, the running run
-# is let finish. Manual runs, re-runs and other workflows (release, EE sync) are never cancelled.
+# is let finish, and so is a running run past 70% of a typical run. Manual runs, re-runs and other
+# workflows (release, EE sync) are never cancelled.
 #
 # Safety: a push to `main` only (trusted); the token can only read the repository and cancel runs.
 on:

@@ -236,6 +236,14 @@ pub trait EngineBridge {
 
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError>;
 
+    /// Flip the "always process" switch of a plugin device's live instance
+    /// (`PluginInstance::always_process`, CONTRACTS.md §13.19; `create_plugin` applies it
+    /// at creation). Hosts without plugins (or whose plugins never sleep) ignore it.
+    fn set_always_process(&mut self, device: DeviceId, on: bool) -> Result<(), BridgeError> {
+        let _ = (device, on);
+        Ok(())
+    }
+
     /// Make decoded media (already at the engine sample rate; decoded by the controller
     /// with `ether-media` from bytes read via the `ProjectStore`) available to the engine.
     fn load_media(
@@ -258,7 +266,7 @@ pub trait EngineBridge {
         Ok(())
     }
     /// While suspended for a render, play its master as far as it is rendered (CONTRACTS.md
-    /// §13.19, `ether_core::render_preview`): a new, empty preview of `spec`, replacing
+    /// §13.20, `ether_core::render_preview`): a new, empty preview of `spec`, replacing
     /// any. The default (engines that can't) says `Unsupported`: the render then has no
     /// preview.
     fn begin_render_preview(
@@ -770,6 +778,9 @@ where
     pub samples: sample_pack::SamplesState,
     pub next_gesture: u32,
     pub last_transport: Option<TransportState>,
+    /// The open project the user discarded (`ProjectCommand::Discard`): never saved again,
+    /// deleted once it closes.
+    pub discarded: Option<ether_core::protocol::model::ProjectId>,
     /// The project load in progress: the engine is suspended until it ends (`loading`).
     pub loading: loading::LoadState,
     /// The render in progress: the engine is suspended and plays its preview (`rendering`).
@@ -853,6 +864,7 @@ where
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,
             last_transport: None,
+            discarded: None,
             loading: Default::default(),
             rendering: Default::default(),
             outputs: EngineOutputs::default(),

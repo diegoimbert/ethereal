@@ -201,7 +201,7 @@ describe("DeviceLibrary", () => {
       expect(active()).toBe(shown[0]);
 
       // A single row stays put both ways.
-      fireEvent.change(field, { target: { value: "delay" } });
+      fireEvent.change(field, { target: { value: "limiter" } });
       const one = keys();
       expect(one).toHaveLength(1);
       fireEvent.keyDown(field, { key: "ArrowDown" });

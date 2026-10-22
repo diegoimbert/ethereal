@@ -223,6 +223,7 @@ impl Gen<'_> {
                             vendor: "E".into(),
                             version: "1".into(),
                             sandboxed: false,
+                            always_process: false,
                             state: Some(Base64Bytes(vec![1, 2, 3])),
                         },
                     },

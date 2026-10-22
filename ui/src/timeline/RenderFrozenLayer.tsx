@@ -16,7 +16,7 @@ export interface RenderFrozenLayerProps {
 }
 
 /**
- * While a render runs (`TransportState.rendering`, CONTRACTS.md §13.19), what isn't rendered
+ * While a render runs (`TransportState.rendering`, CONTRACTS.md §13.20), what isn't rendered
  * yet is frozen: a hatched shade over the timeline past the rendered part (`until`, the
  * boundary moving as the render advances) and before the render's start. Playback (the render
  * preview) only plays the part between. Pointer-transparent: editing goes on underneath.

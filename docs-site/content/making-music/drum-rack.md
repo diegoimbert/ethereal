@@ -62,7 +62,7 @@ Each pad has mute and solo buttons, like a track.
 
 ## macros
 
-A drum rack has **8 macro knobs**, like the other [racks](/docs/making-music/racks-and-macros#macros), at the top of its window (and in its parameter list). Map a macro to parameters of the devices on any pad, even inside a rack on a pad: one macro can shorten every sample's decay or open the filters of the whole kit. A macro of a rack around the drum rack reaches its pads too. Macros can be automated and mapped to a MIDI controller like any knob, and a drum rack preset keeps them.
+A drum rack has up to **16 macro knobs** (8 shown to start with, renamable), like the other [racks](/docs/making-music/racks-and-macros#macros), at the top of its window (and in its parameter list). Map a macro to parameters of the devices on any pad, even inside a rack on a pad: one macro can shorten every sample's decay or open the filters of the whole kit. A macro of a rack around the drum rack reaches its pads too. Macros can be automated and mapped to a MIDI controller like any knob, and a drum rack preset keeps them.
 
 ## where next
 

@@ -40,6 +40,8 @@ pub enum Call {
     SetPluginState(DeviceId, Base64Bytes),
     /// `begin_render_preview` (`true`) / `end_render_preview` (`false`).
     RenderPreview(bool),
+    /// A live instance's "always process" switch flipped (`set_always_process`).
+    SetAlwaysProcess(DeviceId, bool),
 }
 
 #[derive(Default)]
@@ -202,6 +204,11 @@ impl EngineBridge for FakeBridge {
         self.calls
             .push(Call::CreatePlugin(device, key, state.cloned()));
         Ok(key)
+    }
+
+    fn set_always_process(&mut self, device: DeviceId, on: bool) -> Result<(), BridgeError> {
+        self.calls.push(Call::SetAlwaysProcess(device, on));
+        Ok(())
     }
 
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError> {

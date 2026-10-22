@@ -5,7 +5,7 @@
  * `ReadChunk`. Validation, file naming and the chunk cap mirror the Rust controller
  * (`ether-controller/src/export`). Owned by `export`.
  *
- * While a job runs the live engine is paused (`rendering()`, CONTRACTS.md §13.19): the
+ * While a job runs the live engine is paused (`rendering()`, CONTRACTS.md §13.20): the
  * transport state carries `rendering` with the rendered part growing per phase (start, then
  * half way), cleared at done/cancel.
  */

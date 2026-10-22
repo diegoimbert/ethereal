@@ -1,6 +1,6 @@
 // Colors of the clip-editing layers, read from the theme tokens `clipEditing.css` and
 // `mediaRefs.css` use (cached per palette: a theme switch reads a new palette).
-import { getTheme, readToken, themes, tokenName, type ColorKey } from "@/theme";
+import { readToken, themeColorValue, tokenName, type ColorKey } from "@/theme";
 import { parseColor, withAlpha, type Palette, type Rgba } from "../palette";
 
 export interface EditColors {
@@ -29,7 +29,7 @@ export interface EditColors {
 const cache = new WeakMap<Palette, EditColors>();
 
 function token(key: ColorKey): Rgba {
-  const css = readToken(tokenName("color", key) as `--${string}`) || themes[getTheme()].color[key];
+  const css = readToken(tokenName("color", key) as `--${string}`) || themeColorValue(key);
   return parseColor(css);
 }
 

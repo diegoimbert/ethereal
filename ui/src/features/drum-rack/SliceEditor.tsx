@@ -14,7 +14,8 @@ import { useDeviceWindows } from "@/features/devices/window/store";
 import { holdNote } from "@/features/piano-roll/notePreview";
 import { errorMessage } from "@/features/transport-bar/engine";
 import { formatFixed, t as tr, useT, type MessageKey } from "@/i18n";
-import { Button, NumberField, openContextMenu, readToken, Select, Tabs, useTheme } from "@/kit";
+import { Button, NumberField, openContextMenu, readToken, Select, Tabs } from "@/kit";
+import { useThemeKey } from "@/theme";
 import { useProjectStore } from "@/state";
 import { cmd, newId, useTransport } from "@/transport";
 import { noteName, playableSlices, sampleOf, slicePadIds, slicesOf } from "./padUtils";
@@ -74,7 +75,7 @@ export function SamplerModeSwitch({ sampler }: { sampler: Device }) {
 function Waveform({ peaks, frames }: { peaks: PeakData | null; frames: number }) {
   const t = useT();
   const ref = useRef<HTMLCanvasElement>(null);
-  const [theme] = useTheme();
+  const theme = useThemeKey();
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;

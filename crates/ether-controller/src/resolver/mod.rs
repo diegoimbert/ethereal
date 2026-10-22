@@ -541,6 +541,7 @@ where
                         vendor: r.vendor.clone(),
                         version: r.version.clone(),
                         sandboxed: old.sandboxed,
+                        always_process: false,
                         state: if keep { old.state.clone() } else { None },
                     },
                 },

@@ -353,6 +353,45 @@ fn env_backend() -> Option<AudioBackendKind> {
 struct EngineSettings {
     /// Audio worker threads (`EngineConfig::worker_threads`); `None` = the default.
     worker_threads: Option<usize>,
+    /// Anticipative processing (`ether_core::EngineHandle::set_anticipative`); `None` = on.
+    anticipative: Option<bool>,
+}
+
+fn engine_settings(data_dir: &std::path::Path) -> EngineSettings {
+    std::fs::read_to_string(data_dir.join("config").join("engine.json"))
+        .ok()
+        .and_then(|j| serde_json::from_str::<EngineSettings>(&j).ok())
+        .unwrap_or_default()
+}
+
+/// Set `key` in `<data_dir>/config/engine.json`, keeping the other settings.
+fn save_engine_setting(
+    data_dir: &std::path::Path,
+    key: &str,
+    value: serde_json::Value,
+) -> std::io::Result<()> {
+    let path = data_dir.join("config").join("engine.json");
+    let mut json = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|j| serde_json::from_str::<serde_json::Value>(&j).ok())
+        .filter(|v| v.is_object())
+        .unwrap_or_else(|| serde_json::json!({}));
+    json[key] = value;
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    let text = serde_json::to_string_pretty(&json).map_err(std::io::Error::other)?;
+    crate::store::atomic_write(&path, text.as_bytes()).map_err(std::io::Error::other)
+}
+
+/// Anticipative processing (tracks not listened to live render one block ahead, so the
+/// master chain overlaps them; CONTRACTS.md §11.7): `ETHER_ANTICIPATIVE=0|1`, else
+/// `anticipative` of `<data_dir>/config/engine.json`, else on.
+pub fn anticipative(data_dir: &std::path::Path) -> bool {
+    if let Ok(v) = std::env::var("ETHER_ANTICIPATIVE") {
+        return !matches!(v.trim(), "0" | "false" | "off");
+    }
+    engine_settings(data_dir).anticipative.unwrap_or(true)
 }
 
 /// Worker threads for the engine: `ETHER_WORKERS`, else `worker_threads` of
@@ -363,10 +402,8 @@ pub fn worker_threads(data_dir: &std::path::Path, backend: AudioBackendKind) -> 
     if let Some(n) = crate::workers::env_workers() {
         return n;
     }
-    std::fs::read_to_string(data_dir.join("config").join("engine.json"))
-        .ok()
-        .and_then(|j| serde_json::from_str::<EngineSettings>(&j).ok())
-        .and_then(|s| s.worker_threads)
+    engine_settings(data_dir)
+        .worker_threads
         .unwrap_or_else(|| match backend {
             AudioBackendKind::Cpal => crate::workers::default_workers(),
             _ => HEADLESS_WORKERS,
@@ -448,6 +485,8 @@ impl NativeHost {
             worker_threads: worker_threads(&config.data_dir, settings.backend),
             // Every channel of a multi-channel interface (`crate::recording`).
             input_channels: crate::recording::MAX_INPUT_CHANNELS as u16,
+            // Held output allocated; switched by the setting below (and at run time).
+            anticipative: true,
             ..Default::default()
         };
         let prepare = PrepareConfig {
@@ -456,6 +495,12 @@ impl NativeHost {
             max_events_per_block: engine_config.max_events_per_block,
         };
         let mut parts = ether_core::create(engine_config.clone());
+        if !anticipative(&config.data_dir) {
+            parts.handle.set_anticipative(false);
+        }
+        // Without workers there is nothing to overlap: the setting is not offered.
+        let anticipation =
+            (engine_config.worker_threads > 0).then(|| parts.handle.anticipation_switch());
         if engine_config.worker_threads > 0 {
             // Multicore (`crate::workers`): independent tracks run on RT worker threads.
             let block = std::time::Duration::from_secs_f64(
@@ -551,6 +596,7 @@ impl NativeHost {
                     config.data_dir.clone(),
                     config.instance.clone(),
                 );
+                audio.anticipation = anticipation;
                 // Settings saved by device name only get the ids (once).
                 if from_disk {
                     audio.record_device_ids();
@@ -859,6 +905,9 @@ struct AudioState {
     stall: device::StallWatch,
     /// The last render crash ([`device`]).
     last_crash: Option<Instant>,
+    /// Anticipative processing (`EngineCommand::SetAnticipative`); `None` without worker
+    /// threads, where the engine never anticipates.
+    anticipation: Option<ether_core::AnticipationSwitch>,
 }
 
 impl AudioState {
@@ -887,6 +936,7 @@ impl AudioState {
             lost: None,
             stall: device::StallWatch::new(Instant::now()),
             last_crash: None,
+            anticipation: None,
         }
     }
 
@@ -909,6 +959,7 @@ impl AudioState {
             xruns: self.shared.xruns.load(Ordering::Relaxed),
             instance: self.instance.clone(),
             device_released: self.released,
+            anticipative: self.anticipation.as_ref().map(|s| s.is_on()),
         }
     }
 
@@ -1317,6 +1368,23 @@ impl ControllerThread {
                 ErrorCode::Internal,
                 "the controller starts and stops the engine".to_string(),
             ),
+            EngineCommand::SetAnticipative { on } => {
+                let Some(switch) = &self.audio.anticipation else {
+                    return reply_err(
+                        id,
+                        ErrorCode::Unsupported,
+                        "this engine runs without worker threads".to_string(),
+                    );
+                };
+                switch.set(on);
+                if let Err(e) = save_engine_setting(&self.audio.data_dir, "anticipative", on.into())
+                {
+                    tracing::warn!(%e, "failed to save the engine settings");
+                }
+                let status = self.audio.status();
+                self.router.send(status_event(status.clone()));
+                reply_ok(id, ReplyValue::Status { status })
+            }
             EngineCommand::SetAudioConfig { config } => {
                 let new = match self.audio.settings.merged(&config) {
                     Ok(s) => s,

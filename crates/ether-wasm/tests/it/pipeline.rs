@@ -570,9 +570,9 @@ fn nodes_in_drum_pads_and_rack_chains_are_mapped_to_real_keys() {
             .unwrap()
     };
     // Creation order matters: each nested node is followed by a track chain node.
-    let drums = create(1, BuiltinDevice::DrumRack);
+    let drums = create(1, BuiltinDevice::DrumRack { macros: None });
     let pad_synth = create(2, BuiltinDevice::Synth);
-    let rack = create(3, BuiltinDevice::InstrumentRack);
+    let rack = create(3, BuiltinDevice::InstrumentRack { macros: None });
     let chain_synth = create(4, BuiltinDevice::Synth);
     let plain_synth = create(5, BuiltinDevice::Synth);
     let entry = |node| ChainEntry {
@@ -730,7 +730,11 @@ fn pad_audition_plays_through_the_pad_chain_while_stopped() {
     let mut bridge = WebBridge::new(shared.clone());
     let mut engine = EngineHost::new(48_000, control, reports);
     let drums = bridge
-        .create_builtin(DeviceId(Ulid(1)), &BuiltinDevice::DrumRack, &[])
+        .create_builtin(
+            DeviceId(Ulid(1)),
+            &BuiltinDevice::DrumRack { macros: None },
+            &[],
+        )
         .unwrap();
     let pad_synth = bridge
         .create_builtin(DeviceId(Ulid(2)), &BuiltinDevice::Synth, &[])

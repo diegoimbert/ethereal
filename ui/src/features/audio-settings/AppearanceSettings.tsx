@@ -12,9 +12,9 @@ import {
   useTranslucency,
   useTranslucencyAmount,
   useZoom,
-  type ThemeName,
 } from "@/theme";
 import { useT, type MessageKey } from "@/i18n";
+import { ThemePicker } from "./ThemePicker";
 
 const MOTION_LEVELS: { value: MotionLevel; label: MessageKey }[] = [
   { value: "classic", label: "settings.appearance.motion_classic" },
@@ -22,15 +22,10 @@ const MOTION_LEVELS: { value: MotionLevel; label: MessageKey }[] = [
   { value: "reduced", label: "settings.appearance.motion_reduced" },
 ];
 
-const THEMES: { value: ThemeName; label: MessageKey }[] = [
-  { value: "dark", label: "settings.appearance.theme_dark" },
-  { value: "light", label: "settings.appearance.theme_light" },
-];
-
 /** Settings > Appearance: theme, interface zoom and translucency (kept on this device). */
 export function AppearanceSettings() {
   const t = useT();
-  const [theme, setTheme] = useTheme();
+  const [theme] = useTheme();
   const [zoom, setZoom] = useZoom();
   const [blobs, setBlobs] = useColorBlobs();
   const [glow, setGlowOn] = useGlowSetting();
@@ -39,18 +34,12 @@ export function AppearanceSettings() {
   const [amount, setAmount] = useTranslucencyAmount();
   return (
     <div className="eth-settings__stack" data-testid="settings-appearance">
+      <section className="eth-settings__section" aria-label={t("settings.appearance.theme")}>
+        <h3 className="eth-settings__heading">{t("settings.appearance.theme")}</h3>
+        <ThemePicker />
+      </section>
       <section className="eth-settings__section" aria-label={t("settings.appearance.interface")}>
         <h3 className="eth-settings__heading">{t("settings.appearance.interface")}</h3>
-        <div className="eth-settings__row">
-          <span>{t("settings.appearance.theme")}</span>
-          <Select
-            size="sm"
-            aria-label={t("settings.appearance.theme")}
-            options={THEMES.map((o) => ({ value: o.value, label: t(o.label) }))}
-            value={theme}
-            onChange={setTheme}
-          />
-        </div>
         <div className="eth-settings__row">
           <span>{t("settings.appearance.zoom")}</span>
           <NumberField
@@ -79,7 +68,7 @@ export function AppearanceSettings() {
         <p className="eth-settings__hint">{t("settings.appearance.animations_hint")}</p>
         <Toggle size="sm" checked={blobs} onChange={setBlobs} label={t("settings.appearance.color_blobs")} />
         <p className="eth-settings__hint">{t("settings.appearance.color_blobs_hint")}</p>
-        {/* The light theme has no glow at all: the setting waits for the dark one. */}
+        {/* A light theme has no glow at all: the setting waits for a dark one. */}
         <Toggle size="sm" checked={glow && theme !== "light"} disabled={theme === "light"} onChange={setGlowOn} label={t("settings.appearance.glow")} />
         <p className="eth-settings__hint">{theme === "light" ? t("settings.appearance.glow_light") : t("settings.appearance.glow_hint")}</p>
       </section>

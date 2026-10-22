@@ -1,4 +1,4 @@
-//! Render preview (CONTRACTS.md §13.19): while an offline render runs (an audio export,
+//! Render preview (CONTRACTS.md §13.20): while an offline render runs (an audio export,
 //! stems, a share snapshot), the live engine is suspended and the transport plays the
 //! render's master as far as it is rendered.
 //!

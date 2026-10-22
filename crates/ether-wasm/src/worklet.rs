@@ -1033,11 +1033,13 @@ mod tests {
                         rack: key(2),
                         values: Default::default(),
                         first: 0,
+                        upper: 9,
                     },
                     MacroDesc {
                         rack: gone,
                         values: Default::default(),
                         first: 0,
+                        upper: 9,
                     },
                 ],
             },

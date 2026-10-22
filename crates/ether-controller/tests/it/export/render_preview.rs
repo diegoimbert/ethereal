@@ -1,5 +1,5 @@
 //! A render suspends the live engine and the transport plays the render's master so far
-//! (`rendering`, CONTRACTS.md §13.19): the preview equals the exported file, playback
+//! (`rendering`, CONTRACTS.md §13.20): the preview equals the exported file, playback
 //! stops at the end of the rendered part, locate is clamped to it, record and play past
 //! it are refused, and done / cancel / failure resume the engine.
 

@@ -183,6 +183,37 @@ impl TapBuffers {
         }
     }
 
+    /// Non-RT. The same points with `frames`-long silent buffers (`crate::anticipation`).
+    pub(crate) fn like(&self, frames: usize) -> Self {
+        let like = |b: &Option<Stereo>| b.as_ref().map(|_| stereo(frames));
+        Self {
+            pre_fx: like(&self.pre_fx),
+            post_fx: like(&self.post_fx),
+            post_fader: like(&self.post_fader),
+        }
+    }
+
+    /// The tapped points' buffers, by point.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (InputTap, &Stereo)> {
+        [
+            (InputTap::PreFx, &self.pre_fx),
+            (InputTap::PostFx, &self.post_fx),
+            (InputTap::PostFader, &self.post_fader),
+        ]
+        .into_iter()
+        .filter_map(|(p, b)| b.as_ref().map(|b| (p, b)))
+    }
+
+    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = (InputTap, &mut Stereo)> {
+        [
+            (InputTap::PreFx, &mut self.pre_fx),
+            (InputTap::PostFx, &mut self.post_fx),
+            (InputTap::PostFader, &mut self.post_fader),
+        ]
+        .into_iter()
+        .filter_map(|(p, b)| b.as_mut().map(|b| (p, b)))
+    }
+
     fn get(&self, point: InputTap) -> Option<&Stereo> {
         match point {
             InputTap::PreFx => self.pre_fx.as_ref(),
