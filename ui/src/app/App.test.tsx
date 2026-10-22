@@ -178,7 +178,7 @@ describe("App shell: connected", () => {
     mock.dispose();
   });
 
-  it("a click on the lanes' empty space collapses the drawer and the inspector to their bars", async () => {
+  it("a click on the lanes' empty space collapses the drawer and the inspector to their bars (not on the inspected track's)", async () => {
     const { mock } = await renderWithMock(<App />);
     act(() => arrangementView.getState().setViewport({ pxPerBeat: 10, scrollBeats: 0 }));
     await act(async () => {
@@ -187,13 +187,22 @@ describe("App shell: connected", () => {
     fireEvent.click(screen.getByRole("group", { name: "Keys track" }));
     expect(useShellStore.getState().right).toMatchObject({ open: true, collapsed: false });
     act(() => useShellStore.getState().setCollapsed("bottom", false));
-    // Far right of the first row: no clip there.
-    const empty = { button: 0, clientX: useArrangementUi.getState().headerWidth + 5000, clientY: 5 };
+    // Far right of the first row (Keys, the track the inspector shows): no clip there. The
+    // drawer collapses; the inspector stays, showing that track.
+    const x = useArrangementUi.getState().headerWidth + 5000;
+    const empty = { button: 0, clientX: x, clientY: 5 };
     await act(async () => {
       fireEvent.pointerDown(lanes(), empty);
       fireEvent.pointerUp(window, empty);
     });
     await waitFor(() => expect(useShellStore.getState().bottom).toMatchObject({ open: true, collapsed: true }));
+    expect(useShellStore.getState().right.collapsed).toBe(false);
+    // Another track's empty space: the inspector collapses too.
+    const other = { button: 0, clientX: x, clientY: useArrangementUi.getState().defaultHeight + 5 };
+    await act(async () => {
+      fireEvent.pointerDown(lanes(), other);
+      fireEvent.pointerUp(window, other);
+    });
     expect(useShellStore.getState().right.collapsed).toBe(true);
     mock.dispose();
   });

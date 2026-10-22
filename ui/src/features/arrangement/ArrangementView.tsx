@@ -317,7 +317,8 @@ function ConnectedArrangementView() {
    * Pointer press in the tracks (capture, so clips' own handlers can't hide it). On a clip it
    * shows that clip in the editor drawer and the inspector, each as a bar unless already
    * expanded (a click never expands a pane: a double-click expands the drawer). Anywhere else it collapses the drawer, and on the lanes'
-   * empty space the inspector too (a track header expands it: TrackRow); pinned, each stays.
+   * empty space the inspector too (a track header expands it: TrackRow), unless it shows that
+   * row's track already; pinned, each stays.
    */
   const onTracksPointerDownCapture = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -335,7 +336,10 @@ function ConnectedArrangementView() {
     const shell = useShellStore.getState();
     if (!clip) {
       dismissOnRelease();
-      if (inTracks && x >= hw && !shell.right.pinned) shell.setCollapsed("right", true);
+      // Empty space of the track the inspector already shows (expanded): it stays open.
+      const row = rowsRef.current[rowIndexAt(rowsRef.current, y)];
+      const showing = !!row && row.track.id === useArrangementUi.getState().trackFocus && shell.right.open && !shell.right.collapsed;
+      if (inTracks && x >= hw && !shell.right.pinned && !showing) shell.setCollapsed("right", true);
       return;
     }
     // The clip gets selected: an inspector not showing yet appears as its bar (a click never
