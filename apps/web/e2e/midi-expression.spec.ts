@@ -122,7 +122,7 @@ test("midi expression: draw a clip's sustain lane in the automation tab", async 
   const box = (await lane.boundingBox())!;
   await page.mouse.move(box.x + 4, box.y + 6);
   await page.mouse.down();
-  await page.mouse.move(box.x + 20, box.y + 6, { steps: 8 });
+  await page.mouse.move(box.x + 20, box.y + 16, { steps: 8 });
   await page.mouse.up();
   await expect
     .poll(async () => Object.values((await doc(page)).expression_lanes).map((l) => [l.clip, l.kind]))
