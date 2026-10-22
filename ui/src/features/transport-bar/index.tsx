@@ -145,8 +145,8 @@ export function TransportBar() {
                 : render && !playing
                   ? t("shell.transport.rendering_title")
                   : playKey
-                  ? t(playing ? "shell.transport.stop_key" : "shell.transport.play_key", { key: playKey })
-                  : t(playing ? "shell.transport.stop" : "shell.transport.play")
+                    ? t(playing ? "shell.transport.stop_key" : "shell.transport.play_key", { key: playKey })
+                    : t(playing ? "shell.transport.stop" : "shell.transport.play")
             }
             active={playing}
             className="eth-tb__btn eth-tb__play"
