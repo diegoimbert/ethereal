@@ -822,6 +822,31 @@
   display: flex;
   align-items: center;
 }
+/* Only there to make the fader and pan inert while the track loads (#260). */
+.eth-arr-header__mix-controls {
+  display: contents;
+}
+
+/* A track still loading as its project opens (#260, `useTrackLoading`): its header's contents
+   and its lane look unavailable (the arranger canvas desaturates and fades its clips the same
+   way), its controls are inactive; the progress bar along the card stays as it is. Each
+   track eases back once it has loaded (reduced motion: at once, base.css). */
+.eth-arr-header > :not(.eth-plugin-loading) {
+  transition: filter var(--eth-duration-slow) var(--eth-ease-out);
+}
+.eth-arr-header--loading > :not(.eth-plugin-loading) {
+  filter: saturate(0.2) opacity(var(--eth-opacity-muted));
+}
+.eth-arr-header--loading .eth-arr-header__toggle:disabled,
+.eth-arr-header--loading .eth-arr-header__mix {
+  cursor: not-allowed;
+}
+.eth-arr-row .eth-arr-lane {
+  transition: background-color var(--eth-duration-slow) var(--eth-ease-out);
+}
+.eth-arr-row--loading .eth-arr-lane {
+  background-color: color-mix(in srgb, var(--eth-color-bg-inset) 35%, transparent);
+}
 
 .eth-arr-header__buttons {
   display: flex;

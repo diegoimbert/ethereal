@@ -67,6 +67,19 @@ test("while a project loads the transport waits, and the project can be explored
   await expect(stopButton(page)).toBeDisabled();
   await expect(page.getByRole("toolbar", { name: "transport" }).getByRole("button", { name: "record" })).toBeDisabled();
   expect((await state(page)).transport?.loading).toBeTruthy();
+  // The position says so too (#260), in place of the time.
+  await expect(page.getByTestId("position-loading")).toBeVisible();
+  await expect(page.getByTestId("position-loading")).toContainText("loading");
+  // The tracks whose audio files load look unavailable, their controls inactive, the bar shown.
+  const first = page.getByRole("group", { name: "1 audio track" });
+  await expect(first).toHaveAttribute("data-loading", "true");
+  await expect(first).toHaveClass(/eth-arr-header--loading/);
+  await expect(first.getByRole("button", { name: /^mute / })).toBeDisabled();
+  await expect(first.getByRole("button", { name: /^mute / })).toHaveAttribute("title", "still loading");
+  await expect(first.getByRole("progressbar", { name: /loading audio files \d+\/6/ })).toBeVisible();
+  const filter = await first.locator(".eth-arr-header__main").evaluate((e) => getComputedStyle(e).filter);
+  expect(filter).toMatch(/saturate/);
+  if (process.env.ETH_SHOTS_DIR) await page.screenshot({ path: `${process.env.ETH_SHOTS_DIR}/project-loading.png` });
   // The space bar doesn't play either.
   await page.keyboard.press("Space");
   expect((await state(page)).transport?.playing).toBe(false);
@@ -86,6 +99,12 @@ test("while a project loads the transport waits, and the project can be explored
   // Loaded: the transport is back and plays.
   await expect(loading).toHaveCount(0, { timeout: 120_000 });
   expect((await state(page)).transport?.loading).toBeUndefined();
+  // The tracks are back to normal, and so is the time.
+  await expect(page.locator(".eth-arr-header--loading")).toHaveCount(0);
+  await expect(page.getByRole("group", { name: "renamed track" }).getByRole("button", { name: /^mute / })).toBeEnabled();
+  await expect(page.getByTestId("position-loading")).toHaveCount(0);
+  // (A compact top bar shows the time alone.)
+  await expect(page.getByTestId("position-time")).toBeVisible();
   await expect(playButton(page)).toBeEnabled();
   await playButton(page).click();
   await expect(playingButton(page)).toBeVisible();

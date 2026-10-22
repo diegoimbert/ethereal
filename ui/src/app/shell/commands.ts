@@ -23,6 +23,7 @@ import { resolverCommands } from "@/features/import-resolver";
 import { appProjectCommands, openProjectCommands } from "@/features/project/projectCommands";
 import { playOrStopHere, playOrStopToStart } from "@/features/time-edits/marker";
 import { refuseWhileLoading } from "@/features/transport-bar/loading";
+import { refuseRecordWhileRendering } from "@/features/transport-bar/rendering";
 import { nameCurrentCheckpoint } from "@/features/undo-history";
 import { TOGGLE_ACTION as KEYBOARD_MIDI_ACTION, toggleKeyboardMidi, useKeyboardMidi } from "@/features/keyboard-midi";
 import { useEngineServerShown } from "@/features/remote";
@@ -173,7 +174,7 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         label: state?.recording ? tr("shell.command.stop_recording") : tr("shell.action.transport_record"),
         keywords: "record arm",
         run: () => {
-          if (refuseWhileLoading()) return;
+          if (refuseWhileLoading() || (!state?.recording && refuseRecordWhileRendering())) return;
           send(
             cmd("Recording", {
               type: "SetRecording",
