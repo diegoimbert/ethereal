@@ -349,6 +349,13 @@ impl Vst3Plugin {
         unsafe { self.processor.getLatencySamples() }
     }
 
+    /// `getTailSamples` (it may follow params, e.g. a delay time): asked at activation and
+    /// on every poll, read by the node to decide when it may sleep.
+    fn query_tail(&self) -> u32 {
+        // SAFETY: valid, set-up processor (main thread).
+        unsafe { self.processor.getTailSamples() }
+    }
+
     /// Negotiate bus arrangements: stereo main buses when the plugin accepts them, the
     /// plugin's own arrangements otherwise. Returns the resulting channel counts.
     fn setup_buses(&mut self) -> BusLayout {
@@ -518,6 +525,7 @@ impl Vst3Plugin {
         let (to_node, from_main) = rtrb::RingBuffer::new(RING_CAPACITY);
         let shared = Arc::new(NodeShared::default());
         shared.latency.store(latency, Ordering::Relaxed);
+        shared.tail.store(self.query_tail(), Ordering::Relaxed);
         self.link = Some(ActiveLink {
             from_node,
             to_node,
@@ -562,6 +570,9 @@ impl Vst3Plugin {
         coalesce(&mut synced);
         for (id, v) in synced {
             self.set_controller_normalized(id, v);
+        }
+        if let Some(link) = &self.link {
+            link.shared.tail.store(self.query_tail(), Ordering::Relaxed);
         }
         // SAFETY: valid component/processor on the main thread; the node (audio side) is gone.
         unsafe {

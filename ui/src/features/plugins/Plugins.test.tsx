@@ -111,13 +111,30 @@ describe("PluginDeviceControls", () => {
     const [entry] = pluginMenuEntries(d, t);
     expect(entry).toMatchObject({ label: "run sandboxed (crash-safe, +1 block latency)" });
     (entry as { onSelect(): void }).onSelect();
-    expect(pluginMenuEntries(device(true), t)).toMatchObject([{ label: "run in-process (no sandbox)" }]);
+    expect(pluginMenuEntries(device(true), t)).toMatchObject([{ label: "run in-process (no sandbox)" }, { label: "always process (never sleep on silence)" }]);
     await waitFor(() =>
       expect(t.sent.at(-1)).toEqual({
         domain: "Plugin",
         command: { type: "SetSandboxed", device: d.id, sandboxed: true },
       }),
     );
+  });
+
+  it("lets a plugin always process from its context menu (it sleeps on silence by default)", async () => {
+    const d = device(false);
+    const t = await renderWith(new DesktopFake(), <Header device={d} />);
+    const entry = pluginMenuEntries(d, t).at(-1) as { label: string; onSelect(): void };
+    expect(entry.label).toBe("always process (never sleep on silence)");
+    entry.onSelect();
+    await waitFor(() =>
+      expect(t.sent.at(-1)).toEqual({
+        domain: "Plugin",
+        command: { type: "SetAlwaysProcess", device: d.id, always_process: true },
+      }),
+    );
+    if (d.kind.type !== "Plugin") throw new Error("plugin device");
+    const on: Device = { ...d, kind: { type: "Plugin", plugin: { ...d.kind.plugin, always_process: true } } };
+    expect(pluginMenuEntries(on, t).at(-1)).toMatchObject({ label: "sleep on silence (saves cpu)" });
   });
 
   it("shows a crashed plugin as bypassed with a Reload action", async () => {

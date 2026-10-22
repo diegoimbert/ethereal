@@ -561,7 +561,7 @@ pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
             P::SaveAs { .. } => k("undo.project.save_as"),
             P::Duplicate { .. } => k("undo.project.duplicate"),
             P::Rename { .. } => k("undo.project.rename"),
-            P::Delete { .. } => k("undo.project.delete"),
+            P::Delete { .. } | P::Discard { .. } => k("undo.project.delete"),
             P::Get => k("undo.project.get"),
             P::SetScale { .. } => k("undo.project.set_scale"),
             P::ExportBundle { .. } | P::ExportTo { .. } => k("undo.project.export"),
@@ -576,6 +576,11 @@ pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
             Pl::SetSandboxed { sandboxed, .. } => {
                 pick(*sandboxed, "undo.plugin.sandbox", "undo.plugin.unsandbox")
             }
+            Pl::SetAlwaysProcess { always_process, .. } => pick(
+                *always_process,
+                "undo.plugin.always_process",
+                "undo.plugin.sleep_on_silence",
+            ),
             Pl::Reload { .. } => k("undo.plugin.reload"),
             Pl::ListFolders => k("undo.plugin.list_folders"),
             Pl::AddFolder { .. } => k("undo.plugin.add_folder"),

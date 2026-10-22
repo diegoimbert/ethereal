@@ -35,7 +35,7 @@ use shared_memory::{Shmem, ShmemConf, ShmemError};
 
 const MAGIC: u32 = 0x4554_5342; // "ETSB"
 /// Layout version, checked by the helper on open. Bump on any change to the region layout.
-const VERSION: u32 = 4;
+const VERSION: u32 = 5;
 const ALIGN: usize = 64;
 
 /// Block transport, `repr(C)`.
@@ -277,6 +277,9 @@ pub(crate) struct Block {
     /// 1 = the sidechain audio array holds this block's sidechain signal: the helper calls
     /// `Node::process_sidechain`; 0 = no source (`Node::process`, the aux bus gets silence).
     pub sidechain: u32,
+    /// 1 = the instance always processes (`PluginNode::always_process`): the helper's node
+    /// never sleeps on silence.
+    pub always_process: u32,
     pub transport: WireTransport,
     // --- result (helper phase) ---
     pub n_out_events: u32,

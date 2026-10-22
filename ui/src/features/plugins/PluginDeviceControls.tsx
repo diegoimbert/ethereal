@@ -157,13 +157,16 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
  * engine host has the "sandboxed by default" setting (`./sandboxDefaults.ts`, loaded by the
  * device header), "always sandbox this plugin" adds it to that list and sandboxes this
  * instance too; other instances keep their own setting. Once listed, the entry takes it off
- * the list (this instance stays as it is).
+ * the list (this instance stays as it is). "Always process" is for plugins that make sound
+ * out of silence without saying so (plugins otherwise sleep on silence once their tail has
+ * passed, saving cpu).
  */
 export function pluginMenuEntries(device: Device, transport: EngineTransport): ContextMenuEntry[] {
   if (device.kind.type !== "Plugin") return [];
   const { sandboxed, format, plugin_id, name } = device.kind.plugin;
   const setSandboxed = (on: boolean) =>
     transport.send(cmd("Plugin", { type: "SetSandboxed", device: device.id, sandboxed: on })).then(() => usePluginStore.getState().clearCrash(device.id));
+  const always = device.kind.plugin.always_process ?? false;
   const entries: ContextMenuEntry[] = [
     {
       label: sandboxed ? tr("plugins.device.run_in_process") : tr("plugins.device.run_sandboxed"),
@@ -182,6 +185,13 @@ export function pluginMenuEntries(device: Device, transport: EngineTransport): C
           .catch((e: unknown) => console.warn("sandbox default failed", e)),
     });
   }
+  entries.push({
+    label: always ? tr("plugins.device.sleep_on_silence") : tr("plugins.device.always_process"),
+    onSelect: () =>
+      void transport
+        .send(cmd("Plugin", { type: "SetAlwaysProcess", device: device.id, always_process: !always }))
+        .catch((e: unknown) => console.warn("always-process toggle failed", e)),
+  });
   return entries;
 }
 

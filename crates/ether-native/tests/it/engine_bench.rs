@@ -1243,3 +1243,134 @@ fn timeline() {
         model(&tracks, opts.block).total * opts.scale,
     );
 }
+
+// ---------------------------------------------------------------------------------------
+// Idle plugins (sleep on silence).
+
+/// Many idle VST3 effects on silent tracks while playing: the fixture's tail effect
+/// (`ether_vst3::testing::TAIL_ID`, an echo whose `Cost` param makes it an expensive
+/// plugin), every instance always processing, then sleeping on silence (CONTRACTS.md
+/// §13.19, the default). One render thread, back to back: the time is the CPU spent.
+///
+/// ```text
+/// cargo test --release -p ether-native --features plugins-vst3 --test it \
+///   engine_bench::idle_vst3_plugins -- --ignored --nocapture --test-threads 1
+/// ```
+///
+/// `ETHER_BENCH_IDLE_TRACKS` (default 32), `ETHER_BENCH_IDLE_PLUGINS` per track (4),
+/// `ETHER_BENCH_IDLE_COST` (the `Cost` param, default 0.01 = 10 multiply-adds per frame),
+/// `ETHER_BENCH_BLOCK`, `ETHER_BENCH_SECONDS`.
+#[cfg(feature = "plugins-vst3")]
+#[test]
+#[ignore = "benchmark: run in release with --features plugins-vst3 --ignored --nocapture --test-threads 1"]
+fn idle_vst3_plugins() {
+    use ether_core::plugin::PluginController;
+    use ether_core::protocol::model::ParamId;
+    use std::sync::atomic::Ordering;
+
+    enable_flush_denormals();
+    let n_tracks = env_num("ETHER_BENCH_IDLE_TRACKS", 32.0) as u128;
+    let per_track = env_num("ETHER_BENCH_IDLE_PLUGINS", 4.0) as usize;
+    let cost = env_num("ETHER_BENCH_IDLE_COST", 0.01);
+    let block = env_num("ETHER_BENCH_BLOCK", 256.0) as usize;
+    let seconds = env_num("ETHER_BENCH_SECONDS", 4.0);
+    let dir = ether_vst3::testing::temp_dir("engine-bench-idle");
+    let bundle = ether_vst3::testing::make_bundle(&dir, "EtherBenchIdle");
+    let budget = block as f64 * 1e6 / SR as f64;
+    println!(
+        "idle_vst3_plugins: {n_tracks} silent tracks x {per_track} VST3 effects (cost {cost}), \
+         {block} frames ({budget:.0} µs budget), playing, 1 thread, back to back"
+    );
+    println!(
+        "  {:>16} {:>8} {:>8} {:>8} {:>7}",
+        "", "mean", "p50", "p99", "%budg"
+    );
+    let mut means = Vec::new();
+    let mut reference: Option<Vec<f32>> = None;
+    for always in [true, false] {
+        let mut parts = create(config(block));
+        let prepare = PrepareConfig {
+            sample_rate: SR as f32,
+            max_block_size: block,
+            max_events_per_block: 256,
+        };
+        let mut plugins = Vec::new();
+        let mut tracks = vec![track_desc(tid(MASTER), TrackKind::Master, None)];
+        for i in 0..n_tracks {
+            let mut t = track_desc(tid(100 + i), TrackKind::Audio, Some(tid(MASTER)));
+            for _ in 0..per_track {
+                let mut plugin =
+                    ether_vst3::Vst3Plugin::load(&bundle, ether_vst3::testing::TAIL_ID)
+                        .expect("load the tail effect");
+                plugin.set_param_value(ParamId(23), cost).expect("cost");
+                let node = plugin.activate(&prepare).expect("activate");
+                node.always_process()
+                    .expect("switch")
+                    .store(always, Ordering::Relaxed);
+                t.chain.push(ChainEntry {
+                    node: parts.handle.add_node(node).expect("node table"),
+                    enabled: true,
+                    sidechain: None,
+                });
+                plugins.push(plugin);
+            }
+            tracks.push(t);
+        }
+        parts
+            .handle
+            .publish(RenderGraphDesc {
+                version: 1,
+                tracks,
+                ..Default::default()
+            })
+            .expect("graph compiles");
+        parts.handle.transport(TransportControl::Play).unwrap();
+        let blocks = ((seconds * SR as f64) as usize / block).max(1);
+        let warmup = (0.25 * SR as f64) as usize / block;
+        let (mut l, mut r) = (vec![0.0f32; block], vec![0.0f32; block]);
+        let mut out = Vec::with_capacity(blocks * block * 2);
+        let mut times = Vec::with_capacity(blocks);
+        let mut polled = ether_core::EngineOutputs::default();
+        for b in 0..warmup + blocks {
+            let t = Instant::now();
+            {
+                let mut outs: [&mut [f32]; 2] = [&mut l, &mut r];
+                parts.engine.process(&[], &mut outs, block);
+            }
+            if b >= warmup {
+                times.push(t.elapsed().as_secs_f64() * 1e6);
+                out.extend_from_slice(&l);
+                out.extend_from_slice(&r);
+            }
+            if b % 8 == 0 {
+                parts.handle.poll(&mut polled);
+                parts.gc.collect();
+            }
+        }
+        match &reference {
+            None => reference = Some(out),
+            Some(r) => assert!(r == &out, "sleeping changed the output"),
+        }
+        times.sort_by(f64::total_cmp);
+        let mean = times.iter().sum::<f64>() / times.len() as f64;
+        let (p50, p99) = (percentile(&times, 0.5), percentile(&times, 0.99));
+        println!(
+            "  {:>16} {mean:>8.1} {p50:>8.1} {p99:>8.1} {:>6.1}%",
+            if always {
+                "always process"
+            } else {
+                "sleep on silence"
+            },
+            mean / budget * 100.0
+        );
+        means.push(mean);
+        // The nodes go back (and are dropped) with the engine, before their controllers.
+        drop(parts);
+        drop(plugins);
+    }
+    println!(
+        "  saved: {:.1} µs per buffer ({:.0}%)",
+        means[0] - means[1],
+        (1.0 - means[1] / means[0]) * 100.0
+    );
+}
