@@ -38,6 +38,18 @@ per-note kinds (`NOTE_KINDS`), the common controllers (`COMMON_KINDS`: pitch ben
 pressure, CC 1, 11, 64), every other CC lane the clip has, and "Other CC…" (any 0..119).
 Kinds whose lane holds points are marked "•".
 
+## In the automation tab and the arrangement
+
+- The editor drawer's automation tab shows the open MIDI clip's lanes above the track's
+  automation (`ClipControllerLanes`, mounted by the shell through `AutomationLanes`'
+  `clipLanes` slot): one row per controller the clip holds (imported clip envelopes, e.g. a
+  sustain pedal, show here), and "+ controller…" adds pitch bend, channel pressure, cc 1 /
+  11 / 64 or any cc. The rows sit on the tab's song timeline (content beat `b` at song beat
+  `clip.start - clip.offset + b`), the time outside the clip is dimmed, and editing is
+  `ExpressionLaneView`'s, so it is the same data as the piano roll's lane area.
+- The arrangement badges a MIDI clip whose lanes hold points (`badge.ts`, drawn by the
+  arranger's `clipBadges` layer): "sustain", "bend · sustain", "3 controllers".
+
 ## For `mpe`
 
 - Per-note **Pitch** and **Timbre** curves: append them to `NOTE_KINDS`.

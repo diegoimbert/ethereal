@@ -5,7 +5,7 @@
 
 import type { MouseEvent } from "react";
 import type { AutomationTarget, Device, ParamInfo } from "@/generated";
-import { openContextMenu } from "@/kit";
+import { openContextMenu, type ContextMenuEntry } from "@/kit";
 import { useProjectStore } from "@/state";
 import { targetKey } from "@/features/automation/params";
 import { hasEnabledLane } from "@/features/automation/live";
@@ -48,6 +48,8 @@ interface TargetMenu {
   /** Already at its default (nothing to reset). */
   isDefault: boolean;
   reset(): void;
+  /** More entries at the end (e.g. "assign to macro ›"). */
+  extra?: ContextMenuEntry[];
 }
 
 function targetMenu(e: MouseEvent, m: TargetMenu): void {
@@ -55,6 +57,7 @@ function targetMenu(e: MouseEvent, m: TargetMenu): void {
     // Not automatable: no automation entry at all.
     ...(m.automatable ? [{ label: t("devices.param.show_automation"), onSelect: m.showAutomation }, "separator" as const] : []),
     { label: t("devices.param.reset"), disabled: m.isDefault, onSelect: m.reset },
+    ...(m.extra ?? []),
   ]);
 }
 
@@ -84,11 +87,17 @@ export function paramMenu(e: MouseEvent, b: Pick<ParamBinding, "device" | "info"
  * The same menu on a device's on/off button: its "Device On" lane, and reset (= on, the
  * switch's default).
  */
-export function switchMenu(e: MouseEvent, device: Pick<Device, "id" | "track" | "enabled">, setEnabled: (on: boolean) => void): void {
+export function switchMenu(
+  e: MouseEvent,
+  device: Pick<Device, "id" | "track" | "enabled">,
+  setEnabled: (on: boolean) => void,
+  extra?: ContextMenuEntry[],
+): void {
   targetMenu(e, {
     automatable: true,
     showAutomation: () => showSwitchAutomation(device),
     isDefault: device.enabled,
     reset: () => setEnabled(true),
+    extra,
   });
 }
