@@ -3,3 +3,5 @@ src/wasm/pkg/
 # Playwright
 test-results/
 playwright-report/
+# Test WebCLAP built from crates/ether-webclap-fixture (scripts/build-webclap-fixture.mjs)
+test-fixtures/webclap/ether-test.wclap.wasm

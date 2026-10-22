@@ -309,6 +309,7 @@ impl WasmController {
         let shared = bridge::shared(SabMemory::new(control)?, SabMemory::new(reports)?);
         let mut bridge = WebBridge::new(shared.clone());
         bridge.set_sample_rate(sample_rate);
+        bridge.set_webclap_waiter(webclap_waiter());
         let mut fs = JsFs(fs);
         bridge.set_stream_opener(crate::media_stream::range_opener(fs.clone()));
         let startup_warning = crate::store::ensure_demo_samples(&mut fs)
@@ -431,6 +432,22 @@ impl WasmController {
         self.finish(out)
     }
 
+    /// The installed WebCLAP plugins: the page's JSON list of scanned modules
+    /// (`crate::webclap::catalog::ScannedModule`). Replaces the previous list.
+    pub fn set_webclap_catalog(&mut self, json: &str) -> Result<(), JsError> {
+        let catalog = crate::webclap::catalog::Catalog::parse(json)
+            .map_err(|e| JsError::new(&format!("bad webclap catalog: {e}")))?;
+        self.shared.borrow_mut().webclap.catalog = catalog;
+        Ok(())
+    }
+
+    /// This Worker's WebCLAP host (`WebclapHost`, offline renders).
+    pub fn set_webclap_host(&mut self, host: crate::webclap::js::JsWebclapHost) {
+        crate::webclap::guest::set_guest(Some(std::rc::Rc::new(crate::webclap::js::JsGuest(
+            host,
+        ))));
+    }
+
     /// Control bytes not yet accepted by the Worklet (backpressure diagnostics).
     pub fn pending_control_bytes(&self) -> usize {
         self.shared.borrow().control.pending_bytes()
@@ -505,6 +522,22 @@ impl WasmEngine {
     pub fn blocks(&self) -> f64 {
         self.host.blocks() as f64
     }
+
+    /// The Worklet's WebCLAP host (`WebclapHost` in `apps/web/src/engine/webclap/host.ts`).
+    pub fn set_webclap_host(&mut self, host: crate::webclap::js::JsWebclapHost) {
+        crate::webclap::guest::set_guest(Some(std::rc::Rc::new(crate::webclap::js::JsGuest(
+            host,
+        ))));
+    }
+}
+
+/// How the controller Worker sleeps while it waits for a WebCLAP reply: `Atomics.wait` on a
+/// buffer of its own (nothing ever notifies it, so it is a plain timed sleep).
+fn webclap_waiter() -> Box<dyn FnMut(u32)> {
+    let cell = js_sys::Int32Array::new(&js_sys::SharedArrayBuffer::new(4));
+    Box::new(move |ms| {
+        let _ = js_sys::Atomics::wait_with_timeout(&cell, 0, 0, f64::from(ms));
+    })
 }
 
 /// `performance.now()` in milliseconds (Window, Worker, Node).

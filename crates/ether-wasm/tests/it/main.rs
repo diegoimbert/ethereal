@@ -14,5 +14,6 @@ mod media_stream;
 mod pipeline;
 mod project_load_quanta;
 mod stuck_notes;
+mod webclap;
 #[cfg(feature = "bench")]
 mod web_perf;

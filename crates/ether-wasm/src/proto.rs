@@ -142,6 +142,8 @@ pub enum EngineMsg {
         track: TrackId,
         data: [u8; 3],
     },
+    /// WebCLAP instances (`crate::webclap::proto`).
+    Webclap(crate::webclap::proto::WebclapMsg),
 }
 
 /// The JSON-encoded subset of [`EngineMsg`].
@@ -190,6 +192,7 @@ enum JsonMsg {
         key: NodeKey,
         device: BuiltinDevice,
     },
+    Webclap(crate::webclap::proto::WebclapMsg),
 }
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
@@ -263,6 +266,7 @@ impl EngineMsg {
                 slots,
             },
             EngineMsg::UpdateBuiltin { key, device } => JsonMsg::UpdateBuiltin { key, device },
+            EngineMsg::Webclap(msg) => JsonMsg::Webclap(msg),
         };
         let mut out = vec![TAG_JSON];
         serde_json::to_writer(&mut out, &json).expect("engine messages serialize");
@@ -444,6 +448,7 @@ impl<'a> Frame<'a> {
                     JsonMsg::UpdateBuiltin { key, device } => {
                         EngineMsg::UpdateBuiltin { key, device }
                     }
+                    JsonMsg::Webclap(msg) => EngineMsg::Webclap(msg),
                 }))
             }
             t => Err(DecodeError::Tag(t)),

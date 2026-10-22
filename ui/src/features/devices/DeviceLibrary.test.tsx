@@ -445,8 +445,8 @@ describe("DeviceLibrary plugin formats", () => {
   });
 
   it("the format toggles show AU on macOS only", () => {
-    expect(platformFormats(true)).toEqual(["Clap", "Vst2", "Vst3", "Au"]);
-    expect(platformFormats(false)).toEqual(["Clap", "Vst2", "Vst3"]);
+    expect(platformFormats(true)).toEqual(["Clap", "Vst2", "Vst3", "Au", "Webclap"]);
+    expect(platformFormats(false)).toEqual(["Clap", "Vst2", "Vst3", "Webclap"]);
   });
 
   it("lists both VST2 plugins sharing a uniqueID, and the insert names the one picked", async () => {

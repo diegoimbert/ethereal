@@ -1,0 +1,18 @@
+[package]
+name = "ether-webclap-fixture"
+description = "A tiny WebCLAP (CLAP compiled to wasm32) for the web host's tests: a gain, a delay and a synth."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+# Built for wasm32-unknown-unknown only (apps/web/scripts/build-webclap-fixture.mjs); on
+# other targets the crate is empty.
+[lib]
+crate-type = ["cdylib"]
+
+[lints]
+workspace = true

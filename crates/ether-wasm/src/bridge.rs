@@ -11,7 +11,7 @@ use ether_core::analysis::AnalysisFrame;
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::{
     Base64Bytes, BuiltinDevice, BuiltinDeviceType, DeviceId, IrSource, MediaId, MediaRef, ParamId,
-    PluginInstance, TrackId,
+    PluginFormat, PluginInstance, TrackId,
 };
 use ether_core::{EngineOutputs, NodeKey, ParamChange, RenderGraphDesc, TransportControl};
 use ether_media::DecodedAudio;
@@ -52,6 +52,8 @@ pub struct BridgeShared<M: RingMemory> {
     /// Latest node latencies reported by the Worklet (virtual keys), read by
     /// `EngineBridge::node_latency`.
     pub latencies: LatencyTable,
+    /// WebCLAP catalog and reports (`crate::webclap::bridge`).
+    pub webclap: crate::webclap::bridge::WebclapShared,
 }
 
 impl<M: RingMemory> BridgeShared<M> {
@@ -64,6 +66,7 @@ impl<M: RingMemory> BridgeShared<M> {
             analysis,
             stream_reports,
             latencies,
+            webclap,
             ..
         } = self;
         reports.drain(REPORT_BUDGET, |bytes| {
@@ -118,6 +121,12 @@ impl<M: RingMemory> BridgeShared<M> {
                 Some(&REPORT_ERROR) => {
                     errors.push(String::from_utf8_lossy(&bytes[1..]).into_owned())
                 }
+                Some(&crate::webclap::proto::REPORT_PLUGIN) => {
+                    match crate::webclap::proto::PluginReport::decode(bytes) {
+                        Some(r) => webclap.reports.push(r),
+                        None => errors.push("bad webclap report".into()),
+                    }
+                }
                 _ => errors.push("unknown engine report".into()),
             }
             true
@@ -162,11 +171,12 @@ pub fn shared<M: RingMemory>(control: M, reports: M) -> Shared<M> {
         analysis: Vec::new(),
         stream_reports: Vec::new(),
         latencies: LatencyTable::default(),
+        webclap: Default::default(),
     }))
 }
 
 /// `EngineBridge` over the SharedArrayBuffer rings. Node keys are virtual (see
-/// [`EngineMsg`]); the Worklet maps them. No plugins on the web.
+/// [`EngineMsg`]); the Worklet maps them. Plugins: WebCLAP only (`crate::webclap`).
 pub struct WebBridge<M: RingMemory> {
     shared: Shared<M>,
     next_node: u32,
@@ -185,6 +195,8 @@ pub struct WebBridge<M: RingMemory> {
     ir_audio: BTreeMap<MediaId, Arc<DecodedAudio>>,
     /// Media whose audio is to be asked of the controller.
     ir_requests: Vec<MediaId>,
+    /// Live WebCLAP devices and requests to their instances.
+    webclap: crate::webclap::bridge::WebclapBridge,
 }
 
 impl<M: RingMemory> WebBridge<M> {
@@ -200,7 +212,52 @@ impl<M: RingMemory> WebBridge<M> {
             worklet_media: BTreeSet::new(),
             ir_audio: BTreeMap::new(),
             ir_requests: Vec::new(),
+            webclap: Default::default(),
         }
+    }
+
+    /// How the Worker sleeps while a WebCLAP request waits for the Worklet
+    /// (`crate::webclap::bridge`).
+    pub fn set_webclap_waiter(&mut self, waiter: Box<dyn FnMut(u32)>) {
+        self.webclap.set_waiter(waiter);
+    }
+
+    fn new_key(&mut self) -> NodeKey {
+        self.next_node = self.next_node.wrapping_add(1);
+        NodeKey {
+            index: self.next_node,
+            generation: 1,
+        }
+    }
+
+    /// Run a WebCLAP request: messages are sent (and flushed) by `send`, replies come
+    /// through the report ring.
+    fn webclap_call<R>(
+        &mut self,
+        f: impl FnOnce(
+            &mut crate::webclap::bridge::WebclapBridge,
+            &mut dyn FnMut(crate::webclap::proto::WebclapMsg),
+            &mut dyn FnMut(&mut crate::webclap::bridge::WebclapBridge) -> u64,
+        ) -> R,
+    ) -> R {
+        let shared = self.shared.clone();
+        let mut send = |msg: crate::webclap::proto::WebclapMsg| {
+            let mut s = shared.borrow_mut();
+            for frame in EngineMsg::Webclap(msg).encode() {
+                s.control.send(&frame);
+            }
+            s.control.flush();
+        };
+        let mut scratch = EngineOutputs::default();
+        let shared2 = self.shared.clone();
+        let mut pump = |wb: &mut crate::webclap::bridge::WebclapBridge| {
+            let mut s = shared2.borrow_mut();
+            s.control.flush();
+            s.poll_reports(&mut scratch);
+            wb.take_reports(&mut s.webclap);
+            s.blocks
+        };
+        f(&mut self.webclap, &mut send, &mut pump)
     }
 
     /// The Worklet's engine rate (default 48 kHz).
@@ -351,11 +408,7 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
         kind: &BuiltinDevice,
         params: &[(ParamId, f64)],
     ) -> Result<NodeKey, BridgeError> {
-        self.next_node = self.next_node.wrapping_add(1);
-        let key = NodeKey {
-            index: self.next_node,
-            generation: 1,
-        };
+        let key = self.new_key();
         self.devices.insert(device, (key, kind.device_type()));
         self.shared.borrow_mut().latencies.track(key);
         if let BuiltinDevice::ConvolutionReverb { ir } = kind {
@@ -394,19 +447,93 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
         Ok(key)
     }
 
+    /// WebCLAP plugins only: the others (native formats) run in the desktop app.
     fn create_plugin(
         &mut self,
-        _device: DeviceId,
-        _plugin: &PluginInstance,
-        _state: Option<&Base64Bytes>,
+        device: DeviceId,
+        plugin: &PluginInstance,
+        state: Option<&Base64Bytes>,
     ) -> Result<NodeKey, BridgeError> {
-        Err(BridgeError::Unsupported(
-            "plugins are not available in the browser".into(),
+        if plugin.format != PluginFormat::Webclap {
+            return Err(BridgeError::Unsupported(format!(
+                "{} plugins are not available in the browser (desktop app only)",
+                plugin.format.as_str()
+            )));
+        }
+        let key = self.new_key();
+        let msg = {
+            let shared = self.shared.borrow();
+            self.webclap
+                .create(&shared.webclap, key, device, plugin, state)?
+        };
+        self.shared.borrow_mut().latencies.track(key);
+        self.send(EngineMsg::Webclap(msg));
+        Ok(key)
+    }
+
+    fn set_always_process(&mut self, device: DeviceId, on: bool) -> Result<(), BridgeError> {
+        if let Some(key) = self.webclap.key(device) {
+            self.send(EngineMsg::Webclap(
+                crate::webclap::proto::WebclapMsg::AlwaysProcess { key, on },
+            ));
+        }
+        Ok(())
+    }
+
+    fn create_offline_plugin(
+        &mut self,
+        device: DeviceId,
+        plugin: &PluginInstance,
+        state: Option<&Base64Bytes>,
+        sample_rate: u32,
+    ) -> Result<Box<dyn ether_core::Node>, BridgeError> {
+        if plugin.format != PluginFormat::Webclap {
+            return Err(BridgeError::Unsupported(format!(
+                "{} plugins are not available in the browser (desktop app only)",
+                plugin.format.as_str()
+            )));
+        }
+        let shared = self.shared.borrow();
+        self.webclap
+            .create_offline(&shared.webclap, device, plugin, state, sample_rate)
+    }
+
+    fn poll_plugins(
+        &mut self,
+        out: &mut Vec<(DeviceId, ether_core::plugin::PluginNotification)>,
+    ) {
+        {
+            let mut shared = self.shared.borrow_mut();
+            self.webclap.take_reports(&mut shared.webclap);
+        }
+        self.webclap.poll_plugins(out);
+    }
+
+    fn plugin_state(&mut self, device: DeviceId) -> Result<Option<Base64Bytes>, BridgeError> {
+        self.webclap_call(|wb, send, pump| wb.plugin_state(device, send, pump))
+            .unwrap_or(Ok(None))
+    }
+
+    fn plugin_param_values(&mut self, device: DeviceId) -> Vec<(ParamId, f64)> {
+        if self.webclap.key(device).is_none() {
+            return Vec::new();
+        }
+        self.webclap_call(|wb, send, pump| wb.param_values(device, send, pump))
+    }
+
+    fn probe_plugin(&mut self, plugin: &PluginInstance) -> Option<DeviceDescriptor> {
+        crate::webclap::bridge::WebclapBridge::probe(&self.shared.borrow().webclap, plugin)
+    }
+
+    fn plugin_catalog(&self) -> Option<ether_controller::PluginCatalogView> {
+        Some(crate::webclap::bridge::WebclapBridge::catalog_view(
+            &self.shared.borrow().webclap,
         ))
     }
 
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError> {
         self.devices.retain(|_, (k, _)| *k != key);
+        self.webclap.forget_key(key);
         if self.reverbs.remove(&key).is_some() {
             self.release_ir_audio();
         }
@@ -635,8 +762,11 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
     }
 
     fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor> {
-        let (_, kind) = self.devices.get(&device)?;
-        Some(ether_devices::descriptor(*kind))
+        if let Some((_, kind)) = self.devices.get(&device) {
+            return Some(ether_devices::descriptor(*kind));
+        }
+        self.webclap
+            .descriptor(&self.shared.borrow().webclap, device)
     }
 
     /// Frames forwarded by the Worklet (`REPORT_ANALYSIS`), drained with the other reports

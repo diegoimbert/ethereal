@@ -654,7 +654,8 @@ pub struct PluginInstance {
     pub state: Option<Base64Bytes>,
 }
 
-/// Plugin format. Serialized as the plain variant name (`"Clap"`, `"Vst3"`, `"Au"`, `"Vst2"`); these
+/// Plugin format. Serialized as the plain variant name (`"Clap"`, `"Vst3"`, `"Au"`, `"Vst2"`,
+/// `"Webclap"`); these
 /// tags are stable (`.ether` files and the wire depend on them) and new formats are additive.
 ///
 /// `plugin_id` convention per format (what [`PluginInstance::plugin_id`] and the scanner's
@@ -675,6 +676,9 @@ pub struct PluginInstance {
 ///   plugin catalog. Two unrelated VST2 plugins may share a uniqueID (the format has no
 ///   registry anymore): both are listed, and the catalog picks the one whose name is
 ///   [`PluginInstance::name`], else the first one scanned.
+/// - [`PluginFormat::Webclap`]: the CLAP plugin id inside a WebCLAP module (a CLAP plugin
+///   compiled to wasm32, hosted by the web version only). The module is not part of the id:
+///   the browser's installed WebCLAP catalog maps the id to the module that provides it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, TS)]
 pub enum PluginFormat {
     Clap,
@@ -682,24 +686,36 @@ pub enum PluginFormat {
     Au,
     /// VST 2.4. The tag is stable; the host is not in this (open-source) build.
     Vst2,
+    /// WebCLAP: a CLAP plugin compiled to WebAssembly (`docs/PLUGIN-FORMATS.md` "WebCLAP").
+    /// Hosted by the web version only; native hosts report it as unavailable on this
+    /// platform.
+    Webclap,
 }
 
 impl PluginFormat {
     /// Every format, in scan/display order.
-    pub const ALL: [PluginFormat; 4] = [
+    pub const ALL: [PluginFormat; 5] = [
         PluginFormat::Clap,
         PluginFormat::Vst3,
         PluginFormat::Vst2,
         PluginFormat::Au,
+        PluginFormat::Webclap,
     ];
 
-    /// Lowercase CLI/log name: `clap`, `vst3`, `vst2`, `au` (e.g. `ether-sandbox-helper --format`).
+    /// Formats a native (desktop/server) host can load. WebCLAP is web-only.
+    pub fn is_native(self) -> bool {
+        !matches!(self, PluginFormat::Webclap)
+    }
+
+    /// Lowercase CLI/log name: `clap`, `vst3`, `vst2`, `au`, `webclap` (e.g.
+    /// `ether-sandbox-helper --format`).
     pub fn as_str(self) -> &'static str {
         match self {
             PluginFormat::Clap => "clap",
             PluginFormat::Vst3 => "vst3",
             PluginFormat::Au => "au",
             PluginFormat::Vst2 => "vst2",
+            PluginFormat::Webclap => "webclap",
         }
     }
 
