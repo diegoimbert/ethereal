@@ -634,32 +634,22 @@ impl ChainRacksRt {
             for k in 0..chain.entries.len() {
                 let (head, tail) = chain.entries.split_at_mut(k + 1);
                 let entry = &mut head[k];
-                // A switched device releases its notes: at the next entry, or at the
-                // rack's output for the last entry of a MIDI effect chain.
+                // Off = MIDI thru in every rack kind, like on a track chain
+                // (`ChainRt::route_midi`): its notes, and the releases of a switch, reach the
+                // next entry, or the rack's output after the last entry of a MIDI effect
+                // chain. One fading out runs without events.
                 let next = match tail.first_mut() {
                     Some(e) => Some(&mut e.events),
                     None if midi => Some(&mut r.merged),
                     None => None,
                 };
-                overflow |= entry.switch_notes(next);
-                entry.events.sort();
+                overflow |= entry.route_midi(next);
                 overflow |= entry.events.overflowed();
                 // The bypass path keeps the input (`ChainRt::blend`).
                 entry.push_dry(&chain.a, n);
                 // Sidechain PDC: delay the main signal before this entry if planned.
                 sc.taps.align_main(entry.key, &mut chain.a, n);
-                // Off: a MIDI effect passes its notes on; one fading out runs without events.
                 chain.out_events.clear();
-                if !entry.is_enabled() {
-                    if midi {
-                        for e in entry.events.as_slice() {
-                            if !matches!(e.kind, EventKind::Param { .. }) {
-                                chain.out_events.push(*e);
-                            }
-                        }
-                    }
-                    entry.events.clear();
-                }
                 let runs = entry.runs();
                 // A nested rack: its chains feed its node's input first.
                 let nested = runs && self.is_rack(entry.key);
@@ -741,10 +731,8 @@ impl ChainRacksRt {
                     if nested {
                         self.finish(entry.key, &mut chain.out_events);
                     }
-                    // Fading out: its own MIDI goes nowhere (a MIDI chain's notes went thru).
-                    if !entry.is_enabled() && !midi {
-                        chain.out_events.clear();
-                    }
+                    // Fading out: its own MIDI goes nowhere (its input went thru).
+                    entry.gate_output(&mut chain.out_events);
                     match n_out {
                         0 => {}
                         1 => {

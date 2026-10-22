@@ -31,9 +31,10 @@ on:
 permissions:
   contents: read
 
-# As full.yml: pushes to main share one group that never cancels a running run.
+# As full.yml: pushes to main share one group (main-supersede.yml cancels the running run of a
+# streak); manual runs have groups of their own.
 concurrency:
-  group: full-platforms-${{ github.ref }}-${{ inputs.ref }}
+  group: full-platforms-${{ github.event_name }}-${{ github.ref }}-${{ inputs.ref }}
   cancel-in-progress: false
 
 env:

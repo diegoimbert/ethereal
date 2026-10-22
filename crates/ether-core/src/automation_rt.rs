@@ -378,9 +378,9 @@ struct NodeParams<'s, 'a, 't, 'm> {
 
 impl NodeParams<'_, '_, '_, '_> {
     /// Device on/off: the value at the sub-block start overrides the device's switch for
-    /// this sub-block, wherever the device is (MIDI thru and note releases follow it). While
-    /// playing, the first breakpoint inside the sub-block where the value crosses 0.5 is
-    /// where the audio switches (`ChainRt::auto_switch_at`: sample-accurate crossfade).
+    /// this sub-block, wherever the device is. While playing, the first breakpoint inside
+    /// the sub-block where the value crosses 0.5 is where it switches
+    /// (`ChainRt::auto_switch_at`: sample-accurate crossfade, MIDI thru and note releases).
     fn switch(&mut self, target: ResolvedTarget, lane: Option<&AutomationDesc>) {
         let ResolvedTarget::NodeEnabled { node } = target else {
             return;

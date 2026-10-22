@@ -40,11 +40,11 @@ permissions:
   contents: read
 
 concurrency:
-  # A new push to a pull request supersedes its last run. Pushes to `main` share one group that
-  # never cancels a running run: one run goes to the end (every job, so it ends green or red, and
-  # it saves the caches pull requests start from), the newest push waits, and the pushes in
-  # between are skipped (GitHub reports them as cancelled; they never started). The `Main status`
-  # workflow reports the latest run that finished. Manual runs are a group of their own.
+  # A new push to a pull request supersedes its last run. Pushes to `main` share one group: the
+  # newest push waits, the pushes in between are skipped (GitHub reports them as cancelled), and
+  # `Supersede main runs` (main-supersede.yml) cancels the running one so the newest starts, unless
+  # no run has finished for ~2 h (then it goes to the end). The `Main status` workflow reports the
+  # latest run that finished green or red. Manual runs are a group of their own.
   group: ci-${{ github.event.pull_request.number || (github.event_name == 'push' && github.ref) || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -150,6 +150,12 @@ jobs:
             echo "::error::ui/src/generated is stale. Run 'just gen-types' and commit."
             exit 1
           fi
+      - name: No Rust cache from a cancelled run
+        # cache-on-failure also saves a cancelled job's (main-supersede.yml) half-built cache,
+        # which would hold its key until Cargo.lock changes; the superseding run saves instead.
+        if: cancelled()
+        shell: bash
+        run: echo "CACHE_ON_FAILURE=false" >> "$GITHUB_ENV"
 
   rust-macos:
     # The macOS-specific code: plugin hosting (AU, CLAP, VST3, scanner, sandbox), the CoreAudio
@@ -188,6 +194,12 @@ jobs:
           -p ether-core -p ether-devices -p ether-media -p ether-stretch
 
   # --- Web ----------------------------------------------------------------------------------
+      - name: No Rust cache from a cancelled run
+        # cache-on-failure also saves a cancelled job's (main-supersede.yml) half-built cache,
+        # which would hold its key until Cargo.lock changes; the superseding run saves instead.
+        if: cancelled()
+        shell: bash
+        run: echo "CACHE_ON_FAILURE=false" >> "$GITHUB_ENV"
 
   web:
     name: Web (tsc, eslint, prettier, vitest)
@@ -304,6 +316,12 @@ jobs:
           path: apps/web/test-results
           retention-days: 7
           if-no-files-found: ignore
+      - name: No Rust cache from a cancelled run
+        # cache-on-failure also saves a cancelled job's (main-supersede.yml) half-built cache,
+        # which would hold its key until Cargo.lock changes; the superseding run saves instead.
+        if: cancelled()
+        shell: bash
+        run: echo "CACHE_ON_FAILURE=false" >> "$GITHUB_ENV"
 
   e2e:
     # The Playwright suite (real wasm engine + controller in headless Chromium, both arranger
@@ -436,6 +454,12 @@ jobs:
         run: node scripts/release/collect.mjs desktop "$TARGET" "$RUNNER_TEMP/out"
 
   # --- Policy -------------------------------------------------------------------------------
+      - name: No Rust cache from a cancelled run
+        # cache-on-failure also saves a cancelled job's (main-supersede.yml) half-built cache,
+        # which would hold its key until Cargo.lock changes; the superseding run saves instead.
+        if: cancelled()
+        shell: bash
+        run: echo "CACHE_ON_FAILURE=false" >> "$GITHUB_ENV"
 
   policy:
     name: Policy (licenses, notices, advisories, ee boundary, actionlint)

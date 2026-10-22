@@ -26,9 +26,15 @@ test("a red run the issue already mentions is not repeated", () => {
 });
 
 test("all green closes the issue, and does nothing without one", () => {
-  const latest = [{ name: "CI", run: run(7, "success"), failed: [] }, { name: "Full product", run: null, failed: [] }];
+  const latest = [{ name: "CI", run: run(7, "success"), failed: [] }, { name: "Full product", run: run(6, "success"), failed: [] }];
   const p = plan(latest, { number: 98, text: "" });
   assert.deepEqual([p.open, p.close, p.comments.length], [false, true, 1]);
+  assert.deepEqual(plan(latest, null), { comments: [], open: false, close: false });
+});
+
+test("a workflow with only cancelled runs in sight is no signal: the issue stays as it is", () => {
+  const latest = [{ name: "CI", run: run(7, "success"), failed: [] }, { name: "Full product", run: latestFinished([run(9, "cancelled"), run(8, "cancelled")]), failed: [] }];
+  assert.deepEqual(plan(latest, { number: 98, text: "Full product failed on `main` at 5: https://x/runs/5" }), { comments: [], open: false, close: false });
   assert.deepEqual(plan(latest, null), { comments: [], open: false, close: false });
 });
 

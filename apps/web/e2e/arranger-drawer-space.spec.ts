@@ -21,7 +21,8 @@ test("the last track scrolls above a floating piano roll", async ({ page }) => {
   await expect.poll(async () => Object.values((await doc(page)).clips).filter((c) => c.track === last.id).length).toBe(1);
   const clip = Object.values((await doc(page)).clips).find((c) => c.track === last.id)!.id;
   await openClip(page, clip);
-  const drawer = page.locator('[data-pane="bottom"]');
+  // The section, not the collapsed bar (it may still be fading out).
+  const drawer = page.locator('section[data-pane="bottom"]');
   await expect(drawer).toBeVisible();
   await expect(drawer).not.toHaveClass(/eth-float--pinned/);
 
