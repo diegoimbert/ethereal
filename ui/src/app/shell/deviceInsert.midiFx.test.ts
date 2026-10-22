@@ -30,6 +30,8 @@ describe("chainInsertBefore", () => {
     expect(chainInsertBefore([dev("vel", "Velocity")], "Instrument")).toBeNull();
     expect(chainInsertBefore([dev("pitch", "Pitch")], "Instrument")).toBeNull();
     expect(chainInsertBefore([dev("pitch", "Pitch"), dev("synth", "Synth")], "NoteEffect")).toBe("synth");
+    expect(chainInsertBefore([dev("blocker", "NoteBlocker")], "Instrument")).toBeNull();
+    expect(chainInsertBefore([dev("blocker", "NoteBlocker"), dev("synth", "Synth")], "NoteEffect")).toBe("synth");
     expect(chainInsertBefore([dev("eq", "Eq")], "Instrument")).toBe("eq");
   });
 

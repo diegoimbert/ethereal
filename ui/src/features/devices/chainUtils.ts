@@ -96,6 +96,7 @@ const NOTE_EFFECTS: ReadonlySet<BuiltinDeviceType> = new Set<BuiltinDeviceType>(
   "Velocity",
   "Randomizer",
   "Pitch",
+  "NoteBlocker",
   "MidiEffectRack",
 ]);
 

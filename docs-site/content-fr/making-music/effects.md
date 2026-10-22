@@ -134,6 +134,7 @@ Les effets MIDI se placent sur les pistes MIDI, avant l’instrument.
 | **vélocité** | remodèle les vélocités avec une courbe, une plage de sortie et un peu d’aléatoire |
 | **aléatoire** | change au hasard les hauteurs (éventuellement dans la gamme), la vélocité, le placement et la durée. Il dépend d’une **graine**, donc la même graine donne le même résultat à chaque lecture ou export. |
 | **hauteur** | transpose les notes, et peut les bloquer, les replier ou les limiter à une plage de touches |
+| **bloqueur de notes** | supprime toutes les notes, donc rien de ce qui suit ne joue : comme couper le MIDI en entrée, en gardant la chaîne. Les CC, le pitch bend et l’aftertouch passent toujours, sauf si **tout bloquer** est activé. Les notes tenues quand vous l’ajoutez ou l’activez s’arrêtent, et le désactiver ne les rejoue pas : elles reviennent à la note suivante. |
 
 ## effet audio externe {#external-audio-effect}
 

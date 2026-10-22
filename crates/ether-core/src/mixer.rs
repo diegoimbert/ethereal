@@ -34,9 +34,10 @@ pub(crate) struct ChainRt {
     /// Device on/off automation (`ResolvedTarget::NodeEnabled`): overrides `enabled` while
     /// a lane or clip envelope drives it; `None` = the static switch.
     pub auto_enabled: Option<bool>,
-    /// Sample of the sub-block where the automation flips the switch. The audio switch is
-    /// sample-accurate (the crossfade turns there); MIDI thru and note releases follow
-    /// [`Self::is_enabled`], the value at the sub-block start.
+    /// Sample of the sub-block where the automation flips the switch. Both switches are
+    /// sample-accurate: the audio crossfade turns there, and MIDI thru and note releases
+    /// change state there ([`Self::route_midi`]); [`Self::is_enabled`] is the value at the
+    /// sub-block start.
     pub auto_switch_at: Option<u32>,
     pub channels: (u16, u16),
     /// Events for the current sub-block (sorted before `process`).
@@ -120,12 +121,72 @@ impl ChainRt {
         self.auto_switch_at = None;
     }
 
-    /// Whether the node must run this sub-block: on, still fading out, or switched on inside
-    /// it. Entries without audio outputs switch instantly.
+    /// Whether the node must run this sub-block: on, switched inside it, or still fading
+    /// out. Entries without audio outputs switch instantly (no fade).
     #[inline]
     pub(crate) fn runs(&self) -> bool {
-        self.is_enabled()
-            || (self.dry.active() && (self.fade > 0.0 || self.auto_switch_at.is_some()))
+        self.is_enabled() || self.auto_switch_at.is_some() || (self.dry.active() && self.fade > 0.0)
+    }
+
+    /// Whether the device is off at `offset` of this sub-block (an automated switch flips
+    /// at [`Self::auto_switch_at`]).
+    #[inline]
+    fn off_at(&self, offset: u32) -> bool {
+        self.is_enabled() == (offset >= self.auto_switch_at.unwrap_or(u32::MAX))
+    }
+
+    /// RT. Call when the chain reaches this entry: releases the notes a switch strands
+    /// ([`Self::switch_notes`], and at an automated flip inside the sub-block, on its
+    /// sample), sorts the entry's events, then passes those that arrive while the device is
+    /// off on to `next` (MIDI thru: an off device is as if absent; its own params stay
+    /// behind and are dropped). The device keeps the events of the span it is on. `next`:
+    /// the next entry's events, or where the chain's MIDI goes (`None`: nowhere). Returns
+    /// `true` if an event list was full.
+    pub(crate) fn route_midi(&mut self, mut next: Option<&mut EventBuffer>) -> bool {
+        let mut overflow = self.switch_notes(next.as_deref_mut());
+        if let Some(at) = self.auto_switch_at {
+            // The second transition, on the flip's sample (`switch_notes` at the next
+            // sub-block then sees none).
+            let on = !self.is_enabled();
+            self.was_enabled = on;
+            let off = ProcessEvent {
+                offset: at,
+                kind: EventKind::AllNotesOff,
+            };
+            if on {
+                overflow |= !self.events.push(off);
+            }
+            if let Some(next) = next.as_deref_mut() {
+                overflow |= !next.push(off);
+            }
+        }
+        self.events.sort();
+        if self.is_enabled() && self.auto_switch_at.is_none() {
+            return overflow;
+        }
+        let flip = self.auto_switch_at.unwrap_or(u32::MAX);
+        let on = self.is_enabled();
+        self.events.retain(|e| {
+            if on != (e.offset >= flip) {
+                return true;
+            }
+            if let Some(next) = next.as_deref_mut()
+                && !matches!(e.kind, EventKind::Param { .. })
+            {
+                overflow |= !next.push(*e);
+            }
+            false
+        });
+        overflow
+    }
+
+    /// RT. After the node ran: keep only the MIDI it sent while on (one fading out, or off
+    /// before or after an automated flip, sends none: its input went thru).
+    pub(crate) fn gate_output(&self, out: &mut EventBuffer) {
+        if self.is_enabled() && self.auto_switch_at.is_none() {
+            return;
+        }
+        out.retain(|e| !self.off_at(e.offset));
     }
 
     /// RT. Keep this sub-block's input for the bypass path. Call before anything writes into
