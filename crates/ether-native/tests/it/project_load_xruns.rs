@@ -317,6 +317,8 @@ struct Numbers {
     priming: u32,
     /// Late callbacks in the 2 s of playback that follow.
     after_load: u32,
+    /// Callbacks the backend ran in that time (its wall-clock length over a buffer's).
+    callbacks_after_load: u32,
     /// Play refused while loading.
     play_refused: bool,
     load_ms: u128,
@@ -378,16 +380,20 @@ fn measure(never_suspend: bool) -> Numbers {
     let load_ms = started.elapsed().as_millis();
     let priming = rig.overruns() - base;
     let base = rig.overruns();
+    let playing = Instant::now();
     rig.ok("Transport", json!({"type": "Play"}));
     for _ in 0..125 {
         rig.tick();
     }
     rig.ok("Transport", json!({"type": "Stop"}));
+    let callbacks_after_load =
+        (playing.elapsed().as_secs_f64() * f64::from(RATE) / BLOCK as f64) as u32;
     Numbers {
         during_load,
         processed_during_load,
         priming,
         after_load: rig.overruns() - base,
+        callbacks_after_load,
         play_refused,
         load_ms,
     }
@@ -405,11 +411,17 @@ fn a_big_project_loads_without_late_callbacks() {
     );
     // A suspended callback does nothing: only a preempted thread could be late.
     assert!(n.during_load <= 1, "{n:?}");
-    // The first blocks' cost is paid while priming; playback after it is steady. The null
-    // backend's thread runs at normal priority, so a shared runner can still preempt it past
-    // a buffer now and then: a few of the ~375 callbacks may be late (nextest runs this test
-    // alone, `.config/nextest.toml`; with the suite beside it, 12-15 were).
-    assert!(n.after_load <= 3, "{n:?}");
+    // The first blocks' cost is paid while priming; playback after it is steady. This bound is
+    // relative and loose on purpose: the null backend's thread runs at normal priority (a real
+    // device's runs at real-time priority), so anything else on the machine can preempt it past
+    // a 5 ms buffer. nextest runs this test alone (`.config/nextest.toml`), but the self-hosted
+    // CI pool runs several jobs at once: 7 and 15 of ~380 callbacks were late there, while the
+    // test alone on the same commit had none (#296). What this guards is playback left slow by
+    // the load (a held lock, costly blocks on every callback), which makes many late, not a few.
+    assert!(
+        n.after_load * 10 <= n.callbacks_after_load,
+        "at most 10% of the callbacks after the load are late: {n:?}"
+    );
 }
 
 /// The repro: the same load with the engine never suspended (as before), then suspended.
