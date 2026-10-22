@@ -455,6 +455,14 @@
   width: auto;
 }
 
+/* The extensions' choices in a delete confirmation (`deleteChoices.tsx`). */
+.eth-project-delete-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eth-space-xs) var(--eth-space-sm);
+  font-size: var(--eth-fs-sm);
+}
+
 /* Export project dialog. */
 .eth-project-export__body {
   display: flex;

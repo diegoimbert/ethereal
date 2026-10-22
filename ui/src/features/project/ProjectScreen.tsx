@@ -20,6 +20,7 @@ import { APP_VERSION } from "@/config/version";
 import { splitLocalCopy } from "./sessionMarks";
 import { t as translate, Trans, useT } from "@/i18n";
 import { contributions, useContributions, type ProjectRowAction } from "@/ext";
+import { DeleteChoices, DeleteChoiceSwitches } from "./deleteChoices";
 
 /**
  * The project picker ("Open project"): a modal listing the stored projects to
@@ -193,7 +194,9 @@ export function RecentProjects({
   }, [ready, focusSearch]);
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  // The row asking to delete, with the extensions' choices (`@/ext` "project.deleteChoices").
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; choices: DeleteChoices } | null>(null);
+  const listSections = useContributions("project.listSection");
   // A pending extension row action's confirmation (`@/ext` "project.rowActions").
   const [confirmAction, setConfirmAction] = useState<{ id: string; action: ProjectRowAction } | null>(null);
   // Failures of actions run outside `send` (new project, extensions' row actions).
@@ -307,7 +310,7 @@ export function RecentProjects({
           ] as ContextMenuEntry[])
         : []),
       "separator",
-      { label: t("project.row.delete"), danger: true, onSelect: () => setConfirmDelete(p.id) },
+      { label: t("project.row.delete"), danger: true, onSelect: () => setConfirmDelete({ id: p.id, choices: new DeleteChoices(p) }) },
     ];
     openContextMenu(e, entries);
   };
@@ -421,11 +424,12 @@ export function RecentProjects({
                       {confirmAction.action.confirm.button}
                     </Button>
                   </span>
-                ) : confirmDelete === p.id ? (
+                ) : confirmDelete?.id === p.id ? (
                   <span className="eth-project-screen__confirm">
                     <span className="eth-project-screen__name">
                       <Trans k="project.actions.delete_named" values={{ name: <span className="eth-user-text">{p.name}</span> }} />
                     </span>
+                    <DeleteChoiceSwitches choices={confirmDelete.choices} />
                     <Button size="sm" onClick={() => setConfirmDelete(null)}>
                       {t("project.actions.cancel")}
                     </Button>
@@ -435,8 +439,9 @@ export function RecentProjects({
                       disabled={busy}
                       aria-label={t("project.actions.confirm_delete", { name: p.name })}
                       onClick={() => {
+                        const { choices } = confirmDelete;
                         setConfirmDelete(null);
-                        void run(cmd("Project", { type: "Delete", id: p.id }));
+                        void run(cmd("Project", { type: "Delete", id: p.id })).then((r) => r && choices.runChecked((e) => setError(errorMessage(e))));
                       }}
                     >
                       {t("project.actions.delete")}
@@ -483,6 +488,10 @@ export function RecentProjects({
           </ul>
         </section>
       )}
+      {/* Extensions' sections (`@/ext` "project.listSection"), e.g. the projects in the cloud. */}
+      {listSections.map((Section, i) => (
+        <Section key={i} query={query} ready={ready} onDone={onDone} />
+      ))}
     </div>
   );
 }

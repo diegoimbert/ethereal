@@ -15,6 +15,7 @@ import { ProjectScale } from "@/features/scale/ProjectScale";
 import { useProjectStore } from "@/state";
 import { openResolver, resolveMissingLabel, useMissingCount } from "@/features/import-resolver";
 import { appProjectCommands, byId, deleteOpenProject, openProjectCommands } from "./projectCommands";
+import { DeleteChoices, DeleteChoiceSwitches } from "./deleteChoices";
 import { docsCommands } from "@/features/docs/commands";
 import { newsCommands } from "@/features/news";
 import { Trans, useT } from "@/i18n";
@@ -146,7 +147,8 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
   const t = useT();
   const { transport, send } = commands;
   const project = useProjectStore((s) => s.project);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  // The in-place delete confirmation, with the extensions' choices (`@/ext` "project.deleteChoices").
+  const [confirmDelete, setConfirmDelete] = useState<DeleteChoices | null>(null);
   const [openSub, setOpenSub] = useState<string | null>(null);
   const subContext = useMemo(() => ({ open: openSub, setOpen: setOpenSub }), [openSub]);
   const ref = useRef<HTMLDivElement>(null);
@@ -273,8 +275,9 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
                 <span className="eth-project-menu__confirm-text">
                   <Trans k="project.menu.delete_confirm" values={{ name: <span className="eth-user-text">{project.settings.name}</span> }} />
                 </span>
+                <DeleteChoiceSwitches choices={confirmDelete} />
                 <span className="eth-project-menu__confirm-actions">
-                  <button type="button" role="menuitem" className="eth-menu__item" onClick={() => setConfirmDelete(false)}>
+                  <button type="button" role="menuitem" className="eth-menu__item" onClick={() => setConfirmDelete(null)}>
                     {t("project.actions.cancel")}
                   </button>
                   <button
@@ -283,7 +286,7 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
                     className="eth-menu__item eth-menu__item--danger"
                     onClick={() => {
                       close();
-                      deleteOpenProject(transport, project.id);
+                      deleteOpenProject(transport, project.id, confirmDelete);
                     }}
                   >
                     {t("project.actions.delete")}
@@ -292,7 +295,7 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
               </div>
             ) : (
               // The palette's entry asks in a dialog; here the menu asks in place.
-              item("project:delete", { danger: true, onClick: () => setConfirmDelete(true) })
+              item("project:delete", { danger: true, onClick: () => setConfirmDelete(new DeleteChoices({ id: project.id, name: project.settings.name })) })
             )}
           </>
         )}
