@@ -33,6 +33,7 @@ import { runAction, shortcutLabel } from "@/features/keymap";
 import { useEditorStore, useProjectStore } from "@/state";
 import {
   beatsToPx,
+  blinkRef,
   dragBeats,
   createDoublePress,
   extendOrRetract,
@@ -745,7 +746,13 @@ export function NoteGrid({
           />
         ))}
       {section && isSectionMarker(section) ? (
-        <div className="eth-pr-grid__marker" data-testid="piano-roll-marker" data-beats={section.start} style={{ left: beatsToPx(section.start, vp) }} />
+        <div
+          ref={blinkRef}
+          className="eth-pr-grid__marker"
+          data-testid="piano-roll-marker"
+          data-beats={section.start}
+          style={{ left: beatsToPx(section.start, vp) }}
+        />
       ) : (
         section && (
           <div

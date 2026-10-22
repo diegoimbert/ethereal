@@ -53,6 +53,7 @@ import {
   Ruler,
   snapToGrid,
   stepLength,
+  useBlinkPhase,
   useMiddleButtonPan,
   useSelectedItems,
   useTempoMap,
@@ -370,6 +371,8 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
   // A zero-length section is the insert marker (⌘V target); `range` is the real section.
   const section = usePianoRollSection((s) => (s.section?.clip === space.key ? s.section : null));
   const range = rangeOfSection(section);
+  // The marker (ruler strip and grid) blinks on the shared phase, restarted when it moves.
+  const blinkRef = useBlinkPhase(section && isSectionMarker(section) ? section : null);
 
   /** Copy / cut / paste / duplicate (see `section.ts`); one undo step each. */
   const sectionEdit = async (kind: "copy" | "cut" | "paste" | "duplicate") => {
@@ -635,7 +638,7 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
                 style={{ left: beatsToPx(range.start, vp), width: (range.end - range.start) * vp.pxPerBeat }}
               />
             )}
-            {section && isSectionMarker(section) && <div className="eth-pr__marker" style={{ left: beatsToPx(section.start, vp) }} />}
+            {section && isSectionMarker(section) && <div ref={blinkRef} className="eth-pr__marker" style={{ left: beatsToPx(section.start, vp) }} />}
             {!space.multi && loop.enabled && (
               <div
                 className="eth-pr__loop"

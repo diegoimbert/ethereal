@@ -118,6 +118,22 @@ where
     L: Library,
 {
     /// Tick work for plugins: mirror the params of freshly instantiated plugin nodes.
+    /// A project new to Ethereal (imported from another app): its plugin instances are new
+    /// here, so the host's "sandboxed by default" list applies to them
+    /// ([`EngineBridge::sandbox_by_default`]; it only ever turns the flag on). Projects
+    /// saved by Ethereal keep each instance's own flag and never go through this.
+    pub fn apply_sandbox_defaults(&self, project: &mut Project) {
+        for d in project.devices.values_mut() {
+            if let DeviceKind::Plugin { plugin } = &mut d.kind
+                && self
+                    .bridge
+                    .sandbox_by_default(plugin.format, &plugin.plugin_id)
+            {
+                plugin.sandboxed = true;
+            }
+        }
+    }
+
     pub fn plugins_tick(&mut self, _now: u64, out: &mut dyn MessageSink) {
         let Some(doc) = self.doc.as_mut() else {
             self.plugins.mirrored.clear();
