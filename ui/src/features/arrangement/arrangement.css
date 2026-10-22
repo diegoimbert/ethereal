@@ -1090,6 +1090,13 @@
   background: color-mix(in srgb, var(--eth-color-warn) 22%, transparent);
   color: var(--eth-color-warn);
 }
+/* Muted but soloed: heard while soloed (solo overrides the item's own mute, CONTRACTS.md
+   §12.10), so the mute shows outlined instead of filled. */
+.eth-arr-header__mute[aria-pressed="true"][data-solo-override] {
+  background: transparent;
+  box-shadow: inset 0 0 0 var(--eth-border-width) color-mix(in srgb, var(--eth-color-warn) 55%, transparent);
+  color: color-mix(in srgb, var(--eth-color-warn) 55%, var(--eth-color-text-dim));
+}
 
 .eth-arr-header__solo[aria-pressed="true"] {
   background: color-mix(in srgb, var(--eth-color-accent) 24%, transparent);

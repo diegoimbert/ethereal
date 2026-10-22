@@ -124,6 +124,16 @@ impl Default for TrackMixer {
     }
 }
 
+impl TrackMixer {
+    /// The mute the engine applies for this track's own button (CONTRACTS.md §12.10): soloing
+    /// a muted track makes it audible while it stays soloed, without touching `mute` (unsolo
+    /// = muted again). Only the track's own solo overrides its own mute: a group's or VCA's
+    /// mute still silences its tracks, and a soloed group doesn't unmute its muted children.
+    pub fn effective_mute(&self) -> bool {
+        self.mute && !self.solo
+    }
+}
+
 /// Where a track takes its live input from (recording / monitoring).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
