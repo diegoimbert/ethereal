@@ -253,9 +253,12 @@ v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with sl
   - **While stopped.** Lanes and clip envelopes both apply at the stopped position (one
     evaluation), with the same precedence. An envelope only applies when the position
     is inside its clip.
-  - **Timing.** Mixer targets (volume, pan, send level) take the value at the sub-block
-    start, smoothed over 10 ms. Device params get `Param` events every 64 samples while
-    playing.
+  - **Timing.** Sample-accurate (§12.7): device params get `Param` events on the 32-sample
+    grid and at every breakpoint; mixer targets (volume, pan, send level, VCA) ramp per
+    sample. A step lands on its own sample and never before (a mixer step reaches its new
+    value by the next grid point; a device may smooth it, starting there). Automation is
+    delay-compensated: it reaches each target when the audio of its timeline position does
+    (§12.7, issue #270).
 - **Continuous controls.** Volume, pan, send level and device params are undoable
   document edits and are also pushed to the engine param queue immediately, with no graph
   republish. The UI sends them with a `gesture` and closes the gesture with
@@ -1220,7 +1223,23 @@ extracted verbatim from `engine.rs` by the v0.2 contracts):
 - node params: events on an **absolute grid** (`sample_time` multiples of `PARAM_GRID` =
   32) plus one at every breakpoint, each evaluated at the exact beat of its sample;
 - tempo ramps integrated exactly per sample for scheduling and automation (`Timing`);
-- mixer targets (volume, pan, sends) ramped per sample to the value at each grid point;
+- mixer targets (volume, pan, sends, VCA gain) ramped per sample between knots on the grid
+  and at every breakpoint: sample `s` gets the curve's value at its own beat (no
+  look-ahead), a breakpoint ends a ramp at the value just before it, so a step starts on
+  its own sample and reaches the new value by the next grid point (≤ 32 samples);
+- **delay compensation of automation** (issue #270): a target whose signal is `d` samples
+  late relative to the timeline gets the automation the timeline had `d` samples earlier
+  (`automation_rt::views` over `crate::history`, the engine's recent sub-block plans, so
+  loops, locates and tempo ramps are followed like the audio). `d` is the PDC latency at
+  the node's input (`sidechain::TrackPlan::inputs`: the track's input latency plus the
+  latency of every chain, pad or rack-chain entry before it and a sidechain main delay
+  planned before it), so a latent device's own params arrive with its input audio; the
+  fader, sends and VCA gain use the latency after the chain. Device on/off automation is
+  delayed the same way. Stopped, everything is read at the position. Limits: a delay
+  longer than the history (4096 sub-blocks) holds the oldest plan's start; beat-synced
+  modulator phase is not delay-compensated;
+- a device that is off keeps the latest param change per param (64 params) and gets it
+  where it is on again, so it never resumes with stale values;
 - acceptance: an offline render of the same project is identical (±1e-6) with block sizes
   64 and 512, with automation and tempo ramps; with neither, bit-identical as today.
 Modulation uses the same grid.

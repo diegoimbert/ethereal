@@ -100,6 +100,20 @@ fn lane_gain(automation: &[AutomationDesc], beat: f64) -> Option<f32> {
     out
 }
 
+/// `f` on every VCA of the chain of `v` (cycles are cut).
+fn for_chain(vcas: &[VcaState], v: usize, mut f: impl FnMut(&VcaState)) {
+    let mut cur = Some(v);
+    let mut steps = 0;
+    while let Some(i) = cur {
+        f(&vcas[i]);
+        cur = vcas[i].parent;
+        steps += 1;
+        if steps > vcas.len() {
+            break;
+        }
+    }
+}
+
 /// Some VCA in the chain of `v` is automated.
 fn chain_automated(vcas: &[VcaState], v: usize) -> bool {
     let mut cur = Some(v);
@@ -261,6 +275,10 @@ impl VcaRt {
         if playing && automated {
             // Sample-accurate: the effective gain of each track's VCA chain at every grid
             // knot; the track's job ramps to them ([`TrackVcaRt::apply`]).
+            // Read where the track's post-fx audio was on the timeline (its latency,
+            // `automation_rt::views`, issue #270), with knots at the lanes' breakpoints.
+            use crate::automation_rt::{Knots, chunks, lane_breakpoints, lookahead, views};
+            let vcas = &self.vcas;
             for (i, v) in self.track_vca.iter().enumerate() {
                 let (Some(v), Some(t)) = (*v, tracks.get_mut(i)) else {
                     continue;
@@ -268,17 +286,31 @@ impl VcaRt {
                 if !of(i) {
                     continue;
                 }
-                if !chain_automated(&self.vcas, v) {
+                if !chain_automated(vcas, v) {
                     continue;
                 }
-                for (start, end, knot, beat) in crate::automation_rt::chunks(timing) {
-                    let gain = effective_at(&self.vcas, v, beat);
-                    if t.vca.knots.len() < t.vca.knots.capacity() {
-                        t.vca
-                            .knots
-                            .push((start as u32, end as u32, (knot - start) as u32, gain));
+                let knots = &mut t.vca.knots;
+                views(timing, true, t.mixer_delay, |view| {
+                    let mut breaks = Knots::new();
+                    if view.playing {
+                        let until = lookahead(&view.timing);
+                        for_chain(vcas, v, |s| {
+                            for lane in &s.automation {
+                                lane_breakpoints(&lane.points, &view.timing, until, &mut breaks);
+                            }
+                        });
                     }
-                }
+                    for (start, end, knot, beat) in
+                        chunks(&view.timing, view.playing, breaks.as_slice())
+                    {
+                        let gain = effective_at(vcas, v, beat);
+                        if knots.len() < knots.capacity() {
+                            let len = (knot - start) as u32;
+                            let (start, end) = (view.at + start, view.at + end);
+                            knots.push((start as u32, end as u32, len, gain));
+                        }
+                    }
+                });
             }
             // The fader values follow the automation (live changes and stops start there).
             let end = timing.beat_at(timing.frames as f64);
@@ -347,10 +379,11 @@ impl TrackVcaRt {
                 config.sample_rate as f32,
             ),
             assigned,
-            // One chunk per grid interval of the largest block, plus the partial ends.
+            // One chunk per grid interval of the largest block, plus the partial ends, the
+            // breakpoints and the pieces of a delayed timeline (`automation_rt::views`).
             knots: if assigned {
                 Vec::with_capacity(
-                    config.max_block_size / crate::automation_rt::PARAM_GRID as usize + 2,
+                    config.max_block_size / crate::automation_rt::PARAM_GRID as usize * 2 + 64,
                 )
             } else {
                 Vec::new()
