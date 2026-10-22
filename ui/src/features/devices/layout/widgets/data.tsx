@@ -314,9 +314,11 @@ export function MeterWidget({ widget: w, size, label }: TypedProps<"Meter">) {
 
 // ---- Racks -----------------------------------------------------------------------------
 
-export function MacrosWidget({ size, label }: TypedProps<"Macros">) {
+export function MacrosWidget({ widget, size, label }: TypedProps<"Macros">) {
   const { params } = useLayoutContext();
-  const ids = [0, 1, 2, 3, 4, 5, 6, 7].filter((id) => params.has(id));
+  // Params `first..first + 8` (a drum rack's follow its volume and pan).
+  const first = widget.first ?? 0;
+  const ids = Array.from({ length: 8 }, (_, i) => first + i).filter((id) => params.has(id));
   if (ids.length === 0) return <Missing type="Macros" />;
   return (
     <TypedFrame type="macros" size={size} label={label}>

@@ -373,6 +373,7 @@ fn check_rack_preset(id: &str, rack_type: BuiltinDeviceType, rack: &PresetRack) 
             PresetModTarget::ChainDevice { chain, device } => {
                 descs[chain as usize][device as usize].clone()
             }
+            PresetModTarget::PadDevice { .. } => panic!("{id}: a chain rack maps onto a pad"),
         };
         let info = desc.params.iter().find(|q| q.id == m.param);
         assert!(

@@ -12,14 +12,35 @@ import { t } from "@/i18n";
 export const MOD_DRAG_TYPE = "application/x-ethereal-mod-source";
 /** Depth of a new mapping (normalized units). */
 export const DEFAULT_DEPTH = 0.5;
-/** Rack macro params `0..MACROS`; the chain selector follows. */
+/** Macros per rack: a chain rack's params `0..MACROS` (the chain selector follows), a drum
+ *  rack's from `DRUM_RACK_FIRST_MACRO` (after its volume and pan). */
 export const MACROS = 8;
 export const SELECTOR_PARAM = 8;
+export const DRUM_RACK_FIRST_MACRO = 2;
 
 const RACK_TYPES = new Set(["InstrumentRack", "AudioEffectRack", "MidiEffectRack"]);
 
 export function isChainRack(d: Device | undefined | null): boolean {
   return !!d && d.kind.type === "Builtin" && RACK_TYPES.has(d.kind.device.type);
+}
+
+/** A chain rack or a drum rack: a device with macros. */
+export function hasMacros(d: Device | undefined | null): boolean {
+  return isChainRack(d) || (!!d && d.kind.type === "Builtin" && d.kind.device.type === "DrumRack");
+}
+
+/** Param id of `d`'s macro `index` (`ether_model::rack::macro_param`), or `null`. */
+export function macroParam(d: Device | undefined | null, index: number): number | null {
+  if (!hasMacros(d) || index < 0 || index >= MACROS) return null;
+  return (isChainRack(d) ? 0 : DRUM_RACK_FIRST_MACRO) + index;
+}
+
+/** Macro index of `d`'s param `param` (`ether_model::rack::macro_index`), or `null`. */
+export function macroIndex(d: Device | undefined | null, param: number): number | null {
+  const first = macroParam(d, 0);
+  if (first === null) return null;
+  const i = param - first;
+  return i >= 0 && i < MACROS ? i : null;
 }
 
 /** Whether `d` may host modulators (a track-chain device). */
@@ -38,16 +59,19 @@ export function sourceHost(project: Project, s: ModSource): DeviceId | null {
   return s.type === "Modulator" ? (project.modulators[s.modulator]?.device ?? null) : s.rack;
 }
 
-/** Rack of the chain `d` sits on. */
+/** Rack of the chain `d` sits on, or drum rack of its pad. */
 export function rackOf(project: Project, d: Device): DeviceId | null {
-  return d.chain != null ? (project.rack_chains[d.chain]?.rack ?? null) : null;
+  if (d.chain != null) return project.rack_chains[d.chain]?.rack ?? null;
+  if (d.pad != null) return project.drum_pads[d.pad]?.rack ?? null;
+  return null;
 }
 
-/** Whether `d` sits inside rack `rack`, at any depth (nested racks included). */
+/** Whether `d` sits inside rack `rack`, at any depth (chains and pads, nested racks included). */
 export function isInsideRack(project: Project, d: Device, rack: DeviceId): boolean {
   let cur: Device | undefined = d;
-  // Bounded walk up the rack chains (the model caps nesting; a cycle can't loop forever).
-  for (let i = 0; cur?.chain != null && i < 16; i++) {
+  // Bounded walk up the rack chains and pads (the model caps nesting; a cycle can't loop
+  // forever).
+  for (let i = 0; cur && (cur.chain != null || cur.pad != null) && i < 16; i++) {
     const host = rackOf(project, cur);
     if (host === null) return false;
     if (host === rack) return true;
@@ -62,10 +86,10 @@ export function canTarget(project: Project, source: ModSource, device: Device, p
   if (host === null) return false;
   if (source.type === "Modulator") {
     if (host !== device.id && !isInsideRack(project, device, host)) return false;
-    if (host === device.id && isChainRack(device) && param < SELECTOR_PARAM) return false;
+    if (host === device.id && macroIndex(device, param) !== null) return false;
   } else {
     const inRack = isInsideRack(project, device, source.rack);
-    const own = device.id === source.rack && param >= SELECTOR_PARAM;
+    const own = device.id === source.rack && macroIndex(device, param) === null;
     if (!inRack && !own) return false;
   }
   return !Object.values(project.mod_mappings).some((m) => sameSource(m.source, source) && m.device === device.id && m.param === param);

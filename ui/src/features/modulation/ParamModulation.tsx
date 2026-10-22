@@ -10,7 +10,7 @@
  * - **Drop target**: while a source is being mapped (a modulator's map button or drag
  *   handle, a macro's handle), every param it may reach is highlighted: click or drop to
  *   map it (`Modulation::Map`, depth [`DEFAULT_DEPTH`]).
- * - **Macros** (a rack's params 0..8) are sources: they get a drag/map handle instead.
+ * - **Macros** (a rack's params 0..8, a drum rack's 2..10) are sources: they get a drag/map handle instead.
  */
 
 import clsx from "clsx";
@@ -23,7 +23,7 @@ import { useT } from "@/i18n";
 import { clamp01, openContextMenu, useVerticalDrag } from "@/kit";
 import { useProjectStore } from "@/state";
 import { cmd, newId } from "@/transport";
-import { DEFAULT_DEPTH, MACROS, MOD_DRAG_TYPE, canTarget, isChainRack, mappingsOf, sourceName, sourceSlot, useModMapping } from "./model";
+import { DEFAULT_DEPTH, MOD_DRAG_TYPE, canTarget, macroIndex, mappingsOf, sourceName, sourceSlot, useModMapping } from "./model";
 import { useModulatedValue } from "./readback";
 import "./modulation.css";
 
@@ -64,12 +64,12 @@ export function ParamModulation({ device, info, normalized }: ParamModulationPro
   const live = useModulatedValue(device.id, info.id, !!real && mappings.length > 0);
   if (!real) return <span className="eth-param__mod" aria-hidden="true" />;
 
-  const isMacro = isChainRack(real) && info.id < MACROS;
+  const macro = macroIndex(real, info.id);
   return (
     <>
       <span className="eth-param__mod" aria-hidden="true" />
       {mappings.length > 0 && <Rings mappings={mappings} normalized={normalized} live={live} param={info.name} />}
-      {isMacro && <MacroHandle rack={real.id} index={info.id} name={info.name} />}
+      {macro !== null && <MacroHandle rack={real.id} index={macro} name={info.name} />}
       {target && mapping && <DropTarget source={mapping} device={real} info={info} />}
     </>
   );

@@ -1524,8 +1524,9 @@ impl Project {
                 entity: key,
                 missing: EntityKey::Device(m.device),
             })?;
-        // Inside `rack` at any depth (nested racks included).
-        let in_rack = |rack: DeviceId| target.chain.is_some() && self.is_inside(target.id, rack);
+        // Inside `rack` at any depth: on its chains or pads, nested racks' included.
+        let in_rack = |rack: DeviceId| self.is_inside(target.id, rack);
+        let target_macro = crate::rack::kind_macro_index(&target.kind, m.param);
         match m.source {
             ModSource::Modulator { modulator } => {
                 let host = self
@@ -1542,7 +1543,7 @@ impl Project {
                     ));
                 }
                 // No modulation of modulation: a rack's modulators don't drive its macros.
-                if host == m.device && is_rack(&target.kind) && m.param.0 < RACK_SELECTOR_PARAM.0 {
+                if host == m.device && target_macro.is_some() {
                     return Err(invariant("modulators cannot target their rack's macros"));
                 }
             }
@@ -1557,10 +1558,10 @@ impl Project {
                         entity: key,
                         missing: EntityKey::Device(rack),
                     })?;
-                if !is_rack(&r.kind) {
+                if !r.kind.is_any_rack() {
                     return Err(invariant("macro sources must be racks"));
                 }
-                let own = m.device == rack && m.param.0 >= RACK_SELECTOR_PARAM.0;
+                let own = m.device == rack && target_macro.is_none();
                 if !own && !in_rack(rack) {
                     return Err(invariant(
                         "a macro can only target devices inside its rack (or the rack's non-macro params)",

@@ -622,6 +622,23 @@
     "layout": {
       "sections": [
         {
+          "columns": 4,
+          "id": "macros",
+          "items": [
+            {
+              "colspan": 4,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "first": 2,
+                "type": "Macros"
+              }
+            }
+          ],
+          "span": 3,
+          "title": "Macros"
+        },
+        {
           "columns": 2,
           "id": "rack",
           "items": [
@@ -681,6 +698,126 @@
           "type": "Linear"
         },
         "unit": "Pan"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 1",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 2",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 3",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 4",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 5",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 7,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 6",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 8,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 7",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 9,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 8",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
       }
     ],
     "sidechain_inputs": 0
