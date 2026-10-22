@@ -290,6 +290,16 @@ function AudioSettingsBody({ transport, reason }: { transport: EngineTransport; 
     await loadAudioDevices(transport);
   };
 
+  const setAnticipative = async (on: boolean) => {
+    try {
+      const reply = await transport.send(cmd("Engine", { type: "SetAnticipative", on }));
+      if (reply.type === "Status") useAudioSettings.setState({ status: reply.status });
+      setError(null);
+    } catch (e) {
+      setError(errorText(e));
+    }
+  };
+
   if (unavailable) {
     return (
       <p className="eth-audio-settings__note" data-tour="audio-unavailable">
@@ -411,6 +421,18 @@ function AudioSettingsBody({ transport, reason }: { transport: EngineTransport; 
         <p className="eth-audio-settings__note" data-testid="buffer-note">
           {buffer.note}
         </p>
+      )}
+      {/* Engines that can't anticipate (web, no worker threads) don't report it. */}
+      {status?.anticipative != null && (
+        <div className="eth-audio-settings__option" data-tour="audio-anticipative">
+          <Toggle
+            size="sm"
+            checked={status.anticipative}
+            label={t("settings.audio.anticipative")}
+            onChange={(on) => void setAnticipative(on)}
+          />
+          <p className="eth-audio-settings__note">{t("settings.audio.anticipative_hint")}</p>
+        </div>
       )}
 
       {status && (

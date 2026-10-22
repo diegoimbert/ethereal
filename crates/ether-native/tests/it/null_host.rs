@@ -94,6 +94,17 @@ fn null_backend_streams_playhead_and_meters() {
     assert_eq!(status["backend"], "null");
     assert_eq!(status["sample_rate"], 48_000);
     assert_eq!(status["instance"], "test");
+    // Anticipative processing (with worker threads: the headless default is one): on by
+    // default; switched off, saved next to the worker count.
+    if !status["anticipative"].is_null() {
+        assert_eq!(status["anticipative"], true);
+        let off = c.ok("Engine", json!({"type": "SetAnticipative", "on": false}))["status"].clone();
+        assert_eq!(off["anticipative"], false);
+        let saved = std::fs::read_to_string(tmp.path().join("config/engine.json")).unwrap();
+        let saved: serde_json::Value = serde_json::from_str(&saved).unwrap();
+        assert_eq!(saved["anticipative"], false);
+        c.ok("Engine", json!({"type": "SetAnticipative", "on": true}));
+    }
     let plugins = c.ok("Plugin", json!({"type": "List"}));
     assert_eq!(plugins["type"], "Plugins");
     c.ok("Transport", json!({"type": "Stop"}));
