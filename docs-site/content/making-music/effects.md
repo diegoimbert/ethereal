@@ -48,7 +48,7 @@ Evens out the volume: when the sound goes over the **threshold**, it is turned d
 - **mix**: blend in the uncompressed sound (parallel compression).
 - **detector**: **peak** reacts to every peak, **RMS** to the average level, and **expand** turns it into a downward expander that makes quiet parts quieter.
 - **lookahead** (up to 10 ms) catches fast transients, and adds that much latency, which Ethereal compensates.
-- It can be keyed by another track (see [sidechain](/docs/making-music/modulation-and-sidechain#sidechain)). **sidechain HPF** then filters the low end out of the key signal, so a kick's sub doesn't trigger it too much.
+- It can be keyed by another track (see [sidechain](/docs/making-music/modulation-and-sidechain#sidechain)). **sidechain HPF** then filters the low end out of the key signal, so a kick's sub doesn't trigger it too much; **sidechain slope** makes that filter gentle (6 dB/oct) or steeper (12 dB/oct).
 
 ### reverb
 
