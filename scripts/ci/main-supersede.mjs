@@ -5,9 +5,11 @@
 // one that is running, and the newest then starts.
 //
 // Starvation guard: if a streak has kept a workflow without a finished run (green or red) on `main`
-// for more than two hours, the running run is let finish: `main` gets a signal at least every
-// ~2 h plus one run, however fast the merges come. The clock starts at the later of the last
-// finished run and the first push after it (a quiet `main` isn't starving).
+// for more than two of its typical runs (at least 30 min, at most 2 h), the running run is let
+// finish: `main` gets a signal at least every ~3 runs, however fast the merges come. The clock
+// starts at the later of the last finished run and the first push after it (a quiet `main` isn't
+// starving). With merges closer than 70% of a run (below), only this guard gives a verdict: on
+// 2026-10-22 (~17 merges an hour for 3 h) a flat 2 h left every workflow 2-3 h without one.
 //
 // Nearly done: a running run that has been going (since its first job started) for at least 70%
 // of the workflow's typical run (the median of its last finished runs) is let finish too:
@@ -22,7 +24,9 @@ import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { VERDICTS, WORKFLOWS, latestFinished } from "./main-status.mjs";
 
-export const STARVING_MS = 2 * 3600e3;
+export const STARVING_MS = 2 * 3600e3; // the longest guard (and the one without a typical run)
+export const STARVING_MIN_MS = 30 * 60e3;
+export const STARVING_RUNS = 2;
 export const NEARLY_DONE = 0.7;
 
 /** The median wall time of the last (up to 5) finished runs, or null. */
@@ -36,12 +40,18 @@ export function typicalMs(runs) {
   return d.length ? d[d.length >> 1] : null;
 }
 
+/** The starvation guard of a workflow: two typical runs, within [30 min, 2 h]. */
+export function starvingMs(runs) {
+  const t = typicalMs(runs);
+  return t ? Math.min(STARVING_MS, Math.max(STARVING_MIN_MS, STARVING_RUNS * t)) : STARVING_MS;
+}
+
 /**
  * What to cancel among a workflow's push runs on `main` (newest first, any status; a running run
  * may carry `first_job_at`, when its first job started, and `cancelling`, when a job of it was
  * cancelled already: a cancel takes minutes to land). Returns `{ cancel: [run], reason }`.
  */
-export function decide(runs, now, starvingMs = STARVING_MS) {
+export function decide(runs, now, guardMs = starvingMs(runs)) {
   const active = runs.filter((r) => r.status !== "completed");
   if (active.length < 2) return { cancel: [], reason: "nothing superseded" };
   const [newest, ...older] = [...active].sort((a, b) => b.run_number - a.run_number);
@@ -52,7 +62,7 @@ export function decide(runs, now, starvingMs = STARVING_MS) {
   const since = runs.filter((r) => r.run_number > last.run_number).map((r) => Date.parse(r.created_at));
   const quietSince = Math.max(Date.parse(last.updated_at), since.length ? Math.min(...since) : 0);
   const hours = ((now - quietSince) / 3600e3).toFixed(1);
-  if (now - quietSince > starvingMs) return { cancel: [], reason: `no finished run for ${hours} h: let it finish` };
+  if (now - quietSince > guardMs) return { cancel: [], reason: `no finished run for ${hours} h (guard ${Math.round(guardMs / 60e3)} min): let it finish` };
   const typical = typicalMs(runs);
   const done = (r) => (typical && r.first_job_at ? (now - Date.parse(r.first_job_at)) / typical : 0);
   const nearly = cancel.filter((r) => done(r) >= NEARLY_DONE);
