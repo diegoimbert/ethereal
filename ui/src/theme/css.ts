@@ -1,5 +1,7 @@
 // eth-allow-case-file: generated CSS text.
 /** Renders `tokens.ts` into the CSS text of `tokens.css` (pure; used by gen-css.ts and tests). */
+import { BUILTIN_THEMES, builtinTheme } from "./builtinThemes.ts";
+import { resolvedThemeEntries } from "./themeModel.ts";
 import { componentEntries, DEFAULT_THEME, sharedEntries, THEME_NAMES, themeOnlyEntries, themes, type ThemeName } from "./tokens.ts";
 
 const HEADER = `/*
@@ -26,6 +28,11 @@ export function renderTokensCss(): string {
         `/* Theme: ${t}${t === DEFAULT_THEME ? " (default)" : ""}. */\n` +
         block(themeSelectors(t), themeOnlyEntries(t), [`color-scheme: ${themes[t].colorScheme};`]),
     ),
+    // The other built-in themes, over their scheme's (`<html data-theme="dark" data-theme-id="obsidian">`).
+    ...BUILTIN_THEMES.filter((d) => !(THEME_NAMES as string[]).includes(d.id)).map((d) => {
+      const t = builtinTheme(d.id);
+      return `/* Theme: ${d.id} (${t.scheme}). */\n` + block([`[data-theme-id="${d.id}"]`], resolvedThemeEntries(t), [`color-scheme: ${t.scheme};`]);
+    }),
     `/* Component tokens (re-declared on themed subtrees so they follow the theme). */\n` + block([":root", "[data-theme]"], componentEntries()),
   ];
   return parts.join("\n\n") + "\n";

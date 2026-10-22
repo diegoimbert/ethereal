@@ -34,7 +34,7 @@ export const darkColors = {
   borderCard: "#3a404b",
   // Text: slightly softened, never pure white.
   text: "#d8dbe3",
-  textDim: "#8b90a0",
+  textDim: "#9297a7",
   textDisabled: "#555a67",
   textInverse: "#14161b",
   // Accent (primary interactive color): warm orchid (pink-purple).
@@ -103,17 +103,17 @@ export const lightColors: ColorTokens = {
   textDim: "#666c7b",
   textDisabled: "#a8adb9",
   textInverse: "#ffffff",
-  accent: "#b25ca8",
-  accentHover: "#be6fb5",
+  accent: "#ab55a1",
+  accentHover: "#b863ae",
   accentDim: "#e6c1e1",
-  accentSubtle: "rgba(178, 92, 168, 0.12)",
+  accentSubtle: "rgba(171, 85, 161, 0.12)",
   accentGlow: "#c93dc5",
   ok: "#3f9a63",
-  warn: "#b08a2a",
+  warn: "#a07d22",
   danger: "#cc5a5a",
   info: "#4f86c6",
-  selection: "#b25ca8",
-  focus: "#b25ca8",
+  selection: "#ab55a1",
+  focus: "#ab55a1",
   playhead: "#23262f",
   // Light theme: the playing playhead looks like the parked one, no halo.
   playheadPlaying: "#23262f",
@@ -134,8 +134,8 @@ export const lightColors: ColorTokens = {
   pianoKeyLabel: "#333",
   pianoScaleRow: "#e7e2ec",
   pianoScaleRootRow: "#e2d5e5",
-  pianoScaleRootLine: "rgba(178, 92, 168, 0.35)",
-  pianoScaleKeyMark: "rgba(178, 92, 168, 0.55)",
+  pianoScaleRootLine: "rgba(171, 85, 161, 0.35)",
+  pianoScaleKeyMark: "rgba(171, 85, 161, 0.55)",
 };
 
 export const darkShadows = {
@@ -549,6 +549,9 @@ export const size = {
   /** The settings dialog's sidebar (categories and their pages). */
   settingsNavWidth: "168px",
   audioSettingsMeterNameWidth: "120px",
+  /** Settings > Appearance: a theme card (its least width) and its preview's height. */
+  themeCardMinWidth: "112px",
+  themeCardPreviewHeight: "56px",
   // Guided tours (features/tutorials).
   /** The tour's step bubble (narrower on small screens), and the most an illustration in it takes. */
   tourBubbleWidth: "380px",

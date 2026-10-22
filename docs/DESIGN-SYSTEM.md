@@ -132,13 +132,18 @@ The gallery (`?kit`) lists every token with its current value.
 
 ## Themes
 
-Dark is the default; light ships alongside. The theme is the `data-theme` attribute on `<html>`
-(`dark` | `light`), remembered in `localStorage` (`eth-theme`) and applied when `@/kit` loads.
+Six built-in themes (dark, the default, four more dark ones and light), and the user's own.
+`<html data-theme>` is the applied theme's base scheme (`dark` | `light`) and
+`<html data-theme-id>` the theme itself; both are remembered in `localStorage` and applied when
+`@/kit` loads. The model, the derived tokens, the contrast checks and the theme file format
+are in [THEMES.md](THEMES.md).
 
-- Switch: `setTheme("light")`, or `const [theme, setTheme] = useTheme()` in React.
-- A subtree can use another theme: `<div data-theme="light">…</div>`.
-- Add a theme: add a `ColorTokens` + `ShadowTokens` pair and an entry in `themes` in
-  `tokens.ts`, regenerate. The test checks every theme defines the same keys.
+- Switch: `setThemeId("obsidian")` / `useThemeId()`; `setTheme("light")` applies the light
+  theme last used. `useTheme()` returns the scheme.
+- Light-only style rules key off the scheme: `[data-theme="light"] .my-thing { … }`.
+- A subtree can use another scheme's built-in theme: `<div data-theme="light">…</div>`.
+- Add a built-in theme: a definition in `ui/src/theme/builtinThemes.ts` (its main colors),
+  regenerate. The tests check it passes the contrast checks.
 
 ## Components
 
@@ -180,7 +185,8 @@ anchor), so `overflow: hidden/auto` panels never clip them.
    `var(--eth-track-<i>)`.
 4. **Canvas / WebGL** (no CSS vars): in a component, `const c = useThemeColor("clipSeam")`
    (re-renders on theme change; put `c` in the redraw dependencies), or read computed values
-   with `readToken("--eth-color-text")` and re-read on theme change (`useTheme()` re-renders).
+   with `readToken("--eth-color-text")` and re-read on theme change (`useThemeKey()` changes
+   with every theme change, also between two dark themes or while the theme editor previews).
    Canvas geometry that mirrors CSS reads the TS tokens (`parseFloat(size.clipTitleHeight)`).
    Raw `TRACK_COLORS` are fine for data.
 5. Customize a kit component in a feature by setting its component tokens on a container, not

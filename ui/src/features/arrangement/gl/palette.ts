@@ -6,7 +6,7 @@
  * Colors are `[r, g, b, a]` floats in 0–1 (straight alpha).
  */
 
-import { displayColor, getGlow, getTheme, readToken, tokenName, themes, type ColorKey, type ThemeName } from "@/theme";
+import { displayColor, getGlow, getTheme, readToken, themeColorValue, tokenName, type ColorKey, type ThemeName } from "@/theme";
 
 export type Rgba = readonly [number, number, number, number];
 
@@ -85,7 +85,7 @@ type PaletteKey = Extract<ColorKey, "bg" | "bgPanel" | "textInverse" | "clipSeam
 export function readPalette(): Palette {
   const theme = getTheme();
   const color = (key: PaletteKey): Rgba => {
-    const css = readToken(tokenName("color", key) as `--${string}`) || themes[theme].color[key];
+    const css = readToken(tokenName("color", key) as `--${string}`) || themeColorValue(key);
     return parseColor(css);
   };
   return {

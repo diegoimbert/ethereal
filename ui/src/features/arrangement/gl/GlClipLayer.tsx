@@ -352,10 +352,10 @@ function bleedOf(backend: string, headerWidth: number): number {
   return backend === "webgl" ? headerWidth : 0;
 }
 
-/** Calls `fn` when the theme (`<html data-theme>`) or the glow setting (`data-glow`) changes. */
+/** Calls `fn` when the theme (`<html data-theme>`, `data-theme-id`, `data-theme-rev`) or the glow setting (`data-glow`) changes. */
 function onThemeChange(fn: () => void): () => void {
   const mo = new MutationObserver(fn);
-  mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-glow"] });
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-theme-id", "data-theme-rev", "data-glow"] });
   return () => mo.disconnect();
 }
 
