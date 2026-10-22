@@ -1,6 +1,6 @@
 import "./time-edits.css";
 import type { TrackId } from "@/generated";
-import { useViewport, type TimelineViewStore } from "@/timeline";
+import { useBlinkPhase, useViewport, type TimelineViewStore } from "@/timeline";
 import { isMarker, useTimeSelection } from "./store";
 
 interface LayerRow {
@@ -19,6 +19,8 @@ interface LayerRow {
 export function TimeSelectionLayer({ rows, view, headerWidth }: { rows: ReadonlyArray<LayerRow>; view: TimelineViewStore; headerWidth: number }) {
   const sel = useTimeSelection((s) => s.selection);
   const vp = useViewport(view);
+  // Every track's marker blinks on one shared phase, restarted when the marker moves (#238).
+  const blinkRef = useBlinkPhase(isMarker(sel) ? sel : null);
   if (!sel) return null;
   const left = headerWidth + (sel.start - vp.scrollBeats) * vp.pxPerBeat;
   const width = (sel.end - sel.start) * vp.pxPerBeat;
@@ -32,6 +34,7 @@ export function TimeSelectionLayer({ rows, view, headerWidth }: { rows: Readonly
         {shown.map((r) => (
           <div
             key={r.track.id}
+            ref={blinkRef}
             className="eth-insert-marker"
             data-testid="insert-marker"
             data-track={r.track.id}

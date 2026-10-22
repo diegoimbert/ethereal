@@ -316,6 +316,7 @@ export type * from "./SampleZone";
 export type * from "./SamplesCommand";
 export type * from "./SamplesEvent";
 export type * from "./SamplesView";
+export type * from "./SandboxDefault";
 export type * from "./SavedParam";
 export type * from "./ScaleKind";
 export type * from "./ScanFailure";

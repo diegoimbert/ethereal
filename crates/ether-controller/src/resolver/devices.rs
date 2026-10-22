@@ -36,10 +36,9 @@ const KEYWORDS: &[(&[&str], T, &str)] = &[
         "volume lfo",
     ),
     (&["filter", "wah"], T::AutoFilter, "filter"),
+    (&["pedal", "overdrive", "fuzz"], T::Pedal, "pedal"),
     (
         &[
-            "pedal",
-            "overdrive",
             "distortion",
             "drive",
             "tube",
@@ -201,7 +200,7 @@ mod tests {
         );
         assert_eq!(first(&grain), T::Delay);
         let pedal = missing("Live's Pedal", "ableton:Pedal", MissingRole::AudioEffect);
-        assert_eq!(first(&pedal), T::Saturator);
+        assert_eq!(first(&pedal), T::Pedal);
         let op = missing(
             "Live's Operator",
             "ableton:Operator",
