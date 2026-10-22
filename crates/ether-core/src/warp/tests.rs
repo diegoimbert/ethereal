@@ -65,6 +65,24 @@ thread_local! {
     /// Stretcher of the tests on this thread: the C++ Signalsmith (native default) or the
     /// pure-Rust port with the web preset ([`with_rust_stretcher`]).
     static RUST: Cell<bool> = const { Cell::new(false) };
+    /// The stretching mode the shared tests use: Complex, or Complex+ ([`with_plus`]).
+    static PLUS: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Run `f` with the shared stretching tests in `WarpMode::ComplexPlus`.
+fn with_plus(f: impl FnOnce()) {
+    PLUS.set(true);
+    f();
+    PLUS.set(false);
+}
+
+/// The stretching mode under test.
+fn cx() -> WarpMode {
+    if PLUS.get() {
+        WarpMode::ComplexPlus
+    } else {
+        WarpMode::Complex
+    }
 }
 
 /// Run `f` with engines using the pure-Rust stretcher (web preset).
@@ -92,6 +110,8 @@ fn engine(stretch: bool) -> EngineParts {
     });
     if stretch {
         p.handle.set_stretcher_factory(factory());
+        p.handle
+            .set_plus_stretcher_factory(Arc::new(ether_stretch::PlusStretchFactory));
     }
     p
 }
@@ -167,6 +187,7 @@ fn warp(mode: WarpMode, markers: &[(f64, f64)]) -> Option<WarpDesc> {
     Some(WarpDesc {
         mode,
         markers: markers.to_vec(),
+        formants: Default::default(),
     })
 }
 
@@ -233,7 +254,7 @@ fn assert_close(got: f64, want: f64, tol: f64, what: &str) {
 /// timeline. Complex keeps the pitch, Repitch halves it; both last 2 s.
 #[test]
 fn stretched_clip_has_the_timeline_duration_and_keeps_pitch() {
-    for (mode, want_hz) in [(WarpMode::Complex, 440.0), (WarpMode::Repitch, 220.0)] {
+    for (mode, want_hz) in [(cx(), 440.0), (WarpMode::Repitch, 220.0)] {
         let mut p = engine(true);
         p.handle.add_source(MEDIA, sine(440.0, 1.0, 0.0)).unwrap();
         let markers = [(0.0, 0.0), (4.0, 1.0)];
@@ -266,13 +287,7 @@ fn complex_output_is_latency_compensated() {
     let markers = [(0.0, 0.0), (2.0, 1.0)];
     publish(
         &mut p,
-        vec![audio_clip(
-            1,
-            0.0,
-            4.0,
-            0.0,
-            warp(WarpMode::Complex, &markers),
-        )],
+        vec![audio_clip(1, 0.0, 4.0, 0.0, warp(cx(), &markers))],
     );
     let out = play(&mut p, 2 * SR);
     let at = onset(&out, 0.1).expect("onset");
@@ -288,7 +303,7 @@ fn complex_output_is_latency_compensated() {
 fn transpose_shifts_pitch_in_both_modes() {
     // +12 st: Complex keeps the duration and doubles the pitch; Repitch doubles the playback
     // rate (so the 1:1 clip reads the source twice as fast: 880 Hz).
-    for mode in [WarpMode::Complex, WarpMode::Repitch] {
+    for mode in [cx(), WarpMode::Repitch] {
         let mut p = engine(true);
         p.handle.add_source(MEDIA, sine(440.0, 8.0, 0.0)).unwrap();
         let markers = [(0.0, 0.0), (2.0, 1.0)];
@@ -352,13 +367,7 @@ fn locate_and_loop_jumps_resume_immediately() {
     let markers = [(0.0, 0.0), (4.0, 1.5)]; // slightly sped up
     publish(
         &mut p,
-        vec![audio_clip(
-            1,
-            0.0,
-            16.0,
-            0.0,
-            warp(WarpMode::Complex, &markers),
-        )],
+        vec![audio_clip(1, 0.0, 16.0, 0.0, warp(cx(), &markers))],
     );
     play(&mut p, SR / 2);
     p.handle
@@ -407,8 +416,8 @@ fn stretchers_are_pooled_per_track_and_collected_off_the_audio_thread() {
     publish(
         &mut p,
         vec![
-            audio_clip(1, 0.0, 4.0, 0.0, warp(WarpMode::Complex, &m)),
-            audio_clip(2, 4.0, 4.0, 0.0, warp(WarpMode::Complex, &m)),
+            audio_clip(1, 0.0, 4.0, 0.0, warp(cx(), &m)),
+            audio_clip(2, 4.0, 4.0, 0.0, warp(cx(), &m)),
             audio_clip(3, 8.0, 4.0, 0.0, warp(WarpMode::Repitch, &m)),
             audio_clip(4, 12.0, 4.0, 0.0, None),
         ],
@@ -419,9 +428,9 @@ fn stretchers_are_pooled_per_track_and_collected_off_the_audio_thread() {
     publish(
         &mut p,
         vec![
-            audio_clip(1, 0.0, 4.0, 0.0, warp(WarpMode::Complex, &m)),
+            audio_clip(1, 0.0, 4.0, 0.0, warp(cx(), &m)),
             audio_clip(2, 4.0, 4.0, 0.0, warp(WarpMode::Repitch, &m)),
-            audio_clip(3, 8.0, 4.0, 0.0, warp(WarpMode::Complex, &m)),
+            audio_clip(3, 8.0, 4.0, 0.0, warp(cx(), &m)),
         ],
     );
     assert_eq!(p.handle.stretcher_count(), 1);
@@ -429,16 +438,8 @@ fn stretchers_are_pooled_per_track_and_collected_off_the_audio_thread() {
     assert_eq!(p.handle.collect_stretchers(), 1);
     // Many clips, at most two at once: two voices.
     let many: Vec<_> = (0..40)
-        .map(|k| {
-            audio_clip(
-                10 + k,
-                k as f64 * 6.0,
-                4.0,
-                0.0,
-                warp(WarpMode::Complex, &m),
-            )
-        })
-        .chain([audio_clip(99, 1.0, 2.0, 0.0, warp(WarpMode::Complex, &m))])
+        .map(|k| audio_clip(10 + k, k as f64 * 6.0, 4.0, 0.0, warp(cx(), &m)))
+        .chain([audio_clip(99, 1.0, 2.0, 0.0, warp(cx(), &m))])
         .collect();
     publish(&mut p, many);
     assert_eq!(p.handle.stretcher_count(), 2);
@@ -461,9 +462,9 @@ fn a_voice_moves_from_clip_to_clip_and_unit_rate_plays_straight() {
     publish(
         &mut p,
         vec![
-            audio_clip(1, 0.0, 2.0, 0.0, warp(WarpMode::Complex, &fast)),
-            audio_clip(2, 4.0, 2.0, 0.0, warp(WarpMode::Complex, &fast)),
-            audio_clip(3, 8.0, 2.0, 0.0, warp(WarpMode::Complex, &unit)),
+            audio_clip(1, 0.0, 2.0, 0.0, warp(cx(), &fast)),
+            audio_clip(2, 4.0, 2.0, 0.0, warp(cx(), &fast)),
+            audio_clip(3, 8.0, 2.0, 0.0, warp(cx(), &unit)),
         ],
     );
     assert_eq!(p.handle.stretcher_count(), 1);
@@ -502,12 +503,9 @@ fn complex_path_never_allocates() {
     let mut p = engine(true);
     p.handle.add_source(MEDIA, sine(330.0, 4.0, 0.0)).unwrap();
     let markers = [(0.0, 0.0), (2.0, 0.5), (4.0, 2.0), (8.0, 2.5)];
-    let mut looped = audio_clip(2, 8.0, 8.0, 5.0, warp(WarpMode::Complex, &markers));
+    let mut looped = audio_clip(2, 8.0, 8.0, 5.0, warp(cx(), &markers));
     looped.looping = Some((1.0, 3.0));
-    let clips = vec![
-        audio_clip(1, 0.0, 8.0, -3.0, warp(WarpMode::Complex, &markers)),
-        looped,
-    ];
+    let clips = vec![audio_clip(1, 0.0, 8.0, -3.0, warp(cx(), &markers)), looped];
     publish(&mut p, clips.clone());
     play(&mut p, 2 * SR);
     p.handle
@@ -552,6 +550,129 @@ fn rust_stretcher_passes_the_warp_tests() {
         a_voice_moves_from_clip_to_clip_and_unit_rate_plays_straight();
         complex_path_never_allocates();
     });
+}
+
+/// Complex+ passes the same playback tests as Complex: duration and pitch under stretch,
+/// latency compensation, transpose, jumps resuming within `SEEK_FADE_MS`, voice pooling
+/// and hand-over, unit rate played straight, and no allocation.
+#[test]
+fn complex_plus_passes_the_warp_tests() {
+    with_plus(|| {
+        stretched_clip_has_the_timeline_duration_and_keeps_pitch();
+        complex_output_is_latency_compensated();
+        transpose_shifts_pitch_in_both_modes();
+        locate_and_loop_jumps_resume_immediately();
+        stretchers_are_pooled_per_track_and_collected_off_the_audio_thread();
+        a_voice_moves_from_clip_to_clip_and_unit_rate_plays_straight();
+        complex_path_never_allocates();
+    });
+}
+
+/// Complex and Complex+ clips have their own voices (pooled per track and mode); without a
+/// Complex+ factory, Complex+ clips play Repitch.
+#[test]
+fn modes_have_their_own_voices() {
+    let mut p = engine(true);
+    assert!(p.handle.plus_stretching_supported());
+    p.handle.add_source(MEDIA, sine(440.0, 1.0, 0.0)).unwrap();
+    let m = [(0.0, 0.0), (4.0, 1.0)];
+    publish(
+        &mut p,
+        vec![
+            audio_clip(1, 0.0, 4.0, 0.0, warp(WarpMode::Complex, &m)),
+            audio_clip(2, 0.0, 4.0, 0.0, warp(WarpMode::ComplexPlus, &m)),
+            audio_clip(3, 0.0, 4.0, 0.0, warp(WarpMode::ComplexPlus, &m)),
+        ],
+    );
+    assert_eq!(p.handle.stretcher_count(), 3);
+    let out = play(&mut p, 2 * SR);
+    // Three sines in phase-free sum: pitch kept by all.
+    assert_close(freq(&out[ms(200.0)..ms(1800.0)]), 440.0, 0.03, "pitch");
+
+    let mut p = crate::create(EngineConfig {
+        sample_rate: SR as u32,
+        max_block_size: BLOCK,
+        ..Default::default()
+    });
+    p.handle.set_stretcher_factory(factory());
+    assert!(!p.handle.plus_stretching_supported());
+    p.handle.add_source(MEDIA, sine(440.0, 1.0, 0.0)).unwrap();
+    publish(
+        &mut p,
+        vec![audio_clip(
+            1,
+            0.0,
+            4.0,
+            0.0,
+            warp(WarpMode::ComplexPlus, &m),
+        )],
+    );
+    assert_eq!(p.handle.stretcher_count(), 0);
+    let out = play(&mut p, 2 * SR);
+    assert_close(freq(&out[ms(200.0)..ms(1800.0)]), 220.0, 0.03, "fallback");
+}
+
+/// Complex+'s formant settings reach its stretcher: a formant shift is processed even at
+/// the source's own speed (it changes the timbre), and changes the spectrum of a harmonic
+/// sound while keeping its pitch.
+#[test]
+fn complex_plus_formant_shift_is_applied() {
+    // A harmonic tone (12 harmonics of 220 Hz) with a formant at 880 Hz.
+    let frames = 4 * SR;
+    let amp = |h: f64| 0.02 + 0.3 * (-((220.0 * h - 880.0) / 250.0).powi(2)).exp();
+    let l: Vec<f32> = (0..frames)
+        .map(|i| {
+            let t = i as f64 / SR as f64;
+            (1..=12)
+                .map(|h| amp(h as f64) * (std::f64::consts::TAU * 220.0 * h as f64 * t).sin())
+                .sum::<f64>() as f32
+        })
+        .collect();
+    let src: Arc<dyn AudioSource> = Arc::new(Mem { r: l.clone(), l });
+    let unit = [(0.0, 0.0), (2.0, 1.0)];
+    let run = |shift: f32| {
+        let mut p = engine(true);
+        p.handle.add_source(MEDIA, src.clone()).unwrap();
+        let mut w = warp(WarpMode::ComplexPlus, &unit);
+        if let Some(w) = &mut w {
+            w.formants.shift = shift;
+        }
+        publish(&mut p, vec![audio_clip(1, 0.0, 6.0, 0.0, w)]);
+        play(&mut p, 3 * SR)
+    };
+    let plain = run(0.0);
+    let shifted = run(7.0);
+    // Unshifted at 1:1: the source itself.
+    let mut want = vec![0.0f32; SR];
+    src.read(0, ms(500.0) as u64, &mut want);
+    let diff = plain[ms(500.0)..ms(500.0) + SR]
+        .iter()
+        .zip(&want)
+        .fold(0.0f32, |m, (a, b)| m.max((a - b).abs()));
+    assert!(diff < 1e-6, "1:1 without a shift is the source ({diff})");
+    // Shifted: the pitch stays (energy on the harmonics of 220 Hz, not between them), the
+    // harmonic balance changes.
+    let seg = &shifted[ms(500.0)..ms(2500.0)];
+    let band = |sig: &[f32], f: f64| {
+        let w = std::f64::consts::TAU * f / SR as f64;
+        let (mut re, mut im) = (0.0, 0.0);
+        for (i, v) in sig.iter().enumerate() {
+            re += *v as f64 * (w * i as f64).cos();
+            im += *v as f64 * (w * i as f64).sin();
+        }
+        (re * re + im * im).sqrt()
+    };
+    for h in [2.0, 3.0, 4.0] {
+        let (on, off) = (band(seg, 220.0 * h), band(seg, 220.0 * (h + 0.5)));
+        assert!(on > 10.0 * off, "harmonic {h}: {on} vs {off} between");
+    }
+    // The formant moves up a fifth: from 880 Hz towards 1320 Hz.
+    let ratio = |sig: &[f32]| band(sig, 1320.0) / band(sig, 880.0);
+    let (a, b) = (ratio(&plain[ms(500.0)..ms(2500.0)]), ratio(seg));
+    assert!(
+        20.0 * (b / a).log10() > 6.0,
+        "the formant moves up ({a} vs {b})"
+    );
 }
 
 /// Past the host's voice limit, Complex clips get no stretcher and play Repitch.
@@ -622,6 +743,7 @@ fn shared_mapping_vectors() {
         let desc = case["compiled"].as_array().map(|pins| WarpDesc {
             mode,
             markers: pins.iter().map(|p| (f(&p[0]), f(&p[1]))).collect(),
+            formants: Default::default(),
         });
         let stretch = case["stretch"].as_bool().unwrap();
         let (ref_bpm, anchor) = (f(&case["ref_bpm"]), f(&case["anchor"]));
@@ -728,6 +850,7 @@ fn rate_integral_matches_constant_transpose() {
     let w = WarpDesc {
         mode: WarpMode::Repitch,
         markers: vec![(0.0, 0.0), (2.0, 1.0), (6.0, 1.5)],
+        formants: Default::default(),
     };
     let env = steps(&[(0.0, st(5.0))], TRANSPOSE_MAP);
     for warp in [Some(&w), None] {

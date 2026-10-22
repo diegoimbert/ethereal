@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 
 use ether_core::RenderGraphDesc;
 use ether_core::graph::{ClipContentDesc, ClipDesc, WarpDesc};
-use ether_core::protocol::model::{MediaId, WarpMode};
+use ether_core::protocol::model::MediaId;
 use ether_core::tempo::TempoMapRt;
 
 /// Seconds before a jump target also kept: after a jump the stretcher (Complex warp) is
@@ -74,7 +74,7 @@ fn frame_of(clip: &ClipDesc, c: f64, tempo: &TempoMapRt, rate: f64, total: u64) 
     let mut s = source_seconds(warp.as_ref(), ref_bpm, c);
     // Transpose repitches (changes the read speed) except on the stretched path, where
     // the stretcher shifts the pitch.
-    let stretched = matches!(warp, Some(w) if w.mode == WarpMode::Complex);
+    let stretched = matches!(warp, Some(w) if w.mode.stretches());
     if !stretched && *transpose != 0.0 && transpose.is_finite() {
         let s0 = source_seconds(warp.as_ref(), ref_bpm, clip.offset.max(0.0));
         s = s0 + (s - s0) * (*transpose as f64 / 12.0).exp2();
@@ -168,6 +168,7 @@ pub fn anchors(
 mod tests {
     use super::*;
     use ether_core::graph::TrackDesc;
+    use ether_core::protocol::model::WarpMode;
     use ether_core::protocol::model::{ClipId, TrackId, TrackKind, Ulid};
     use ether_core::tempo::TempoPointDesc;
 
@@ -279,6 +280,7 @@ mod tests {
             *warp = Some(WarpDesc {
                 mode: WarpMode::Complex,
                 markers: vec![(0.0, 1.0), (4.0, 3.0)],
+                formants: Default::default(),
             });
         }
         let g = graph(vec![clip.clone()]);

@@ -246,6 +246,57 @@ describe("WarpEditor", () => {
     expect(screen.queryByTestId("warp-web-fallback")).toBeNull();
   });
 
+  it("complex+ shows its formant settings, and they edit every selected complex+ clip", async () => {
+    const { clip, sent } = await setup();
+    const audio = (id: string) => clipNow(id).content as Extract<Clip["content"], { type: "Audio" }>;
+    const field = (name: string) => screen.queryByRole("spinbutton", { name });
+    // Repitch: no formant settings.
+    expect(field("formants")).toBeNull();
+    pickOption(screen.getByRole("combobox", { name: "warp mode" }), { value: "ComplexPlus" });
+    await flush();
+    expect(audio(clip.id).warp.mode).toBe("ComplexPlus");
+    expect(field("formants")).toHaveValue("100");
+    expect(field("formant shift")).toHaveValue("0.0");
+    expect(field("envelope")).toHaveValue("128");
+
+    // A typed value (in %) is stored as a fraction; the other settings keep their defaults.
+    fireEvent.change(field("formants")!, { target: { value: "60" } });
+    fireEvent.keyDown(field("formants")!, { key: "Enter" });
+    await flush();
+    expect(audio(clip.id).warp.formants).toEqual({ amount: 0.6, shift: 0, envelope: 128 });
+
+    // Two complex+ clips: a shift that differs is mixed; a drag moves each from its own value
+    // (one gesture), a typed envelope sets both.
+    await act(async () => {
+      await mock!.send(cmd("Clip", { type: "Duplicate", id: clip.id, new_id: "clip-b", start: 200 }));
+      await mock!.send(cmd("Warp", { type: "SetWarp", clip: "clip-b", warp: { ...audio(clip.id).warp, formants: { amount: 0.6, shift: 3, envelope: 128 } } }));
+    });
+    act(() => itemSelection.getState().select("clip", [clip.id, "clip-b"], "replace"));
+    await flush();
+    expect(field("formant shift")).toHaveValue("—");
+    sent.length = 0;
+    const shift = field("formant shift")!;
+    fireEvent.pointerDown(shift, { button: 0, pointerId: 1, clientY: 100 });
+    fireEvent.pointerMove(shift, { pointerId: 1, clientY: 96 });
+    fireEvent.pointerMove(shift, { pointerId: 1, clientY: 92 });
+    fireEvent.pointerUp(shift, { pointerId: 1, clientY: 92 });
+    await flush();
+    expect([audio(clip.id).warp.formants?.shift, audio("clip-b").warp.formants?.shift]).toEqual([2, 5]);
+    const gestures = new Set(sent.filter((s) => s.command.domain === "Edit" && s.command.command.type === "Batch").map((s) => s.gesture));
+    expect(gestures.size).toBe(1);
+    fireEvent.change(field("envelope")!, { target: { value: "64" } });
+    fireEvent.keyDown(field("envelope")!, { key: "Enter" });
+    await flush();
+    expect([audio(clip.id).warp.formants?.envelope, audio("clip-b").warp.formants?.envelope]).toEqual([64, 64]);
+
+    // A selection whose modes differ shows no formant settings.
+    await act(async () => {
+      await mock!.send(cmd("Warp", { type: "SetWarp", clip: "clip-b", warp: { ...audio("clip-b").warp, mode: "Complex" } }));
+    });
+    await flush();
+    expect(field("formants")).toBeNull();
+  });
+
   it("with several audio clips selected, transpose and warp apply to all of them (base-150)", async () => {
     const { clip, sent } = await setup();
     await act(async () => {

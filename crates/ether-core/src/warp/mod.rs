@@ -4,13 +4,16 @@
 //! - **Repitch** (and unwarped clips): [`crate::sched::render_audio`] resamples the source
 //!   (linear interpolation) along the clip's content → source mapping. Clip transpose is a
 //!   playback-rate change around the clip's offset ([`repitch_source_seconds`]).
-//! - **Complex**: a [`Stretcher`] (Signalsmith Stretch: the C++ on native, its pure-Rust
-//!   port on the web) follows the same mapping while keeping pitch; clip transpose goes to
-//!   [`Stretcher::set_transpose_semitones`]. Without a stretcher (no factory: a build
-//!   without the stretch feature, the voice limit reached, or not provisioned yet) Complex
-//!   falls back to Repitch. Where the mapping plays the source at its own speed (ratio 1) and the clip
-//!   isn't transposed, there is nothing to stretch: the clip plays like Repitch, which is
-//!   then exact, and needs no stretcher.
+//! - **Complex** and **Complex+**: a [`Stretcher`] (Complex: Signalsmith Stretch, the C++ on
+//!   native, its pure-Rust port on the web; Complex+: `ether_stretch::PlusStretcher`, pure
+//!   Rust everywhere) follows the same mapping while keeping pitch; clip transpose goes to
+//!   [`Stretcher::set_transpose_semitones`], Complex+'s formant settings to
+//!   [`Stretcher::set_formants`]. Each mode has its own factory and voices. Without a
+//!   stretcher (no factory: a build without the stretch feature, the voice limit reached,
+//!   or not provisioned yet) the clip falls back to Repitch. Where the mapping plays the
+//!   source at its own speed (ratio 1) and the clip isn't transposed (nor its formants
+//!   shifted), there is nothing to stretch: the clip plays like Repitch, which is then
+//!   exact, and needs no stretcher.
 //! - **Transposition envelope** (`AutomationTarget::ClipTranspose`, semitones added to the
 //!   clip transpose): Complex sets the stretcher's transposition at every chunk it renders
 //!   (≤ the stretcher's output block, a few ms); Repitch integrates the varying playback
@@ -20,8 +23,8 @@
 //!   markers are on the reversed timeline) and apply [`sched::ClipEnvelope`].
 //!
 //! # Stretcher voices
-//! Stretchers belong to tracks, pooled by concurrency: a track gets as many *voices* as
-//! Complex clips can play on it at once ([`voices_needed`]: their overlaps, with a beat of
+//! Stretchers belong to tracks, pooled by concurrency and mode: a track gets as many *voices*
+//! of a mode as clips of that mode can play on it at once ([`voices_needed`]: their overlaps, with a beat of
 //! margin so a clip ending and the next one starting in the same sub-block both have one),
 //! not one per clip. A clip takes a voice when it starts playing (the one it had if it
 //! still has it, else a free one: unbound, unused in the previous sub-block, or bound to a
@@ -56,7 +59,7 @@
 use std::sync::Arc;
 
 use ether_protocol::model::{ClipId, TrackId, WarpMode};
-use ether_stretch::{Stretcher, StretcherFactory};
+use ether_stretch::{Formants, Stretcher, StretcherFactory};
 use rtrb::{Consumer, Producer, RingBuffer};
 
 use crate::config::EngineConfig;
@@ -229,10 +232,22 @@ impl RateIntegral {
     }
 }
 
-/// A voice: slot `slot` of track `track`'s pool.
+/// The stretcher kinds (one factory and one voice pool each).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum Kind {
+    /// `WarpMode::Complex`.
+    Complex = 0,
+    /// `WarpMode::ComplexPlus`.
+    Plus = 1,
+}
+
+const KINDS: [Kind; 2] = [Kind::Complex, Kind::Plus];
+
+/// A voice: slot `slot` of track `track`'s pool of `kind`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct VoiceKey {
     track: TrackId,
+    kind: Kind,
     slot: u16,
 }
 
@@ -248,7 +263,7 @@ pub(crate) fn channel(config: &EngineConfig) -> (WarpHandle, WarpRt) {
     let (ret_tx, ret_rx) = RingBuffer::new(cap);
     (
         WarpHandle {
-            factory: None,
+            factories: [None, None],
             tx,
             returned: ret_rx,
             live: Vec::new(),
@@ -265,12 +280,12 @@ pub(crate) fn channel(config: &EngineConfig) -> (WarpHandle, WarpRt) {
     )
 }
 
-/// Voices a track needs: the most of its Complex clips that overlap (with
+/// Voices of `kind` a track needs: the most of its clips of that mode that overlap (with
 /// [`OVERLAP_MARGIN`] after each end), at most [`MAX_TRACK_VOICES`].
-pub(crate) fn voices_needed(clips: &[ClipDesc]) -> usize {
+pub(crate) fn voices_needed(clips: &[ClipDesc], kind: Kind) -> usize {
     let mut edges: Vec<(f64, i32)> = clips
         .iter()
-        .filter(|c| complex_warp(c).is_some())
+        .filter(|c| stretched_warp(c).is_some_and(|(k, _)| k == kind))
         .flat_map(|c| {
             [
                 (c.start, 1),
@@ -290,7 +305,8 @@ pub(crate) fn voices_needed(clips: &[ClipDesc]) -> usize {
 
 /// Controller-side half (lives in `EngineHandle`).
 pub(crate) struct WarpHandle {
-    factory: Option<Arc<dyn StretcherFactory>>,
+    /// Per [`Kind`].
+    factories: [Option<Arc<dyn StretcherFactory>>; 2],
     tx: Producer<Msg>,
     returned: Consumer<Box<dyn Stretcher>>,
     /// Voices the engine has (or will have, once it drains the ring); sorted.
@@ -309,13 +325,17 @@ impl WarpHandle {
     pub(crate) fn sync(&mut self, desc: &RenderGraphDesc) {
         self.collect();
         let mut wanted: Vec<VoiceKey> = Vec::new();
-        if self.factory.is_some() {
-            for t in &desc.tracks {
-                let n = voices_needed(&t.clips);
+        for t in &desc.tracks {
+            for kind in KINDS {
+                if self.factories[kind as usize].is_none() {
+                    continue;
+                }
+                let n = voices_needed(&t.clips, kind);
                 for slot in 0..n {
                     if wanted.len() < self.max_voices {
                         wanted.push(VoiceKey {
                             track: t.id,
+                            kind,
                             slot: slot as u16,
                         });
                     }
@@ -337,9 +357,6 @@ impl WarpHandle {
                 i += 1;
             }
         }
-        let Some(factory) = self.factory.clone() else {
-            return;
-        };
         for key in wanted {
             let Err(at) = self.live.binary_search(&key) else {
                 continue;
@@ -347,6 +364,9 @@ impl WarpHandle {
             if self.tx.slots() == 0 {
                 return;
             }
+            let Some(factory) = &self.factories[key.kind as usize] else {
+                continue;
+            };
             let mut st = factory.create();
             st.configure(2, self.sample_rate, self.max_block);
             if self.tx.push(Msg::Add(key, st)).is_ok() {
@@ -372,7 +392,14 @@ impl crate::engine::EngineHandle {
     /// `ether_stretch::RustStretchFactory`). Without a factory Complex clips play Repitch.
     /// Takes effect at the next `publish`.
     pub fn set_stretcher_factory(&mut self, factory: Arc<dyn StretcherFactory>) {
-        self.warp.factory = Some(factory);
+        self.warp.factories[Kind::Complex as usize] = Some(factory);
+    }
+
+    /// Enable `WarpMode::ComplexPlus` playback with stretchers from `factory` (every host
+    /// passes `ether_stretch::PlusStretchFactory`). Without one, Complex+ clips play Repitch.
+    /// Takes effect at the next `publish`.
+    pub fn set_plus_stretcher_factory(&mut self, factory: Arc<dyn StretcherFactory>) {
+        self.warp.factories[Kind::Plus as usize] = Some(factory);
     }
 
     /// Cap the stretcher voices of the whole engine at `max` (at most
@@ -385,7 +412,12 @@ impl crate::engine::EngineHandle {
 
     /// `true` once a stretcher factory is set (Complex warp is pitch-preserving).
     pub fn stretching_supported(&self) -> bool {
-        self.warp.factory.is_some()
+        self.warp.factories[Kind::Complex as usize].is_some()
+    }
+
+    /// `true` once a Complex+ stretcher factory is set.
+    pub fn plus_stretching_supported(&self) -> bool {
+        self.warp.factories[Kind::Plus as usize].is_some()
     }
 
     /// Number of stretchers currently provisioned for the engine (diagnostics/tests).
@@ -400,19 +432,24 @@ impl crate::engine::EngineHandle {
     }
 }
 
-pub(crate) fn complex_warp(clip: &ClipDesc) -> Option<&WarpDesc> {
+/// The stretcher kind and warp of a clip a stretcher plays (Complex, Complex+).
+pub(crate) fn stretched_warp(clip: &ClipDesc) -> Option<(Kind, &WarpDesc)> {
     match &clip.content {
-        ClipContentDesc::Audio {
-            warp:
-                Some(
-                    w @ WarpDesc {
-                        mode: WarpMode::Complex,
-                        ..
-                    },
-                ),
-            ..
-        } => Some(w),
+        ClipContentDesc::Audio { warp: Some(w), .. } => match w.mode {
+            WarpMode::Repitch => None,
+            WarpMode::Complex => Some((Kind::Complex, w)),
+            WarpMode::ComplexPlus => Some((Kind::Plus, w)),
+        },
         _ => None,
+    }
+}
+
+/// The stretcher's formant settings for a Complex+ warp.
+fn formants(w: &WarpDesc) -> Formants {
+    Formants {
+        amount: w.formants.amount,
+        shift_semitones: w.formants.shift,
+        envelope: w.formants.envelope,
     }
 }
 
@@ -570,8 +607,9 @@ impl WarpScratch {
 }
 
 /// RT. Render (add) one audio clip for the sub-block: through a stretcher voice of the
-/// track when it is Complex-warped, needs stretching and a voice is available, else by
-/// resampling ([`sched::render_audio`]). Returns `false` on a source underrun.
+/// track (of the clip's mode) when it is Complex- or Complex+-warped, needs stretching and a
+/// voice is available, else by resampling ([`sched::render_audio`]). Returns `false` on a
+/// source underrun.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn render(
     voices: &mut [Voice],
@@ -583,9 +621,19 @@ pub(crate) fn render(
     out: [&mut [f32]; 2],
     src_scratch: &mut [f32],
 ) -> bool {
-    if let (Some(w), Some(scratch)) = (complex_warp(clip), scratch)
+    if let (Some((kind, w)), Some(scratch)) = (stretched_warp(clip), scratch)
         && !voices.is_empty()
     {
+        // This mode's voices (the track's are sorted by kind).
+        let from = voices
+            .iter()
+            .position(|v| v.key.kind == kind)
+            .unwrap_or(voices.len());
+        let to = voices[from..]
+            .iter()
+            .position(|v| v.key.kind != kind)
+            .map_or(voices.len(), |n| from + n);
+        let voices = &mut voices[from..to];
         let mine = voices
             .iter()
             .position(|v| v.clip.is_some_and(|(id, _, _)| id == clip.id));
@@ -597,7 +645,11 @@ pub(crate) fn render(
         else {
             unreachable!("complex_warp: audio clips only")
         };
-        if *transpose == 0.0 && transpose_envelope.is_none() && unit_rate(clip, w, ref_bpm, timing)
+        let shifts_formants = kind == Kind::Plus && w.formants.shift != 0.0;
+        if *transpose == 0.0
+            && transpose_envelope.is_none()
+            && !shifts_formants
+            && unit_rate(clip, w, ref_bpm, timing)
         {
             // Nothing to stretch: play it straight, and give the voice back (it seeks if
             // the clip needs stretching again).
@@ -605,6 +657,9 @@ pub(crate) fn render(
                 voices[i].clip = None;
                 voices[i].next_c = f64::NAN;
             }
+            return sched::render_audio(clip, source, ref_bpm, timing, out, src_scratch);
+        }
+        if voices.is_empty() {
             return sched::render_audio(clip, source, ref_bpm, timing, out, src_scratch);
         }
         let free = |v: &Voice| match v.clip {
@@ -681,6 +736,9 @@ fn render_complex(
         return true;
     };
     voice.st.set_transpose_semitones(*transpose);
+    if warp.mode == WarpMode::ComplexPlus {
+        voice.st.set_formants(formants(warp));
+    }
     let sr = timing.sample_rate;
     let in_lat = voice.st.input_latency() as f64;
     let out_lat = voice.st.output_latency() as f64;

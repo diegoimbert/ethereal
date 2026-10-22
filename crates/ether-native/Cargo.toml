@@ -13,7 +13,7 @@ publish.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ether-core.workspace = true
-# Complex warp (feature `warp-complex`): Signalsmith Stretch (C++).
+# Complex and Complex+ warp (feature `warp-complex`): Signalsmith Stretch (C++), Complex+.
 ether-stretch.workspace = true
 ether-controller.workspace = true
 ether-devices.workspace = true
@@ -69,7 +69,7 @@ plugins-au = ["dep:ether-au"]
 # Out-of-process (sandboxed) plugin instances. Off: a sandboxed instance fails `Unsupported`.
 sandbox = ["dep:ether-sandbox"]
 # Complex warp (Signalsmith Stretch). Off: Complex-warped clips play Repitch, as on the web.
-warp-complex = ["ether-stretch/signalsmith"]
+warp-complex = ["ether-stretch/signalsmith", "ether-stretch/rust-stretch"]
 # Test helpers for other crates' tests: fake plugins (`plugins::fake`) and a bridge over them
 # (`test_util::fake_bridge`).
 test-support = []

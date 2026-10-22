@@ -14,7 +14,7 @@ use ether_core::graph::{
 use ether_core::protocol::devices::ParamScale;
 use ether_core::protocol::model::{
     AutomationTarget, ClipId, CurveShape, DeviceId, DrumPadId, FadeCurve, MediaId, MetronomeSound,
-    ParamId, SendId, TempoCurve, TimeSignature, TrackId, TrackKind, Ulid, WarpMode,
+    ParamId, SendId, TempoCurve, TimeSignature, TrackId, TrackKind, Ulid, WarpFormants, WarpMode,
 };
 use ether_core::tempo::{TempoPointDesc, TimeSignatureDesc};
 
@@ -169,6 +169,7 @@ pub fn large_project() -> RenderGraphDesc {
                                 WarpMode::Repitch
                             },
                             markers: (0..8).map(|m| (m as f64, m as f64 * 0.51)).collect(),
+                            formants: Default::default(),
                         }),
                         fade_in_curve: FadeCurve::Linear,
                         fade_out_curve: FadeCurve::Curve { tension: -0.3 },
@@ -449,15 +450,26 @@ pub fn all_variants() -> RenderGraphDesc {
                         transpose: -12.0,
                         fade_in: 0.0,
                         fade_out: 0.5,
-                        warp: match i % 3 {
+                        warp: match i % 4 {
                             0 => None,
                             1 => Some(WarpDesc {
                                 mode: WarpMode::Repitch,
                                 markers: vec![(0.0, 0.0), (4.0, 2.0)],
+                                formants: Default::default(),
+                            }),
+                            2 => Some(WarpDesc {
+                                mode: WarpMode::ComplexPlus,
+                                markers: vec![(0.0, 0.0), (2.0, 1.5)],
+                                formants: WarpFormants {
+                                    amount: 0.75,
+                                    shift: -3.5,
+                                    envelope: 64.0,
+                                },
                             }),
                             _ => Some(WarpDesc {
                                 mode: WarpMode::Complex,
                                 markers: vec![],
+                                formants: Default::default(),
                             }),
                         },
                         fade_in_curve: fades[i % 3],

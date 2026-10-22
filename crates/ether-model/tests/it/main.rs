@@ -14,3 +14,4 @@ mod roadmap_v3;
 mod roadmap_v4;
 mod social;
 mod tempo_vectors;
+mod warp_formants;

@@ -98,6 +98,7 @@ pub fn place_render(
             enabled: true,
             mode: WarpMode::Repitch,
             source_bpm: Some(map.bpm_at(start)),
+            formants: Default::default(),
         }),
     )
 }

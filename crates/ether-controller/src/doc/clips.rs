@@ -223,6 +223,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
                     enabled: false,
                     mode: WarpMode::Repitch,
                     source_bpm: None,
+                    formants: Default::default(),
                 },
                 fade_in_curve: FadeCurve::Linear,
                 fade_out_curve: FadeCurve::Linear,

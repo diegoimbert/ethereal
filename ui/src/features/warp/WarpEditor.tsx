@@ -2,9 +2,10 @@
  * Warp editor: the detail tab for the audio clip open in the detail editor
  * (`useEditedClipId()`, set by double-clicking a clip in the arrangement).
  *
- * - Toolbar: Warp on/off, mode (Repitch | Complex), transpose (semitones), source tempo.
- *   Complex keeps pitch in every build (the browser runs a pure-Rust Signalsmith Stretch);
- *   should an engine lack a stretcher, the toolbar says Complex plays as Repitch.
+ * - Toolbar: Warp on/off, mode (Repitch | Complex | Complex+), transpose (semitones), source
+ *   tempo, and for Complex+ its formant settings (`FormantFields`). Complex and Complex+ keep
+ *   pitch in every build (the browser runs pure-Rust stretchers); should an engine lack a
+ *   stretcher, the toolbar says the clip plays as Repitch.
  *   With several audio clips selected (the open one among them) the toolbar says
  *   "N audio clips selected" and its edits apply to all of them (relative drags, see
  *   `TransposeControl`); values they don't share show as mixed.
@@ -45,6 +46,7 @@ import { cmd, newId, useTransport } from "@/transport";
 import { PeakCache, peakLevel, peakRange, TILE_PEAKS } from "@/features/arrangement/peaks";
 import { dbToGain, drawClipMarks, waveColumn, type WaveColumn } from "@/features/arrangement/clipDraw";
 import { openGesture, sendOne, startDrag } from "./drag";
+import { FormantFields } from "./FormantFields";
 import { beatAtSource, clipSourceMapper, compileWarp, complexStretches, sourceSecondsAt } from "@/domain/warpMap";
 import "./warp.css";
 import { formatFixed, useT, type MessageKey } from "@/i18n";
@@ -56,6 +58,7 @@ const MIN_GAP: Beats = 1 / 64;
 const WARP_MODES: ReadonlyArray<{ value: WarpMode; label: MessageKey }> = [
   { value: "Repitch", label: "warp.mode.repitch" },
   { value: "Complex", label: "warp.mode.complex" },
+  { value: "ComplexPlus", label: "warp.mode.complex_plus" },
 ];
 const TRANSPOSE_RANGE = TRANSPOSE_MAX;
 const HEIGHT = 140;
@@ -210,7 +213,7 @@ function WarpClipEditor({ clip, content }: { clip: Clip; content: AudioContent }
     }
   };
 
-  const webFallback = warp.enabled && warp.mode === "Complex" && !complexStretches(transport.kind);
+  const webFallback = warp.enabled && warp.mode !== "Repitch" && !complexStretches(transport.kind);
   // Several clips: a mode they don't share shows as "—".
   const mode = targets.length > 1 ? common(targets.map((a) => a.audio.warp.mode)) : warp.mode;
 
@@ -257,6 +260,17 @@ function WarpClipEditor({ clip, content }: { clip: Clip; content: AudioContent }
           </span>
         )}
         <TransposeControl targets={targets} semitones={content.transpose} />
+        {warp.enabled && mode === "ComplexPlus" && (
+          <FormantFields
+            targets={targets}
+            row={(key, label, title, field) => (
+              <span key={key} className="eth-warp__field" title={title}>
+                {label}
+                {field}
+              </span>
+            )}
+          />
+        )}
         <span className="eth-warp__info" data-testid="warp-source-bpm">
           {warp.source_bpm ? t("warp.source_bpm", { bpm: formatFixed(warp.source_bpm, 2) }) : t("warp.source_unknown")}
         </span>

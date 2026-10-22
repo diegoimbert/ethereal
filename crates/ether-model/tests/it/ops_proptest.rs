@@ -393,6 +393,7 @@ impl Gen<'_> {
                         enabled: true,
                         mode: WarpMode::Repitch,
                         source_bpm: Some(100.0),
+                        formants: Default::default(),
                     }),
                     5 => ClipChange::Color(Some(Color(0xff0000))),
                     _ => ClipChange::Loop(ClipLoop {

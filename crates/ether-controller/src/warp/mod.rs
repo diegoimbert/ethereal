@@ -83,6 +83,7 @@ pub fn warp_desc(p: &Project, clip: &Clip, audio: &AudioContent) -> Option<WarpD
     Some(WarpDesc {
         mode: audio.warp.mode,
         markers,
+        formants: audio.warp.formants,
     })
 }
 
@@ -264,6 +265,10 @@ fn set_warp(ctx: &mut DocCtx, clip_id: ClipId, mut warp: WarpSettings) -> CmdRes
     {
         return Err(invalid("source_bpm must be positive"));
     }
+    warp.formants = warp
+        .formants
+        .clamped()
+        .ok_or_else(|| invalid("formant settings must be numbers"))?;
     let turning_on = warp.enabled && !audio.warp.enabled;
     let has_markers = !ctx.p().warp_markers_of(clip_id).is_empty();
     let media = ctx.p().media.get(&audio.media).cloned();
