@@ -279,6 +279,13 @@ jobs:
       - name: Release config overlay (version, signing)
         shell: bash
         run: node ee/scripts/release/tauri-config.mjs "$RUNNER_TEMP/tauri.release.json"
+      # How the node_modules links resolve on Windows (#201); encrypted log only.
+      - name: Link diagnostics
+        if: runner.os == 'Windows'
+        shell: bash
+        run: >-
+          node scripts/ci/private-step.mjs link-diag --
+          "node scripts/ci/link-diag.mjs; git -C ee config --get core.symlinks; git config --get core.symlinks; true"
       - name: tauri build
         shell: bash
         # The full product's desktop app: ee/'s Cargo workspace (target dir ee/target).
