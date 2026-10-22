@@ -1,11 +1,12 @@
 ---
 title: plug-ins
 order: 20
-summary: Utilisez vos plug-ins CLAP, VST3 et Audio Unit dans l’application de bureau, et protégez vos projets quand un plug-in plante ou est manquant.
-platform: desktop
+summary: Utilisez vos plug-ins CLAP, VST3 et Audio Unit dans l’application de bureau, des plug-ins WebCLAP dans la version web, et protégez vos projets quand un plug-in plante ou est manquant.
+platform: desktop, web
 audience: everyone
 covers:
   - plugins/plugins-are-desktop-only #plugins-need-the-desktop-app
+  - plugins/webclap-in-the-web-version #webclap-plugins-in-the-web-version
   - plugins/plugin-folders-and-scanning #where-ethereal-looks-for-plugins
   - plugins/failed-plugins-and-retry #plugins-that-failed-to-load
   - plugins/same-plugin-in-several-formats #the-same-plugin-in-several-formats
@@ -30,7 +31,18 @@ L’application de bureau accueille les plug-ins dans ces formats :
 - **VST3**
 - **AU** (Audio Units, sur macOS uniquement)
 
-La version web ne peut pas charger de plug-ins. Sa bibliothèque d’appareils ne liste que les appareils intégrés d’Ethereal, et son onglet **réglages › plug-ins** indique simplement que les plug-ins sont chargés par l’application de bureau. Si vous ouvrez dans le navigateur un projet qui utilise des plug-ins, ces appareils sont contournés et les pistes jouent sans eux.
+La version web ne peut pas charger ces plug-ins. Si vous ouvrez dans le navigateur un projet qui les utilise, ces appareils sont contournés et les pistes jouent sans eux. La version web a ses propres plug-ins : les plug-ins WebCLAP (ci-dessous).
+
+## les plug-ins webclap dans la version web {#webclap-plugins-in-the-web-version}
+
+Les plug-ins WebCLAP sont des plug-ins CLAP compilés en WebAssembly : ils tournent dans un navigateur. La version web les installe et les joue ; l’application de bureau, non (un projet qui en utilise un l’y montre **version web seulement**, contourné).
+
+- **installer** : ouvrez **réglages › plug-ins**. Collez l’adresse d’un plug-in (un fichier `.wasm`, ou un paquet `.wclap.tar.gz`) et cliquez sur **installer**, ou cliquez sur **installer un fichier…** pour en choisir un sur votre ordinateur. L’adresse doit être en `https`, et le serveur doit autoriser les autres sites à le télécharger. Les plug-ins du fichier apparaissent alors dans la bibliothèque d’appareils, avec une puce **webclap**, et sont gardés dans ce navigateur.
+- **les utiliser** : ajoutez-les aux pistes avec les mêmes boutons **+** que les appareils intégrés. Leurs paramètres, l’automation, la modulation et l’apprentissage MIDI marchent comme pour tout appareil, et leurs réglages de son sont enregistrés dans le projet.
+- **leur fenêtre** : un plug-in qui a sa propre interface l’ouvre dans sa fenêtre d’appareil. Un plug-in qui n’en a pas y montre ses paramètres.
+- **supprimer** : l’icône de corbeille à côté d’un fichier dans **réglages › plug-ins** le supprime avec ses plug-ins. Les projets qui les utilisent les montrent manquants jusqu’à ce que vous réinstalliez le fichier.
+
+Un plug-in tourne isolé : son code ne peut atteindre ni vos projets, ni vos fichiers, ni vos comptes, ni le reste de l’application, et sa fenêtre non plus. Il traite cependant votre audio : installez des plug-ins de confiance.
 
 ## où ethereal cherche les plug-ins {#where-ethereal-looks-for-plugins}
 

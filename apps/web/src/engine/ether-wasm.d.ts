@@ -33,6 +33,10 @@ declare module "@ether-wasm/ether_wasm.js" {
     take_http_requests(): string;
     http_progress(id: number, received: number, total: number): void;
     http_done(id: number, status: number, body: Uint8Array, error?: string | null): void;
+    /** The installed WebCLAP plugins (JSON list of scanned modules). */
+    set_webclap_catalog(json: string): void;
+    /** This Worker's WebCLAP host (offline renders): `WebclapHost` (./webclap/host.ts). */
+    set_webclap_host(host: unknown): void;
     free(): void;
   }
 
@@ -41,6 +45,8 @@ declare module "@ether-wasm/ether_wasm.js" {
     process(frames: number): void;
     output_ptr(channel: number): number;
     blocks(): number;
+    /** The Worklet's WebCLAP host: `WebclapHost` (./webclap/host.ts). */
+    set_webclap_host(host: unknown): void;
     free(): void;
   }
 

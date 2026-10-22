@@ -892,11 +892,15 @@ impl Node for Compressor {
     }
 
     fn reset(&mut self) {
-        util::LateEvents::flush(self, |s| &mut s.late, |s, kind| {
-            if let EventKind::Param { param, value } = *kind {
-                s.apply_param(param, value, false);
-            }
-        });
+        util::LateEvents::flush(
+            self,
+            |s| &mut s.late,
+            |s, kind| {
+                if let EventKind::Param { param, value } = *kind {
+                    s.apply_param(param, value, false);
+                }
+            },
+        );
         self.gr_db = 0.0;
         self.gr_held = 0.0;
         self.mean_square = 0.0;
@@ -953,7 +957,8 @@ impl Device for Compressor {
     }
 
     fn param(&self, id: ParamId) -> Option<f64> {
-        self.late.readback(id, self.values.get(id.0 as usize).copied())
+        self.late
+            .readback(id, self.values.get(id.0 as usize).copied())
     }
 
     fn set_param(&mut self, id: ParamId, value: f64) {

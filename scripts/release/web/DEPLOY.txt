@@ -62,3 +62,10 @@ Recommended: Content-Security-Policy
 `_headers` also sets a Content-Security-Policy; on other hosts, copy its value into a
 header the same way as the two above. It allows index.html's inline script by its hash.
 
+One page has a policy of its own: `/webclap-ui.html` (also reached as `/webclap-ui`), the
+sandboxed frame WebCLAP plugin UIs run in. It replaces the app's policy there (the `!`
+line in `_headers` removes the app's header first): inline scripts and styles allowed, no
+network, embedded by the app only. On other hosts, serve that path with that second
+policy instead of the app's. Without it the plugin UIs stay blank (the app's policy blocks
+their scripts); everything else works.
+

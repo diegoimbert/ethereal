@@ -243,7 +243,11 @@ fn assert_in_path(ty: BuiltinDeviceType, setup: &[(ParamId, f64)], (id, value): 
             "{ty:?} {id:?} (block {block}): {} early",
             due - first
         );
-        assert!(first <= due, "{ty:?} {id:?} (block {block}): {} late", first - due);
+        assert!(
+            first <= due,
+            "{ty:?} {id:?} (block {block}): {} late",
+            first - due
+        );
     }
 }
 

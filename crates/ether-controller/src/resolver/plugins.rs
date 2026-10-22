@@ -64,7 +64,7 @@ pub fn vst2_equivalent(format: PluginFormat, id: &str) -> Option<String> {
             (sub.len() == 4 && sub.is_ascii() && !sub.contains('\\'))
                 .then(|| sub.bytes().map(|b| format!("{b:02X}")).collect())
         }
-        PluginFormat::Clap => None,
+        PluginFormat::Clap | PluginFormat::Webclap => None,
     }
 }
 
@@ -74,6 +74,7 @@ fn format_rank(f: PluginFormat) -> u8 {
         PluginFormat::Vst3 => 1,
         PluginFormat::Au => 2,
         PluginFormat::Vst2 => 3,
+        PluginFormat::Webclap => 4,
     }
 }
 
@@ -84,6 +85,7 @@ pub fn format_label(f: PluginFormat) -> &'static str {
         PluginFormat::Vst3 => "vst3",
         PluginFormat::Au => "au",
         PluginFormat::Vst2 => "vst2",
+        PluginFormat::Webclap => "webclap",
     }
 }
 

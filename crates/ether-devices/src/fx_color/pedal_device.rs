@@ -707,17 +707,21 @@ impl Node for Pedal {
     }
 
     fn reset(&mut self) {
-        LateEvents::flush(self, |s| &mut s.late, |s, kind| {
-            if let EventKind::Param { param, value } = *kind {
-                let (id, out) = untag(param);
-                if out {
-                    s.out_values.set(id, value);
-                    s.apply_trim(false);
-                } else {
-                    s.set(id, value, false);
+        LateEvents::flush(
+            self,
+            |s| &mut s.late,
+            |s, kind| {
+                if let EventKind::Param { param, value } = *kind {
+                    let (id, out) = untag(param);
+                    if out {
+                        s.out_values.set(id, value);
+                        s.apply_trim(false);
+                    } else {
+                        s.set(id, value, false);
+                    }
                 }
-            }
-        });
+            },
+        );
         for c in &mut self.ch {
             c.reset();
         }

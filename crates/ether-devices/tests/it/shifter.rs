@@ -316,6 +316,12 @@ fn renders_are_block_size_independent() {
         (26_000, set(sh::LFO_SPIN, 20.0)),
         (33_000, set(sh::ENV_ON, 1.0)),
         (33_000, set(sh::ENV_DEPTH, -400.0)),
+        (5_000, set(sh::DELAY_ON, 1.0)),
+        (5_000, set(sh::FEEDBACK, 70.0)),
+        (12_345, set(sh::DELAY_SYNC, 0.0)),
+        (12_345, set(sh::DELAY_TIME, 37.0)),
+        (22_222, set(sh::TONE, 2000.0)),
+        (44_000, set(sh::DELAY_ON, 0.0)),
     ];
     let mut events = events;
     events.sort_by_key(|e| e.0);
@@ -400,7 +406,10 @@ fn every_waveform_stays_in_range() {
         let mut d = device(&params);
         let out = render(d.as_mut(), &stereo(noise(24_000, 0.5)));
         // |carrier ± depth| keeps it a ring modulation: never louder than the input.
-        assert!(out[0].iter().all(|v| v.is_finite() && v.abs() <= 0.5), "{w}");
+        assert!(
+            out[0].iter().all(|v| v.is_finite() && v.abs() <= 0.5),
+            "{w}"
+        );
     }
 }
 
@@ -452,6 +461,117 @@ fn the_envelope_bends_the_pitch() {
     assert!(up > db(tone(y, 440.0)) + 10.0, "{up}");
 }
 
+/// Index of the largest sample.
+fn peak_at(x: &[f32]) -> usize {
+    x.iter()
+        .enumerate()
+        .max_by(|a, b| a.1.abs().total_cmp(&b.1.abs()))
+        .unwrap()
+        .0
+}
+
+#[test]
+fn the_delay_echoes_the_shifted_signal() {
+    // Unity pitch: the shifter is a 3 + 1920-sample delay, then 100 ms.
+    let mut d = device(&[
+        (sh::MIX, 100.0),
+        (sh::DELAY_ON, 1.0),
+        (sh::DELAY_SYNC, 0.0),
+        (sh::DELAY_TIME, 100.0),
+    ]);
+    let mut x = vec![0.0f32; 24_000];
+    x[1000] = 1.0;
+    let out = render(d.as_mut(), &stereo(x.clone()));
+    let at = peak_at(&out[0]) as i64;
+    assert!((at - (1000 + 1923 + 4800)).abs() <= 1, "{at}");
+    // Synced: 1/8 at 120 bpm = 250 ms.
+    let mut d = device(&[
+        (sh::MIX, 100.0),
+        (sh::MODE, mode::RING as f64),
+        (sh::CARRIER, 1.0),
+        (sh::DELAY_ON, 1.0),
+    ]);
+    let out = render(d.as_mut(), &stereo(x));
+    let at = peak_at(&out[0]) as i64;
+    assert!((at - (1000 + 12_000)).abs() <= 1, "{at}");
+}
+
+#[test]
+fn feedback_shifts_every_repeat_again() {
+    // A 1 kHz burst, shifted up 100 Hz into a 200 ms delay with feedback: the first echo is
+    // at 1.1 kHz, the second at 1.2 kHz.
+    let mut d = device(&[
+        (sh::MODE, mode::FREQUENCY as f64),
+        (sh::SHIFT, 100.0),
+        (sh::MIX, 100.0),
+        (sh::DELAY_ON, 1.0),
+        (sh::DELAY_SYNC, 0.0),
+        (sh::DELAY_TIME, 200.0),
+        (sh::FEEDBACK, 70.0),
+    ]);
+    let mut x = sine(1000.0, 0.5, 4800);
+    x.extend(vec![0.0; 48_000]);
+    let out = render(d.as_mut(), &stereo(x));
+    let first = &out[0][9600 + 500..9600 + 4300];
+    let second = &out[0][19_200 + 500..19_200 + 4300];
+    assert!(db(tone(first, 1100.0)) > db(tone(first, 1200.0)) + 20.0);
+    assert!(db(tone(second, 1200.0)) > db(tone(second, 1100.0)) + 20.0);
+}
+
+#[test]
+fn heavy_feedback_stays_bounded_and_tone_darkens_the_repeats() {
+    let base = vec![
+        (sh::MIX, 100.0),
+        (sh::DELAY_ON, 1.0),
+        (sh::DELAY_SYNC, 0.0),
+        (sh::DELAY_TIME, 50.0),
+        (sh::FEEDBACK, 150.0),
+    ];
+    let mut x = noise(4800, 0.9);
+    x.extend(vec![0.0; 4 * 48_000]);
+    let out = render(device(&base).as_mut(), &stereo(x.clone()));
+    assert!(out[0].iter().all(|v| v.is_finite() && v.abs() < 4.0));
+    let mut dark = base.clone();
+    dark.push((sh::FEEDBACK, 80.0));
+    let mut bright = dark.clone();
+    dark.push((sh::TONE, 1000.0));
+    bright.push((sh::TONE, 22_000.0));
+    let late = |p: &[(ParamId, f64)]| {
+        let out = render(device(p).as_mut(), &stereo(x.clone()));
+        let y = &out[0][48_000..72_000];
+        db(tone(y, 6000.0)) - db(rms(y))
+    };
+    assert!(late(&dark) < late(&bright) - 10.0);
+}
+
+#[test]
+fn delay_off_is_bit_identical_and_silence_comes_back() {
+    let x = stereo(noise(24_000, 0.5));
+    let plain = render(device(&[(sh::PITCH, 5.0)]).as_mut(), &x);
+    let off = render(
+        device(&[
+            (sh::PITCH, 5.0),
+            (sh::FEEDBACK, 90.0),
+            (sh::DELAY_TIME, 300.0),
+        ])
+        .as_mut(),
+        &x,
+    );
+    assert_eq!(plain, off);
+    // With feedback the tail rings out, then the output goes back to silence.
+    let mut d = device(&[
+        (sh::DELAY_ON, 1.0),
+        (sh::DELAY_SYNC, 0.0),
+        (sh::DELAY_TIME, 100.0),
+        (sh::FEEDBACK, 50.0),
+    ]);
+    let mut x = noise(4800, 0.5);
+    x.extend(vec![0.0; 10 * 48_000]);
+    let out = render(d.as_mut(), &stereo(x));
+    assert!(rms(&out[0][9600..14_400]) > 1e-3);
+    assert!(out[0][9 * 48_000..].iter().all(|v| v.abs() < 1e-6));
+}
+
 /// CPU cost per instance (stereo, 48 kHz, 128-sample blocks). Run in release.
 #[test]
 #[ignore]
@@ -461,12 +581,15 @@ fn cpu_cost() {
     for (name, params) in [
         ("shifter pitch +7", vec![(sh::PITCH, 7.0)]),
         (
-            "shifter frequency, lfo + envelope",
+            "shifter frequency, lfo + envelope + delay",
             vec![
                 (sh::MODE, mode::FREQUENCY as f64),
                 (sh::LFO_DEPTH, 100.0),
                 (sh::ENV_ON, 1.0),
                 (sh::ENV_DEPTH, 200.0),
+                (sh::DELAY_ON, 1.0),
+                (sh::FEEDBACK, 60.0),
+                (sh::TONE, 5000.0),
             ],
         ),
         (

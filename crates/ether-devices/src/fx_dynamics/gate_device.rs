@@ -355,11 +355,15 @@ impl Node for Gate {
     }
 
     fn reset(&mut self) {
-        LateEvents::flush(self, |s| &mut s.late, |s, kind| {
-            if let EventKind::Param { param, value } = *kind {
-                s.apply_param(param, value, false);
-            }
-        });
+        LateEvents::flush(
+            self,
+            |s| &mut s.late,
+            |s, kind| {
+                if let EventKind::Param { param, value } = *kind {
+                    s.apply_param(param, value, false);
+                }
+            },
+        );
         self.hpf_state = [Svf::default(); SIDECHAIN_CHANNELS];
         for d in &mut self.delay {
             d.clear();

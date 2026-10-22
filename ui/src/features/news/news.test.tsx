@@ -267,8 +267,10 @@ describe("isolation from the app", () => {
     expect(conf.app.security.csp["frame-src"]).toBe(DEFAULT_NEWS_URL);
   });
 
-  it("the web app frames only the news service", () => {
+  // Besides itself: the WebCLAP plugin ui frame (/webclap-ui.html, sandboxed, a policy of
+  // its own; apps/web/src/csp.test.ts).
+  it("the web app frames only the news service (and its own plugin ui frame)", () => {
     const csp = /Content-Security-Policy:\s*(.+)/.exec(read("../../../../scripts/release/web/_headers"))![1]!;
-    expect(/frame-src ([^;]+)/.exec(csp)![1]!.trim()).toBe(DEFAULT_NEWS_URL);
+    expect(/frame-src ([^;]+)/.exec(csp)![1]!.trim()).toBe(`'self' ${DEFAULT_NEWS_URL}`);
   });
 });

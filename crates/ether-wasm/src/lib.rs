@@ -12,7 +12,8 @@
 //! media) Worker → Worklet, and reports (playhead, meters, diagnostics) Worklet → Worker.
 //! The Worker turns reports into `Playhead`/`Meters` messages for the UI in `tick`.
 //! Messages to/from the UI are JSON-encoded `ClientMessage`/`ServerMessage`. Requires
-//! COOP/COEP (`apps/web` sets them). No plugins on the web.
+//! COOP/COEP (`apps/web` sets them). Plugins: WebCLAP only ([`webclap`]), each instance its
+//! own WebAssembly instance next to the engine in the Worklet.
 
 pub mod bridge;
 pub mod latency;
@@ -23,6 +24,7 @@ pub mod proto;
 pub mod ring;
 pub mod store;
 pub mod web;
+pub mod webclap;
 pub mod worklet;
 
 pub use web::{WasmController, WasmEngine};

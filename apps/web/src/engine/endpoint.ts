@@ -9,6 +9,7 @@ import { Emitter } from "@/transport/EngineTransport";
 import type { WasmEndpoint } from "@/transport/wasm/WasmTransport";
 import workletUrl from "./engine.worklet.ts?worker&url";
 import { CONTROL_RING_BYTES, FS_CHUNK_BYTES, FS_HEADER_BYTES, REPORT_RING_BYTES, ringBuffer, type FromController, type ToController } from "./protocol";
+import { webclap } from "./webclap/manager";
 
 /** Live handles, for debugging and the e2e test (`window.__etherEngine`). */
 export interface WebEngineHandles {
@@ -67,6 +68,7 @@ export function createWebEndpoint(extensions: ReadonlyArray<WebEngineExtension> 
   const teardown = () => {
     for (const c of cleanup) c();
     cleanup = [];
+    webclap.attach(null);
     if (handles) {
       handles.controller.terminate();
       handles.fs.terminate();
@@ -96,7 +98,8 @@ export function createWebEndpoint(extensions: ReadonlyArray<WebEngineExtension> 
     }
     if (typeof AudioWorkletNode === "undefined") throw new Error("this browser has no AudioWorklet support");
 
-    const module = await compileWasm();
+    // The installed WebCLAP modules, compiled, go to both engine realms at boot.
+    const [module] = await Promise.all([compileWasm(), webclap.load()]);
     const control = ringBuffer(CONTROL_RING_BYTES);
     const reports = ringBuffer(REPORT_RING_BYTES);
     const fsBuffer = new SharedArrayBuffer(FS_HEADER_BYTES + FS_CHUNK_BYTES);
@@ -113,7 +116,13 @@ export function createWebEndpoint(extensions: ReadonlyArray<WebEngineExtension> 
       numberOfInputs: 0,
       numberOfOutputs: outputs,
       outputChannelCount: Array.from({ length: outputs }, () => 2),
-      processorOptions: { module, control, reports, ...Object.assign({}, ...extensions.map((x) => x.processorOptions?.() ?? {})) },
+      processorOptions: {
+        module,
+        control,
+        reports,
+        webclap: webclap.moduleMessages(),
+        ...Object.assign({}, ...extensions.map((x) => x.processorOptions?.() ?? {})),
+      },
     });
     node.onprocessorerror = () => die("the audio worklet failed");
     node.port.onmessage = (e: MessageEvent<{ type: string; message?: string }>) => {
@@ -137,6 +146,7 @@ export function createWebEndpoint(extensions: ReadonlyArray<WebEngineExtension> 
       });
     handles = { context, node, controller, fs };
     const h = handles;
+    webclap.attach({ worklet: node.port, controller });
     cleanup.push(resumeOnGesture(context));
 
     await new Promise<void>((resolve, reject) => {
@@ -182,6 +192,8 @@ export function createWebEndpoint(extensions: ReadonlyArray<WebEngineExtension> 
         seed: randomSeed(),
         sampleRate: context.sampleRate,
         handled: handled.buffer as SharedArrayBuffer,
+        webclapCatalog: webclap.catalogJson(),
+        webclapModules: webclap.moduleMessages(),
         ...extra,
       };
       controller.postMessage(init, transfer);
@@ -204,6 +216,7 @@ export function createWebEndpoint(extensions: ReadonlyArray<WebEngineExtension> 
       return !dead;
     },
     onMessages: (l) => batches.on(l),
+    webclap,
     onFatal: (l) => fatal.on(l),
     handles: () => handles,
     // The extensions' methods (a stream tap, probes, …).

@@ -16,6 +16,7 @@
  * formats turned off are remembered (`libraryStats.hiddenFormats`). Two plugins sharing a
  * format + id (VST2 uniqueID collisions) are both listed: the insert names which one.
  */
+import { webclapOf } from "@/features/webclap/hooks";
 import { LIBRARY_DEVICE_DRAG_TYPE, setDraggingLibraryDevice } from "./chainUtils";
 import { useContributions } from "@/ext";
 import "./deviceLibrary.css";
@@ -139,6 +140,8 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
   const single = cats.length === 1 ? cats[0]! : null;
   const transport = useOptionalTransport();
   const desktop = transport?.kind === "tauri";
+  // The web version lists its WebCLAP plugins (installed in Settings > Plugins).
+  const web = webclapOf(transport) !== null;
   usePluginEvents();
   const pluginActions = useContributions("plugins.actions");
   const stored = usePluginStore((s) => s.plugins);
@@ -167,12 +170,12 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
   }, [transport]);
 
   const listPlugins = useCallback(() => {
-    if (!transport || !desktop) return;
+    if (!transport || (!desktop && !web)) return;
     transport
       .send(cmd("Plugin", { type: "List" }))
-      .then((r) => r.type === "Plugins" && setPlugins(r.plugins))
+      .then((r) => r.type === "Plugins" && setPlugins(r.plugins, web ? ["Webclap"] : null))
       .catch(() => undefined);
-  }, [transport, desktop, setPlugins]);
+  }, [transport, desktop, web, setPlugins]);
   useEffect(listPlugins, [listPlugins]);
   // A finished scan lists the plugins again (the panel also renders without an engine).
   useEffect(() => transport?.onEvent((e) => e.type === "Plugin" && e.event.type === "ScanFinished" && listPlugins()), [transport, listPlugins]);
@@ -188,7 +191,7 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
   const preferred = usePluginVisibility((s) => s.preferred);
   const rules = usePluginVisibility((s) => s.rules);
   const visibility = useMemo<PluginVisibility | null>(() => (filtering ? { dedupe, preferred, rules } : null), [filtering, dedupe, preferred, rules]);
-  const pluginsShown = desktop || given !== undefined || remote !== null;
+  const pluginsShown = desktop || web || given !== undefined || remote !== null;
   // The format toggles: this platform's formats present in the plugin list, when 2 or more.
   const formats = useMemo<PluginFormat[]>(() => {
     if (!pluginsShown) return [];
@@ -402,13 +405,15 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
           <li className="eth-devlib__empty">
             {(source === "Plugins" || pluginsOnly) && !pluginsShown
               ? t("devices.library.desktop_only")
-              : query
-                ? t("devices.library.no_match")
-                : hidden.size > 0 && (source === "Plugins" || pluginsOnly)
-                  ? t("devices.library.empty_formats", { kind: noun })
-                  : source === "Plugins"
-                    ? t("devices.library.empty_scanned", { kind: noun })
-                    : t("devices.library.empty", { kind: noun })}
+              : web && !query && (source === "Plugins" || pluginsOnly) && (plugins ?? []).length === 0
+                ? t("webclap.library.empty")
+                : query
+                  ? t("devices.library.no_match")
+                  : hidden.size > 0 && (source === "Plugins" || pluginsOnly)
+                    ? t("devices.library.empty_formats", { kind: noun })
+                    : source === "Plugins"
+                      ? t("devices.library.empty_scanned", { kind: noun })
+                      : t("devices.library.empty", { kind: noun })}
           </li>
         )}
       </ul>
@@ -431,6 +436,19 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
         {pluginActions.map((Action, i) => (
           <Action key={i} place="library" onClose={onClose} />
         ))}
+        {web && (
+          // The web version's plugins are installed in the settings.
+          <Button
+            size="sm"
+            tone="ghost"
+            onClick={() => {
+              onClose?.();
+              openSettings("plugins");
+            }}
+          >
+            <FolderCog aria-hidden /> {t("webclap.library.manage")}
+          </Button>
+        )}
         {desktop && (
           // Plugin folders and scanning live in the settings (Rescan / Full rescan there).
           <Button

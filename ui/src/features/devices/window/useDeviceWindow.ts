@@ -1,8 +1,8 @@
 import type { Device } from "@/generated";
 import { contributions } from "@/ext";
 import { setPluginWindow } from "@/features/plugins";
-import { isInstalled } from "@/features/plugins/filter";
-import { usePluginEvents, usePluginStore, useScannedPlugins } from "@/features/plugins/pluginStore";
+import { isMissing, usePluginEvents, usePluginStore, useScannedPlugins } from "@/features/plugins/pluginStore";
+import { webclapOf } from "@/features/webclap/hooks";
 import { useProjectStore } from "@/state";
 import { cmd, useTransport, type EngineTransport } from "@/transport";
 import { useDeviceWindows } from "./store";
@@ -30,6 +30,11 @@ export function hasPluginHost(kind: EngineTransport["kind"]): boolean {
   return kind !== "wasm" && kind !== "mock";
 }
 
+/** A WebCLAP plugin device on the web version's engine: its window is a factory-like one. */
+export function isWebclapWindow(transport: EngineTransport | null, device: Pick<Device, "kind">): boolean {
+  return device.kind.type === "Plugin" && device.kind.plugin.format === "Webclap" && webclapOf(transport) !== null;
+}
+
 /**
  * Whether `device` has a window at all: not a chain rack (instrument / audio effect / MIDI
  * effect rack), whose macros and chains are on its card already.
@@ -52,18 +57,29 @@ export function useDeviceWindow(device: Device): DeviceWindowControl {
   const crashed = usePluginStore((s) => s.crashed[device.id] !== undefined);
   const found = usePluginStore((s) => !!s.found[device.id]);
   const scanned = useScannedPlugins(plugin !== null);
+  const covers = usePluginStore((s) => s.covers);
   const held = useProjectStore((s) => s.safeMode.includes(device.id));
   const windowOpen = useDeviceWindows((s) => s.open.includes(device.id));
-  const missing = plugin !== null && scanned !== null && !isInstalled(scanned, plugin);
+  const missing = plugin !== null && isMissing(scanned, covers, plugin);
   // A window the app can't open itself (a plugin not installed here, or no plugin host at all):
   // an extension may (`@/ext` "devices.window"; hooks, called in order).
-  const noPluginHost = !hasPluginHost(transport.kind);
+  // The web version hosts its WebCLAP plugins itself.
+  const noPluginHost = !hasPluginHost(transport.kind) && !isWebclapWindow(transport, device);
   const missingHere = plugin !== null && (noPluginHost || missing);
   const ext = contributions("devices.window")
     // eslint-disable-next-line react-hooks/rules-of-hooks -- hooks, fixed once the app runs
     .map((useWindow) => useWindow(device, { missing: missingHere, noPluginHost }))
     .find((c) => c !== null);
   if (ext) return ext;
+  // A WebCLAP plugin in the web version: the app's own window (its web ui, or its params).
+  if (plugin && isWebclapWindow(transport, device)) {
+    return {
+      open: windowOpen,
+      available: !crashed && !held && !missing && !found,
+      toggle: () => useDeviceWindows.getState().setOpen(device.id, !windowOpen),
+      show: () => useDeviceWindows.getState().setOpen(device.id, true),
+    };
+  }
   // No plugin host (the browser's engines): the editor can't open; the toggle says why.
   if (plugin && noPluginHost)
     return { open: false, available: false, softDisabled: true, title: t("devices.window.no_plugin_host"), toggle: () => {}, show: () => {} };
@@ -83,7 +99,7 @@ export function useDeviceWindow(device: Device): DeviceWindowControl {
  */
 export function showDeviceWindow(transport: EngineTransport, device: Device): void {
   if (!hasWindow(device)) return;
-  if (device.kind.type !== "Plugin") return useDeviceWindows.getState().setOpen(device.id, true);
+  if (device.kind.type !== "Plugin" || isWebclapWindow(transport, device)) return useDeviceWindows.getState().setOpen(device.id, true);
   if (!usePluginStore.getState().editors[device.id]) return setPluginWindow(transport, device, true);
   if (usePluginStore.getState().crashed[device.id] !== undefined) return;
   transport.send(cmd("Plugin", { type: "OpenEditor", device: device.id })).catch((e: unknown) => console.warn("plugin window failed", e));
@@ -92,6 +108,6 @@ export function showDeviceWindow(transport: EngineTransport, device: Device): vo
 /** Opens or closes a device's window (plugin editor or factory window). */
 export function setDeviceWindow(transport: EngineTransport, device: Device, open: boolean): void {
   if (open && !hasWindow(device)) return;
-  if (device.kind.type === "Plugin") setPluginWindow(transport, device, open);
+  if (device.kind.type === "Plugin" && !isWebclapWindow(transport, device)) setPluginWindow(transport, device, open);
   else useDeviceWindows.getState().setOpen(device.id, open);
 }

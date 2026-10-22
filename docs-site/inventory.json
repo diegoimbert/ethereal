@@ -1745,7 +1745,7 @@
         {
           "id": "devices/shifter",
           "title": "shifter",
-          "what": "pitch shifter (-24..+24 semitones, detune, window), frequency shifter (shift + fine in hz, inharmonic / phaser-like), ring modulator (carrier + fine, drive and amount); wide mirrors the right channel; mix; an lfo (10 waveforms, free or synced, stereo phase or spin, offset, duty, s&h width) and an envelope follower move the shift (hz) or the pitch (semitones).",
+          "what": "pitch shifter (-24..+24 semitones, detune, window), frequency shifter (shift + fine in hz, inharmonic / phaser-like), ring modulator (carrier + fine, drive and amount); wide mirrors the right channel; mix; an lfo (10 waveforms, free or synced, stereo phase or spin, offset, duty, s&h width) and an envelope follower move the shift (hz) or the pitch (semitones); a delay after it (time or synced, feedback through the shifter so repeats keep shifting, tone).",
           "priority": "nice",
           "audience": "everyone",
           "platform": "all"
@@ -2091,9 +2091,17 @@
         {
           "id": "plugins/plugins-are-desktop-only",
           "title": "plugins are desktop only",
-          "what": "the desktop app hosts clap, vst3 and au (macos only). the web app has no plugins: its device library lists factory devices only, and plugin folder settings aren't available.",
+          "what": "the desktop app hosts clap, vst3 and au (macos only). the web app can't load them: a project's native plugins are bypassed there.",
           "priority": "must",
           "audience": "beginner",
+          "platform": "web"
+        },
+        {
+          "id": "plugins/webclap-in-the-web-version",
+          "title": "webclap plugins in the web version",
+          "what": "settings > plugins (web): install webclap plugins (clap compiled to webassembly) from an https address or a file (.wasm, .wclap.tar.gz); they are listed in the device library (webclap chip), kept in the browser, play like any device (params, automation, state saved), open their own ui in the device window (else their params), and can be removed. they run isolated (no access to projects, files, accounts). the desktop app shows them as web version only (bypassed).",
+          "priority": "must",
+          "audience": "everyone",
           "platform": "web"
         },
         {

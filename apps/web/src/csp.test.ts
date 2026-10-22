@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 import { describe, expect, it } from "vitest";
-import { readCsp } from "../csp.ts";
+import { readCsp, readPathCsps } from "../csp.ts";
 
 const directive = (csp: string, name: string): string[] =>
   csp
@@ -33,5 +33,23 @@ describe("Content-Security-Policy", () => {
     expect(scriptSrc).not.toContain("'unsafe-eval'");
     expect(directive(csp, "object-src")).toEqual(["'none'"]);
     expect(directive(csp, "frame-ancestors")).toEqual(["'none'"]);
+  });
+
+  // The WebCLAP plugin ui frame (public/webclap-ui.html): the app embeds it (frame-src
+  // 'self') sandboxed; its own policy lets the plugin's inline ui run, but reach nothing.
+  it("gives the plugin ui frame a policy of its own, with no network", () => {
+    expect(directive(csp, "frame-src")).toContain("'self'");
+    const csps = readPathCsps();
+    for (const path of ["/webclap-ui.html", "/webclap-ui"]) {
+      const ui = csps.get(path);
+      expect(ui, path).toBeDefined();
+      expect(directive(ui!, "default-src")).toEqual(["'none'"]);
+      expect(directive(ui!, "connect-src")).toEqual(["'none'"]);
+      expect(directive(ui!, "frame-src")).toEqual(["'none'"]);
+      expect(directive(ui!, "worker-src")).toEqual(["'none'"]);
+      expect(directive(ui!, "form-action")).toEqual(["'none'"]);
+      expect(directive(ui!, "frame-ancestors")).toEqual(["'self'"]);
+      expect(directive(ui!, "script-src")).not.toContain("'self'");
+    }
   });
 });

@@ -43,6 +43,7 @@ contribute("shell.root", { name: "my feature", Component: MyRoot }, /* order */ 
 | commands | `desktopMenu.labels` | labels for desktop menu items the extension added (see below) |
 | projects | `project.leaveGuard` | asks before leaving the open project (may cancel) |
 | projects | `project.badges`, `project.rowActions` | badges and actions on the project list rows |
+| projects | `project.deleteChoices`, `project.listSection` | switches in a project's delete confirmation (run after the delete), and sections of the project picker after the stored projects |
 | projects | `project.welcomeActions`, `project.getStarted` | actions on the welcome screen, and get started articles |
 | projects | `project.launchHeld`, `project.foreignRoute` | the launch waits for the extension, and the URLs that aren't project URLs |
 | projects | `import.isProjectFile` | file names the import treats as projects |

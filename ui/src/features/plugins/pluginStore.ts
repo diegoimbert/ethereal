@@ -10,7 +10,7 @@
  */
 import { useContext, useEffect } from "react";
 import { create } from "zustand";
-import type { DeviceId, Event, PluginDescriptor, PluginEvent, ScanFailure } from "@/generated";
+import type { DeviceId, Event, PluginDescriptor, PluginEvent, PluginFormat, ScanFailure } from "@/generated";
 
 /** The plugins of the computer whose engine plays the project, when it is not this one. */
 export interface RemotePluginCatalog {
@@ -20,6 +20,7 @@ export interface RemotePluginCatalog {
 }
 import { useProjectStore } from "@/state";
 import { TransportContext, type EngineTransport } from "@/transport";
+import { webclapOf } from "@/features/webclap/hooks";
 import { isInstalled } from "./filter";
 
 export interface ScanState {
@@ -33,6 +34,12 @@ export interface PluginRuntimeState {
   plugins: PluginDescriptor[] | null;
   /** This computer's scanned plugins (`Plugin::List`), `null` until loaded. */
   local: PluginDescriptor[] | null;
+  /**
+   * The formats `local` speaks for (`null`: all of them). The web version's list holds its
+   * WebCLAP plugins only: a native plugin there is not "missing" (it can't be installed in
+   * a browser at all; its device stays bypassed as before).
+   */
+  covers: PluginFormat[] | null;
   /** The plugins of the computer whose engine plays the project, when not this one's. */
   remote: RemotePluginCatalog | null;
   /** Another computer's engine plays the project, but its list hasn't come yet (or never
@@ -57,7 +64,7 @@ export interface PluginRuntimeState {
    * host couldn't load it, so it is still bypassed until reloaded ("found · reload"). */
   found: Record<DeviceId, true>;
   /** Set the scanned list; plugin devices of the open project it newly has go to `found`. */
-  setPlugins(plugins: PluginDescriptor[]): void;
+  setPlugins(plugins: PluginDescriptor[], covers?: PluginFormat[] | null): void;
   /** The engine host's list, or (`null`) back to this computer's. */
   setRemote(remote: RemotePluginCatalog | null): void;
   /** Another computer's engine plays the project (`remote` may still be on its way). */
@@ -80,6 +87,7 @@ export interface PluginRuntimeState {
 const initial = {
   plugins: null,
   local: null,
+  covers: null,
   remote: null,
   remotePending: false,
   descriptorEpochs: {},
@@ -107,7 +115,8 @@ function without<T>(map: Record<DeviceId, T>, device: DeviceId): Record<DeviceId
 export const usePluginStore = create<PluginRuntimeState>((set) => ({
   ...initial,
   // `found` is about this computer's plugin host: only the local scan counts.
-  setPlugins: (local) => set((s) => ({ local, plugins: s.remote ? s.remote.plugins : local, found: foundDevices(s.local, local, s.found) })),
+  setPlugins: (local, covers = null) =>
+    set((s) => ({ local, covers, plugins: s.remote ? s.remote.plugins : local, found: foundDevices(s.local, local, s.found) })),
   setRemote: (remote) => set((s) => ({ remote, plugins: remote ? remote.plugins : s.local })),
   setRemotePending: (remotePending) => set((s) => (s.remotePending === remotePending ? s : { remotePending })),
   descriptorsChanged: (devices) =>
@@ -169,6 +178,25 @@ export function engineCatalog(s: Pick<PluginRuntimeState, "local" | "remote" | "
 }
 
 /**
+ * Whether a device's plugin is missing from `plugins` (the engine host's list, `null`:
+ * unknown), for the formats that list covers (`covers`, `null`: every format).
+ */
+export function isMissing(
+  plugins: readonly PluginDescriptor[] | null,
+  covers: readonly PluginFormat[] | null,
+  plugin: { format: PluginFormat; plugin_id: string },
+): boolean {
+  if (plugins === null) return false;
+  if (covers !== null && !covers.includes(plugin.format)) return false;
+  return !isInstalled(plugins, plugin);
+}
+
+/** `covers` of the list `engineCatalog` returns (another computer's list covers every format). */
+export function engineCovers(s: Pick<PluginRuntimeState, "covers" | "remote">): PluginFormat[] | null {
+  return s.remote ? null : s.covers;
+}
+
+/**
  * `found` after the list goes from `prev` to `next`: the open project's plugin devices
  * missing from `prev` and listed in `next` join it (the host refused to create them, so
  * they stay bypassed until reloaded). Unknown before the first list (`prev` null).
@@ -207,7 +235,16 @@ export function usePluginEvents(): void {
     if (!transport) return;
     let sub = subscriptions.get(transport);
     if (!sub) {
-      sub = { count: 0, unsubscribe: transport.onEvent((e) => onEvent(e, transport)) };
+      const off = transport.onEvent((e) => onEvent(e, transport));
+      // The web version's WebCLAP plugins: installs and removals change the list.
+      const offWebclap = webclapOf(transport)?.subscribe(() => refreshPluginList(transport, true));
+      sub = {
+        count: 0,
+        unsubscribe: () => {
+          off();
+          offWebclap?.();
+        },
+      };
       subscriptions.set(transport, sub);
     }
     sub.count += 1;
@@ -225,13 +262,23 @@ export function usePluginEvents(): void {
 /** In-flight `Plugin::List` per transport. */
 const listing = new WeakMap<EngineTransport, Promise<void>>();
 
-/** Fetch the scanned plugin list into the store (desktop only; one request at a time). */
-function refreshPluginList(transport: EngineTransport): void {
-  if (transport.kind !== "tauri" || listing.has(transport)) return;
+/**
+ * Fetch the scanned plugin list into the store (one request at a time): the desktop's scan,
+ * or the web version's installed WebCLAP plugins. `again`: once the request in flight ends
+ * (the list changed meanwhile).
+ */
+export function refreshPluginList(transport: EngineTransport, again = false): void {
+  const web = webclapOf(transport) !== null;
+  if (transport.kind !== "tauri" && !web) return;
+  const inFlight = listing.get(transport);
+  if (inFlight) {
+    if (again) void inFlight.then(() => refreshPluginList(transport));
+    return;
+  }
   const pending = transport
     .send({ domain: "Plugin", command: { type: "List" } })
     .then((reply) => {
-      if (reply.type === "Plugins") usePluginStore.getState().setPlugins(reply.plugins);
+      if (reply.type === "Plugins") usePluginStore.getState().setPlugins(reply.plugins, web ? ["Webclap"] : null);
     })
     .catch(() => {})
     .finally(() => listing.delete(transport));

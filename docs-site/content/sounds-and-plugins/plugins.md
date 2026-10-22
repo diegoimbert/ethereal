@@ -1,11 +1,12 @@
 ---
 title: plugins
 order: 20
-summary: Use your CLAP, VST3 and Audio Unit plugins in the desktop app, and keep projects safe when a plugin crashes or is missing.
-platform: desktop
+summary: Use your CLAP, VST3 and Audio Unit plugins in the desktop app, WebCLAP plugins in the web version, and keep projects safe when a plugin crashes or is missing.
+platform: desktop, web
 audience: everyone
 covers:
   - plugins/plugins-are-desktop-only #plugins-need-the-desktop-app
+  - plugins/webclap-in-the-web-version #webclap-plugins-in-the-web-version
   - plugins/plugin-folders-and-scanning #where-ethereal-looks-for-plugins
   - plugins/failed-plugins-and-retry #plugins-that-failed-to-load
   - plugins/same-plugin-in-several-formats #the-same-plugin-in-several-formats
@@ -30,7 +31,18 @@ The desktop app hosts plugins in these formats:
 - **VST3**
 - **AU** (Audio Units, on macOS only)
 
-The web version can't load plugins. Its device library lists only Ethereal's built-in devices, and its **settings › plugins** tab just says that plugins are loaded by the desktop app. If you open a project that uses plugins in the browser, those devices are bypassed and the tracks play without them.
+The web version can't load these plugins. If you open a project that uses them in the browser, those devices are bypassed and the tracks play without them. The web version has plugins of its own instead: WebCLAP plugins (below).
+
+## webclap plugins in the web version
+
+WebCLAP plugins are CLAP plugins compiled to WebAssembly, so they run in a browser. The web version installs and plays them; the desktop app doesn't (a project that uses one shows it as **web version only** there, bypassed).
+
+- **installing**: open **settings › plugins**. Paste the address of a plugin (a `.wasm` file, or a `.wclap.tar.gz` bundle) and click **install**, or click **install a file…** to pick one from your computer. The address must be `https`, and the server must allow other sites to download it. The plugins of the file then appear in the device library, with a **webclap** chip, and are kept in this browser.
+- **using them**: add them to tracks with the same **+** buttons as built-in devices. Their parameters, automation, modulation and MIDI learn work like those of any device, and their sound settings are saved in the project.
+- **their window**: a plugin with its own interface opens it in its device window. A plugin without one shows its parameters there.
+- **removing**: the bin icon next to a file in **settings › plugins** removes it and its plugins. Projects that use them show them as missing until you install the file again.
+
+A plugin runs isolated: its code can't reach your projects, files, accounts or the rest of the app, and its window can't either. It does process your audio, though: install plugins you trust.
 
 ## where ethereal looks for plugins
 

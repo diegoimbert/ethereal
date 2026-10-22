@@ -6,8 +6,8 @@ import { resolvePluginEntries } from "@/features/import-resolver/menus";
 import { useProjectStore } from "@/state";
 import { cmd, useTransport, type EngineTransport } from "@/transport";
 import { t as tr, useT } from "@/i18n";
-import { FORMAT_LABEL, isInstalled } from "./filter";
-import { useEnginePlugins, usePluginEvents, usePluginStore } from "./pluginStore";
+import { FORMAT_LABEL } from "./filter";
+import { engineCovers, isMissing, useEnginePlugins, usePluginEvents, usePluginStore } from "./pluginStore";
 import { isSandboxDefault, useSandboxDefaults } from "./sandboxDefaults";
 
 export interface PluginDeviceControlsProps {
@@ -34,6 +34,7 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
   const [error, setError] = useState<string | null>(null);
   // Where the engine runs: another computer's list while its engine plays the project.
   const plugins = useEnginePlugins(device.kind.type === "Plugin");
+  const covers = usePluginStore(engineCovers);
   // Held as a placeholder (the project was opened without plugins).
   const held = useProjectStore((s) => s.safeMode.includes(device.id));
   const isPlugin = device.kind.type === "Plugin";
@@ -45,7 +46,9 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
   if (device.kind.type !== "Plugin") return null;
   const { format, plugin_id } = device.kind.plugin;
   // Not in the engine host's list: it couldn't load it and the device is bypassed.
-  const missing = plugins !== null && !isInstalled(plugins, { format, plugin_id });
+  const missing = isMissing(plugins, covers, { format, plugin_id });
+  // A WebCLAP device where they can't run (the desktop app): "web version only".
+  const webOnly = format === "Webclap" && transport.kind !== "wasm";
   const name = device.name;
 
   const run = (command: Command, onOk?: () => void) => {
@@ -97,11 +100,15 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
           <Badge tone="warn" className="eth-plugin-controls__missing">
             <span
               role="status"
-              title={t("plugins.device.missing_hint", { format: FORMAT_LABEL[format], id: plugin_id })}
+              title={
+                webOnly
+                  ? t("plugins.device.web_only_hint", { id: plugin_id })
+                  : t("plugins.device.missing_hint", { format: FORMAT_LABEL[format], id: plugin_id })
+              }
               // Right-click "Resolve…" (a replacement plugin).
               onContextMenu={(e) => openContextMenu(e, resolvePluginEntries(device, transport))}
             >
-              {t("plugins.device.missing")}
+              {webOnly ? t("plugins.device.web_only") : t("plugins.device.missing")}
             </span>
           </Badge>
           <IconButton
