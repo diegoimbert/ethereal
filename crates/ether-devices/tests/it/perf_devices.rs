@@ -50,6 +50,11 @@ fn effects() -> Vec<(BuiltinDeviceType, Vec<(&'static str, f64)>)> {
         ),
         (Saturator, vec![]),
         (Bitcrusher, vec![]),
+        (Erosion, vec![("Erosion/Amount", 60.0)]),
+        (
+            Erosion,
+            vec![("Erosion/Mode", 2.0), ("Erosion/Amount", 60.0)],
+        ),
         (ConvolutionReverb, vec![]),
         // The new stages switched on (the defaults above skip them).
         (
