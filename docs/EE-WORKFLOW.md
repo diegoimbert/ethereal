@@ -133,11 +133,15 @@ All CI runs in this repository, on GitHub-hosted runners; the private repository
   - Runners: repository variables `FULL_RUNNER`, `FULL_E2E_RUNNER`, `FULL_MACOS_RUNNER` and
     `FULL_WINDOWS_RUNNER` (full-platforms.yml), `SYNC_RUNNER` (JSON labels), GitHub-hosted by
     default.
-- **Sync** (`.github/workflows/ee-sync.yml`, every 10 minutes and on demand, plus `feat push`/
-  `ship`): moves OSS `main` to EE `main` (unless a ship holds the lock), keeps each open OSS
-  PR's pointer on its EE branch tip (or EE `main` once that merged), merges `main` into a PR
-  whose only conflict is the gitlink, and posts the **`ee/pointer`** status on OSS PRs. Its API
-  commits touch nothing but `ee` and are fast-forward only, retried when the branch moved.
+- **Sync** (`.github/workflows/ee-sync.yml`, plus `feat push`/`ship`): one run watches both
+  repositories for an hour (`git ls-remote` every 20 s, `scripts/ci/ee-sync-watch.mjs`) and
+  syncs when a branch moves (right away for either `main`, at most every 3 minutes for other
+  branches, and every 15 minutes regardless), then starts the next run; the schedule only
+  restarts that chain (GitHub fires it every few hours). A sync moves OSS `main` to EE `main`
+  (unless a ship holds the lock), keeps each open OSS PR's pointer on its EE branch tip (or EE
+  `main` once that merged), merges `main` into a PR whose only conflict is the gitlink, and
+  posts the **`ee/pointer`** status on OSS PRs. Its API commits touch nothing but `ee` and are
+  fast-forward only, retried when the branch moved.
 - **`ee/pointer` also checks the EE side follows the PR** (`scripts/ci/ee-pair-check.mjs`,
   no build): a PR that changes `ui/src/generated` needs `ee/app/src/generated` regenerated in
   its paired EE PR (`cd ee && just gen-types`, commit, `just feat push`), and a PR that gives
