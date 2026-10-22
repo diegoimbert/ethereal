@@ -157,6 +157,12 @@ pub(crate) struct TrackPlan {
     pub top_main: u32,
     /// Latency of every point of this track (in walk order).
     pub points: Vec<(ScPoint, u32)>,
+    /// Latency of the signal at every node's input (after the main-signal delay planned
+    /// before it), any depth, sorted by node: automation of the node is delayed by it so it
+    /// stays in time with the audio it affects (`crate::automation_rt`, issue #270).
+    pub inputs: Vec<(NodeKey, u32)>,
+    /// Latency of the post-fx signal (the fader, sends and VCA gain apply there).
+    pub post_fx: u32,
 }
 
 impl TrackPlan {
@@ -236,6 +242,7 @@ impl Walk<'_> {
             if main > 0 {
                 self.plan.extra.push((e.node, main));
             }
+            self.plan.inputs.push((e.node, pos.saturating_add(main)));
             let nested = self.rack(e.node, pos.saturating_add(main), depth + 1);
             let l = self
                 .node_latency(e.node)
@@ -313,6 +320,7 @@ pub(crate) fn plan(
         let main = w.consume(e.node, lat);
         lat = lat.saturating_add(main);
         w.plan.top_main = w.plan.top_main.saturating_add(main);
+        w.plan.inputs.push((e.node, lat));
         let l = w
             .node_latency(e.node)
             .saturating_add(w.rack(e.node, lat, 1));
@@ -324,8 +332,11 @@ pub(crate) fn plan(
     w.plan
         .points
         .push((ScPoint::Track(InputTap::PostFader), lat));
+    w.plan.post_fx = lat;
     w.plan.entries.sort_by_key(|e| e.node);
     w.plan.extra.sort_by_key(|e| e.0);
+    w.plan.inputs.sort_by_key(|e| e.0);
+    w.plan.inputs.dedup_by_key(|e| e.0);
     w.plan
 }
 

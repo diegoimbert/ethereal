@@ -26,7 +26,7 @@ use super::oversample::{self, LATENCY_2X, LATENCY_4X, Stage1, Stage2};
 use super::saturator as ids;
 use super::shared::{FixedDelay, Values, db, flush, glide};
 use crate::dsp::adaa::{Adaa, ln_cosh};
-use crate::util::split_at_events;
+use crate::util::{LateEvents, Route, untag};
 
 /// Reported latency (samples): the 4x round trip, used by every mode.
 pub const LATENCY: usize = LATENCY_4X;
@@ -294,6 +294,14 @@ pub struct Saturator {
     ch: [Channel; 2],
     /// Silence reporting.
     tail: crate::util::Tail,
+    /// The params as the output stage sees them (`values` is the shaper's view): `Auto
+    /// Gain` follows the drive, bias and curve of the audio it multiplies, [`LATENCY`]
+    /// samples after they reach the input.
+    out_values: Values<{ ids::COUNT }>,
+    /// Tone, output, mix and the auto gain act on the shaped signal, [`LATENCY`] samples
+    /// into the path; drive, bias and curve where the shaper sees the input (at once
+    /// without oversampling, after the up-sampling filters with it).
+    late: LateEvents,
 }
 
 impl Default for Saturator {
@@ -309,6 +317,8 @@ impl Saturator {
         let values = Values::new(&desc);
         let mut s = Self {
             tail: crate::util::Tail::default(),
+            out_values: values.clone(),
+            late: LateEvents::new(),
             values,
             sample_rate: 48_000.0,
             curve: Curve::Soft,
@@ -349,29 +359,48 @@ impl Saturator {
         self.values.f(ids::BIAS) * 0.01
     }
 
+    /// The auto gain for the output stage's view of the params.
     fn auto_gain_target(&self) -> f32 {
-        if self.values.on(ids::AUTO_GAIN) {
-            auto_gain(self.curve, self.drive_gain(), self.bias_value())
+        let v = &self.out_values;
+        if v.on(ids::AUTO_GAIN) {
+            let curve = Curve::from_index(v.index(ids::CURVE));
+            auto_gain(curve, db(v.f(ids::DRIVE)), v.f(ids::BIAS) * 0.01)
         } else {
             1.0
         }
     }
 
-    /// React to a changed param (`values` already updated).
+    /// React to a changed param (both views already updated).
     fn apply(&mut self, id: ParamId, smooth: bool) {
+        self.apply_shaper(id, smooth);
         match id {
-            ids::CURVE => {
-                self.curve = Curve::from_index(self.values.index(ids::CURVE));
-                let g = self.auto_gain_target();
-                glide(&mut self.auto_gain, g, smooth);
-            }
-            ids::DRIVE | ids::BIAS | ids::AUTO_GAIN => {
+            ids::CURVE | ids::DRIVE | ids::BIAS | ids::AUTO_GAIN => self.apply_auto_gain(smooth),
+            _ => self.apply_output(id, smooth),
+        }
+    }
+
+    /// The shaper's part of a curve, drive or bias change (`values` updated).
+    fn apply_shaper(&mut self, id: ParamId, smooth: bool) {
+        match id {
+            ids::CURVE => self.curve = Curve::from_index(self.values.index(ids::CURVE)),
+            ids::DRIVE | ids::BIAS => {
                 let (d, b) = (self.drive_gain(), self.bias_value());
                 glide(&mut self.drive, d, smooth);
                 glide(&mut self.bias, b, smooth);
-                let g = self.auto_gain_target();
-                glide(&mut self.auto_gain, g, smooth);
             }
+            _ => {}
+        }
+    }
+
+    /// The auto gain's part (`out_values` updated).
+    fn apply_auto_gain(&mut self, smooth: bool) {
+        let g = self.auto_gain_target();
+        glide(&mut self.auto_gain, g, smooth);
+    }
+
+    /// Everything else (both views updated).
+    fn apply_output(&mut self, id: ParamId, smooth: bool) {
+        match id {
             ids::TONE => {
                 let t = db(self.values.f(ids::TONE) * 0.01 * TILT_DB);
                 glide(&mut self.tilt, t, smooth);
@@ -402,8 +431,50 @@ impl Saturator {
     }
 
     fn set(&mut self, id: ParamId, value: f64, smooth: bool) {
-        if self.values.set(id, value) {
+        let shaper = self.values.set(id, value);
+        if self.out_values.set(id, value) || shaper {
             self.apply(id, smooth);
+        }
+    }
+
+    /// A param event as [`LateEvents`] delivers it (see [`Self::route`]).
+    fn on_event(&mut self, kind: &EventKind) {
+        let EventKind::Param { param, value } = *kind else {
+            return;
+        };
+        match untag(param) {
+            // The output stage's copy of a drive, bias or curve change.
+            (id, true) => {
+                if self.out_values.set(id, value) {
+                    self.apply_auto_gain(true);
+                }
+            }
+            (id @ (ids::CURVE | ids::DRIVE | ids::BIAS), false) => {
+                if self.values.set(id, value) {
+                    self.apply_shaper(id, true);
+                }
+            }
+            (id, false) => self.set(id, value, true),
+        }
+    }
+
+    /// Where each param acts (see `late`).
+    fn route(&self) -> impl Fn(&EventKind) -> Route + use<> {
+        let shaper = match self.mode {
+            Mode::Off => 0,
+            Mode::X2 => oversample::UP_DELAY_2X,
+            Mode::X4 => oversample::UP_DELAY_4X,
+        };
+        move |kind| match kind {
+            EventKind::Param { param, .. } => match *param {
+                ids::CURVE | ids::DRIVE | ids::BIAS => Route::Split {
+                    early: shaper,
+                    late: LATENCY,
+                },
+                ids::OVERSAMPLING => Route::Now,
+                _ => Route::Late(LATENCY),
+            },
+            _ => Route::Now,
         }
     }
 
@@ -489,10 +560,22 @@ impl Node for Saturator {
     fn prepare(&mut self, config: &PrepareConfig) {
         self.sample_rate = config.sample_rate.max(1.0);
         self.sync_all();
+        self.late.prepare(LATENCY, config);
         self.reset();
     }
 
     fn reset(&mut self) {
+        LateEvents::flush(self, |s| &mut s.late, |s, kind| {
+            if let EventKind::Param { param, value } = *kind {
+                let (id, out) = untag(param);
+                if out {
+                    s.out_values.set(id, value);
+                    s.apply_auto_gain(false);
+                } else {
+                    s.set(id, value, false);
+                }
+            }
+        });
         for c in &mut self.ch {
             c.reset();
         }
@@ -504,20 +587,19 @@ impl Node for Saturator {
         ctx: &mut ProcessContext<'_>,
         audio: &mut AudioBuffers<'_, '_>,
     ) -> ProcessStatus {
-        split_at_events(
+        let route = self.route();
+        LateEvents::split(
             self,
-            ctx.events,
-            ctx.frames,
+            |s| &mut s.late,
+            ctx,
+            route,
             |s, a, b| s.render(audio, a, b),
-            |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
-                    s.set(param, value, true);
-                }
-            },
+            Self::on_event,
         );
         // The oversampling filters and the DC blocker ring out under the floor; a bias
         // that makes sound out of silence keeps it awake.
         let settled = self.fade_left == 0
+            && self.late.is_idle()
             && ![
                 &self.drive,
                 &self.bias,
@@ -543,10 +625,11 @@ impl Device for Saturator {
     }
 
     fn param(&self, id: ParamId) -> Option<f64> {
-        self.values.get(id)
+        self.late.readback(id, self.values.get(id))
     }
 
     fn set_param(&mut self, id: ParamId, value: f64) {
+        self.late.cancel(id);
         self.set(id, value, false);
     }
 }

@@ -7,9 +7,9 @@ use ether_protocol::model::FadeCurve;
 
 use crate::event::{EventBuffer, EventKind, ProcessEvent};
 use crate::fades::fade_gain;
-use crate::graph::{ClipContentDesc, ClipDesc, WarpDesc};
+use crate::graph::{ClipContentDesc, ClipDesc, NoteDesc, WarpDesc};
 use crate::media::AudioSource;
-use crate::mixer::{ActiveNote, MAX_ACTIVE_NOTES, NoteSource};
+use crate::mixer::{ActiveNote, MAX_ACTIVE_NOTES, NoteJoin, NoteSource};
 
 /// Shortest content loop honoured (beats); shorter loops play unlooped.
 const MIN_LOOP: f64 = 1.0 / 256.0;
@@ -30,6 +30,20 @@ pub(crate) struct Piece {
     /// Where this linear piece begins on the timeline if not cut by the query range (clip
     /// start or content loop start): notes before it don't sound in it.
     pub begin: f64,
+    /// Loop pass: -1 = the intro (from the offset to the first loop end, or the whole clip
+    /// when it doesn't loop), `k >= 0` = the k-th repeat of the content loop (begins at a
+    /// loop wrap).
+    pub pass: i64,
+    /// `end` is a loop wrap (the content loop end with more of the clip after it), not the
+    /// clip end: a note held across it may join the loop's start note (`voice_end`).
+    pub wraps: bool,
+}
+
+/// The content loop `(start, end)` the engine honours (see [`for_each_piece`]).
+#[inline]
+pub(crate) fn content_loop(clip: &ClipDesc) -> Option<(f64, f64)> {
+    clip.looping
+        .filter(|&(ls, le)| le - ls >= MIN_LOOP && clip.offset < le)
 }
 
 /// Call `f` for every linear piece of `clip` (at timeline `clip.start`) inside `[r0, r1)`.
@@ -41,16 +55,15 @@ pub(crate) fn for_each_piece(clip: &ClipDesc, r0: f64, r1: f64, mut f: impl FnMu
     if a >= b {
         return;
     }
-    let looping = clip
-        .looping
-        .filter(|&(ls, le)| le - ls >= MIN_LOOP && clip.offset < le);
-    let Some((ls, le)) = looping else {
+    let Some((ls, le)) = content_loop(clip) else {
         f(Piece {
             t0: a,
             t1: b,
             c0: clip.offset + (a - start),
             end: clip_end,
             begin: start,
+            pass: -1,
+            wraps: false,
         });
         return;
     };
@@ -85,6 +98,8 @@ pub(crate) fn for_each_piece(clip: &ClipDesc, r0: f64, r1: f64, mut f: impl FnMu
                 c0: c_start + (t0 - t_start),
                 end: t_end,
                 begin: t_start,
+                pass: k,
+                wraps: start + p_end < clip_end,
             });
         }
     }
@@ -111,6 +126,7 @@ pub(crate) const EVENT_SHIFT: f64 = 1e-7;
 ///   closed-form tempo integral of the engine's sample clock since the last timeline jump
 ///   ([`Exact`]), never an accumulation of sub-block lengths, so positions are identical
 ///   for every block size and match the tempo map to rounding error over any duration.
+#[derive(Clone, Copy)]
 pub(crate) struct Timing<'a> {
     pub tempo: &'a crate::tempo::TempoMapRt,
     /// Sub-block start/end in beats (`b1` exclusive).
@@ -128,6 +144,9 @@ pub(crate) struct Timing<'a> {
     pub wraps: bool,
     /// Exact per-sample beats (tempo ramps), `None` = linear.
     pub exact: Option<Exact<'a>>,
+    /// The engine's recent sub-blocks: automation delayed by plugin delay compensation
+    /// reads the timeline there (`crate::automation_rt`). `None`: read it here.
+    pub history: Option<&'a crate::history::TimelineHistory>,
 }
 
 /// Exact timing of a sub-block on a ramped tempo map: beat of sample `o` =
@@ -221,8 +240,15 @@ impl Timing<'_> {
     /// to `0..=frames`.
     #[inline]
     pub(crate) fn sample_at_or_after(&self, t: f64) -> usize {
+        self.sample_at_or_after_upto(t, self.frames)
+    }
+
+    /// [`Self::sample_at_or_after`] clamped to `0..=limit` (mixer ramps look past the
+    /// sub-block).
+    #[inline]
+    pub(crate) fn sample_at_or_after_upto(&self, t: f64, limit: usize) -> usize {
         let o = ((self.tempo.beats_to_seconds(t) - self.s0) * self.sample_rate - 1e-6).ceil();
-        (o.max(0.0) as usize).min(self.frames)
+        (o.max(0.0) as usize).min(limit)
     }
 }
 
@@ -235,7 +261,14 @@ pub(crate) struct NoteSink<'a> {
 }
 
 impl NoteSink<'_> {
-    fn note_on(&mut self, offset: u32, key: u8, velocity: f32, end: f64, source: NoteSource) {
+    fn note_on(
+        &mut self,
+        offset: u32,
+        key: u8,
+        velocity: f32,
+        (end, join): (f64, Option<NoteJoin>),
+        source: NoteSource,
+    ) {
         if self.notes.len() >= MAX_ACTIVE_NOTES {
             // Voice bookkeeping full: drop the note (reported as an event overflow).
             self.events.push(ProcessEvent {
@@ -260,6 +293,7 @@ impl NoteSink<'_> {
                 key,
                 end,
                 source,
+                join,
             });
         }
     }
@@ -307,6 +341,99 @@ impl NoteSink<'_> {
     }
 }
 
+/// Loop-join tolerance (beats): a note ending exactly on the loop end, or starting exactly
+/// on the loop start, does not join.
+const JOIN_EPS: f64 = 1e-9;
+
+/// The loop join partner of `key` (CONTRACTS.md §2, Clips, "loop join"): the note of `key`
+/// that starts before the content loop start `ls` and still sounds there (the
+/// latest-ending one if several do), with its content end. Bounded by the notes before
+/// `ls`; only looked up for a voice cut by a loop wrap.
+fn join_partner(notes: &[NoteDesc], key: u8, ls: f64) -> Option<(usize, f64)> {
+    let mut best: Option<(usize, f64)> = None;
+    for (i, n) in notes.iter().enumerate() {
+        if n.start >= ls - JOIN_EPS {
+            break;
+        }
+        let end = n.start + n.duration.max(0.0);
+        if n.key == key && end > ls + JOIN_EPS && best.is_none_or(|b| end > b.1) {
+            best = Some((i, end));
+        }
+    }
+    best
+}
+
+/// End (timeline beat) of a voice of `key` that would end at `raw` in piece `p`, and its
+/// loop join. A voice still sounding at a loop wrap is cut there, unless the loop has a
+/// join partner of the same key ([`join_partner`]): then it keeps sounding (no note-off,
+/// no new note-on) and ends where the partner ends in the next pass. A partner longer than
+/// the loop joins itself on every wrap, so the voice lasts to the clip end.
+pub(crate) fn voice_end(
+    clip: &ClipDesc,
+    notes: &[NoteDesc],
+    key: u8,
+    raw: f64,
+    p: &Piece,
+) -> (f64, Option<NoteJoin>) {
+    if !(p.wraps && raw > p.end + JOIN_EPS) {
+        return (raw.min(p.end), None);
+    }
+    let Some((ls, le)) = content_loop(clip) else {
+        return (p.end, None);
+    };
+    let Some((j, j_end)) = join_partner(notes, key, ls) else {
+        return (p.end, None);
+    };
+    let clip_end = clip.start + clip.length.max(0.0);
+    let (tail, len) = (j_end - ls, le - ls);
+    let end = if tail > len + JOIN_EPS {
+        clip_end
+    } else {
+        (p.end + tail).min(clip_end)
+    };
+    let join = NoteJoin {
+        at: p.end,
+        note: j as u32,
+        lead: ls - notes[j].start,
+        period: len,
+    };
+    (end, Some(join))
+}
+
+/// Does note `i` (starting before the content loop start) sound in loop pass `pass` as the
+/// continuation of a voice joined at the wrap the pass begins at? Note chasing only: in
+/// playback the joined voice simply keeps sounding. True when `i` is its key's join
+/// partner and a note of that key is held across the previous pass's end: one starting in
+/// that pass (the intro from the offset for pass 0, the loop otherwise), or, for later
+/// passes, the partner itself when it is longer than the loop and pass 0 joined it.
+fn joined_into(clip: &ClipDesc, notes: &[NoteDesc], i: usize, pass: i64) -> bool {
+    let Some((ls, le)) = content_loop(clip).filter(|_| pass >= 0) else {
+        return false;
+    };
+    let n = &notes[i];
+    let key = n.key;
+    // Cheap test first (chasing asks for every note before the loop start).
+    if n.start + n.duration.max(0.0) <= ls + JOIN_EPS
+        || join_partner(notes, key, ls).map(|(j, _)| j) != Some(i)
+    {
+        return false;
+    }
+    let crosses = |from: f64| {
+        notes.iter().any(|m| {
+            m.key == key
+                && m.start >= from
+                && m.start < le
+                && m.start + m.duration.max(0.0) > le + JOIN_EPS
+        })
+    };
+    let partner_crosses = n.start + n.duration.max(0.0) > le + JOIN_EPS;
+    if pass == 0 {
+        crosses(clip.offset)
+    } else {
+        crosses(ls) || (partner_crosses && crosses(clip.offset))
+    }
+}
+
 /// Schedule note-ons of a MIDI clip for the sub-block.
 pub(crate) fn schedule_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut NoteSink<'_>) {
     let ClipContentDesc::Midi { notes } = &clip.content else {
@@ -324,7 +451,7 @@ pub(crate) fn schedule_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut No
                 break;
             }
             let t = p.t0 + (n.start - p.c0);
-            let end = (t + n.duration.max(0.0)).min(p.end);
+            let (end, join) = voice_end(clip, notes, n.key, t + n.duration.max(0.0), &p);
             if end <= t {
                 continue;
             }
@@ -333,7 +460,7 @@ pub(crate) fn schedule_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut No
                 note: (first + i) as u32,
                 start: t,
             };
-            sink.note_on(timing.offset(t), n.key, n.velocity, end, source);
+            sink.note_on(timing.offset(t), n.key, n.velocity, (end, join), source);
         }
     });
 }
@@ -355,17 +482,19 @@ pub(crate) fn chase_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut NoteS
         let first = notes.partition_point(|n| n.start < p.c0);
         for (i, n) in notes[..first].iter().enumerate() {
             let t = p.t0 + (n.start - p.c0);
-            if t < p.begin - EVENT_SHIFT {
-                continue; // before this piece (e.g. ahead of the content loop start)
+            // Before this piece (ahead of the content loop start): silent, unless a voice
+            // held across the wrap the piece begins at joined it.
+            if t < p.begin - EVENT_SHIFT && !joined_into(clip, notes, i, p.pass) {
+                continue;
             }
-            let end = (t + n.duration.max(0.0)).min(p.end);
+            let (end, join) = voice_end(clip, notes, n.key, t + n.duration.max(0.0), &p);
             if end > timing.b0 {
                 let source = NoteSource {
                     clip: clip.id,
                     note: i as u32,
                     start: t,
                 };
-                sink.note_on(0, n.key, n.velocity, end, source);
+                sink.note_on(0, n.key, n.velocity, (end, join), source);
             }
         }
     });
