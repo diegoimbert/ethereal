@@ -318,6 +318,82 @@
           ],
           "span": 1,
           "title": "Envelope"
+        },
+        {
+          "columns": 4,
+          "id": "delay",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "division": 31,
+                "feedback": 32,
+                "freeze": null,
+                "ping_pong": null,
+                "sync": 29,
+                "time": 30,
+                "type": "DelayTaps"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 28,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 30,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 29,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 31,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 32,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 33,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Delay"
         }
       ]
     },
@@ -800,6 +876,120 @@
         },
         "step": 1.0,
         "unit": "Semitones"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Delay",
+        "hidden": false,
+        "id": 28,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Delay",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Delay",
+        "hidden": false,
+        "id": 29,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Delay Sync",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 250.0,
+        "group": "Delay",
+        "hidden": false,
+        "id": 30,
+        "labels": null,
+        "max": 8000.0,
+        "min": 10.0,
+        "name": "Delay Time",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 6.0,
+        "group": "Delay",
+        "hidden": false,
+        "id": 31,
+        "labels": [
+          "1/64",
+          "1/32T",
+          "1/32",
+          "1/16T",
+          "1/16",
+          "1/8T",
+          "1/8",
+          "1/4T",
+          "1/4",
+          "1/2",
+          "1 bar",
+          "2 bars",
+          "4 bars",
+          "8 bars"
+        ],
+        "max": 13.0,
+        "min": 0.0,
+        "name": "Delay Rate",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Delay",
+        "hidden": false,
+        "id": 32,
+        "labels": null,
+        "max": 150.0,
+        "min": 0.0,
+        "name": "Feedback",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 22000.0,
+        "group": "Delay",
+        "hidden": false,
+        "id": 33,
+        "labels": null,
+        "max": 22000.0,
+        "min": 300.0,
+        "name": "Tone",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
       }
     ],
     "sidechain_inputs": 0
