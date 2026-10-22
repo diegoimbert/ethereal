@@ -3413,6 +3413,7 @@
   "engine.smooth": "smooth",
   "engine.smoothing": "smoothing",
   "engine.soft": "soft",
+  "engine.soft_clip": "soft clip",
   "engine.solo": "solo",
   "engine.spectrum": "spectrum",
   "engine.spread": "spread",
