@@ -24,7 +24,11 @@ fn locate(at: f64) -> Command {
 fn refused<B: EngineBridge, S: ProjectStore>(d: &mut Drive<B, S>, command: Command, key: &str) {
     let e = err(&d.send(command.clone()));
     assert_eq!(e.code, ErrorCode::InvalidState, "{command:?}");
-    assert_eq!(e.key.as_ref().map(|k| k.id.as_str()), Some(key), "{command:?}");
+    assert_eq!(
+        e.key.as_ref().map(|k| k.id.as_str()),
+        Some(key),
+        "{command:?}"
+    );
 }
 
 fn notices(out: &[ServerMessage]) -> Vec<String> {
@@ -44,7 +48,10 @@ fn render_until<B: EngineBridge, S: ProjectStore>(d: &mut Drive<B, S>, beats: f6
             return;
         }
         d.tick();
-        assert!(rendering(d).is_some(), "the render ended before beat {beats}");
+        assert!(
+            rendering(d).is_some(),
+            "the render ended before beat {beats}"
+        );
     }
     panic!("the render did not reach beat {beats}");
 }
@@ -69,7 +76,10 @@ fn real() -> Drive<RealBridge, MemoryStore> {
 fn the_transport_plays_the_render_so_far_and_the_engine_resumes_after() {
     let mut d = real();
     let job = d.render(long_request());
-    assert!(d.ctl.bridge.handle.suspended(), "the live engine is suspended");
+    assert!(
+        d.ctl.bridge.handle.suspended(),
+        "the live engine is suspended"
+    );
     let r = rendering(&d).unwrap();
     assert!(r.preview);
     assert_eq!((r.start, r.until), (Beats(0.0), Beats(0.0)));
@@ -96,9 +106,7 @@ fn the_transport_plays_the_render_so_far_and_the_engine_resumes_after() {
         .collect::<Vec<_>>();
     let master = d.master();
     assert!(
-        meters
-            .iter()
-            .any(|m| m.track == master && m.peak[0] > 0.05),
+        meters.iter().any(|m| m.track == master && m.peak[0] > 0.05),
         "{meters:?}"
     );
 
@@ -109,7 +117,10 @@ fn the_transport_plays_the_render_so_far_and_the_engine_resumes_after() {
         } => files,
         other => panic!("{other:?}"),
     };
-    assert!(!d.ctl.bridge.handle.suspended(), "resumed when the render ends");
+    assert!(
+        !d.ctl.bridge.handle.suspended(),
+        "resumed when the render ends"
+    );
     assert_eq!(rendering(&d), None);
     assert!(
         d.ctl
@@ -120,10 +131,10 @@ fn the_transport_plays_the_render_so_far_and_the_engine_resumes_after() {
     // What played is the exported file (16-bit preview).
     let file = decode(&d.read(&files[0]), "wav");
     assert!(peak(&file.channels) > 0.05);
-    for c in 0..2 {
-        let worst = heard[c]
+    for (c, (heard, file)) in heard.iter().zip(&file.channels).enumerate() {
+        let worst = heard
             .iter()
-            .zip(&file.channels[c])
+            .zip(file)
             .map(|(a, b)| (a - b).abs())
             .fold(0.0f32, f32::max);
         assert!(worst <= 2.0 / 32768.0, "channel {c}: {worst}");
@@ -210,7 +221,10 @@ fn cancel_resumes_and_edits_during_the_render_reach_the_document() {
             }
         }
     }
-    assert!(seen.len() >= 2 && seen.windows(2).all(|w| w[0] <= w[1]), "{seen:?}");
+    assert!(
+        seen.len() >= 2 && seen.windows(2).all(|w| w[0] <= w[1]),
+        "{seen:?}"
+    );
     assert!(seen.len() <= 4, "throttled to every 100 ms: {seen:?}");
     assert!(!d.ctl.bridge.preview_audio[0].is_empty());
     // Edits apply as usual.
@@ -220,12 +234,19 @@ fn cancel_resumes_and_edits_during_the_render_reach_the_document() {
     }));
     assert_eq!(d.ctl.project().unwrap().tracks[&t].name, "Lead");
     let out = d.send(Command::Export(ExportCommand::Cancel { job }));
-    assert!(events(&out).iter().any(
-        |e| matches!(e, Event::Transport { state } if state.rendering.is_none())
-    ));
+    assert!(
+        events(&out)
+            .iter()
+            .any(|e| matches!(e, Event::Transport { state } if state.rendering.is_none()))
+    );
     assert_eq!(
         suspension_calls(&d),
-        ["preview true", "suspend true", "preview false", "suspend false"]
+        [
+            "preview true",
+            "suspend true",
+            "preview false",
+            "suspend false"
+        ]
     );
     // Back to normal: play works anywhere.
     d.ok(locate(40.0));
@@ -267,7 +288,12 @@ fn a_failed_render_resumes_the_engine() {
     assert!(matches!(d.finish(&job).0, ExportEvent::Failed { .. }));
     assert_eq!(
         suspension_calls(&d),
-        ["preview true", "suspend true", "preview false", "suspend false"]
+        [
+            "preview true",
+            "suspend true",
+            "preview false",
+            "suspend false"
+        ]
     );
     assert_eq!(rendering(&d), None);
 }
@@ -284,12 +310,14 @@ fn renders_without_a_mix_to_preview_keep_the_timeline_unavailable() {
         exclusive: false,
     }));
     let mut r = request(custom(0.0, 16.0), AudioContainer::Wav, BitDepth::Int16);
-    r.mode = ExportMode::Stems {
-        tracks: vec![a, b],
-    };
+    r.mode = ExportMode::Stems { tracks: vec![a, b] };
     d.ctl.bridge.calls.clear();
     let job = d.render(r);
-    assert_eq!(suspension_calls(&d), ["suspend true"], "suspended, no preview");
+    assert_eq!(
+        suspension_calls(&d),
+        ["suspend true"],
+        "suspended, no preview"
+    );
     d.tick();
     let state = rendering(&d).unwrap();
     assert!(!state.preview && state.until == state.start);
@@ -315,7 +343,15 @@ fn stems_only_renders_preview_the_mix_they_capture_from() {
     let a = d.track(TrackKind::Midi, "A", None);
     d.device(a, BuiltinDevice::Synth);
     d.notes(a, 0.0, &[64]);
-    let keys = d.ctl.project().unwrap().tracks.values().find(|t| t.name == "Keys").unwrap().id;
+    let keys = d
+        .ctl
+        .project()
+        .unwrap()
+        .tracks
+        .values()
+        .find(|t| t.name == "Keys")
+        .unwrap()
+        .id;
     let mut r = request(custom(0.0, 4.0), AudioContainer::Wav, BitDepth::Float32);
     r.mode = ExportMode::Stems {
         tracks: vec![a, keys],
@@ -325,5 +361,8 @@ fn stems_only_renders_preview_the_mix_they_capture_from() {
     assert!(matches!(d.finish(&job).0, ExportEvent::Done { .. }));
     let spec = d.ctl.bridge.preview.clone().unwrap();
     assert_eq!(d.ctl.bridge.preview_audio[0].len(), spec.frames);
-    assert!(peak(&[d.ctl.bridge.preview_audio[0].clone()]) > 0.01, "the mix");
+    assert!(
+        peak(&[d.ctl.bridge.preview_audio[0].clone()]) > 0.01,
+        "the mix"
+    );
 }

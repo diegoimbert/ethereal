@@ -118,6 +118,9 @@ pub struct NativeBridge {
     /// The render preview being written (`EngineBridge::begin_render_preview`): the
     /// engine reads its buffer while suspended.
     render_preview: Option<ether_core::render_preview::PreviewWriter>,
+    /// Worker threads of offline renders while the live engine is suspended for them
+    /// ([`Self::set_offline_workers`]; 0: the controller thread alone).
+    offline_workers: usize,
 }
 
 /// An extension's part of the native bridge (docs/EXTENSIONS.md): made for every bridge (the
@@ -174,6 +177,12 @@ impl NativeBridge {
         self.sandbox_defaults = list;
     }
 
+    /// Worker threads for offline renders while the live engine is suspended for them
+    /// ([`EngineBridge::offline_executor`]): the host gives the live engine's count.
+    pub fn set_offline_workers(&mut self, workers: usize) {
+        self.offline_workers = workers;
+    }
+
     pub fn new(
         handle: EngineHandle,
         prepare: PrepareConfig,
@@ -209,6 +218,7 @@ impl NativeBridge {
             dedicated_notes: Default::default(),
             sandbox_defaults: Default::default(),
             render_preview: None,
+            offline_workers: 0,
             disk_streaming: !std::env::var("ETHER_DISK_STREAMING")
                 .is_ok_and(|v| v == "0" || v == "off"),
         };
@@ -911,6 +921,26 @@ impl EngineBridge for NativeBridge {
         if let Some(w) = self.render_preview.as_mut() {
             w.push(left, right);
         }
+    }
+
+    fn offline_executor(&mut self) -> Option<Box<dyn ether_core::parallel::ParallelExecutor>> {
+        // As many workers as the live engine's (idle while it is suspended for the render),
+        // without real-time priority (a render may take long; the UI keeps its share).
+        (self.offline_workers > 0).then(|| {
+            Box::new(crate::workers::WorkerPool::with_options(
+                self.offline_workers,
+                crate::workers::PoolOptions {
+                    period: std::time::Duration::from_secs_f64(
+                        ether_core::offline::OFFLINE_MAX_BLOCK as f64
+                            / f64::from(self.sample_rate.max(1)),
+                    ),
+                    realtime: false,
+                    // Like the controller thread, which renders the rest: every job
+                    // computes the same bits on any thread.
+                    flush_denormals: false,
+                },
+            )) as Box<dyn ether_core::parallel::ParallelExecutor>
+        })
     }
 
     fn end_render_preview(&mut self) {

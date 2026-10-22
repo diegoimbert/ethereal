@@ -13,13 +13,13 @@
 use std::collections::{BTreeSet, VecDeque};
 
 use ether_core::RenderGraphDesc;
-use ether_core::render_preview::{MAX_PREVIEW_FRAMES, PreviewSpec};
-use ether_core::tempo::TempoMapRt;
 use ether_core::protocol::export::{
     AudioContainer, ExportDownload, ExportFormat, ExportJobId, ExportMode, ExportRange,
     ExportRequest,
 };
 use ether_core::protocol::model::*;
+use ether_core::render_preview::{MAX_PREVIEW_FRAMES, PreviewSpec};
+use ether_core::tempo::TempoMapRt;
 use ether_media::resampled_len;
 
 use super::encode::{self, Encoder, PeakScan, Sink, normalize_gain};
@@ -274,6 +274,9 @@ pub struct Job {
     preview: Option<usize>,
     /// The master block for the preview when no output of the run takes it.
     preview_block: Vec<Vec<f32>>,
+    /// The live engine is suspended for this job: its renders may use worker threads
+    /// (`EngineBridge::offline_executor`).
+    parallel: bool,
 }
 
 /// `name` made safe as a single, visible file-name segment.
@@ -493,6 +496,7 @@ impl Job {
             tempo,
             preview: None,
             preview_block: vec![Vec::new(); CHANNELS],
+            parallel: false,
         }
     }
 
@@ -507,6 +511,11 @@ impl Job {
             frames: self.frames + self.tail,
             tempo: tempo_points(&self.project),
         })
+    }
+
+    /// The live engine is suspended for this job: render with worker threads.
+    pub fn render_in_parallel(&mut self) {
+        self.parallel = true;
     }
 
     /// Feed the render preview from now on (the bridge took [`Job::preview_spec`]).
@@ -892,11 +901,16 @@ impl Job {
             unreachable!()
         };
         let stem = self.run_stem();
-        let renderer = setup.finish(p, engine, self.start, |desc| {
+        let mut renderer = setup.finish(p, engine, self.start, |desc| {
             if let Some(s) = stem {
                 stem_graph(desc, p, s);
             }
         })?;
+        if self.parallel
+            && let Some(executor) = bridge.offline_executor()
+        {
+            renderer.set_executor(executor);
+        }
         let run = &self.runs[self.run];
         // Streamed: the capture holds one block at a time.
         let capture = Capture::streamed(renderer, self.frames + self.tail);

@@ -260,7 +260,11 @@ pub(crate) fn play(
         let i0 = at.floor() as usize;
         let frac = (at - i0 as f64) as f32;
         let a = buf.frame(i0);
-        let b = if i0 + 1 < available { buf.frame(i0 + 1) } else { a };
+        let b = if i0 + 1 < available {
+            buf.frame(i0 + 1)
+        } else {
+            a
+        };
         left[i] = a[0] + (b[0] - a[0]) * frac;
         right[i] = a[1] + (b[1] - a[1]) * frac;
         seconds += step;
@@ -359,7 +363,11 @@ mod tests {
         };
         assert!(!play(&b, t, 2000, [&mut l, &mut r], 40));
         assert!((l[1] * 32768.0 - 20.5).abs() < 1e-2, "{}", l[1] * 32768.0);
-        assert!((l[20] * 32768.0 - 20.0).abs() < 1e-2, "wrapped: {}", l[20] * 32768.0);
+        assert!(
+            (l[20] * 32768.0 - 20.0).abs() < 1e-2,
+            "wrapped: {}",
+            l[20] * 32768.0
+        );
         assert!((l[39] * 32768.0 - 29.5).abs() < 1e-2);
         assert!(playing && (pos - 0.04).abs() < 1e-9);
     }

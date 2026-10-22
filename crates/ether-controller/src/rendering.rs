@@ -23,6 +23,9 @@
 //!   engine resumed (unless a project load still holds it): its first block resets every
 //!   node, chases notes and re-sends automation, as after a load. A preview that was
 //!   playing goes on, live, from where it is. No priming: the live plugins are warm.
+//! - The render isn't paced to real time, and with the live engine's cores free it renders
+//!   on worker threads (`EngineBridge::offline_executor`) with a larger tick budget
+//!   (`export`'s `RENDERING_TICK_BUDGET_MS`).
 //! - Freeze, bounce and consolidate renders don't suspend the engine: they render one
 //!   track (short, usually), keep the live session audible, and have no master to preview.
 
@@ -108,6 +111,8 @@ where
         if preview {
             job.start_preview();
         }
+        // The live engine's cores are free: the render may use worker threads.
+        job.render_in_parallel();
         let (start, end) = job.timeline();
         let state = RenderingState {
             start,

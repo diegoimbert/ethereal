@@ -87,6 +87,12 @@ impl OfflineRenderer {
         })
     }
 
+    /// Process independent tracks on `executor`'s threads (`crate::parallel`; the output
+    /// is bit-identical to the sequential render). Call before the first `render`.
+    pub fn set_executor(&mut self, executor: Box<dyn crate::parallel::ParallelExecutor>) {
+        self.engine.set_executor(executor);
+    }
+
     /// Add nodes/sources here, like on a live engine. Publish with
     /// [`OfflineRenderer::publish`] (which silences the metronome), not
     /// `handle().publish`.

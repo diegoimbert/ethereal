@@ -502,6 +502,7 @@ tables with field-level `Update`s, client-chosen ids, patches before replies.
   cancelled arrive as `Event::Export`. One job at a time. `ExportRequest { range: Loop |
   Project | Custom, format { Wav | Flac, Int16 | Int24 | Float32 (not FLAC), sample_rate },
   mode: Mix | Stems { tracks } | MixAndStems { tracks }, normalize, tail_seconds, name }`.
+- While it runs the live engine is suspended and plays the render so far (§13.19).
 - Rendering uses `ether_core::offline::OfflineRenderer` (a private engine on the controller
   thread) with fresh nodes, never the live ones, stepped a bounded unit of work at a time
   from the controller tick. The metronome and count-in are never rendered
@@ -1674,6 +1675,58 @@ shows the progress in the transport bar (`ui/src/features/transport-bar/loading.
 `AudioShared::overruns` counts native callbacks longer than their buffer
 (`ether-native/tests/it/project_load_xruns.rs` measures a load with and without the
 suspension).
+### 13.19 Renders suspend the engine and play their preview
+An audio export (`Export::Render`: mix, stems, both; the private overlay's static-share
+snapshots render through it) suspends the live engine for as long as it runs
+(`ether-controller/src/rendering.rs`), like a load (§13.18; the engine is resumed only once
+neither holds it, `EtherController::sync_suspension`). Freeze, bounce and consolidate don't:
+they render one track, usually briefly, have no master to preview and keep the session
+audible. Why: the render runs on its own offline engine with fresh device and plugin
+instances (§11.1, never the live ones, so the suspension is for speed, not correctness),
+and the live engine would otherwise keep processing the whole project on the audio thread
+and its workers meanwhile.
+- **Preview.** While suspended, `Engine::process` plays the render's master as far as it is
+  rendered (`ether_core::render_preview`: `PreviewSpec { rate, start_seconds, frames, tempo }`
+  from the job, `EngineBridge::{begin,push,end}_render_preview`, default `Unsupported`;
+  native: a `PreviewWriter` on the controller thread shares its buffer with the audio
+  thread; web: `EngineMsg::RenderPreview{Begin,Chunk,End}`, 16-bit chunks the Worklet
+  appends). The buffer is chunked 16-bit stereo, allocated by the writer only, published
+  lock-free (`written`, release/acquire), at most `MAX_PREVIEW_BYTES` (256 MiB, about 23 min
+  at 48 kHz; the rest of a longer render stays unavailable until it ends). The callback
+  follows the engine's transport: play, stop, locate and the loop as usual, the render's own
+  tempo map for beats (edits to the tempo meanwhile don't shift it), linear resampling when
+  the preview's rate is not the engine's, any buffer size. Where nothing is rendered yet
+  (past `until`, before the render's start) the engine stops the transport itself. The
+  master meter shows the preview, the other tracks' meters silence. Real-time safe: no
+  allocation, lock or syscall on the audio thread; the old buffer is retired to the GC.
+- What previews: the job's first render when it renders the whole project (the mix, or the
+  full render stems are captured from: its master plays even when no mix file is written).
+  Stems that each need a pass of their own (§11.1) have no mix: `preview: false`, nothing
+  plays until the end.
+- **Transport.** `TransportState::rendering: RenderingState { start, end, until, progress,
+  preview }` (beats; `until` = the end of the rendered part; reported at most every
+  `rendering::REPORT_MS` = 100 ms). Play is refused where nothing is rendered
+  (`error.render.not_rendered`) or without a preview (`error.render.no_preview`); `Locate`
+  is clamped to `start..until` with a hint (`notice.render.not_rendered_yet`); record is
+  refused (`error.render.running`); playback reaching `until` stops with a hint
+  (`notice.render.preview_end`; the controller also notices a stop no poll saw playing, from
+  the engine clock). Starting a render stops live playback.
+- **Edits** apply to the document as usual. The job copied the project when it started, so
+  neither its files nor its preview contain them; the live graph keeps being republished
+  and plays them once the render ends.
+- **End.** Done, failed, cancelled, or its project closed: the preview is dropped and the
+  engine resumes (its first block resets nodes, chases notes, re-sends automation, as after
+  a load); a preview that was playing goes on, live, from the same position. No priming:
+  the live plugins are warm.
+- **Speed.** With the engine suspended the job renders on worker threads
+  (`EngineBridge::offline_executor`; native: a non-real-time `WorkerPool` of the live
+  engine's worker count, bit-identical to one thread) and its tick budget is
+  `RENDERING_TICK_BUDGET_MS` (14 ms of every tick instead of 12). It is never paced to real
+  time. `ether-native/tests/it/render_suspend.rs` checks that no live plugin runs meanwhile
+  and benchmarks it (`render_speed`).
+- UI: the transport bar shows "rendering n%" (`transport-bar/RenderingStatus.tsx`), record is
+  disabled, play hears the preview; the timeline and rulers hatch what isn't rendered yet with
+  a dashed boundary at `until` (`timeline/RenderFrozenLayer.tsx`, pointer-transparent).
 ## 13. Agent API (docs/MCP.md)
 
 - Protocol (`ether_protocol::agent`, exported to TS): `Command::Agent(AgentCommand)`.

@@ -34,7 +34,8 @@
 //! that block through one file's resampler and encoders, [`job::UNIT_FRAMES`] frames of a
 //! normalized signal encoded, [`job::UNIT_BUILTINS`] built-in nodes or one plugin instance
 //! per unit); a tick runs units until
-//! [`TICK_BUDGET_MS`] elapsed (at most [`MAX_UNITS_PER_TICK`]), so the controller stays
+//! [`TICK_BUDGET_MS`] elapsed ([`RENDERING_TICK_BUDGET_MS`] while the live engine is
+//! suspended for it; at most [`MAX_UNITS_PER_TICK`]), so the controller stays
 //! responsive whatever the export length. A few steps still take time proportional to a
 //! file's length rather than to a unit: reading a media file from the store (one
 //! `ProjectStore::read`), the media resamplers' final step (`IncrementalResampler::finish`
@@ -105,6 +106,10 @@ pub const MAX_CHUNK_BYTES: usize = 1 << 20;
 const MAX_UNITS_PER_TICK: usize = 256;
 /// ...and no more than this long (when the host clock advances).
 const TICK_BUDGET_MS: u64 = 12;
+/// ...or this long while the live engine is suspended for the render (`rendering`): the
+/// audio thread asks nothing of the CPU meanwhile, the controller still answers within a
+/// tick.
+const RENDERING_TICK_BUDGET_MS: u64 = 14;
 
 struct Download {
     project: ProjectId,
@@ -342,6 +347,11 @@ where
             return;
         }
         let started = self.host.now_ms().max(now);
+        let budget = if self.rendering.active() {
+            RENDERING_TICK_BUDGET_MS
+        } else {
+            TICK_BUDGET_MS
+        };
         for _ in 0..MAX_UNITS_PER_TICK {
             let step = job.step(
                 &mut self.bridge,
@@ -370,7 +380,7 @@ where
                     return;
                 }
             }
-            if self.host.now_ms().saturating_sub(started) >= TICK_BUDGET_MS {
+            if self.host.now_ms().saturating_sub(started) >= budget {
                 break;
             }
         }

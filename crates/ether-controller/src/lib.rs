@@ -274,6 +274,12 @@ pub trait EngineBridge {
     }
     /// The render ended: drop the preview (the engine plays silence again until resumed).
     fn end_render_preview(&mut self) {}
+    /// Worker threads for an offline render while the live engine is suspended for it
+    /// (its own workers idle meanwhile): a fresh pool, dropped with the render. `None`
+    /// (the default; hosts without threads): the render runs on the calling thread only.
+    fn offline_executor(&mut self) -> Option<Box<dyn ether_core::parallel::ParallelExecutor>> {
+        None
+    }
     fn poll(&mut self, out: &mut EngineOutputs);
 
     /// Descriptors of built-in devices and of instantiated plugins.
