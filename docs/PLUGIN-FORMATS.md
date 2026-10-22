@@ -1,4 +1,4 @@
-# Plugin formats: CLAP, VST3, AU
+# Plugin formats: CLAP, VST3, AU, WebCLAP
 
 CLAP, VST3 and AU are hosted end to end: scanning, the native host (in-process and
 sandboxed), save/reopen and the plugin browser. `crates/ether-vst3` and `crates/ether-au`
@@ -56,7 +56,7 @@ Other contract points:
 
 ## Ids (`PluginInstance.plugin_id` / `PluginDescriptor.id`)
 
-Documented on `ether_model::PluginFormat`. `.ether` tags are `"Clap"`, `"Vst3"`, `"Au"` and `"Vst2"`, and they are stable.
+Documented on `ether_model::PluginFormat`. `.ether` tags are `"Clap"`, `"Vst3"`, `"Au"`, `"Vst2"` and `"Webclap"`, and they are stable.
 
 | Format | id | `PluginDescriptor.path` |
 |---|---|---|
@@ -64,6 +64,7 @@ Documented on `ether_model::PluginFormat`. `.ether` tags are `"Clap"`, `"Vst3"`,
 | VST3 | class id in canonical `FUID::toString` form: 32 uppercase hex, words l1..l4 (the `CID` in `moduleinfo.json`). Same on every OS; convert with `ether_vst3::class_id_to_string` / `parse_class_id` (COM byte layout on Windows) | `.vst3` bundle |
 | VST2 (model only) | `AEffect::uniqueID` as 8 uppercase hex digits of its 32-bit value (a shell sub-plugin has its own). The tag is kept so a project that references one still parses; the host is not in this build | — |
 | AU | `type:subtype:manufacturer` four-char codes, e.g. `aufx:dely:appl`. Printable ASCII is kept verbatim; other bytes, `:` and `\` become `\xHH`. Use `ether_au::AuComponentId` | the id itself (AUs load from the component registry) |
+| WebCLAP (web version only) | CLAP plugin id, reverse-DNS | `webclap:<module id>` (the installed module's content hash). Native hosts refuse it: `WebCLAP plugin <name> (<id>) is not available on this platform (web version only)` |
 
 **Decision: `PluginInstance` has no location field.** Documents store `(format, plugin_id)` only. The host resolves the bundle from its scanned catalog (`PluginCatalog`), so a project opens on any machine that has the plugin installed. Because nothing in the `.ether` format changed, no migration was needed. `crates/ether-model/tests/it/plugin_formats.rs` has a fixture test showing that a pre-VST3 file still loads, and that every format round-trips.
 
@@ -213,6 +214,149 @@ Other notes from the format hosts that callers must respect:
 - The first `save_state` of a VST3 after setting params while inactive briefly activates it.
 - VST3 bundle paths on Linux/Windows have no local build target; release CI is their first
   compile.
+
+## WebCLAP (web version)
+
+[WebCLAP](https://github.com/WebCLAP) (WCLAP) is the CLAP ABI compiled to WebAssembly: a
+module exports `clap_entry`, a growable function table and `malloc` (or `cabi_realloc`),
+and imports or exports its memory. The web version hosts these plugins; the desktop app
+keeps its native formats and shows a WebCLAP device as "web version only" (bypassed, see
+"Ids" for the error). Contract summary: CONTRACTS.md §13.21.
+
+### Installing
+
+Settings › plugins (web) installs from an `https` address (fetched without credentials;
+the server must send CORS headers) or a file, either a self-contained module (`.wasm`,
+`.wclap.wasm`) or a bundle (`.wclap.tar.gz`: `module.wasm` plus resources, e.g. a web UI).
+`apps/web/src/engine/webclap/manager.ts`:
+
+- The module is compiled on the page and scanned in a Worker of its own (`scan.worker.ts`,
+  killed after 20 s): each plugin of the factory is instantiated once and its descriptor,
+  params (labels of stepped ranges), audio and note ports and web UI presence are read.
+  Plugins that fail are listed as such.
+- The file, its scan and its content hash (the module id) go to IndexedDB
+  (`ether-webclap`). At every engine start they are read back, compiled and sent to both
+  engine realms; the scans become the controller's catalog
+  (`crates/ether-wasm/src/webclap/catalog.rs`, mapped like `ether-clap/src/params.rs`).
+- Removing a module removes its plugins from the catalog; projects that use them show them
+  missing (bypassed) until it is installed again.
+
+The device library lists the installed plugins (format `webclap`) next to the built-ins,
+and inserts them like any plugin (`DeviceSpec::Plugin { format: Webclap }`).
+
+### Hosting
+
+The engine runs in the AudioWorklet (wasm instance #2, `crates/ether-wasm`). Each plugin
+instance is **its own WebAssembly instance with its own memory**, next to it in the
+Worklet, driven by the JS host glue (`apps/web/src/engine/webclap/`):
+
+- `instance.ts` implements the host side of the CLAP ABI for wasm32 (`abi.ts` has the
+  struct layouts): host structures and buffers live in the plugin's memory (reserved through
+  its `malloc`); host callbacks are JS functions re-exported by a small generated module
+  (`wasm.ts` `trampolines`) and added to the plugin's function table.
+- Host extensions: `clap.params` (rescan, clear, request_flush), `clap.state` (mark_dirty),
+  `clap.latency` (changed → restart), `clap.tail`, `clap.log`, `clap.thread-check`,
+  `clap.audio-ports`, `clap.note-ports` (CLAP and MIDI dialects), `clap.gui` (webview
+  sizing calls answered "no"), `clap.webview/3`. The plugin's `clap.params`, `clap.state`,
+  `clap.audio-ports`, `clap.note-ports`, `clap.latency`, `clap.tail`, `clap.gui` and
+  `clap.webview/3` are used.
+- Threads: the Worklet is one thread. Audio-thread calls (`process`, `start_processing`,
+  `reset`, `flush` while active) run in an "audio" phase, the rest between blocks in a
+  "main" phase; `clap.thread-check` answers by phase. Plugins that start threads
+  (wasi-threads) are not supported.
+- `wasi.ts`: `wasi_snapshot_preview1` with stdout/stderr to the log, clocks and random only:
+  no preopened directories (opening a file fails), no environment, no sockets.
+- Each block (`WebclapNode`, `crates/ether-wasm/src/webclap/node.rs`): the node writes an
+  `Exchange` (the engine's channel pointers, its events, the transport) and calls the host,
+  which copies the main input (a mono input feeds every channel) and the sidechain into the
+  plugin's ports, writes CLAP events (sample-accurate: param values in plain units, notes,
+  choke, wildcard note-off + CC 123 for all-notes-off, MIDI, note expressions when the first
+  note port takes the CLAP dialect, else pressure as poly aftertouch) and the transport, calls
+  `process`, and copies the main output back. Nothing is allocated per block (views are
+  re-made only when a memory grows; copies are loops).
+- The plugin's output events: param values become `ParamEdited` (undoable edits, automation
+  recording) with their gestures; notes and MIDI go to the next device (note effects).
+- Sleep on silence as native CLAP (§13.19): `SLEEP` sleeps, `CONTINUE_IF_NOT_QUIET` once
+  quiet, `request_process` and `request_flush` wake it; "always process" applies.
+- Latency: read at activation; `latency.changed` restarts the plugin between blocks
+  (deactivate, activate) and the engine republishes PDC from the Worklet's latency reports.
+- State: `Plugin` state blobs are the plugin's own `clap.state` bytes. The controller asks
+  the Worklet (`WebBridge::plugin_state`, a blocking round trip of a block or two; the last
+  state known when the audio isn't running); a new instance loads it before activation.
+- Params, automation, modulation, macros, MIDI learn: the same paths as built-ins
+  (`ParamTarget::Node` events), descriptors from the catalog; values are mirrored after
+  instantiation (`plugin_param_values`).
+- Offline renders (export, freeze): the controller Worker has its own host and modules and
+  creates fresh instances there (`create_offline_plugin`).
+- A trap (or `proc_exit`) faults the instance: silent output, "crashed" in the device header,
+  reload to re-create it.
+
+### Web UIs
+
+A plugin with `clap.webview/3` gets its UI in its device window (others show the generic
+parameter panel). The page asks the Worklet for `get_uri`; `file:` URIs (under the path the
+plugin got in `clap_entry.init`, `/plugin`) are read from the bundle, absolute paths from
+the bundle or `get_resource`, `data:text/html` is decoded; remote (`http(s)`) UIs are not
+supported. The page collects the start page and the files it references (`uiPage.ts`, found
+textually: the page never parses the plugin's HTML as a document) and sends them to the
+frame, which inlines them (scripts and styles as elements, images as `data:` URLs) and
+writes the result as its document. Messages follow the webview extension: the UI posts `ArrayBuffer`s
+to `window.parent`, the page forwards them to the plugin (`receive`, main phase), and the
+plugin's `send` reaches the UI the other way. The UI talks to its plugin only; param changes
+it makes come back as the plugin's output events (above).
+
+### Security
+
+Plugins are untrusted code. What they can reach:
+
+- **Plugin code (wasm)** runs in the AudioWorklet (and, for offline renders, the controller
+  Worker), but a WebAssembly instance can only call what it imports: the CLAP host callbacks
+  and the WASI functions above. It has no access to JS globals, the DOM, storage, network or
+  the engine's memory (its memory is its own; the host copies samples and events in and out
+  and never hands it a pointer outside it). The AudioWorklet scope itself has no network,
+  storage or DOM APIs.
+- **Denial of service**: a plugin that loops forever in `process` stalls the audio thread
+  (the audio stops until the page is reloaded and the device removed or the project opened
+  in safe mode). The install scan runs in
+  a Worker that is killed after 20 s. Memory: an imported memory gets the plugin's declared
+  maximum (2 GiB without one), its own memory is separate from the engine's.
+- **Plugin UIs (HTML/JS)** run in `public/webclap-ui.html`, an `<iframe sandbox="allow-scripts">`:
+  an opaque origin, so no access to the app's DOM, `localStorage`, IndexedDB (the installed
+  plugins, the projects in OPFS) or cookies, no popups, no top navigation, no forms. The
+  frame's own Content-Security-Policy (`scripts/release/web/_headers`, rule
+  `/webclap-ui.html`) allows inline scripts, styles and `data:`/`blob:` media, and nothing
+  else: no network (`connect-src 'none'`), no frames, no workers, only embedded by the app
+  (`frame-ancestors 'self'`). The app's own policy gained only `frame-src 'self'` (to embed
+  it). The page sends the frame only the plugin's own messages, and accepts from it only
+  `ArrayBuffer`s, forwarded to that plugin. A host that serves the app without the
+  frame's policy (DEPLOY.txt) fails closed: the app's policy blocks the UI's inline scripts.
+- **Installing** fetches without credentials or referrer; the module's bytes are compiled
+  under the app's existing `'wasm-unsafe-eval'`. No third-party JavaScript runs on the page
+  or in the Worklet: a plugin's JavaScript only exists inside its UI frame.
+- Not covered: a plugin can still process (or ruin) the audio it is given, and spin the
+  CPU. Users are told to install the plugins they trust.
+
+### Limits
+
+No threads (wasi-threads), no file system for plugins, no remote UIs, CSS `url()` references
+of UIs are not inlined, 64-bit modules (`wasm64`) are refused, presets (`clap.preset-load`)
+and remote controls aren't read, param display texts use the UI's own formatting
+(`Plugin::ParamTexts` is not answered on the web), and sandboxing (`PluginInstance.sandboxed`)
+has no meaning on the web (every instance is isolated already).
+
+### Tests
+
+- `crates/ether-wasm/tests/it/webclap.rs`: the controller and the Worklet's engine over the
+  rings with a fake guest: processing and params, state through the Worklet and reopening,
+  plugin edits becoming document edits (undoable), PDC, sleep, missing and native plugins,
+  offline instances.
+- `apps/web/src/engine/webclap/host.test.ts`: the JS host against real wasm plugins: the
+  repository's test plugin (`crates/ether-webclap-fixture`: a gain with a web UI, a delay, a
+  synth; built by `apps/web/scripts/build-webclap-fixture.mjs`), Clack's gain and Signalsmith
+  Basics (a bundle with shared memory and web UIs; `apps/web/test-fixtures/webclap/examples`,
+  MIT / Apache-2.0).
+- `apps/web/e2e/webclap.spec.ts`: install from a file and an address, play through the
+  real engine, edit from the sandboxed UI, offline render with automation, reopen.
 
 ## Licenses
 

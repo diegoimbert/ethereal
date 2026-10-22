@@ -8,6 +8,7 @@
 import { initSync, WasmController } from "@ether-wasm/ether_wasm.js";
 import type { FromController, ToController } from "./protocol";
 import { SyncFs } from "./syncFs";
+import { WebclapHost } from "./webclap/host";
 
 interface Scope {
   onmessage: ((e: MessageEvent<ToController>) => void) | null;
@@ -80,6 +81,8 @@ async function fetchOne(ctl: WasmController, r: HttpRequest): Promise<void> {
   }
 }
 let controller: WasmController | null = null;
+/** WebCLAP instances of offline renders (exports, freezes) run here, in this Worker. */
+let webclap: WebclapHost | null = null;
 let dead = false;
 /** `client` messages handled (shared with the page, see `ToController` init). */
 let handled: Int32Array | null = null;
@@ -110,11 +113,21 @@ scope.onmessage = (e) => {
   switch (msg.type) {
     case "init":
       guarded(() => {
-        initSync({ module: msg.module });
+        const { memory } = initSync({ module: msg.module });
         handled = new Int32Array(msg.handled);
         const fs = new SyncFs(msg.fsBuffer, msg.fsPort);
         const ctl = new WasmController(BigInt(msg.seed), msg.sampleRate, msg.control, msg.reports, fs);
         controller = ctl;
+        const host = new WebclapHost({
+          engineMemory: () => memory,
+          log: (device, severity, text) => {
+            if (severity >= 2) console.warn(`webclap ${device}: ${text}`);
+          },
+        });
+        webclap = host;
+        for (const m of msg.webclapModules ?? []) host.addModule(m.id, m.module, m.info);
+        ctl.set_webclap_host(host);
+        if (msg.webclapCatalog) ctl.set_webclap_catalog(msg.webclapCatalog);
         for (const x of extensions) x.onInit?.(msg, ctl);
         setInterval(
           () =>
@@ -134,6 +147,12 @@ scope.onmessage = (e) => {
         runHttp(controller);
       });
       if (handled) Atomics.add(handled, 0, 1);
+      break;
+    case "webclap:catalog":
+      guarded(() => controller?.set_webclap_catalog(msg.json));
+      break;
+    case "webclap:module":
+      webclap?.addModule(msg.id, msg.module, msg.info);
       break;
     default:
       // Not `guarded`: an extension's errors are its caller's, not the engine's.

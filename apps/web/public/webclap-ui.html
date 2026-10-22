@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>plugin ui</title>
+  </head>
+  <body>
+    <!--
+      The frame a WebCLAP plugin's web ui runs in (apps/web/src/engine/webclap/manager.ts
+      mountUi). The app embeds it sandboxed (`sandbox="allow-scripts"`: an opaque origin, so no
+      access to the app, its storage or its cookies) and sends it the ui's start page and the
+      files it references (src/engine/webclap/uiPage.ts). They are inlined here (scripts and
+      styles as elements, the rest as data: URLs) and the result replaces this document. Served
+      with a policy of its own (scripts/release/web/_headers): inline scripts and styles,
+      data:/blob: media, and no network at all.
+    -->
+    <script>
+      (function () {
+        function resolve(base, ref) {
+          if (/^[a-z][a-z0-9+.-]*:/i.test(ref) || ref.indexOf("//") === 0 || ref.charAt(0) === "#") return null;
+          var path = ref.split(/[?#]/)[0];
+          if (!path) return null;
+          var parts = path.charAt(0) === "/" ? [] : base.split("/").slice(0, -1);
+          path.split("/").forEach(function (p) {
+            if (p === "" || p === ".") return;
+            if (p === "..") parts.pop();
+            else parts.push(p);
+          });
+          return "/" + parts.filter(Boolean).join("/");
+        }
+        function text(file) {
+          return new TextDecoder().decode(new Uint8Array(file.data));
+        }
+        function dataUrl(file) {
+          var bytes = new Uint8Array(file.data);
+          var s = "";
+          for (var i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+          return "data:" + (file.mime || "application/octet-stream") + ";base64," + btoa(s);
+        }
+        function build(page) {
+          var doc = new DOMParser().parseFromString(page.html, "text/html");
+          function file(ref) {
+            var p = ref && resolve(page.path, ref);
+            return p ? page.files[p] : undefined;
+          }
+          doc.querySelectorAll("script[src]").forEach(function (s) {
+            var f = file(s.getAttribute("src"));
+            s.removeAttribute("src");
+            s.textContent = f ? text(f).replace(/<\/(script)/gi, "<\\/$1") : "";
+          });
+          doc.querySelectorAll('link[rel~="stylesheet"][href]').forEach(function (l) {
+            var f = file(l.getAttribute("href"));
+            var style = doc.createElement("style");
+            style.textContent = f ? text(f) : "";
+            l.replaceWith(style);
+          });
+          doc.querySelectorAll("img[src], source[src], audio[src], video[src]").forEach(function (el) {
+            var f = file(el.getAttribute("src"));
+            if (f) el.setAttribute("src", dataUrl(f));
+            else el.removeAttribute("src");
+          });
+          doc.querySelectorAll('link[rel~="icon"], link[rel~="preload"], link[rel~="modulepreload"], base').forEach(function (el) {
+            el.remove();
+          });
+          // The page's query (`?compact`, …) for uis that read their location.
+          if (page.query) {
+            var q = doc.createElement("script");
+            q.textContent = "history.replaceState(null, '', " + JSON.stringify(page.query) + ");";
+            doc.head.prepend(q);
+          }
+          return "<!doctype html>\n" + doc.documentElement.outerHTML;
+        }
+        function load(e) {
+          if (e.source !== parent || !e.data || e.data.type !== "ether:webclap-load") return;
+          removeEventListener("message", load);
+          var html = build(e.data.page);
+          document.open();
+          document.write(html);
+          document.close();
+        }
+        addEventListener("message", load);
+        parent.postMessage({ type: "ether:webclap-loader" }, "*");
+      })();
+    </script>
+  </body>
+</html>

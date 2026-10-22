@@ -1,6 +1,8 @@
 // Messages between the main thread, the controller Worker and the OPFS Worker, plus the
 // shared-buffer sizes. (Worker ↔ Worklet traffic goes through the SAB rings, in Rust.)
 
+import type { ModuleInfo } from "./webclap/wasm";
+
 /** Ring layout: 16 header bytes + a power-of-two data area (crates/ether-wasm/src/ring.rs). */
 export const RING_HEADER_BYTES = 16;
 /** Control ring (graph snapshots, params, transport, decoded media), Worker → Worklet. */
@@ -32,10 +34,16 @@ export type ToController =
        * waits for its last save, `WasmEndpoint.drain`).
        */
       handled: SharedArrayBuffer;
+      /** The installed WebCLAP plugins (JSON list of scanned modules) and their modules. */
+      webclapCatalog?: string;
+      webclapModules?: Omit<WebclapModuleMsg, "type">[];
       /** An extension's own init fields (`WebEngineExtension.init`). */
       [extra: string]: unknown;
     }
   | { type: "client"; json: string }
+  /** WebCLAP plugins installed or removed: the new catalog, then any new module. */
+  | { type: "webclap:catalog"; json: string }
+  | WebclapModuleMsg
   /** An extension's own message (`ControllerWorkerExtension.onMessage`). */
   | { type: `ext:${string}`; [field: string]: unknown };
 
@@ -46,6 +54,25 @@ export type FromController =
   | { type: "fatal"; message: string }
   /** An extension's own message (`WebEngineExtension.onControllerMessage`). */
   | { type: `ext:${string}`; [field: string]: unknown };
+
+/** An installed WebCLAP module as the engine realms get it (compiled once, on the page). */
+export interface WebclapModuleMsg {
+  type: "webclap:module";
+  id: string;
+  module: WebAssembly.Module;
+  info: ModuleInfo;
+}
+
+/** Page ↔ Worklet messages of WebCLAP (modules, the plugin UIs), on the node's port. */
+export type WebclapPortMsg =
+  | WebclapModuleMsg
+  /** UI → plugin (`receive`), or plugin → UI (`send`). */
+  | { type: "webclap:ui"; device: string; data: ArrayBuffer }
+  | { type: "webclap:open"; device: string; req: number }
+  | { type: "webclap:opened"; req: number; uri?: string; error?: string }
+  | { type: "webclap:close"; device: string }
+  | { type: "webclap:resource"; device: string; path: string; req: number }
+  | { type: "webclap:resourced"; req: number; mime?: string; data?: ArrayBuffer };
 
 /** Sync-FS request, controller Worker → OPFS Worker (answered through the fs buffer). */
 export type FsOp = "read" | "write" | "rename" | "list" | "mkdir" | "remove" | "stat" | "readRange";

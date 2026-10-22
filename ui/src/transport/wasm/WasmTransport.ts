@@ -14,6 +14,7 @@
 
 import type { ClientMessage, Command, Event, MeterFrame, PlayheadFrame, Project, ReplyValue, ServerMessage } from "@/generated";
 import { CommandFailedError, Emitter, type EngineTransport, type SendOptions, type Unsubscribe } from "../EngineTransport";
+import type { WebclapApi } from "@/features/webclap/api";
 
 /** Connection to the controller Worker, provided by the host app. */
 export interface WasmEndpoint {
@@ -31,6 +32,8 @@ export interface WasmEndpoint {
    * with it). Optional: endpoints without it never wait.
    */
   drain?(timeoutMs: number): boolean;
+  /** WebCLAP plugins (installed in the browser, hosted next to the engine). Optional. */
+  webclap?: WebclapApi;
   dispose(): void;
 }
 
@@ -74,6 +77,11 @@ export class WasmTransport implements EngineTransport {
     if (this.disposed || this.fatal) return null;
     const f = (this.endpoint as unknown as Record<string, unknown> | undefined)?.[name];
     return typeof f === "function" ? (f.bind(this.endpoint) as F) : null;
+  }
+
+  /** The endpoint's WebCLAP plugins (`null`: none, e.g. the tests' endpoints). */
+  get webclap(): WebclapApi | null {
+    return this.endpoint?.webclap ?? null;
   }
 
   /** The engine failed (a fatal Worker error): this session is not ending cleanly. */

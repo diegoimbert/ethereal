@@ -13,7 +13,10 @@ import { DeviceLayoutView, macrosWidgetParams } from "../layout";
 import { SamplePickerWindow, SampleSlot, samplerSample } from "../SampleSlot";
 import { deviceWindowWidth } from "./sizes";
 import { deviceWindowId, useDeviceWindows } from "./store";
-import { hasWindow } from "./useDeviceWindow";
+import { hasWindow, isWebclapWindow } from "./useDeviceWindow";
+import { useOptionalTransport } from "@/features/plugins/pluginStore";
+import { useWebclap } from "@/features/webclap/hooks";
+import { WebclapEditor } from "@/features/webclap/WebclapEditor";
 import "./window.css";
 import { useT } from "@/i18n";
 
@@ -34,7 +37,11 @@ export function DeviceWindowsRoot() {
   // Stacking order (the last one on top), drawn with z-index: the DOM order stays put, so
   // raising a window under the pointer never moves it mid-click.
   // Not a chain rack's (no window; one remembered from before isn't restored).
-  const shown = open.filter((id) => devices?.[id] && devices[id].kind.type === "Builtin" && hasWindow(devices[id]));
+  const transport = useOptionalTransport();
+  const shown = open.filter((id) => {
+    const d = devices?.[id];
+    return d && (d.kind.type === "Builtin" || isWebclapWindow(transport, d)) && hasWindow(d);
+  });
   const key = shown.join(",");
   useEffect(() => {
     // The kit stacks windows in the order they rose: follow the remembered order.
@@ -112,10 +119,17 @@ function DeviceWindow({ device, stack }: { device: Device; stack: number }) {
       data-device-window={device.id}
     >
       <ReadOnlySurface>
-        <DeviceEditor device={device} />
+        <PluginOrDeviceEditor device={device} />
       </ReadOnlySurface>
     </FloatingWindow>
   );
+}
+
+/** A WebCLAP plugin's web ui when it has one, else the device's editor (its params). */
+function PluginOrDeviceEditor({ device }: { device: Device }) {
+  const api = useWebclap();
+  if (api && device.kind.type === "Plugin" && api.hasUi(device.kind.plugin.plugin_id)) return <WebclapEditor device={device} api={api} />;
+  return <DeviceEditor device={device} />;
 }
 
 /**
