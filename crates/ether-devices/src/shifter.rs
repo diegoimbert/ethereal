@@ -32,6 +32,12 @@
 //!   phases; `Width` blends an independent right draw into the stepped random. The
 //!   follower tracks the louder channel's peak (0..1) with `Attack` / `Release`.
 //!
+//! - **Delay**: after the shifter, 10 ms ..= 8 s or a synced division; its output goes back
+//!   into the shifter's input through the `Tone` low-pass (300 Hz ..= off at 22 kHz) and a
+//!   soft clip, so every repeat is shifted again (rising or falling spirals, octave
+//!   cascades; `Feedback` up to 150 % saturates). With the delay on, the wet signal is the
+//!   delay's output; the switch fades over 10 ms, and a time change glides (tape-like).
+//!
 //! The delay lines are allocated in `prepare`; `process` allocates nothing.
 //!
 //! # Params (`BuiltinDeviceType::Shifter`, stable and append-only)
@@ -66,6 +72,12 @@
 //! | 25 | Envelope | `Release` | 0.1 ..= 400 Milliseconds (log), default 200 |
 //! | 26 | Envelope | `Env Depth` | -5000 ..= 5000 Hertz, default 0 |
 //! | 27 | Envelope | `Env Pitch` | -24 ..= 24 Semitones, default 0 |
+//! | 28 | Delay | `Delay` | toggle, default off |
+//! | 29 | Delay | `Delay Sync` | toggle, default on |
+//! | 30 | Delay | `Delay Time` | 10 ..= 8000 Milliseconds (log), default 250 |
+//! | 31 | Delay | `Delay Rate` | sync rate, default 1/8 |
+//! | 32 | Delay | `Feedback` | 0 ..= 150 Percent, default 0 |
+//! | 33 | Delay | `Tone` | 300 ..= 22000 Hertz (log; 22000 = off), default off |
 
 use std::f64::consts::{PI, TAU};
 
@@ -81,8 +93,8 @@ use ether_core::{
 use ether_core::TransportInfo;
 
 use crate::contract::{
-    FactoryPreset, SYNC_RATES, choice, descriptor as build, item, knob, layout, param, section,
-    toggle,
+    FactoryPreset, SYNC_EIGHTH, SYNC_RATE_BEATS, SYNC_RATES, choice, descriptor as build, item,
+    knob, layout, param, section, toggle,
 };
 use crate::dsp::flush;
 use crate::fx_modulation::shared::{Lfo, LfoStep, Rate};
@@ -122,8 +134,14 @@ pub mod params {
     pub const ENV_RELEASE: ParamId = ParamId(25);
     pub const ENV_DEPTH: ParamId = ParamId(26);
     pub const ENV_PITCH: ParamId = ParamId(27);
+    pub const DELAY_ON: ParamId = ParamId(28);
+    pub const DELAY_SYNC: ParamId = ParamId(29);
+    pub const DELAY_TIME: ParamId = ParamId(30);
+    pub const DELAY_RATE: ParamId = ParamId(31);
+    pub const FEEDBACK: ParamId = ParamId(32);
+    pub const TONE: ParamId = ParamId(33);
     /// Number of params.
-    pub const COUNT: usize = 28;
+    pub const COUNT: usize = 34;
 }
 
 /// `LFO Waveform` values (Live's Shifter order).
@@ -177,6 +195,14 @@ const GLIDE_MS: f64 = 15.0;
 const WINDOW_FADE_MS: f64 = 20.0;
 /// Samples kept between a read and the write head (the Hermite read's look-ahead).
 const GUARD: f64 = 3.0;
+/// Longest `Delay Time` (ms; Live's Shifter delay goes to 8 s).
+pub const MAX_DELAY_MS: f64 = 8000.0;
+/// `Tone` at its top: no filtering of the feedback.
+pub const TONE_OFF_HZ: f64 = 22000.0;
+/// Glide of the delay time (ms): a time change bends the echoes like tape.
+const DELAY_GLIDE_MS: f64 = 80.0;
+/// Fade of the delay switch (ms).
+const DELAY_FADE_MS: f32 = 10.0;
 
 /// Descriptor of the shifter.
 pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
@@ -363,6 +389,33 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                     ParamScale::Linear,
                 )
             },
+            toggle(28, "Delay", "Delay", false),
+            toggle(29, "Delay Sync", "Delay", true),
+            param(
+                30,
+                "Delay Time",
+                "Delay",
+                ParamUnit::Milliseconds,
+                (10.0, MAX_DELAY_MS, 250.0),
+                ParamScale::Log,
+            ),
+            choice(31, "Delay Rate", "Delay", &SYNC_RATES, SYNC_EIGHTH),
+            param(
+                32,
+                "Feedback",
+                "Delay",
+                ParamUnit::Percent,
+                (0.0, 150.0, 0.0),
+                ParamScale::Linear,
+            ),
+            param(
+                33,
+                "Tone",
+                "Delay",
+                ParamUnit::Hertz,
+                (300.0, TONE_OFF_HZ, TONE_OFF_HZ),
+                ParamScale::Log,
+            ),
         ],
         2,
         2,
@@ -472,6 +525,46 @@ fn device_layout() -> DeviceLayout {
                 knob(ids::ENV_PITCH, Medium),
             ],
         ),
+        section(
+            "delay",
+            Some("Delay"),
+            1,
+            4,
+            vec![
+                item(
+                    Widget::DelayTaps {
+                        time: ids::DELAY_TIME,
+                        feedback: ids::FEEDBACK,
+                        sync: Some(ids::DELAY_SYNC),
+                        division: Some(ids::DELAY_RATE),
+                        ping_pong: None,
+                        freeze: None,
+                    },
+                    Medium,
+                ),
+                item(
+                    Widget::Toggle {
+                        param: ids::DELAY_ON,
+                    },
+                    Small,
+                ),
+                knob(ids::DELAY_TIME, Small),
+                item(
+                    Widget::Toggle {
+                        param: ids::DELAY_SYNC,
+                    },
+                    Small,
+                ),
+                item(
+                    Widget::Choice {
+                        param: ids::DELAY_RATE,
+                    },
+                    Small,
+                ),
+                knob(ids::FEEDBACK, Medium),
+                knob(ids::TONE, Medium),
+            ],
+        ),
     ])
 }
 
@@ -504,7 +597,9 @@ pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
             "driven-ring",
             "wide-vibrato",
             "synced-sweep",
-            "envelope-ring"
+            "envelope-ring",
+            "spiral-echo",
+            "octave-cascade"
         ),
         _ => &[],
     }
@@ -784,6 +879,80 @@ impl Modulation {
     }
 }
 
+/// The delay after the shifter: its output feeds back into the shifter's input through the
+/// `Tone` low-pass and a soft clip, so each repeat is shifted again.
+struct Echo {
+    lines: [Vec<f32>; 2],
+    write: usize,
+    /// Delay in samples.
+    time: Glide,
+    /// The switch (0..1, faded) and the feedback gain.
+    on: Smoother,
+    feedback: Smoother,
+    /// One-pole low-pass coefficient of `Tone` (0 = off) and its state per channel.
+    tone: f32,
+    lp: [f32; 2],
+}
+
+impl Echo {
+    fn new() -> Self {
+        Self {
+            lines: [Vec::new(), Vec::new()],
+            write: 0,
+            time: Glide::new(0.0, 1e-3),
+            on: Smoother::new(0.0, DELAY_FADE_MS, 48_000.0),
+            feedback: Smoother::new(0.0, 0.0, 48_000.0),
+            tone: 0.0,
+            lp: [0.0; 2],
+        }
+    }
+
+    /// Non-RT. Lines for `MAX_DELAY_MS` at `sr`.
+    fn allocate(&mut self, sr: f64) {
+        let n = (MAX_DELAY_MS * 0.001 * sr).ceil() as usize + 8;
+        for l in &mut self.lines {
+            if l.len() != n {
+                *l = vec![0.0; n];
+            }
+        }
+        self.on = Smoother::new(self.on.target(), DELAY_FADE_MS, sr as f32);
+        self.time.set_time(DELAY_GLIDE_MS, sr);
+    }
+
+    fn reset(&mut self) {
+        for l in &mut self.lines {
+            l.fill(0.0);
+        }
+        self.write = 0;
+        self.lp = [0.0; 2];
+    }
+
+    /// Linear read `d` samples behind the newest sample of line `c`.
+    #[inline]
+    fn read(&self, c: usize, d: f64) -> f32 {
+        let line = &self.lines[c];
+        let n = line.len();
+        let d = d.clamp(1.0, (n - 2) as f64);
+        let i = d as usize;
+        let t = (d - i as f64) as f32;
+        let at = |k: usize| line[(self.write + n - k) % n];
+        let (a, b) = (at(i), at(i + 1));
+        a + (b - a) * t
+    }
+
+    /// The feedback into the shifter for channel `c` from the delay's output `y`.
+    #[inline]
+    fn feed(&mut self, c: usize, y: f32, gain: f32) -> f32 {
+        let lp = &mut self.lp[c];
+        *lp = if self.tone > 0.0 {
+            crate::dsp::flush32(y + (*lp - y) * self.tone)
+        } else {
+            y
+        };
+        gain * lp.tanh()
+    }
+}
+
 /// A sweep of the two taps: tap 1's position in `[0, 1)` (tap 2 is half a sweep ahead)
 /// across `window` samples.
 #[derive(Clone, Copy)]
@@ -941,6 +1110,7 @@ pub struct Shifter {
     carrier: Glide,
     drive: Smoother,
     mix: Smoother,
+    echo: Echo,
     tail: util::Tail,
 }
 
@@ -971,6 +1141,7 @@ impl Shifter {
             carrier: Glide::new(100.0, 1e-4),
             drive: Smoother::new(0.0, 0.0, 48_000.0),
             mix: Smoother::new(1.0, 0.0, 48_000.0),
+            echo: Echo::new(),
             tail: util::Tail::default(),
         };
         s.configure();
@@ -995,6 +1166,8 @@ impl Shifter {
         for t in &mut self.taps {
             t.allocate(sr, window);
         }
+        self.echo.allocate(sr);
+        self.apply(ids::DELAY_ON, false);
     }
 
     fn apply(&mut self, id: ParamId, smooth: bool) {
@@ -1048,6 +1221,26 @@ impl Shifter {
                 ramp(&mut self.drive, g);
             }
             ids::MIX => ramp(&mut self.mix, (v * 0.01) as f32),
+            ids::DELAY_ON => {
+                let on = if self.values.on(ids::DELAY_ON) {
+                    1.0
+                } else {
+                    0.0
+                };
+                if smooth {
+                    self.echo.on.set_target(on);
+                } else {
+                    self.echo.on.set_immediate(on);
+                }
+            }
+            ids::FEEDBACK => ramp(&mut self.echo.feedback, (v * 0.01) as f32),
+            ids::TONE => {
+                self.echo.tone = if v >= TONE_OFF_HZ - 1.0 {
+                    0.0
+                } else {
+                    (-std::f64::consts::TAU * v / self.sample_rate).exp() as f32
+                };
+            }
             ids::ENV_ATTACK => {
                 self.modulation.attack = util::tau_coef(v as f32, self.sample_rate as f32);
             }
@@ -1129,6 +1322,25 @@ impl Shifter {
         let env_on = v.on(ids::ENV_ON);
         let env_hz = if env_on { v.f(ids::ENV_DEPTH) } else { 0.0 };
         let env_st = if env_on { v.f(ids::ENV_PITCH) } else { 0.0 };
+        // The delay time for this sub-block (a synced one follows the tempo).
+        let delay_ms = if v.on(ids::DELAY_SYNC) {
+            let k = (v.f(ids::DELAY_RATE).round().max(0.0) as usize).min(SYNC_RATE_BEATS.len() - 1);
+            let bpm = if transport.bpm > 0.0 {
+                transport.bpm
+            } else {
+                120.0
+            };
+            SYNC_RATE_BEATS[k] * 60_000.0 / bpm
+        } else {
+            v.f(ids::DELAY_TIME)
+        };
+        let delay_target = (delay_ms.clamp(10.0, MAX_DELAY_MS) * 0.001 * sr).max(1.0);
+        if self.echo.time.target != delay_target {
+            self.echo.time.target = delay_target;
+            if self.echo.time.current == 0.0 {
+                self.echo.time.current = delay_target;
+            }
+        }
         for i in start..end {
             let semis = self.semitones.tick();
             let detune = self.detune.tick();
@@ -1184,13 +1396,29 @@ impl Shifter {
                 m.env = crate::dsp::flush32(level + (m.env - level) * k);
             }
             let env = f64::from(m.env);
+            let echo_on = self.echo.on.tick();
+            let feedback = self.echo.feedback.tick() * echo_on;
+            let delay = self.echo.time.tick();
+            let echo = echo_on > 0.0 || self.echo.on.is_smoothing();
+            if echo {
+                let n = self.echo.lines[0].len();
+                self.echo.write = (self.echo.write + 1) % n;
+            }
 
             for c in 0..n_ch {
-                let x = audio
+                let dry = audio
                     .inputs
                     .get(c)
                     .or(audio.inputs.first())
                     .map_or(0.0, |b| b[i]);
+                // The delay's output (written one sample ago or earlier) and what it feeds
+                // back into the shifter.
+                let (echoed, x) = if echo {
+                    let d = self.echo.read(c, delay);
+                    (d, dry + self.echo.feed(c, d, feedback))
+                } else {
+                    (0.0, dry)
+                };
                 let l = f64::from(lfo[c]);
                 let right = c == 1 && wide;
                 let taps = &mut self.taps[c];
@@ -1237,7 +1465,12 @@ impl Shifter {
                     let old = Self::wet(self.prev_mode, xd, taps, ana, cs, drive);
                     y += (old - y) * fade;
                 }
-                audio.outputs[c][i] = x + (y - x) * mix;
+                if echo {
+                    let w = self.echo.write;
+                    self.echo.lines[c][w] = crate::dsp::flush32(y);
+                    y += (echoed - y) * echo_on;
+                }
+                audio.outputs[c][i] = dry + (y - dry) * mix;
             }
         }
     }
@@ -1257,6 +1490,7 @@ impl Node for Shifter {
         self.hilbert = [Hilbert::default(); 2];
         self.phase = [0.0; 2];
         self.modulation.reset();
+        self.echo.reset();
         self.fade = 0;
     }
 
@@ -1289,11 +1523,19 @@ impl Node for Shifter {
         );
         let settled = !self.mix.is_smoothing()
             && !self.drive.is_smoothing()
+            && !self.echo.on.is_smoothing()
+            && !self.echo.feedback.is_smoothing()
             && self.fade == 0
             && self.semitones.settled()
             && self.taps.iter().all(PitchTaps::settled);
         // The pitch taps can hold a window of signal; the allpass chains ring briefly.
+        let echo = if self.echo.on.target() > 0.0 {
+            self.echo.lines[0].len()
+        } else {
+            0
+        };
         let hold = self.taps[0].line.len()
+            + echo
             + util::samples(util::BASE_HOLD_SECONDS, self.sample_rate as f32);
         self.tail.status_of(ctx, audio, settled, hold)
     }

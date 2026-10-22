@@ -1479,7 +1479,8 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   shifter over `Window`), frequency mode (single-sideband shift: an IIR allpass Hilbert pair
   and a complex carrier), ring mode (a cosine carrier, optional tanh `Drive`); `Wide`
   mirrors the right channel; a stereo LFO (the fx-modulation `Lfo`, song-locked when synced)
-  and an envelope follower add to the shift (Hz) or the pitch (semitones); no latency
+  and an envelope follower add to the shift (Hz) or the pitch (semitones); a delay after
+  it feeds back into the shifter's input (through `Tone` and a soft clip); no latency
   reported.
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
