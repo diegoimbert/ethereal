@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Clip, Command, Track } from "@/generated";
+import type { Clip, Command, Device, DeviceId, Track } from "@/generated";
+import { usePluginStore } from "@/features/plugins/pluginStore";
 import { devicesOfTrack, playheadStore, tracksOrdered, useEditorStore, useProjectStore, useSelectionStore } from "@/state";
 import { DEVICE_DRAG_TYPE } from "@/features/devices/chainUtils";
 import { itemSelection, wheelZoomFactor } from "@/timeline";
@@ -139,6 +140,7 @@ afterEach(() => {
   clearClipboard();
   mock.dispose();
   store().reset();
+  usePluginStore.getState().reset();
   useSelectionStore.getState().selectTrack(null);
   itemSelection.getState().clear();
   useEditorStore.setState({ clip: null, request: 0 });
@@ -433,6 +435,61 @@ describe("ArrangementView: track header polish", () => {
     expect(controls?.querySelector(".eth-arr-header__buttons")).toBeTruthy();
     expect(controls?.querySelector(".eth-arr-header__mix .eth-arr-vol")).toBeTruthy();
     expect(rule(".eth-arr-header__controls {")).toMatch(/flex-direction: column-reverse;/);
+  });
+
+  it("a track still loading looks unavailable, its controls inactive, until it has loaded (#260)", async () => {
+    const bass = trackByName("Bass");
+    const header = headerOf("Bass");
+    const row = header.closest(".eth-arr-row")!;
+    const mute = within(header).getByRole("button", { name: "mute Bass" });
+    expect(header.className).not.toContain("eth-arr-header--loading");
+    // One of Bass's plugins is still to load.
+    act(() => {
+      useProjectStore.setState((s) => ({
+        project: {
+          ...s.project!,
+          devices: {
+            ...s.project!.devices,
+            P1: {
+              id: "P1",
+              track: bass.id,
+              order: "z",
+              name: "Verb",
+              enabled: true,
+              kind: {
+                type: "Plugin",
+                plugin: { format: "Clap", plugin_id: "verb", name: "Verb", vendor: "Acme", version: "1", sandboxed: false, state: null },
+              },
+              pad: null,
+              chain: null,
+            } as unknown as Device,
+          },
+        },
+      }));
+      usePluginStore.setState({ loading: ["P1" as DeviceId] });
+    });
+    expect(header.className).toContain("eth-arr-header--loading");
+    expect(header.getAttribute("data-loading")).toBe("true");
+    expect(row.className).toContain("eth-arr-row--loading");
+    expect(mute).toBeDisabled();
+    expect(mute.getAttribute("title")).toBe("still loading");
+    expect(within(header).getByRole("button", { name: "solo Bass" })).toBeDisabled();
+    expect(header.querySelector(".eth-arr-header__mix-controls")?.hasAttribute("inert")).toBe(true);
+    // Its progress bar stays (not dimmed: the rule leaves it out).
+    expect(within(header).getByRole("progressbar", { name: "loading plugins: 0 of 1" })).toBeTruthy();
+    const css = readFileSync(resolve(__dirname, "arrangement.css"), "utf8");
+    expect(css).toMatch(/\.eth-arr-header--loading > :not\(\.eth-plugin-loading\) \{\s*filter: saturate\([\d.]+\) opacity\(var\(--eth-opacity-muted\)\);/);
+    // The other tracks are as usual; and the track is still selectable.
+    expect(headerOf("Keys").className).not.toContain("eth-arr-header--loading");
+    fireEvent.click(header);
+    expect(useArrangementUi.getState().selectedTracks.has(bass.id)).toBe(true);
+
+    // Loaded: back to normal.
+    act(() => usePluginStore.setState({ loading: [] }));
+    expect(header.className).not.toContain("eth-arr-header--loading");
+    expect(row.className).not.toContain("eth-arr-row--loading");
+    expect(mute).toBeEnabled();
+    expect(header.querySelector(".eth-arr-header__mix-controls")?.hasAttribute("inert")).toBe(false);
   });
 
   it("a selected clip gives its track's header the hover look, without selecting the track", async () => {

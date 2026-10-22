@@ -44,7 +44,8 @@ export const RectFlag = {
 } as const;
 
 /** Clip effects (CSS filter + opacity of the whole clip): see `clipFx` in shaders.ts. */
-export const Fx = { None: 0, Muted: 1, Frozen: 2 } as const;
+/** `Loading`: a track still loading while its project opens (#260; its opacity is the lane's). */
+export const Fx = { None: 0, Muted: 1, Frozen: 2, Loading: 3 } as const;
 export type FxCode = (typeof Fx)[keyof typeof Fx];
 
 /** A growable Float32 array of instances. */

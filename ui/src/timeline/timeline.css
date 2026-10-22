@@ -118,3 +118,54 @@
 :root[data-glow="off"] .eth-playhead-line::before {
   display: none;
 }
+
+/* A render runs (`RenderFrozenLayer`): what isn't rendered yet is frozen, a hatched shade
+   past the rendered part (its edge a dashed line that moves as the render advances) and
+   before the render's start. Pointer-transparent: editing goes on underneath. */
+.eth-render-frozen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+.eth-render-frozen__shade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--eth-color-text-dim) 16%, transparent) 0 var(--eth-space-hair),
+      transparent var(--eth-space-hair) var(--eth-space-sm)
+    ),
+    color-mix(in srgb, var(--eth-color-bg) 55%, transparent);
+}
+.eth-render-frozen__shade[hidden] {
+  display: none;
+}
+.eth-render-frozen__shade--before {
+  left: 0;
+}
+.eth-render-frozen__shade--after {
+  right: 0;
+}
+.eth-render-frozen__shade--after[data-edge] {
+  border-left: var(--eth-border-width-strong) dashed var(--eth-color-warn);
+}
+.eth-render-frozen__label {
+  position: absolute;
+  top: 50%;
+  left: var(--eth-space-xs);
+  transform: translateY(-50%);
+  padding-inline: var(--eth-space-xs);
+  border-radius: var(--eth-radius-sm);
+  font-size: var(--eth-fs-xs);
+  line-height: 1.4;
+  white-space: nowrap;
+  color: var(--eth-color-warn);
+  background: var(--eth-color-bg-overlay);
+}
+.eth-render-frozen__shade--after:not([data-edge]) .eth-render-frozen__label {
+  display: none;
+}

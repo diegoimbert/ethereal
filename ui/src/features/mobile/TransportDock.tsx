@@ -14,6 +14,7 @@ import { stopButton } from "@/features/time-edits/marker";
 import { PositionDisplay } from "@/features/transport-bar";
 import { useEngineCommands } from "@/features/transport-bar/engine";
 import { useProjectLoading } from "@/features/transport-bar/loading";
+import { useRendering } from "@/features/transport-bar/rendering";
 import { formatBpm, formatSignature } from "@/features/transport-bar/format";
 import { arrangementView } from "@/features/arrangement/uiStore";
 import { unsupportedTooltip, useRecordingUnsupported } from "@/features/recording/support";
@@ -30,6 +31,9 @@ export function TransportDock() {
   // Still loading: no play, stop or record yet (the rest works).
   const loading = useProjectLoading() !== null;
   const readOnly = useReadOnly();
+  // A render runs: play hears what is rendered so far (if anything), record waits.
+  const render = useRendering();
+  const noPreview = !!render && !render.preview;
   // The browser has no audio or MIDI inputs: no recording there, like the desktop bar.
   const noRecording = useRecordingUnsupported(transport ?? null, !disabled && !readOnly);
   const playing = state?.playing ?? false;
@@ -80,8 +84,8 @@ export function TransportDock() {
           aria-label={playing ? t("mobile.transport.pause") : t("mobile.transport.play")}
           active={playing}
           className="eth-mdock__btn eth-mdock__play"
-          title={loading ? t("error.project.loading") : undefined}
-          disabled={disabled || loading}
+          title={loading ? t("error.project.loading") : noPreview ? t("error.render.no_preview") : undefined}
+          disabled={disabled || loading || (noPreview && !playing)}
           onClick={() => void send(cmd("Transport", { type: playing ? "Stop" : "Play" }))}
         >
           {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
@@ -92,8 +96,10 @@ export function TransportDock() {
             aria-label={t("mobile.transport.record")}
             active={recording}
             className="eth-mdock__btn eth-mdock__record"
-            title={noRecording ? unsupportedTooltip() : loading ? t("error.project.loading") : undefined}
-            disabled={disabled || noRecording || loading}
+            title={
+              noRecording ? unsupportedTooltip() : loading ? t("error.project.loading") : render ? t("error.render.running") : undefined
+            }
+            disabled={disabled || noRecording || loading || (!!render && !recording)}
             onClick={() => void send(cmd("Recording", { type: "SetRecording", enabled: !recording }))}
           >
             <Circle aria-hidden />

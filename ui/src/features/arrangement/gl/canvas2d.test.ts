@@ -10,6 +10,7 @@ import { Batch, Pipeline } from "./glContext";
 import { GlyphAtlas } from "./glyphAtlas";
 import type { Palette } from "./palette";
 import {
+  Fx,
   InstanceWriter,
   NOTE_STRIDE,
   notePipeline,
@@ -143,6 +144,21 @@ describe("Canvas2DBackend", () => {
     const [r, g] = style.match(/\d+/g)!.map(Number);
     expect(r).toBeLessThan(255 * 0.55);
     expect(g).toBeGreaterThan(0);
+  });
+
+  it("a loading track's clips are desaturated, at the lane's opacity alone (#260)", () => {
+    const { b, calls } = backend();
+    const w = new InstanceWriter(RECT_STRIDE);
+    writeRect(w, { x: { b0: 1, b1: 5 }, y: { a0: 2, a1: 20 }, fill: [1, 0, 0, 1], fx: Fx.Loading });
+    writeRect(w, { x: { b0: 1, b1: 5 }, y: { a0: 2, a1: 20 }, fill: [1, 0, 0, 1], fx: Fx.Loading, alpha: 0.6 });
+    const p = rectPipeline();
+    b.draw(p, batch(p, w), row, 0, 2);
+    const [full, faded] = calls.filter((c) => c.op === "fill").map((c) => (c.state.fillStyle as string).match(/\d+/g)!.map(Number));
+    // Desaturated (green comes in), not faded by the effect itself...
+    expect(full![1]).toBeGreaterThan(0);
+    expect(full![0]).toBeCloseTo(255 * (0.213 + 0.787 * 0.2), -1);
+    // ...but by the lane's opacity (mixed into the black background).
+    expect(faded![0]).toBeCloseTo(full![0]! * 0.6, -1);
   });
 
   it("notes are rects in the clip body", () => {

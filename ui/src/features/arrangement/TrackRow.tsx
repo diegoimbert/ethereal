@@ -7,7 +7,7 @@ import { AudioLines, ChevronDown, Circle, CornerDownRight, Folder, Headphones, P
 import type { Beats, Track, TrackId } from "@/generated";
 import { promptForInputIfNone } from "@/features/audio-settings";
 import { TrackRecordSetup } from "@/features/recording";
-import { TrackPluginLoading } from "@/features/plugins";
+import { TrackPluginLoading, useTrackLoading } from "@/features/plugins";
 import { animateGroupFold, AutomationToggleButton, TrackAutomationLanes } from "@/features/automation";
 import { groupsTrackMenu, VcaLane } from "@/features/groups";
 import { FreezeHeaderStatus, inertTitle, useFrozenAncestor, withFreezeTrackEntries } from "@/features/freeze";
@@ -67,6 +67,8 @@ function RealTrackRow({ row }: { row: Row }) {
   const grid = useArrangementUi((s) => s.grid);
   // A selected track's header glows past its row (see .eth-arr-row--selected).
   const selected = useArrangementUi((s) => s.selectedTracks.has(row.track.id));
+  // Still loading as the project opens (#260): the row looks unavailable until it is ready.
+  const loading = useTrackLoading(row.track.id);
   // The arranger canvas covers the scrolling rows, not the pinned master row: the master's
   // automation lanes draw themselves.
   const gl = row.track.kind !== "Master";
@@ -93,7 +95,13 @@ function RealTrackRow({ row }: { row: Row }) {
   );
   return (
     <div
-      className={clsx("eth-arr-row", row.track.freeze && "eth-arr-row--frozen", inert && "eth-arr-row--inert", selected && "eth-arr-row--selected")}
+      className={clsx(
+        "eth-arr-row",
+        row.track.freeze && "eth-arr-row--frozen",
+        inert && "eth-arr-row--inert",
+        selected && "eth-arr-row--selected",
+        loading && "eth-arr-row--loading",
+      )}
       // The automation lanes' headers indent and tint like the track's (arrangement.css).
       style={{ height: row.height, ["--eth-track-depth" as string]: depth, ["--eth-track-color" as string]: colorCss(track.color) }}
       data-track={row.track.id}
@@ -228,6 +236,10 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
   });
   const armed = useProjectStore((s) => s.armedTracks.includes(track.id));
   const inert = useFrozenAncestor(track.id);
+  // Still loading as the project opens (#260): dimmed, its mute, solo and arm inactive (with
+  // why); it can still be selected, renamed and opened.
+  const loading = useTrackLoading(track.id);
+  const loadingTitle = loading ? t("arrangement.header.loading") : null;
   const folded = useArrangementUi((s) => s.folded.has(track.id));
   const [renaming, setRenaming] = useState(false);
   const [recordSetup, setRecordSetup] = useState(false);
@@ -282,9 +294,11 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
           compact && "eth-arr-header--compact",
           headerWidth < NARROW_HEADER_WIDTH && "eth-arr-header--narrow",
           inert && "eth-arr-header--inert",
+          loading && "eth-arr-header--loading",
           `eth-arr-header--${track.kind.toLowerCase()}`,
         )}
         data-clip-selected={clipSelected || undefined}
+        data-loading={loading || undefined}
         data-group-hover={inHoveredGroup || undefined}
         data-relayout={relayout || undefined}
         onPointerEnter={track.kind === "Group" ? () => useArrangementUi.getState().setHoveredGroup(track.id) : undefined}
@@ -393,8 +407,9 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
           them. The buttons come first in the DOM (the touch layouts lay them out before the
           volume and pan: mobile.css); arrangement.css puts them below. */}
         <span className="eth-arr-header__controls">
+          {/* Loading: a disabled button shows no tooltip in every browser; the box says why. */}
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- only keeps its events from reaching the track header around it */}
-          <span className="eth-arr-header__buttons" onClick={stop}>
+          <span className="eth-arr-header__buttons" onClick={stop} title={loadingTitle ?? undefined}>
             <FreezeHeaderStatus track={track} transport={transport} />
             {/* First: the takes button must not move the others (their positions are the same
             with or without take lanes). */}
@@ -405,8 +420,8 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
               {...midiTarget({ type: "TrackMute", track: track.id })}
               aria-pressed={mute}
               aria-label={t("arrangement.header.mute_named", { name: track.name })}
-              disabled={!!inert || !!listenBlocked}
-              title={inert ? inertTitle(inert) : (listenBlocked ?? (mute ? t("arrangement.header.unmute") : t("arrangement.header.mute")))}
+              disabled={!!inert || loading || !!listenBlocked}
+              title={inert ? inertTitle(inert) : (loadingTitle ?? listenBlocked ?? (mute ? t("arrangement.header.unmute") : t("arrangement.header.mute")))}
               onClick={() => void sendEdit(transport, cmd("Mixer", { type: "SetMute", track: track.id, mute: !mute }))}
             >
               {mute ? <VolumeX /> : <Volume2 />}
@@ -418,8 +433,8 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
                 {...midiTarget({ type: "TrackSolo", track: track.id })}
                 aria-pressed={solo}
                 aria-label={t("arrangement.header.solo_named", { name: track.name })}
-                disabled={!!inert || !!listenBlocked}
-                title={inert ? inertTitle(inert) : (listenBlocked ?? t("arrangement.header.solo_title"))}
+                disabled={!!inert || loading || !!listenBlocked}
+                title={inert ? inertTitle(inert) : (loadingTitle ?? listenBlocked ?? t("arrangement.header.solo_title"))}
                 onClick={(e) =>
                   void sendEdit(transport, trackSoloCommand(Object.values(useProjectStore.getState().project?.tracks ?? {}), track.id, additiveClick(e)))
                 }
@@ -449,12 +464,13 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
                     aria-pressed={armed}
                     aria-label={t("arrangement.header.arm_named", { name: track.name })}
                     // Browser build: a tapped track can't record (no capture); say why.
-                    aria-disabled={armBlocked || inert ? true : undefined}
-                    style={armBlocked || inert ? { opacity: "var(--eth-opacity-disabled)", cursor: "not-allowed" } : undefined}
-                    title={(inert ? inertTitle(inert) : armBlocked) ?? t("arrangement.header.arm_title")}
+                    aria-disabled={armBlocked || inert || loading ? true : undefined}
+                    style={armBlocked || inert || loading ? { opacity: "var(--eth-opacity-disabled)", cursor: "not-allowed" } : undefined}
+                    title={(inert ? inertTitle(inert) : (loadingTitle ?? armBlocked)) ?? t("arrangement.header.arm_title")}
                     onClick={(e) =>
                       !armBlocked &&
                       !inert &&
+                      !loading &&
                       void transport
                         .send(
                           cmd("Recording", {
@@ -486,9 +502,12 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
             )}
             <AutomationToggle track={track} />
           </span>
-          <span className="eth-arr-header__mix">
-            <HeaderVolume track={track} />
-            <HeaderPan track={track} />
+          {/* Loading: the fader and pan are inactive; the box keeps the tooltip saying why. */}
+          <span className="eth-arr-header__mix" title={loadingTitle ?? undefined}>
+            <span className="eth-arr-header__mix-controls" inert={loading || undefined}>
+              <HeaderVolume track={track} />
+              <HeaderPan track={track} />
+            </span>
           </span>
         </span>
         {/* A big project opening: how many of the track's plugins are loaded. */}

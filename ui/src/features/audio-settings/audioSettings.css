@@ -47,12 +47,6 @@
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-sm);
 }
-/* A switch with its explanation under it (render ahead). */
-.eth-audio-settings__option {
-  display: flex;
-  flex-direction: column;
-  gap: var(--eth-space-xs);
-}
 .eth-audio-settings__heading {
   margin: 0 0 var(--eth-space-xs);
   font-size: var(--eth-fs-sm);
@@ -349,4 +343,124 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* A card and its menu button (top right, shown on hover or focus). */
+.eth-theme-card-wrap {
+  position: relative;
+  display: flex;
+}
+.eth-theme-card-wrap > .eth-theme-card {
+  flex: 1;
+  min-width: 0;
+}
+.eth-theme-card__more {
+  position: absolute;
+  top: var(--eth-space-sm);
+  right: var(--eth-space-sm);
+  opacity: 0;
+  background: var(--eth-color-bg-overlay);
+  transition: opacity var(--eth-duration-fast) var(--eth-ease-standard);
+}
+.eth-theme-card-wrap:hover > .eth-theme-card__more,
+.eth-theme-card__more:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .eth-theme-card__more {
+    opacity: 1;
+  }
+}
+.eth-theme-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--eth-space-sm);
+}
+.eth-theme-message {
+  margin: 0;
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-theme-message--error {
+  color: var(--eth-color-danger);
+}
+
+/* The theme editor (ThemeEditor). */
+.eth-theme-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+}
+.eth-theme-editor__title,
+.eth-theme-editor__subtitle {
+  margin: 0;
+  font-size: var(--eth-fs-sm);
+  font-weight: var(--eth-fw-medium);
+  color: var(--eth-color-text);
+}
+.eth-theme-editor__subtitle {
+  margin-top: var(--eth-space-md);
+}
+summary.eth-theme-editor__subtitle {
+  cursor: pointer;
+}
+.eth-theme-editor__name {
+  width: var(--eth-size-select-search-width);
+}
+.eth-theme-editor__colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--eth-size-select-search-width), 1fr));
+  gap: var(--eth-space-xs) var(--eth-space-lg);
+}
+.eth-theme-editor__color {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-height: var(--eth-size-row-height);
+}
+.eth-theme-editor__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.eth-theme-editor__color:not([data-set]) .eth-theme-editor__label {
+  color: var(--eth-color-text-dim);
+}
+.eth-theme-editor__swatch {
+  flex: none;
+  width: var(--eth-size-control-md);
+  height: var(--eth-size-control-sm);
+  padding: 0;
+  border: var(--eth-border-width) solid var(--eth-color-border-strong);
+  border-radius: var(--eth-radius-sm);
+  background: none;
+  cursor: pointer;
+}
+.eth-theme-editor__swatch::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+.eth-theme-editor__swatch::-webkit-color-swatch {
+  border: none;
+  border-radius: var(--eth-radius-xs);
+}
+.eth-theme-editor__value {
+  flex: none;
+  width: calc(var(--eth-size-control-lg) * 4);
+  font-family: var(--eth-font-mono);
+}
+.eth-theme-editor__failures {
+  margin: 0;
+  padding-left: var(--eth-space-xl);
+  color: var(--eth-color-warn);
+  font-size: var(--eth-fs-xs);
+}
+.eth-theme-editor__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  margin-top: var(--eth-space-md);
+}
+.eth-theme-editor__spacer {
+  flex: 1;
 }

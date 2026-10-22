@@ -26,7 +26,7 @@ Some settings belong to a project (tempo, swing, MIDI mappings) and live in the 
 
 ## appearance
 
-- **theme**: one of six built-in themes, or follow the system's light or dark. See [themes](/docs/advanced/themes).
+- **theme**: one of six built-in themes or one of your own (**create your own theme**, **import theme…**), or follow the system's light or dark. See [themes](/docs/advanced/themes).
 - **zoom**: scales the whole interface (text, controls and panels).
 - **animations**: classic, fast (every animation takes half the time) or reduced motion (changes apply at once).
 - **color blobs**: the soft colors drifting behind dialogs and, faintly, behind the arrangement.
