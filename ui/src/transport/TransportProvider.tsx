@@ -6,6 +6,7 @@ import { cmd } from "./cmd";
 import { TransportContext, type ConnectionStatus } from "./context";
 import { TransportSwitchContext, type TransportSwitch } from "./createDefaultTransport";
 import type { EngineTransport } from "./EngineTransport";
+import { listProjects } from "./projectList";
 
 const CONNECTING: ConnectionStatus = { status: "connecting" };
 
@@ -48,7 +49,7 @@ export function TransportProvider({ transport: local, children }: TransportProvi
       // Another engine: the last one's dirty flag and armed tracks don't describe this one.
       store().setDirty(false);
       store().setArmedTracks([]);
-      transport.send(cmd("Project", { type: "List" })).then(
+      listProjects(transport).then(
         (reply) => {
           if (active && reply.type === "Projects") store().setProjects(reply.projects);
         },

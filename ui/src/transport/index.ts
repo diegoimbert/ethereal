@@ -6,6 +6,7 @@ export { TransportContext, useConnectionStatus, useTransport, useTransportEvent,
 export { createDefaultTransport, isTauri, loadMockTransport } from "./createDefaultTransport";
 export { CommandFailedError, commandErrorText, Emitter, isCommandFailed, type EngineTransport, type SendOptions, type Unsubscribe } from "./EngineTransport";
 export { openExternal } from "./external";
+export { listProjects } from "./projectList";
 export { deriveId, newId, newProjectId, nextGestureId, uuidv7 } from "./ids";
 export { BUILTIN_DESCRIPTORS, builtinDescriptor, clampParam } from "./mock/builtinDevices";
 export { TauriTransport } from "./tauri/TauriTransport";

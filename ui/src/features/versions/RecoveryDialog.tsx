@@ -3,7 +3,7 @@ import type { Command, ProjectId, RecoveryInfo } from "@/generated";
 import { useProjectScreen } from "@/features/project/screenStore";
 import { useEngineCommands, useOptionalConnection } from "@/features/transport-bar/engine";
 import { Button, Dialog, DismissibleError } from "@/kit";
-import { cmd } from "@/transport";
+import { cmd, listProjects } from "@/transport";
 import { formatExact, formatWhen } from "./format";
 import { previousSession } from "./session";
 import { useRecoveryShown } from "./store";
@@ -47,7 +47,7 @@ export function RecoveryDialog() {
     void Promise.all([
       send(cmd("Version", { type: "ListRecoverable" })),
       previousSession(transport).catch(() => null),
-      send(cmd("Project", { type: "List" })),
+      listProjects(transport).catch(() => null),
     ]).then(([recoverable, session, list]) => {
       if (!active || recoverable?.type !== "Recoverable") return;
       const projects = list?.type === "Projects" ? list.projects : [];
