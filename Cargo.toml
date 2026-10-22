@@ -18,6 +18,8 @@ members = [
     "crates/ether-sandbox",
     "crates/ether-native",
     "crates/ether-wasm",
+    # The web host's test WebCLAP (wasm32 only).
+    "crates/ether-webclap-fixture",
     # Roadmap v2.
     "crates/ether-server",
     "apps/desktop/src-tauri",

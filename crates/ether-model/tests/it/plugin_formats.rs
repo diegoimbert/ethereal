@@ -95,6 +95,7 @@ fn format_tags_are_stable() {
         (PluginFormat::Vst3, "Vst3", "vst3"),
         (PluginFormat::Au, "Au", "au"),
         (PluginFormat::Vst2, "Vst2", "vst2"),
+        (PluginFormat::Webclap, "Webclap", "webclap"),
     ] {
         assert_eq!(serde_json::to_value(f).unwrap(), Value::from(tag));
         assert_eq!(
@@ -107,7 +108,7 @@ fn format_tags_are_stable() {
         assert_eq!(PluginFormat::parse(&cli.to_uppercase()), Some(f));
     }
     assert_eq!(PluginFormat::parse("vst"), None);
-    assert_eq!(PluginFormat::ALL.len(), 4);
+    assert_eq!(PluginFormat::ALL.len(), 5);
 }
 
 #[test]
@@ -117,9 +118,10 @@ fn every_format_round_trips_through_ether_files() {
         plugin(PluginFormat::Vst3, "565354416D627261736F6E6963000000"),
         plugin(PluginFormat::Au, "aufx:dely:appl"),
         plugin(PluginFormat::Vst2, "45744732"),
+        plugin(PluginFormat::Webclap, "com.example.web-gain"),
     ]);
     let json = file::save(&p, "test").unwrap();
-    assert_eq!(formats_in(&json), ["Au", "Clap", "Vst2", "Vst3"]);
+    assert_eq!(formats_in(&json), ["Au", "Clap", "Vst2", "Vst3", "Webclap"]);
     let back = file::load(&json).unwrap();
     assert_eq!(back, p);
 }

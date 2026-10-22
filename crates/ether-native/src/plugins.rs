@@ -142,6 +142,7 @@ pub fn format_label(format: PluginFormat) -> &'static str {
         PluginFormat::Vst3 => "VST3",
         PluginFormat::Au => "AU",
         PluginFormat::Vst2 => "VST2",
+        PluginFormat::Webclap => "WebCLAP",
     }
 }
 
