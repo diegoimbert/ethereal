@@ -1,5 +1,5 @@
 //! `midi-fx` MIDI in -> MIDI out tests: Arpeggiator, Chord, Scale, Note Length, Velocity,
-//! Random, Pitch. Every `process` call runs under `assert_no_alloc` (debug builds abort on an
+//! Random, Pitch, Note Blocker. Every `process` call runs under `assert_no_alloc` (debug builds abort on an
 //! allocation on the audio path). Includes the stuck-note tests (release, `AllNotesOff`,
 //! `reset` = stop/bypass/removal flush) and block-size independence.
 
@@ -14,8 +14,8 @@ use ether_core::{
     TransportInfo,
 };
 use ether_devices::midi_fx::{
-    self, GENERATED, arpeggiator as arp, chord, note_length as nl, pitch, randomizer as rnd,
-    scale_quantize as sq, velocity as vel,
+    self, GENERATED, arpeggiator as arp, chord, note_blocker as nb, note_length as nl, pitch,
+    randomizer as rnd, scale_quantize as sq, velocity as vel,
 };
 
 const SR: f32 = 48_000.0;
@@ -852,9 +852,180 @@ fn pitch_note_offs_and_expressions_follow_their_note_on() {
     assert!(render(&mut *d, 64, &events).is_empty());
 }
 
-// ─── All seven ──────────────────────────────────────────────────────────────────────────
+// ─── Note Blocker ───────────────────────────────────────────────────────────────────────
 
-const ALL: [BuiltinDeviceType; 7] = [
+fn cc(n: u8, v: u8) -> EventKind {
+    EventKind::Midi { data: [0xB0, n, v] }
+}
+
+/// CC, pitch bend, channel and poly aftertouch, program change.
+fn other_midi() -> [EventKind; 5] {
+    [
+        cc(1, 64),
+        EventKind::Midi {
+            data: [0xE0, 0, 80],
+        },
+        EventKind::Midi {
+            data: [0xD0, 90, 0],
+        },
+        EventKind::Midi {
+            data: [0xA0, 60, 70],
+        },
+        EventKind::Midi { data: [0xC0, 5, 0] },
+    ]
+}
+
+#[test]
+fn note_blocker_drops_every_note_and_passes_other_midi() {
+    let mut d = device(BuiltinDeviceType::NoteBlocker);
+    let expr = EventKind::NoteExpression {
+        note_id: 1,
+        channel: 0,
+        key: 60,
+        expression: ether_core::protocol::model::NoteExpressionKind::Pitch,
+        value: 2.0,
+    };
+    let mut events = vec![
+        (0, on(1, 60, 0.8)),
+        (0, on(2, 64, 0.8)),
+        (5, expr),
+        (10, off(1, 60)),
+        (
+            12,
+            EventKind::NoteChoke {
+                note_id: 2,
+                channel: 0,
+                key: 64,
+            },
+        ),
+        // Raw MIDI notes too.
+        (
+            14,
+            EventKind::Midi {
+                data: [0x90, 62, 100],
+            },
+        ),
+        (
+            16,
+            EventKind::Midi {
+                data: [0x90, 62, 0],
+            },
+        ),
+    ];
+    let others = other_midi();
+    events.extend(others.iter().enumerate().map(|(i, k)| (20 + i, *k)));
+    events.push((30, EventKind::AllNotesOff));
+    let out = render(&mut *d, 64, &events);
+    // Raw note-offs pass (they release nothing downstream); every other message passes.
+    let mut expected = vec![(
+        16,
+        EventKind::Midi {
+            data: [0x90, 62, 0],
+        },
+    )];
+    expected.extend(others.iter().enumerate().map(|(i, k)| (20 + i, *k)));
+    expected.push((30, EventKind::AllNotesOff));
+    assert_eq!(out, expected);
+}
+
+#[test]
+fn note_blocker_block_everything_drops_all_midi_but_releases() {
+    let mut d = with(
+        BuiltinDeviceType::NoteBlocker,
+        &[(nb::BLOCK_EVERYTHING, 1.0)],
+    );
+    let mut events = vec![(0, on(1, 60, 0.8)), (10, off(1, 60))];
+    events.extend(other_midi().iter().enumerate().map(|(i, k)| (20 + i, *k)));
+    events.push((
+        30,
+        EventKind::Midi {
+            data: [0x80, 62, 0],
+        },
+    ));
+    events.push((40, EventKind::AllNotesOff));
+    assert_eq!(
+        render(&mut *d, 64, &events),
+        [
+            (
+                30,
+                EventKind::Midi {
+                    data: [0x80, 62, 0]
+                }
+            ),
+            (40, EventKind::AllNotesOff),
+        ]
+    );
+    // Off again (automated): other MIDI passes from that sample on, notes still don't.
+    let events = [
+        (0, cc(7, 1)),
+        (
+            5,
+            EventKind::Param {
+                param: nb::BLOCK_EVERYTHING,
+                value: 0.0,
+            },
+        ),
+        (6, on(3, 60, 0.5)),
+        (8, cc(7, 2)),
+    ];
+    assert_eq!(render(&mut *d, 64, &events), [(8, cc(7, 2))]);
+}
+
+#[test]
+fn note_blocker_releases_notes_held_before_it_and_never_retriggers() {
+    let mut d = device(BuiltinDeviceType::NoteBlocker);
+    // Notes 1 and 2 started before the blocker (added or switched on mid-note): their
+    // note-offs pass, so the instrument releases them; note 3 starts after and is dropped
+    // with its note-off.
+    let events = [
+        (0, on(3, 67, 0.8)),
+        (10, off(1, 60)),
+        (
+            11,
+            EventKind::NoteChoke {
+                note_id: 2,
+                channel: 0,
+                key: 64,
+            },
+        ),
+        (20, off(3, 67)),
+    ];
+    assert_eq!(
+        render(&mut *d, 64, &events),
+        [
+            (10, off(1, 60)),
+            (
+                11,
+                EventKind::NoteChoke {
+                    note_id: 2,
+                    channel: 0,
+                    key: 64,
+                },
+            ),
+        ]
+    );
+    // A dropped note's note-off is dropped even after an `AllNotesOff` or a reset, and never
+    // starts anything.
+    let events = [(0, on(4, 60, 0.8)), (5, EventKind::AllNotesOff)];
+    assert_eq!(render(&mut *d, 64, &events), [(5, EventKind::AllNotesOff)]);
+    d.reset();
+    assert!(render(&mut *d, 64, &[(3, off(4, 60))]).is_empty());
+    // More notes held at once than it tracks: the oldest note-offs pass, none is stuck.
+    let mut events: Vec<(usize, EventKind)> = (0..300)
+        .map(|i| (i, on(i as u32, (i % 128) as u8, 0.5)))
+        .collect();
+    events.extend((0..300).map(|i| (400 + i, off(i as u32, (i % 128) as u8))));
+    let out = render(&mut *d, 1024, &events);
+    assert!(
+        out.iter()
+            .all(|(_, k)| matches!(k, EventKind::NoteOff { .. }))
+    );
+    assert!(out.len() <= 300 - 256, "{}", out.len());
+}
+
+// ─── All eight ──────────────────────────────────────────────────────────────────────────
+
+const ALL: [BuiltinDeviceType; 8] = [
     BuiltinDeviceType::Arpeggiator,
     BuiltinDeviceType::Chord,
     BuiltinDeviceType::ScaleQuantize,
@@ -862,6 +1033,7 @@ const ALL: [BuiltinDeviceType; 7] = [
     BuiltinDeviceType::Velocity,
     BuiltinDeviceType::Randomizer,
     BuiltinDeviceType::Pitch,
+    BuiltinDeviceType::NoteBlocker,
 ];
 
 /// Settings that make each device generate and delay notes.
@@ -999,7 +1171,12 @@ fn every_midi_effect_survives_extreme_params_and_floods() {
             events.push((i * 5 + 3, off(id, key)));
         }
         let out = render_with(&mut *d, 12_000, 1024, true, &events);
-        assert!(!out.is_empty(), "{ty:?}");
+        // Block Everything (its max) lets nothing through.
+        assert_eq!(
+            out.is_empty(),
+            ty == BuiltinDeviceType::NoteBlocker,
+            "{ty:?}"
+        );
     }
 }
 

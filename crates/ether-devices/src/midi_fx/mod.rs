@@ -108,6 +108,20 @@
 //! | 1 | Range | `Lowest` | 0 ..= 127 (stepped), default 0 |
 //! | 2 | Range | `Range` | 0 ..= 127 Semitones (stepped), default 127 |
 //! | 3 | Range | `Mode` | Block / Fold / Limit (default Block) |
+//!
+//! # Note Blocker (`BuiltinDeviceType::NoteBlocker`)
+//!
+//! Drops every note-on (and the note-offs and per-note expressions of the notes it drops):
+//! nothing after it plays, the device-level equivalent of muting the MIDI going in. Other MIDI
+//! (CC, pitch bend, aftertouch, program change) passes unless `Block Everything` is on;
+//! `AllNotesOff` always passes. No stuck notes: a note-off of a note held before it was added
+//! or switched on passes, and the engine sends `AllNotesOff` past it when it is added and on
+//! every on/off switch (`ChainRt::switch_notes`); switching it off never retriggers the notes
+//! held upstream (they play again from their next note-on).
+//!
+//! | id | group | name | range |
+//! |----|-------|------|-------|
+//! | 0 | Note Blocker | `Block Everything` | toggle, default off (notes only) |
 
 use ether_core::Device;
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, ParamScale, ParamUnit};
@@ -123,6 +137,7 @@ mod core;
 mod fx_arp;
 mod fx_chord;
 mod fx_length;
+mod fx_note_blocker;
 mod fx_pitch;
 mod fx_random;
 mod fx_scale;
@@ -132,6 +147,7 @@ pub use self::core::GENERATED;
 pub use self::fx_arp::Arpeggiator;
 pub use self::fx_chord::Chord;
 pub use self::fx_length::NoteLength;
+pub use self::fx_note_blocker::NoteBlocker;
 pub use self::fx_pitch::Pitch;
 pub use self::fx_random::Randomizer;
 pub use self::fx_scale::ScaleQuantize;
@@ -240,6 +256,15 @@ pub mod pitch {
     pub const MODE: ParamId = ParamId(3);
     /// Number of params.
     pub const COUNT: usize = 4;
+}
+
+/// Param ids of `NoteBlocker` (stable, append-only).
+pub mod note_blocker {
+    use ether_core::protocol::model::ParamId;
+    /// Off = notes only; on = every other MIDI message too.
+    pub const BLOCK_EVERYTHING: ParamId = ParamId(0);
+    /// Number of params.
+    pub const COUNT: usize = 1;
 }
 
 /// Descriptor of a type of this group.
@@ -429,6 +454,13 @@ fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
                 ),
             ])
         }
+        BuiltinDeviceType::NoteBlocker => layout(vec![section(
+            "block",
+            None,
+            1,
+            1,
+            vec![switch(note_blocker::BLOCK_EVERYTHING, Medium)],
+        )]),
         other => unreachable!("{other:?} is not a `midi-fx` device"),
     }
 }
@@ -756,6 +788,16 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
             true,
             0,
         ),
+        BuiltinDeviceType::NoteBlocker => build(
+            BuiltinDeviceType::NoteBlocker,
+            "Note Blocker",
+            DeviceCategory::NoteEffect,
+            vec![toggle(0, "Block Everything", "Note Blocker", false)],
+            0,
+            0,
+            true,
+            0,
+        ),
         other => unreachable!("{other:?} is not a `midi-fx` device"),
     }
 }
@@ -773,6 +815,7 @@ pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
         BuiltinDeviceType::Velocity => Box::new(Velocity::new()),
         BuiltinDeviceType::Randomizer => Box::new(Randomizer::new()),
         BuiltinDeviceType::Pitch => Box::new(Pitch::new()),
+        BuiltinDeviceType::NoteBlocker => Box::new(NoteBlocker::new()),
         other => unreachable!("{other:?} is not a `midi-fx` device"),
     }
 }
@@ -818,6 +861,9 @@ pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
             presets!("randomizer": "gentle-humanize", "octave-jumps", "in-scale-melody")
         }
         BuiltinDeviceType::Pitch => presets!("pitch": "octave-up", "octave-down", "fold-to-bass"),
+        BuiltinDeviceType::NoteBlocker => {
+            presets!("note-blocker": "notes-only", "block-everything")
+        }
         _ => &[],
     }
 }

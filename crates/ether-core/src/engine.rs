@@ -1551,26 +1551,15 @@ impl JobCtx<'_> {
         for k in 0..chain.len() {
             let (head, tail) = chain.split_at_mut(k + 1);
             let entry = &mut head[k];
-            *overflow |= entry.switch_notes(tail.first_mut().map(|e| &mut e.events));
-            entry.events.sort();
+            // Off = MIDI thru (v0.2 `midi-fx`, `ChainRt::route_midi`): its notes reach the
+            // next device (its own params don't). One still fading out runs without events.
+            *overflow |= entry.route_midi(tail.first_mut().map(|e| &mut e.events));
             *overflow |= entry.events.overflowed();
             let key = entry.key;
             // The bypass path keeps the input (`ChainRt::blend`), before anything writes it.
             entry.push_dry(a, n);
             // Sidechain PDC: delay the main signal before this entry if planned.
             rt_sidechain.align_main(key, a, n);
-            // Off = MIDI thru (v0.2 `midi-fx`): its notes reach the next device (its own
-            // params don't). One still fading out runs without events.
-            if !entry.is_enabled() {
-                if let Some(next) = tail.first_mut() {
-                    for e in entry.events.as_slice() {
-                        if !matches!(e.kind, EventKind::Param { .. }) {
-                            next.events.push(*e);
-                        }
-                    }
-                }
-                entry.events.clear();
-            }
             let runs = entry.runs();
             // Drum rack: pad chains feed the rack node's input (`crate::drum_rack`).
             if runs && !racks.is_empty() && racks.is_rack(key) {
@@ -1699,9 +1688,7 @@ impl JobCtx<'_> {
                 chain_racks.finish(key, out_events);
             }
             // A device fading out sends no MIDI (it is thru already).
-            if !entry.is_enabled() {
-                out_events.clear();
-            }
+            entry.gate_output(out_events);
             match n_out {
                 0 => {}
                 1 => {

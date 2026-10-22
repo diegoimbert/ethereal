@@ -47,6 +47,7 @@ mod mock_contract;
 mod modulation;
 mod mpe;
 mod multisampler;
+mod note_blocker;
 mod perf_plugins;
 mod plugin_sidechain;
 mod plugin_state_saves;

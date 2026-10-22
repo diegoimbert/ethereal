@@ -68,6 +68,7 @@ const CASES: Case[] = [
   { type: "NoteLength", midi: true, shows: [] },
   { type: "Randomizer", midi: true, shows: [] },
   { type: "Pitch", midi: true, shows: [], change: { param: 0, action: { knob: "Pitch" }, expect: (v) => v === 128 } },
+  { type: "NoteBlocker", midi: true, shows: [], change: { param: 0, action: { toggle: "Block Everything" }, expect: (v) => v === 1 } },
 ];
 
 async function act(page: Page, win: Locator, a: Action) {

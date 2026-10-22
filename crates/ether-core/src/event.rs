@@ -97,6 +97,11 @@ impl EventBuffer {
         self.overflowed
     }
 
+    /// RT-safe, in place: keeps the events `keep` returns `true` for, in order.
+    pub fn retain(&mut self, keep: impl FnMut(&ProcessEvent) -> bool) {
+        self.events.retain(keep);
+    }
+
     /// RT-safe, in place, no allocation: stable insertion sort by offset (event lists are
     /// small and nearly sorted), then **note-offs before note-ons at the same offset**: two
     /// notes that touch (one ends on the sample the next starts) never overlap, so

@@ -1191,6 +1191,60 @@
     ],
     "sidechain_inputs": 0
   },
+  "NoteBlocker": {
+    "audio_inputs": 0,
+    "audio_outputs": 0,
+    "category": "NoteEffect",
+    "device_type": {
+      "device": "NoteBlocker",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 1,
+          "id": "block",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 0,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": null
+        }
+      ]
+    },
+    "midi_input": true,
+    "name": "Note Blocker",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Note Blocker",
+        "hidden": false,
+        "id": 0,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Block Everything",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      }
+    ],
+    "sidechain_inputs": 0
+  },
   "NoteLength": {
     "audio_inputs": 0,
     "audio_outputs": 0,

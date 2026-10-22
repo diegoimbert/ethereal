@@ -21,4 +21,4 @@ export type BuiltinDevice = { "type": "Synth" } | { "type": "Sampler", sample: M
 /**
  * Omitted (an agent's `{"type": "VolumeLfo"}`) = the default pump.
  */
-curve: LfoCurve, };
+curve: LfoCurve, } | { "type": "NoteBlocker" };

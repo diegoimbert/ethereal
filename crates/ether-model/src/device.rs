@@ -312,6 +312,9 @@ pub enum BuiltinDevice {
         #[serde(default)]
         curve: LfoCurve,
     },
+    /// Drops every note (and, with `Block Everything`, all other MIDI), MIDI effect
+    /// (`midi-fx`).
+    NoteBlocker,
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -358,11 +361,12 @@ pub enum BuiltinDeviceType {
     FmSynth,
     Vibrato,
     VolumeLfo,
+    NoteBlocker,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 39] = [
+    pub const ALL: [BuiltinDeviceType; 40] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -402,6 +406,7 @@ impl BuiltinDeviceType {
         Self::FmSynth,
         Self::Vibrato,
         Self::VolumeLfo,
+        Self::NoteBlocker,
     ];
 
     /// Rack types ([`crate::rack`]).
@@ -473,6 +478,7 @@ impl BuiltinDevice {
             Self::FmSynth => BuiltinDeviceType::FmSynth,
             Self::Vibrato => BuiltinDeviceType::Vibrato,
             Self::VolumeLfo { .. } => BuiltinDeviceType::VolumeLfo,
+            Self::NoteBlocker => BuiltinDeviceType::NoteBlocker,
         }
     }
 
@@ -531,6 +537,7 @@ impl BuiltinDevice {
             BuiltinDeviceType::VolumeLfo => Self::VolumeLfo {
                 curve: LfoCurve::default(),
             },
+            BuiltinDeviceType::NoteBlocker => Self::NoteBlocker,
         }
     }
 

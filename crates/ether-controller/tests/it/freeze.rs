@@ -2113,3 +2113,68 @@ fn renders_may_run_elsewhere_or_for_another_site() {
     );
     assert_eq!(d.p().tracks, before.tracks, "the document does not change");
 }
+
+// ─── A switched-off MIDI effect in a rack chain (OSS #191) ───────────────────────────────
+
+/// An instrument rack (its chain: [Velocity, switched off, if `with_velocity`] → Synth),
+/// then a delay. Returns the track and the rack.
+fn rack_keys(d: &mut Drive, with_velocity: bool) -> (TrackId, DeviceId) {
+    use ether_core::protocol::racks::RackCommand;
+    let t = d.track(TrackKind::Midi, "Rack");
+    let rack = d.device(t, BuiltinDevice::new(BuiltinDeviceType::InstrumentRack));
+    let chain: RackChainId = d.id();
+    d.ok(Command::Rack(RackCommand::AddChain {
+        id: chain,
+        rack,
+        name: None,
+        before: None,
+    }));
+    let insert = |d: &mut Drive, ty| {
+        let id: DeviceId = d.id();
+        d.ok(Command::Rack(RackCommand::InsertDevice {
+            id,
+            chain,
+            device: DeviceSpec::Builtin {
+                device: BuiltinDevice::new(ty),
+            },
+            before: None,
+        }));
+        id
+    };
+    if with_velocity {
+        let velocity = insert(d, BuiltinDeviceType::Velocity);
+        d.ok(Command::Device(DeviceCommand::SetEnabled {
+            id: velocity,
+            enabled: false,
+        }));
+    }
+    insert(d, BuiltinDeviceType::Synth);
+    d.device(t, BuiltinDevice::new(BuiltinDeviceType::Delay));
+    d.midi_clip(t, 0.0, &[60, 64, 67, 72]);
+    d.settle();
+    (t, rack)
+}
+
+#[test]
+fn a_switched_off_midi_effect_in_a_rack_chain_plays_live_and_frozen() {
+    let absent = {
+        let mut d = Drive::new();
+        rack_keys(&mut d, false);
+        d.play(FRAMES)
+    };
+    assert!(peak(&absent) > 0.01, "audible");
+    // Live: as if the switched-off effect were not there.
+    let mut d = Drive::new();
+    let (t, rack) = rack_keys(&mut d, true);
+    let diff = max_diff(&d.play(FRAMES), &absent);
+    assert!(diff < 1e-6, "live differs from no effect by {diff}");
+    // Frozen up to the rack (the delay stays live), then the whole track.
+    freeze_up_to(&mut d, t, rack);
+    let diff = max_diff(&d.play(FRAMES), &absent);
+    assert!(diff < 1e-4, "partially frozen playback differs by {diff}");
+    d.ok(Command::Freeze(FreezeCommand::Unfreeze { track: t }));
+    d.tick();
+    d.freeze(t);
+    let diff = max_diff(&d.play(FRAMES), &absent);
+    assert!(diff < 1e-4, "frozen playback differs by {diff}");
+}

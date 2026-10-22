@@ -1016,9 +1016,14 @@ and each entry's `out_events` to the next entry. Contract: a MIDI effect has
 `ctx.events` and writes the transformed note/MIDI stream to `ctx.out_events`, forwarding what
 it doesn't transform and every `AllNotesOff`, never `Param` events; generated notes use ids
 `0x8000_0000 | n`; it only delays (never earlier than its input) and reports no latency.
-Stuck notes: an off device is MIDI thru, so switching any device on or off (switch or
-On/Off automation; track chain, rack chain or pad) sends `AllNotesOff` to the next device,
-and to the device itself when it comes back on; adding or removing a MIDI effect sends it to
+An off device is MIDI thru, as if absent, wherever it is (track chain, instrument / audio /
+MIDI effect rack chain at any depth, drum pad): the events it gets, minus its own `Param`s,
+go to the next device (or out of a MIDI effect rack chain it ends), and a device fading out
+sends no MIDI of its own. On/Off automation switches MIDI on the breakpoint's sample, like
+audio: events before it follow the old state, events from it on the new one.
+Stuck notes: switching any device on or off (switch or On/Off automation) sends
+`AllNotesOff` to the next device, and to the device itself when it comes back on (at the
+breakpoint's sample for automation); adding or removing a MIDI effect sends it to
 every entry of that chain; an `AllNotesOff` reaching a rack entry reaches all its chains or
 pads. A track that stops monitoring releases the live notes and sustain pedals it holds, and
 Stop releases every node's notes even while stopped.
@@ -1314,7 +1319,11 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   one wrapping cycle; `curve` omitted in JSON = the default pump). `Device::SetLfoCurve
   { device, curve }` replaces it (sanitized; one `DeviceChange::Kind`, one undo step); live
   nodes take it through `EngineBridge::update_builtin` → `Node::set_data`. Its presets
-  carry the curve in `Preset::kind`.
+  carry the curve in `Preset::kind`. Then `NoteBlocker` (`midi-fx`, no kind data): drops
+  every note-on (and the note-offs / per-note expressions of the notes it dropped); param 0
+  `Block Everything` (toggle, default off) drops every other MIDI message too. Note-offs of
+  notes it never saw and `AllNotesOff` pass; the engine's `AllNotesOff` on a MIDI-effect
+  change or switch releases what was held (`ether_devices::midi_fx`).
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.

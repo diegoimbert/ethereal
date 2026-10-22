@@ -49,6 +49,7 @@ export type V02DeviceType =
   | "Velocity"
   | "Randomizer"
   | "Pitch"
+  | "NoteBlocker"
   | "InstrumentRack"
   | "AudioEffectRack"
   | "MidiEffectRack";
