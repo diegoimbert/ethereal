@@ -68,7 +68,8 @@ export interface NumberFieldProps extends Omit<InputHTMLAttributes<HTMLInputElem
   /**
    * Relative edits (multi-selection): when set, a drag calls it with the offset from the
    * drag start, and an arrow key with its step, instead of `onChange` (typed values still go
-   * to `onChange`). Not clamped: the owner clamps each value it moves.
+   * to `onChange`). Not clamped: the owner clamps each value it moves. While such a drag runs
+   * on a `mixed` field, the field shows the signed offset ("+2") instead of "—".
    */
   onNudge?: (delta: number) => void;
 }
@@ -108,7 +109,10 @@ export function NumberField({
   const t = useT();
   const disabled = useDisabled(disabledProp);
   const [draft, setDraft] = useState<string | null>(null);
-  const shown = draft ?? (mixed ? MIXED : formatFixed(value, precision));
+  // The offset of the relative drag running now (`onNudge`), shown while the values are mixed.
+  const [offset, setOffset] = useState<number | null>(null);
+  const signed = (d: number) => `${d > 0 ? "+" : d < 0 ? "−" : ""}${formatFixed(Math.abs(d), precision)}`;
+  const shown = draft ?? (mixed ? (offset !== null ? signed(offset) : MIXED) : formatFixed(value, precision));
   const press = useRef<{ id: number; y: number; start: number; last: number; dragging: boolean } | null>(null);
 
   const onPointerDown = (e: PointerEvent<HTMLInputElement>) => {
@@ -136,6 +140,7 @@ export function NumberField({
       const delta = Number((steps * unit).toFixed(Math.max(precision, 6)));
       if (delta !== p.last) {
         p.last = delta;
+        setOffset(delta);
         onNudge(delta);
       }
       return;
@@ -152,6 +157,7 @@ export function NumberField({
     press.current = null;
     if (p.dragging) {
       setDragCursor(null);
+      setOffset(null);
       onChangeEnd?.();
     } else if (e.type === "pointerup") {
       e.currentTarget.focus();

@@ -1,12 +1,13 @@
 // On the web build, through the UI, against the real engine: with two audio clips
 // selected, the Inspector's transpose applies to both (one undo step reverts both). Their
 // values differ first, so the field shows mixed ("—"); an arrow step moves each by +1
-// (differences kept); a typed value sets both. Each clip still resizes.
+// (differences kept), and so does a drag; a typed value sets both. Each clip still resizes.
+// The drawer's audio editor, opened on one of them, says it edits both and does the same.
 //
 // Screenshots for the PR (skipped unless `MULTI_TRANSPOSE_SHOTS=<dir>`).
 import { expect, test, type Page } from "@playwright/test";
 import type { AudioContent, Clip, Project } from "@/generated";
-import { selectClip } from "./clips";
+import { openClip, selectClip } from "./clips";
 import { expandFolder, launch, openLibrary, setNumberField } from "./ui";
 
 const shots = process.env.MULTI_TRANSPOSE_SHOTS;
@@ -65,7 +66,7 @@ test("transpose applies to every selected audio clip, one undo step", async ({ p
   // --- Both selected: mixed --------------------------------------------------------------
   await selectClip(page, a);
   await selectClip(page, b, ["Shift"]);
-  await expect(page.getByTestId("inspector").getByText("2 clips")).toBeVisible();
+  await expect(page.getByTestId("inspector-clip-count")).toHaveText("2 audio clips selected");
   await expect(transpose).toHaveValue("—");
   await shot(page, "1-two-clips-mixed-transpose");
   const lengths = await Promise.all(ids.map(async (id) => (await clip(page, id)).length));
@@ -86,6 +87,27 @@ test("transpose applies to every selected audio clip, one undo step", async ({ p
   await transpose.focus();
   await transpose.press("ArrowUp");
   await expect.poll(() => transposes(page, ids)).toEqual([1, 3]);
+  await page.getByRole("button", { name: "undo" }).click();
+  await expect.poll(() => transposes(page, ids)).toEqual([0, 2]);
+
+  // --- A drag up 3 steps: each +3 from its own value (not both +3), one undo --------------
+  await setNumberField(transpose, { dragSteps: 3 });
+  await expect.poll(() => transposes(page, ids)).toEqual([3, 5]);
+  await expect(transpose).toHaveValue("—");
+  await page.getByRole("button", { name: "undo" }).click();
+  await expect.poll(() => transposes(page, ids)).toEqual([0, 2]);
+
+  // --- The drawer's audio editor edits both too (opened on A, B shift-clicked) ------------
+  await openClip(page, a);
+  const editor = page.getByTestId("warp-editor");
+  await expect(editor).toBeVisible();
+  await selectClip(page, b, ["Shift"]);
+  await expect(editor.getByTestId("warp-clip-count")).toHaveText("2 audio clips selected");
+  const warpTranspose = editor.getByRole("spinbutton", { name: "transpose" });
+  await expect(warpTranspose).toHaveValue("—");
+  await shot(page, "3-audio-editor-two-clips");
+  await setNumberField(warpTranspose, { dragSteps: -2 });
+  await expect.poll(() => transposes(page, ids)).toEqual([-2, 0]);
   await page.getByRole("button", { name: "undo" }).click();
   await expect.poll(() => transposes(page, ids)).toEqual([0, 2]);
 

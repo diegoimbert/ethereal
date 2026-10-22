@@ -616,8 +616,10 @@ export interface MessageArgs {
   "shell.engine_health.recovered": { secs: string | number };
   "shell.engine_health.recovered_reason": { reason: string | number; secs: string | number };
   "shell.engine_health.stalled_reason": { reason: string | number };
+  "shell.inspector.audio_clips_selected": { count: number };
   "shell.inspector.audio_some": { count: string | number; total: string | number };
-  "shell.inspector.clip_count": { count: number };
+  "shell.inspector.clips_selected": { count: number };
+  "shell.inspector.midi_clips_selected": { count: number };
   "shell.inspector.mute_named": { name: string | number };
   "shell.inspector.output_group": { name: string | number };
   "shell.inspector.output_named": { name: string | number };
@@ -766,6 +768,7 @@ export interface MessageArgs {
   "versions.snapshot.saved": { name: string | number };
   "versions.title": { name: string | number };
   "versions.when.yesterday": { time: string | number };
+  "warp.clip_count": { count: number };
   "warp.marker_title": { beat: string | number; source: string | number };
   "warp.markers": { count: number };
   "warp.semitones": { value: string | number };
