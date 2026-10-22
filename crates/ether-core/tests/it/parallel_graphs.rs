@@ -14,7 +14,7 @@ use ether_core::graph::{
     AutomationDesc, ChainEntry, ClipContentDesc, ClipDesc, NoteDesc, PadDesc, ParamMapping,
     RackDesc, ResolvedTarget, SendDesc, TrackDesc, WarpDesc,
 };
-use ether_core::parallel::ParallelExecutor;
+use ether_core::parallel::{JobGraph, ParallelExecutor};
 use ether_core::protocol::devices::ParamScale;
 use ether_core::protocol::model::{
     AutomationTarget, Beats, ClipId, CurveShape, DrumPadId, FadeCurve, MediaId, ParamId, SendId,
@@ -753,7 +753,158 @@ impl ParallelExecutor for Threaded {
         });
     }
 
+    /// Dependency-driven like the real pool ([`JobGraph::pop`] / [`JobGraph::complete`]),
+    /// on scoped threads.
+    fn execute_graph(&mut self, graph: &JobGraph, job: &(dyn Fn(usize) + Sync)) {
+        graph.reset();
+        let run = |caller: bool| {
+            while !graph.finished() {
+                if graph.drain(caller, job) == 0 {
+                    std::thread::yield_now();
+                }
+            }
+        };
+        std::thread::scope(|s| {
+            for _ in 0..self.0.min(graph.width().saturating_sub(1)) {
+                s.spawn(|| run(false));
+            }
+            run(true);
+        });
+    }
+
     fn workers(&self) -> usize {
         self.0
     }
+}
+
+// ---------------------------------------------------------------------------------------
+// The project shape of OSS #196.
+
+/// Light drum tracks (the kick keys a ducker on the heavy rack track), a heavy rack, heavy
+/// synths, medium tracks sending to two returns, vocals; groups chained 10 → 8 → 16 →
+/// vocals → master, and a serial chain on master. Every track plays MIDI through a saw.
+pub fn shape_196(h: &mut EngineHandle) -> RenderGraphDesc {
+    let mut r = Rng::new(196);
+    let mut clip_id = 1u128;
+    let mut voice = |r: &mut Rng, h: &mut EngineHandle, t: &mut TrackDesc, effects: usize| {
+        t.chain
+            .push(entry(add(h, Box::new(Saw::new(0.99 + r.unit() * 0.02)))));
+        for _ in 0..effects {
+            t.chain.push(effect(r, h));
+        }
+        t.clips
+            .push(midi_clip(r, clip_id, &[36, 40, 43, 48, 52, 55, 60]));
+        clip_id += 1;
+        t.volume = 0.2 + r.unit() * 0.3;
+    };
+    let (master, vocals, g16, g8, g10, reverb, delay) =
+        (tid(1), tid(2), tid(3), tid(4), tid(5), tid(6), tid(7));
+    let mut tracks = Vec::new();
+    let mut m = track(master, TrackKind::Master, None);
+    for _ in 0..3 {
+        m.chain.push(effect(&mut r, h));
+    }
+    tracks.push(m);
+    for (id, out) in [(vocals, master), (g16, vocals), (g8, g16), (g10, g8)] {
+        let mut t = track(id, TrackKind::Group, Some(out));
+        t.chain.push(effect(&mut r, h));
+        tracks.push(t);
+    }
+    for id in [reverb, delay] {
+        let mut t = track(id, TrackKind::Return, Some(master));
+        t.chain.push(effect(&mut r, h));
+        tracks.push(t);
+    }
+    let kick = tid(10);
+    for i in 0..8 {
+        let mut t = track(tid(10 + i), TrackKind::Midi, Some(g10));
+        voice(&mut r, h, &mut t, 0);
+        tracks.push(t);
+    }
+    let mut rack = track(tid(20), TrackKind::Midi, Some(g8));
+    voice(&mut r, h, &mut rack, 4);
+    let mut duck = entry(add(
+        h,
+        Box::new(Ducker {
+            depth: 0.8,
+            env: 0.0,
+        }),
+    ));
+    duck.sidechain = Some(kick);
+    rack.chain.push(duck);
+    tracks.push(rack);
+    for i in 0..4 {
+        let mut t = track(tid(21 + i), TrackKind::Midi, Some(g16));
+        voice(&mut r, h, &mut t, 3);
+        tracks.push(t);
+    }
+    for i in 0..20u128 {
+        let mut t = track(
+            tid(30 + i),
+            TrackKind::Midi,
+            Some([g10, g8, g16][i as usize % 3]),
+        );
+        voice(&mut r, h, &mut t, 1);
+        if i % 4 == 0 {
+            t.sends.push(SendDesc {
+                id: SendId(Ulid(1000 + i)),
+                to: if i % 8 == 0 { reverb } else { delay },
+                level: 0.5,
+                pre_fader: i % 3 == 0,
+            });
+        }
+        tracks.push(t);
+    }
+    for i in 0..4 {
+        let mut t = track(tid(50 + i), TrackKind::Midi, Some(vocals));
+        voice(&mut r, h, &mut t, 1);
+        t.sends.push(SendDesc {
+            id: SendId(Ulid(2000 + i)),
+            to: reverb,
+            level: 0.3,
+            pre_fader: false,
+        });
+        tracks.push(t);
+    }
+    RenderGraphDesc {
+        version: 1,
+        tracks,
+        ..Default::default()
+    }
+}
+
+/// Render the [`shape_196`] project (left ++ right).
+pub fn render_196(
+    block: usize,
+    frames: usize,
+    executor: Option<Box<dyn ParallelExecutor>>,
+) -> Vec<f32> {
+    let EngineParts {
+        mut engine,
+        mut handle,
+        mut gc,
+    } = create(config());
+    let desc = shape_196(&mut handle);
+    handle.publish(desc).unwrap();
+    if let Some(e) = executor {
+        engine.set_executor(e);
+    }
+    handle.transport(TransportControl::Play).unwrap();
+    let mut left = vec![0.0f32; frames];
+    let mut right = vec![0.0f32; frames];
+    let (mut l, mut r) = (vec![0.0f32; block], vec![0.0f32; block]);
+    let mut done = 0;
+    while done < frames {
+        let n = block.min(frames - done);
+        {
+            let mut outs: [&mut [f32]; 2] = [&mut l[..n], &mut r[..n]];
+            engine.process(&[], &mut outs, n);
+        }
+        left[done..done + n].copy_from_slice(&l[..n]);
+        right[done..done + n].copy_from_slice(&r[..n]);
+        done += n;
+        gc.collect();
+    }
+    left.extend_from_slice(&right);
+    left
 }

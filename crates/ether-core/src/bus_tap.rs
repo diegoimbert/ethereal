@@ -18,8 +18,8 @@
 //!   aligned signal at the consumer's input, compensated by the consumer's `in_lat`.
 //!
 //! Hooks (pre-wired): [`TapBuffers::write`] at the three points of every tapped track's job,
-//! [`InputTapRt::gather`] at the start of the consumer's job (the source finished in an
-//! earlier level), [`InputTapRt::mix_into`] where hardware input is monitored. Buffers are
+//! [`InputTapRt::gather`] at the start of the consumer's job (the source finished before
+//! it: a job graph edge), [`InputTapRt::mix_into`] where hardware input is monitored. Buffers are
 //! allocated at graph compile, only for the points some consumer taps; the audio thread
 //! only copies, delays and adds.
 
