@@ -36,6 +36,7 @@ pub mod plugins;
 pub mod recording;
 pub mod rt;
 pub mod sandbox;
+pub mod sandbox_defaults;
 // The sample pack's downloads (feature `net`).
 #[cfg(feature = "net")]
 mod samples_http;

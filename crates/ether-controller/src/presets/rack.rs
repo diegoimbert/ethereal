@@ -474,7 +474,8 @@ fn insert_device(
                 name: name.clone(),
                 vendor: vendor.clone(),
                 version: String::new(),
-                sandboxed: false,
+                // A preset keeps no flag: its plugins are new instances here.
+                sandboxed: ctx.host.sandbox_by_default(*format, plugin_id),
                 state: pd.state.clone(),
             },
         },

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Command, Device } from "@/generated";
 import { RotateCw } from "lucide-react";
 import { Badge, Button, IconButton, openContextMenu, type ContextMenuEntry } from "@/kit";
@@ -8,6 +8,7 @@ import { cmd, useTransport, type EngineTransport } from "@/transport";
 import { t as tr, useT } from "@/i18n";
 import { FORMAT_LABEL, isInstalled } from "./filter";
 import { useEnginePlugins, usePluginEvents, usePluginStore } from "./pluginStore";
+import { isSandboxDefault, useSandboxDefaults } from "./sandboxDefaults";
 
 export interface PluginDeviceControlsProps {
   device: Device;
@@ -35,6 +36,11 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
   const plugins = useEnginePlugins(device.kind.type === "Plugin");
   // Held as a placeholder (the project was opened without plugins).
   const held = useProjectStore((s) => s.safeMode.includes(device.id));
+  const isPlugin = device.kind.type === "Plugin";
+  // The device menu's "always sandbox" reads the engine host's list: load it once.
+  useEffect(() => {
+    if (isPlugin) void useSandboxDefaults.getState().load(transport);
+  }, [isPlugin, transport]);
 
   if (device.kind.type !== "Plugin") return null;
   const { format, plugin_id } = device.kind.plugin;
@@ -147,21 +153,36 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
 
 /**
  * The plugin's entries of its device context menu (advanced): sandboxing, which runs the
- * plugin in its own process (crash-safe, +1 block latency) and re-instantiates it.
+ * plugin in its own process (crash-safe, +1 block latency) and re-instantiates it. When the
+ * engine host has the "sandboxed by default" setting (`./sandboxDefaults.ts`, loaded by the
+ * device header), "always sandbox this plugin" adds it to that list and sandboxes this
+ * instance too; other instances keep their own setting. Once listed, the entry takes it off
+ * the list (this instance stays as it is).
  */
 export function pluginMenuEntries(device: Device, transport: EngineTransport): ContextMenuEntry[] {
   if (device.kind.type !== "Plugin") return [];
-  const { sandboxed } = device.kind.plugin;
-  return [
+  const { sandboxed, format, plugin_id, name } = device.kind.plugin;
+  const setSandboxed = (on: boolean) =>
+    transport.send(cmd("Plugin", { type: "SetSandboxed", device: device.id, sandboxed: on })).then(() => usePluginStore.getState().clearCrash(device.id));
+  const entries: ContextMenuEntry[] = [
     {
       label: sandboxed ? tr("plugins.device.run_in_process") : tr("plugins.device.run_sandboxed"),
-      onSelect: () =>
-        void transport
-          .send(cmd("Plugin", { type: "SetSandboxed", device: device.id, sandboxed: !sandboxed }))
-          .then(() => usePluginStore.getState().clearCrash(device.id))
-          .catch((e: unknown) => console.warn("sandbox toggle failed", e)),
+      onSelect: () => void setSandboxed(!sandboxed).catch((e: unknown) => console.warn("sandbox toggle failed", e)),
     },
   ];
+  const defaults = useSandboxDefaults.getState();
+  if (defaults.from === transport && defaults.list) {
+    const listed = isSandboxDefault(defaults.list, { format, plugin_id });
+    entries.push({
+      label: listed ? tr("plugins.device.stop_always_sandbox") : tr("plugins.device.always_sandbox"),
+      onSelect: () =>
+        void defaults
+          .set(transport, { format, plugin_id, name: name || device.name }, !listed)
+          .then(() => (!listed && !sandboxed ? setSandboxed(true) : undefined))
+          .catch((e: unknown) => console.warn("sandbox default failed", e)),
+    });
+  }
+  return entries;
 }
 
 /** Open or close a plugin's editor window (the store follows on success). */

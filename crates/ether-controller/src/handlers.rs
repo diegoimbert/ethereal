@@ -822,6 +822,8 @@ where
             | PluginCommand::AddFolder { .. }
             | PluginCommand::RemoveFolder { .. }
             | PluginCommand::SetIncludeDefaults { .. }
+            | PluginCommand::ListSandboxDefaults
+            | PluginCommand::SetSandboxDefault { .. }
             | PluginCommand::OpenEditor { .. }
             | PluginCommand::CloseEditor { .. }
             | PluginCommand::SetEditorKeyCapture { .. }
