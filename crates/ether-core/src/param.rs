@@ -118,6 +118,11 @@ impl Smoother {
         self.ramp_to(target, samples);
     }
 
+    /// Jump to the target without finishing the ramp.
+    pub fn settle(&mut self) {
+        self.set_immediate(self.target);
+    }
+
     /// Jump without ramp.
     pub fn set_immediate(&mut self, value: f32) {
         self.current = value;

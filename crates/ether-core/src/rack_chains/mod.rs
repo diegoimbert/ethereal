@@ -59,6 +59,7 @@ use crate::event::{EventBuffer, EventKind, ProcessEvent};
 use crate::graph::{ChainEntry, NodeInfo, RackDesc};
 use crate::mixer::{ChainRt, Stereo, inherit_switches, release_on_midi_fx_change, stereo};
 use crate::node::{NodeKey, ProcessContext};
+use crate::parallel::Fork;
 use crate::param::Smoother;
 use crate::sidechain::{ScIo, ScPoint};
 use crate::transport::TransportInfo;
@@ -472,7 +473,8 @@ impl ChainRacksRt {
     /// `sc`: the track's sidechain state (chain entries reading a sidechain, tapped chain
     /// points, `crate::sidechain`). `drums`: the track's drum racks, for a drum rack on an
     /// instrument rack's chain (its pads run before its node); `None` under a drum pad (a drum
-    /// rack never nests there).
+    /// rack never nests there). `fork`: independent chains run as sub-jobs of the track's
+    /// job ([`Self::forkable`]); the mix stays in chain order, so the result is the same bits.
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn run(
         &mut self,
@@ -487,6 +489,7 @@ impl ChainRacksRt {
         reset: bool,
         sc: &mut ScIo<'_>,
         drums: Option<&mut RacksRt>,
+        fork: &dyn Fork,
     ) -> bool {
         let _ = out_events;
         self.run_nested(
@@ -501,6 +504,7 @@ impl ChainRacksRt {
             0,
             sc,
             drums,
+            fork,
         )
     }
 
@@ -520,6 +524,7 @@ impl ChainRacksRt {
         depth: usize,
         sc: &mut ScIo<'_>,
         drums: Option<&mut RacksRt>,
+        fork: &dyn Fork,
     ) -> bool {
         if depth >= MAX_NESTING {
             return false;
@@ -540,6 +545,7 @@ impl ChainRacksRt {
             depth,
             sc,
             drums,
+            fork,
         );
         self.racks[i] = taken;
         overflow
@@ -559,6 +565,7 @@ impl ChainRacksRt {
         depth: usize,
         sc: &mut ScIo<'_>,
         mut drums: Option<&mut RacksRt>,
+        fork: &dyn Fork,
     ) -> bool {
         if r.chains.is_empty() {
             // No chain for the signal to go to: an audio effect rack is silent (a MIDI
@@ -591,220 +598,83 @@ impl ChainRacksRt {
             }
             ChainRackKind::MidiEffect => {}
         }
-        for chain in r.chains.iter_mut() {
-            // Route the rack's events to this chain (an empty MIDI effect chain passes them
-            // straight to the rack's output).
-            let target = match chain.entries.first_mut() {
-                Some(first) => Some(&mut first.events),
-                None if kind == ChainRackKind::MidiEffect => Some(&mut r.merged),
-                None => None,
-            };
-            if let Some(target) = target {
-                let mut selector = start_selector;
-                for e in events {
-                    if let Some(s) = selector_event(e) {
-                        selector = s;
-                        continue;
-                    }
-                    match e.kind {
-                        EventKind::Param { .. } => continue,
-                        ref k => {
-                            if let Some((key, vel)) = note_start(k)
-                                && !(in_zone(chain.keys, key)
-                                    && in_zone(chain.velocities, vel)
-                                    && in_zone(chain.select, selector))
-                            {
-                                continue;
-                            }
-                        }
-                    }
-                    overflow |= !target.push(*e);
-                }
-            }
-            if kind == ChainRackKind::AudioEffect {
-                chain.a[0][..n].copy_from_slice(&r.dry[0][..n]);
-                chain.a[1][..n].copy_from_slice(&r.dry[1][..n]);
-            } else {
-                chain.a[0][..n].fill(0.0);
-                chain.a[1][..n].fill(0.0);
-            }
-            sc.points.write(ScPoint::ChainIn(chain.id.0.0), &chain.a, n);
-            let midi = kind == ChainRackKind::MidiEffect;
-            let last = chain.entries.len().saturating_sub(1);
-            for k in 0..chain.entries.len() {
-                let (head, tail) = chain.entries.split_at_mut(k + 1);
-                let entry = &mut head[k];
-                // Off = MIDI thru in every rack kind, like on a track chain
-                // (`ChainRt::route_midi`): its notes, and the releases of a switch, reach the
-                // next entry, or the rack's output after the last entry of a MIDI effect
-                // chain. One fading out runs without events.
-                let next = match tail.first_mut() {
-                    Some(e) => Some(&mut e.events),
-                    None if midi => Some(&mut r.merged),
-                    None => None,
-                };
-                overflow |= entry.route_midi(next);
-                overflow |= entry.events.overflowed();
-                // The bypass path keeps the input (`ChainRt::blend`).
-                entry.push_dry(&chain.a, n);
-                // Sidechain PDC: delay the main signal before this entry if planned.
-                sc.taps.align_main(entry.key, &mut chain.a, n);
-                chain.out_events.clear();
-                let runs = entry.runs();
-                // A nested rack: its chains feed its node's input first.
-                let nested = runs && self.is_rack(entry.key);
-                if nested {
-                    overflow |= self.run_nested(
-                        entry.key,
-                        nodes,
-                        entry.events.as_slice(),
-                        info,
-                        sample_rate,
-                        &mut chain.a,
-                        n,
-                        reset,
-                        depth + 1,
-                        sc,
-                        drums.as_deref_mut(),
-                    );
-                }
-                // A drum rack on the chain (instrument racks): its pads feed its node's input
-                // first, like at a track-chain entry (`crate::drum_rack`).
-                if runs
-                    && let Some(d) = drums.as_deref_mut()
-                    && d.is_rack(entry.key)
-                {
-                    overflow |= d.run_pads(
-                        entry.key,
-                        nodes,
-                        entry.events.as_slice(),
-                        info,
-                        sample_rate,
-                        &mut chain.a,
-                        n,
-                        reset,
-                        sc,
-                        self,
-                    );
-                }
-                let Some(node) = nodes.get(entry.key) else {
-                    sc.points.write(ScPoint::After(entry.key), &chain.a, n);
-                    continue;
-                };
-                if reset {
-                    node.reset();
-                }
-                if !runs {
-                    entry.bypass(&mut chain.a, n);
-                } else {
-                    let (n_in, n_out) = (
-                        (entry.channels.0 as usize).min(2),
-                        (entry.channels.1 as usize).min(2),
-                    );
-                    {
-                        let [al, ar] = &chain.a;
-                        let [bl, br] = &mut chain.b;
-                        let ins: [&[f32]; 2] = [&al[..n], &ar[..n]];
-                        let mut outs: [&mut [f32]; 2] = [&mut bl[..n], &mut br[..n]];
-                        let mut ctx = ProcessContext {
-                            sample_rate,
-                            frames: n,
-                            transport: info,
-                            events: entry.events.as_slice(),
-                            out_events: &mut chain.out_events,
-                        };
-                        let mut buffers = AudioBuffers {
-                            inputs: &ins[..n_in],
-                            outputs: &mut outs[..n_out],
-                        };
-                        let key = entry.key;
-                        match entry
-                            .sidechain
-                            .then(|| sc.taps.read(key, sc.points, n))
-                            .flatten()
-                        {
-                            Some(side) => node.process_sidechain(&mut ctx, &mut buffers, &side),
-                            None => node.process(&mut ctx, &mut buffers),
-                        };
-                    }
-                    overflow |= chain.out_events.overflowed();
-                    if nested {
-                        self.finish(entry.key, &mut chain.out_events);
-                    }
-                    // Fading out: its own MIDI goes nowhere (its input went thru).
-                    entry.gate_output(&mut chain.out_events);
-                    match n_out {
-                        0 => {}
-                        1 => {
-                            let [bl, br] = &mut chain.b;
-                            br[..n].copy_from_slice(&bl[..n]);
-                            entry.blend(&mut chain.b, n);
-                            std::mem::swap(&mut chain.a, &mut chain.b);
-                        }
-                        _ => {
-                            entry.blend(&mut chain.b, n);
-                            std::mem::swap(&mut chain.a, &mut chain.b);
-                        }
-                    }
-                }
-                sc.points.write(ScPoint::After(entry.key), &chain.a, n);
-                if let Some(next) = tail.first_mut() {
-                    for e in chain.out_events.as_slice() {
-                        next.events.push(*e);
-                    }
-                } else if midi && k == last {
-                    for e in chain.out_events.as_slice() {
-                        overflow |= !r.merged.push(*e);
-                    }
-                }
-            }
-            if midi {
-                continue;
-            }
-            // Before the alignment: what a later chain of this rack keys from.
-            sc.points
-                .write(ScPoint::ChainRaw(chain.id.0.0), &chain.a, n);
-            {
+        if fork.parallel() && self.forkable(r, sc, drums.as_deref()) {
+            // Independent chains: each one's routing and devices as a sub-job (other threads
+            // help), then the mix here in chain order, the same sums as below.
+            let count = r.chains.len();
+            let chains = SharedChains(r.chains.as_mut_ptr());
+            let dry = &r.dry;
+            let shared_nodes = nodes.share();
+            let overflows = std::sync::atomic::AtomicBool::new(false);
+            let sub = |c: usize| {
+                // SAFETY: sub-job `c` is the only one touching chain `c` (`join` runs each
+                // index once, `c < count`); nothing else touches the chains meanwhile.
+                let chain = unsafe { chains.get(c) };
+                // SAFETY: a chain's nodes belong to it alone (the compiler checks every node
+                // is in one chain), so tables over the same slots never meet.
+                let mut nodes = unsafe { shared_nodes.table() };
+                let mut o = route_chain(chain, kind, events, start_selector, None);
+                init_chain(chain, kind, dry, n);
+                o |= run_chain(
+                    chain,
+                    None,
+                    kind,
+                    &mut nodes,
+                    info,
+                    sample_rate,
+                    n,
+                    reset,
+                    None,
+                );
                 let [l, rr] = &mut chain.a;
                 chain.delay.process(&mut l[..n], &mut rr[..n]);
+                if o {
+                    overflows.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+            };
+            fork.join(count, &sub);
+            overflow |= overflows.into_inner();
+            for chain in r.chains.iter_mut() {
+                mix_chain(chain, events, start_selector, input, None, n);
             }
-            sc.points
-                .write(ScPoint::ChainOut(chain.id.0.0), &chain.a, n);
-            // Mix: smoothed gains, re-targeted at selector changes.
-            let [gl, gr] = &mut chain.gain;
-            let [sl, sr] = &chain.a;
-            let [dl, dr] = &mut *input;
-            let mut mix_tap = sc.points.buf_mut(ScPoint::ChainMix(chain.id.0.0));
-            let mut selector = start_selector;
-            let mut next = 0;
-            for k in 0..n {
-                while let Some(e) = events.get(next)
-                    && e.offset as usize <= k
+        } else {
+            for chain in r.chains.iter_mut() {
+                // Route the rack's events to this chain (an empty MIDI effect chain passes
+                // them straight to the rack's output).
+                overflow |= route_chain(chain, kind, events, start_selector, Some(&mut r.merged));
+                init_chain(chain, kind, &r.dry, n);
+                sc.points.write(ScPoint::ChainIn(chain.id.0.0), &chain.a, n);
+                overflow |= run_chain(
+                    chain,
+                    Some(&mut r.merged),
+                    kind,
+                    nodes,
+                    info,
+                    sample_rate,
+                    n,
+                    reset,
+                    Some(Nesting {
+                        racks: self,
+                        sc,
+                        drums: drums.as_deref_mut(),
+                        depth,
+                        fork,
+                    }),
+                );
+                if kind == ChainRackKind::MidiEffect {
+                    continue;
+                }
+                // Before the alignment: what a later chain of this rack keys from.
+                sc.points
+                    .write(ScPoint::ChainRaw(chain.id.0.0), &chain.a, n);
                 {
-                    next += 1;
-                    if let Some(s) = selector_event(e)
-                        && s != selector
-                    {
-                        let was = in_zone(chain.select, selector);
-                        selector = s;
-                        if was != in_zone(chain.select, s) {
-                            let t = if in_zone(chain.select, s) {
-                                chain.gains
-                            } else {
-                                [0.0, 0.0]
-                            };
-                            gl.set_target(t[0]);
-                            gr.set_target(t[1]);
-                        }
-                    }
+                    let [l, rr] = &mut chain.a;
+                    chain.delay.process(&mut l[..n], &mut rr[..n]);
                 }
-                let (vl, vr) = (sl[k] * gl.tick(), sr[k] * gr.tick());
-                dl[k] += vl;
-                dr[k] += vr;
-                if let Some([ml, mr]) = mix_tap.as_deref_mut() {
-                    ml[k] = vl;
-                    mr[k] = vr;
-                }
+                sc.points
+                    .write(ScPoint::ChainOut(chain.id.0.0), &chain.a, n);
+                let mix_tap = sc.points.buf_mut(ScPoint::ChainMix(chain.id.0.0));
+                mix_chain(chain, events, start_selector, input, mix_tap, n);
             }
         }
         if let Some(s) = events.iter().rev().find_map(selector_event) {
@@ -814,6 +684,22 @@ impl ChainRacksRt {
             r.merged.sort();
         }
         overflow
+    }
+
+    /// RT. Whether rack `r`'s chains can run as independent sub-jobs: audio (not MIDI effect)
+    /// chains, at least two, and nothing that ties a chain to the track's shared state: no
+    /// sidechain consumer or planned alignment on a chain entry, no tapped point on this
+    /// track at all, no nested rack or drum rack in a chain.
+    fn forkable(&self, r: &RackRt, sc: &ScIo<'_>, drums: Option<&RacksRt>) -> bool {
+        r.kind != ChainRackKind::MidiEffect
+            && r.chains.len() >= 2
+            && sc.points.is_empty()
+            && r.chains.iter().flat_map(|c| &c.entries).all(|e| {
+                !e.sidechain
+                    && !sc.taps.has(e.key)
+                    && !self.is_rack(e.key)
+                    && !drums.is_some_and(|d| d.is_rack(e.key))
+            })
     }
 
     /// RT. After the rack node `rack` processed: a MIDI effect rack with chains replaces its
@@ -830,6 +716,289 @@ impl ChainRacksRt {
         out_events.clear();
         for e in r.merged.as_slice() {
             out_events.push(*e);
+        }
+    }
+}
+
+/// The rack chains being run as sub-jobs (`ChainRacksRt::run_rack`).
+struct SharedChains(*mut ChainState);
+
+// SAFETY: each sub-job dereferences only its own chain (see `run_rack`); `ChainState` is
+// `Send` (plain buffers and event lists).
+unsafe impl Sync for SharedChains {}
+
+impl SharedChains {
+    /// # Safety
+    /// `c` is in bounds and no one else uses chain `c` for the returned borrow.
+    #[allow(clippy::mut_from_ref)]
+    unsafe fn get(&self, c: usize) -> &mut ChainState {
+        // SAFETY: forwarded to the caller.
+        unsafe { &mut *self.0.add(c) }
+    }
+}
+
+/// What a chain run on the track job's thread may reach besides its own state: the other
+/// racks (a nested rack's chains), the track's sidechain state and drum racks.
+struct Nesting<'s, 'io, 'd> {
+    racks: &'s mut ChainRacksRt,
+    sc: &'s mut ScIo<'io>,
+    drums: Option<&'d mut RacksRt>,
+    depth: usize,
+    fork: &'s dyn Fork,
+}
+
+/// RT. Route the rack entry's `events` to `chain`'s first entry by zone and selector (an
+/// empty MIDI effect chain: to `merged`, the rack's output). Returns `true` on overflow.
+fn route_chain(
+    chain: &mut ChainState,
+    kind: ChainRackKind,
+    events: &[ProcessEvent],
+    start_selector: u8,
+    merged: Option<&mut EventBuffer>,
+) -> bool {
+    let mut overflow = false;
+    let target = match chain.entries.first_mut() {
+        Some(first) => Some(&mut first.events),
+        None if kind == ChainRackKind::MidiEffect => merged,
+        None => None,
+    };
+    if let Some(target) = target {
+        let mut selector = start_selector;
+        for e in events {
+            if let Some(s) = selector_event(e) {
+                selector = s;
+                continue;
+            }
+            match e.kind {
+                EventKind::Param { .. } => continue,
+                ref k => {
+                    if let Some((key, vel)) = note_start(k)
+                        && !(in_zone(chain.keys, key)
+                            && in_zone(chain.velocities, vel)
+                            && in_zone(chain.select, selector))
+                    {
+                        continue;
+                    }
+                }
+            }
+            overflow |= !target.push(*e);
+        }
+    }
+    overflow
+}
+
+/// RT. A chain's input: the rack's input (audio effect racks) or silence.
+fn init_chain(chain: &mut ChainState, kind: ChainRackKind, dry: &Stereo, n: usize) {
+    if kind == ChainRackKind::AudioEffect {
+        chain.a[0][..n].copy_from_slice(&dry[0][..n]);
+        chain.a[1][..n].copy_from_slice(&dry[1][..n]);
+    } else {
+        chain.a[0][..n].fill(0.0);
+        chain.a[1][..n].fill(0.0);
+    }
+}
+
+/// RT. Run `chain`'s devices on `chain.a`. `merged`: a MIDI effect rack's output.
+/// `nest`: `None` in a sub-job, where the rack is [`ChainRacksRt::forkable`] (no sidechain
+/// state, nested racks or drum racks to reach).
+#[allow(clippy::too_many_arguments)]
+fn run_chain(
+    chain: &mut ChainState,
+    mut merged: Option<&mut EventBuffer>,
+    kind: ChainRackKind,
+    nodes: &mut NodeTable<'_>,
+    info: &TransportInfo,
+    sample_rate: f32,
+    n: usize,
+    reset: bool,
+    mut nest: Option<Nesting<'_, '_, '_>>,
+) -> bool {
+    let mut overflow = false;
+    let midi = kind == ChainRackKind::MidiEffect;
+    let last = chain.entries.len().saturating_sub(1);
+    for k in 0..chain.entries.len() {
+        let (head, tail) = chain.entries.split_at_mut(k + 1);
+        let entry = &mut head[k];
+        // Off = MIDI thru in every rack kind, like on a track chain
+        // (`ChainRt::route_midi`): its notes, and the releases of a switch, reach the
+        // next entry, or the rack's output after the last entry of a MIDI effect
+        // chain. One fading out runs without events.
+        let next = match tail.first_mut() {
+            Some(e) => Some(&mut e.events),
+            None if midi => merged.as_deref_mut(),
+            None => None,
+        };
+        overflow |= entry.route_midi(next);
+        overflow |= entry.events.overflowed();
+        // The bypass path keeps the input (`ChainRt::blend`).
+        entry.push_dry(&chain.a, n);
+        // Sidechain PDC: delay the main signal before this entry if planned.
+        if let Some(x) = nest.as_mut() {
+            x.sc.taps.align_main(entry.key, &mut chain.a, n);
+        }
+        chain.out_events.clear();
+        let runs = entry.runs();
+        // A nested rack: its chains feed its node's input first.
+        let nested = runs && nest.as_ref().is_some_and(|x| x.racks.is_rack(entry.key));
+        if nested && let Some(x) = nest.as_mut() {
+            overflow |= x.racks.run_nested(
+                entry.key,
+                nodes,
+                entry.events.as_slice(),
+                info,
+                sample_rate,
+                &mut chain.a,
+                n,
+                reset,
+                x.depth + 1,
+                x.sc,
+                x.drums.as_deref_mut(),
+                x.fork,
+            );
+        }
+        // A drum rack on the chain (instrument racks): its pads feed its node's input
+        // first, like at a track-chain entry (`crate::drum_rack`).
+        if runs
+            && let Some(x) = nest.as_mut()
+            && let Some(d) = x.drums.as_deref_mut()
+            && d.is_rack(entry.key)
+        {
+            overflow |= d.run_pads(
+                entry.key,
+                nodes,
+                entry.events.as_slice(),
+                info,
+                sample_rate,
+                &mut chain.a,
+                n,
+                reset,
+                x.sc,
+                x.racks,
+            );
+        }
+        let Some(node) = nodes.get(entry.key) else {
+            if let Some(x) = nest.as_mut() {
+                x.sc.points.write(ScPoint::After(entry.key), &chain.a, n);
+            }
+            continue;
+        };
+        if reset {
+            node.reset();
+        }
+        if !runs {
+            entry.bypass(&mut chain.a, n);
+        } else {
+            let (n_in, n_out) = (
+                (entry.channels.0 as usize).min(2),
+                (entry.channels.1 as usize).min(2),
+            );
+            {
+                let [al, ar] = &chain.a;
+                let [bl, br] = &mut chain.b;
+                let ins: [&[f32]; 2] = [&al[..n], &ar[..n]];
+                let mut outs: [&mut [f32]; 2] = [&mut bl[..n], &mut br[..n]];
+                let mut ctx = ProcessContext {
+                    sample_rate,
+                    frames: n,
+                    transport: info,
+                    events: entry.events.as_slice(),
+                    out_events: &mut chain.out_events,
+                };
+                let mut buffers = AudioBuffers {
+                    inputs: &ins[..n_in],
+                    outputs: &mut outs[..n_out],
+                };
+                let key = entry.key;
+                let side = match nest.as_mut() {
+                    Some(x) if entry.sidechain => x.sc.taps.read(key, x.sc.points, n),
+                    _ => None,
+                };
+                match side {
+                    Some(side) => node.process_sidechain(&mut ctx, &mut buffers, &side),
+                    None => node.process(&mut ctx, &mut buffers),
+                };
+            }
+            overflow |= chain.out_events.overflowed();
+            if nested && let Some(x) = nest.as_mut() {
+                x.racks.finish(entry.key, &mut chain.out_events);
+            }
+            // Fading out: its own MIDI goes nowhere (its input went thru).
+            entry.gate_output(&mut chain.out_events);
+            match n_out {
+                0 => {}
+                1 => {
+                    let [bl, br] = &mut chain.b;
+                    br[..n].copy_from_slice(&bl[..n]);
+                    entry.blend(&mut chain.b, n);
+                    std::mem::swap(&mut chain.a, &mut chain.b);
+                }
+                _ => {
+                    entry.blend(&mut chain.b, n);
+                    std::mem::swap(&mut chain.a, &mut chain.b);
+                }
+            }
+        }
+        if let Some(x) = nest.as_mut() {
+            x.sc.points.write(ScPoint::After(entry.key), &chain.a, n);
+        }
+        if let Some(next) = tail.first_mut() {
+            for e in chain.out_events.as_slice() {
+                next.events.push(*e);
+            }
+        } else if midi
+            && k == last
+            && let Some(m) = merged.as_deref_mut()
+        {
+            for e in chain.out_events.as_slice() {
+                overflow |= !m.push(*e);
+            }
+        }
+    }
+    overflow
+}
+
+/// RT. Add `chain`'s (aligned) output into `input` with its smoothed gains, re-targeted at
+/// selector changes; `mix_tap` records what it added.
+fn mix_chain(
+    chain: &mut ChainState,
+    events: &[ProcessEvent],
+    start_selector: u8,
+    input: &mut [Vec<f32>; 2],
+    mut mix_tap: Option<&mut Stereo>,
+    n: usize,
+) {
+    let [gl, gr] = &mut chain.gain;
+    let [sl, sr] = &chain.a;
+    let [dl, dr] = &mut *input;
+    let mut selector = start_selector;
+    let mut next = 0;
+    for k in 0..n {
+        while let Some(e) = events.get(next)
+            && e.offset as usize <= k
+        {
+            next += 1;
+            if let Some(s) = selector_event(e)
+                && s != selector
+            {
+                let was = in_zone(chain.select, selector);
+                selector = s;
+                if was != in_zone(chain.select, s) {
+                    let t = if in_zone(chain.select, s) {
+                        chain.gains
+                    } else {
+                        [0.0, 0.0]
+                    };
+                    gl.set_target(t[0]);
+                    gr.set_target(t[1]);
+                }
+            }
+        }
+        let (vl, vr) = (sl[k] * gl.tick(), sr[k] * gr.tick());
+        dl[k] += vl;
+        dr[k] += vr;
+        if let Some([ml, mr]) = mix_tap.as_deref_mut() {
+            ml[k] = vl;
+            mr[k] = vr;
         }
     }
 }

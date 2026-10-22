@@ -76,6 +76,7 @@ pub mod handlers;
 pub mod import;
 #[doc(hidden)]
 pub mod keymap;
+pub mod loading;
 #[doc(hidden)]
 pub mod media;
 #[doc(hidden)]
@@ -246,6 +247,15 @@ pub trait EngineBridge {
     fn publish(&mut self, graph: RenderGraphDesc) -> Result<(), BridgeError>;
     fn set_param(&mut self, change: ParamChange) -> Result<(), BridgeError>;
     fn transport(&mut self, control: TransportControl) -> Result<(), BridgeError>;
+    /// Suspend (`true`) or resume the engine's audio processing
+    /// (`ether_core::EngineHandle::set_suspended`): while a project loads the audio thread
+    /// outputs silence and runs no graph work, and what is sent meanwhile (nodes, graphs,
+    /// media, transport) is applied in order before the resume. Hosts with an engine of
+    /// their own implement it; the default (test bridges, engines elsewhere) does nothing.
+    fn set_suspended(&mut self, suspended: bool) -> Result<(), BridgeError> {
+        let _ = suspended;
+        Ok(())
+    }
     fn poll(&mut self, out: &mut EngineOutputs);
 
     /// Descriptors of built-in devices and of instantiated plugins.
@@ -726,6 +736,8 @@ where
     pub samples: sample_pack::SamplesState,
     pub next_gesture: u32,
     pub last_transport: Option<TransportState>,
+    /// The project load in progress: the engine is suspended until it ends (`loading`).
+    pub loading: loading::LoadState,
     pub outputs: EngineOutputs,
     /// An extension's own state (`ext` module; `()` without one).
     pub ext: X,
@@ -805,6 +817,7 @@ where
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,
             last_transport: None,
+            loading: Default::default(),
             outputs: EngineOutputs::default(),
             config,
             ext,

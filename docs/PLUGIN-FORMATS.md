@@ -163,7 +163,11 @@ How the native host uses the formats:
   as an error notification and keeps the device in the document without an engine node, so
   the track plays the dry signal (bypassed). A rescan followed by a reload (or reopening the
   project) loads it with its saved state. The UI shows such a device as "missing" (and bypassed),
-  checked against the scanned list by `(format, id)`.
+  checked by `(format, id)` against the plugins of the computer whose engine plays the project
+  (`pluginStore` `engineCatalog`): this computer's scan, or, while another computer's engine
+  plays it, that computer's list (`setRemote`; unknown, so nothing is shown missing, until it
+  comes: `setRemotePending`). Device headers, the missing count, the resolver and the load
+  notice all read it, so a plugin only missing on this computer is never shown missing.
 - **Rescan.** `spawn_scan` scans `PluginFolderSettings::discover` (the default search paths
   and AU registry if enabled, plus the user folders) with `ScanRunner::scan_targets_cached`
   (parallel, incremental; see above). A rescan asked for during a scan runs right after it.

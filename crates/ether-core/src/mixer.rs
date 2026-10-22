@@ -362,13 +362,23 @@ pub(crate) struct MeterAccum {
 impl MeterAccum {
     pub(crate) fn add(&mut self, l: &[f32], r: &[f32]) {
         for (ch, buf) in [l, r].into_iter().enumerate() {
-            let mut peak = self.peak[ch];
-            let mut sum = 0.0f32;
-            for &s in buf {
-                let a = s.abs();
-                peak = peak.max(a);
-                sum += s * s;
+            // Eight partial sums and maxima (vectorizable; meters only reach the UI, so the
+            // summation order is free).
+            let mut peaks = [self.peak[ch]; 8];
+            let mut sums = [0.0f32; 8];
+            let (chunks, rest) = buf.as_chunks::<8>();
+            for c in chunks {
+                for k in 0..8 {
+                    peaks[k] = peaks[k].max(c[k].abs());
+                    sums[k] += c[k] * c[k];
+                }
             }
+            for (k, &s) in rest.iter().enumerate() {
+                peaks[k] = peaks[k].max(s.abs());
+                sums[k] += s * s;
+            }
+            let peak = peaks.iter().copied().fold(self.peak[ch], f32::max);
+            let sum: f32 = sums.iter().sum();
             self.peak[ch] = peak;
             self.sum_sq[ch] += sum;
             if peak >= 1.0 {
@@ -454,6 +464,9 @@ pub(crate) struct TrackRt {
     pub src_scratch: Vec<f32>,
     /// Scratch of the Complex warp path (tracks with Complex-warped clips, `crate::warp`).
     pub warp_scratch: Option<crate::warp::WarpScratch>,
+    /// Wall time of the track's job (ns, smoothed: up fast, down slowly), native hosts
+    /// only (`Engine::process` measures, `crate::parallel` priorities use it). 0 = unknown.
+    pub job_ns: f32,
     /// Set by the track's job, collected on the audio thread after the last level.
     pub overflow: bool,
     pub underruns: u32,
@@ -474,6 +487,16 @@ pub(crate) struct TrackRt {
 }
 
 impl TrackRt {
+    /// RT. Mixer smoothers jump to their targets (a resume after a suspension).
+    pub(crate) fn settle(&mut self) {
+        self.volume.settle();
+        self.pan.settle();
+        self.gate.settle();
+        for send in &mut self.sends {
+            send.level.settle();
+        }
+    }
+
     /// RT. Carry running state over from the previous snapshot's version of this track.
     pub(crate) fn inherit(&mut self, old: &mut TrackRt) {
         let (vol, pan, gate) = (
@@ -507,6 +530,7 @@ impl TrackRt {
         std::mem::swap(&mut self.live, &mut old.live);
         self.next_note_id = old.next_note_id;
         self.meter = old.meter;
+        self.job_ns = old.job_ns;
         self.racks.inherit(&mut old.racks);
         self.chain_racks.inherit(&mut old.chain_racks);
         self.modulation.inherit(&mut old.modulation);
@@ -551,6 +575,22 @@ pub(crate) fn apply_fader_range(
     end: usize,
 ) {
     let [l, r] = a;
+    if !volume.is_smoothing() && !pan.is_smoothing() {
+        // Settled (the usual case): the same products as below, with constants the
+        // compiler can vectorize (`tick` returns `current` and changes nothing).
+        let g = volume.current();
+        let p = pan.current().clamp(-1.0, 1.0);
+        let gl = if p > 0.0 { 1.0 - p } else { 1.0 };
+        let gr = if p < 0.0 { 1.0 + p } else { 1.0 };
+        let (kl, kr) = (g * gl, g * gr);
+        for s in &mut l[start..end] {
+            *s *= kl;
+        }
+        for s in &mut r[start..end] {
+            *s *= kr;
+        }
+        return;
+    }
     for (sl, sr) in l[start..end].iter_mut().zip(r[start..end].iter_mut()) {
         let g = volume.tick();
         let p = pan.tick().clamp(-1.0, 1.0);
@@ -580,6 +620,14 @@ pub(crate) fn apply_gate(a: &mut Stereo, gate: &mut Smoother, frames: usize) {
 /// never fuses into FMA), so this matches mixing `src * gain` straight into the bus.
 /// `advance = false` leaves `gain` where it was (the left channel; the right advances).
 pub(crate) fn scale(buf: &mut [f32], gain: &mut Smoother, advance: bool) {
+    if !gain.is_smoothing() {
+        // Settled: a constant (vectorizable; `tick` would return it and change nothing).
+        let g = gain.current();
+        for s in buf.iter_mut() {
+            *s *= g;
+        }
+        return;
+    }
     if advance {
         for s in buf.iter_mut() {
             *s *= gain.tick();

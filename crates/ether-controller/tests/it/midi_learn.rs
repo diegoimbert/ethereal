@@ -898,3 +898,45 @@ fn learn_needs_an_open_project() {
     ctl.tick(T0, &mut out);
     let _ = HostServices::now_ms(&ctl.host);
 }
+
+#[test]
+fn mapped_transport_controls_wait_for_the_project_to_load() {
+    let mut h = H::new();
+    h.map(
+        note(10),
+        MidiMapTarget::Transport {
+            action: TransportAction::TogglePlay,
+        },
+        MidiMapMode::Toggle,
+    );
+    h.map(
+        cc(11),
+        MidiMapTarget::Transport {
+            action: TransportAction::ToggleLoop,
+        },
+        MidiMapMode::Absolute,
+    );
+    // A project load in progress (`loading`).
+    h.ctl.begin_load();
+    assert!(h.ctl.loading.active());
+    let plays = |h: &H| {
+        h.ctl
+            .bridge
+            .inner
+            .calls
+            .iter()
+            .filter(|c| **c == Call::Transport(TransportControl::Play))
+            .count()
+    };
+    h.midi("K", &[[NOTE_ON, 10, 127]]);
+    assert_eq!(plays(&h), 0, "play refused while loading");
+    // Other mapped controls still work.
+    h.midi("K", &[[CC, 11, 127]]);
+    assert!(h.project().settings.loop_enabled);
+
+    // Loaded (nothing left to load: the next tick ends it): the control plays.
+    h.tick();
+    assert!(!h.ctl.loading.active());
+    h.midi("K", &[[NOTE_OFF, 10, 0], [NOTE_ON, 10, 127]]);
+    assert_eq!(plays(&h), 1);
+}

@@ -34,6 +34,8 @@ pub enum Call {
     Publish(u64),
     SetParam(ParamChange),
     Transport(TransportControl),
+    /// `set_suspended` (a project load).
+    Suspend(bool),
     /// A state loaded into a running plugin instance in place (`set_plugin_state`).
     SetPluginState(DeviceId, Base64Bytes),
 }
@@ -265,6 +267,11 @@ impl EngineBridge for FakeBridge {
 
     fn transport(&mut self, control: TransportControl) -> Result<(), BridgeError> {
         self.calls.push(Call::Transport(control));
+        Ok(())
+    }
+
+    fn set_suspended(&mut self, suspended: bool) -> Result<(), BridgeError> {
+        self.calls.push(Call::Suspend(suspended));
         Ok(())
     }
 

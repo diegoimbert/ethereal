@@ -5,7 +5,8 @@
  *
  * While another computer's engine plays the project, `plugins` is **that computer's** list
  * (`setRemote`, set by whatever connects to it, e.g. an extension): everything that offers or
- * checks plugins reads it.
+ * checks plugins reads it. Whether a plugin is missing is the engine host's answer too
+ * (`engineCatalog`): a plugin only missing on this computer isn't.
  */
 import { useContext, useEffect } from "react";
 import { create } from "zustand";
@@ -34,6 +35,9 @@ export interface PluginRuntimeState {
   local: PluginDescriptor[] | null;
   /** The plugins of the computer whose engine plays the project, when not this one's. */
   remote: RemotePluginCatalog | null;
+  /** Another computer's engine plays the project, but its list hasn't come yet (or never
+   * comes: a view-only listener gets none): which plugins are missing is unknown meanwhile. */
+  remotePending: boolean;
   /** Bumped per plugin device whose descriptor arrived from the engine host (fetch again). */
   descriptorEpochs: Record<DeviceId, number>;
   /** Rescan in progress. */
@@ -56,6 +60,8 @@ export interface PluginRuntimeState {
   setPlugins(plugins: PluginDescriptor[]): void;
   /** The engine host's list, or (`null`) back to this computer's. */
   setRemote(remote: RemotePluginCatalog | null): void;
+  /** Another computer's engine plays the project (`remote` may still be on its way). */
+  setRemotePending(pending: boolean): void;
   /** The engine host reported new descriptors for these plugin devices (fetch them again). */
   descriptorsChanged(devices: DeviceId[]): void;
   setScan(scan: ScanState | null): void;
@@ -75,6 +81,7 @@ const initial = {
   plugins: null,
   local: null,
   remote: null,
+  remotePending: false,
   descriptorEpochs: {},
   scan: null,
   failed: [],
@@ -102,6 +109,7 @@ export const usePluginStore = create<PluginRuntimeState>((set) => ({
   // `found` is about this computer's plugin host: only the local scan counts.
   setPlugins: (local) => set((s) => ({ local, plugins: s.remote ? s.remote.plugins : local, found: foundDevices(s.local, local, s.found) })),
   setRemote: (remote) => set((s) => ({ remote, plugins: remote ? remote.plugins : s.local })),
+  setRemotePending: (remotePending) => set((s) => (s.remotePending === remotePending ? s : { remotePending })),
   descriptorsChanged: (devices) =>
     set((s) => {
       const descriptorEpochs = { ...s.descriptorEpochs };
@@ -149,6 +157,16 @@ export const usePluginStore = create<PluginRuntimeState>((set) => ({
     }),
   reset: () => set(initial),
 }));
+
+/**
+ * The plugins of the computer whose engine plays the project, which say what is missing:
+ * the engine host's list while another computer's engine plays it (`null` until it comes),
+ * else this computer's scan (`null` until loaded).
+ */
+export function engineCatalog(s: Pick<PluginRuntimeState, "local" | "remote" | "remotePending">): PluginDescriptor[] | null {
+  if (s.remote) return s.remote.plugins;
+  return s.remotePending ? null : s.local;
+}
 
 /**
  * `found` after the list goes from `prev` to `next`: the open project's plugin devices
@@ -234,6 +252,16 @@ export function useScannedPlugins(enabled: boolean): PluginDescriptor[] | null {
     if (enabled && local === null && transport) refreshPluginList(transport);
   }, [enabled, local, transport]);
   return local;
+}
+
+/**
+ * The plugins installed where the project's engine runs (`engineCatalog`), `null` while
+ * unknown: what device headers check a plugin device against for "missing". Fetches this
+ * computer's scan once if nobody has yet, like `useScannedPlugins`.
+ */
+export function useEnginePlugins(enabled: boolean): PluginDescriptor[] | null {
+  useScannedPlugins(enabled);
+  return usePluginStore(engineCatalog);
 }
 
 /** The transport, or `null` outside a `TransportProvider` (e.g. the bare app shell). */

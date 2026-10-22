@@ -657,6 +657,8 @@ export interface MessageArgs {
   "shell.transport.engine": { status: string | number };
   "shell.transport.engine_status": { backend: string | number; buffer: string | number; count: number; rate: string | number };
   "shell.transport.engine_stopped": { backend: string | number };
+  "shell.transport.loading_media": { done: string | number; total: string | number };
+  "shell.transport.loading_plugins": { done: string | number; total: string | number };
   "shell.transport.play_key": { key: string | number };
   "shell.transport.stop_key": { key: string | number };
   "sidechain.source_label": { name: string | number };
