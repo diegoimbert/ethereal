@@ -28,6 +28,7 @@ mod fx_color;
 mod fx_dynamics;
 mod fx_modulation;
 mod fx_space;
+mod grain_delay;
 mod implemented;
 mod instruments_golden;
 mod instruments_poly_synth;

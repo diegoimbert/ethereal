@@ -8,6 +8,7 @@ covers:
   - devices/compressor #compressor
   - devices/eq #eq
   - devices/delay #delay
+  - devices/grain-delay #grain-delay
   - devices/reverb #reverb
   - devices/convolution-reverb #convolution-reverb
   - devices/limiter #limiter
@@ -70,6 +71,15 @@ Echoes.
 - **low cut** and **high cut** act inside the feedback loop, so each echo gets darker or thinner than the one before.
 - **mod rate** and **mod depth** wobble the delay time, like tape.
 - **freeze** loops what is in the delay right now, without taking new input.
+
+### grain delay
+
+Echoes chopped into tiny overlapping grains, which you can transpose and scatter.
+
+- **pitch** transposes the grains (-36 to +12 semitones); with **feedback**, each echo is transposed again, so the repeats climb or fall.
+- **frequency** sets how many grains start per second, and so their size: low values give long, smooth grains (a simple pitch shifter), high values a buzzy, granular texture. Drag the pad: across for the **frequency**, up for the **pitch**.
+- **spray** scatters each grain's start in time (a little smears the sound, a lot breaks it up and widens it); **random pitch** detunes each grain at random.
+- **time** in milliseconds, or turn on **sync** for a note value that follows the tempo. **mix** blends the dry sound.
 
 ### limiter
 

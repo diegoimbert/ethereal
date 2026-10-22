@@ -1735,6 +1735,14 @@
           "platform": "all"
         },
         {
+          "id": "devices/grain-delay",
+          "title": "grain delay",
+          "what": "echoes made of short overlapping grains: pitch (-36..+12, cascades with feedback), frequency (grain rate and size), spray (random start time, wider), random pitch, time in ms or synced, feedback, mix; xy pad for frequency and pitch.",
+          "priority": "nice",
+          "audience": "everyone",
+          "platform": "all"
+        },
+        {
           "id": "devices/reverb",
           "title": "reverb",
           "what": "algorithmic reverb: pre-delay, size, decay (0.2–20 s), damping, width, mix, low / high cut on the input, diffusion, freeze (infinite tail), output (wet level only).",
