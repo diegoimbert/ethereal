@@ -1500,7 +1500,6 @@
   "shell.transport.loop": "boucle",
   "shell.transport.metronome": "métronome",
   "shell.transport.position": "position",
-  "shell.transport.position_loading": "chargement",
   "shell.transport.cpu_title": "charge du moteur (traitement audio)",
   "shell.transport.engine_menu": "moteur",
   "shell.transport.stop_engine": "arrêter le moteur",
