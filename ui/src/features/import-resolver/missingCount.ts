@@ -2,6 +2,7 @@
 import { useContext } from "react";
 import type { Project } from "@/generated";
 import { useMediaRefs } from "@/features/media-refs/store";
+import { engineCatalog, usePluginStore } from "@/features/plugins/pluginStore";
 import { useProjectStore } from "@/state";
 import { TransportContext, type EngineTransport } from "@/transport";
 import { catalogNow, isMissingPlugin } from "./catalog";
@@ -23,5 +24,7 @@ export function useMissingCount({ media = true }: { media?: boolean } = {}): num
   const transport = useContext(TransportContext)?.transport;
   const project = useProjectStore((s) => s.project);
   const missingMedia = useMediaRefs((s) => s.missing.size);
+  // Counted again when the engine host's list comes or changes.
+  usePluginStore(engineCatalog);
   return missingCount(project, transport, media ? missingMedia : 0);
 }
