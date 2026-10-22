@@ -163,3 +163,48 @@ fn expand_attenuates_below_the_threshold_only() {
     let (_, grs) = render(&mut comp(Some(2.0), -20.0, 20.0), &vec![0.001f32; 48_000]);
     assert!((grs.last().unwrap() - compressor::MAX_EXPAND_DB).abs() < 0.01);
 }
+
+/// `Range` caps the gain reduction (its 80 dB maximum doesn't: bit-identical to before).
+#[test]
+fn range_caps_the_gain_reduction() {
+    // A 0 dBFS square at -40 dB, 20:1: ~38 dB of reduction asked.
+    let x = vec![1.0f32; 48_000];
+    let (a, full) = render(&mut comp(None, -40.0, 20.0), &x);
+    assert!(*full.last().unwrap() > 30.0, "{full:?}");
+    let mut off = comp(None, -40.0, 20.0);
+    off.set_param(compressor::params::RANGE, compressor::RANGE_OFF_DB as f64);
+    assert_eq!(render(&mut off, &x).0, a);
+    let mut c = comp(None, -40.0, 20.0);
+    c.set_param(compressor::params::RANGE, 12.0);
+    let (out, grs) = render(&mut c, &x);
+    assert!((grs.last().unwrap() - 12.0).abs() < 0.01, "{grs:?}");
+    assert!((out.last().unwrap() - 10f32.powf(-12.0 / 20.0)).abs() < 1e-3);
+}
+
+/// `Soft Clip` leaves -6 dBFS and below alone and keeps louder peaks under -0.5 dBFS.
+#[test]
+fn soft_clip_keeps_peaks_under_its_ceiling() {
+    let ceiling = 10f32.powf(compressor::SOFT_CLIP_CEILING_DB / 20.0);
+    for x in [0.1f32, 0.5, -0.4] {
+        assert_eq!(compressor::soft_clip(x), x);
+    }
+    for x in [0.7f32, 1.0, 4.0, -2.0] {
+        let y = compressor::soft_clip(x);
+        assert!(
+            y.abs() < ceiling && y.abs() > 0.5 && y.signum() == x.signum(),
+            "{x} {y}"
+        );
+    }
+    // Monotonic.
+    let ys: Vec<f32> = (0..400)
+        .map(|i| compressor::soft_clip(i as f32 * 0.01))
+        .collect();
+    assert!(ys.windows(2).all(|w| w[1] >= w[0]));
+    // In the device: a loud sine (no compression: threshold 0, ratio 1) comes out under it.
+    let mut c = comp(None, 0.0, 1.0);
+    c.set_param(compressor::params::MAKEUP, 12.0);
+    c.set_param(compressor::params::SOFT_CLIP, 1.0);
+    let (out, _) = render(&mut c, &sine(0.9, 9_600));
+    let peak = out.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+    assert!(peak < ceiling && peak > 0.9, "{peak}");
+}

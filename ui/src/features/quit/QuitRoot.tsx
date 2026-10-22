@@ -1,9 +1,14 @@
 // Desktop: asks "Quit Ethereal?" when the shell reports a quit request (⌘Q, the main
 // window's close button), and closes the topmost floating window on ⌘W in the main window.
+// With an untitled project open (`features/project/untitledLeave.ts`) the question is "keep
+// or discard it?" instead: discarding has the engine delete it as it stops.
 // Mounted once by the app shell; renders nothing outside the desktop shell.
 import { useEffect } from "react";
 import { Trans, useT } from "@/i18n";
 import { Button, closeTopFloatingWindow, Dialog } from "@/kit";
+import { draftsTransport } from "@/features/project/drafts";
+import { discardUntitled, keepUntitled, untitledOpen, type UntitledChoice } from "@/features/project/untitledLeave";
+import { UntitledPrompt } from "@/features/project/UntitledLeaveDialog";
 import { useProjectStore } from "@/state";
 import { quitBridge, type QuitBridge } from "./bridge";
 import { useQuitConfirm } from "./store";
@@ -20,6 +25,8 @@ function QuitConfirm({ bridge }: { bridge: QuitBridge }) {
   const setOpen = useQuitConfirm((s) => s.setOpen);
   const dirty = useProjectStore((s) => s.dirty);
   const name = useProjectStore((s) => s.project?.settings.name);
+  // Read as the question opens.
+  const untitled = open ? untitledOpen() : null;
 
   useEffect(() => {
     let alive = true;
@@ -53,9 +60,21 @@ function QuitConfirm({ bridge }: { bridge: QuitBridge }) {
     void bridge.quit();
   };
 
-  // Enter quits (unless a button has the focus: it does its own job).
+  /** The untitled project's answer: kept (maybe named) or discarded, then quit. */
+  const answer = async (choice: UntitledChoice) => {
+    const t = draftsTransport();
+    if (choice.type === "cancel" || !untitled || !t) return cancel();
+    setOpen(false);
+    if (choice.type === "keep") await keepUntitled(t, untitled, choice.name).catch(() => undefined);
+    else await discardUntitled(t, untitled.id).catch(() => undefined);
+    void bridge.quit();
+  };
+
+  // Enter quits (unless a button has the focus: it does its own job). The untitled
+  // question's name field submits its own form (keep).
+  const asksUntitled = untitled !== null;
   useEffect(() => {
-    if (!open) return;
+    if (!open || asksUntitled) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Enter" || e.defaultPrevented || (e.target instanceof Element && e.target.closest("button"))) return;
       e.preventDefault();
@@ -64,8 +83,9 @@ function QuitConfirm({ bridge }: { bridge: QuitBridge }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, bridge, setOpen]);
+  }, [open, asksUntitled, bridge, setOpen]);
 
+  if (untitled) return <UntitledPrompt open name={untitled.settings.name} kind="quit" onChoice={(c) => void answer(c)} />;
   return (
     <Dialog
       open={open}

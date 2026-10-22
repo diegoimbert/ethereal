@@ -834,6 +834,10 @@ pub struct EngineCtx<'a, B> {
 }
 
 impl<B: EngineBridge> DocHost for EngineCtx<'_, B> {
+    fn sandbox_by_default(&self, format: PluginFormat, plugin_id: &str) -> bool {
+        self.bridge.sandbox_by_default(format, plugin_id)
+    }
+
     fn peaks(&self, media: MediaId) -> Option<&ether_media::PeakMipmap> {
         self.media.peaks(media)
     }

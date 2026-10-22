@@ -42,4 +42,4 @@ macros?: RackMacros, } | { "type": "ConvolutionReverb", ir: IrSource | null, } |
 /**
  * Omitted (an agent's `{"type": "VolumeLfo"}`) = the default pump.
  */
-curve: LfoCurve, } | { "type": "NoteBlocker" } | { "type": "Erosion" };
+curve: LfoCurve, } | { "type": "NoteBlocker" } | { "type": "Erosion" } | { "type": "Pedal" };

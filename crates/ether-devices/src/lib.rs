@@ -90,7 +90,8 @@ fn type_descriptor(device: BuiltinDeviceType) -> DeviceDescriptor {
         BuiltinDeviceType::Saturator
         | BuiltinDeviceType::Bitcrusher
         | BuiltinDeviceType::AutoFilter
-        | BuiltinDeviceType::Erosion => fx_color::descriptor(device),
+        | BuiltinDeviceType::Erosion
+        | BuiltinDeviceType::Pedal => fx_color::descriptor(device),
         BuiltinDeviceType::Chorus
         | BuiltinDeviceType::Phaser
         | BuiltinDeviceType::Flanger
@@ -141,7 +142,8 @@ pub fn factory_presets(device: BuiltinDeviceType) -> &'static [contract::Factory
         BuiltinDeviceType::Saturator
         | BuiltinDeviceType::Bitcrusher
         | BuiltinDeviceType::AutoFilter
-        | BuiltinDeviceType::Erosion => fx_color::factory_presets(device),
+        | BuiltinDeviceType::Erosion
+        | BuiltinDeviceType::Pedal => fx_color::factory_presets(device),
         BuiltinDeviceType::Chorus
         | BuiltinDeviceType::Phaser
         | BuiltinDeviceType::Flanger
@@ -218,7 +220,8 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         BuiltinDevice::Saturator
         | BuiltinDevice::Bitcrusher
         | BuiltinDevice::AutoFilter
-        | BuiltinDevice::Erosion => fx_color::create(device),
+        | BuiltinDevice::Erosion
+        | BuiltinDevice::Pedal => fx_color::create(device),
         BuiltinDevice::Chorus
         | BuiltinDevice::Phaser
         | BuiltinDevice::Flanger

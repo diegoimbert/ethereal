@@ -1374,7 +1374,9 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   change or switch releases what was held (`ether_devices::midi_fx`). Then `Erosion`
   (`fx-color`, no kind data): a very short delay modulated by a sine, shared noise or
   per-channel noise (param table in `ether_devices::fx_color`); it reports its centre delay
-  as latency.
+  as latency. Then `Pedal` (`fx-color`, no kind data): overdrive / distortion / fuzz with a
+  bass / mid / treble tone stack and a sub boost, 4x oversampled (it reports the 29-sample
+  round trip as latency).
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.

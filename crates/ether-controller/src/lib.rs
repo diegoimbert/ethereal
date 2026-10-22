@@ -143,7 +143,7 @@ use std::collections::BTreeMap;
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::{
     Base64Bytes, BuiltinDevice, DeviceId, GestureId, History, IdGen, MediaId, MediaRef, ParamId,
-    PluginInstance, Project, TrackId,
+    PluginFormat, PluginInstance, Project, TrackId,
 };
 use ether_core::protocol::transport::TransportState;
 use ether_core::protocol::{ClientMessage, Reply, ReplyResult, ServerMessage};
@@ -427,6 +427,16 @@ pub trait EngineBridge {
     fn probe_plugin(&mut self, plugin: &PluginInstance) -> Option<DeviceDescriptor> {
         let _ = plugin;
         None
+    }
+
+    /// Whether a NEW instance of this plugin starts sandboxed: the engine host's "sandboxed
+    /// by default" list (settings; `PluginCommand::ListSandboxDefaults`). Asked only when an
+    /// instance is created without a flag of its own (an insert with `sandboxed: null`, a
+    /// replacement by another plugin, an imported project); copies, undo and presets of an
+    /// instance keep its flag. Default: none (hosts without the setting).
+    fn sandbox_by_default(&self, format: PluginFormat, plugin_id: &str) -> bool {
+        let _ = (format, plugin_id);
+        false
     }
 
     /// The installed plugins (the host's scanned catalog, what
@@ -736,6 +746,9 @@ where
     pub samples: sample_pack::SamplesState,
     pub next_gesture: u32,
     pub last_transport: Option<TransportState>,
+    /// The open project the user discarded (`ProjectCommand::Discard`): never saved again,
+    /// deleted once it closes.
+    pub discarded: Option<ether_core::protocol::model::ProjectId>,
     /// The project load in progress: the engine is suspended until it ends (`loading`).
     pub loading: loading::LoadState,
     pub outputs: EngineOutputs,
@@ -817,6 +830,7 @@ where
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,
             last_transport: None,
+            discarded: None,
             loading: Default::default(),
             outputs: EngineOutputs::default(),
             config,

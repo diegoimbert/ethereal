@@ -24,7 +24,7 @@ import multisampler from "./multisampler.json";
 import polySynth from "./polySynth.json";
 import racks from "./racks.json";
 
-/** The v0.2 built-in types (after `DrumRack` in `BuiltinDeviceType::ALL`), the later fx-modulation `Vibrato` and fx-color `Erosion`. */
+/** The v0.2 built-in types (after `DrumRack` in `BuiltinDeviceType::ALL`), the later fx-modulation `Vibrato` and fx-color `Erosion` and `Pedal`. */
 export type V02DeviceType =
   | "PolySynth"
   | "MultiSampler"
@@ -32,6 +32,7 @@ export type V02DeviceType =
   | "Bitcrusher"
   | "AutoFilter"
   | "Erosion"
+  | "Pedal"
   | "Chorus"
   | "Phaser"
   | "Flanger"

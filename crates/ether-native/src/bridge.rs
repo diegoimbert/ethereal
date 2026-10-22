@@ -113,6 +113,8 @@ pub struct NativeBridge {
     /// Dedicated engines' plugin notifications, by registry salt: the main bridge drains the
     /// registry's one queue and files theirs here; each dedicated bridge takes its own.
     dedicated_notes: DedicatedNotes,
+    /// Settings: the plugins new instances of which start sandboxed (`set_sandbox_defaults`).
+    sandbox_defaults: crate::sandbox_defaults::SandboxDefaults,
 }
 
 /// An extension's part of the native bridge (docs/EXTENSIONS.md): made for every bridge (the
@@ -163,6 +165,12 @@ impl NativeBridge {
         self.scanning = Some(scanning);
     }
 
+    /// Share the host's "sandboxed by default" list, read by
+    /// [`EngineBridge::sandbox_by_default`] (empty without it).
+    pub fn set_sandbox_defaults(&mut self, list: crate::sandbox_defaults::SandboxDefaults) {
+        self.sandbox_defaults = list;
+    }
+
     pub fn new(
         handle: EngineHandle,
         prepare: PrepareConfig,
@@ -196,6 +204,7 @@ impl NativeBridge {
             registry_salt: 0,
             spawned_engines: false,
             dedicated_notes: Default::default(),
+            sandbox_defaults: Default::default(),
             disk_streaming: !std::env::var("ETHER_DISK_STREAMING")
                 .is_ok_and(|v| v == "0" || v == "off"),
         };
@@ -366,6 +375,7 @@ impl NativeBridge {
         );
         bridge.registry_salt = salt;
         bridge.dedicated_notes = self.dedicated_notes.clone();
+        bridge.sandbox_defaults = self.sandbox_defaults.clone();
         if let Ok(mut notes) = self.dedicated_notes.lock() {
             notes.insert(salt, Vec::new());
         }
@@ -1103,6 +1113,14 @@ impl EngineBridge for NativeBridge {
 
     fn plugin_param_values(&mut self, device: DeviceId) -> Vec<(ParamId, f64)> {
         self.plugins.param_values(self.reg(device))
+    }
+
+    fn sandbox_by_default(
+        &self,
+        format: ether_core::protocol::model::PluginFormat,
+        plugin_id: &str,
+    ) -> bool {
+        self.sandbox_defaults.contains(format, plugin_id)
     }
 
     fn probe_plugin(&mut self, plugin: &PluginInstance) -> Option<DeviceDescriptor> {

@@ -180,7 +180,11 @@ fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
                         name: listed.clone().unwrap_or_else(|| plugin_id.clone()),
                         vendor: String::new(),
                         version: String::new(),
-                        sandboxed: sandboxed.unwrap_or(false),
+                        sandboxed: ctx.host.new_instance_sandboxed(
+                            *sandboxed,
+                            format.unwrap_or(PluginFormat::Clap),
+                            plugin_id,
+                        ),
                         state: None,
                     };
                     let desc = ctx.host.instantiate_plugin(*id, &plugin)?;

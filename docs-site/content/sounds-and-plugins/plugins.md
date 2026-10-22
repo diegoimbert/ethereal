@@ -13,6 +13,7 @@ covers:
   - plugins/linux-plugin-editors-need-x11 #plugin-windows-on-linux
   - plugins/keys-in-plugin-windows #keys-in-plugin-windows
   - plugins/sandboxing-and-crashes #when-a-plugin-crashes
+  - plugins/sandboxed-by-default #plugins-sandboxed-by-default
   - plugins/open-without-plugins-safe-mode #opening-a-project-without-plugins
   - plugins/missing-plugins #missing-plugins
   - plugins/plugin-state-is-saved-in-the-project #how-plugin-sounds-are-saved
@@ -80,6 +81,12 @@ While a plugin window has the focus:
 By default, plugins run inside Ethereal. For a plugin you don't trust, right-click its header and choose **run sandboxed (crash-safe, +1 block latency)**. The plugin then runs in its own process. If it crashes, Ethereal keeps playing: the device shows **crashed · bypassed** and the track plays without it. Click **⟳** to reload the plugin from its last saved state.
 
 Sandboxing adds one audio block of latency. To switch back, right-click the header and choose **run in-process (no sandbox)**.
+
+### plugins sandboxed by default
+
+To have a plugin always start sandboxed, right-click a device using it and choose **always sandbox this plugin** (that device is sandboxed too), or add it in **settings › plugins › sandboxing** with **add a plugin…**. Every new device of that plugin then starts sandboxed: added from the device library, dragged in, as a replacement for another plugin, from a rack preset, or in a project imported from another app.
+
+This list only chooses how a new device starts. Each device keeps its own setting, saved in the project, and you can still switch it either way from its menu. Duplicated and pasted devices keep the setting of the device they come from, and changing the list never changes the devices already in a project. The list is kept on the computer whose engine plays the project: when you join someone else's session, theirs applies.
 
 > [!note]
 > Sandboxing works on macOS and Linux. On Windows, plugins always run inside Ethereal: choosing to run a plugin sandboxed does nothing there.

@@ -342,6 +342,9 @@ pub enum BuiltinDevice {
     /// Digital degradation: a very short delay modulated by a sine or band-limited noise
     /// (`fx-color`).
     Erosion,
+    /// Guitar-pedal distortion: overdrive / distortion / fuzz with a tone stack
+    /// (`fx-color`).
+    Pedal,
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -390,11 +393,12 @@ pub enum BuiltinDeviceType {
     VolumeLfo,
     NoteBlocker,
     Erosion,
+    Pedal,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 41] = [
+    pub const ALL: [BuiltinDeviceType; 42] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -436,6 +440,7 @@ impl BuiltinDeviceType {
         Self::VolumeLfo,
         Self::NoteBlocker,
         Self::Erosion,
+        Self::Pedal,
     ];
 
     /// Rack types ([`crate::rack`]).
@@ -509,6 +514,7 @@ impl BuiltinDevice {
             Self::VolumeLfo { .. } => BuiltinDeviceType::VolumeLfo,
             Self::NoteBlocker => BuiltinDeviceType::NoteBlocker,
             Self::Erosion => BuiltinDeviceType::Erosion,
+            Self::Pedal => BuiltinDeviceType::Pedal,
         }
     }
 
@@ -595,6 +601,7 @@ impl BuiltinDevice {
             },
             BuiltinDeviceType::NoteBlocker => Self::NoteBlocker,
             BuiltinDeviceType::Erosion => Self::Erosion,
+            BuiltinDeviceType::Pedal => Self::Pedal,
         }
     }
 
