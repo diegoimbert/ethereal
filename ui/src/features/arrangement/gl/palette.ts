@@ -77,6 +77,18 @@ export interface Palette {
   /** `--eth-mix-white` / `--eth-mix-black`. */
   white: Rgba;
   black: Rgba;
+  /** A loading track's clips (#260): their opacity (`--eth-opacity-muted`), default 0.6. */
+  loadingOpacity?: number;
+  /** How long a loaded track's clips take to fade back (`--eth-duration-slow`, ms). */
+  loadedFadeMs?: number;
+}
+
+/** A number token (`0.6`, `300ms`, `0.3s`), or `fallback`. */
+function numberToken(name: `--${string}`, fallback: number): number {
+  const v = readToken(name).trim();
+  const n = parseFloat(v);
+  if (!Number.isFinite(n)) return fallback;
+  return v.endsWith("ms") ? n : v.endsWith("s") ? n * 1000 : n;
 }
 
 type PaletteKey = Extract<ColorKey, "bg" | "bgPanel" | "textInverse" | "clipSeam" | "meterHigh" | "selection">;
@@ -99,6 +111,8 @@ export function readPalette(): Palette {
     selection: color("selection"),
     white: parseColor(readToken("--eth-mix-white"), [1, 1, 1, 1]),
     black: parseColor(readToken("--eth-mix-black"), [0, 0, 0, 1]),
+    loadingOpacity: numberToken("--eth-opacity-muted", 0.6),
+    loadedFadeMs: numberToken("--eth-duration-slow", 300),
   };
 }
 

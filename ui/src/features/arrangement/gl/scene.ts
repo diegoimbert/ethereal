@@ -71,6 +71,8 @@ export interface SceneInput {
   palette: Palette;
   tempo: TempoMap;
   transportKind: EngineTransport["kind"];
+  /** Tracks still loading while the project opens (#260: their clips look unavailable). */
+  loading?: ReadonlySet<TrackId>;
 }
 
 /**
@@ -265,6 +267,10 @@ export class LaneScene {
   private staticDirty = true;
   /** Opacity of all the lane's clips (`setAlpha`: e.g. dimmed take lanes). */
   private alphaMul = 1;
+  /** The track is still loading (`setLoading`): its clips desaturated (`Fx.Loading`). */
+  private loading = false;
+  /** Opacity of a loading track's clips, eased back to 1 once it loaded (`setLoading`). */
+  private loadAlpha = 1;
   /** The clips' title band height (`titleHeight` of the lane's height: all of a compact lane). */
   titleHeight = CLIP_TITLE;
   /** A compact lane: its clips are a title band alone (no notes, waveform or loop seams). */
@@ -416,6 +422,17 @@ export class LaneScene {
     this.buildView(input, win);
   }
 
+  /**
+   * The track is still loading (desaturated), and its clips' opacity (`alpha`: the loading
+   * opacity, then eased back to 1 once it loaded).
+   */
+  setLoading(loading: boolean, alpha: number): void {
+    if (loading === this.loading && alpha === this.loadAlpha) return;
+    this.loading = loading;
+    this.loadAlpha = alpha;
+    this.staticDirty = true;
+  }
+
   /** Opacity of all the lane's clips (like a CSS `opacity` on their container). */
   setAlpha(alpha: number): void {
     if (alpha === this.alphaMul) return;
@@ -429,7 +446,7 @@ export class LaneScene {
   }
 
   private fxOf(it: LaneItem): FxCode {
-    return this.frozen ? Fx.Frozen : it.clip.muted ? Fx.Muted : Fx.None;
+    return this.frozen ? Fx.Frozen : this.loading ? Fx.Loading : it.clip.muted ? Fx.Muted : Fx.None;
   }
 
   private buildStatic(input: SceneInput): void {
@@ -492,7 +509,7 @@ export class LaneScene {
     const colors = clipColors(input.palette, clip.color ?? this.track.color);
     const selected = !it.ghost && input.selected.has(clip.id);
     const fx = this.fxOf(it);
-    const alpha = (it.ghost ? 0.45 : it.dragging ? 0.85 : 1) * this.alphaMul;
+    const alpha = (it.ghost ? 0.45 : it.dragging ? 0.85 : 1) * this.alphaMul * this.loadAlpha;
     const box: XSpec = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_DRAW_MIN_PX };
     const clipBox = { x: box, y: BOX_Y, radius: CLIP_RADIUS };
     const hover = this.hoverKey && !it.ghost && this.hoverKey.startsWith(clip.id + "|") ? this.hoverKey.slice(clip.id.length + 1) : null;
@@ -586,7 +603,7 @@ export class LaneScene {
     const atlas = this.shared.atlas;
     const width = Math.max(CLIP_DRAW_MIN_PX, bounds.length * win.ppb);
     const fx = this.fxOf(it);
-    const alpha = (it.ghost ? 0.45 : it.dragging ? 0.85 : 1) * this.alphaMul;
+    const alpha = (it.ghost ? 0.45 : it.dragging ? 0.85 : 1) * this.alphaMul * this.loadAlpha;
     // On the title band, the band's text color; a compact lane's clip (a body alone): the clip's.
     const color = this.compact ? clipColors(input.palette, clip.color ?? this.track.color).strong : input.palette.titleText;
     const box: XSpec = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_DRAW_MIN_PX };
@@ -672,7 +689,7 @@ export class LaneScene {
     const level = peakLevel(Math.abs(toSeconds(bpp) - toSeconds(0)) * media.sample_rate);
     const colors = clipColors(input.palette, clip.color ?? this.track.color);
     const fx = this.fxOf(it);
-    const alpha = (it.ghost ? 0.45 : it.dragging ? 0.85 : 1) * this.alphaMul;
+    const alpha = (it.ghost ? 0.45 : it.dragging ? 0.85 : 1) * this.alphaMul * this.loadAlpha;
     const gain = dbToGain(clip.content.gain);
     const box = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_DRAW_MIN_PX };
     const shaped = { length: bounds.length, offset: bounds.offset, looping: bounds.looping ?? clip.looping };

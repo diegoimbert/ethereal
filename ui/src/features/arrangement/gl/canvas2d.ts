@@ -513,7 +513,7 @@ function paintRect(c: CanvasRenderingContext2D, b: Box, radii: number[], fill: C
 // ── colors ────────────────────────────────────────────────────────────────────────────────
 
 /**
- * The color at `d[o..o+4]` with the clip effects of `clipFx` (shaders.ts): muted / frozen
+ * The color at `d[o..o+4]` with the clip effects of `clipFx` (shaders.ts): muted / frozen / loading
  * desaturate and fade, the clip's opacity mixes into the background; alpha unchanged.
  */
 function fxColor(d: ArrayLike<number>, o: number, fx: number, opacity: number, bg: Rgba): Color {
@@ -522,14 +522,14 @@ function fxColor(d: ArrayLike<number>, o: number, fx: number, opacity: number, b
   let b = d[o + 2]!;
   let op = opacity;
   if (fx > 0.5) {
-    const s = fx < 1.5 ? 0.15 : 0.35;
+    const s = fx < 1.5 ? 0.15 : fx < 2.5 ? 0.35 : 0.2;
     const r2 = r * (0.213 + 0.787 * s) + g * (0.715 - 0.715 * s) + b * (0.072 - 0.072 * s);
     const g2 = r * (0.213 - 0.213 * s) + g * (0.715 + 0.285 * s) + b * (0.072 - 0.072 * s);
     const b2 = r * (0.213 - 0.213 * s) + g * (0.715 - 0.715 * s) + b * (0.072 + 0.928 * s);
     r = r2;
     g = g2;
     b = b2;
-    op *= fx < 1.5 ? 0.55 : 0.75;
+    op *= fx < 1.5 ? 0.55 : fx < 2.5 ? 0.75 : 1;
   }
   if (op < 1) {
     r = bg[0] + (r - bg[0]) * op;
