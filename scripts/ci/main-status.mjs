@@ -18,7 +18,7 @@ export const WORKFLOWS = [
   { file: "full.yml", name: "Full product", logs: (id) => `logs: \`just full-logs ${id}\`` },
   { file: "full-platforms.yml", name: "Full product (macOS, Windows)", logs: (id) => `logs: \`just full-logs ${id}\`` },
 ];
-const VERDICTS = new Set(["success", "failure", "timed_out", "startup_failure"]);
+export const VERDICTS = new Set(["success", "failure", "timed_out", "startup_failure"]);
 
 /** The newest run that ended green or red (runs come newest first), or null. */
 export function latestFinished(runs) {

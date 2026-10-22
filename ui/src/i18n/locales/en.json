@@ -386,6 +386,8 @@
   "settings.audio.buffer_size": "buffer size",
   "settings.audio.rate_hz": "{rate} hz",
   "settings.audio.buffer_samples": "{count, plural, one {# sample} other {# samples}}",
+  "settings.audio.anticipative": "render ahead",
+  "settings.audio.anticipative_hint": "tracks you aren't monitoring live are computed one buffer early, which gives heavy master chains more time. changes to them, and play and stop, take effect one buffer later.",
   "settings.audio.buffer_wasapi": "set by windows (wasapi shared mode). an asio driver lets ethereal choose it.",
   "settings.audio.buffer_wasapi_actual": "set by windows (wasapi shared mode): {actual} samples per callback. an asio driver lets ethereal choose it.",
   "settings.audio.buffer_mismatch": "the device runs {actual} samples ({requested} asked).",
