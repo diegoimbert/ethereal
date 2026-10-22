@@ -26,6 +26,8 @@ export type Platform = "mac" | "windows" | "linux" | "other";
 export interface InputSettings {
   /** Zoom speed multiplier (1 = default). */
   zoomSensitivity: number;
+  /** How much a fast wheel / swipe zooms more than a slow one (0 = off, 1 = default). */
+  zoomAcceleration: number;
   /** Scroll speed multiplier (1 = default). */
   scrollSensitivity: number;
   /** Flip the zoom direction of wheels and two-finger swipes (pinch is never flipped). */
@@ -55,9 +57,11 @@ export const NOTCH_ZOOM = 1.12;
 
 export const SENSITIVITY_MIN = 0.25;
 export const SENSITIVITY_MAX = 4;
+export const ACCELERATION_MAX = 3;
 
 const BASE: InputSettings = {
   zoomSensitivity: 1,
+  zoomAcceleration: 1,
   scrollSensitivity: 1,
   invertZoom: false,
   invertScrollY: false,
@@ -101,8 +105,10 @@ export function sanitizeInputSettings(raw: unknown, defaults: InputSettings): In
   const bool = (k: "invertZoom" | "invertScrollY" | "invertScrollX" | "shiftScrollsHorizontally") =>
     typeof v[k] === "boolean" ? (v[k] as boolean) : defaults[k];
   const oneOf = <T extends string>(k: keyof InputSettings, values: readonly T[], d: T): T => (values.includes(v[k] as T) ? (v[k] as T) : d);
+  const accel = v.zoomAcceleration;
   return {
     zoomSensitivity: num("zoomSensitivity"),
+    zoomAcceleration: typeof accel === "number" && Number.isFinite(accel) ? Math.min(ACCELERATION_MAX, Math.max(0, accel)) : defaults.zoomAcceleration,
     scrollSensitivity: num("scrollSensitivity"),
     invertZoom: bool("invertZoom"),
     invertScrollY: bool("invertScrollY"),
@@ -191,6 +197,33 @@ function zoomPerPx(discrete: boolean): number {
 export function wheelZoomFactorFor(d: number, discrete: boolean, settings: Pick<InputSettings, "zoomSensitivity" | "invertZoom">, pinch = false): number {
   const sign = settings.invertZoom && !pinch ? -1 : 1;
   return Math.exp(-sign * d * zoomPerPx(discrete) * settings.zoomSensitivity);
+}
+
+/** Zoom acceleration is measured over the wheel deltas of this window (ms). */
+export const ACCEL_WINDOW_MS = 150;
+/** Wheel speed (px / ms, same direction) from which zooming accelerates: slower is as always. */
+const ACCEL_FROM = 0.7;
+/** Most extra zoom at acceleration 1 (×(1 + this) the delta), reached at 4× `ACCEL_FROM`. */
+const ACCEL_MAX_EXTRA = 3;
+
+/**
+ * Zoom acceleration: a fast wheel or swipe zooms more per pixel than a slow one, so a quick
+ * flick crosses many zoom levels while slow scrolling keeps its fine control. `gain` takes each
+ * zoom delta (px) and returns what to multiply it by (1 below `ACCEL_FROM`). A change of
+ * direction starts over. Not for pinches (direct manipulation).
+ */
+export class ZoomAccelerator {
+  private samples: Array<{ at: number; d: number }> = [];
+
+  gain(d: number, now: number, acceleration: number): number {
+    const last = this.samples[this.samples.length - 1];
+    if (last && Math.sign(last.d) !== Math.sign(d)) this.samples = [];
+    this.samples.push({ at: now, d });
+    while (this.samples.length > 0 && now - this.samples[0]!.at > ACCEL_WINDOW_MS) this.samples.shift();
+    if (acceleration <= 0) return 1;
+    const rate = this.samples.reduce((sum, s) => sum + Math.abs(s.d), 0) / ACCEL_WINDOW_MS;
+    return 1 + Math.min(ACCEL_MAX_EXTRA, Math.max(0, rate / ACCEL_FROM - 1)) * acceleration;
+  }
 }
 
 /** Scroll amount in px for a normalized delta on `axis`, with the user's sensitivity and inversion. */

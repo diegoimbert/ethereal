@@ -50,7 +50,8 @@ describe("useTimelineWheel with the input settings", () => {
 
   it("Alt as the zoom modifier; plain wheel zooms when set", () => {
     const { notch, zoom } = setup();
-    act(() => useInputSettings.getState().set({ zoomModifier: "alt" }));
+    // Two notches at once would accelerate: one notch, one step each here.
+    act(() => useInputSettings.getState().set({ zoomModifier: "alt", zoomAcceleration: 0 }));
     notch(-3, { altKey: true });
     expect(zoom()).toBeCloseTo(20 * NOTCH_ZOOM);
     act(() => useInputSettings.getState().set({ zoomModifier: "ctrlCmd", plainWheel: "zoom" }));

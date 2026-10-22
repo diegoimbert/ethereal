@@ -382,6 +382,8 @@
   "settings.audio.track_fallback": "track",
   "settings.input.wheel": "wheel",
   "settings.input.zoom_sensitivity": "zoom sensitivity",
+  "settings.input.zoom_acceleration": "zoom acceleration",
+  "settings.input.zoom_acceleration_hint": "a fast wheel or swipe zooms further than a slow one (0: off)",
   "settings.input.scroll_sensitivity": "scroll sensitivity",
   "settings.input.plain_wheel": "wheel without modifier",
   "settings.input.plain_scrolls": "scrolls",

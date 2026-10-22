@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MOTION } from "./motion";
 import {
+  ZoomAccelerator,
   defaultInputSettings,
   detectPlatform,
   isDiscreteWheel,
@@ -189,5 +190,28 @@ describe("detectPlatform", () => {
     withNavigator({ platform: "MacIntel", userAgent: "" }, () => expect(detectPlatform()).toBe("mac"));
     withNavigator({ platform: "Win32", userAgent: "" }, () => expect(detectPlatform()).toBe("windows"));
     withNavigator({ platform: "Linux x86_64", userAgent: "" }, () => expect(detectPlatform()).toBe("linux"));
+  });
+});
+
+describe("zoom acceleration", () => {
+  it("leaves slow wheels as they are and multiplies fast ones, up to a cap; off at 0", () => {
+    const slow = new ZoomAccelerator();
+    // A notch every 200 ms: no acceleration.
+    for (let i = 0; i < 5; i++) expect(slow.gain(100, i * 200, 1)).toBe(1);
+    const fast = new ZoomAccelerator();
+    // A notch every 20 ms: the gain grows with the speed, capped at ×4.
+    const gains = Array.from({ length: 8 }, (_, i) => fast.gain(100, i * 20, 1));
+    expect(gains[0]).toBe(1);
+    expect(gains[3]!).toBeGreaterThan(2);
+    expect(gains[7]).toBe(4);
+    // Twice the acceleration setting, twice the extra.
+    expect(new ZoomAccelerator().gain(1000, 0, 2)).toBe(7);
+    expect(new ZoomAccelerator().gain(1000, 0, 0)).toBe(1);
+  });
+
+  it("starts over when the direction changes", () => {
+    const a = new ZoomAccelerator();
+    for (let i = 0; i < 6; i++) a.gain(100, i * 20, 1);
+    expect(a.gain(-100, 130, 1)).toBe(1);
   });
 });

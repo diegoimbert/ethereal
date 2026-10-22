@@ -382,6 +382,8 @@
   "settings.audio.track_fallback": "piste",
   "settings.input.wheel": "molette",
   "settings.input.zoom_sensitivity": "sensibilité du zoom",
+  "settings.input.zoom_acceleration": "accélération du zoom",
+  "settings.input.zoom_acceleration_hint": "une molette ou un balayage rapide zoome plus loin qu’un lent (0 : désactivée)",
   "settings.input.scroll_sensitivity": "sensibilité du défilement",
   "settings.input.plain_wheel": "molette sans modificateur",
   "settings.input.plain_scrolls": "fait défiler",
