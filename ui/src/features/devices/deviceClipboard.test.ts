@@ -7,7 +7,7 @@ import { useProjectStore } from "@/state";
 import { cmd, newId } from "@/transport";
 import { MockTransport } from "@/transport/mock";
 import { useConfirm } from "@/kit/confirmStore";
-import { deleteDevices, pasteDevice, pasteTarget, useDeviceClipboard } from "./deviceClipboard";
+import { deleteDevices, pasteDevice, pasteTarget, setDevicesEnabled, useDeviceClipboard } from "./deviceClipboard";
 
 let mock: MockTransport;
 const store = () => useProjectStore.getState();
@@ -291,5 +291,23 @@ describe("cut and delete", () => {
     expect(onTrack(a).map(typeOf)).toEqual(["Synth"]);
     await mock.send(cmd("Edit", { type: "Undo" }));
     expect(onTrack(a).map(typeOf)).toEqual(["Arpeggiator", "Synth", "Eq"]);
+  });
+});
+
+describe("on / off", () => {
+  it("a device of a selection turns the whole selection on or off, in one undo step; alone, just itself", async () => {
+    const a = await track("Midi");
+    const arp = await insert(a, "Arpeggiator");
+    const synth = await insert(a, "Synth");
+    const eq = await insert(a, "Eq");
+    const enabled = () => [arp, synth, eq].map((d) => project().devices[d]!.enabled);
+    useDeviceClipboard.setState({ selected: [arp, eq] });
+    await setDevicesEnabled(mock, eq, false);
+    expect(enabled()).toEqual([false, true, false]);
+    await mock.send(cmd("Edit", { type: "Undo" }));
+    expect(enabled()).toEqual([true, true, true]);
+    // Not in the selection: only itself.
+    await setDevicesEnabled(mock, synth, false);
+    expect(enabled()).toEqual([true, false, true]);
   });
 });

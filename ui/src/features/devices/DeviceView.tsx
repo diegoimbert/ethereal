@@ -18,7 +18,7 @@ import { switchMenu, switchTarget } from "./layout/automation";
 import { cmd, useTransport } from "@/transport";
 import { useT } from "@/i18n";
 import { DEVICE_DRAG_TYPE, currentChainDrag, deviceCategory, droppedChainDrag, isChainDrag, setDraggingDevice, type ChainDrag } from "./chainUtils";
-import { copyFrom, pasteDevice, selectModeOf, useDeviceClipboard, useDeviceClipboardKeys } from "./deviceClipboard";
+import { copyFrom, pasteDevice, selectModeOf, setDevicesEnabled, useDeviceClipboard, useDeviceClipboardKeys } from "./deviceClipboard";
 import { usePluginStore } from "@/features/plugins/pluginStore";
 import { shortcutLabel } from "@/features/keymap";
 import { useBuiltinTypes, useDescriptor } from "./descriptors";
@@ -69,8 +69,9 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
   // partial freeze, the devices after the freeze point stay live.
   const frozen = useDeviceFrozen(device);
   const headerBadges = useContributions("devices.headerBadge");
-  const setEnabled = (enabled: boolean) => void send(cmd("Device", { type: "SetEnabled", id: device.id, enabled }));
   const transport = useTransport();
+  // A card of a multi-selection turns the whole selection on or off.
+  const setEnabled = (enabled: boolean) => void setDevicesEnabled(transport, device.id, enabled).catch((e: unknown) => console.warn("on/off failed", e));
   // Copy / paste (deviceClipboard.ts): the selected card, what's copied, device kinds.
   const selected = useDeviceClipboard((s) => s.selected.includes(device.id));
   const copied = useDeviceClipboard((s) => s.copied.length > 0);

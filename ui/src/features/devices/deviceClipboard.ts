@@ -244,6 +244,27 @@ export async function placeDevices(
  * Removes `ids` (one undo step); a drum pad left without devices goes with them (like its
  * last device's ×). Nothing is selected afterwards.
  */
+/**
+ * Turn `id` on or off; when it is part of a selection of several devices, all of them (one
+ * undo step), so on/off on one card of a selection sets the whole selection.
+ */
+export async function setDevicesEnabled(transport: EngineTransport, id: DeviceId, enabled: boolean): Promise<void> {
+  const project = useProjectStore.getState().project;
+  const { selected } = useDeviceClipboard.getState();
+  const ids = selected.length > 1 && selected.includes(id) ? selected.filter((d) => project?.devices[d]) : [id];
+  const commands = ids.map((d) => cmd("Device", { type: "SetEnabled", id: d, enabled }));
+  await transport.send(
+    commands.length === 1
+      ? commands[0]!
+      : cmd("Edit", {
+          type: "Batch",
+          label: enabled ? "enable devices" : "bypass devices", // i18n-ignore
+          key: { id: enabled ? "undo.device.enable_selected" : "undo.device.bypass_selected", args: {} },
+          commands,
+        }),
+  );
+}
+
 export async function deleteDevices(transport: EngineTransport, ids: readonly DeviceId[]): Promise<void> {
   const project = useProjectStore.getState().project;
   if (!project) return;
