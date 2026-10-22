@@ -62,9 +62,10 @@ export type V02DeviceType =
 
 // JSON imports widen enum strings to `string`; the files are generated from the typed Rust
 // values, so the cast is sound.
-const groups = [polySynth, multisampler, fxColor, fxModulation, fxDynamics, fxAnalysis, midiFx, racks, grainDelay, shifter] as unknown as Record<V02DeviceType, DeviceDescriptor>[];
+const groups = [polySynth, multisampler, fxColor, fxModulation, fxDynamics, fxAnalysis, midiFx, racks, grainDelay, shifter];
+const typed = groups as unknown as Record<V02DeviceType, DeviceDescriptor>[];
 
-export const V02_DESCRIPTORS: Readonly<Record<V02DeviceType, DeviceDescriptor>> = Object.assign({}, ...groups);
+export const V02_DESCRIPTORS: Readonly<Record<V02DeviceType, DeviceDescriptor>> = Object.assign({}, ...typed);
 
 /** The v0.3 built-in types (after `MidiEffectRack` in `BuiltinDeviceType::ALL`). */
 export type V03DeviceType = "ConvolutionReverb" | "ExternalInstrument" | "ExternalAudioEffect";
