@@ -339,7 +339,16 @@ export function clipMenu(transport: EngineTransport, clip: Clip): ContextMenuEnt
         ]
       : // An audio clip opens in its editor (the drawer's audio tab), like a double-click on it.
         [{ label: t("arrangement.clip_menu.open_in_editor"), onSelect: () => useEditorStore.getState().revealClip(clip.id) }, "separator" as const]),
-    ...(clips.length <= 1 ? [{ label: t("arrangement.menu.rename"), onSelect: () => renameClipInPlace(clip.id) }, "separator" as const] : []),
+    // In the clicked clip's header, prefilled with its name; the name goes to every selected clip.
+    {
+      label: t("arrangement.clip_menu.rename", { count: Math.max(1, clips.length) }),
+      onSelect: () =>
+        renameClipInPlace(
+          clip.id,
+          clips.map((c) => c.id),
+        ),
+    },
+    "separator",
     { label: t("arrangement.menu.cut"), shortcut: shortcutLabel("edit.cut"), onSelect: run("cut") },
     { label: t("arrangement.menu.copy"), shortcut: shortcutLabel("edit.copy"), onSelect: run("copy") },
     { label: t("arrangement.menu.paste"), shortcut: shortcutLabel("edit.paste"), disabled: !hasClipboard(), onSelect: run("paste") },

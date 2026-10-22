@@ -15,16 +15,15 @@ import { contributions } from "@/ext";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Clip, ClipId } from "@/generated";
 import { openContextMenu } from "@/kit";
-import { clipDisplayName, isReadOnly, useEditorStore, useProjectStore, defaultClipName } from "@/state";
+import { clipDisplayName, isReadOnly, useEditorStore, useProjectStore } from "@/state";
 import { itemSelection, subscribeSettledZoom, TempoMap } from "@/timeline";
-import { cmd } from "@/transport";
 import { subscribeLaneFrames } from "@/features/automation";
 import { fullClipMenu } from "../clipContextMenu";
 import { AudioToMidiClipStatus, useAudioToMidi } from "@/features/audio-to-midi";
 import { onClipPointerDown } from "../clipDrag";
 import { onClipSlipPointerDown } from "../clipSlip";
 import { isSlipModifier, SLIP_CURSOR } from "../slip";
-import { renameClipInPlace, useClipRename } from "../clipRename";
+import { renameClipInPlace, renameClipsCommand, useClipRename } from "../clipRename";
 import { sendEdit, type ArrangementContextValue } from "../context";
 import { arrangementView, useArrangementUi } from "../uiStore";
 import { cursorFor, type Hit } from "./hitTest";
@@ -418,20 +417,29 @@ function ClipStatusOverlay({ renderer, ctx }: { renderer: ArrangerRenderer; ctx:
 function ClipNameField({ clip, ctx }: { clip: Clip; ctx: ArrangementContextValue }) {
   const t = useT();
   const done = useRef(false);
+  // The clips the name goes to (the selection when the menu opened).
+  const count = useClipRename((s) => s.ids.length);
   const finish = (name: string | null) => {
     if (done.current) return;
     done.current = true;
+    const ids = useClipRename.getState().ids;
     renameClipInPlace(null);
     if (name === null) return;
-    // Empty: back to its default name (an audio clip's sample name; a MIDI clip none).
+    // Empty: each back to its default name (an audio clip's sample name; a MIDI clip none).
     const project = useProjectStore.getState().project;
-    const next = name.trim() || (project ? defaultClipName(project, clip) : "");
-    if (next !== clip.name) void sendEdit(ctx.transport, cmd("Clip", { type: "Rename", id: clip.id, name: next }));
+    const edit = project && renameClipsCommand(project, ids.length ? ids : [clip.id], name);
+    if (edit) void sendEdit(ctx.transport, edit);
   };
   return (
     <input
       className="eth-clip__rename"
-      aria-label={clip.name ? t("arrangement.clip.rename_named", { name: clip.name }) : t("arrangement.clip.rename_unnamed")}
+      aria-label={
+        count > 1
+          ? t("arrangement.clip_menu.rename", { count })
+          : clip.name
+            ? t("arrangement.clip.rename_named", { name: clip.name })
+            : t("arrangement.clip.rename_unnamed")
+      }
       placeholder={clip.content.type === "Midi" ? t("arrangement.clip.midi_placeholder") : t("arrangement.clip.audio_placeholder")}
       defaultValue={clip.name}
       autoFocus

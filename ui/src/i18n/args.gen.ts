@@ -54,6 +54,7 @@ export interface MessageArgs {
   "arrangement.clip.selected_one": { name: string | number };
   "arrangement.clip_menu.delete": { count: number };
   "arrangement.clip_menu.edit_in_piano_roll": { count: string | number };
+  "arrangement.clip_menu.rename": { count: number };
   "arrangement.header.arm_named": { name: string | number };
   "arrangement.header.choose_instrument": { name: string | number };
   "arrangement.header.color_named": { name: string | number };
@@ -709,6 +710,7 @@ export interface MessageArgs {
   "undo.clips.loop": { count: number };
   "undo.clips.move_to_new_tracks": { count: number; tracks: number };
   "undo.clips.paste": { count: number };
+  "undo.clips.rename": { count: number };
   "undo.clips.resize": { count: number };
   "undo.clips.split": { count: number };
   "undo.clips.unloop": { count: number };
