@@ -202,7 +202,7 @@ fn writes_clips_as_they_play() {
     assert_eq!(name, "my_ riff.mid");
     assert_eq!(file.tracks.len(), 1);
     assert_eq!(file.tracks[0].name.as_deref(), Some("lead"));
-    // The loop unrolled over 7 beats; E4 is cut at the clip end on the last pass.
+    // The loop unrolled over 7 beats; E4 is cut at each loop wrap like in the engine.
     let notes: Vec<(u8, f64, f64)> = file.tracks[0]
         .notes
         .iter()
@@ -212,11 +212,11 @@ fn writes_clips_as_they_play() {
         notes,
         [
             (60, 0.0, 1.0),
-            (64, 1.5, 1.0),
+            (64, 1.5, 0.5),
             (60, 2.0, 1.0),
-            (64, 3.5, 1.0),
+            (64, 3.5, 0.5),
             (60, 4.0, 1.0),
-            (64, 5.5, 1.0),
+            (64, 5.5, 0.5),
             (60, 6.0, 1.0)
         ]
     );
@@ -225,6 +225,53 @@ fn writes_clips_as_they_play() {
     // From the project start: the clip keeps its place (beat 4).
     let (_, file) = export(&mut h, vec![clip], true);
     assert_eq!(file.tracks[0].notes[0].start, Beats(4.0));
+}
+
+#[test]
+fn writes_loop_joins_as_one_note() {
+    // Loop [1, 3): C4 at 0.5..1.5 sounds at the loop start, the other C4 at 2.5..3.5 is held
+    // across the loop end and joins it on every wrap (CONTRACTS.md §2, Clips, "loop join").
+    let mut h = harness();
+    let (_, clip) = looped_clip(&mut h);
+    let ids: Vec<NoteId> = h.project().notes_of(clip).iter().map(|n| n.id).collect();
+    h.ok(Command::Note(NoteCommand::Remove { ids }));
+    let (a, b) = (h.id(), h.id());
+    let spec = |id, start| NoteSpec {
+        id,
+        pitch: 60,
+        velocity: 1.0,
+        start: Beats(start),
+        duration: Beats(1.0),
+    };
+    h.ok(Command::Note(NoteCommand::Add {
+        clip,
+        notes: vec![spec(a, 0.5), spec(b, 2.5)],
+    }));
+    h.ok(Command::Clip(ClipCommand::SetLoop {
+        id: clip,
+        looping: ClipLoop {
+            enabled: true,
+            start: Beats(1.0),
+            end: Beats(3.0),
+        },
+    }));
+    let (_, file) = export(&mut h, vec![clip], false);
+    let notes: Vec<(u8, f64, f64)> = file.tracks[0]
+        .notes
+        .iter()
+        .map(|n| (n.pitch, n.start.0, n.duration.0))
+        .collect();
+    // Wraps at 3 and 5 (clip-relative); the clip ends at 7, before the third wrap's join
+    // ends.
+    assert_eq!(
+        notes,
+        [
+            (60, 0.5, 1.0),
+            (60, 2.5, 1.0),
+            (60, 4.5, 1.0),
+            (60, 6.5, 0.5)
+        ]
+    );
 }
 
 #[test]

@@ -121,7 +121,7 @@
 mod chorus_device;
 mod flanger_device;
 mod phaser_device;
-mod shared;
+pub(crate) mod shared;
 mod tremolo_device;
 mod vibrato_device;
 mod volume_lfo_device;

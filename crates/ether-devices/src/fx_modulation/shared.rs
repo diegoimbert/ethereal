@@ -216,7 +216,7 @@ pub(super) fn lfo_at(shape: Shape, phase: f64) -> f32 {
 
 /// How an LFO's rate is set for one sub-block.
 #[derive(Clone, Copy, Debug)]
-pub(super) enum Rate {
+pub(crate) enum Rate {
     /// Free-running at this many Hertz.
     Hz(f64),
     /// Tempo-synced: one cycle per `beats` (a [`SYNC_RATE_BEATS`] entry).
@@ -225,7 +225,7 @@ pub(super) enum Rate {
 
 impl Rate {
     /// `Hz(free)` or, when `sync`, the synced rate `SYNC_RATE_BEATS[index]`.
-    pub(super) fn of(sync: bool, free_hz: f32, index: usize) -> Self {
+    pub(crate) fn of(sync: bool, free_hz: f32, index: usize) -> Self {
         if sync {
             Rate::Beats(SYNC_RATE_BEATS[index.min(SYNC_RATE_BEATS.len() - 1)])
         } else {
@@ -243,13 +243,13 @@ const LOCK_SECONDS: f64 = 0.03;
 /// to the song position: phase 0 on every multiple of the synced length from beat 0, like
 /// Ableton's synced LFOs.
 #[derive(Clone, Copy, Debug, Default)]
-pub(super) struct Lfo {
+pub(crate) struct Lfo {
     phase: f64,
 }
 
 /// Per-sub-block constants of an [`Lfo`] advance.
 #[derive(Clone, Copy, Debug)]
-pub(super) struct LfoStep {
+pub(crate) struct LfoStep {
     /// Phase increment per sample.
     inc: f64,
     /// Song-locked phase at sample 0 of the sub-block and its increment per sample (synced
@@ -260,7 +260,7 @@ pub(super) struct LfoStep {
 }
 
 impl LfoStep {
-    pub(super) fn new(rate: Rate, transport: &TransportInfo, sample_rate: f32) -> Self {
+    pub(crate) fn new(rate: Rate, transport: &TransportInfo, sample_rate: f32) -> Self {
         let sr = f64::from(sample_rate.max(1.0));
         let k = 1.0 / (LOCK_SECONDS * sr);
         match rate {
@@ -296,18 +296,18 @@ impl LfoStep {
 impl Lfo {
     /// Current phase (cycles, `0..1`).
     #[inline]
-    pub(super) fn phase(&self) -> f64 {
+    pub(crate) fn phase(&self) -> f64 {
         self.phase
     }
 
     /// Back to phase 0 (a retrigger).
-    pub(super) fn restart(&mut self) {
+    pub(crate) fn restart(&mut self) {
         self.phase = 0.0;
     }
 
     /// Advance one sample; `i` is the sample index in the sub-block the step was made for.
     #[inline]
-    pub(super) fn advance(&mut self, step: &LfoStep, i: usize) {
+    pub(crate) fn advance(&mut self, step: &LfoStep, i: usize) {
         let mut p = self.phase + step.inc;
         if let Some((start, per)) = step.lock {
             let target = start + per * i as f64;
@@ -330,7 +330,7 @@ impl Lfo {
     /// Catch up on `samples` the engine skipped while the device slept, so
     /// a free-running LFO keeps its phase as if it had run; a song-locked one jumps onto the
     /// song position (it would have been there).
-    pub(super) fn skip(&mut self, step: &LfoStep, samples: u64) {
+    pub(crate) fn skip(&mut self, step: &LfoStep, samples: u64) {
         let p = match step.lock {
             Some((start, _)) => start,
             None => self.phase + step.inc * samples as f64,

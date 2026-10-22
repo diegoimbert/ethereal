@@ -84,6 +84,25 @@ Files: `ids.rs`, `value.rs`, `project.rs`, `track.rs`, `clip.rs`, `note.rs`, `au
   content starts at clip-relative `-offset`. Fades still apply at the clip edges. Repitch
   transposition scales around `max(offset, 0)`. Loop bounds stay `>= 0`; a looped clip
   with a negative offset plays the gap, then its content up to the loop end, then the loop.
+  **Notes in looped MIDI clips** (`ether_core::sched`): a note still sounding at a loop
+  wrap (the content loop end with more clip after it) is cut there, and a note starting
+  before the loop start does not sound in the repeats (only in the intro, from the offset).
+  **Loop join** (#272): at a wrap, if the note cut there (ending more than 1e-9 beats past
+  the loop end) has a *join partner*, an unmuted note of the same key (MIDI clip notes all
+  share one channel) that starts before the loop start and still sounds there (the
+  latest-ending one if several do), the two act as one note: no note-off at the wrap and
+  no note-on after it, the voice ends where the partner ends in the next pass. A partner
+  longer than the loop joins itself on every wrap, so the voice lasts to the clip end; the
+  clip end still cuts it. The voice keeps its first note-on (velocity, note id: no
+  retrigger); from the wrap on its note expressions are the partner's (from the partner's
+  position at the loop start, restarted on later wraps), and where a release velocity is
+  written (MIDI export) it is the partner's. The first pass plays as before (a partner
+  after the offset plays from its own start). Note chasing (play, locate, transport loop)
+  starts the joined part of a voice when the position is inside it. The join is planned at
+  the voice's note-on with the graph then playing; an edit while it sounds doesn't re-plan
+  it (like any note end). Offline renders use the engine; MIDI export (`midi_file`) and
+  MIDI consolidate (`freeze::edit::played_notes`) unroll loops the same way (one longer
+  note; consolidate splices the expressions).
   The UI produces negative offsets only on unlooped clips (dragging the left edge past the
   content start); on looped clips it wraps the offset into the loop region instead. Older
   documents are unchanged (their offsets are all `>= 0`); `ClipCommand::SetBounds` and
@@ -1434,7 +1453,9 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   Then `Shifter` (`ether_devices::shifter`, no kind data): pitch mode (a two-tap delay-line
   shifter over `Window`), frequency mode (single-sideband shift: an IIR allpass Hilbert pair
   and a complex carrier), ring mode (a cosine carrier, optional tanh `Drive`); `Wide`
-  mirrors the right channel; no latency reported.
+  mirrors the right channel; a stereo LFO (the fx-modulation `Lfo`, song-locked when synced)
+  and an envelope follower add to the shift (Hz) or the pitch (semitones); no latency
+  reported.
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.
