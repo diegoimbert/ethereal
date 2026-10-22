@@ -103,7 +103,8 @@ test("while a project loads the transport waits, and the project can be explored
   await expect(page.locator(".eth-arr-header--loading")).toHaveCount(0);
   await expect(page.getByRole("group", { name: "renamed track" }).getByRole("button", { name: /^mute / })).toBeEnabled();
   await expect(page.getByTestId("position-loading")).toHaveCount(0);
-  await expect(page.getByTestId("position-bars")).toBeVisible();
+  // (A compact top bar shows the time alone.)
+  await expect(page.getByTestId("position-time")).toBeVisible();
   await expect(playButton(page)).toBeEnabled();
   await playButton(page).click();
   await expect(playingButton(page)).toBeVisible();
