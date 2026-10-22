@@ -45,6 +45,21 @@ pub trait DocHost {
         device: DeviceId,
         plugin: &PluginInstance,
     ) -> CmdResult<Option<DeviceDescriptor>>;
+    /// Whether a new instance of this plugin starts sandboxed (`sandboxed: null` inserts;
+    /// [`crate::EngineBridge::sandbox_by_default`]). Default: no.
+    fn sandbox_by_default(&self, format: PluginFormat, plugin_id: &str) -> bool {
+        let _ = (format, plugin_id);
+        false
+    }
+    /// The flag of a new instance: `explicit` when the command gave one, else the default.
+    fn new_instance_sandboxed(
+        &self,
+        explicit: Option<bool>,
+        format: PluginFormat,
+        plugin_id: &str,
+    ) -> bool {
+        explicit.unwrap_or_else(|| self.sandbox_by_default(format, plugin_id))
+    }
     /// Roadmap v2 (`drum-rack`): waveform peaks of loaded media (auto-slicing by
     /// transients). `None` = not loaded (yet).
     fn peaks(&self, media: MediaId) -> Option<&ether_media::PeakMipmap> {

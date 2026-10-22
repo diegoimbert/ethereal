@@ -1,10 +1,11 @@
 //! v0.2 color devices (the v0.2 contracts froze the param tables; see docs/DEVICES.md).
 //!
 //! Color effects: saturator (several curves), bitcrusher, auto-filter (multimode + envelope
-//! follower + LFO), and the later erosion (a short delay modulated by a sine or noise).
+//! follower + LFO), and the later erosion (a short delay modulated by a sine or noise) and
+//! pedal (overdrive / distortion / fuzz with a tone stack).
 //!
 //! Implementations: [`saturator_device`], [`bitcrusher_device`], [`auto_filter_device`],
-//! [`erosion_device`]
+//! [`erosion_device`], [`pedal_device`]
 //! (DSP notes in each). **Param ids are stable and append-only** (documents, automation and
 //! presets store them): never renumber, only append.
 //!
@@ -72,6 +73,22 @@
 //! | 3 | Erosion | `Amount` | 0 ..= 100 Percent, default 25 |
 //! | 4 | Output | `Output` | -24 ..= 24 Decibels, default 0 |
 //! | 5 | Output | `Mix` | 0 ..= 100 Percent, default 100 |
+//!
+//! # Pedal (`BuiltinDeviceType::Pedal`)
+//!
+//! Runs 4x oversampled and reports that round trip as its latency (29 samples).
+//!
+//! | id | group | name | range |
+//! |----|-------|------|-------|
+//! | 0 | Drive | `Type` | Overdrive / Distortion / Fuzz (default Overdrive) |
+//! | 1 | Drive | `Gain` | 0 ..= 100 Percent, default 50 |
+//! | 2 | Tone | `Bass` | -100 ..= 100 Percent, default 0 |
+//! | 3 | Tone | `Mid` | -100 ..= 100 Percent, default 0 |
+//! | 4 | Tone | `Mid Freq` | 500 Hz / 1 kHz / 2 kHz (default 1 kHz) |
+//! | 5 | Tone | `Treble` | -100 ..= 100 Percent, default 0 |
+//! | 6 | Tone | `Sub` | toggle, default off |
+//! | 7 | Output | `Output` | -20 ..= 20 Decibels, default 0 |
+//! | 8 | Output | `Mix` | 0 ..= 100 Percent, default 100 |
 
 use ether_core::Device;
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, ParamScale, ParamUnit};
@@ -87,12 +104,14 @@ pub mod auto_filter_device;
 pub mod bitcrusher_device;
 pub mod erosion_device;
 pub(crate) mod oversample;
+pub mod pedal_device;
 pub mod saturator_device;
 mod shared;
 
 pub use auto_filter_device::AutoFilter;
 pub use bitcrusher_device::Bitcrusher;
 pub use erosion_device::Erosion;
+pub use pedal_device::Pedal;
 pub use saturator_device::Saturator;
 
 /// Param ids of `Saturator` (stable, append-only).
@@ -156,6 +175,22 @@ pub mod erosion {
     pub const MIX: ParamId = ParamId(5);
     /// Number of params.
     pub const COUNT: usize = 6;
+}
+
+/// Param ids of `Pedal` (stable, append-only).
+pub mod pedal {
+    use ether_core::protocol::model::ParamId;
+    pub const TYPE: ParamId = ParamId(0);
+    pub const GAIN: ParamId = ParamId(1);
+    pub const BASS: ParamId = ParamId(2);
+    pub const MID: ParamId = ParamId(3);
+    pub const MID_FREQ: ParamId = ParamId(4);
+    pub const TREBLE: ParamId = ParamId(5);
+    pub const SUB: ParamId = ParamId(6);
+    pub const OUTPUT: ParamId = ParamId(7);
+    pub const MIX: ParamId = ParamId(8);
+    /// Number of params.
+    pub const COUNT: usize = 9;
 }
 
 /// Descriptor of a type of this group.
@@ -464,6 +499,68 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
             false,
             0,
         ),
+        BuiltinDeviceType::Pedal => build(
+            BuiltinDeviceType::Pedal,
+            "Pedal",
+            DeviceCategory::AudioEffect,
+            vec![
+                choice(0, "Type", "Drive", &["Overdrive", "Distortion", "Fuzz"], 0),
+                param(
+                    1,
+                    "Gain",
+                    "Drive",
+                    ParamUnit::Percent,
+                    (0.0, 100.0, 50.0),
+                    ParamScale::Linear,
+                ),
+                param(
+                    2,
+                    "Bass",
+                    "Tone",
+                    ParamUnit::Percent,
+                    (-100.0, 100.0, 0.0),
+                    ParamScale::Linear,
+                ),
+                param(
+                    3,
+                    "Mid",
+                    "Tone",
+                    ParamUnit::Percent,
+                    (-100.0, 100.0, 0.0),
+                    ParamScale::Linear,
+                ),
+                choice(4, "Mid Freq", "Tone", &["500 Hz", "1 kHz", "2 kHz"], 1),
+                param(
+                    5,
+                    "Treble",
+                    "Tone",
+                    ParamUnit::Percent,
+                    (-100.0, 100.0, 0.0),
+                    ParamScale::Linear,
+                ),
+                toggle(6, "Sub", "Tone", false),
+                param(
+                    7,
+                    "Output",
+                    "Output",
+                    ParamUnit::Decibels,
+                    (-20.0, 20.0, 0.0),
+                    ParamScale::Linear,
+                ),
+                param(
+                    8,
+                    "Mix",
+                    "Output",
+                    ParamUnit::Percent,
+                    (0.0, 100.0, 100.0),
+                    ParamScale::Linear,
+                ),
+            ],
+            2,
+            2,
+            false,
+            0,
+        ),
         other => unreachable!("{other:?} is not a `fx-color` device"),
     }
 }
@@ -644,6 +741,41 @@ fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
                 ),
             ])
         }
+        BuiltinDeviceType::Pedal => {
+            use pedal as p;
+            layout(vec![
+                section(
+                    "drive",
+                    Some("Drive"),
+                    1,
+                    1,
+                    vec![
+                        item(Widget::Choice { param: p::TYPE }, Small),
+                        knob(p::GAIN, Large),
+                    ],
+                ),
+                section(
+                    "tone",
+                    Some("Tone"),
+                    2,
+                    3,
+                    vec![
+                        knob(p::BASS, Medium),
+                        knob(p::MID, Medium),
+                        knob(p::TREBLE, Medium),
+                        wide(Widget::Choice { param: p::MID_FREQ }, Small, 2),
+                        item(Widget::Toggle { param: p::SUB }, Small),
+                    ],
+                ),
+                section(
+                    "output",
+                    Some("Output"),
+                    1,
+                    1,
+                    vec![knob(p::OUTPUT, Medium), knob(p::MIX, Large)],
+                ),
+            ])
+        }
         other => unreachable!("{other:?} is not a `fx-color` device"),
     }
 }
@@ -655,6 +787,7 @@ pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
         BuiltinDeviceType::Bitcrusher => Box::new(Bitcrusher::new()),
         BuiltinDeviceType::AutoFilter => Box::new(AutoFilter::new()),
         BuiltinDeviceType::Erosion => Box::new(Erosion::new()),
+        BuiltinDeviceType::Pedal => Box::new(Pedal::new()),
         other => unreachable!("{other:?} is not a `fx-color` device"),
     }
 }
@@ -684,6 +817,9 @@ pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
         ),
         BuiltinDeviceType::Erosion => presets!(
             "erosion": "fizz", "wide-hiss", "metal-sine", "broken-codec"
+        ),
+        BuiltinDeviceType::Pedal => presets!(
+            "pedal": "warm-overdrive", "crunch", "lead-distortion", "broken-fuzz", "sub-fuzz-bass"
         ),
         _ => &[],
     }

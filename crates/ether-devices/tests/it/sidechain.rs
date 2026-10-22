@@ -102,12 +102,13 @@ fn descriptors_report_a_stereo_sidechain_input() {
     assert_eq!(Compressor::new().sidechain_inputs(), 2);
     assert_eq!(Limiter::new().sidechain_inputs(), 2);
     // The HPF param is appended (ids stay stable); `Detector` came after it, then the
-    // effects pass params (Knee .. Auto Makeup).
+    // effects pass params (Knee .. Auto Makeup), then Range and Soft Clip.
     let p = compressor::param_infos();
     assert_eq!(p[5].id, compressor::params::SIDECHAIN_HPF);
     assert_eq!(p[6].id, compressor::params::DETECTOR);
-    assert_eq!(p.last().unwrap().id, compressor::params::AUTO_MAKEUP);
-    assert_eq!(p.len(), 11);
+    assert_eq!(p[10].id, compressor::params::AUTO_MAKEUP);
+    assert_eq!(p.last().unwrap().id, compressor::params::SOFT_CLIP);
+    assert_eq!(p.len(), 13);
 }
 
 #[test]

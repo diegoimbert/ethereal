@@ -83,6 +83,8 @@ pub struct FakeBridge {
     pub live_state_fails: bool,
     /// Capture: `None` = unsupported (web), else what the host records.
     pub recording: Option<FakeRecording>,
+    /// The host's "sandboxed by default" list (`sandbox_by_default`).
+    pub sandbox_defaults: Vec<(PluginFormat, String)>,
 }
 
 /// A fake capture host: what `poll_recording` hands out next and what `stop_recording`
@@ -360,6 +362,12 @@ impl EngineBridge for FakeBridge {
 
     fn probe_plugin(&mut self, plugin: &PluginInstance) -> Option<DeviceDescriptor> {
         self.plugins.as_ref()?.get(&plugin.plugin_id).cloned()
+    }
+
+    fn sandbox_by_default(&self, format: PluginFormat, plugin_id: &str) -> bool {
+        self.sandbox_defaults
+            .iter()
+            .any(|(f, id)| *f == format && id.eq_ignore_ascii_case(plugin_id))
     }
 
     fn start_recording(

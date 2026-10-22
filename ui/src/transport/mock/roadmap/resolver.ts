@@ -117,7 +117,8 @@ const paramKey = (n: string) => {
 const KEYWORDS: Array<[string[], BuiltinDeviceType, string]> = [
   [["reverb", "hybrid", "verb"], "Reverb", "reverb"],
   [["echo", "delay", "grain"], "Delay", "delay"],
-  [["pedal", "overdrive", "distortion", "drive", "tube", "amp", "saturator"], "Saturator", "distortion"],
+  [["pedal", "overdrive", "fuzz"], "Pedal", "pedal"],
+  [["distortion", "drive", "tube", "amp", "saturator"], "Saturator", "distortion"],
   [["erosion"], "Erosion", "erosion"],
   [["redux", "crush"], "Bitcrusher", "lo-fi"],
   [["filter"], "AutoFilter", "filter"],

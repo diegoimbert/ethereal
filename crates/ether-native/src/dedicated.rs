@@ -140,6 +140,14 @@ impl EngineBridge for DedicatedEngine {
         self.bridge.set_always_process(device, on)
     }
 
+    fn sandbox_by_default(
+        &self,
+        format: ether_core::protocol::model::PluginFormat,
+        plugin_id: &str,
+    ) -> bool {
+        self.bridge.sandbox_by_default(format, plugin_id)
+    }
+
     fn load_media(
         &mut self,
         media: &MediaRef,
