@@ -7,7 +7,7 @@ import { useProjectStore } from "@/state";
 import { cmd, useTransport, type EngineTransport } from "@/transport";
 import { t as tr, useT } from "@/i18n";
 import { FORMAT_LABEL, isInstalled } from "./filter";
-import { usePluginEvents, usePluginStore, useScannedPlugins } from "./pluginStore";
+import { useEnginePlugins, usePluginEvents, usePluginStore } from "./pluginStore";
 
 export interface PluginDeviceControlsProps {
   device: Device;
@@ -31,13 +31,14 @@ export function PluginDeviceControls({ device }: PluginDeviceControlsProps) {
   const clearFound = usePluginStore((s) => s.clearFound);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const plugins = useScannedPlugins(device.kind.type === "Plugin");
+  // Where the engine runs: another computer's list while its engine plays the project.
+  const plugins = useEnginePlugins(device.kind.type === "Plugin");
   // Held as a placeholder (the project was opened without plugins).
   const held = useProjectStore((s) => s.safeMode.includes(device.id));
 
   if (device.kind.type !== "Plugin") return null;
   const { format, plugin_id } = device.kind.plugin;
-  // Not in the scanned list: the host couldn't load it and the device is bypassed.
+  // Not in the engine host's list: it couldn't load it and the device is bypassed.
   const missing = plugins !== null && !isInstalled(plugins, { format, plugin_id });
   const name = device.name;
 
