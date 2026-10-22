@@ -1,8 +1,8 @@
 //! The built-in devices, one module per device or group: the basic synth, sampler,
 //! compressor, delay, EQ, reverb, limiter, utility and drum rack; [`poly_synth`],
 //! [`fm_synth`] (four-operator FM), [`multisampler`]; the effect groups [`fx_color`],
-//! [`fx_modulation`], [`fx_dynamics`], [`fx_analysis`], [`fx_space`] (convolution reverb) and
-//! [`midi_fx`]; [`racks`] and [`modulators`]; [`external`] (external instruments and
+//! [`fx_modulation`], [`fx_dynamics`], [`fx_analysis`], [`fx_space`] (convolution reverb),
+//! [`grain_delay`] and [`midi_fx`]; [`racks`] and [`modulators`]; [`external`] (external instruments and
 //! effects). Shared scaffolding is in [`contract`]; factory presets come from
 //! [`factory_presets`] ([`factory`] holds the older types).
 //!
@@ -29,6 +29,7 @@ pub mod fx_color;
 pub mod fx_dynamics;
 pub mod fx_modulation;
 pub mod fx_space;
+pub mod grain_delay;
 pub mod limiter;
 pub mod midi_fx;
 pub mod modulators;
@@ -121,6 +122,7 @@ fn type_descriptor(device: BuiltinDeviceType) -> DeviceDescriptor {
             external::descriptor(device)
         }
         BuiltinDeviceType::FmSynth => fm_synth::descriptor(device),
+        BuiltinDeviceType::GrainDelay => grain_delay::descriptor(device),
     }
 }
 
@@ -172,6 +174,7 @@ pub fn factory_presets(device: BuiltinDeviceType) -> &'static [contract::Factory
             external::factory_presets(device)
         }
         BuiltinDeviceType::FmSynth => fm_synth::factory_presets(device),
+        BuiltinDeviceType::GrainDelay => grain_delay::factory_presets(device),
     }
 }
 
@@ -249,6 +252,7 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
             external::create(device)
         }
         BuiltinDevice::FmSynth => fm_synth::create(device),
+        BuiltinDevice::GrainDelay => grain_delay::create(device),
     }
 }
 

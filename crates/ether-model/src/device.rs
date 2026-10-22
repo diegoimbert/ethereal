@@ -321,6 +321,9 @@ pub enum BuiltinDevice {
     /// Guitar-pedal distortion: overdrive / distortion / fuzz with a tone stack
     /// (`fx-color`).
     Pedal,
+    /// Granular delay: transposed, sprayed, randomly detuned grains with feedback
+    /// (`grain-delay`).
+    GrainDelay,
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -370,11 +373,12 @@ pub enum BuiltinDeviceType {
     NoteBlocker,
     Erosion,
     Pedal,
+    GrainDelay,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 42] = [
+    pub const ALL: [BuiltinDeviceType; 43] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -417,6 +421,7 @@ impl BuiltinDeviceType {
         Self::NoteBlocker,
         Self::Erosion,
         Self::Pedal,
+        Self::GrainDelay,
     ];
 
     /// Rack types ([`crate::rack`]).
@@ -491,6 +496,7 @@ impl BuiltinDevice {
             Self::NoteBlocker => BuiltinDeviceType::NoteBlocker,
             Self::Erosion => BuiltinDeviceType::Erosion,
             Self::Pedal => BuiltinDeviceType::Pedal,
+            Self::GrainDelay => BuiltinDeviceType::GrainDelay,
         }
     }
 
@@ -552,6 +558,7 @@ impl BuiltinDevice {
             BuiltinDeviceType::NoteBlocker => Self::NoteBlocker,
             BuiltinDeviceType::Erosion => Self::Erosion,
             BuiltinDeviceType::Pedal => Self::Pedal,
+            BuiltinDeviceType::GrainDelay => Self::GrainDelay,
         }
     }
 
