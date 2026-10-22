@@ -11,7 +11,7 @@ import { useProjectStore, useReadOnly } from "@/state";
 import { cmd } from "@/transport";
 import { useTimelineView } from "@/timeline";
 import { stopButton } from "@/features/time-edits/marker";
-import { PositionDisplay } from "@/features/transport-bar";
+import { LoadingStatus, PositionDisplay } from "@/features/transport-bar";
 import { useEngineCommands } from "@/features/transport-bar/engine";
 import { useProjectLoading } from "@/features/transport-bar/loading";
 import { useRendering } from "@/features/transport-bar/rendering";
@@ -29,7 +29,8 @@ export function TransportDock() {
   const follow = useTimelineView(arrangementView, (s) => s.followPlayhead);
   const disabled = !transport || !hasProject;
   // Still loading: no play, stop or record yet (the rest works).
-  const loading = useProjectLoading() !== null;
+  const progress = useProjectLoading();
+  const loading = progress !== null;
   const readOnly = useReadOnly();
   // A render runs: play hears what is rendered so far (if anything), record waits.
   const render = useRendering();
@@ -47,6 +48,8 @@ export function TransportDock() {
     <div className="eth-mdock" data-testid="mobile-transport">
       <div className="eth-mdock__status">
         <PositionDisplay />
+        {/* Its progress (#301): the spinner and the bar, the text in their title and label. */}
+        {progress && <LoadingStatus progress={progress} compact />}
         <span
           className="eth-mdock__tempo"
           data-testid="mobile-tempo"

@@ -1500,7 +1500,6 @@
   "shell.transport.loop": "loop",
   "shell.transport.metronome": "metronome",
   "shell.transport.position": "position",
-  "shell.transport.position_loading": "loading",
   "shell.transport.cpu_title": "engine load (audio processing)",
   "shell.transport.engine_menu": "engine",
   "shell.transport.stop_engine": "stop engine",

@@ -65,24 +65,25 @@ describe("project loading", () => {
     await waitFor(() => expect(store().transport?.playing).toBe(true));
   });
 
-  it("the position says the project is loading, with a spinner and the percent, in the same boxes (#260)", async () => {
+  it("one loading indicator: the status has the spinner, the position stays and is dimmed (#301)", async () => {
     await renderWithMock(<TransportBar />);
-    expect(screen.getByTestId("position-bars")).toBeTruthy();
-    expect(screen.queryByTestId("position-loading")).toBeNull();
+    expect(screen.getByTestId("position-bars").parentElement).not.toHaveAttribute("data-loading");
 
     setLoading(progress({ plugins_loaded: 1, plugins_total: 4 }));
-    const shown = screen.getByTestId("position-loading");
-    expect(shown).toHaveAttribute("aria-label", "loading 25%");
-    expect(shown).toHaveAttribute("title", "loading plugins 1/4");
-    expect(screen.queryByTestId("position-bars")).toBeNull();
-    // The bars' and the time's boxes (their widths), the spinner hidden from screen readers.
-    expect(shown.querySelector(".eth-tb__bars .eth-tb__position-spin")).toHaveAttribute("aria-hidden", "true");
-    expect(shown.querySelector(".eth-tb__bars")).toHaveTextContent("loading");
-    expect(shown.querySelector(".eth-tb__time")).toHaveTextContent("25%");
+    const status = screen.getByTestId("project-loading");
+    // The spinner is on the detailed status, hidden from screen readers.
+    expect(status.querySelector(".eth-tb__loading-spin")).toHaveAttribute("aria-hidden", "true");
+    expect(status).toHaveTextContent("loading plugins 1/4");
+    // No second "loading" label: the position keeps its readout (the same boxes), dimmed.
+    expect(screen.queryByTestId("position-loading")).toBeNull();
+    const position = screen.getByTestId("position-bars").parentElement!;
+    expect(position).toHaveAttribute("data-loading", "true");
+    expect(screen.getByTestId("position-time")).toBeTruthy();
+    expect(document.querySelectorAll(".eth-tb__loading-spin")).toHaveLength(1);
 
     setLoading(null);
-    expect(screen.queryByTestId("position-loading")).toBeNull();
-    expect(screen.getByTestId("position-bars")).toBeTruthy();
+    expect(screen.queryByTestId("project-loading")).toBeNull();
+    expect(screen.getByTestId("position-bars").parentElement).not.toHaveAttribute("data-loading");
   });
 
   it("the palette's transport entries say the project is loading instead of playing", async () => {
