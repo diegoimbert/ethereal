@@ -217,8 +217,12 @@ fn racks_and_modulation_never_allocate() {
                 mappings,
                 macros: vec![MacroDesc {
                     rack,
-                    values: [0.0, 0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                    values: [
+                        0.0, 0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+                        0.0,
+                    ],
                     first: 0,
+                    upper: 9,
                 }],
             };
             t.automation = vec![AutomationDesc {

@@ -14,7 +14,7 @@
 //! |----|----------|------------------|
 //! | 0  | `Volume` | -60 ..= 6 dB     |
 //! | 1  | `Pan`    | -1 ..= 1 balance |
-//! | 2..=9 | `Macro 1`..`Macro 8` (group `Macros`) | 0 ..= 1, default 0 |
+//! | 2..=17 | `Macro 1`..`Macro 16` (group `Macros`) | 0 ..= 1, default 0 |
 //!
 //! The macros are modulation sources like every rack's (`ether_model::rack::macro_param`,
 //! `ether_core::modulation`): the engine consumes their changes, the node only keeps their
@@ -35,11 +35,11 @@ pub mod params {
     use ether_core::protocol::model::ParamId;
     pub const VOLUME: ParamId = ParamId(0);
     pub const PAN: ParamId = ParamId(1);
-    /// Macro 1 (`MACRO_1 + i` is macro `i + 1`, `i < 8`).
+    /// Macro 1 (`MACRO_1 + i` is macro `i + 1`, `i < 16`; 10..17 were appended later).
     pub const MACRO_1: ParamId = ParamId(2);
 }
 
-const MACROS: usize = 8;
+const MACROS: usize = 16;
 const NUM_PARAMS: usize = 2 + MACROS;
 const SMOOTH_MS: f32 = 20.0;
 
@@ -103,6 +103,7 @@ pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
     let mut macros = item(
         Widget::Macros {
             first: params::MACRO_1,
+            upper: ParamId(params::MACRO_1.0 + 8),
         },
         Medium,
     );

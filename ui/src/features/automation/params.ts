@@ -9,6 +9,7 @@ import type { AutomationTarget, Device, DeviceDescriptor, ParamInfo, Project, Tr
 import { compareOrderKeys, useProjectStore } from "@/state";
 import { useTransport, type EngineTransport } from "@/transport";
 import { descriptorKey, fetchDescriptor } from "@/features/devices/descriptors";
+import { customMacroName, macroIndex, rackMacros } from "@/features/modulation/model";
 import { formatPan, formatParam, labelValue, paramToPlain, SILENCE_DB } from "@/domain/paramScale";
 import { getLocale, localizeDescriptor, sourceParam, t as tr, useLocale } from "@/i18n";
 
@@ -158,10 +159,12 @@ const deviceTargetCache = new WeakMap<DeviceDescriptor, Map<string, TargetInfo[]
  * The visible automatable params of one device as targets, cached: a param value change
  * (a new `Device` object, same descriptor and name) doesn't rebuild thousands of entries.
  */
-function deviceTargets(d: Pick<Device, "id" | "name">, desc: DeviceDescriptor): ReadonlyArray<TargetInfo> {
+function deviceTargets(d: Pick<Device, "id" | "name" | "kind">, desc: DeviceDescriptor): ReadonlyArray<TargetInfo> {
   let byDevice = deviceTargetCache.get(desc);
   if (!byDevice) deviceTargetCache.set(desc, (byDevice = new Map()));
-  const k = `${d.id}\u0000${d.name}\u0000${getLocale()}`;
+  // A rack's renamed macros go by their names.
+  const names = rackMacros(d).names;
+  const k = `${d.id}\u0000${d.name}\u0000${getLocale()}\u0000${names.join("\u0001")}`;
   let list = byDevice.get(k);
   if (!list) {
     // The device's on/off switch first.
@@ -170,7 +173,10 @@ function deviceTargets(d: Pick<Device, "id" | "name">, desc: DeviceDescriptor): 
     for (const p of desc.params) {
       if (!p.automatable || p.hidden) continue;
       const target: AutomationTarget = { type: "DeviceParam", device: d.id, param: p.id };
-      list.push({ key: targetKey(target), target, name: tr("automation.target.param", { device: d.name, param: p.name }), group: d.name, info: p });
+      const macro = macroIndex(d as Device, p.id);
+      const custom = macro === null ? null : customMacroName(d as Device, macro);
+      const info = custom ? { ...p, name: custom } : p;
+      list.push({ key: targetKey(target), target, name: tr("automation.target.param", { device: d.name, param: info.name }), group: d.name, info });
     }
     byDevice.set(k, list);
   }

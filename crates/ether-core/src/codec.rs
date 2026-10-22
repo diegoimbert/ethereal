@@ -89,8 +89,9 @@ impl BinaryCodec {
     /// `TrackDesc::{chain_racks, modulation}` in the binary layout. 5 =
     /// clip envelopes of audio clips' gain and transposition (`ClipContentDesc::Audio::
     /// {gain_envelope, transpose_envelope}`, `AutomationTarget::{ClipGain, ClipTranspose}`).
-    /// 6 = `MacroDesc::first` (drum rack macros follow its volume and pan).
-    pub const VERSION: u8 = 6;
+    /// 6 = `MacroDesc::first` (drum rack macros follow its volume and pan). 7 = 16 macros
+    /// per rack (`MacroDesc::values` of 16, `MacroDesc::upper`).
+    pub const VERSION: u8 = 7;
 }
 
 /// v0.2 fields of a [`TrackDesc`] still outside the binary layout. Encoded as
@@ -492,12 +493,14 @@ impl Writer<'_> {
                 rack,
                 values,
                 first,
+                upper,
             } = m;
             w.key(*rack);
             for v in values {
                 w.f64(*v);
             }
             w.u32(*first);
+            w.u32(*upper);
         });
     }
 
@@ -742,7 +745,7 @@ mod min_size {
     /// source (tag + index), node, param, depth, mapping (min/max, scale tag, steps option),
     /// base.
     pub const MOD_MAPPING: usize = 1 + 4 + 8 + 4 + 8 + 16 + 1 + 1 + 8;
-    pub const MACRO: usize = 8 + 8 * 8 + 4;
+    pub const MACRO: usize = 8 + 16 * 8 + 4 + 4;
 }
 
 fn modulator_kind_tag(kind: ether_protocol::model::ModulatorKind) -> u8 {
@@ -1020,10 +1023,12 @@ impl Reader<'_> {
                     *v = r.f64()?;
                 }
                 let first = r.u32()?;
+                let upper = r.u32()?;
                 Ok(MacroDesc {
                     rack,
                     values,
                     first,
+                    upper,
                 })
             })?,
         })

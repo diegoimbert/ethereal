@@ -41,7 +41,12 @@ enum NodeSig {
 
 fn sig_of(kind: &DeviceKind) -> NodeSig {
     match kind {
-        DeviceKind::Builtin { device } => NodeSig::Builtin(device.clone()),
+        // A rack's macro names and visible count are document data only: same node.
+        DeviceKind::Builtin { device } => NodeSig::Builtin(
+            device
+                .clone()
+                .with_rack_macros(ether_model::RackMacros::default()),
+        ),
         DeviceKind::Plugin { plugin } => NodeSig::Plugin {
             plugin_id: plugin.plugin_id.clone(),
             sandboxed: plugin.sandboxed,
@@ -54,6 +59,14 @@ fn sig_of(kind: &DeviceKind) -> NodeSig {
 struct NodeEntry {
     key: NodeKey,
     sig: NodeSig,
+    /// The instance's "always process" switch as last sent (`EngineBridge::create_plugin`,
+    /// then `EngineBridge::set_always_process`): it changes on the live node.
+    always: bool,
+}
+
+/// `PluginInstance::always_process` of a plugin device (false for anything else).
+fn always_of(kind: &DeviceKind) -> bool {
+    matches!(kind, DeviceKind::Plugin { plugin } if plugin.always_process)
 }
 
 /// How long the engine's queue may stay full (every publish retried) before it is said.
@@ -512,6 +525,15 @@ impl EngineState {
                 n.sig = sig;
                 continue;
             }
+            let always = always_of(&device.kind);
+            if let Some(n) = self.nodes.get_mut(&device.id)
+                && n.sig == sig
+                && !recreate
+                && n.always != always
+                && bridge.set_always_process(device.id, always).is_ok()
+            {
+                n.always = always;
+            }
             match self.nodes.get(&device.id) {
                 Some(n) if n.sig == sig && !recreate => continue,
                 Some(n) => {
@@ -547,7 +569,7 @@ impl EngineState {
                         self.set_plugin_descriptor(device.id, desc);
                         self.created_plugins.push(device.id);
                     }
-                    self.nodes.insert(device.id, NodeEntry { key, sig });
+                    self.nodes.insert(device.id, NodeEntry { key, sig, always });
                     self.midi_fx_scales.remove(&device.id);
                 }
                 Err(e) => {
@@ -906,6 +928,7 @@ impl<B: EngineBridge> DocHost for EngineCtx<'_, B> {
                 sig: sig_of(&DeviceKind::Plugin {
                     plugin: plugin.clone(),
                 }),
+                always: plugin.always_process,
             },
         ) {
             self.eng.pending_destroy.push(old.key);
@@ -937,6 +960,7 @@ mod remote_plugins_tests {
             vendor: String::new(),
             version: String::new(),
             sandboxed: false,
+            always_process: false,
             state: None,
         }
     }

@@ -44,7 +44,7 @@ fn is_rack(d: &Device) -> bool {
     matches!(
         d.kind,
         DeviceKind::Builtin {
-            device: BuiltinDevice::DrumRack
+            device: BuiltinDevice::DrumRack { .. }
         }
     )
 }
@@ -258,6 +258,7 @@ pub fn rack_command(ctx: &mut DocCtx, c: &DrumRackCommand) -> CmdResult<()> {
                             format.unwrap_or(PluginFormat::Clap),
                             plugin_id,
                         ),
+                        always_process: false,
                         state: None,
                     },
                 },
@@ -387,7 +388,7 @@ pub fn insert_pad_device(
             return Err(invalid("a missing device can't be added to a pad"));
         }
         DeviceKind::Builtin { device } => {
-            if matches!(device, BuiltinDevice::DrumRack) {
+            if matches!(device, BuiltinDevice::DrumRack { .. }) {
                 return Err(invalid("drum racks cannot be nested in pads"));
             }
             if device.device_type().is_rack() {
@@ -741,7 +742,7 @@ fn to_drum_rack(
         return Err(no_slices());
     }
     check_slice_ids(ctx, ids, count, rack_id)?;
-    let rack_kind = BuiltinDevice::DrumRack;
+    let rack_kind = BuiltinDevice::DrumRack { macros: None };
     ctx.tx.insert(Entity::Device(Device {
         sidechain_tap: None,
         // In the sampler's place: on the track chain or a rack chain.

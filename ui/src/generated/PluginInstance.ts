@@ -21,6 +21,11 @@ plugin_id: string, name: string, vendor: string, version: string,
  */
 sandboxed: boolean, 
 /**
+ * Never sleep on silence (CONTRACTS.md §13.19): for plugins that make sound out of
+ * nothing without reporting a tail. Off by default; omitted from JSON when off.
+ */
+always_process?: boolean, 
+/**
  * Last saved plugin state. `None` = fresh instance.
  */
 state: Base64Bytes | null, };

@@ -26,6 +26,12 @@ pub struct EngineConfig {
     /// a [`crate::parallel::ParallelExecutor`] through `Engine::set_executor`
     /// (CONTRACTS.md §11.7). Ignored on wasm32.
     pub worker_threads: usize,
+    /// Anticipative processing (`crate::anticipation`, CONTRACTS.md §11.7): tracks not
+    /// listened to live render up to one block ahead, so the master chain overlaps the next
+    /// block's tracks. Allocates their held output; switched at run time with
+    /// `EngineHandle::set_anticipative`; needs worker threads. Off by default (and on wasm32).
+    #[serde(default)]
+    pub anticipative: bool,
 }
 
 impl Default for EngineConfig {
@@ -41,6 +47,7 @@ impl Default for EngineConfig {
             control_queue_capacity: 1024,
             output_queue_capacity: 4096,
             worker_threads: 0,
+            anticipative: false,
         }
     }
 }

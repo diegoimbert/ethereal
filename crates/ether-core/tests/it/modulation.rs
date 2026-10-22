@@ -159,8 +159,11 @@ fn macros_are_sources_and_live_changes_set_the_base() {
         )],
         macros: vec![MacroDesc {
             rack,
-            values: [0.0, 0.0, 0.2, 0.0, 0.0, 0.0, 0.0, 0.0],
+            values: [
+                0.0, 0.0, 0.2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            ],
             first: 0,
+            upper: 9,
         }],
     };
     p.handle.publish(desc(1, t)).unwrap();
@@ -191,6 +194,63 @@ fn macros_are_sources_and_live_changes_set_the_base() {
         .unwrap();
     render(&mut p.engine, 256, 256);
     approx(&params_of(&drain(&mut rx)), &[(512, 50.0)]);
+}
+
+/// Macros 9..16 of a chain rack are its params `upper..upper + 8` (after its chain selector,
+/// `MacroDesc::upper`): their changes are consumed as macro values; the selector between the
+/// two banks is not a macro and reaches the rack node.
+#[test]
+fn macros_9_to_16_follow_the_chain_selector() {
+    let mut p = create(config());
+    let (rec, mut rx) = Recorder::new();
+    let rec = p.handle.add_node(Box::new(rec)).unwrap();
+    let (rack_rec, mut rack_rx) = Recorder::new();
+    let rack = p.handle.add_node(Box::new(rack_rec)).unwrap();
+    let mut t = with_chain(track(tid(2), TrackKind::Audio, Some(tid(1))), &[rack, rec]);
+    let mut values = [0.0; 16];
+    values[11] = 0.4;
+    t.modulation = ModulationDesc {
+        modulators: vec![],
+        mappings: vec![mapping(
+            ModSourceDesc::Macro { rack, index: 11 },
+            rec,
+            0.5,
+            0.2,
+        )],
+        macros: vec![MacroDesc {
+            rack,
+            values,
+            first: 0,
+            upper: 9,
+        }],
+    };
+    p.handle.publish(desc(1, t)).unwrap();
+    render(&mut p.engine, 256, 256);
+    // 0.2 + 0.5 · 0.4 = 0.4.
+    approx(&params_of(&drain(&mut rx)), &[(0, 40.0)]);
+    // Macro 12 is param 12 (9 + 3).
+    for (param, value) in [(12, 1.0), (8, 64.0)] {
+        p.handle
+            .set_param(ParamChange {
+                target: ParamTarget::Node {
+                    node: rack,
+                    param: ParamId(param),
+                },
+                value,
+            })
+            .unwrap();
+    }
+    render(&mut p.engine, 256, 256);
+    approx(&params_of(&drain(&mut rx)), &[(256, 70.0)]);
+    // The chain selector reached the rack node, the macro did not.
+    let rack_params: Vec<ParamId> = events(&drain(&mut rack_rx))
+        .into_iter()
+        .filter_map(|(_, k)| match k {
+            EventKind::Param { param, .. } => Some(param),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(rack_params, vec![ParamId(8)]);
 }
 
 /// A drum rack's macros are its params 2..=9 (`MacroDesc::first`): their changes are
@@ -232,8 +292,11 @@ fn drum_rack_macros_drive_pad_devices() {
         )],
         macros: vec![MacroDesc {
             rack,
-            values: [0.0, 0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            values: [
+                0.0, 0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            ],
             first: 2,
+            upper: 10,
         }],
     };
     p.handle.publish(desc(1, t)).unwrap();
