@@ -26,6 +26,9 @@
 //! - `ETHER_BENCH_BLOCK`: buffer frames (default 256); `ETHER_BENCH_SECONDS` (default 4);
 //! - `ETHER_BENCH_PACED=0`: back to back; `ETHER_BENCH_RT=1`: real-time worker priority;
 //! - `ETHER_BENCH_SCALE`: multiply every device cost (default 1);
+//! - `ETHER_BENCH_HOGS`: that many normal-priority threads keep the CPU busy during the runs
+//!   (what the UI, plugin editors and other apps do to a real session; default 0), to see
+//!   what thread priorities buy;
 //! - `ETHER_BENCH_JSON`: append one JSON line per run to this file (compare runs over time).
 //!
 //! Only public API, so the same file measures the engine before and after a change.
@@ -712,6 +715,49 @@ struct Opts {
     scale: f64,
 }
 
+/// Busy threads at normal priority until dropped (`ETHER_BENCH_HOGS`).
+struct Hogs {
+    stop: std::sync::Arc<std::sync::atomic::AtomicBool>,
+    threads: Vec<std::thread::JoinHandle<()>>,
+}
+
+impl Hogs {
+    fn start(n: usize) -> Self {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let stop = std::sync::Arc::new(AtomicBool::new(false));
+        let threads = (0..n)
+            .map(|_| {
+                let stop = stop.clone();
+                std::thread::spawn(move || {
+                    // Integer and cache work, a little sleep now and then like a UI thread.
+                    let mut v = vec![1u64; 1 << 16];
+                    let mut k = 0usize;
+                    while !stop.load(Ordering::Relaxed) {
+                        for x in v.iter_mut() {
+                            *x = x.wrapping_mul(6364136223846793005).wrapping_add(k as u64);
+                        }
+                        k += 1;
+                        if k.is_multiple_of(64) {
+                            std::thread::sleep(Duration::from_micros(100));
+                        }
+                    }
+                    std::hint::black_box(&v);
+                })
+            })
+            .collect();
+        Self { stop, threads }
+    }
+}
+
+impl Drop for Hogs {
+    fn drop(&mut self) {
+        self.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        for t in self.threads.drain(..) {
+            let _ = t.join();
+        }
+    }
+}
+
 fn env_list<T: std::str::FromStr>(name: &str) -> Option<Vec<T>> {
     let v = std::env::var(name).ok()?;
     Some(v.split(',').filter_map(|s| s.trim().parse().ok()).collect())
@@ -749,16 +795,19 @@ fn realtime_buffers() {
     let wanted: Option<Vec<String>> = env_list("ETHER_BENCH_SCENARIOS");
     let json = std::env::var("ETHER_BENCH_JSON").ok();
     let ns_per_iter = calibrate();
+    let hogs = env_num("ETHER_BENCH_HOGS", 0.0) as usize;
+    let _hogs = Hogs::start(hogs);
     let budget = opts.block as f64 * 1e6 / SR as f64;
     let load = std::fs::read_to_string("/proc/loadavg").unwrap_or_default();
     println!(
         "engine_bench: {} frames ({budget:.0} µs budget), {} s per run, {}, {} physical cores, \
-         burn {ns_per_iter:.3} ns/iter, scale {}, loadavg {}",
+         burn {ns_per_iter:.3} ns/iter, scale {}, {} worker priority, {hogs} hog threads, loadavg {}",
         opts.block,
         opts.seconds,
         if opts.paced { "paced" } else { "back to back" },
         cores,
         opts.scale,
+        if opts.realtime { "real-time" } else { "normal" },
         load.split_whitespace()
             .take(3)
             .collect::<Vec<_>>()
@@ -842,7 +891,7 @@ fn realtime_buffers() {
             );
             if let Some(path) = &json {
                 let line = format!(
-                    "{{\"scenario\":\"{name}\",\"workers\":{w},\"block\":{},\"paced\":{},\"scale\":{},\
+                    "{{\"scenario\":\"{name}\",\"workers\":{w},\"block\":{},\"paced\":{},\"scale\":{},\"rt\":{},\"hogs\":{hogs},\
                      \"mean_us\":{mean:.1},\"p50_us\":{p50:.1},\"p99_us\":{p99:.1},\"p999_us\":{p999:.1},\
                      \"max_us\":{max:.1},\"budget_us\":{budget:.1},\"over\":{over},\"late\":{},\
                      \"ideal_us\":{ideal:.1},\"sim_levels_us\":{sim_levels:.1},\"sim_dag_us\":{sim_dag:.1},\"critical_us\":{:.1},\"levels_us\":{:.1},\"total_us\":{:.1},\
@@ -850,6 +899,7 @@ fn realtime_buffers() {
                     opts.block,
                     opts.paced,
                     opts.scale,
+                    opts.realtime,
                     run.late_starts,
                     m.critical,
                     m.levels,
@@ -1002,6 +1052,7 @@ fn timeline() {
         .expect("ETHER_BENCH_SCENARIOS: unknown scenario");
     let tracks = make();
     let ns_per_iter = calibrate();
+    let _hogs = Hogs::start(env_num("ETHER_BENCH_HOGS", 0.0) as usize);
     let capacity = 4_000_000;
     let spans: std::sync::Arc<Vec<[AtomicU64; 3]>> = std::sync::Arc::new(
         (0..capacity)

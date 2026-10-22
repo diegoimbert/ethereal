@@ -1,0 +1,96 @@
+name: Engine bench
+
+# The real-time engine benchmark (crates/ether-native/tests/it/engine_bench.rs) on a GitHub-hosted
+# runner, on demand only: Windows and macOS numbers for scheduling or thread-priority changes the
+# devbox can't measure. Runs the bench twice, with normal-priority and with real-time workers
+# (ETHER_BENCH_RT), both with `hogs` busy normal-priority threads competing for the CPU like a
+# real session's UI and plugin editors. Results: the job summary and the `engine-bench-*`
+# artifact (one JSON line per run).
+#   gh workflow run engine-bench.yml --ref <branch> -f os=windows-latest
+on:
+  workflow_dispatch:
+    inputs:
+      os:
+        description: Runner
+        type: choice
+        options: [windows-latest, macos-latest, ubuntu-latest]
+        default: windows-latest
+      scenarios:
+        description: ETHER_BENCH_SCENARIOS (empty = all)
+        default: "owner,flat64,tiny64"
+      block:
+        description: Buffer frames
+        default: "256"
+      seconds:
+        description: Seconds per run
+        default: "4"
+      hogs:
+        description: Busy normal-priority threads during the runs
+        default: "4"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: engine-bench-${{ github.run_id }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_RELEASE_DEBUG: line-tables-only
+  RUST_BACKTRACE: "1"
+
+jobs:
+  bench:
+    name: Engine bench (${{ inputs.os }})
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 90
+    env:
+      ETHER_BENCH_SCENARIOS: ${{ inputs.scenarios }}
+      ETHER_BENCH_BLOCK: ${{ inputs.block }}
+      ETHER_BENCH_SECONDS: ${{ inputs.seconds }}
+      ETHER_BENCH_HOGS: ${{ inputs.hogs }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/free-disk
+      - name: Toolchain (from rust-toolchain.toml)
+        shell: bash
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: engine-bench
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Build
+        shell: bash
+        run: cargo test --release -p ether-native --test it "engine_bench::" --no-run
+      - name: Bench, normal-priority workers
+        shell: bash
+        env:
+          ETHER_BENCH_RT: "0"
+          ETHER_BENCH_JSON: ${{ runner.temp }}/engine-bench.jsonl
+        run: |
+          {
+            echo '### normal-priority workers'
+            echo '```'
+            cargo test --release -p ether-native --test it engine_bench::realtime -- --ignored --nocapture --test-threads 1 2>&1 | grep -E '^  |^[a-z]'
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Bench, real-time workers
+        shell: bash
+        env:
+          ETHER_BENCH_RT: "1"
+          ETHER_BENCH_JSON: ${{ runner.temp }}/engine-bench.jsonl
+        run: |
+          {
+            echo '### real-time workers'
+            echo '```'
+            cargo test --release -p ether-native --test it engine_bench::realtime -- --ignored --nocapture --test-threads 1 2>&1 | grep -E '^  |^[a-z]'
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: engine-bench-${{ inputs.os }}
+          path: ${{ runner.temp }}/engine-bench.jsonl
