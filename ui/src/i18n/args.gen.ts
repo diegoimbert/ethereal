@@ -531,6 +531,7 @@ export interface MessageArgs {
   "project.start.completed_named": { title: string | number };
   "project.start.failed": { error: string | number };
   "project.time.minutes_ago": { count: string | number };
+  "project.untitled.body": { name: string | number };
   "racks.chain.delete_label": { name: string | number };
   "racks.chain.devices": { name: string | number };
   "racks.chain.label": { name: string | number };

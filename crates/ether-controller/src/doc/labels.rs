@@ -561,7 +561,7 @@ pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
             P::SaveAs { .. } => k("undo.project.save_as"),
             P::Duplicate { .. } => k("undo.project.duplicate"),
             P::Rename { .. } => k("undo.project.rename"),
-            P::Delete { .. } => k("undo.project.delete"),
+            P::Delete { .. } | P::Discard { .. } => k("undo.project.delete"),
             P::Get => k("undo.project.get"),
             P::SetScale { .. } => k("undo.project.set_scale"),
             P::ExportBundle { .. } | P::ExportTo { .. } => k("undo.project.export"),
