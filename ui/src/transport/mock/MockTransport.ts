@@ -96,6 +96,7 @@ import type {
   DeviceId,
   EditCommand,
   EngineCommand,
+  EngineStatus,
   EtherFile,
   Event,
   GestureId,
@@ -1348,20 +1349,13 @@ export class MockTransport implements EngineTransport {
     const current = { backend: "mock", host: null, output_device: "Mock Output", input_device: "Mock Input", sample_rate: 48000, buffer_size: 256 };
     switch (c.type) {
       case "GetStatus":
-        return {
-          type: "Status",
-          status: {
-            running: true,
-            backend: "mock",
-            sample_rate: 48000,
-            buffer_size: 256,
-            output_latency: 256,
-            input_latency: 256,
-            xruns: 0,
-            instance: "mock",
-            device_released: false,
-          },
-        };
+        return { type: "Status", status: this.engineStatus() };
+      case "SetAnticipative": {
+        this.anticipative = c.on;
+        const status = this.engineStatus();
+        this.emit({ type: "Engine", event: { type: "Status", status } });
+        return { type: "Status", status };
+      }
       case "ListAudioDevices":
         return {
           type: "AudioDevices",
@@ -1385,6 +1379,24 @@ export class MockTransport implements EngineTransport {
         }
         return { type: "Unit" };
     }
+  }
+
+  /** `EngineCommand::SetAnticipative`'s state (on, like a desktop engine with workers). */
+  private anticipative = true;
+
+  private engineStatus(): EngineStatus {
+    return {
+      running: true,
+      backend: "mock",
+      sample_rate: 48000,
+      buffer_size: 256,
+      output_latency: 256,
+      input_latency: 256,
+      xruns: 0,
+      instance: "mock",
+      device_released: false,
+      anticipative: this.anticipative,
+    };
   }
 
   /** `EngineCommand::SetRunning`'s state. */

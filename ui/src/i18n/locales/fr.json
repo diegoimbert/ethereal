@@ -433,6 +433,8 @@
   "settings.audio.buffer_size": "taille du buffer",
   "settings.audio.rate_hz": "{rate} hz",
   "settings.audio.buffer_samples": "{count, plural, one {# échantillon} other {# échantillons}}",
+  "settings.audio.anticipative": "calcul anticipé",
+  "settings.audio.anticipative_hint": "les pistes que vous n’écoutez pas en direct sont calculées un buffer à l’avance, ce qui laisse plus de temps aux chaînes de master lourdes. leurs changements, ainsi que lecture et stop, s’appliquent un buffer plus tard.",
   "settings.audio.buffer_wasapi": "fixée par windows (wasapi en mode partagé). un pilote asio permet à ethereal de la choisir.",
   "settings.audio.buffer_wasapi_actual": "fixée par windows (wasapi en mode partagé) : {actual} échantillons par bloc. un pilote asio permet à ethereal de la choisir.",
   "settings.audio.buffer_mismatch": "le périphérique tourne à {actual} échantillons ({requested} demandés).",
