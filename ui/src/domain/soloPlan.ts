@@ -20,6 +20,17 @@ export interface SoloPlan<Id = string> {
   exclusive: boolean;
 }
 
+/**
+ * Solo overrides the soloed item's own mute (CONTRACTS.md §12.10): a muted track, rack chain or
+ * drum pad that is soloed is heard while soloed; its mute is kept and applies again once it is
+ * unsoloed. Only the item's own solo counts (a soloed group doesn't unmute its muted children).
+ * Mute buttons show it with `data-solo-override` and the `mixer.mute_overridden` tooltip.
+ */
+export const muteOverriddenBySolo = (mute: boolean, solo: boolean): boolean => mute && solo;
+
+/** The mute that is applied (`TrackMixer::effective_mute` in the controller): mute unless soloed. */
+export const effectiveMute = (mute: boolean, solo: boolean): boolean => mute && !solo;
+
 /** True when the click should be additive (Ctrl or Cmd held). */
 export const additiveClick = (e?: { ctrlKey?: boolean; metaKey?: boolean }): boolean => !!(e?.ctrlKey || e?.metaKey);
 

@@ -758,10 +758,15 @@ impl EngineState {
                     }),
                     // Tracks inside a frozen group are inert (compiled without mute).
                     TrackChange::Mute(_) if project.frozen_ancestor(*id).is_some() => None,
-                    TrackChange::Mute(m) => Some(ParamChange {
-                        target: ParamTarget::TrackMute { track: *id },
-                        value: if *m { 1.0 } else { 0.0 },
-                    }),
+                    // A soloed track is heard even if muted (`TrackMixer::effective_mute`);
+                    // solo changes recompile, so this only covers a mute flip.
+                    TrackChange::Mute(m) => {
+                        let soloed = project.tracks.get(id).is_some_and(|t| t.mixer.solo);
+                        Some(ParamChange {
+                            target: ParamTarget::TrackMute { track: *id },
+                            value: if *m && !soloed { 1.0 } else { 0.0 },
+                        })
+                    }
                     _ => None,
                 },
                 Op::Update {

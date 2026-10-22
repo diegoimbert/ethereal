@@ -6,9 +6,15 @@
  * the raw values (e.g. `TRACK_COLORS`, `readToken()`) only where CSS vars don't reach (canvas).
  */
 import { useMemo, useSyncExternalStore } from "react";
-import { darkColors, DEFAULT_THEME, THEME_NAMES, themes, tokenName, TRACK_COLORS, type ColorKey, type ThemeName } from "./tokens";
+import type { ThemeDefinition } from "./themeModel";
+import { appliedTheme, getThemeId, getThemeKey, getThemes, initThemeSelection, setScheme, setThemeId, subscribeTheme } from "./themeRuntime";
+import { darkColors, DEFAULT_THEME, THEME_NAMES, tokenName, TRACK_COLORS, type ColorKey, type ThemeName } from "./tokens";
 
 export * from "./tokens";
+export * from "./themeModel";
+export * from "./themeRuntime";
+export { BUILTIN_THEMES, BUILTIN_THEME_IDS, builtinTheme, isBuiltinTheme, type BuiltinThemeId } from "./builtinThemes";
+export { contrast, isColor, toHex } from "./color";
 export { displayColor, displayColorCss } from "./displayColor";
 
 /** Dark-theme color values (kept for backwards compatibility; theme-aware code uses `readToken`). */
@@ -34,47 +40,35 @@ export function readToken(name: `--${string}`, el?: Element): string {
 
 // ---- Theme switching ------------------------------------------------------------------
 
-const STORAGE_KEY = "eth-theme";
 const listeners = new Set<() => void>();
 
 function isTheme(v: unknown): v is ThemeName {
   return typeof v === "string" && (THEME_NAMES as string[]).includes(v);
 }
 
-function storedTheme(): ThemeName | null {
-  try {
-    const v = localStorage.getItem(STORAGE_KEY);
-    return isTheme(v) ? v : null;
-  } catch {
-    return null;
-  }
-}
-
-/** The theme currently applied to `<html data-theme>`. */
+/** The scheme of the theme applied (`<html data-theme>`): `dark` or `light`. */
 export function getTheme(): ThemeName {
   if (typeof document === "undefined") return DEFAULT_THEME;
   const t = document.documentElement.dataset.theme;
   return isTheme(t) ? t : DEFAULT_THEME;
 }
 
-/** Applies `theme` to `<html data-theme>` and remembers it (localStorage). */
-export function setTheme(theme: ThemeName): void {
-  if (typeof document === "undefined") return;
-  document.documentElement.dataset.theme = theme;
+/** Applies the theme used for `scheme` (the one last chosen of that scheme) and remembers it. */
+export function setTheme(scheme: ThemeName): void {
+  setScheme(scheme);
+}
+
+// Every applied theme change: the glow (none in a light theme), the canvases' colors, hooks.
+subscribeTheme(() => {
   applyGlow();
-  try {
-    localStorage.setItem(STORAGE_KEY, theme);
-  } catch {
-    // storage unavailable (private mode, sandbox): the theme still applies for this session
-  }
   themeColorCache.clear();
   listeners.forEach((l) => l());
-}
+});
 
 /** Applies the remembered theme (or the default). Called once when `@/kit` is imported. */
 export function initTheme(): void {
   if (typeof document === "undefined") return;
-  document.documentElement.dataset.theme = storedTheme() ?? DEFAULT_THEME;
+  initThemeSelection();
   try {
     if (localStorage.getItem(TRANSLUCENCY_KEY) === "off") document.documentElement.dataset.translucency = "off";
   } catch {
@@ -108,7 +102,7 @@ let glowPreference = true;
  */
 function applyGlow(): void {
   if (typeof document === "undefined") return;
-  const on = glowPreference && themes[getTheme()].colorScheme !== "light";
+  const on = glowPreference && getTheme() !== "light";
   if (on) delete document.documentElement.dataset.glow;
   else document.documentElement.dataset.glow = "off";
 }
@@ -313,21 +307,45 @@ function subscribe(l: () => void): () => void {
   return () => listeners.delete(l);
 }
 
-/** React hook: `[theme, setTheme]`. */
+/** React hook: `[scheme, setTheme]` (the applied theme's `dark` / `light`). */
 export function useTheme(): [ThemeName, (t: ThemeName) => void] {
   const theme = useSyncExternalStore(subscribe, getTheme, () => DEFAULT_THEME);
   return [theme, setTheme];
 }
 
+/** React hook: `[themeId, setThemeId]` (the chosen theme). */
+export function useThemeId(): [string, (id: string) => void] {
+  const id = useSyncExternalStore(subscribe, getThemeId, getThemeId);
+  return [id, setThemeId];
+}
+
+/** Every theme (built-ins, then the user's own), re-rendering when the list changes. */
+export function useThemes(): readonly ThemeDefinition[] {
+  return useSyncExternalStore(subscribe, getThemes, getThemes);
+}
+
+/**
+ * A key that changes with every applied theme change (another theme, the editor's preview,
+ * edited colors): put it in a canvas's redraw dependencies.
+ */
+export function useThemeKey(): string {
+  return useSyncExternalStore(subscribe, getThemeKey, getThemeKey);
+}
+
 /**
  * A color token's current value, for canvas drawing (CSS vars don't reach a canvas). Read from
  * the page (so a restyled `tokens.css` or a devtools override applies), falling back to the
- * theme's value in `tokens.ts` where no stylesheet is loaded (tests). Re-renders the caller
- * when the theme changes: put the value in the canvas's redraw dependencies.
+ * applied theme's value where no stylesheet is loaded (tests). Re-renders the caller when the
+ * theme changes: put the value in the canvas's redraw dependencies.
  */
 export function useThemeColor(key: ColorKey): string {
-  const [theme] = useTheme();
-  return useMemo(() => themeColor(theme, key), [key, theme]);
+  const themeKey = useThemeKey();
+  return useMemo(() => themeColor(themeKey, key), [key, themeKey]);
+}
+
+/** The applied theme's value of a color token (no page read): the fallback where CSS isn't loaded. */
+export function themeColorValue(key: ColorKey): string {
+  return appliedTheme().color[key];
 }
 
 /**
@@ -337,11 +355,11 @@ export function useThemeColor(key: ColorKey): string {
  */
 const themeColorCache = new Map<string, string>();
 
-function themeColor(theme: ThemeName, key: ColorKey): string {
-  const id = `${theme}:${key}`;
+function themeColor(themeKey: string, key: ColorKey): string {
+  const id = `${themeKey}:${key}`;
   let value = themeColorCache.get(id);
   if (value === undefined) {
-    value = readToken(tokenName("color", key) as `--${string}`) || themes[theme].color[key];
+    value = readToken(tokenName("color", key) as `--${string}`) || themeColorValue(key);
     themeColorCache.set(id, value);
   }
   return value;

@@ -11,6 +11,7 @@
  * DOM overlays in the lanes that take the pointer themselves keep it.
  */
 
+import { loadingTracksNow, subscribeLoadingTracks } from "@/features/plugins/trackLoading";
 import { contributions } from "@/ext";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Clip, ClipId } from "@/generated";
@@ -102,6 +103,7 @@ export function GlClipLayer({ ctx, scrollRef, backend }: GlClipLayerProps) {
         palette,
         tempo: tempoOf(project),
         transportKind: ctx.transport.kind,
+        loading: loadingTracksNow(),
       });
     };
     const viewport = () => {
@@ -135,6 +137,8 @@ export function GlClipLayer({ ctx, scrollRef, backend }: GlClipLayerProps) {
       // Automation, comping and group summary lanes (gl/layers/).
       mountLaneLayers(r),
       useProjectStore.subscribe(update),
+      // Tracks loading as the project opens (#260): their clips look unavailable.
+      subscribeLoadingTracks(update),
       itemSelection.subscribe(update),
       useClipRename.subscribe(update),
       useArrangementUi.subscribe((s, prev) => {
@@ -352,10 +356,10 @@ function bleedOf(backend: string, headerWidth: number): number {
   return backend === "webgl" ? headerWidth : 0;
 }
 
-/** Calls `fn` when the theme (`<html data-theme>`) or the glow setting (`data-glow`) changes. */
+/** Calls `fn` when the theme (`<html data-theme>`, `data-theme-id`, `data-theme-rev`) or the glow setting (`data-glow`) changes. */
 function onThemeChange(fn: () => void): () => void {
   const mo = new MutationObserver(fn);
-  mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-glow"] });
+  mo.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-theme-id", "data-theme-rev", "data-glow"] });
   return () => mo.disconnect();
 }
 

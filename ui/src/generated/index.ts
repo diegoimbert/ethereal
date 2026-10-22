@@ -301,6 +301,7 @@ export type * from "./RecordingCommand";
 export type * from "./RecordingEvent";
 export type * from "./RecoveryInfo";
 export type * from "./RelativeEncoding";
+export type * from "./RenderingState";
 export type * from "./ReplaceReport";
 export type * from "./Replacement";
 export type * from "./ReplacementPlugin";

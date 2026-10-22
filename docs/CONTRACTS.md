@@ -508,6 +508,7 @@ tables with field-level `Update`s, client-chosen ids, patches before replies.
   cancelled arrive as `Event::Export`. One job at a time. `ExportRequest { range: Loop |
   Project | Custom, format { Wav | Flac, Int16 | Int24 | Float32 (not FLAC), sample_rate },
   mode: Mix | Stems { tracks } | MixAndStems { tracks }, normalize, tail_seconds, name }`.
+- While it runs the live engine is suspended and plays the render so far (§13.20).
 - Rendering uses `ether_core::offline::OfflineRenderer` (a private engine on the controller
   thread) with fresh nodes, never the live ones, stepped a bounded unit of work at a time
   from the controller tick. The metronome and count-in are never rendered
@@ -747,7 +748,9 @@ MIDI clips (`groove::swing_notes`).
 - Engine: `TrackDesc::racks: Vec<RackDesc { rack: NodeKey, pads: Vec<PadDesc> }>`. At the
   rack's chain entry the engine routes notes by key to pads (transposed to
   `PAD_PLAY_NOTE` = 60), applies choke groups, runs the pad chains (PDC-aligned to the
-  longest), mixes them (volume/pan/mute) and runs the rack node.
+  longest), mixes them (volume/pan/mute) and runs the rack node. Pad solo (runtime) compiles
+  as `PadDesc::mute`: in a rack with a soloed pad, soloed pads are unmuted (a soloed pad is
+  heard even if muted, its `mute` kept, as for tracks in §12.10) and the others muted.
 - Slicing: `BuiltinDevice::Sampler { sample, slices: SliceSettings { enabled, base_note,
   markers } }`. The data travels with the node; edits reach a live sampler in place through
   `EngineBridge::update_builtin` → `EngineHandle::set_node_data` → `Node::set_data`
@@ -1104,7 +1107,9 @@ runtime; `PresetEvent::Changed` after user-set changes. Sample-based presets car
   MIDI effect rack chains), never under a drum pad (directly or in a pad rack's chain).
   **Empty = nothing goes through:** a rack with no chains outputs silence (audio effect
   rack) / no notes (MIDI effect rack) / adds nothing (instrument rack); every chain muted
-  is silence. A chain with no devices passes what reaches it (the rack's input, or its
+  is silence. Chain solo compiles into `RackChainDesc::mute`: while a chain of the rack is
+  soloed the others are muted, and a soloed chain is heard even if muted (its `mute` kept;
+  unsolo = muted again, as for tracks in §12.10). A chain with no devices passes what reaches it (the rack's input, or its
   zone-filtered notes). A freshly inserted audio or MIDI effect rack (`Device::Insert`,
   `Rack::InsertDevice`, `DrumRack::InsertDevice`) starts with one empty chain "chain 1"
   (id `derive_id(rack, 0)`) in the same undo step; instrument racks start empty, and
@@ -1267,6 +1272,18 @@ Migration: v0.1 media are `Project`; nothing moves.
   muted VCA its tracks); while anything is soloed a track is audible if it is soloed, inside
   a soloed group, a group/bus on the output path of a soloed track (solo in place through the
   bus chain), a return, or master; soloing a VCA solos its tracks (folded at compile).
+- **Solo overrides the soloed track's own mute** (`TrackMixer::effective_mute` = mute && !solo,
+  for tracks, groups, returns and VCAs): a muted track that is itself soloed is heard while it
+  stays soloed; `mixer.mute` is untouched, so unsoloing makes it silent again. The controller
+  compiles `TrackDesc::mute` / `VcaDesc::mute` from it and sends the same value as the live
+  `ParamTarget::TrackMute` (a mute flip while soloed sends 0); switching goes through the
+  usual mute/solo gate ramp. **Not recursive:** only the exact soloed track's own mute is
+  overridden. A muted child of a soloed group stays muted; a soloed child of a muted group
+  stays silent (the group's mute still mutes everything inside); solo folded from a VCA
+  doesn't override its tracks' own mutes, and a soloed parent VCA doesn't unmute a muted
+  child VCA. UI: a mute button whose mute is overridden shows outlined instead of filled
+  (`data-solo-override`, tooltip `mixer.mute_overridden`); the same applies to rack chains and
+  drum pads (§12.6, §11.12).
 - `TrackInput::Track { track, tap: PreFx | PostFx | PostFader }` (default `PostFader`): a
   routing edge (no cycles, model and compiler). PDC: tap latency = `in_lat(source)` (PreFx)
   or `out_lat(source)`; the consumer's `in_lat` includes it and the tap is delayed by the
@@ -1420,6 +1437,10 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   round trip as latency). Then `GrainDelay` (`ether_devices::grain_delay`, no kind data): a
   delay line read by overlapping Hann grains (rate `Frequency`, transposed by `Pitch`,
   scattered by `Spray`, detuned by `Random Pitch`) with feedback; no latency.
+  Then `Shifter` (`ether_devices::shifter`, no kind data): pitch mode (a two-tap delay-line
+  shifter over `Window`), frequency mode (single-sideband shift: an IIR allpass Hilbert pair
+  and a complex carrier), ring mode (a cosine carrier, optional tanh `Drive`); `Wide`
+  mirrors the right channel; no latency reported.
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.
@@ -1766,6 +1787,58 @@ plugins (stopped transport, sparse tracks, empty returns) cost nothing.
   flags garbage silent). `engine_bench::idle_vst3_plugins` measures the CPU saved.
 - Not covered: AU and VST2 plugins never sleep; sandboxed CLAP plugins are called every
   block (their `SLEEP` saves the plugin's own work only).
+### 13.20 Renders suspend the engine and play their preview
+An audio export (`Export::Render`: mix, stems, both; the private overlay's static-share
+snapshots render through it) suspends the live engine for as long as it runs
+(`ether-controller/src/rendering.rs`), like a load (§13.18; the engine is resumed only once
+neither holds it, `EtherController::sync_suspension`). Freeze, bounce and consolidate don't:
+they render one track, usually briefly, have no master to preview and keep the session
+audible. Why: the render runs on its own offline engine with fresh device and plugin
+instances (§11.1, never the live ones, so the suspension is for speed, not correctness),
+and the live engine would otherwise keep processing the whole project on the audio thread
+and its workers meanwhile.
+- **Preview.** While suspended, `Engine::process` plays the render's master as far as it is
+  rendered (`ether_core::render_preview`: `PreviewSpec { rate, start_seconds, frames, tempo }`
+  from the job, `EngineBridge::{begin,push,end}_render_preview`, default `Unsupported`;
+  native: a `PreviewWriter` on the controller thread shares its buffer with the audio
+  thread; web: `EngineMsg::RenderPreview{Begin,Chunk,End}`, 16-bit chunks the Worklet
+  appends). The buffer is chunked 16-bit stereo, allocated by the writer only, published
+  lock-free (`written`, release/acquire), at most `MAX_PREVIEW_BYTES` (256 MiB, about 23 min
+  at 48 kHz; the rest of a longer render stays unavailable until it ends). The callback
+  follows the engine's transport: play, stop, locate and the loop as usual, the render's own
+  tempo map for beats (edits to the tempo meanwhile don't shift it), linear resampling when
+  the preview's rate is not the engine's, any buffer size. Where nothing is rendered yet
+  (past `until`, before the render's start) the engine stops the transport itself. The
+  master meter shows the preview, the other tracks' meters silence. Real-time safe: no
+  allocation, lock or syscall on the audio thread; the old buffer is retired to the GC.
+- What previews: the job's first render when it renders the whole project (the mix, or the
+  full render stems are captured from: its master plays even when no mix file is written).
+  Stems that each need a pass of their own (§11.1) have no mix: `preview: false`, nothing
+  plays until the end.
+- **Transport.** `TransportState::rendering: RenderingState { start, end, until, progress,
+  preview }` (beats; `until` = the end of the rendered part; reported at most every
+  `rendering::REPORT_MS` = 100 ms). Play is refused where nothing is rendered
+  (`error.render.not_rendered`) or without a preview (`error.render.no_preview`); `Locate`
+  is clamped to `start..until` with a hint (`notice.render.not_rendered_yet`); record is
+  refused (`error.render.running`); playback reaching `until` stops with a hint
+  (`notice.render.preview_end`; the controller also notices a stop no poll saw playing, from
+  the engine clock). Starting a render stops live playback.
+- **Edits** apply to the document as usual. The job copied the project when it started, so
+  neither its files nor its preview contain them; the live graph keeps being republished
+  and plays them once the render ends.
+- **End.** Done, failed, cancelled, or its project closed: the preview is dropped and the
+  engine resumes (its first block resets nodes, chases notes, re-sends automation, as after
+  a load); a preview that was playing goes on, live, from the same position. No priming:
+  the live plugins are warm.
+- **Speed.** With the engine suspended the job renders on worker threads
+  (`EngineBridge::offline_executor`; native: a non-real-time `WorkerPool` of the live
+  engine's worker count, bit-identical to one thread) and its tick budget is
+  `RENDERING_TICK_BUDGET_MS` (14 ms of every tick instead of 12). It is never paced to real
+  time. `ether-native/tests/it/render_suspend.rs` checks that no live plugin runs meanwhile
+  and benchmarks it (`render_speed`).
+- UI: the transport bar shows "rendering n%" (`transport-bar/RenderingStatus.tsx`), record is
+  disabled, play hears the preview; the timeline and rulers hatch what isn't rendered yet with
+  a dashed boundary at `until` (`timeline/RenderFrozenLayer.tsx`, pointer-transparent).
 ## 13. Agent API (docs/MCP.md)
 
 - Protocol (`ether_protocol::agent`, exported to TS): `Command::Agent(AgentCommand)`.

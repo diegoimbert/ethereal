@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { Headphones, Play, Volume2, VolumeX } from "lucide-react";
-import { additiveClick } from "@/domain/soloPlan";
+import { additiveClick, muteOverriddenBySolo } from "@/domain/soloPlan";
 import { useState, type DragEvent, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import type { Device, DrumPad } from "@/generated";
 import { hasBrowserDrag, readBrowserDrag, resolveDroppedMedia } from "@/features/browser/dragPayload";
@@ -273,8 +273,9 @@ function PadCell({ rack, note, pad, active, selected, onSelect }: PadCellProps) 
         type="button"
         className="eth-arr-header__toggle eth-arr-header__mute eth-drum-rack__toggle"
         aria-pressed={pad.mute}
+        data-solo-override={muteOverriddenBySolo(pad.mute, soloed) || undefined}
         aria-label={t("drum_rack.pad.mute_label", { name: pad.name })}
-        title={pad.mute ? t("drum_rack.pad.unmute") : t("drum_rack.pad.mute")}
+        title={muteOverriddenBySolo(pad.mute, soloed) ? t("mixer.mute_overridden") : pad.mute ? t("drum_rack.pad.unmute") : t("drum_rack.pad.mute")}
         onClick={() => send(cmd("DrumRack", { type: "SetPadMute", id: pad.id, mute: !pad.mute }))}
       >
         {pad.mute ? <VolumeX /> : <Volume2 />}

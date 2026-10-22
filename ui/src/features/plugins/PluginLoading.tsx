@@ -8,6 +8,7 @@ import type { DeviceId, Project, TrackId } from "@/generated";
 import { useProjectStore } from "@/state";
 import { useT } from "@/i18n";
 import { usePluginEvents, usePluginStore } from "./pluginStore";
+import { useTrackLoading } from "./trackLoading";
 
 /** `"loaded/total"` of the plugin devices (of `track`, or all) while some are pending, else null. */
 function progressOf(project: Project | null, pending: ReadonlySet<DeviceId>, track?: TrackId): string | null {
@@ -33,22 +34,24 @@ function useLoadProgress(track?: TrackId): [number, number] | null {
   return [done, total];
 }
 
-/** Along the bottom of a track's header card: how many of its plugins are loaded. */
+/**
+ * Along the bottom of a track's header card: how many of its plugins are loaded; or, a track
+ * whose audio files load (no per-file progress: `trackLoading.ts`), the project's audio files.
+ */
 export function TrackPluginLoading({ track }: { track: TrackId }) {
   const t = useT();
-  const progress = useLoadProgress(track);
+  const plugins = useLoadProgress(track);
+  const loading = useTrackLoading(track);
+  const media = useProjectStore((s) => {
+    const l = s.transport?.loading;
+    return l && l.media_loaded < l.media_total ? `${l.media_loaded}/${l.media_total}` : null;
+  });
+  const progress = plugins ?? (loading && media ? (media.split("/").map(Number) as [number, number]) : null);
   if (!progress) return null;
   const [done, total] = progress;
+  const label = plugins ? t("plugins.loading.track", { done, total }) : t("shell.transport.loading_media", { done, total });
   return (
-    <span
-      className="eth-plugin-loading"
-      role="progressbar"
-      aria-label={t("plugins.loading.track", { done, total })}
-      title={t("plugins.loading.track", { done, total })}
-      aria-valuemin={0}
-      aria-valuemax={total}
-      aria-valuenow={done}
-    >
+    <span className="eth-plugin-loading" role="progressbar" aria-label={label} title={label} aria-valuemin={0} aria-valuemax={total} aria-valuenow={done}>
       <span className="eth-plugin-loading__fill" style={{ transform: `scaleX(${done / total})` }} />
     </span>
   );

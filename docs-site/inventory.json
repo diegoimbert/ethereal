@@ -1743,6 +1743,14 @@
           "platform": "all"
         },
         {
+          "id": "devices/shifter",
+          "title": "shifter",
+          "what": "pitch shifter (-24..+24 semitones, detune, window), frequency shifter (shift + fine in hz, inharmonic / phaser-like), ring modulator (carrier + fine, drive and amount); wide mirrors the right channel; mix.",
+          "priority": "nice",
+          "audience": "everyone",
+          "platform": "all"
+        },
+        {
           "id": "devices/reverb",
           "title": "reverb",
           "what": "algorithmic reverb: pre-delay, size, decay (0.2–20 s), damping, width, mix, low / high cut on the input, diffusion, freeze (infinite tail), output (wet level only).",

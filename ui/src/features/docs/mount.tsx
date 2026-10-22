@@ -11,17 +11,19 @@ import { loadDocsExtensions } from "./extensions";
 import { useUrlRouter } from "./router";
 import { initI18n, t } from "@/i18n";
 import { setTabTitle, tabTitle } from "@/features/document-title/title";
+import { initThemeSelection } from "@/theme";
 
-/** The app's remembered theme (Settings > Appearance), else the system's. */
+/** The app's remembered theme (Settings > Appearance; following the system there by default). */
 function applyTheme(): void {
-  let theme: string | null = null;
+  let chosen = false;
   try {
-    theme = localStorage.getItem("eth-theme");
+    chosen = localStorage.getItem("eth-theme") !== null || localStorage.getItem("eth-theme-mode") !== null;
   } catch {
     // storage unavailable
   }
-  if (theme !== "light" && theme !== "dark") theme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
-  document.documentElement.dataset.theme = theme;
+  // Never chosen in the app: the system's light or dark.
+  if (!chosen && matchMedia("(prefers-color-scheme: light)").matches) document.documentElement.dataset.theme = "light";
+  else initThemeSelection();
   document.documentElement.style.background = "";
 }
 

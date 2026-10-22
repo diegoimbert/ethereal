@@ -202,6 +202,10 @@ pub struct EngineHost<M: RingMemory> {
     sample_rate: u32,
     /// Convolution IRs prepared by the Worker being assembled, by virtual node key.
     irs: BTreeMap<NodeKey, ether_devices::fx_space::ConvolverAssembly>,
+    /// The render preview being received (`EngineMsg::RenderPreviewBegin`): its frames
+    /// arrive as [`Frame::RenderPreviewChunk`]s (a 256 KiB chunk allocated every 65536
+    /// frames, within the control budget like media).
+    render_preview: Option<ether_core::render_preview::PreviewWriter>,
     /// `keyboard-midi`: the engine's live MIDI ring (`EngineMsg::LiveMidi`). The rest of the
     /// recording rings is dropped: the web build captures nothing.
     live_midi: Option<ether_core::recording::rtrb::Producer<ether_core::recording::LiveMidi>>,
@@ -263,6 +267,7 @@ impl<M: RingMemory> EngineHost<M> {
             latency,
             sample_rate,
             irs: BTreeMap::new(),
+            render_preview: None,
             live_midi,
         }
     }
@@ -456,6 +461,19 @@ impl<M: RingMemory> EngineHost<M> {
                 }
                 (false, res)
             }
+            Ok(Frame::RenderPreviewChunk { samples }) => {
+                if let Some(w) = self.render_preview.as_mut() {
+                    let pairs = samples.as_chunks::<4>().0;
+                    w.push_frames(pairs.len(), |i| {
+                        let b = pairs[i];
+                        [
+                            i16::from_le_bytes([b[0], b[1]]),
+                            i16::from_le_bytes([b[2], b[3]]),
+                        ]
+                    });
+                }
+                (false, Ok(()))
+            }
             Ok(Frame::MediaEnd { media }) => match self.media.end(media) {
                 Some(audio) => (false, self.add_source(media, audio)),
                 // Unloaded while loading.
@@ -598,6 +616,22 @@ impl<M: RingMemory> EngineHost<M> {
             EngineMsg::Suspend { suspended } => {
                 self.handle.set_suspended(suspended);
                 Ok(())
+            }
+            EngineMsg::RenderPreviewBegin { spec } => {
+                let writer = ether_core::render_preview::PreviewWriter::new(spec);
+                let buffer = writer.buffer();
+                self.render_preview = Some(writer);
+                self.handle
+                    .set_render_preview(Some(buffer))
+                    .map_err(|e| e.to_string())
+            }
+            // Arrives as a `Frame::RenderPreviewChunk`.
+            EngineMsg::RenderPreviewChunk { .. } => Ok(()),
+            EngineMsg::RenderPreviewEnd => {
+                self.render_preview = None;
+                self.handle
+                    .set_render_preview(None)
+                    .map_err(|e| e.to_string())
             }
             EngineMsg::Preview { id, media, gain } => {
                 use ether_core::preview::PreviewControl;

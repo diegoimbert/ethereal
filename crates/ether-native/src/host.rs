@@ -580,6 +580,8 @@ impl NativeHost {
         let scanning = Arc::new(AtomicBool::new(false));
         bridge.set_scan_flag(scanning.clone());
         bridge.set_sandbox_defaults(sandbox_defaults.clone());
+        // Renders suspend the live engine: they get its worker count.
+        bridge.set_offline_workers(engine_config.worker_threads);
         let factory = options.controller;
         let patch_compat = options.patch_compat;
         let health = plugins.health().clone();

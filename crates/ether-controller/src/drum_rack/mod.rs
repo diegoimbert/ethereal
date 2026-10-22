@@ -876,7 +876,8 @@ pub fn racks_desc(p: &Project, track: TrackId, ctx: &CompileContext) -> Vec<Rack
         .collect()
 }
 
-/// Pad solo: in every rack with a soloed pad, the other pads compile as muted.
+/// Pad solo: in every rack with a soloed pad, the other pads compile as muted and the
+/// soloed ones as unmuted (a soloed pad is heard even if muted; its `mute` is untouched).
 pub fn apply_solo(desc: &mut RenderGraphDesc, solo: &BTreeSet<DrumPadId>) {
     if solo.is_empty() {
         return;
@@ -884,7 +885,7 @@ pub fn apply_solo(desc: &mut RenderGraphDesc, solo: &BTreeSet<DrumPadId>) {
     for rack in desc.tracks.iter_mut().flat_map(|t| t.racks.iter_mut()) {
         if rack.pads.iter().any(|p| solo.contains(&p.pad)) {
             for p in &mut rack.pads {
-                p.mute |= !solo.contains(&p.pad);
+                p.mute = !solo.contains(&p.pad);
             }
         }
     }
