@@ -77,6 +77,9 @@
 //! | 5 | Tremolo | `Depth` | 0 ..= 100 Percent, default 50 |
 //! | 6 | Tremolo | `Stereo Phase` | 0 ..= 180 None, default 0 |
 //! | 7 | Output | `Output` | -24 ..= 24 Decibels, default 0 |
+//! | 8 | Tremolo | `Phase` | 0 ..= 360 None, default 0: where the LFO starts on its waveform (synced: against the song position) |
+//! | 9 | Tremolo | `Hardness` | 0 ..= 100 Percent, default 0: pushes the waveform to its limits (`tanh(k·x) / tanh(k)`, `k` = 8 × Hardness) |
+//! | 10 | Tremolo | `Invert` | toggle, default off: the waveform upside down |
 //!
 //! # Vibrato (`BuiltinDeviceType::Vibrato`)
 //!
@@ -210,8 +213,14 @@ pub mod tremolo {
     pub const DEPTH: ParamId = ParamId(5);
     pub const STEREO_PHASE: ParamId = ParamId(6);
     pub const OUTPUT: ParamId = ParamId(7);
+    /// Appended: where the LFO starts on its waveform (degrees; with Sync, against the song).
+    pub const PHASE: ParamId = ParamId(8);
+    /// Appended: pushes the waveform to its limits (0 = as is, 100 % = nearly square).
+    pub const HARDNESS: ParamId = ParamId(9);
+    /// Appended: the waveform upside down.
+    pub const INVERT: ParamId = ParamId(10);
     /// Number of params.
-    pub const COUNT: usize = 8;
+    pub const COUNT: usize = 11;
 }
 
 /// Param ids of `Vibrato` (stable, append-only).
@@ -535,6 +544,24 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                     (-24.0, 24.0, 0.0),
                     ParamScale::Linear,
                 ),
+                // --- appended (Ableton import: Live's Auto Pan) ---
+                param(
+                    8,
+                    "Phase",
+                    "Tremolo",
+                    ParamUnit::None,
+                    (0.0, 360.0, 0.0),
+                    ParamScale::Linear,
+                ),
+                param(
+                    9,
+                    "Hardness",
+                    "Tremolo",
+                    ParamUnit::Percent,
+                    (0.0, 100.0, 0.0),
+                    ParamScale::Linear,
+                ),
+                toggle(10, "Invert", "Tremolo", false),
             ],
             2,
             2,
@@ -831,10 +858,13 @@ fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
                 "tremolo",
                 Some("Tremolo"),
                 1,
-                1,
+                2,
                 vec![
                     choice_item(tremolo::MODE),
+                    toggle_item(tremolo::INVERT),
                     knob(tremolo::STEREO_PHASE, Medium),
+                    knob(tremolo::PHASE, Medium),
+                    knob(tremolo::HARDNESS, Medium),
                 ],
             ),
             section(

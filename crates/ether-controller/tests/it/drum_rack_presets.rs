@@ -449,3 +449,67 @@ fn a_drum_rack_in_a_rack_chain_loads_the_pads_without_the_modulators() {
     assert_eq!(shape(h.project(), nested), kit);
     assert!(h.project().modulators_of(nested).is_empty());
 }
+
+/// A drum rack preset keeps the rack's macro values and its macros' mappings onto its pads'
+/// devices (`PresetModTarget::PadDevice`), recreated onto the loaded pads.
+#[test]
+fn drum_rack_presets_keep_macro_mappings_onto_pad_devices() {
+    let mut h = harness();
+    let t = track(&mut h);
+    let rack = insert(&mut h, t, BuiltinDeviceType::DrumRack);
+    let kick = add_pad(&mut h, rack, 36);
+    let snare = add_pad(&mut h, rack, 38);
+    pad_insert(&mut h, kick, BuiltinDeviceType::Utility);
+    let synth = pad_insert(&mut h, snare, BuiltinDeviceType::Synth);
+    let param = automatable(BuiltinDeviceType::Synth);
+    let macro_2 = ParamId(DRUM_RACK_FIRST_MACRO + 1);
+    h.ok(Command::Device(DeviceCommand::SetParam {
+        device: rack,
+        param: macro_2,
+        value: 0.7,
+    }));
+    let mapping: ModMappingId = h.id();
+    h.ok(Command::Modulation(ModulationCommand::Map {
+        id: mapping,
+        source: ModSource::Macro { rack, index: 1 },
+        device: synth,
+        param,
+        depth: -0.4,
+    }));
+    let info = save(&mut h, rack, "Macro kit");
+    let file = preset_file(&mut h, &info);
+    assert_eq!(file.params.get(&macro_2), Some(&0.7));
+    assert_eq!(
+        file.rack.expect("structure").mappings,
+        [PresetModMapping {
+            source: PresetModSource::Macro { index: 1 },
+            target: PresetModTarget::PadDevice { pad: 1, device: 0 },
+            param,
+            depth: -0.4,
+        }]
+    );
+
+    h.create_project("Other");
+    let t = track(&mut h);
+    let rack2 = insert(&mut h, t, BuiltinDeviceType::DrumRack);
+    let seed: RackChainId = h.id();
+    ok(&load(&mut h, rack2, info.preset, Some(seed)));
+    let p = h.project();
+    assert_eq!(p.devices[&rack2].params.get(&macro_2), Some(&0.7));
+    let snare2 = p.pads_of(rack2)[1].id;
+    let synth2 = p.pad_devices_of(snare2)[0].id;
+    let maps: Vec<&ModMapping> = p.mod_mappings.values().collect();
+    assert_eq!(maps.len(), 1);
+    assert_eq!(
+        (maps[0].source, maps[0].device, maps[0].param, maps[0].depth),
+        (
+            ModSource::Macro {
+                rack: rack2,
+                index: 1
+            },
+            synth2,
+            param,
+            -0.4
+        )
+    );
+}

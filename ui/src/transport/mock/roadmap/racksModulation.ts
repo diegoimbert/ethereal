@@ -1,14 +1,14 @@
 /**
  * Mock of `Rack::*` and `Modulation::*` (v0.2).
- * Rack chains, chain devices, macros (rack params 0..8) and Bitwig-style modulators with
+ * Rack chains, chain devices, macros (rack params 0..8; a drum rack's 2..10) and Bitwig-style modulators with
  * mappings (`ether_model::{rack, modulation}`), mirroring
  * `crates/ether-controller/src/racks/mod.rs`: chain content rules (audio effect racks hold
  * audio effects, MIDI effect racks MIDI effects, instrument racks anything), nesting (racks
  * in rack chains up to `MAX_RACK_DEPTH` levels counting drum racks, never inside themselves;
  * a drum rack on track chains or instrument rack chains, never under a drum pad; fresh audio
  * / MIDI effect racks start with "chain 1"), mapping scope (a modulator reaches its device and, on a rack, the devices
- * inside it at any depth and its selector; a macro the devices inside its rack at any depth
- * and the rack's non-macro params), one mapping per (source, target),
+ * inside it at any depth (chains and pads) and its selector; a macro the devices inside its
+ * rack (or drum rack) at any depth and the rack's non-macro params), one mapping per (source, target),
  * `Group` (modulators re-hosted on the rack) and the cascades the core reducer calls
  * (`onDeviceDeletedRacks`, `copyTrackRackExtras`). Racks may sit on drum pads.
  * `ListModulatorKinds` answers from the generated `devices/modulators.json`.
@@ -57,10 +57,19 @@ import {
   trackChainOf,
 } from "./shared";
 
-const SELECTOR_PARAM = 8;
 /** `ether_model::DEVICE_ENABLED_PARAM`: a mapping to the device's on/off switch. */
 const DEVICE_ENABLED_PARAM = 0xffff_ffff;
 const MACROS = 8;
+/** A drum rack's macro 1 (after its volume and pan; `ether_model::DRUM_RACK_FIRST_MACRO`). */
+const DRUM_RACK_FIRST_MACRO = 2;
+
+/** Macro index of `d`'s param `param` (`ether_model::rack::macro_index`), or `null`. */
+function macroIndex(d: Device, param: number): number | null {
+  const first = isDrumRack(d) ? DRUM_RACK_FIRST_MACRO : isChainRack(d) ? 0 : null;
+  if (first === null) return null;
+  const i = param - first;
+  return i >= 0 && i < MACROS ? i : null;
+}
 const FULL: Zone = { lo: 0, hi: 127 };
 export { MAX_RACK_DEPTH };
 
@@ -87,12 +96,13 @@ function checkFit(rackTy: BuiltinDeviceType, category: DeviceCategory): void {
   if (rackTy === "MidiEffectRack" && category !== "NoteEffect") fail("InvalidArgument", "MIDI effect racks only hold MIDI effects");
 }
 
-/** The racks `id` sits inside, innermost first (`null`: cyclic or too deep). */
+/** The racks `id` sits inside (rack chains and drum pads), innermost first (`null`: cyclic
+ *  or too deep). */
 function enclosingRacks(ctx: ReducerContext, id: DeviceId): DeviceId[] | null {
   const out: DeviceId[] = [];
   let d = ctx.tx.get("Device", id);
-  while (d?.chain != null) {
-    const r = ctx.tx.get("RackChain", d.chain)?.rack;
+  while (d && (d.chain != null || d.pad !== null)) {
+    const r = d.chain != null ? ctx.tx.get("RackChain", d.chain)?.rack : ctx.tx.get("DrumPad", d.pad!)?.rack;
     if (r === undefined || r === id || out.includes(r) || out.length > MAX_RACK_DEPTH) return null;
     out.push(r);
     d = ctx.tx.get("Device", r);
@@ -171,9 +181,9 @@ function sourceHost(ctx: ReducerContext, s: ModSource): DeviceId | null {
   return s.type === "Modulator" ? (ctx.tx.get("Modulator", s.modulator)?.device ?? null) : s.rack;
 }
 
-/** Whether `d` sits inside `rackId` at any depth (nested racks included). */
+/** Whether `d` sits inside `rackId` at any depth (chains and pads, nested racks included). */
 function inRack(ctx: ReducerContext, d: Device, rackId: DeviceId): boolean {
-  return d.chain != null && isInside(ctx, d.id, rackId);
+  return isInside(ctx, d.id, rackId);
 }
 
 /** Scope rules of `ether_model::modulation` (model invariants in Rust). */
@@ -183,13 +193,13 @@ function checkScope(ctx: ReducerContext, source: ModSource, target: Device, para
     if (host !== target.id && !inRack(ctx, target, host)) {
       fail("InvalidArgument", "a modulator can only target its device or devices inside its rack");
     }
-    if (host === target.id && isChainRack(target) && param < SELECTOR_PARAM) fail("InvalidArgument", "modulators cannot target their rack's macros");
+    if (host === target.id && macroIndex(target, param) !== null) fail("InvalidArgument", "modulators cannot target their rack's macros");
   } else {
     if (!(Number.isInteger(source.index) && source.index >= 0 && source.index < MACROS)) fail("InvalidArgument", "macro index must be < 8");
-    rack(ctx, source.rack);
+    if (!isAnyRack(device(ctx, source.rack))) fail("InvalidArgument", `device ${source.rack} is not a rack`);
     const inside = inRack(ctx, target, source.rack);
-    // Never the rack's own switch.
-    const own = target.id === source.rack && param >= SELECTOR_PARAM && param !== DEVICE_ENABLED_PARAM;
+    // Never the rack's own macros nor its switch.
+    const own = target.id === source.rack && macroIndex(target, param) === null && param !== DEVICE_ENABLED_PARAM;
     if (!inside && !own) fail("InvalidArgument", "a macro can only target devices inside its rack or the rack's own params");
   }
 }

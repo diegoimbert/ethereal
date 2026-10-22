@@ -160,6 +160,7 @@ fn macros_are_sources_and_live_changes_set_the_base() {
         macros: vec![MacroDesc {
             rack,
             values: [0.0, 0.0, 0.2, 0.0, 0.0, 0.0, 0.0, 0.0],
+            first: 0,
         }],
     };
     p.handle.publish(desc(1, t)).unwrap();
@@ -190,6 +191,85 @@ fn macros_are_sources_and_live_changes_set_the_base() {
         .unwrap();
     render(&mut p.engine, 256, 256);
     approx(&params_of(&drain(&mut rx)), &[(512, 50.0)]);
+}
+
+/// A drum rack's macros are its params 2..=9 (`MacroDesc::first`): their changes are
+/// consumed as macro values and drive a device on one of its pads; its volume (param 0) is
+/// not a macro and reaches the rack node.
+#[test]
+fn drum_rack_macros_drive_pad_devices() {
+    use ether_core::graph::{ChainEntry, PadDesc, RackDesc};
+    use ether_core::protocol::model::DrumPadId;
+    let mut p = create(config());
+    let (rec, mut rx) = Recorder::new();
+    let rec = p.handle.add_node(Box::new(rec)).unwrap();
+    let (rack_rec, mut rack_rx) = Recorder::new();
+    let rack = p.handle.add_node(Box::new(rack_rec)).unwrap();
+    let mut t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[rack]);
+    t.racks = vec![RackDesc {
+        rack,
+        pads: vec![PadDesc {
+            pad: DrumPadId(Ulid(40)),
+            note: 36,
+            choke_group: None,
+            chain: vec![ChainEntry {
+                node: rec,
+                enabled: true,
+                sidechain: None,
+            }],
+            volume: 1.0,
+            pan: 0.0,
+            mute: false,
+        }],
+    }];
+    t.modulation = ModulationDesc {
+        modulators: vec![],
+        mappings: vec![mapping(
+            ModSourceDesc::Macro { rack, index: 1 },
+            rec,
+            0.5,
+            0.2,
+        )],
+        macros: vec![MacroDesc {
+            rack,
+            values: [0.0, 0.4, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            first: 2,
+        }],
+    };
+    p.handle.publish(desc(1, t)).unwrap();
+    render(&mut p.engine, 256, 256);
+    // 0.2 + 0.5 · 0.4 = 0.4.
+    approx(&params_of(&drain(&mut rx)), &[(0, 40.0)]);
+    // Macro 2 is the drum rack's param 3.
+    p.handle
+        .set_param(ParamChange {
+            target: ParamTarget::Node {
+                node: rack,
+                param: ParamId(3),
+            },
+            value: 1.0,
+        })
+        .unwrap();
+    // Its param 1 (pan) is not a macro: the rack node gets it.
+    p.handle
+        .set_param(ParamChange {
+            target: ParamTarget::Node {
+                node: rack,
+                param: ParamId(1),
+            },
+            value: 0.5,
+        })
+        .unwrap();
+    render(&mut p.engine, 256, 256);
+    approx(&params_of(&drain(&mut rx)), &[(256, 70.0)]);
+    let rack_params: Vec<ParamId> = events(&drain(&mut rack_rx))
+        .into_iter()
+        .filter_map(|(_, k)| match k {
+            EventKind::Param { param, .. } => Some(param),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(rack_params, vec![ParamId(1)]);
 }
 
 #[test]

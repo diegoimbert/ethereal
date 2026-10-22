@@ -27,6 +27,10 @@
 //! (`ModSource::Macro`, see [`crate::modulation`]) mapped to params of devices inside the rack.
 //! Rack-type-specific params follow from id [`RACK_FIRST_TYPE_PARAM`] (append-only).
 //!
+//! A drum rack ([`crate::drum_rack`]) has the same 8 macros, appended after its own volume
+//! and pan (ids [`DRUM_RACK_FIRST_MACRO`]`..+8`; no chain selector). [`macro_param`] and
+//! [`macro_index`] map between a rack's macro index and its param id for every rack type.
+//!
 //! # Structure rules (model invariants)
 //! - A chain's devices are on the rack's track; a device is on at most one of: the track
 //!   chain, a drum pad (`pad`), a rack chain (`chain`).
@@ -37,13 +41,15 @@
 //!   track chain, drum racks included (a rack on a track-chain drum rack's pad is level 2),
 //!   never inside itself (`Project::device_path`).
 //! - A rack's macros (and modulators on the track-chain rack) reach devices at any depth
-//!   inside it.
+//!   inside it: on its chains or pads, and through the chains and pads of the racks nested
+//!   in it (a drum rack on an instrument rack's chain included).
 //! - Deleting a rack cascades (controller): mappings and modulators referencing its chain
 //!   devices, chain devices (nested racks with their own chains), chains, then the rack.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
+use crate::device::BuiltinDeviceType;
 use crate::ids::{DeviceId, RackChainId};
 use crate::value::{Color, Decibels, OrderKey, Pan, ParamId};
 
@@ -53,6 +59,37 @@ pub const RACK_MACROS: u8 = 8;
 pub const fn rack_macro_param(i: u8) -> ParamId {
     ParamId(i as u32)
 }
+/// Param id of a drum rack's macro 1 (after its volume and pan; append-only).
+pub const DRUM_RACK_FIRST_MACRO: u32 = 2;
+
+/// Param id of macro `index` of a rack of type `ty` (`None`: not a rack, or `index` out of
+/// range).
+pub fn macro_param(ty: BuiltinDeviceType, index: u8) -> Option<ParamId> {
+    if index >= RACK_MACROS {
+        return None;
+    }
+    match ty {
+        BuiltinDeviceType::DrumRack => Some(ParamId(DRUM_RACK_FIRST_MACRO + u32::from(index))),
+        t if t.is_rack() => Some(rack_macro_param(index)),
+        _ => None,
+    }
+}
+
+/// Macro index of param `param` of a rack of type `ty` (`None`: not a macro param).
+pub fn macro_index(ty: BuiltinDeviceType, param: ParamId) -> Option<u8> {
+    let first = macro_param(ty, 0)?.0;
+    let i = param.0.checked_sub(first)?;
+    (i < u32::from(RACK_MACROS)).then_some(i as u8)
+}
+
+/// [`macro_index`] of a device kind (`None` for non-rack devices).
+pub fn kind_macro_index(kind: &crate::device::DeviceKind, param: ParamId) -> Option<u8> {
+    match kind {
+        crate::device::DeviceKind::Builtin { device } => macro_index(device.device_type(), param),
+        _ => None,
+    }
+}
+
 /// Chain selector param (plain `0..=127`, default 0).
 pub const RACK_SELECTOR_PARAM: ParamId = ParamId(8);
 /// First rack-type-specific param id.

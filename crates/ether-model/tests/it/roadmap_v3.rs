@@ -714,6 +714,158 @@ fn drum_racks_nest_in_instrument_rack_chains() {
     f.p.validate().unwrap();
 }
 
+/// Drum racks have the 8 rack macros (params after their volume and pan) and, like every
+/// rack's, they reach the devices inside the rack at any depth: on its pads and in the
+/// chains of the racks on them. An outer rack's macros reach into a nested drum rack's pads.
+#[test]
+fn drum_rack_macros_reach_pad_devices_at_any_depth() {
+    let mut f = Fx::new();
+    let t = f.track(TrackKind::Midi);
+    let chain_of = |f: &mut Fx, rack: DeviceId| {
+        let c = RackChain {
+            id: f.id(),
+            rack,
+            order: OrderKey::between(None, None),
+            name: "Chain".into(),
+            color: None,
+            volume: Decibels::UNITY,
+            pan: Pan(0.0),
+            mute: false,
+            solo: false,
+            keys: Zone::FULL,
+            velocities: Zone::FULL,
+            select: Zone::FULL,
+        };
+        f.insert(Entity::RackChain(c.clone())).unwrap();
+        c.id
+    };
+    let pad_of = |f: &mut Fx, rack: DeviceId, note: u8| {
+        let id: DrumPadId = f.id();
+        f.insert(Entity::DrumPad(DrumPad {
+            id,
+            rack,
+            note,
+            name: "Kick".into(),
+            color: None,
+            choke_group: None,
+            volume: Decibels::UNITY,
+            pan: Pan(0.0),
+            mute: false,
+        }))
+        .unwrap();
+        id
+    };
+    let drum = BuiltinDeviceType::DrumRack;
+    assert_eq!(macro_param(drum, 0), Some(ParamId(DRUM_RACK_FIRST_MACRO)));
+    assert_eq!(macro_param(drum, 7), Some(ParamId(9)));
+    assert_eq!(macro_param(drum, 8), None);
+    assert_eq!(macro_index(drum, ParamId(1)), None);
+    assert_eq!(macro_index(drum, ParamId(4)), Some(2));
+    assert_eq!(macro_index(drum, ParamId(10)), None);
+    assert_eq!(
+        macro_param(BuiltinDeviceType::InstrumentRack, 3),
+        Some(ParamId(3))
+    );
+    assert_eq!(macro_param(BuiltinDeviceType::Synth, 0), None);
+
+    // inst > chain > drums > pad > [kick, pad rack > chain > deep]
+    let inst = f.device(t, BuiltinDevice::InstrumentRack);
+    f.insert(Entity::Device(inst.clone())).unwrap();
+    let ic = chain_of(&mut f, inst.id);
+    let mut drums = f.device(t, BuiltinDevice::DrumRack);
+    drums.chain = Some(ic);
+    f.insert(Entity::Device(drums.clone())).unwrap();
+    let pad = pad_of(&mut f, drums.id, 36);
+    let mut kick = f.device(t, BuiltinDevice::PolySynth);
+    kick.pad = Some(pad);
+    f.insert(Entity::Device(kick.clone())).unwrap();
+    let mut pad_rack = f.device(t, BuiltinDevice::AudioEffectRack);
+    pad_rack.pad = Some(pad);
+    f.insert(Entity::Device(pad_rack.clone())).unwrap();
+    let pc = chain_of(&mut f, pad_rack.id);
+    let mut deep = f.device(t, BuiltinDevice::Chorus);
+    deep.chain = Some(pc);
+    f.insert(Entity::Device(deep.clone())).unwrap();
+    let other = f.device(t, BuiltinDevice::Reverb);
+    f.insert(Entity::Device(other.clone())).unwrap();
+    assert_eq!(f.p.enclosing_racks(kick.id), Some(vec![drums.id, inst.id]));
+    assert_eq!(
+        f.p.enclosing_racks(deep.id),
+        Some(vec![pad_rack.id, drums.id, inst.id])
+    );
+    assert!(f.p.is_inside(deep.id, inst.id));
+
+    let map = |f: &mut Fx, rack: DeviceId, index: u8, device: DeviceId, param: u32| {
+        let m = ModMapping {
+            id: f.id(),
+            source: ModSource::Macro { rack, index },
+            device,
+            param: ParamId(param),
+            depth: 0.5,
+        };
+        f.insert(Entity::ModMapping(m))
+    };
+    // The drum rack's macros: its pad devices at any depth, its own volume and pan.
+    map(&mut f, drums.id, 0, kick.id, 0).unwrap();
+    map(&mut f, drums.id, 7, deep.id, 0).unwrap();
+    map(&mut f, drums.id, 1, drums.id, 0).unwrap();
+    map(&mut f, drums.id, 1, drums.id, 1).unwrap();
+    // Never its own macros, never a device outside it, at most 8 macros.
+    assert!(map(&mut f, drums.id, 0, drums.id, 2).is_err());
+    assert!(map(&mut f, drums.id, 0, other.id, 0).is_err());
+    assert!(map(&mut f, drums.id, 0, inst.id, RACK_SELECTOR_PARAM.0).is_err());
+    assert!(map(&mut f, drums.id, 8, kick.id, 1).is_err());
+    // The outer rack's macros reach into the nested drum rack's pads (and the pad rack's
+    // chains), and the drum rack's own params.
+    map(&mut f, inst.id, 0, kick.id, 0).unwrap();
+    map(&mut f, inst.id, 0, deep.id, 1).unwrap();
+    map(&mut f, inst.id, 0, drums.id, 0).unwrap();
+    // A pad rack's macros stay inside it.
+    map(&mut f, pad_rack.id, 0, deep.id, 2).unwrap();
+    assert!(map(&mut f, pad_rack.id, 0, kick.id, 2).is_err());
+
+    // A modulator on a track-chain drum rack reaches its pad devices, never its macros.
+    let top = f.device(t, BuiltinDevice::DrumRack);
+    f.insert(Entity::Device(top.clone())).unwrap();
+    let top_pad = pad_of(&mut f, top.id, 38);
+    let mut snare = f.device(t, BuiltinDevice::PolySynth);
+    snare.pad = Some(top_pad);
+    f.insert(Entity::Device(snare.clone())).unwrap();
+    let lfo = Modulator {
+        id: f.id(),
+        device: top.id,
+        order: OrderKey::between(None, None),
+        name: "LFO".into(),
+        kind: ModulatorKind::Lfo,
+        params: Default::default(),
+        sidechain: None,
+    };
+    f.insert(Entity::Modulator(lfo.clone())).unwrap();
+    let from_lfo = |f: &mut Fx, device: DeviceId, param: u32| {
+        let m = ModMapping {
+            id: f.id(),
+            source: ModSource::Modulator { modulator: lfo.id },
+            device,
+            param: ParamId(param),
+            depth: 0.5,
+        };
+        f.insert(Entity::ModMapping(m))
+    };
+    from_lfo(&mut f, snare.id, 0).unwrap();
+    from_lfo(&mut f, top.id, 1).unwrap();
+    assert!(from_lfo(&mut f, top.id, DRUM_RACK_FIRST_MACRO).is_err());
+    assert!(from_lfo(&mut f, kick.id, 0).is_err());
+    // A pad device moving to another drum rack's pad would take the mapping out of scope.
+    assert!(
+        f.update(EntityUpdate::Device {
+            id: snare.id,
+            change: DeviceChange::Pad(Some(pad)),
+        })
+        .is_err()
+    );
+    f.p.validate().unwrap();
+}
+
 #[test]
 fn partial_freeze_freezes_the_chain_up_to_the_freeze_point() {
     let mut f = Fx::new();

@@ -593,14 +593,21 @@ impl Project {
         v
     }
 
-    /// The racks enclosing `device`, innermost first (empty on a track chain or a drum pad).
-    /// `None` when the chain links loop or run deeper than [`MAX_RACK_DEPTH`] (+1, so the
-    /// model can report a too-deep nesting) or dangle.
+    /// The racks enclosing `device`, innermost first: the rack of each rack chain and the
+    /// drum rack of each drum pad on the way up (empty on a track chain). `None` when the
+    /// links loop or run deeper than [`MAX_RACK_DEPTH`] (+1, so the model can report a
+    /// too-deep nesting) or dangle.
     pub fn enclosing_racks(&self, device: DeviceId) -> Option<Vec<DeviceId>> {
         let mut out = Vec::new();
         let mut d = self.devices.get(&device)?;
-        while let Some(chain) = d.chain {
-            let rack = self.rack_chains.get(&chain)?.rack;
+        loop {
+            let rack = if let Some(chain) = d.chain {
+                self.rack_chains.get(&chain)?.rack
+            } else if let Some(pad) = d.pad {
+                self.drum_pads.get(&pad)?.rack
+            } else {
+                break;
+            };
             if rack == device || out.contains(&rack) || out.len() > MAX_RACK_DEPTH {
                 return None;
             }
@@ -634,7 +641,7 @@ impl Project {
         Some(out)
     }
 
-    /// Whether `device` sits inside `rack` (on one of its chains, at any depth).
+    /// Whether `device` sits inside `rack` (on one of its chains or pads, at any depth).
     pub fn is_inside(&self, device: DeviceId, rack: DeviceId) -> bool {
         self.enclosing_racks(device)
             .is_some_and(|r| r.contains(&rack))

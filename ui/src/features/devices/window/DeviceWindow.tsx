@@ -133,9 +133,11 @@ export function DeviceEditor({ device }: { device: Device }) {
     <SamplePickerWindow.Provider value={picker}>
       <div className={clsx("eth-device", "eth-device--stack", "eth-device--window", !on && "eth-device--bypassed")} data-device-editor={device.id}>
         {!hasWaveform(descriptor) && !isDrumRack(device) && <SampleSlot device={device} />}
-        {/* A drum rack's editor is its pads and pad chains: its rack-level Volume/Pan params
-            duplicate the track's fader (still automatable, just not drawn). */}
+        {/* A drum rack's editor is its macro bank, then its pads and pad chains: its
+            rack-level Volume/Pan params duplicate the track's fader (still automatable, just
+            not drawn). */}
         {descriptor && !isDrumRack(device) && <DeviceLayoutView device={device} descriptor={descriptor} sender={sender} />}
+        {descriptor && isDrumRack(device) && <DrumRackMacros device={device} descriptor={descriptor} sender={sender} />}
         {isDrumRack(device) && <DrumRackEditor rack={device} />}
         {descriptor ? null : (
           <div className="eth-device__body">
@@ -147,6 +149,18 @@ export function DeviceEditor({ device }: { device: Device }) {
       </div>
     </SamplePickerWindow.Provider>
   );
+}
+
+/** A drum rack's macro bank: its layout's macros section alone (the shared renderer). */
+function DrumRackMacros({ device, descriptor, sender }: { device: Device; descriptor: DeviceDescriptor; sender: ReturnType<typeof useGestureSender> }) {
+  const macros = useMemo(() => {
+    const sections = (descriptor.layout?.sections ?? []).filter((s) => s.items.some((i) => i.widget.type === "Macros"));
+    const firsts = sections.flatMap((s) => s.items.flatMap(({ widget: w }) => (w.type === "Macros" ? [w.first] : [])));
+    const ids = new Set(firsts.flatMap((first) => Array.from({ length: 8 }, (_, k) => first + k)));
+    return { ...descriptor, params: descriptor.params.filter((p) => ids.has(p.id)), layout: { sections } };
+  }, [descriptor]);
+  if (macros.layout.sections.length === 0) return null;
+  return <DeviceLayoutView device={device} descriptor={macros} sender={sender} />;
 }
 
 /** After the window's opening animation (the picker anchors to where the slot settles). */

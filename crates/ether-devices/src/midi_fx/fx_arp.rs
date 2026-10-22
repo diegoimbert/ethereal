@@ -4,8 +4,14 @@
 //!   triplet shuffle) while the transport runs; stopped, a free-running beat clock at the
 //!   current tempo starts on the first key so the first step plays at once.
 //! - Pattern: the held keys (sorted, or in played order for `As Played`) over `Octaves`
-//!   repeats, each `Distance` semitones above the previous (12 = octaves), walked per `Style`; `Chord` plays them all each step; `Random` draws
-//!   deterministically.
+//!   repeats, each `Distance` semitones above the previous (12 = octaves), walked per
+//!   `Style`; `Chord` plays them all each step; `Random` draws deterministically.
+//! - The appended styles (Live's): `Up & Down` / `Down & Up` turn round repeating the end
+//!   notes (`Up-Down` doesn't); `Con & Diverge` converges, then diverges back; `Pinky Up`
+//!   alternates each of the other notes, upwards, with the top one (`Pinky Up-Down`: the
+//!   others up then down); `Thumb Up` / `Thumb Up-Down` the same with the bottom note
+//!   played before each; `Random Other` plays every note once in a random order before
+//!   drawing a new order; `Random Once` keeps one random order until the held notes change.
 //! - `Gate` is the step's note length (up to 200 %: legato overlaps); `Hold` latches the last
 //!   chord until a new one is played; `Retrigger` restarts the pattern on each new note or
 //!   on each beat.
@@ -23,8 +29,9 @@ use crate::contract::SYNC_RATE_BEATS;
 const MAX_HELD: usize = 32;
 /// Octaves at most.
 const MAX_OCTAVES: usize = 4;
-/// Pattern length at most (up-down doubles the note set).
-const MAX_PATTERN: usize = 2 * MAX_HELD * MAX_OCTAVES;
+/// Pattern length at most (`Pinky Up-Down` / `Thumb Up-Down` pair every note of an up-down
+/// walk with the outer note: four times the note set).
+const MAX_PATTERN: usize = 4 * MAX_HELD * MAX_OCTAVES;
 
 #[derive(Clone, Copy, Debug)]
 struct Held {
@@ -47,9 +54,20 @@ enum Style {
     AsPlayed,
     Random,
     Chord,
+    // Appended (Live's styles).
+    UpAndDown,
+    DownAndUp,
+    ConAndDiverge,
+    PinkyUp,
+    PinkyUpDown,
+    ThumbUp,
+    ThumbUpDown,
+    RandomOther,
+    RandomOnce,
 }
 
-const STYLES: [Style; 9] = [
+/// By `Style` index (stable, append-only).
+const STYLES: [Style; 18] = [
     Style::Up,
     Style::Down,
     Style::UpDown,
@@ -59,7 +77,48 @@ const STYLES: [Style; 9] = [
     Style::AsPlayed,
     Style::Random,
     Style::Chord,
+    Style::UpAndDown,
+    Style::DownAndUp,
+    Style::ConAndDiverge,
+    Style::PinkyUp,
+    Style::PinkyUpDown,
+    Style::ThumbUp,
+    Style::ThumbUpDown,
+    Style::RandomOther,
+    Style::RandomOnce,
 ];
+
+/// A pattern step: key, velocity, channel.
+type Step = (u8, f32, u8);
+
+/// `src` up, then back down: without its end notes again (`Up-Down`) or with them
+/// (`Up & Down`).
+fn turn(src: &[Step], out: &mut Vec<Step>, repeat_ends: bool) {
+    out.extend_from_slice(src);
+    let n = src.len();
+    if repeat_ends {
+        out.extend(src.iter().rev());
+    } else if n > 2 {
+        out.extend(src[1..n - 1].iter().rev());
+    }
+}
+
+/// Outside in: low, high, low + 1, high - 1, ...
+fn converge(src: &[Step], out: &mut Vec<Step>) {
+    let n = src.len();
+    out.extend((0..n).map(|i| src[if i % 2 == 0 { i / 2 } else { n - 1 - i / 2 }]));
+}
+
+/// Each of `notes` paired with `pivot`, the pivot after it (pinky) or before it (thumb).
+fn alternate(notes: &[Step], pivot: Step, pivot_first: bool, out: &mut Vec<Step>) {
+    for &e in notes {
+        if pivot_first {
+            out.extend([pivot, e]);
+        } else {
+            out.extend([e, pivot]);
+        }
+    }
+}
 
 pub struct Arpeggiator {
     params: Params,
@@ -79,9 +138,14 @@ pub struct Arpeggiator {
     free_beat: f64,
     /// Device-clock sample of the last step (a step on a block boundary never plays twice).
     last_at: Option<u64>,
-    /// Scratch: the current pattern (key, velocity, channel) and a sort buffer.
-    pattern: Vec<(u8, f32, u8)>,
+    /// Scratch: the current pattern, a shaping buffer and a sort buffer.
+    pattern: Vec<Step>,
+    shaped: Vec<Step>,
     sorted: Vec<Held>,
+    /// `Random Other` / `Random Once`: the order (pattern indices) and what it was drawn for
+    /// (seed, pattern length).
+    order: Vec<usize>,
+    order_of: Option<(u64, usize)>,
 }
 
 impl Arpeggiator {
@@ -99,8 +163,33 @@ impl Arpeggiator {
             free_beat: 0.0,
             last_at: None,
             pattern: Vec::with_capacity(MAX_PATTERN),
+            shaped: Vec::with_capacity(MAX_PATTERN),
             sorted: Vec::with_capacity(MAX_HELD),
+            order: Vec::with_capacity(MAX_PATTERN),
+            order_of: None,
         }
+    }
+
+    /// The held notes (as pressed: a new press is a new set), independent of their order.
+    fn signature(&self) -> u64 {
+        self.notes.iter().fold(0u64, |acc, h| {
+            acc.wrapping_add(hash(u64::from(h.input), u64::from(h.key), 0x51))
+        })
+    }
+
+    /// Index `i` of a random order of `0..n` drawn from `seed` (kept while both stay).
+    fn ordered(&mut self, seed: u64, n: usize, i: usize) -> usize {
+        if self.order_of != Some((seed, n)) {
+            self.order.clear();
+            self.order.extend(0..n);
+            // Fisher-Yates.
+            for k in (1..n).rev() {
+                let j = (unit(hash(seed, k as u64, 0x5F), 0) * (k + 1) as f64) as usize;
+                self.order.swap(k, j.min(k));
+            }
+            self.order_of = Some((seed, n));
+        }
+        self.order[i % n]
     }
 
     fn style(&self) -> Style {
@@ -141,31 +230,50 @@ impl Arpeggiator {
         if n < 2 {
             return;
         }
+        // Shapes `pattern` (the notes upwards) into `shaped`, then swaps them.
+        let (p, s) = (&mut self.pattern, &mut self.shaped);
+        s.clear();
         match style {
-            Style::Down => self.pattern.reverse(),
-            Style::UpDown | Style::DownUp => {
-                if style == Style::DownUp {
-                    self.pattern.reverse();
-                }
-                // ... then back without repeating the ends.
-                for i in (1..n - 1).rev() {
-                    let e = self.pattern[i];
-                    self.pattern.push(e);
-                }
+            Style::Down => p.reverse(),
+            Style::UpDown | Style::UpAndDown => turn(p, s, style == Style::UpAndDown),
+            Style::DownUp | Style::DownAndUp => {
+                p.reverse();
+                turn(p, s, style == Style::DownAndUp);
             }
-            Style::Converge | Style::Diverge => {
-                // Outside in: low, high, low + 1, high - 1, ... (in place via the tail).
-                for i in 0..n {
-                    let j = if i % 2 == 0 { i / 2 } else { n - 1 - i / 2 };
-                    let e = self.pattern[j];
-                    self.pattern.push(e);
-                }
-                self.pattern.drain(..n);
-                if style == Style::Diverge {
-                    self.pattern.reverse();
-                }
+            Style::Converge => converge(p, s),
+            Style::Diverge => {
+                converge(p, s);
+                s.reverse();
             }
-            _ => {}
+            Style::ConAndDiverge => {
+                converge(p, s);
+                p.clear();
+                turn(s, p, false);
+                s.clear();
+            }
+            Style::PinkyUp => alternate(&p[..n - 1], p[n - 1], false, s),
+            Style::ThumbUp => alternate(&p[1..], p[0], true, s),
+            Style::PinkyUpDown | Style::ThumbUpDown => {
+                let pinky = style == Style::PinkyUpDown;
+                let (pivot, others) = if pinky {
+                    (p[n - 1], &p[..n - 1])
+                } else {
+                    (p[0], &p[1..])
+                };
+                turn(others, s, false);
+                p.clear();
+                alternate(s, pivot, !pinky, p);
+                s.clear();
+            }
+            Style::Up
+            | Style::AsPlayed
+            | Style::Random
+            | Style::Chord
+            | Style::RandomOther
+            | Style::RandomOnce => {}
+        }
+        if !s.is_empty() {
+            std::mem::swap(p, s);
         }
     }
 
@@ -188,6 +296,15 @@ impl Arpeggiator {
             Style::Random => {
                 let h = hash(self.played, 0xA4B, n as u64);
                 ((unit(h, 0) * n as f64) as usize % n, 1)
+            }
+            // A new order per pass over the notes (Other) or per set of held notes (Once).
+            Style::RandomOther | Style::RandomOnce => {
+                let mut seed = self.signature();
+                if style == Style::RandomOther {
+                    seed = hash(seed, self.step / n as u64, 0x07E);
+                }
+                let i = (self.step % n as u64) as usize;
+                (self.ordered(seed, n, i), 1)
             }
             _ => ((self.step % n as u64) as usize, 1),
         };

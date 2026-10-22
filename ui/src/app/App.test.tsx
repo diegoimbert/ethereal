@@ -209,6 +209,40 @@ describe("App shell: connected", () => {
     mock.dispose();
   });
 
+  it("a click on the empty space of the inspected clip's track keeps the inspector open, now on that track; another track's collapses it", async () => {
+    const { mock } = await renderWithMock(<App />);
+    act(() => arrangementView.getState().setViewport({ pxPerBeat: 10, scrollBeats: 0 }));
+    const project = useProjectStore.getState().project!;
+    const chords = Object.values(project.clips).find((c) => c.name === "Chords")!;
+    const keys = Object.values(project.tracks).find((t) => t.name === "Keys")!;
+    const hw = useArrangementUi.getState().headerWidth;
+    const press = async (p: { clientX: number; clientY: number }) => {
+      await act(async () => {
+        fireEvent.pointerDown(lanes(), { button: 0, ...p });
+        fireEvent.pointerUp(window, { button: 0, ...p });
+      });
+    };
+    // Keys (the first row) is at y 0 (jsdom lays nothing out). The inspector shows the clip.
+    const onClip = { clientX: hw + (startOf(chords) + 0.5) * 10, clientY: 5 };
+    const showClip = async () => {
+      await press(onClip);
+      expect(itemSelection.getState().selected.clip.has(chords.id)).toBe(true);
+      act(() => useShellStore.getState().setCollapsed("right", false));
+    };
+    await showClip();
+    // Empty space of the clip's track: the inspector stays open; the click selects the track
+    // (the clip selection clears), so it shows the track.
+    await press({ clientX: hw + 5000, clientY: 5 });
+    expect(useShellStore.getState().right).toMatchObject({ open: true, collapsed: false });
+    expect(itemSelection.getState().selected.clip.size).toBe(0);
+    expect(useArrangementUi.getState().trackFocus).toBe(keys.id);
+    // Another track's empty space, with the clip shown: the inspector collapses.
+    await showClip();
+    await press({ clientX: hw + 5000, clientY: useArrangementUi.getState().defaultHeight + 5 });
+    expect(useShellStore.getState().right.collapsed).toBe(true);
+    mock.dispose();
+  });
+
   describe("the drawer opens and closes with clicks", () => {
     const click = async (el: Element, p: { clientX: number; clientY: number }, to = p, extra = {}) => {
       await act(async () => {

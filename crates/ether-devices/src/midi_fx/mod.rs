@@ -13,7 +13,7 @@
 //!
 //! | id | group | name | range |
 //! |----|-------|------|-------|
-//! | 0 | Arpeggiator | `Style` | Up / Down / Up-Down / Down-Up / Converge / Diverge / As Played / Random / Chord (default Up) |
+//! | 0 | Arpeggiator | `Style` | Up / Down / Up-Down / Down-Up / Converge / Diverge / As Played / Random / Chord / Up & Down / Down & Up / Con & Diverge / Pinky Up / Pinky Up-Down / Thumb Up / Thumb Up-Down / Random Other / Random Once (default Up) |
 //! | 1 | Arpeggiator | `Rate` | sync rate (default index 4) |
 //! | 2 | Arpeggiator | `Gate` | 1 ..= 200 Percent, default 75 |
 //! | 3 | Arpeggiator | `Octaves` | 1 ..= 4 (stepped), default 1 |
@@ -487,6 +487,16 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                         "As Played",
                         "Random",
                         "Chord",
+                        // --- appended: Live's styles (Ableton import) ---
+                        "Up & Down",
+                        "Down & Up",
+                        "Con & Diverge",
+                        "Pinky Up",
+                        "Pinky Up-Down",
+                        "Thumb Up",
+                        "Thumb Up-Down",
+                        "Random Other",
+                        "Random Once",
                     ],
                     0,
                 ),
