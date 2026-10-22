@@ -16,6 +16,7 @@ import {
   type ThemeScheme,
 } from "@/theme";
 import { formatFixed, useT, type MessageKey } from "@/i18n";
+import { tokenLabel } from "./themeLabel";
 
 const CORE_LABELS: Record<CoreKey, MessageKey> = {
   bg: "settings.appearance.color_bg",
@@ -29,9 +30,6 @@ const CORE_LABELS: Record<CoreKey, MessageKey> = {
   danger: "settings.appearance.color_danger",
   info: "settings.appearance.color_info",
 };
-
-/** A token's name as the editor and the contrast messages show it: `bgPanel` → `bg-panel`. */
-export const tokenLabel = (key: ColorKey): string => key.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
 
 const isCore = (k: ColorKey): k is CoreKey => (CORE_KEYS as readonly string[]).includes(k);
 
@@ -54,12 +52,19 @@ function ColorField({
   onReset?: () => void;
 }) {
   const t = useT();
-  const [text, setText] = useState(value);
-  useEffect(() => setText(value), [value]);
+  // What's typed while the field has focus (it may not be a color yet); else the value.
+  const [typed, setTyped] = useState<string | null>(null);
+  const text = typed ?? value;
   return (
     <div className="eth-theme-editor__color" data-testid={`theme-color-${name}`} data-set={set || undefined}>
       <span className="eth-theme-editor__label">{label}</span>
-      <input type="color" className="eth-theme-editor__swatch" aria-label={label} value={toHex(value) ?? undefined} onChange={(e) => onChange(e.target.value)} />
+      <input
+        type="color"
+        className="eth-theme-editor__swatch"
+        aria-label={label}
+        value={toHex(value) ?? undefined}
+        onChange={(e) => onChange(e.target.value)}
+      />
       <TextInput
         size="sm"
         className="eth-theme-editor__value"
@@ -68,10 +73,10 @@ function ColorField({
         invalid={!isColor(text)}
         {...NO_AUTOCORRECT}
         onChange={(e) => {
-          setText(e.target.value);
+          setTyped(e.target.value);
           if (isColor(e.target.value)) onChange(e.target.value.trim());
         }}
-        onBlur={() => setText(value)}
+        onBlur={() => setTyped(null)}
       />
       {onReset && (
         <IconButton
@@ -81,7 +86,10 @@ function ColorField({
           label={t("settings.appearance.editor_reset", { name: label })}
           icon={<RotateCcw aria-hidden />}
           disabled={!set}
-          onClick={onReset}
+          onClick={() => {
+            setTyped(null);
+            onReset();
+          }}
         />
       )}
     </div>

@@ -102,9 +102,7 @@ function errorText(e: ThemeFileError): string {
 function warningText(w: ThemeFileWarning, name: string): string {
   if (w.code === "no_name") return tr("settings.appearance.theme_warn_no_name", { name });
   const tokens = w.tokens.join(", ");
-  return w.code === "unknown_tokens"
-    ? tr("settings.appearance.theme_warn_unknown", { tokens })
-    : tr("settings.appearance.theme_warn_invalid", { tokens });
+  return w.code === "unknown_tokens" ? tr("settings.appearance.theme_warn_unknown", { tokens }) : tr("settings.appearance.theme_warn_invalid", { tokens });
 }
 
 type Message = { error: boolean; text: string } | null;
