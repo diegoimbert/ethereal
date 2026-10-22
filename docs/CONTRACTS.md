@@ -625,7 +625,8 @@ once, each only after its sources, and returns after all jobs finished (see `par
 The snapshot compiles a `parallel::JobGraph`: one job per track (clips → automation →
 chain → fader → meters, into its own buffers), an edge from every source (routing, sends,
 input taps, sidechains) to what it feeds. A job starts as soon as its own sources finished
-(per-job atomic counters, a lock-free ready bitset), the longest remaining path first;
+(per-job atomic counters, a lock-free ready bitset), the longest remaining path first
+(measured job times on native engines, static estimates elsewhere);
 there is no barrier between levels. Bus mixing gathers each destination's inputs (at the start of that destination's
 job) in the same fixed order as sequential processing, independent of worker count, so the
 output is bit-identical to sequential processing. Each node belongs to one chain, so jobs
