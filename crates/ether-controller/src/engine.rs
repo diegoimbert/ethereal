@@ -113,6 +113,8 @@ pub struct EngineState {
     pub off: bool,
     /// The project the engine was turned off for (another project opens with the engine on).
     pub off_project: Option<ProjectId>,
+    /// `off` as last told to the UI (`EngineEvent::Running`).
+    pub off_reported: bool,
     /// A joined project that will load with the engine off (`AcceptInvite { engine }`).
     pub off_next: Option<ProjectId>,
     /// The message of the engine's last refusal of a graph (a project over its capacity),

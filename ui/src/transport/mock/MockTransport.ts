@@ -1350,8 +1350,18 @@ export class MockTransport implements EngineTransport {
         };
       case "SetAudioConfig":
         return fail("Unsupported", "the mock engine has no audio devices");
+      // The mock has no graph to tear down: it only says the new state.
+      case "SetRunning":
+        if (this.engineRunning !== c.running) {
+          this.engineRunning = c.running;
+          this.emit({ type: "Engine", event: { type: "Running", running: c.running } });
+        }
+        return { type: "Unit" };
     }
   }
+
+  /** `EngineCommand::SetRunning`'s state. */
+  private engineRunning = true;
 
   /**
    * Test/debug helper: feed one incoming MIDI short message, as a host would through

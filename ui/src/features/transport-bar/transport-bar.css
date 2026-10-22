@@ -182,6 +182,20 @@
   flex: none;
   white-space: nowrap;
   text-align: right;
+  /* A button (its menu starts / stops the engine). */
+  padding: 0 var(--eth-space-xs);
+  border: 0;
+  border-radius: var(--eth-radius-sm);
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+}
+.eth-tb__cpu:hover:not(:disabled) {
+  background: var(--eth-color-bg-hover);
+  color: var(--eth-color-text);
+}
+.eth-tb__cpu[data-off] {
+  color: var(--eth-color-warn);
 }
 /* Disk-streaming dropouts: a warning light, shown only after a dropout (click resets). */
 .eth-tb__disk {

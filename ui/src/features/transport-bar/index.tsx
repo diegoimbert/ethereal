@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { EngineStatus, GestureId, TimeSignaturePoint } from "@/generated";
 import { Circle, Metronome, Pause, Play, Redo2, Repeat, Square, Undo2 } from "lucide-react";
-import { Button, DismissibleError, Popover } from "@/kit";
+import { Button, DismissibleError, Menu, Popover } from "@/kit";
+import { notify } from "@/features/notifications";
 import { timeSignaturePoints, useCpuLoad, usePlayhead, useProjectStore, useReadOnly, useRecordSupport } from "@/state";
 import { inputSettings } from "@/timeline";
 import { cmd, nextGestureId } from "@/transport";
@@ -19,7 +20,7 @@ import { midiTarget } from "@/features/midi-learn/targets";
 import { tText, useT } from "@/i18n";
 import { CommitField } from "./CommitField";
 import { diskTitle, useDiskStore } from "./disk";
-import { isTextEntry, useEngineCommands, useEngineEvent, useOptionalConnection, useOptionalTransport } from "./engine";
+import { errorMessage, isTextEntry, useEngineCommands, useEngineEvent, useOptionalConnection, useOptionalTransport } from "./engine";
 import { blurAfterPointer, installTransportKeys, transportActionFor, type TransportKeyAction } from "./keys";
 import {
   barPosition,
@@ -339,13 +340,50 @@ export function PositionDisplay() {
   );
 }
 
+/**
+ * The engine's load; a click opens a menu that stops the engine (nothing plays, its plugins
+ * unload and the audio device is free for other apps) or starts it again.
+ */
 function CpuMeter() {
   const t = useT();
   const load = useCpuLoad();
+  const transport = useOptionalTransport();
+  const [running, setRunning] = useState(true);
+  useEngineEvent((e) => {
+    if (e.type === "Engine" && e.event.type === "Running") setRunning(e.event.running);
+  });
+  const toggle = async () => {
+    if (!transport) return;
+    try {
+      await transport.send(cmd("Engine", { type: "SetRunning", running: !running }));
+    } catch (e) {
+      notify("Error", errorMessage(e));
+    }
+  };
   return (
-    <span className="eth-tb__cpu" title={t("shell.transport.cpu_title")} data-testid="cpu">
-      cpu {formatCpu(load)}
-    </span>
+    <Menu
+      aria-label={t("shell.transport.engine_menu")}
+      items={[
+        {
+          id: "engine",
+          label: running ? t("shell.transport.stop_engine") : t("shell.transport.start_engine"),
+          onSelect: () => void toggle(),
+        },
+      ]}
+      trigger={(p) => (
+        <button
+          type="button"
+          className="eth-tb__cpu"
+          title={running ? t("shell.transport.cpu_title") : t("shell.transport.engine_off_title")}
+          data-testid="cpu"
+          data-off={!running || undefined}
+          disabled={!transport}
+          {...p}
+        >
+          {running ? `cpu ${formatCpu(load)}` : t("shell.transport.engine_off")}
+        </button>
+      )}
+    />
   );
 }
 

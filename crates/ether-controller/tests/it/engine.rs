@@ -1092,3 +1092,48 @@ fn opening_a_project_loads_its_plugins_progressively() {
     assert_eq!(h.ctl.bridge.publishes(), publishes);
     assert_eq!(creates(&h) - before, devices.len());
 }
+
+#[test]
+fn stopping_the_engine_unloads_everything_and_starting_it_loads_the_project_again() {
+    use ether_core::protocol::engine::{EngineCommand, EngineEvent};
+    let mut h = plugin_harness();
+    let t = track(&mut h, TrackKind::Audio, None);
+    insert_plugin(&mut h, t);
+    assert!(!h.ctl.bridge.live.is_empty());
+    let running = |out: &[ServerMessage]| -> Vec<bool> {
+        events(out)
+            .into_iter()
+            .filter_map(|e| match e {
+                Event::Engine {
+                    event: EngineEvent::Running { running },
+                } => Some(running),
+                _ => None,
+            })
+            .collect()
+    };
+
+    let out = h.send(Command::Engine(EngineCommand::SetRunning {
+        running: false,
+    }));
+    ok(&out);
+    assert_eq!(running(&out), vec![false]);
+    h.tick();
+    assert!(h.ctl.bridge.live.is_empty(), "every node is gone");
+    assert!(h.ctl.local_engine_off(), "the host closes the audio device");
+    // Edits still apply to the document; nothing is created meanwhile.
+    insert_plugin(&mut h, t);
+    assert!(h.ctl.bridge.live.is_empty());
+
+    let out = h.send(Command::Engine(EngineCommand::SetRunning { running: true }));
+    ok(&out);
+    assert_eq!(running(&out), vec![true]);
+    assert!(!h.ctl.local_engine_off());
+    assert_eq!(
+        h.ctl.bridge.live.len(),
+        h.project().devices.len(),
+        "the whole project is loaded again"
+    );
+    // Again: nothing to do, nothing said.
+    let out = h.send(Command::Engine(EngineCommand::SetRunning { running: true }));
+    assert!(running(&out).is_empty());
+}

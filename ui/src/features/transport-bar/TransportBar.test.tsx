@@ -183,6 +183,19 @@ describe("TransportBar", () => {
     expect(screen.getByTestId("cpu").textContent).toMatch(/^cpu \d+%$/);
   });
 
+  it("the CPU meter's menu stops the engine and starts it again", async () => {
+    await renderWithMock(<TransportBar />);
+    const cpu = () => screen.getByTestId("cpu");
+    const pick = async (name: string) => {
+      fireEvent.click(cpu());
+      fireEvent.click(await screen.findByRole("menuitem", { name }));
+    };
+    await pick("stop engine");
+    await waitFor(() => expect(cpu()).toHaveTextContent("engine off"));
+    await pick("start engine");
+    await waitFor(() => expect(cpu().textContent).toMatch(/^cpu /));
+  });
+
   it("shows the audio device closed while no local engine plays", async () => {
     const { mock } = await renderWithMock(<TransportBar />);
     const indicator = () => screen.getByTestId("engine-status");
