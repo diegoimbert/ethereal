@@ -5,7 +5,7 @@
  */
 
 import { createContext, useContext, useMemo } from "react";
-import type { Device, DeviceDescriptor, ParamId, ParamInfo } from "@/generated";
+import type { Command, Device, DeviceDescriptor, ParamId, ParamInfo } from "@/generated";
 import { cmd } from "@/transport";
 import { useLiveAutomation } from "@/features/automation/live";
 import type { GestureSender } from "../gesture";
@@ -54,6 +54,8 @@ export interface ParamBinding {
   end(): void;
   /** Back to `ParamInfo.default`. */
   reset(): void;
+  /** Send another command for this param (its context menu's "assign to macro"). */
+  send(command: Command): unknown;
 }
 
 /**
@@ -82,6 +84,7 @@ export function bindParam(ctx: LayoutContextValue, info: ParamInfo, liveNormaliz
     begin: sender.begin,
     end: sender.end,
     reset: () => setPlain(info.default),
+    send: (c) => sender.send(c),
   };
 }
 

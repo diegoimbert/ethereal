@@ -25,7 +25,7 @@ function GridSelect() {
         size="sm"
         aria-label={t("arrangement.toolbar.grid")}
         value={gridId(grid)}
-        options={GRID_OPTIONS.map((o) => ({ value: o.id, label: t(o.label) }))}
+        options={GRID_OPTIONS.map((o) => ({ value: o.id, label: t(o.label), short: o.short && t(o.short) }))}
         onChange={(id) => {
           const o = GRID_OPTIONS.find((x) => x.id === id);
           if (o) useArrangementUi.getState().setGrid(o.grid);
@@ -50,8 +50,17 @@ export function Toolbar() {
       {!readOnly && (
         <AddTrackMenu
           trigger={(p) => (
-            <Button size="sm" tone="ghost" className="eth-arr-toolbar__add" data-tour="add-track" title={t("arrangement.toolbar.add_track_hint")} {...p}>
-              <Plus aria-hidden /> {t("arrangement.new_track.add")}
+            // Short in the toolbar (the lane's own button, under the tracks, says "add track").
+            <Button
+              size="sm"
+              tone="ghost"
+              className="eth-arr-toolbar__add"
+              data-tour="add-track"
+              aria-label={t("arrangement.new_track.add")}
+              title={t("arrangement.toolbar.add_track_hint")}
+              {...p}
+            >
+              <Plus aria-hidden /> {t("arrangement.toolbar.add")}
             </Button>
           )}
         />

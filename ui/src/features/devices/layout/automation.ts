@@ -10,7 +10,8 @@ import { useProjectStore } from "@/state";
 import { targetKey } from "@/features/automation/params";
 import { hasEnabledLane } from "@/features/automation/live";
 import { useAutomationUi } from "@/features/automation/uiStore";
-import { openValueMenu } from "@/features/automation/valueMenu";
+import { valueMenuEntries } from "@/features/automation/valueMenu";
+import { modulationMenuEntries } from "./seams";
 import type { ParamBinding } from "./context";
 import { t } from "@/i18n";
 
@@ -62,14 +63,21 @@ function targetMenu(e: MouseEvent, m: TargetMenu): void {
  * value…, reset; MIDI learn has its own mode menu). Shared by the device's widgets and the
  * "Show all parameters" list.
  */
-export function paramMenu(e: MouseEvent, b: Pick<ParamBinding, "device" | "info" | "plain" | "reset" | "setPlain">): void {
-  openValueMenu(e, {
-    info: b.info,
-    plain: b.plain,
-    set: b.setPlain,
-    reset: b.reset,
-    automation: b.info.automatable ? { show: () => showAutomation(b.device, b.info) } : undefined,
-  });
+export function paramMenu(e: MouseEvent, b: Pick<ParamBinding, "device" | "info" | "plain" | "reset" | "setPlain" | "send">): void {
+  e.preventDefault();
+  e.stopPropagation();
+  const value = valueMenuEntries(
+    {
+      info: b.info,
+      plain: b.plain,
+      set: b.setPlain,
+      reset: b.reset,
+      automation: b.info.automatable ? { show: () => showAutomation(b.device, b.info) } : undefined,
+    },
+    e.currentTarget as Element,
+  );
+  // Inside a rack: "assign to macro ›" (modulation's seam).
+  openContextMenu(e, [...value, ...modulationMenuEntries(b.device, b.info, b.send)]);
 }
 
 /**

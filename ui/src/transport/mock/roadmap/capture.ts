@@ -184,7 +184,7 @@ export class MockCapture {
       commands.push(cmd("Transport", { type: "SetLoopRegion", region }));
       commands.push(cmd("Transport", { type: "SetLoopEnabled", enabled: true }));
     }
-    commands.push(cmd("Clip", { type: "CreateMidi", id: clip, track: trackId, start: plan.start, length: plan.length, name: track.name }));
+    commands.push(cmd("Clip", { type: "CreateMidi", id: clip, track: trackId, start: plan.start, length: plan.length, name: null }));
     const notes: NoteSpec[] = plan.notes.map((n, i) => ({
       id: deriveId(seed, i),
       pitch: n.pitch,

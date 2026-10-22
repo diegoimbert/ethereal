@@ -5,14 +5,15 @@ import { useShallow } from "zustand/react/shallow";
 import type { Beats, Marker } from "@/generated";
 import { IconButton, openContextMenu, setDragCursor, TextInput, type ContextMenuEntry } from "@/kit";
 import { playheadStore, useProjectStore, useReadOnly, defaultMarkerName } from "@/state";
-import { LoopBrace, pxToBeats, resolveGrid, snapToGrid, TempoMap, useViewport, type GridStep } from "@/timeline";
-import { cmd, newId, TransportContext, type EngineTransport } from "@/transport";
+import { LoopBrace, pxToBeats, useViewport } from "@/timeline";
+import { cmd, TransportContext, type EngineTransport } from "@/transport";
 import { LaneGesture } from "@/features/automation/gesture";
 import { arrangementView, useArrangementUi } from "@/features/arrangement/uiStore";
 import { colorCss } from "@/features/arrangement/helpers";
 import { selectionCursor } from "@/features/time-edits/marker";
 import { sendEdit } from "./clipEditing";
 import { useT } from "@/i18n";
+import { addMarkerCommand, snap, tempoMapGridStep, timelineMenu } from "./timelineMenu";
 import { TempoMapMarkers } from "@/features/tempo";
 
 const DRAG_THRESHOLD_PX = 3;
@@ -21,28 +22,6 @@ const DRAG_THRESHOLD_PX = 3;
 function sortedMarkers(markers: Readonly<Record<string, Marker>>): Marker[] {
   return Object.values(markers).sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
 }
-
-/** The arrangement's resolved grid step at the current zoom (`null`: grid off). */
-function gridStep(tempo: TempoMap): GridStep | null {
-  const s = arrangementView.getState();
-  return resolveGrid(useArrangementUi.getState().grid, s.pxPerBeat, tempo.signatureAt(s.scrollBeats));
-}
-
-/** The same for the tempo-map chips (signature changes snap to it, or to a beat). */
-function tempoMapGridStep(): GridStep | null {
-  const project = useProjectStore.getState().project;
-  return project ? gridStep(TempoMap.fromProject(project)) : null;
-}
-
-/** Arrangement grid snap (alt/option bypasses it), as for clips. */
-function snap(beats: Beats, bypass: boolean): Beats {
-  const project = useProjectStore.getState().project;
-  if (bypass || !project) return Math.max(0, beats);
-  const tempo = TempoMap.fromProject(project);
-  return Math.max(0, snapToGrid(beats, gridStep(tempo), tempo));
-}
-
-const addMarkerCommand = (position: Beats) => cmd("Marker", { type: "Add", id: newId(), position: Math.max(0, position), name: null, color: null });
 
 /** "+": the selection cursor, or the playhead while playing. */
 function markerPosition(): Beats {
@@ -124,10 +103,8 @@ function ConnectedMarkerLane({ transport }: { transport: EngineTransport }) {
     { label: t("clip_edit.marker.delete"), danger: true, onSelect: () => void sendEdit(transport, cmd("Marker", { type: "Remove", ids: [m.id] })) },
   ];
 
-  const laneMenu = (e: MouseEvent): ContextMenuEntry[] => {
-    const at = snap(beatAt(e.clientX), e.altKey);
-    return [{ label: t("clip_edit.marker.add_here"), onSelect: () => addAt(at) }];
-  };
+  // The same menu as the ruler's numbers: tempo and signature changes, a marker, the extensions'.
+  const laneMenu = (e: MouseEvent): ContextMenuEntry[] => timelineMenu(transport, beatAt(e.clientX), e.altKey);
 
   const renamed = markers.find((m) => m.id === renaming);
 

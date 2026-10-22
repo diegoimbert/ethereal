@@ -151,6 +151,10 @@ describe("HeightAnimator", () => {
     expect(shown[1]).toMatchObject({ y: TRACK_HEIGHT, height: TRACK_HEIGHT / 4, laneHeight: TRACK_HEIGHT / 4 });
     expect(shown[2]!.y).toBe(TRACK_HEIGHT * 1.25);
     expect(shown[3]!.y).toBe(TRACK_HEIGHT * 1.5);
+    // A folding row carries its laid-out row: the arranger draws its clips at that size (not
+    // compact on the way), cut at the row's height, without text.
+    expect(shown[1]!.folding).toBe(laid[1]);
+    expect(shown[3]!.folding).toBeUndefined();
     // Not folding: the rows as laid out.
     expect(animatedRows(laid, () => 0)[3]).toBe(laid[3]);
   });

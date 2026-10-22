@@ -23,7 +23,7 @@ import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
 import { useOptionalTransport } from "@/features/transport-bar/engine";
 import { tText, useT } from "@/i18n";
-import { ArrangementView } from "@/features/arrangement";
+import { ArrangementView, useKeepTrackHeights } from "@/features/arrangement";
 import { AudioSettingsDialog, openSettings } from "@/features/audio-settings";
 import { MarkerLane } from "@/features/clip-editing";
 import { ImportRoot } from "@/features/import";
@@ -44,7 +44,6 @@ import { ClipActionBar, DragBadge } from "./ClipActions";
 import { EditorPanel } from "./EditorPanel";
 import { MobileMixer } from "./MobileMixer";
 import { useMobileView } from "./viewState";
-import { MIN_HEADER_WIDTH } from "@/features/arrangement/layout";
 import { arrangementView, useArrangementUi } from "@/features/arrangement/uiStore";
 import { TransportDock } from "./TransportDock";
 
@@ -64,17 +63,21 @@ function useMobileLayout() {
   // for the header's two lines (name, then mute / solo / arm). Not remembered: the desktop keeps its own.
   // Tablets: the desktop's header column, its rows tall enough for the two lines (mobile.css).
   const phone = isPhone(layout);
+  // Again once a project opens (its kept heights may be shorter).
+  const project = useProjectStore((s) => s.project?.id ?? null);
   useEffect(() => {
+    useArrangementUi.getState().setPhoneHeader(phone);
     useArrangementUi.setState((s) => ({
-      headerWidth: phone ? MIN_HEADER_WIDTH : s.headerWidth,
       defaultHeight: Math.max(s.defaultHeight, phone ? PHONE_TRACK_HEIGHT : TABLET_TRACK_HEIGHT),
     }));
-  }, [phone]);
+  }, [phone, project]);
   return layout;
 }
 
 export function MobileShell() {
   const t = useT();
+  // Before the layout's row heights (which raise the kept ones to a phone's minimum).
+  useKeepTrackHeights();
   const layout = useMobileLayout();
   // Arms and punch come back when a project opens again.
   useKeepRecordingSetup();

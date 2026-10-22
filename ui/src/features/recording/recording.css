@@ -29,6 +29,10 @@
 .eth-rec__arm {
   color: var(--eth-color-record);
 }
+/* An icon, not the ● character: a glyph sits on the text baseline, off the button's center. */
+.eth-rec__arm .lucide {
+  fill: currentColor;
+}
 .eth-rec__arm[aria-pressed="true"] {
   background: var(--eth-color-record);
   color: var(--eth-color-text-inverse);
@@ -66,6 +70,23 @@
 .eth-rec__tracks td,
 .eth-rec__tracks th {
   padding: var(--eth-space-xs) var(--eth-space-sm);
+}
+/* One track's input and monitoring (a right-click on its arm button): labels over the selects. */
+.eth-rec__setup {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: var(--eth-space-md);
+  row-gap: var(--eth-space-xs);
+  align-items: center;
+  padding: var(--eth-space-sm);
+}
+.eth-rec__setup > .eth-rec__note,
+.eth-rec__setup > .eth-rec__error {
+  grid-column: 1 / -1;
+}
+.eth-rec__setup-label {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
 }
 .eth-rec__input {
   display: inline-flex;

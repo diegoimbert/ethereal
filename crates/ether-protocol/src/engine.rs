@@ -17,6 +17,12 @@ pub enum EngineCommand {
     SetAudioConfig { config: AudioConfig },
     /// Replies `Status`.
     GetStatus,
+    /// Stop (`running: false`) or start this computer's engine. Stopped, nothing plays: the
+    /// project stays open, its plugins are unloaded and the desktop app closes the audio device
+    /// (other applications can use it); started, the project is compiled and plays again.
+    /// Refused while recording. Handled by the controller (not the host); replies `Unit`, and
+    /// `EngineEvent::Running` says the new state.
+    SetRunning { running: bool },
 }
 
 /// Audio backend selection. `backend: "null"` (or env `ETHER_AUDIO=null`) runs the engine
@@ -102,5 +108,10 @@ pub enum EngineEvent {
     Responsive {
         stalled_ms: u32,
         reason: Option<String>,
+    },
+    /// The local engine was stopped or started (`EngineCommand::SetRunning`, or another way
+    /// such as an extension's engine choice): sent when that changes.
+    Running {
+        running: bool,
     },
 }

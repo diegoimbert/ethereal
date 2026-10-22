@@ -216,6 +216,19 @@ describe("MarkerLane", () => {
     expect(markers()[0]!.name).toBe("Chorus");
   });
 
+  it("its right-click is the ruler's menu: tempo and signature changes, then a marker; a tempo change adds there", async () => {
+    fireEvent.contextMenu(lane(), { clientX: 8.2 * PX, clientY: 5 });
+    await flush();
+    const labels = (await screen.findAllByRole("menuitem")).map((el) => el.textContent);
+    expect(labels).toEqual(["add tempo change here", "add time signature change here", "add marker here"]);
+    const before = Object.keys(project().tempo_points).length;
+    await act(async () => {
+      fireEvent.click(screen.getByRole("menuitem", { name: "add tempo change here" }));
+    });
+    await flush();
+    expect(Object.keys(project().tempo_points)).toHaveLength(before + 1);
+  });
+
   it("drags time signature and tempo changes on the arrangement grid; Alt drags freely", async () => {
     // A half-beat grid: finer than a beat, so a signature change snaps to it.
     useArrangementUi.getState().setGrid({ type: "Fixed", step: { kind: "beats", beats: 0.5 }, triplet: false });

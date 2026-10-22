@@ -67,16 +67,19 @@
   box-shadow: var(--eth-shadow-sm);
   transition:
     border-color var(--eth-duration-fast) var(--eth-ease-out),
+    background-color var(--eth-duration-fast) var(--eth-ease-out),
     box-shadow var(--eth-duration-fast) var(--eth-ease-out),
     opacity var(--eth-duration-fast) var(--eth-ease-out);
 }
 .eth-device:hover {
   border-color: var(--eth-color-border-strong);
 }
-/* The selected card (copy / paste target): a neutral, stronger frame. */
+/* The selected cards (copy / paste / group target): a neutral, stronger frame and a slightly
+   lifted surface. */
 .eth-device--selected,
 .eth-device--selected:hover {
   border-color: var(--eth-color-text-dim);
+  background: color-mix(in srgb, var(--eth-color-text) 6%, var(--eth-color-bg-card));
 }
 .eth-device:focus,
 .eth-devices__chain:focus {
@@ -612,13 +615,44 @@
   font-size: var(--eth-size-icon-sm);
 }
 
-/* Sidechain source and tap (features/sidechain) in a device header: capped and shrinkable,
-   their value ellipsized, so the device's name keeps its room. */
-.eth-select.eth-sidechain,
-.eth-select.eth-sidechain-tap {
+/* The sidechain picker (features/sidechain) in a device header: capped and shrinkable, its
+   value ellipsized, so the device's name keeps its room. */
+.eth-popover-anchor:has(> .eth-sidechain) {
   flex: 0 1 auto;
   min-width: 0;
   max-width: var(--eth-size-sidechain-select-max-width);
+}
+.eth-select.eth-sidechain {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Its dropdown: the search, then the tracks (scrolling); a track's tap points at its side. */
+.eth-sidechain-picker__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+}
+.eth-sidechain-picker__search {
+  display: flex;
+}
+.eth-sidechain-picker__list {
+  max-height: var(--eth-size-select-list-max-height);
+  overflow-y: auto;
+}
+.eth-sidechain-picker__chevron {
+  flex: none;
+  margin-left: auto;
+  color: var(--eth-color-text-dim);
+}
+.eth-sidechain-picker__empty {
+  padding: var(--eth-space-sm);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-sidechain-picker__sub {
+  max-height: var(--eth-size-select-list-max-height);
+  overflow-y: auto;
 }
 
 /* ---- Translucency (Settings > Appearance; off: the solid fills above) ----------------------

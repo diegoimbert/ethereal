@@ -84,6 +84,10 @@ Sandboxing adds one audio block of latency. To switch back, right-click the head
 > [!note]
 > Sandboxing works on macOS and Linux. On Windows, plugins always run inside Ethereal: choosing to run a plugin sandboxed does nothing there.
 
+## opening a project with many plugins
+
+A project with many plugins loads them a few at a time, so Ethereal stays responsive while they load. The transport bar shows the project's loading progress, and each track a thin bar along the bottom of its header with how many of its own plugins are loaded. The bars go away once every plugin is loaded.
+
 ## opening a project without plugins
 
 If a project crashes or hangs because of a plugin, open it without plugins. Right-click the project in the project list (or click its **…** button) and choose **open without plugins**. The crash recovery dialog offers the same button. Every plugin is kept as a bypassed placeholder with its settings saved, marked **safe mode · bypassed**, and the status bar at the bottom says **plugins disabled (safe mode)**. Then:

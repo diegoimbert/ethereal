@@ -3,4 +3,4 @@ import type { DeviceId } from "./DeviceId";
 import type { PluginWindowKey } from "./PluginWindowKey";
 import type { ScanFailure } from "./ScanFailure";
 
-export type PluginEvent = { "type": "ScanProgress", done: number, total: number, current: string | null, } | { "type": "ScanFinished", plugins: number, failed: Array<ScanFailure>, } | { "type": "EditorClosed", device: DeviceId, } | { "type": "EditorKey", device: DeviceId, key: PluginWindowKey, } | { "type": "Crashed", device: DeviceId, message: string, } | { "type": "LatencyChanged", device: DeviceId, samples: number, };
+export type PluginEvent = { "type": "ScanProgress", done: number, total: number, current: string | null, } | { "type": "ScanFinished", plugins: number, failed: Array<ScanFailure>, } | { "type": "EditorClosed", device: DeviceId, } | { "type": "EditorKey", device: DeviceId, key: PluginWindowKey, } | { "type": "Crashed", device: DeviceId, message: string, } | { "type": "LatencyChanged", device: DeviceId, samples: number, } | { "type": "Loading", pending: Array<DeviceId>, };

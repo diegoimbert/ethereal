@@ -19,11 +19,26 @@ import { isArrangementClip, startOf } from "./clipTime";
 
 /** Default width of the track header column (resizable: `useArrangementUi().headerWidth`). */
 export const HEADER_WIDTH = 232;
-export const MIN_HEADER_WIDTH = 140;
+export const MIN_HEADER_WIDTH = 180;
+/** A phone's header column (fixed, not resizable there): narrower than the desktop's minimum. */
+export const PHONE_HEADER_WIDTH = 140;
+/** Under this width the header is narrow: compact, its buttons are smaller (they cover the name). */
+export const NARROW_HEADER_WIDTH = 220;
 export const MAX_HEADER_WIDTH = 400;
+
+/** How far each group level shifts its tracks' headers right (`--eth-size-track-indent`). */
+export const HEADER_INDENT_PX = 12;
 
 export function clampHeaderWidth(px: number): number {
   return Math.min(MAX_HEADER_WIDTH, Math.max(MIN_HEADER_WIDTH, px));
+}
+
+/** The deepest group nesting among `tracks` (0: no track inside a group). */
+export function maxTrackDepth(tracks: ReadonlyArray<Track>): number {
+  const byId = new Map(tracks.map((t) => [t.id, t]));
+  let max = 0;
+  for (const t of tracks) max = Math.max(max, depthOf(t, byId));
+  return max;
 }
 /** Default lane height. Resized lanes stay within `[MIN_TRACK_HEIGHT, MAX_TRACK_HEIGHT]`. */
 export const TRACK_HEIGHT = 64;
@@ -49,6 +64,11 @@ export interface Row {
   takesHeight?: number;
   /** Total height including the automation slot. */
   height: number;
+  /**
+   * A row of a group folding / unfolding (`animatedRows`): the row as laid out. Its clips draw
+   * at that size (never compact on the way), cut at this row's height, without their text.
+   */
+  folding?: Row;
 }
 
 /**

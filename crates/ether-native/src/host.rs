@@ -1233,7 +1233,8 @@ impl ControllerThread {
         }
         let id = msg.id;
         match &msg.command {
-            Command::Engine(cmd) => {
+            // Starting / stopping the engine is the controller's (it owns the graph).
+            Command::Engine(cmd) if !matches!(cmd, EngineCommand::SetRunning { .. }) => {
                 let reply = self.engine_command(id, cmd.clone());
                 self.router.send(reply);
                 return;
@@ -1300,6 +1301,11 @@ impl ControllerThread {
                 ReplyValue::AudioDevices {
                     devices: audio::list_devices(&self.audio.settings, all.unwrap_or(false)),
                 },
+            ),
+            EngineCommand::SetRunning { .. } => reply_err(
+                id,
+                ErrorCode::Internal,
+                "the controller starts and stops the engine".to_string(),
             ),
             EngineCommand::SetAudioConfig { config } => {
                 let new = match self.audio.settings.merged(&config) {

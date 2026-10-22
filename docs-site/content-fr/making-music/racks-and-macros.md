@@ -64,7 +64,7 @@ Chaque rack a 8 macros. Ouvrez la liste des paramètres du rack (le bouton à cu
 
 Pour associer une macro :
 
-1. Faites glisser la petite poignée d’association de la macro sur un paramètre d’un appareil du rack, ou cliquez sur la poignée puis sur le paramètre.
+1. Faites glisser la petite poignée d’association de la macro sur un paramètre d’un appareil du rack, ou cliquez sur la poignée puis sur le paramètre. Vous pouvez aussi faire un clic droit sur le paramètre et choisir **assigner à une macro**, puis la macro (dans un rack placé dans un autre rack, d’abord le rack).
 2. L’association apparaît sur ce paramètre sous forme d’anneau coloré et de pastille de profondeur, comme pour la [modulation](/docs/making-music/modulation-and-sidechain#depth-rings-and-chips). Faites glisser la pastille pour régler l’amplitude du mouvement de la macro.
 
 Une macro peut piloter de nombreux paramètres, chacun avec sa propre profondeur. Par exemple, une macro « brillance » peut ouvrir un filtre et ajouter un peu de drive en même temps. Une macro peut aussi piloter le sélecteur de chaîne du rack lui-même. Les macros peuvent être automatisées et associées à un contrôleur MIDI comme n’importe quel bouton.

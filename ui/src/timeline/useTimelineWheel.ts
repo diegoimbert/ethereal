@@ -3,7 +3,7 @@ import { ScrollYFollower } from "./motion";
 import { inputSettings, isPinch } from "./inputSettings";
 import { animatePan, animateZoom } from "./viewMotion";
 import type { TimelineViewStore } from "./viewStore";
-import { normalizeWheel, wheelIntent, wheelScrollPx, wheelZoomFactorFor, type NormalizedWheel } from "./wheelInput";
+import { normalizeWheel, wheelIntent, wheelScrollPx, wheelZoomFactorFor, ZoomAccelerator, type NormalizedWheel } from "./wheelInput";
 
 /** Normalized deltas of a native wheel event on `el` (pages = the element's size). */
 export function readWheel(e: WheelEvent, el: HTMLElement): NormalizedWheel {
@@ -70,6 +70,9 @@ export function useTimelineWheel(ref: RefObject<HTMLElement | null>, view: Timel
     const el = ref.current;
     if (!el) return;
     const scrollY = smoothScrollY ? new ScrollYFollower(el) : null;
+    // A fast wheel zooms more (Settings > Input > zoom acceleration); pinches as they are.
+    const accel = new ZoomAccelerator();
+    const accelerated = (d: number, pinch: boolean, acceleration: number) => (pinch ? d : d * accel.gain(d, performance.now(), acceleration));
     const onWheel = (e: WheelEvent) => {
       const settings = inputSettings();
       const n = readWheel(e, el);
@@ -84,7 +87,7 @@ export function useTimelineWheel(ref: RefObject<HTMLElement | null>, view: Timel
         e.preventDefault();
         // With shift held, some platforms turn a vertical wheel into a horizontal one.
         const d = Math.abs(dy) >= Math.abs(dx) ? dy : dx;
-        if (d) onVerticalZoom.current?.(wheelZoomFactorFor(d, n.discrete, settings, pinch), e.clientY - box.top);
+        if (d) onVerticalZoom.current?.(wheelZoomFactorFor(accelerated(d, pinch, settings.zoomAcceleration), n.discrete, settings, pinch), e.clientY - box.top);
         return;
       }
       if (intent === "zoom") {
@@ -93,7 +96,11 @@ export function useTimelineWheel(ref: RefObject<HTMLElement | null>, view: Timel
         if (!d) return;
         const o = origin.current;
         const originPx = typeof o === "function" ? o() : (o ?? 0);
-        animateZoom(view, wheelZoomFactorFor(d, n.discrete, settings, pinch), zoomAnchorPx(e.clientX - box.left, originPx));
+        animateZoom(
+          view,
+          wheelZoomFactorFor(accelerated(d, pinch, settings.zoomAcceleration), n.discrete, settings, pinch),
+          zoomAnchorPx(e.clientX - box.left, originPx),
+        );
         return;
       }
       if (intent === "scrollX") {

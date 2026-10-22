@@ -117,7 +117,7 @@ If you made a time selection, these keys act on that section instead of whole cl
 
 ## renaming a clip
 
-Right-click a clip and choose **rename**. Type in its title bar, then press [[key:Enter]] or click away. [[key:Escape]] cancels. If you clear the name, the clip gets its default name back (an audio clip shows its sample's name). **rename** is only offered when one clip is selected. The inspector also has a name field for the selected clip.
+Right-click a clip and choose **rename**. Type in its title bar, then press [[key:Enter]] or click away. [[key:Escape]] cancels. If you clear the name, the clip gets its default name back (an audio clip shows its sample's name). A new MIDI clip has no name of its own: it shows its track's name, and follows the track when you rename it. **rename** is only offered when one clip is selected. The inspector also has a name field for the selected clip.
 
 ## clip colors
 

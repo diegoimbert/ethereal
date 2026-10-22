@@ -12,30 +12,6 @@
   align-items: center;
   padding: var(--eth-space-sm) var(--eth-space-sm) 0;
 }
-.eth-devlib__search-icon {
-  position: absolute;
-  left: calc(var(--eth-space-sm) * 2);
-  color: var(--eth-color-text-dim);
-  pointer-events: none;
-}
-.eth-devlib__search-input {
-  flex: 1;
-  padding-left: calc(var(--eth-space-sm) * 2 + var(--eth-size-icon-md));
-}
-.eth-devlib__search-input::-webkit-search-cancel-button {
-  display: none;
-}
-.eth-devlib__search-clear {
-  position: absolute;
-  right: calc(var(--eth-space-sm) + var(--eth-space-xs));
-  display: inline-flex;
-  padding: var(--eth-space-xs);
-  border: none;
-  border-radius: var(--eth-radius-sm);
-  background: none;
-  color: var(--eth-color-text-dim);
-  cursor: pointer;
-}
 .eth-devlib__sources {
   display: flex;
   flex-wrap: wrap;
@@ -157,19 +133,6 @@
 }
 .eth-devlib__sort {
   flex: none;
-}
-.eth-devlib__field {
-  position: relative;
-  display: flex;
-  flex: 1;
-  align-items: center;
-  min-width: 0;
-}
-.eth-devlib__field .eth-devlib__search-icon {
-  left: var(--eth-space-sm);
-}
-.eth-devlib__field .eth-devlib__search-clear {
-  right: var(--eth-space-xs);
 }
 
 /* Stars: bare (no toggled background), filled yellow when on; a row's shows on hover / when on. */

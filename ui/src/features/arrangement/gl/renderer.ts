@@ -325,7 +325,12 @@ export class ArrangerRenderer {
     let lanesDrawn = 0;
     this.drawnExtraIds = new Set();
     const input = this.input;
-    const drawRow = (row: Row, track: Track, extraRow: boolean) => {
+    const drawRow = (shown: Row, track: Track, extraRow: boolean) => {
+      // A row of a group folding / unfolding: drawn as laid out (its clips keep their look:
+      // never compact on the way), cut at its height on screen, and without text.
+      const folding = shown.folding;
+      const row: Row = folding ? { ...folding, y: shown.y } : shown;
+      if (folding) backend.cut({ top: shown.y, bottom: shown.y + shown.height });
       const lane = this.lane(track);
       seen.add(track.id);
       // Extra rows take no pointer (the ghost rows have `pointer-events: none`): no hover.
@@ -336,6 +341,7 @@ export class ArrangerRenderer {
       lanesDrawn++;
       const draw = (p: Pipeline, batch: Batch, first?: number, n?: number) => {
         const count = n ?? batch.count - (first ?? 0);
+        if (folding && p === this.pipelines.text) return;
         if (count <= 0 || !backend.draw(p, batch, row, first ?? 0, count)) return;
         drawCalls++;
         instances += count;
@@ -368,6 +374,7 @@ export class ArrangerRenderer {
         this.tiles.touch(scene.waveRows);
         const drawIn = (p: Pipeline, b: Batch, first?: number, n?: number) => {
           const count = n ?? b.count - (first ?? 0);
+          if (folding && p === this.pipelines.text) return;
           if (count <= 0 || !backend.draw(p, b, box, first ?? 0, count)) return;
           drawCalls++;
           instances += count;
@@ -389,10 +396,11 @@ export class ArrangerRenderer {
       }
       this.layers.drawLane("over-clips", ctx, (p, b) => draw(p, b));
       this.layers.drawLane("top", ctx, (p, b) => draw(p, b));
+      if (folding) backend.cut(null);
       // What is on screen (test API): the clips whose instances were drawn (the culled
       // base range and the raised ones) that intersect the viewport.
       const vis = { scrollBeats: scroll, pxPerBeat: ppb };
-      if (row.y < v.scrollTop + v.height && row.y + mainHeight(row) > v.scrollTop) {
+      if (shown.y < v.scrollTop + v.height && shown.y + mainHeight(shown) > v.scrollTop) {
         const issued = [...lane.baseItems.slice(a, z), ...lane.raisedItems];
         for (const it of issued) {
           if (it.ghost && !extraRow) continue;

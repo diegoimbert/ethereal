@@ -5,32 +5,37 @@ lanes and warp editor. Import everything from `@/timeline`. Musical time is `f64
 (quarter notes). Grid math goes through the shared helpers in `@/state/beats`, so never
 compare beats with `===`.
 
-| Module | What it gives you |
-|---|---|
-| `tempoMap.ts` | `TempoMap` (beats ↔ seconds, bars/beats), `useTempoMap()` |
-| `viewport.ts` | pure beats/seconds ↔ px mapping and zoom math |
-| `viewStore.ts` | per-view zoom/scroll store: `createTimelineViewStore`, `useViewport`, `useTimelineView` |
-| `grid.ts` | grid settings, adaptive resolution, grid lines, snapping |
-| `selection.ts` | selection of clips, notes and automation points (multi-select), plus a time range |
-| `marquee.ts` | marquee geometry and the `useMarquee` pointer hook |
-| `Ruler.tsx` | ruler component: ticks, labels, loop brace and playhead marker |
-| `PlayheadLine.tsx`, `playhead.ts` | full-height playhead line, playhead positioning and follow hooks |
-| `useTimelineWheel.ts` | wheel/trackpad zoom and scroll (animated), vertical scroll and vertical zoom hooks |
-| `motion.ts`, `viewMotion.ts` | spring animation: `MOTION` tuning, `animateZoom`/`animatePan`, `ScaleFollower`, `ScrollYFollower` |
-| `useMiddleButtonPan.ts` | middle-button drag pans horizontally (view store) and vertically (element scroll) |
-| `wheelInput.ts`, `inputSettings.ts` | wheel normalization (notches vs trackpads) and the user's Settings > Input |
-| `format.ts` | `formatBarBeat` ("1.1.1"), `formatDuration`, `formatSeconds` ("m:ss.mmm") |
-| `rulerMarks.ts`, `loop.ts` | pure ruler layout and loop-drag math, for canvas rulers and tests |
+| Module                              | What it gives you                                                                                 |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `tempoMap.ts`                       | `TempoMap` (beats ↔ seconds, bars/beats), `useTempoMap()`                                         |
+| `viewport.ts`                       | pure beats/seconds ↔ px mapping and zoom math                                                     |
+| `viewStore.ts`                      | per-view zoom/scroll store: `createTimelineViewStore`, `useViewport`, `useTimelineView`           |
+| `grid.ts`                           | grid settings, adaptive resolution, grid lines, snapping                                          |
+| `selection.ts`                      | selection of clips, notes and automation points (multi-select), plus a time range                 |
+| `marquee.ts`                        | marquee geometry and the `useMarquee` pointer hook                                                |
+| `Ruler.tsx`                         | ruler component: ticks, labels, loop brace and playhead marker                                    |
+| `PlayheadLine.tsx`, `playhead.ts`   | full-height playhead line, playhead positioning and follow hooks                                  |
+| `useTimelineWheel.ts`               | wheel/trackpad zoom and scroll (animated), vertical scroll and vertical zoom hooks                |
+| `motion.ts`, `viewMotion.ts`        | spring animation: `MOTION` tuning, `animateZoom`/`animatePan`, `ScaleFollower`, `ScrollYFollower` |
+| `useMiddleButtonPan.ts`             | middle-button drag pans horizontally (view store) and vertically (element scroll)                 |
+| `wheelInput.ts`, `inputSettings.ts` | wheel normalization (notches vs trackpads) and the user's Settings > Input                        |
+| `format.ts`                         | `formatBarBeat` ("1.1.1"), `formatDuration`, `formatSeconds` ("m:ss.mmm")                         |
+| `rulerMarks.ts`, `loop.ts`          | pure ruler layout and loop-drag math, for canvas rulers and tests                                 |
 
 ## Tempo map
 
 ```ts
-const tempo = useTempoMap();           // memoized on the project's tempo/signature tables
-tempo.beatsToSeconds(8); tempo.secondsToBeats(4);
-tempo.bpmAt(b); tempo.signatureAt(b);
-tempo.barBeat(5.5);                    // { bar: 2, beat: 2, fraction: 0.5 } (1-based)
-tempo.barAt(b); tempo.nextBar(line); tempo.barToBeats(3); tempo.barLines(from, to, everyBars);
-TempoMap.constant(120) / TempoMap.fromProject(project) / new TempoMap(points, signatures)
+const tempo = useTempoMap(); // memoized on the project's tempo/signature tables
+tempo.beatsToSeconds(8);
+tempo.secondsToBeats(4);
+tempo.bpmAt(b);
+tempo.signatureAt(b);
+tempo.barBeat(5.5); // { bar: 2, beat: 2, fraction: 0.5 } (1-based)
+tempo.barAt(b);
+tempo.nextBar(line);
+tempo.barToBeats(3);
+tempo.barLines(from, to, everyBars);
+TempoMap.constant(120) / TempoMap.fromProject(project) / new TempoMap(points, signatures);
 ```
 
 The semantics mirror Rust `ether_model::TempoMap`, which is the source of truth:
@@ -50,13 +55,15 @@ arrangement ruler and its lanes, for example.
 
 ```ts
 const view = useMemo(() => createTimelineViewStore({ pxPerBeat: 20 }), []);
-const vp = useViewport(view);                 // { pxPerBeat, scrollBeats }, re-renders on change
-const x = beatsToPx(clip.start, vp);          // content-relative px
+const vp = useViewport(view); // { pxPerBeat, scrollBeats }, re-renders on change
+const x = beatsToPx(clip.start, vp); // content-relative px
 const b = pxToBeats(e.clientX - rect.left, vp);
-view.getState().zoomBy(1.25, anchorPx);       // zoom around the cursor
-view.getState().scrollByPx(dx); view.getState().scrollTo(beats);
-view.getState().zoomToRange({ start, end }, 16); view.getState().reveal(beats, 40);
-view.getState().setWidth(px);                 // the Ruler does this unless syncWidth={false}
+view.getState().zoomBy(1.25, anchorPx); // zoom around the cursor
+view.getState().scrollByPx(dx);
+view.getState().scrollTo(beats);
+view.getState().zoomToRange({ start, end }, 16);
+view.getState().reveal(beats, 40);
+view.getState().setWidth(px); // the Ruler does this unless syncWidth={false}
 ```
 
 Store state: `pxPerBeat`, `scrollBeats`, `widthPx`, `limits` (zoom clamps, `scrollBeats >= 0`)
@@ -97,14 +104,15 @@ The app-wide **selected track** is not here. It lives in `@/state/selection`
 `useSelectionStore.getState().selectTrack(track)` yourself.
 
 ```ts
-itemSelection                                    // app-wide store, pruned against the project mirror
-const ids = useSelectedItems("note");            // ReadonlySet<NoteId>
-const on = useIsSelected("clip", clip.id);       // re-renders only when this answer changes
+itemSelection; // app-wide store, pruned against the project mirror
+const ids = useSelectedItems("note"); // ReadonlySet<NoteId>
+const on = useIsSelected("clip", clip.id); // re-renders only when this answer changes
 itemSelection.getState().select("clip", [id], selectModeFromEvent(e)); // replace | add (shift) | toggle (cmd/ctrl)
 itemSelection.getState().select("note", ids, "remove");
-itemSelection.getState().clear("note");          // clear() with no argument clears everything incl. the time range
-itemSelection.getState().setTimeRange({ start, end }); useTimeRangeSelection();
-itemSelection.getState().anchor.note             // last clicked, for shift-range selection
+itemSelection.getState().clear("note"); // clear() with no argument clears everything incl. the time range
+itemSelection.getState().setTimeRange({ start, end });
+useTimeRangeSelection();
+itemSelection.getState().anchor.note; // last clicked, for shift-range selection
 ```
 
 - Kinds are independent sets. Selecting notes doesn't touch the clip selection.

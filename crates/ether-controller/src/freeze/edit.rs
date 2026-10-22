@@ -576,7 +576,6 @@ pub fn consolidate_midi(
             .collect();
     pieces.sort_by(|a, b| a.at.total_cmp(&b.at));
     let lanes = crate::expression::copy::unroll_lanes(ctx.p(), &pieces);
-    let name = ctx.track(track)?.name;
     doc::apply(
         ctx,
         &Command::Clip(ClipCommand::CreateMidi {
@@ -584,7 +583,8 @@ pub fn consolidate_midi(
             track,
             start,
             length: Beats(end.0 - start.0),
-            name: Some(name),
+            // Unnamed: it reads as its track (and follows a rename).
+            name: None,
         }),
     )?;
     let mut specs = Vec::with_capacity(notes.len());

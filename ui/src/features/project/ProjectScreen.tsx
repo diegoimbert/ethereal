@@ -152,6 +152,7 @@ export function RecentProjects({
   onDone,
   ready = true,
   focusSearch = false,
+  showEmpty = false,
   extraError,
   clearExtraError,
 }: {
@@ -162,6 +163,8 @@ export function RecentProjects({
   ready?: boolean;
   /** Focus the search once ready (unless typing elsewhere). */
   focusSearch?: boolean;
+  /** Say so when there is no other project (the project menu's submenu; the screen has more). */
+  showEmpty?: boolean;
   /** An error of the surroundings to show on the error line too (e.g. "new project" failed). */
   extraError?: string | null;
   clearExtraError?(): void;
@@ -344,6 +347,7 @@ export function RecentProjects({
           </ul>
         </section>
       )}
+      {ready && others.length === 0 && showEmpty && <span className="eth-project-screen__empty">{t("project.recent.none")}</span>}
       {ready && others.length > 0 && (
         <section className="eth-project-screen__recent" aria-label={t("project.recent.title")}>
           <div className="eth-project-screen__recent-head">

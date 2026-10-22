@@ -62,6 +62,7 @@ export interface MessageArgs {
   "arrangement.header.mute_named": { name: string | number };
   "arrangement.header.name_title": { name: string | number };
   "arrangement.header.pan": { name: string | number };
+  "arrangement.header.record_setup_named": { name: string | number };
   "arrangement.header.resize_named": { name: string | number };
   "arrangement.header.solo_named": { name: string | number };
   "arrangement.header.track": { name: string | number };
@@ -490,6 +491,7 @@ export interface MessageArgs {
   "plugins.folders.formats_in": { path: string | number };
   "plugins.folders.remove": { path: string | number };
   "plugins.folders.rescan_failed": { error: string | number };
+  "plugins.loading.track": { done: string | number; total: string | number };
   "plugins.scan.failed_count": { count: number };
   "plugins.scan.progress": { done: string | number; total: string | number };
   "plugins.scan.scan_failed": { error: string | number };
@@ -661,7 +663,6 @@ export interface MessageArgs {
   "sidechain.source_label": { name: string | number };
   "sidechain.source_loop": { name: string | number };
   "sidechain.source_own": { name: string | number };
-  "sidechain.tap_label": { name: string | number };
   "sidechain.tap_refused": { reason: string | number; tap: string | number };
   "storage.status": { state: string | number };
   "storage.usage": { quota: string | number; used: string | number };

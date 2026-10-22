@@ -916,7 +916,8 @@ where
                                 track: t.id,
                                 start: Beats(start.max(0.0)),
                                 length: Beats((end - start).max(MIN_LENGTH)),
-                                name: Some(t.name.clone()),
+                                // Unnamed: it reads as its track (and follows a rename).
+                                name: None,
                             }),
                         )?;
                         let specs: Vec<NoteSpec> = notes

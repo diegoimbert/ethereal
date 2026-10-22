@@ -8,7 +8,7 @@ import { useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Beats, Clip, Command } from "@/generated";
 import { Button } from "@/kit";
-import { defaultClipName, useProjectStore } from "@/state";
+import { clipDisplayName, defaultClipName, useProjectStore } from "@/state";
 import { beatsPerBar, formatBarBeat, formatDuration, useTempoMap } from "@/timeline";
 import { newId } from "@/transport";
 import { sendEdit } from "@/features/arrangement/context";
@@ -29,7 +29,7 @@ export function ClipSheetRoot() {
   useEffect(() => {
     if (sheet?.kind === "clip" && !clip) closeSheet();
   }, [sheet, clip]);
-  const name = useProjectStore((s) => (clip && s.project ? clip.name || defaultClipName(s.project, clip) : ""));
+  const name = useProjectStore((s) => (clip && s.project ? clip.name || defaultClipName(s.project, clip) || clipDisplayName(s.project, clip) : ""));
   const title = (
     <span className="eth-track-sheet__title">
       {t("mobile.clip_sheet.title")}

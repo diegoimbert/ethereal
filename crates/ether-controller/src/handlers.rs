@@ -6,6 +6,7 @@ use std::sync::Arc;
 use ether_core::TransportControl;
 use ether_core::plugin::PluginNotification;
 use ether_core::protocol::devices::DeviceCommand;
+use ether_core::protocol::engine::{EngineCommand, EngineEvent};
 use ether_core::protocol::media::{
     BrowseLocation, BrowseRoot, DirectoryListing, FileKind, MediaCommand, MediaEvent, MediaSource,
 };
@@ -276,6 +277,10 @@ where
             Command::Plugin(p) => self.plugin_command(p, msg.gesture, now, out),
             Command::Warp(WarpCommand::DetectTempo { clip }) => self.detect_tempo(*clip),
             Command::Media(m) => self.media_command(m, msg.gesture, now, out),
+            Command::Engine(EngineCommand::SetRunning { running }) => {
+                self.engine_set_running(*running, now, out)?;
+                Ok(ReplyValue::Unit)
+            }
             Command::Engine(_) => Err(unsupported(
                 "audio engine configuration is handled by the host",
             )),
@@ -1224,6 +1229,10 @@ where
     // ─── Tick ───────────────────────────────────────────────────────────────────────────
 
     pub fn tick_impl(&mut self, now: u64, out: &mut dyn MessageSink) {
+        // The engine went off or on another way (an extension's engine choice, a project load).
+        self.engine_report_running(out);
+        // Plugins loaded by a command since the last tick (a project opening).
+        self.report_plugin_loading(out);
         // Engine outputs.
         let mut outputs = std::mem::take(&mut self.outputs);
         self.bridge.poll(&mut outputs);
@@ -1337,6 +1346,7 @@ where
         self.autosave_tick(now, out);
 
         self.publish_if_due(now, true, out);
+        self.report_plugin_loading(out);
         self.load_tick(out);
         self.emit_transport_if_changed(out);
     }
@@ -1419,6 +1429,19 @@ where
                 })
         {
             notify(out, level, message);
+        }
+    }
+
+    /// Tell the UI which plugin devices are still to load, when that changed (from the tick:
+    /// a command's reply stays its last message).
+    pub fn report_plugin_loading(&mut self, out: &mut dyn MessageSink) {
+        if let Some(pending) = self.engine.take_loading_change() {
+            event(
+                out,
+                Event::Plugin {
+                    event: PluginEvent::Loading { pending },
+                },
+            );
         }
     }
 
@@ -1542,6 +1565,73 @@ where
             self.engine.off_project = Some(id);
         }
         // The status is emitted by the caller, after `ProjectLoaded` (which comes first).
+    }
+
+    /// Stop or start the local engine (`EngineCommand::SetRunning`).
+    pub fn engine_set_running(
+        &mut self,
+        running: bool,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<()> {
+        if running != self.engine.off {
+            return Ok(());
+        }
+        if self.transport.recording {
+            return Err(crate::tx::keyed_err(
+                ErrorCode::InvalidState,
+                crate::text::msg("error.engine.stop_recording_first"),
+            ));
+        }
+        if running {
+            self.engine_start(now, out);
+        } else {
+            self.engine_tear_down(now);
+            // This project, until another one opens (which starts it again).
+            self.engine.off_project = self.doc.as_ref().map(|d| d.project.id);
+        }
+        self.engine_report_running(out);
+        Ok(())
+    }
+
+    /// Instantiate and publish the document (the engine was off). A graph the engine refuses
+    /// is said, and the engine goes off again.
+    pub fn engine_start(&mut self, now: u64, out: &mut dyn MessageSink) {
+        self.engine.off = false;
+        self.engine.off_project = None;
+        self.engine.refused = None;
+        self.media.set_engine_off(&mut self.bridge, false);
+        let project = self.doc.as_ref().map(|d| &d.project);
+        self.media.sync(&mut self.bridge, project);
+        self.engine.graph_dirty = true;
+        let host = &self.host;
+        for (level, message) in
+            self.engine
+                .publish(&mut self.bridge, project, &self.armed, now, &|| {
+                    host.now_ms()
+                })
+        {
+            notify(out, level, message);
+        }
+        if self.engine.refused.take().is_some() {
+            self.engine_tear_down(now);
+        }
+    }
+
+    /// Tell the UI whether the local engine runs, when that changed since last told.
+    pub fn engine_report_running(&mut self, out: &mut dyn MessageSink) {
+        if self.engine.off == self.engine.off_reported {
+            return;
+        }
+        self.engine.off_reported = self.engine.off;
+        event(
+            out,
+            Event::Engine {
+                event: EngineEvent::Running {
+                    running: !self.engine.off,
+                },
+            },
+        );
     }
 
     /// Stop, destroy every node, publish an empty graph, forget the engine's media.

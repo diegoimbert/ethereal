@@ -15,7 +15,8 @@
  */
 
 import type { ComponentType } from "react";
-import type { AnalysisData, Device, DeviceId, ParamInfo } from "@/generated";
+import type { AnalysisData, Command, Device, DeviceId, ParamInfo } from "@/generated";
+import type { ContextMenuEntry } from "@/kit";
 
 export interface AnalysisModule {
   useDeviceAnalysis?: (device: DeviceId) => ReadonlyArray<AnalysisData>;
@@ -30,6 +31,8 @@ export interface ParamModulationProps {
 
 export interface ModulationModule {
   ParamModulation?: ComponentType<ParamModulationProps>;
+  /** Extra entries of a param's context menu ("assign to macro ›"). */
+  paramMenuEntries?: (device: Device, info: ParamInfo, send: (c: Command) => unknown) => ContextMenuEntry[];
 }
 
 const analysisModules = import.meta.glob<AnalysisModule>("../analysis/index.ts", { eager: true });
@@ -43,6 +46,9 @@ export const useDeviceAnalysis: (device: DeviceId) => ReadonlyArray<AnalysisData
 
 /** The modulation decoration of param widgets, if any. */
 export const ParamModulation: ComponentType<ParamModulationProps> | null = Object.values(modulationModules)[0]?.ParamModulation ?? null;
+
+/** The modulation entries of a param's context menu, if any. */
+export const modulationMenuEntries: NonNullable<ModulationModule["paramMenuEntries"]> = Object.values(modulationModules)[0]?.paramMenuEntries ?? (() => []);
 
 /** Target id of a param for modulation drops (`<device>:<param>`). */
 export function modTargetId(device: DeviceId, param: number): string {

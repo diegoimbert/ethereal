@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { useRef, useState, type InputHTMLAttributes, type KeyboardEvent, type PointerEvent } from "react";
+import { useRef, useState, type InputHTMLAttributes, type KeyboardEvent, type PointerEvent, type Ref } from "react";
 import { setDragCursor } from "./dragCursor";
 import { useDisabled } from "./readOnly";
 import { useReadOnly } from "@/state/viewer";
@@ -12,6 +12,7 @@ export interface TextInputProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   size?: Size;
   /** Marks the field invalid (danger border, `aria-invalid`). */
   invalid?: boolean;
+  ref?: Ref<HTMLInputElement>;
 }
 
 /**

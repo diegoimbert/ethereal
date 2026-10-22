@@ -85,7 +85,7 @@ De courts messages (notifications) apparaissent dans un coin de la fenêtre :
 
 À droite de la barre du haut :
 
-- **cpu** indique à quel point le moteur audio est occupé (sa charge DSP). Si elle approche 100 %, vous pouvez entendre des clics et des coupures.
+- **cpu** indique à quel point le moteur audio est occupé (sa charge DSP). Si elle approche 100 %, vous pouvez entendre des clics et des coupures. Cliquez dessus pour **arrêter le moteur** : rien ne joue, les plug-ins sont déchargés et le périphérique audio est libre pour d’autres applications, et l’indicateur affiche **moteur arrêté**. Cliquez à nouveau et choisissez **démarrer le moteur** pour recharger le projet. Ouvrir un autre projet le redémarre aussi.
 - **Disque** n’apparaît qu’après une coupure de l’audio lu depuis le disque pendant la lecture, avec le nombre de coupures. Cliquez dessus pour remettre le compteur à zéro.
 - **Le voyant d’état**, avec le nom du système audio à côté, montre l’état du moteur. Il prend une couleur d’alerte pendant la connexion ou après des coupures, et une couleur d’erreur quand le moteur a échoué ou que l’audio s’est arrêté. Il affiche **fermé** quand le moteur a libéré le périphérique audio. Survolez-le pour les détails : le système audio, la fréquence d’échantillonnage, la taille du buffer et le nombre de coupures.
 
