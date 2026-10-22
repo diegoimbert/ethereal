@@ -50,7 +50,15 @@
 //!   additionally keep workers on performance cores with the I/O thread on Apple Silicon;
 //!   cpal doesn't expose the workgroup, so that is left for later.
 //! - Linux: `SCHED_FIFO` (best effort: needs `CAP_SYS_NICE`/rtkit limits, else normal).
-//! - Windows/others: normal priority.
+//! - Windows: MMCSS, the "Pro Audio" task at high priority (what DAWs give their audio
+//!   threads; the service raises the thread into the real-time range and keeps it there while
+//!   it stays within the system's multimedia budget), else `THREAD_PRIORITY_TIME_CRITICAL`.
+//!   Without it a worker woken for a buffer waits behind every runnable normal-priority
+//!   thread (the webview, plugin editors) while the audio thread spins for its job.
+//! - Others: normal priority.
+//!
+//! The device callback's thread gets the same promotion where the backend doesn't give it one
+//! ([`promote_current_thread`], `audio.rs`).
 //!
 //! # Size
 //! [`default_workers`]: `ETHER_WORKERS` if set, else physical cores - 1 (the audio thread
@@ -92,6 +100,12 @@ pub fn env_workers() -> Option<usize> {
 pub fn physical_cores() -> usize {
     let logical = std::thread::available_parallelism().map_or(1, |n| n.get());
     os::physical_cores().filter(|&n| n > 0).unwrap_or(logical)
+}
+
+/// Non-RT (once per thread, before it renders): the real-time promotion the workers get
+/// (see the module docs), for another thread that renders device buffers.
+pub(crate) fn promote_current_thread(period: Duration) {
+    os::promote_current_thread(period);
 }
 
 /// The work of one `execute*` call, on the audio thread's stack.
@@ -691,7 +705,75 @@ mod os {
     }
 }
 
-#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+#[cfg(windows)]
+mod os {
+    use std::cell::OnceCell;
+    use std::time::Duration;
+
+    use windows_sys::Win32::Foundation::HANDLE;
+    use windows_sys::Win32::System::Threading::{
+        AVRT_PRIORITY_HIGH, AvRevertMmThreadCharacteristics, AvSetMmThreadCharacteristicsW,
+        AvSetMmThreadPriority, GetCurrentThread, SetThreadPriority, THREAD_PRIORITY_TIME_CRITICAL,
+    };
+
+    /// `s` as a UTF-16 string (ASCII only).
+    const fn wide<const N: usize>(s: &[u8; N]) -> [u16; N] {
+        let mut out = [0u16; N];
+        let mut i = 0;
+        while i < N {
+            out[i] = s[i] as u16;
+            i += 1;
+        }
+        out
+    }
+
+    /// The MMCSS task of DAW audio threads (`HKLM\...\Multimedia\SystemProfile\Tasks`).
+    const PRO_AUDIO: [u16; 10] = wide(b"Pro Audio\0");
+
+    /// This thread's MMCSS registration, reverted when the thread exits.
+    struct Task(HANDLE);
+
+    impl Drop for Task {
+        fn drop(&mut self) {
+            // SAFETY: a handle returned by `AvSetMmThreadCharacteristicsW` on this thread.
+            unsafe { AvRevertMmThreadCharacteristics(self.0) };
+        }
+    }
+
+    thread_local! {
+        static TASK: OnceCell<Task> = const { OnceCell::new() };
+    }
+
+    /// Join the "Pro Audio" MMCSS task at high priority (once per thread); if MMCSS refuses
+    /// (service disabled), `THREAD_PRIORITY_TIME_CRITICAL`.
+    pub(super) fn promote_current_thread(_period: Duration) {
+        TASK.with(|task| {
+            if task.get().is_some() {
+                return;
+            }
+            let mut index = 0u32;
+            // SAFETY: NUL-terminated UTF-16 task name; `index` is a valid out parameter.
+            let h = unsafe { AvSetMmThreadCharacteristicsW(PRO_AUDIO.as_ptr(), &mut index) };
+            if h.is_null() {
+                tracing::debug!("audio thread: MMCSS refused, time-critical priority instead");
+                // SAFETY: the pseudo-handle of this thread.
+                unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL) };
+                return;
+            }
+            // SAFETY: `h` is this thread's live MMCSS handle.
+            if unsafe { AvSetMmThreadPriority(h, AVRT_PRIORITY_HIGH) } == 0 {
+                tracing::debug!("audio thread: MMCSS priority refused");
+            }
+            let _ = task.set(Task(h));
+        });
+    }
+
+    pub(super) fn physical_cores() -> Option<usize> {
+        None
+    }
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "linux", windows)))]
 mod os {
     pub(super) fn promote_current_thread(_period: std::time::Duration) {}
 
