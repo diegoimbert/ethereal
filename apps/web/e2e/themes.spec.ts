@@ -1,8 +1,10 @@
 // Themes (Settings > Appearance): the built-in theme cards restyle the whole app at once (the
-// tokens, and the arranger's WebGL clips), and the choice survives a reload.
+// tokens, and the arranger's WebGL clips), and the choice survives a reload; a theme of your
+// own is made in the editor (previewed live), exported as a file and imported back.
 //
 // `UX_SHOTS=<dir>` also writes the PR screenshots: the arrangement and the settings in each
-// built-in theme.
+// built-in theme, and the theme editor.
+import { readFileSync } from "node:fs";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { clipPart, pixelAt } from "./clips";
 import { installProbe, send, ulid } from "./perfProject";
@@ -114,4 +116,57 @@ test("built-in themes restyle the app and the arranger live, and are remembered"
   await openOnLaunch(page, "Themes");
   await expect(html).toHaveAttribute("data-theme-id", "ember");
   expect(await token(page, "--eth-color-accent")).toBe("#f0a35e");
+});
+
+test("a theme of your own: made in the editor with a live preview, exported, imported back", async ({ page }) => {
+  test.setTimeout(150_000);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await launch(page, "Own theme");
+  await scene(page);
+  const html = page.locator("html");
+  let dialog = await openAppearance(page);
+  await dialog.getByRole("button", { name: "create your own theme", exact: true }).click();
+  const editor = dialog.getByTestId("theme-editor");
+  await expect(editor.getByRole("textbox", { name: "name", exact: true })).toHaveValue("dark copy");
+  await editor.getByRole("textbox", { name: "name", exact: true }).fill("night owl");
+  await editor.getByRole("textbox", { name: "accent value" }).fill("#7fbf6a");
+  await editor.getByRole("textbox", { name: "background value" }).fill("#101418");
+  // The whole app previews the draft before it is saved.
+  await expect(html).toHaveAttribute("data-theme-id", "preview");
+  await expect.poll(() => token(page, "--eth-color-accent")).toBe("#7fbf6a");
+  expect(await token(page, "--eth-color-selection")).toBe("#7fbf6a");
+  expect(await token(page, "--eth-color-bg")).toBe("#101418");
+  await expect(editor.getByTestId("theme-contrast")).toContainText("text and controls pass the wcag aa contrast checks.");
+  if (shots) await dialog.screenshot({ path: `${shots}/theme-editor.png` });
+  await editor.getByRole("button", { name: "save", exact: true }).click();
+  const card = dialog.getByRole("button", { name: "night owl", exact: true });
+  await expect(card).toHaveAttribute("aria-pressed", "true");
+  await expect(html).toHaveAttribute("data-theme-id", /^custom-/);
+
+  // Export (a download in the browser): a theme file.
+  const download = page.waitForEvent("download");
+  await dialog.getByRole("button", { name: "night owl: more", exact: true }).click();
+  await page.getByRole("menuitem", { name: "export…" }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe("night-owl.json");
+  const json = JSON.parse(readFileSync((await file.path())!, "utf8"));
+  expect(json).toMatchObject({ format: "ethereal-theme", version: 1, name: "night owl", base: "dark", colors: { accent: "#7fbf6a", bg: "#101418" } });
+
+  // Import it back, edited (and with a token this version doesn't know).
+  const chooser = page.waitForEvent("filechooser");
+  await dialog.getByRole("button", { name: "import theme…", exact: true }).click();
+  const edited = { ...json, name: "moss", colors: { ...json.colors, accent: "#e0b050", sparkle: "#ffffff" } };
+  await (await chooser).setFiles({ name: "moss.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(edited)) });
+  await expect(dialog.getByRole("status")).toHaveText("imported moss. ignored tokens ethereal doesn't know: sparkle.");
+  await expect(dialog.getByRole("button", { name: "moss", exact: true })).toHaveAttribute("aria-pressed", "true");
+  expect(await token(page, "--eth-color-accent")).toBe("#e0b050");
+  await closeSettings(page);
+
+  // A theme of your own is remembered like a built-in one.
+  await page.reload();
+  await openOnLaunch(page, "Own theme");
+  expect(await token(page, "--eth-color-accent")).toBe("#e0b050");
+  dialog = await openAppearance(page);
+  await expect(dialog.getByRole("button", { name: "night owl", exact: true })).toBeVisible();
+  if (shots) await dialog.screenshot({ path: `${shots}/theme-custom-cards.png` });
 });
