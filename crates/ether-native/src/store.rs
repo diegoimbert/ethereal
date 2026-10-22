@@ -1400,7 +1400,8 @@ mod tests {
         let mut json = file::save(&project, "test").unwrap();
         // The end of `project` (the last `}` at its indentation).
         let end = json.rfind("\n  }").unwrap();
-        let item = r#"{"id": "01HZY3K8Q2J7W9X4V6B5N1M0PA", "value": 0.5, "state": "AAECAwQFBgc="},"#;
+        let item =
+            r#"{"id": "01HZY3K8Q2J7W9X4V6B5N1M0PA", "value": 0.5, "state": "AAECAwQFBgc="},"#;
         let items = item.repeat(blob_bytes / item.len());
         json.insert_str(end, &format!(",\n    \"blob\": [{}0]", items));
         json
@@ -1425,7 +1426,12 @@ mod tests {
         let read = std::cell::Cell::new(0);
         let reader = std::io::BufReader::new(Counting(json.as_bytes(), &read));
         assert_eq!(name_from_ether(reader).as_deref(), Some(name));
-        assert!(read.get() <= 16 << 10, "read {} of {} bytes", read.get(), json.len());
+        assert!(
+            read.get() <= 16 << 10,
+            "read {} of {} bytes",
+            read.get(),
+            json.len()
+        );
 
         // Other key orders (`ether()` sorts them), with data before the name.
         let late = serde_json::json!({
