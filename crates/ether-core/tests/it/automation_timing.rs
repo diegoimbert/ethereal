@@ -561,9 +561,13 @@ fn rack_chain_devices_around_a_latent_device() {
     for second in [false, true] {
         for (block, antic) in configs() {
             let out = run(block, antic, &|h| {
-                let g1 = h.add_node(Box::new(Gain(if second { 1.0 } else { 0.0 }))).unwrap();
+                let g1 = h
+                    .add_node(Box::new(Gain(if second { 1.0 } else { 0.0 })))
+                    .unwrap();
                 let lat = h.add_node(Box::new(Delay::new(300))).unwrap();
-                let g2 = h.add_node(Box::new(Gain(if second { 0.0 } else { 1.0 }))).unwrap();
+                let g2 = h
+                    .add_node(Box::new(Gain(if second { 0.0 } else { 1.0 })))
+                    .unwrap();
                 let rack = h.add_node(Box::new(RackNode)).unwrap();
                 let mut t = latent_track(h, &[rack]);
                 let entry = |node| ChainEntry {

@@ -209,11 +209,15 @@ impl Node for Flanger {
     }
 
     fn reset(&mut self) {
-        LateEvents::flush(self, |s| &mut s.late, |s, kind| {
-            if let EventKind::Param { param, value } = *kind {
-                s.apply(param, value, false);
-            }
-        });
+        LateEvents::flush(
+            self,
+            |s| &mut s.late,
+            |s, kind| {
+                if let EventKind::Param { param, value } = *kind {
+                    s.apply(param, value, false);
+                }
+            },
+        );
         for l in self.wet.iter_mut().chain(self.dry.iter_mut()) {
             l.clear();
         }
