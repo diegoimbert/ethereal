@@ -476,7 +476,7 @@ impl NativeHost {
         };
         let mut parts = ether_core::create(engine_config.clone());
         if !anticipative(&config.data_dir) {
-            let _ = parts.handle.set_anticipative(false);
+            parts.handle.set_anticipative(false);
         }
         if engine_config.worker_threads > 0 {
             // Multicore (`crate::workers`): independent tracks run on RT worker threads.

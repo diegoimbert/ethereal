@@ -89,7 +89,7 @@ fn render(
                 Ev::Publish(d) => handle.publish(d).unwrap(),
                 Ev::Param(p) => handle.set_param(p).unwrap(),
                 Ev::Transport(t) => handle.transport(t).unwrap(),
-                Ev::Anticipate(on) => handle.set_anticipative(on).unwrap(),
+                Ev::Anticipate(on) => handle.set_anticipative(on),
             }
         }
         let next = match hints {
@@ -399,8 +399,8 @@ fn anticipation_never_allocates() {
                     })
                     .unwrap();
             }
-            100 => handle.set_anticipative(false).unwrap(),
-            110 => handle.set_anticipative(true).unwrap(),
+            100 => handle.set_anticipative(false),
+            110 => handle.set_anticipative(true),
             _ => {}
         }
         let n = [256, 256, 100, 512][k % 4];

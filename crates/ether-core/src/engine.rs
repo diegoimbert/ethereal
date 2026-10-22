@@ -99,8 +99,6 @@ enum Control {
         jobs: Box<crate::parallel::JobGraph>,
         ahead: Option<Box<crate::parallel::JobGraph>>,
     },
-    /// Anticipative processing on/off (`crate::anticipation`).
-    Anticipate(bool),
     /// v0.2: start/stop collecting a node's analysis frames (`crate::analysis`).
     AnalysisWatch {
         key: NodeKey,
@@ -265,6 +263,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         .into();
     let playhead = Arc::new(SharedPlayhead::default());
     let suspend = Arc::new(AtomicBool::new(false));
+    let anticipate = AnticipationSwitch(Arc::new(AtomicBool::new(true)));
     let (recording_rt, recording_io) = crate::recording::channel(&config);
     let (warp_handle, warp_rt) = crate::warp::channel(&config);
     let snapshot =
@@ -313,7 +312,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         beat_table: vec![0.0; config.max_block_size + 1],
         beat_table_ahead: vec![0.0; config.max_block_size + 1],
         silence_skipping: true,
-        anticipate: config.anticipative,
+        anticipate: anticipate.clone(),
         queue: crate::anticipation::PlanQueue::new(),
         suspend: suspend.clone(),
         suspended: false,
@@ -339,6 +338,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         analysis: analysis_rx,
         hw_io: hw_io_handle,
         suspend,
+        anticipate,
         job_costs: JobCosts::default(),
         config,
     };
@@ -395,9 +395,9 @@ pub struct Engine {
     beat_table: Vec<f64>,
     /// Skip asleep nodes on silent input (on by default).
     silence_skipping: bool,
-    /// Anticipative processing switched on (`EngineHandle::set_anticipative`; needs
-    /// `EngineConfig::anticipative` and workers, `crate::anticipation`).
-    anticipate: bool,
+    /// Anticipative processing switched on ([`AnticipationSwitch`]; needs
+    /// `EngineConfig::anticipative` and workers, `crate::anticipation`): read once per block.
+    anticipate: AnticipationSwitch,
     /// The sub-blocks the anticipated tracks rendered ahead of the output.
     queue: crate::anticipation::PlanQueue,
     /// Exact beats of the anticipated side's sub-block (like `beat_table`).
@@ -733,7 +733,7 @@ impl Engine {
                         self.retire(Garbage::Jobs(ahead));
                     }
                 }
-                Control::Anticipate(on) => self.anticipate = on && self.config.anticipative,
+
                 Control::AnalysisWatch { key, on } => {
                     self.analysis.watch(key, on);
                     if let Some(slot) = self.nodes.get_mut(key.index as usize)
@@ -946,7 +946,7 @@ impl Engine {
         hint: usize,
     ) {
         use crate::anticipation::split;
-        let want = self.anticipate
+        let want = self.anticipate.is_on()
             && self.executor.workers() > 0
             && self.snapshot.rt.antic.as_ref().is_some_and(|a| a.any);
         if self.queue.frames == 0 && !want || self.snapshot.rt.antic.is_none() {
@@ -2371,6 +2371,21 @@ impl JobCtx<'_> {
     }
 }
 
+/// Anticipative processing on/off for an engine ([`EngineHandle::anticipation_switch`]):
+/// any thread, read by the audio thread once per block.
+#[derive(Clone, Debug)]
+pub struct AnticipationSwitch(Arc<AtomicBool>);
+
+impl AnticipationSwitch {
+    pub fn set(&self, on: bool) {
+        self.0.store(on, Ordering::Relaxed);
+    }
+
+    pub fn is_on(&self) -> bool {
+        self.0.load(Ordering::Relaxed)
+    }
+}
+
 /// Controller-thread half. All methods are non-blocking; `Err(EngineError::QueueFull)`
 /// means the audio thread isn't draining (stalled or not started) and the caller should
 /// retry later.
@@ -2393,6 +2408,8 @@ pub struct EngineHandle {
     pub(crate) hw_io: crate::hw_io::HwIoHandle,
     /// Shared with [`Engine::suspend`].
     suspend: Arc<AtomicBool>,
+    /// Shared with the engine.
+    anticipate: AnticipationSwitch,
     /// Measured job times per track (`Output::JobCost`), and the job graph of the last
     /// publish for re-ranking with them ([`EngineHandle::poll`]).
     job_costs: JobCosts,
@@ -2661,9 +2678,14 @@ impl EngineHandle {
     /// Anticipative processing on or off (`crate::anticipation`, CONTRACTS.md §11.7), from
     /// the next block; only takes effect on an engine created with
     /// `EngineConfig::anticipative` (on by default there) and worker threads. Switching off
-    /// lets what was rendered ahead play out first.
-    pub fn set_anticipative(&mut self, on: bool) -> Result<(), EngineError> {
-        self.send(Control::Anticipate(on))
+    /// lets what was rendered ahead play out first. Lock-free, never lost.
+    pub fn set_anticipative(&self, on: bool) {
+        self.anticipate.set(on);
+    }
+
+    /// The switch behind [`Self::set_anticipative`], for another thread (a host's settings).
+    pub fn anticipation_switch(&self) -> AnticipationSwitch {
+        self.anticipate.clone()
     }
 
     /// Live parameter change (fader, knob). Lock-free; applied next block.
