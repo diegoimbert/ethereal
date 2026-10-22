@@ -320,11 +320,6 @@ const PLACES: [Place; 4] = [
     Place::Nested,
 ];
 
-/// Where switching it on and off is checked. Directly in an instrument rack chain, a
-/// switched-off MIDI effect drops the notes instead of passing them (#191):
-/// `Place::InstrumentRack` joins once that's fixed.
-const SWITCH_PLACES: [Place; 3] = [Place::Track, Place::MidiEffectRack, Place::Nested];
-
 /// One note held over beats 0..4, a second one from beat 6.
 const NOTES: [(f64, f64, u8); 2] = [(0.0, 4.0, 60), (6.0, 1.0, 64)];
 
@@ -374,7 +369,7 @@ fn notes_held_when_it_is_added_are_released_and_never_retriggered() {
 
 #[test]
 fn notes_held_when_it_is_switched_on_are_released_and_never_retriggered() {
-    for place in SWITCH_PLACES {
+    for place in PLACES {
         // Switched on mid-note, then off mid-note.
         let mut r = Rig::new(place);
         r.publish(1, r.track(Some(false), &NOTES));
@@ -399,7 +394,7 @@ fn notes_held_when_it_is_switched_on_are_released_and_never_retriggered() {
 
 #[test]
 fn notes_held_when_automation_switches_it_on_are_released() {
-    for place in SWITCH_PLACES {
+    for place in PLACES {
         let mut r = Rig::new(place);
         let mut t = r.track(Some(true), &NOTES);
         // Off until beat 1, on until beat 5, off again.
