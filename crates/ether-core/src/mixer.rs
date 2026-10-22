@@ -338,6 +338,40 @@ pub(crate) struct ActiveNote {
     pub end: f64,
     /// v0.3: the clip note this voice plays (note expressions).
     pub source: NoteSource,
+    /// The voice was held across a content loop wrap into the loop's start note
+    /// (`sched::voice_end`): from the wrap on it plays that note.
+    pub join: Option<NoteJoin>,
+}
+
+impl ActiveNote {
+    /// The clip note the voice plays at timeline beat `beat` (its note expressions).
+    #[inline]
+    pub(crate) fn source_at(&self, beat: f64) -> NoteSource {
+        match self.join {
+            Some(j) if beat >= j.at => {
+                // A loop start note longer than the loop joins itself on every wrap.
+                let k = ((beat - j.at) / j.period).floor().max(0.0);
+                NoteSource {
+                    clip: self.source.clip,
+                    note: j.note,
+                    start: j.at + k * j.period - j.lead,
+                }
+            }
+            _ => self.source,
+        }
+    }
+}
+
+/// A loop join (CONTRACTS.md §2, Clips, "loop join"): the voice keeps sounding across
+/// the content loop wrap at timeline beat `at` and plays clip note `note` (which starts
+/// `lead` beats before the loop start) from there; `period` is the loop length (the next
+/// wraps, when that note is longer than the loop).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct NoteJoin {
+    pub at: f64,
+    pub note: u32,
+    pub lead: f64,
+    pub period: f64,
 }
 
 /// The clip note a sounding note plays (v0.3): its note expressions

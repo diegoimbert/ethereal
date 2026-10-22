@@ -12,6 +12,7 @@ use ether_core::protocol::tracks::TrackCommand;
 use ether_model::derive_id;
 
 use crate::doc::{self, DocCtx, clip_start};
+use crate::expression::copy::LoopJoin;
 use crate::tx::{CmdResult, invalid, invalid_state, not_found};
 
 /// Most warp markers a placed render gets (tempo ramps are followed in quarter beats).
@@ -446,6 +447,8 @@ pub struct PlayedNote {
     pub muted: bool,
     /// v0.3: the clip note it plays (its expressions follow it).
     pub source: NoteId,
+    /// Held across a loop wrap into the loop's start note (`Clip::loop_join`).
+    pub join: Option<LoopJoin>,
 }
 
 /// The linear pieces of a clip in song time: `(song start, content start, content end)`
@@ -487,13 +490,15 @@ fn played_clips(p: &Project, track: TrackId, start: f64, end: f64) -> Vec<&Clip>
 }
 
 /// Notes of the unmuted main-lane MIDI clips of `track` sounding from `[start, end)`
-/// (clip offset and loop applied; notes cut at the clip/loop end and at `end`), sorted by
+/// (clip offset and loop applied; notes cut at the clip/loop end and at `end`, a note held
+/// across a loop wrap joined to the loop's start note like in the engine), sorted by
 /// (start, pitch).
 pub fn played_notes(p: &Project, track: TrackId, start: f64, end: f64) -> Vec<PlayedNote> {
     let mut out = Vec::new();
     for c in played_clips(p, track, start, end) {
         let notes = p.notes_of(c.id);
         let pieces = clip_pieces(c);
+        let looping = c.played_loop();
         for (song, c0, c1) in pieces {
             for n in &notes {
                 if n.start.0 < c0 - 1e-9 || n.start.0 >= c1 - 1e-9 {
@@ -503,7 +508,27 @@ pub fn played_notes(p: &Project, track: TrackId, start: f64, end: f64) -> Vec<Pl
                 if at < start - 1e-9 || at >= end - 1e-9 {
                     continue;
                 }
-                let dur = n.duration.0.min(c1 - n.start.0).min(end - at);
+                let mut dur = n.duration.0.min(c1 - n.start.0);
+                let mut join = None;
+                if let Some((ls, le)) = looping
+                    && !n.muted
+                    && (c1 - le).abs() < 1e-9
+                    && n.start.0 + n.duration.0 > le + LOOP_JOIN_EPS
+                {
+                    let wrap = song + (c1 - c0);
+                    let joined =
+                        c.loop_join(notes.iter().copied(), n.pitch, wrap - clip_start(c).0);
+                    if let Some((partner, after)) = joined {
+                        dur += after;
+                        join = Some(LoopJoin {
+                            at: wrap - at,
+                            note: partner.id,
+                            lead: ls - partner.start.0,
+                            period: le - ls,
+                        });
+                    }
+                }
+                let dur = dur.min(end - at);
                 if dur <= 1e-9 {
                     continue;
                 }
@@ -514,6 +539,7 @@ pub fn played_notes(p: &Project, track: TrackId, start: f64, end: f64) -> Vec<Pl
                     velocity: n.velocity,
                     muted: n.muted,
                     source: n.id,
+                    join: join.filter(|j| j.at < dur - 1e-9),
                 });
             }
         }
@@ -548,11 +574,24 @@ pub fn consolidate_midi(
     let note_exprs: Vec<Vec<NoteExpression>> = notes
         .iter()
         .map(|n| {
-            ctx.p()
+            let exprs: Vec<NoteExpression> = ctx
+                .p()
                 .note_expressions_of(n.source)
                 .into_iter()
                 .cloned()
-                .collect()
+                .collect();
+            match n.join {
+                // A joined note: its first note's curves until the wrap, then the loop
+                // start note's (like the engine plays it).
+                Some(j) => crate::expression::copy::join_note_expressions(
+                    ctx.p(),
+                    &exprs,
+                    n.source,
+                    j,
+                    n.duration,
+                ),
+                None => exprs,
+            }
         })
         .collect();
     let mut pieces: Vec<crate::expression::copy::Piece> =
