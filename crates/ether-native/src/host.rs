@@ -46,6 +46,7 @@ use crate::health::{Health, Watchdog, Work};
 use crate::plugin_folders::{FolderError, PluginFolderSettings};
 use crate::plugins::{DedicatedThread, Instantiate, MainThread, PluginCatalog, PluginHost};
 use crate::rt::AudioShared;
+use crate::sandbox_defaults::SandboxDefaults;
 use crate::store::{DiskStore, LibraryRoot};
 
 mod device;
@@ -515,6 +516,7 @@ impl NativeHost {
         let plugin_db = config.data_dir.join("plugin-db");
         let catalog = PluginCatalog::open(&plugin_db);
         let plugin_folders = PluginFolderSettings::open(&plugin_db);
+        let sandbox_defaults = SandboxDefaults::open(&plugin_db);
         let store = DiskStore::new(config.projects_root.clone(), config.library_roots.clone())
             .with_sample_cache(Some(config.data_dir.join("samples")));
         let mut bridge = NativeBridge::new(
@@ -527,6 +529,7 @@ impl NativeHost {
         );
         let scanning = Arc::new(AtomicBool::new(false));
         bridge.set_scan_flag(scanning.clone());
+        bridge.set_sandbox_defaults(sandbox_defaults.clone());
         let factory = options.controller;
         let patch_compat = options.patch_compat;
         let health = plugins.health().clone();
@@ -561,6 +564,7 @@ impl NativeHost {
             rescan_pending: Arc::new(AtomicU8::new(RESCAN_NONE)),
             scan_db: Arc::new(Mutex::new(())),
             plugin_folders,
+            sandbox_defaults,
             plugin_db,
             startup_warnings: warning
                 .into_iter()
@@ -1079,6 +1083,8 @@ struct ControllerThread {
     /// or applying one retried target), so a retry ending mid-scan isn't lost.
     scan_db: Arc<Mutex<()>>,
     plugin_folders: PluginFolderSettings,
+    /// Settings: plugins inserted sandboxed by default (shared with the bridge).
+    sandbox_defaults: SandboxDefaults,
     /// Plugin list, folder settings and scan cache live here.
     plugin_db: PathBuf,
     /// Shown once, at the first message from the UI.
@@ -1246,6 +1252,8 @@ impl ControllerThread {
                 | PluginCommand::AddFolder { .. }
                 | PluginCommand::RemoveFolder { .. }
                 | PluginCommand::SetIncludeDefaults { .. }
+                | PluginCommand::ListSandboxDefaults
+                | PluginCommand::SetSandboxDefault { .. }
                 | PluginCommand::OpenEditor { .. }
                 | PluginCommand::CloseEditor { .. }
                 | PluginCommand::SetEditorKeyCapture { .. }
@@ -1396,9 +1404,29 @@ impl ControllerThread {
                 self.request_scan(false);
                 self.folders_reply(id)
             }
+            PluginCommand::ListSandboxDefaults => self.sandbox_defaults_reply(id),
+            PluginCommand::SetSandboxDefault {
+                format,
+                plugin_id,
+                name,
+                sandboxed,
+            } => {
+                self.sandbox_defaults
+                    .set(format, &plugin_id, name.as_deref(), sandboxed);
+                self.sandbox_defaults_reply(id)
+            }
             // Routed to the controller by `handle`.
             _ => reply_err(id, ErrorCode::Internal, "unexpected plugin command"),
         }
+    }
+
+    fn sandbox_defaults_reply(&self, id: u32) -> ServerMessage {
+        reply_ok(
+            id,
+            ReplyValue::SandboxDefaults {
+                plugins: self.sandbox_defaults.list(),
+            },
+        )
     }
 
     fn folders_reply(&self, id: u32) -> ServerMessage {

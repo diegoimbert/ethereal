@@ -2137,6 +2137,14 @@
           "platform": "desktop"
         },
         {
+          "id": "plugins/sandboxed-by-default",
+          "title": "plugins sandboxed by default",
+          "what": "settings > plugins > sandboxing lists plugins whose new instances start sandboxed (add from the scanned list, remove); a device's menu has \"always sandbox this plugin\". each device keeps its own setting in the project; duplicates keep theirs; editing the list never changes existing devices. kept by the engine host's computer.",
+          "priority": "should",
+          "audience": "advanced",
+          "platform": "desktop"
+        },
+        {
           "id": "plugins/open-without-plugins-safe-mode",
           "title": "open without plugins (safe mode)",
           "what": "the project list's row menu and the crash recovery dialog offer \"open without plugins\": plugin devices stay bypassed placeholders (state kept) until you click load on one or \"load plugins\" in the top bar.",

@@ -66,6 +66,7 @@ mod roadmap_v3;
 mod roadmap_v4;
 mod safe_open;
 mod samples;
+mod sandbox_defaults;
 mod save_failures;
 mod section_edit;
 mod sidechain;
