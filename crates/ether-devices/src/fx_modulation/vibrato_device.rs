@@ -521,11 +521,15 @@ impl Node for Vibrato {
     }
 
     fn reset(&mut self) {
-        LateEvents::flush(self, |s| &mut s.late, |s, kind| {
-            if let EventKind::Param { param, value } = *kind {
-                s.apply(param, value, false);
-            }
-        });
+        LateEvents::flush(
+            self,
+            |s| &mut s.late,
+            |s, kind| {
+                if let EventKind::Param { param, value } = *kind {
+                    s.apply(param, value, false);
+                }
+            },
+        );
         for l in &mut self.lines {
             l.clear();
         }

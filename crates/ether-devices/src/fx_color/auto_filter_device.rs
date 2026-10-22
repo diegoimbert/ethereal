@@ -729,11 +729,15 @@ impl Node for AutoFilter {
     }
 
     fn reset(&mut self) {
-        LateEvents::flush(self, |s| &mut s.late, |s, kind| {
-            if let EventKind::Param { param, value } = *kind {
-                s.set(param, value, false);
-            }
-        });
+        LateEvents::flush(
+            self,
+            |s| &mut s.late,
+            |s, kind| {
+                if let EventKind::Param { param, value } = *kind {
+                    s.set(param, value, false);
+                }
+            },
+        );
         self.ch = [FilterState::default(); 2];
         for c in 0..2 {
             self.os1[c].reset();

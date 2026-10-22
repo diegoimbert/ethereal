@@ -376,7 +376,8 @@ impl LateEvents {
             // Full: the oldest applies now.
             let (_, k) = self.pending.remove(0);
             if self.merged.len() < self.merged.capacity() {
-                self.merged.push(ether_core::ProcessEvent { offset: 0, kind: k });
+                self.merged
+                    .push(ether_core::ProcessEvent { offset: 0, kind: k });
             }
         }
         let at = self.pending.partition_point(|(d, _)| *d <= due);
@@ -639,7 +640,10 @@ mod tests {
         let route = |k: &ether_core::EventKind| match k {
             ether_core::EventKind::Param { param, .. } if param.0 == 0 => Route::Now,
             ether_core::EventKind::Param { param, .. } if param.0 == 1 => Route::Late(100),
-            _ => Route::Split { early: 10, late: 70 },
+            _ => Route::Split {
+                early: 10,
+                late: 70,
+            },
         };
         // Block 0..64: id 0 now, id 1 due at 105, id 2 at 30 (+ its late copy at 90).
         let got = late_block(&mut late, 0, 64, &[ev(5, 0), ev(5, 1), ev(20, 2)], route);

@@ -549,7 +549,12 @@ fn delay_off_is_bit_identical_and_silence_comes_back() {
     let x = stereo(noise(24_000, 0.5));
     let plain = render(device(&[(sh::PITCH, 5.0)]).as_mut(), &x);
     let off = render(
-        device(&[(sh::PITCH, 5.0), (sh::FEEDBACK, 90.0), (sh::DELAY_TIME, 300.0)]).as_mut(),
+        device(&[
+            (sh::PITCH, 5.0),
+            (sh::FEEDBACK, 90.0),
+            (sh::DELAY_TIME, 300.0),
+        ])
+        .as_mut(),
         &x,
     );
     assert_eq!(plain, off);
