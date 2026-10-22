@@ -498,10 +498,7 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
             .create_offline(&shared.webclap, device, plugin, state, sample_rate)
     }
 
-    fn poll_plugins(
-        &mut self,
-        out: &mut Vec<(DeviceId, ether_core::plugin::PluginNotification)>,
-    ) {
+    fn poll_plugins(&mut self, out: &mut Vec<(DeviceId, ether_core::plugin::PluginNotification)>) {
         {
             let mut shared = self.shared.borrow_mut();
             self.webclap.take_reports(&mut shared.webclap);

@@ -288,7 +288,10 @@ describe("third-party examples", () => {
         engine.block(128, (i) => 0.5 * Math.sin((b * 128 + i) / 8));
         expect(host.process(h, engine.x), p.id).toBeGreaterThan(0);
       }
-      expect(engine.out(0, 128).every((s) => Number.isFinite(s)), p.id).toBe(true);
+      expect(
+        engine.out(0, 128).every((s) => Number.isFinite(s)),
+        p.id,
+      ).toBe(true);
       const ui = host.byDevice(p.id)!.openUi();
       expect(ui).toMatch(/html\/index\.html/);
       host.destroy(h);

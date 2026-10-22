@@ -26,7 +26,7 @@ class Reader {
       result += (byte & 0x7f) * 2 ** shift;
       if ((byte & 0x80) === 0) return result;
       shift += 7;
-      if (shift > 63) throw new Error("bad LEB128");
+      if (shift > 63) throw new Error("bad number in the wasm module");
     }
   }
   name(): string {

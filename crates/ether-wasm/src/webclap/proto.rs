@@ -88,12 +88,29 @@ impl WebclapMsg {
 /// One [`REPORT_PLUGIN`] frame.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PluginReport {
-    ParamEdited { key: NodeKey, id: u32, value: f64 },
-    GestureBegin { key: NodeKey, id: u32 },
-    GestureEnd { key: NodeKey, id: u32 },
-    StateDirty { key: NodeKey },
-    ParamsChanged { key: NodeKey },
-    Crashed { key: NodeKey, message: String },
+    ParamEdited {
+        key: NodeKey,
+        id: u32,
+        value: f64,
+    },
+    GestureBegin {
+        key: NodeKey,
+        id: u32,
+    },
+    GestureEnd {
+        key: NodeKey,
+        id: u32,
+    },
+    StateDirty {
+        key: NodeKey,
+    },
+    ParamsChanged {
+        key: NodeKey,
+    },
+    Crashed {
+        key: NodeKey,
+        message: String,
+    },
     /// `bytes` at `offset` of a state `total` long (`total == 0` with no state:
     /// `has_state` false).
     State {
@@ -110,7 +127,11 @@ pub enum PluginReport {
         values: Vec<(u32, f64)>,
     },
     /// A request that could not be answered (not instantiated yet, the plugin failed).
-    Failed { key: NodeKey, seq: u32, message: String },
+    Failed {
+        key: NodeKey,
+        seq: u32,
+        message: String,
+    },
 }
 
 const K_PARAM: u8 = 1;
@@ -289,7 +310,9 @@ impl PluginReport {
                 let seq = u32_at(body, 0)?;
                 let values = body
                     .get(4..)?
-                    .chunks_exact(12)
+                    .as_chunks::<12>()
+                    .0
+                    .iter()
                     .map(|c| (u32_at(c, 0).unwrap_or(0), f64_at(c, 4).unwrap_or(0.0)))
                     .collect();
                 PluginReport::Values { key, seq, values }

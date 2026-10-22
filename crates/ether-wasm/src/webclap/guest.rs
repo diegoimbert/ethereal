@@ -28,15 +28,24 @@ pub struct GuestSpec<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum GuestNote {
     /// The plugin changed a param itself (its UI): an undoable edit.
-    ParamEdited { id: u32, value: f64 },
-    GestureBegin { id: u32 },
-    GestureEnd { id: u32 },
+    ParamEdited {
+        id: u32,
+        value: f64,
+    },
+    GestureBegin {
+        id: u32,
+    },
+    GestureEnd {
+        id: u32,
+    },
     /// `clap_host_state.mark_dirty`.
     StateDirty,
     /// `clap_host_params.rescan` (infos or values changed).
     ParamsChanged,
     /// The instance trapped or failed: it outputs silence until re-created.
-    Crashed { message: String },
+    Crashed {
+        message: String,
+    },
 }
 
 /// [`Guest::process`] results besides the CLAP `clap_process_status` values (1..=4).

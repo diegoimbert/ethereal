@@ -1833,6 +1833,46 @@ and its workers meanwhile.
 - UI: the transport bar shows "rendering n%" (`transport-bar/RenderingStatus.tsx`), record is
   disabled, play hears the preview; the timeline and rulers hatch what isn't rendered yet with
   a dashed boundary at `until` (`timeline/RenderFrozenLayer.tsx`, pointer-transparent).
+### 13.21 WebCLAP plugins (web version)
+CLAP plugins compiled to wasm32 (WebCLAP), hosted by the web version only. Details and the
+threat model: docs/PLUGIN-FORMATS.md "WebCLAP".
+- **Model** (additive): `PluginFormat::Webclap` (tag `"Webclap"`, `as_str` `webclap`,
+  `is_native()` false). `plugin_id` = the CLAP id; no module in the document: the browser's
+  catalog maps the id to the installed module (the last one listing it). Native hosts fail
+  to create one with "WebCLAP plugin … is not available on this platform (web version
+  only)" (the device stays in the document, bypassed, shown "web version only"); the EE
+  DAWproject/Ableton exporters report it dropped.
+- **Protocol**: `Plugin::List` is answered by the controller when its bridge has a catalog
+  (`EngineBridge::plugin_catalog` `Some`: the web bridge's WebCLAP plugins); native hosts
+  still intercept it. Nothing else changed on the wire.
+- **Web engine** (`crates/ether-wasm/src/webclap/`): `EngineMsg::Webclap(WebclapMsg)` (JSON:
+  `Create { key, device, module, plugin_id, …, params, state }`, `Request { key, seq, State |
+  Values }` answered after the next block, `AlwaysProcess`); reports `REPORT_PLUGIN` (`b'P'`:
+  param edits, gestures, `StateDirty`, `ParamsChanged`, `Crashed`, state in ≤ 32 KiB chunks,
+  values, failures), queued on the Worklet and written as the ring allows (never dropped).
+  `WebBridge::plugin_state` / `plugin_param_values` block the controller Worker
+  (`Atomics.wait` steps, `REQUEST_TIMEOUT_MS` 2 s, 250 ms when the Worklet renders nothing:
+  then the last state known). `create_offline_plugin` runs a fresh instance in the Worker.
+- **Node** (`WebclapNode`): hands each block to the realm's `Guest` (the JS host) as an
+  `Exchange` (`#[repr(C)]`, wasm32 offsets asserted; `apps/web/src/engine/webclap/layout.ts`):
+  the engine's channel pointers, events as 24-byte `EventRec`s (notes, choke, all-notes-off,
+  plain param values, MIDI, CLAP note expressions), transport. Sleep as native CLAP
+  (`SLEEP`, quiet `CONTINUE_IF_NOT_QUIET`, `request_process` wakes, always-process).
+- **JS host** (`apps/web/src/engine/webclap/`): one WebAssembly instance (own memory) per
+  plugin instance; host callbacks are trampolines put into the plugin's function table;
+  `wasi_snapshot_preview1` without files, environment or network. Bindings:
+  `WasmEngine::set_webclap_host`, `WasmController::{set_webclap_host, set_webclap_catalog}`.
+- **Page**: `WebclapManager` (IndexedDB `ether-webclap`, install scan in a Worker with a
+  20 s timeout) is the endpoint's `webclap` (`WasmEndpoint.webclap`, `@/features/webclap`
+  `WebclapApi`); modules reach both realms at boot (`processorOptions.webclap`, init
+  `webclapModules` / `webclapCatalog`) and on install (`webclap:module`, `webclap:catalog`).
+  Plugin UIs (`clap.webview/3`) run in `public/webclap-ui.html`, an iframe
+  `sandbox="allow-scripts"` with a policy of its own (`scripts/release/web/_headers`); the
+  app's policy gained `frame-src 'self'`. Messages: iframe ⇄ page ⇄ Worklet (`webclap:ui`).
+- UI: the device library and Settings › plugins list and install them on the web; a WebCLAP
+  device's window is the app's own (its web ui, else its params); `pluginStore.covers`: the
+  web list speaks for WebCLAP only, so native plugins there are not flagged missing.
+
 ## 13. Agent API (docs/MCP.md)
 
 - Protocol (`ether_protocol::agent`, exported to TS): `Command::Agent(AgentCommand)`.

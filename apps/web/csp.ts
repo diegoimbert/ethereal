@@ -8,11 +8,26 @@ import type { Plugin } from "vite";
 
 export const HEADERS_FILE = fileURLToPath(new URL("../../scripts/release/web/_headers", import.meta.url));
 
-/** The `Content-Security-Policy` value of the headers file. */
+/** The `Content-Security-Policy` value of the headers file (the app's, rule `/*`). */
 export function readCsp(file = HEADERS_FILE): string {
-  const m = /^\s*Content-Security-Policy:\s*(.+)$/m.exec(readFileSync(file, "utf8"));
-  if (!m?.[1]) throw new Error(`no Content-Security-Policy in ${file}`);
-  return m[1].trim();
+  const csp = readPathCsps(file).get("/*");
+  if (!csp) throw new Error(`no Content-Security-Policy in ${file}`);
+  return csp;
+}
+
+/**
+ * Each rule's `Content-Security-Policy`, by path: the app's (`/*`) and the pages that
+ * replace it (`! Content-Security-Policy`, e.g. the WebCLAP ui frame, `/webclap-ui.html`).
+ */
+export function readPathCsps(file = HEADERS_FILE): Map<string, string> {
+  const out = new Map<string, string>();
+  let path: string | null = null;
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    if (/^\S/.test(line)) path = line.trim();
+    const m = /^\s+Content-Security-Policy:\s*(.+)$/.exec(line);
+    if (m?.[1] && path) out.set(path, m[1].trim());
+  }
+  return out;
 }
 
 /** Where the preview server's violation collector receives reports. */
@@ -30,7 +45,9 @@ export function cspPreview(): Plugin {
     configurePreviewServer(server) {
       const reports = process.env.ETHER_CSP_REPORTS;
       const reportOnly = process.env.ETHER_CSP_REPORT_ONLY === "1";
-      const csp = readCsp() + (reports ? `; report-uri ${REPORT_PATH}` : "");
+      const suffix = reports ? `; report-uri ${REPORT_PATH}` : "";
+      const csps = readPathCsps();
+      const csp = readCsp() + suffix;
       const header = reportOnly ? "Content-Security-Policy-Report-Only" : "Content-Security-Policy";
       server.middlewares.use((req, res, next) => {
         if (reports && req.url === REPORT_PATH && req.method === "POST") {
@@ -43,7 +60,8 @@ export function cspPreview(): Plugin {
           });
           return;
         }
-        res.setHeader(header, csp);
+        const own = csps.get((req.url ?? "").split("?")[0] ?? "");
+        res.setHeader(header, own ? own + suffix : csp);
         next();
       });
     },

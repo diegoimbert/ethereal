@@ -13,11 +13,11 @@ export const FORMAT_LABEL: Record<PluginFormat, string> = {
 export const FORMAT_ORDER: readonly PluginFormat[] = ["Clap", "Vst2", "Vst3", "Au", "Webclap"];
 
 /**
- * The formats this platform may host: AU on macOS only. WebCLAP plugins are only ever
- * listed by the web version (the browser shows the toggles of the formats it lists).
+ * The format toggles this platform may show: AU on macOS only. WebCLAP has none (the web
+ * version lists that format only; the desktop never lists it).
  */
 export function platformFormats(mac = typeof navigator !== "undefined" && /Mac/.test(navigator.platform)): PluginFormat[] {
-  return FORMAT_ORDER.filter((f) => f !== "Au" || mac);
+  return FORMAT_ORDER.filter((f) => f !== "Webclap" && (f !== "Au" || mac));
 }
 
 /** Plugin ids are only unique per format: key plugins by both. */

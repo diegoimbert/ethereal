@@ -16,8 +16,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, DeviceTypeRef};
 use ether_core::protocol::model::{NoteExpressionKind, ParamId};
 use ether_core::{
-    AudioBuffers, Device, EventKind, Node, PluginNode, PrepareConfig, ProcessContext,
-    ProcessEvent, ProcessStatus,
+    AudioBuffers, Device, EventKind, Node, PluginNode, PrepareConfig, ProcessContext, ProcessEvent,
+    ProcessStatus,
 };
 
 use super::catalog::Layout;
@@ -314,7 +314,13 @@ impl WebclapNode {
                     };
                     EventRec {
                         extra,
-                        ..note(kind::NOTE_EXPRESSION, note_id, channel, key, f64::from(value))
+                        ..note(
+                            kind::NOTE_EXPRESSION,
+                            note_id,
+                            channel,
+                            key,
+                            f64::from(value),
+                        )
                     }
                 }
             }
@@ -372,9 +378,10 @@ impl WebclapNode {
                 .map_or(std::ptr::null_mut(), |s| s.as_mut_ptr());
             x.sidechain[c] = sidechain.get(c).map_or(std::ptr::null(), |s| s.as_ptr());
         }
-        x.flags = u32::from(t.playing) * flags::PLAYING
-            | u32::from(t.recording) * flags::RECORDING
-            | u32::from(t.loop_active) * flags::LOOP_ACTIVE;
+        let flag = |on: bool, f: u32| if on { f } else { 0 };
+        x.flags = flag(t.playing, flags::PLAYING)
+            | flag(t.recording, flags::RECORDING)
+            | flag(t.loop_active, flags::LOOP_ACTIVE);
         x.steady_time = self.steady as f64;
         x.position = t.position;
         x.seconds = t.seconds;
@@ -442,7 +449,8 @@ impl WebclapNode {
                 }
                 kind::MIDI => {
                     let [a, b, c, _] = r.id.to_le_bytes();
-                    ctx.out_events.push(out(EventKind::Midi { data: [a, b, c] }));
+                    ctx.out_events
+                        .push(out(EventKind::Midi { data: [a, b, c] }));
                 }
                 _ => {}
             }

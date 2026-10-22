@@ -443,9 +443,7 @@ impl WasmController {
 
     /// This Worker's WebCLAP host (`WebclapHost`, offline renders).
     pub fn set_webclap_host(&mut self, host: crate::webclap::js::JsWebclapHost) {
-        crate::webclap::guest::set_guest(Some(std::rc::Rc::new(crate::webclap::js::JsGuest(
-            host,
-        ))));
+        crate::webclap::guest::set_guest(Some(std::rc::Rc::new(crate::webclap::js::JsGuest(host))));
     }
 
     /// Control bytes not yet accepted by the Worklet (backpressure diagnostics).
@@ -525,9 +523,7 @@ impl WasmEngine {
 
     /// The Worklet's WebCLAP host (`WebclapHost` in `apps/web/src/engine/webclap/host.ts`).
     pub fn set_webclap_host(&mut self, host: crate::webclap::js::JsWebclapHost) {
-        crate::webclap::guest::set_guest(Some(std::rc::Rc::new(crate::webclap::js::JsGuest(
-            host,
-        ))));
+        crate::webclap::guest::set_guest(Some(std::rc::Rc::new(crate::webclap::js::JsGuest(host))));
     }
 }
 

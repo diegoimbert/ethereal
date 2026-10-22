@@ -47,8 +47,15 @@ impl WorkletWebclap {
             return Err("webclap plugins can't run here: no host in this audio worklet".into());
         }
         let spec = msg.spec().expect("a create has a spec");
-        let node = WebclapNode::new(spec, state.as_ref().map(|s| &s.0[..]), sample_rate, max_frames);
-        let always = node.always_process().expect("webclap nodes have the switch");
+        let node = WebclapNode::new(
+            spec,
+            state.as_ref().map(|s| &s.0[..]),
+            sample_rate,
+            max_frames,
+        );
+        let always = node
+            .always_process()
+            .expect("webclap nodes have the switch");
         self.nodes.insert(
             *key,
             Live {
@@ -109,9 +116,11 @@ impl WorkletWebclap {
             match request {
                 WebclapRequest::State => {
                     match with_guest(|g| g.save_state(handle)).unwrap_or(Err("no host".into())) {
-                        Ok(state) => self
-                            .outbox
-                            .extend(PluginReport::state_frames(key, seq, state.as_deref())),
+                        Ok(state) => self.outbox.extend(PluginReport::state_frames(
+                            key,
+                            seq,
+                            state.as_deref(),
+                        )),
                         Err(message) => self
                             .outbox
                             .push_back(PluginReport::Failed { key, seq, message }.encode()),
@@ -137,7 +146,9 @@ impl WorkletWebclap {
                 continue;
             };
             let report = match note {
-                GuestNote::ParamEdited { id, value } => PluginReport::ParamEdited { key, id, value },
+                GuestNote::ParamEdited { id, value } => {
+                    PluginReport::ParamEdited { key, id, value }
+                }
                 GuestNote::GestureBegin { id } => PluginReport::GestureBegin { key, id },
                 GuestNote::GestureEnd { id } => PluginReport::GestureEnd { key, id },
                 GuestNote::StateDirty => PluginReport::StateDirty { key },

@@ -1,7 +1,7 @@
 {
-  "total": 378,
+  "total": 379,
   "removed": 1,
-  "covered": 377,
+  "covered": 378,
   "pending": 0,
   "percent": 100,
   "items": {
@@ -764,6 +764,9 @@
     ],
     "plugins/plugins-are-desktop-only": [
       "sounds-and-plugins/plugins#plugins-need-the-desktop-app"
+    ],
+    "plugins/webclap-in-the-web-version": [
+      "sounds-and-plugins/plugins#webclap-plugins-in-the-web-version"
     ],
     "plugins/plugin-folders-and-scanning": [
       "sounds-and-plugins/plugins#where-ethereal-looks-for-plugins"

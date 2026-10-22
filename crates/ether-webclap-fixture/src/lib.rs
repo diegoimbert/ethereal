@@ -419,7 +419,10 @@ unsafe extern "C" fn factory_descriptor(
     _: *const clap_plugin_factory,
     i: u32,
 ) -> *const clap_plugin_descriptor {
-    DESCRIPTORS.0.get(i as usize).map_or(null(), |d| d as *const _)
+    DESCRIPTORS
+        .0
+        .get(i as usize)
+        .map_or(null(), |d| d as *const _)
 }
 
 struct Plugin {
@@ -534,7 +537,12 @@ unsafe extern "C" fn plugin_destroy(cp: *const clap_plugin) {
 
 unsafe extern "C" fn plugin_noop(_: *const clap_plugin) {}
 
-unsafe extern "C" fn plugin_activate(cp: *const clap_plugin, sr: f64, _min: u32, _max: u32) -> bool {
+unsafe extern "C" fn plugin_activate(
+    cp: *const clap_plugin,
+    sr: f64,
+    _min: u32,
+    _max: u32,
+) -> bool {
     let p = unsafe { plugin(cp) };
     p.sample_rate = sr;
     if p.kind == Kind::Delay {
@@ -716,7 +724,10 @@ static WEBVIEW: clap_plugin_webview = clap_plugin_webview {
     receive: webview_receive,
 };
 
-unsafe extern "C" fn plugin_get_extension(cp: *const clap_plugin, id: *const c_char) -> *const c_void {
+unsafe extern "C" fn plugin_get_extension(
+    cp: *const clap_plugin,
+    id: *const c_char,
+) -> *const c_void {
     let p = unsafe { plugin(cp) };
     let id = unsafe { CStr::from_ptr(id) }.to_bytes();
     let ext: *const c_void = match id {
@@ -743,7 +754,11 @@ fn write_str(dst: &mut [c_char], s: &[u8]) {
     dst[n] = 0;
 }
 
-unsafe extern "C" fn params_info(_: *const clap_plugin, i: u32, info: *mut clap_param_info) -> bool {
+unsafe extern "C" fn params_info(
+    _: *const clap_plugin,
+    i: u32,
+    info: *mut clap_param_info,
+) -> bool {
     let info = unsafe { &mut *info };
     let (id, flags, name, max, default) = match i {
         0 => (P_GAIN, PARAM_IS_AUTOMATABLE, &b"gain"[..], 2.0, 1.0),
@@ -956,14 +971,21 @@ unsafe extern "C" fn webview_resource(
     n as usize == bytes.len()
 }
 
-unsafe extern "C" fn webview_receive(cp: *const clap_plugin, buf: *const c_void, size: u32) -> bool {
+unsafe extern "C" fn webview_receive(
+    cp: *const clap_plugin,
+    buf: *const c_void,
+    size: u32,
+) -> bool {
     let p = unsafe { plugin(cp) };
     if unsafe { !on_main(p) } {
         unsafe { log(p, 3, cstr!("webview receive off the main thread")) };
     }
     let msg = unsafe { std::slice::from_raw_parts(buf as *const u8, size as usize) };
     let reply = if let Some(v) = msg.strip_prefix(b"set:") {
-        let Some(gain) = std::str::from_utf8(v).ok().and_then(|s| s.parse::<f64>().ok()) else {
+        let Some(gain) = std::str::from_utf8(v)
+            .ok()
+            .and_then(|s| s.parse::<f64>().ok())
+        else {
             return false;
         };
         p.ui_gain = Some(gain.clamp(0.0, 2.0));

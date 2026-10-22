@@ -493,6 +493,7 @@ export interface MessageArgs {
   "plugins.device.load": { name: string | number };
   "plugins.device.missing_hint": { format: string | number; id: string | number };
   "plugins.device.reload": { name: string | number };
+  "plugins.device.web_only_hint": { id: string | number };
   "plugins.failed.retry_failed": { error: string | number };
   "plugins.folders.failed": { count: string | number };
   "plugins.folders.formats_in": { path: string | number };
@@ -797,4 +798,12 @@ export interface MessageArgs {
   "warp.markers": { count: number };
   "warp.semitones": { value: string | number };
   "warp.source_bpm": { bpm: string | number };
+  "webclap.editor.failed": { error: string | number };
+  "webclap.editor.frame": { name: string | number };
+  "webclap.settings.failed": { error: string | number };
+  "webclap.settings.failed_plugins": { count: number };
+  "webclap.settings.installed": { name: string | number };
+  "webclap.settings.plugins_count": { count: number };
+  "webclap.settings.remove": { name: string | number };
+  "webclap.settings.removed": { name: string | number };
 }

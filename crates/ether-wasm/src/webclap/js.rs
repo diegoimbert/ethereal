@@ -124,7 +124,13 @@ impl Guest for JsGuest {
             return None;
         }
         let flat = js_sys::Float64Array::new(&v).to_vec();
-        Some(flat.chunks_exact(2).map(|c| (c[0] as u32, c[1])).collect())
+        Some(
+            flat.as_chunks::<2>()
+                .0
+                .iter()
+                .map(|[id, v]| (*id as u32, *v))
+                .collect(),
+        )
     }
 
     fn take_notifications(&self, out: &mut Vec<(u32, GuestNote)>) {

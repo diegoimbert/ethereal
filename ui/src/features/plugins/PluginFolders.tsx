@@ -1,3 +1,5 @@
+import { webclapOf } from "@/features/webclap/hooks";
+import { WebclapSettings } from "@/features/webclap/WebclapSettings";
 import { useCallback, useEffect, useState } from "react";
 import { SettingsPlaceholder } from "@/features/audio-settings/SettingsPlaceholder";
 import { useContributions } from "@/ext";
@@ -37,6 +39,16 @@ const rememberFolders = (f: PluginFolders) => {
 
 export function PluginFoldersPanel({ transport }: { transport: EngineTransport }) {
   const t = useT();
+  const webclap = webclapOf(transport);
+  if (webclap) {
+    // The web version: its WebCLAP plugins (native ones run in the desktop app).
+    return (
+      <div className="eth-plugin-folders">
+        <WebclapSettings api={webclap} />
+        <PluginActions place="folders-web" className="eth-plugin-folders__scan" />
+      </div>
+    );
+  }
   if (transport.kind !== "tauri") {
     return (
       <div className="eth-plugin-folders">

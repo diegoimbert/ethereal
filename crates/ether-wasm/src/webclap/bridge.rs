@@ -207,12 +207,7 @@ impl WebclapBridge {
     /// Handle the reports the bridge drained.
     pub fn take_reports(&mut self, shared: &mut WebclapShared) {
         for r in shared.reports.drain(..) {
-            let key_of = |k: NodeKey| {
-                self.live
-                    .iter()
-                    .find(|(_, l)| l.key == k)
-                    .map(|(d, _)| *d)
-            };
+            let key_of = |k: NodeKey| self.live.iter().find(|(_, l)| l.key == k).map(|(d, _)| *d);
             match r {
                 PluginReport::ParamEdited { key, id, value } => {
                     if let Some(d) = key_of(key) {
@@ -227,10 +222,8 @@ impl WebclapBridge {
                 }
                 PluginReport::GestureBegin { key, id } => {
                     if let Some(d) = key_of(key) {
-                        self.notes.push((
-                            d,
-                            PluginNotification::GestureBegin { param: ParamId(id) },
-                        ));
+                        self.notes
+                            .push((d, PluginNotification::GestureBegin { param: ParamId(id) }));
                     }
                 }
                 PluginReport::GestureEnd { key, id } => {
@@ -251,7 +244,8 @@ impl WebclapBridge {
                 }
                 PluginReport::Crashed { key, message } => {
                     if let Some(d) = key_of(key) {
-                        self.notes.push((d, PluginNotification::Crashed { message }));
+                        self.notes
+                            .push((d, PluginNotification::Crashed { message }));
                     }
                 }
                 PluginReport::State {
@@ -319,9 +313,7 @@ impl WebclapBridge {
             if let Some(r) = self.replies.remove(&seq) {
                 return Some(r);
             }
-            if self.waiter.is_none() {
-                return None;
-            }
+            self.waiter.as_ref()?;
             let blocks = pump(self);
             if let Some(r) = self.replies.remove(&seq) {
                 return Some(r);

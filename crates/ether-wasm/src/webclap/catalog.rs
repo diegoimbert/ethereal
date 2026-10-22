@@ -115,10 +115,7 @@ impl ScannedPlugin {
         }];
         let (ins, outs) = match (&self.audio_inputs, &self.audio_outputs) {
             (None, None) => (&stereo[..], &stereo[..]),
-            (i, o) => (
-                i.as_deref().unwrap_or(&[]),
-                o.as_deref().unwrap_or(&[]),
-            ),
+            (i, o) => (i.as_deref().unwrap_or(&[]), o.as_deref().unwrap_or(&[])),
         };
         let main_in = main_port(ins);
         let main_out = main_port(outs);
@@ -256,7 +253,7 @@ impl Catalog {
                 }
             }
         }
-        out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+        out.sort_by_key(|d| d.name.to_lowercase());
         out
     }
 }
@@ -349,7 +346,10 @@ mod tests {
             .to_string(),
         )
         .unwrap();
-        assert_eq!(cat.find("x").map(|(m, p)| (m, p.name.as_str())), Some(("m2", "New")));
+        assert_eq!(
+            cat.find("x").map(|(m, p)| (m, p.name.as_str())),
+            Some(("m2", "New"))
+        );
         assert_eq!(cat.find("y").map(|(m, _)| m), Some("m1"));
         assert!(cat.find("z").is_none());
         let list = cat.descriptors();

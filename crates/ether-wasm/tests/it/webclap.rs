@@ -25,7 +25,7 @@ use ether_wasm::bridge::{self, WebBridge};
 use ether_wasm::ring::HeapMemory;
 use ether_wasm::webclap::catalog::Catalog;
 use ether_wasm::webclap::guest::{self, Guest, GuestNote, GuestSpec, status};
-use ether_wasm::webclap::node::{Exchange, EventRec, kind};
+use ether_wasm::webclap::node::{EventRec, Exchange, kind};
 use ether_wasm::worklet::{EngineHost, RENDER_QUANTUM, tap_clock};
 
 const SR: u32 = 48_000;
@@ -65,7 +65,11 @@ impl Guest for FakeGuest {
             .state
             .map(|s| f64::from_le_bytes(s.try_into().expect("8 bytes")))
             .unwrap_or(1.0);
-        let delay = if spec.plugin_id == "test.delay" { DELAY as usize } else { 0 };
+        let delay = if spec.plugin_id == "test.delay" {
+            DELAY as usize
+        } else {
+            0
+        };
         let h = f.next;
         f.insts.insert(
             h,
@@ -88,7 +92,8 @@ impl Guest for FakeGuest {
         inst.calls += 1;
         let frames = x.frames as usize;
         // SAFETY: the node's buffers, alive for this call (as the JS host reads them).
-        let events: &[EventRec] = unsafe { std::slice::from_raw_parts(x.events, x.n_events as usize) };
+        let events: &[EventRec] =
+            unsafe { std::slice::from_raw_parts(x.events, x.n_events as usize) };
         let mut e = 0;
         let mut silent = true;
         for i in 0..frames {
@@ -336,7 +341,8 @@ impl Drive {
     }
 
     fn ok(&mut self, command: Command) -> ReplyValue {
-        self.try_cmd(command).unwrap_or_else(|e| panic!("command failed: {e:?}"))
+        self.try_cmd(command)
+            .unwrap_or_else(|e| panic!("command failed: {e:?}"))
     }
 
     fn insert(&mut self, plugin: &str, format: PluginFormat) -> Result<DeviceId, CommandError> {
@@ -428,7 +434,10 @@ fn a_webclap_effect_processes_and_follows_its_params() {
     // Mirrored from the instance after creation.
     assert_eq!(dev.params.get(&ParamId(GAIN)), Some(&1.0));
     let wet = level(&d.play(SR as usize / 4));
-    assert!((wet - dry).abs() < 1e-4, "unity gain changed the level: {wet}");
+    assert!(
+        (wet - dry).abs() < 1e-4,
+        "unity gain changed the level: {wet}"
+    );
 
     d.ok(Command::Device(DeviceCommand::SetParam {
         device: fx,
@@ -488,13 +497,21 @@ fn plugin_edits_become_document_edits() {
     let h = d.guest.handle_of("test.gain");
     d.guest.0.borrow_mut().notes.extend([
         (h, GuestNote::GestureBegin { id: GAIN }),
-        (h, GuestNote::ParamEdited { id: GAIN, value: 1.5 }),
+        (
+            h,
+            GuestNote::ParamEdited {
+                id: GAIN,
+                value: 1.5,
+            },
+        ),
         (h, GuestNote::GestureEnd { id: GAIN }),
     ]);
     d.idle();
     assert_eq!(d.device(fx).params.get(&ParamId(GAIN)), Some(&1.5));
     // Undoable like any edit.
-    d.ok(Command::Edit(ether_core::protocol::project::EditCommand::Undo));
+    d.ok(Command::Edit(
+        ether_core::protocol::project::EditCommand::Undo,
+    ));
     d.idle();
     assert_ne!(d.device(fx).params.get(&ParamId(GAIN)), Some(&1.5));
 }
@@ -517,7 +534,11 @@ fn a_silent_effect_sleeps() {
     let before = d.guest.calls("test.gain");
     d.render(SR as usize / 10);
     let after = d.guest.calls("test.gain");
-    assert!(after - before <= 1, "called {} times while asleep", after - before);
+    assert!(
+        after - before <= 1,
+        "called {} times while asleep",
+        after - before
+    );
     // Playing wakes it.
     d.play(SR as usize / 4);
     assert!(d.guest.calls("test.gain") > after + 10);
@@ -527,10 +548,16 @@ fn a_silent_effect_sleeps() {
 fn missing_and_native_plugins_fail_without_crashing() {
     let mut d = Drive::new();
     // Inserting needs the plugin: a WebCLAP that isn't installed, a native format.
-    let e = d.insert("not.installed", PluginFormat::Webclap).unwrap_err();
+    let e = d
+        .insert("not.installed", PluginFormat::Webclap)
+        .unwrap_err();
     assert!(e.message.contains("is not installed"), "{}", e.message);
     let e = d.insert("com.u-he.diva", PluginFormat::Clap).unwrap_err();
-    assert!(e.message.contains("not available in the browser"), "{}", e.message);
+    assert!(
+        e.message.contains("not available in the browser"),
+        "{}",
+        e.message
+    );
     let dry = level(&d.play(SR as usize / 4));
     assert!((dry - 0.5).abs() < 0.01);
 }
@@ -552,5 +579,9 @@ fn offline_renders_use_a_fresh_instance() {
     let n = d.guest.0.borrow().insts.len();
     assert_eq!(n, 2, "a second instance");
     drop(node);
-    assert_eq!(d.guest.0.borrow().insts.len(), 1, "dropping it destroys the instance");
+    assert_eq!(
+        d.guest.0.borrow().insts.len(),
+        1,
+        "dropping it destroys the instance"
+    );
 }
