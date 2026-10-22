@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decide } from "./main-supersede.mjs";
+import { decide, starvingMs } from "./main-supersede.mjs";
 
 const H = 3600e3;
 const NOW = Date.parse("2026-10-22T12:00:00Z");
@@ -89,4 +89,23 @@ test("a run already cancelling is neither cancelled again nor let finish; its su
   // An older run nearly done: a run newer than it (its successor) isn't cancelled either.
   const older = { ...run(3, "in_progress", null, 0.6 * H), first_job_at: at(10 * M) };
   assert.deepEqual(decide([run(6, "pending", null, 0.01 * H), running, older, ...finished], NOW).cancel, []);
+});
+
+test("the guard is two typical runs, within 30 min and 2 h", () => {
+  const M = 60e3;
+  const fin = (mins) => mins.map((m, i) => run(10 - i, "completed", "success", (i + 1) * H, (i + 1) * H - m * M));
+  assert.equal(starvingMs(fin([15, 14, 16])), 30 * M);
+  assert.equal(starvingMs(fin([12, 11, 13])), 30 * M);
+  assert.equal(starvingMs(fin([28, 27, 30])), 56 * M);
+  assert.equal(starvingMs(fin([80, 90, 70])), 2 * H);
+  assert.equal(starvingMs([]), 2 * H);
+  // A streak of merges 3 min apart for 40 min after a green run of ~15 min: the running run
+  // (5 min in, far from 70%) is let finish, where a flat 2 h guard would cancel it.
+  const finished = [run(2, "completed", "success", 55 * M, 41 * M), run(1, "completed", "success", 2 * H, 2 * H - 15 * M)];
+  const streak = [run(9, "pending", null, 0.01 * H), { ...run(8, "in_progress", null, 6 * M), first_job_at: at(5 * M) }];
+  for (let n = 7; n >= 3; n--) streak.push(run(n, "completed", "cancelled", (40 - (n - 3) * 3) * M, (37 - (n - 3) * 3) * M));
+  const d = decide([...streak, ...finished], NOW);
+  assert.deepEqual(d.cancel, []);
+  assert.match(d.reason, /no finished run for 0\.7 h \(guard 30 min\)/);
+  assert.deepEqual(decide([...streak, ...finished], NOW, 2 * H).cancel.map((r) => r.id), [1008]);
 });
