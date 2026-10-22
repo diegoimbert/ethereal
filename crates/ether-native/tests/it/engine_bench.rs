@@ -24,7 +24,8 @@
 //! - `ETHER_BENCH_SCENARIOS`: comma list (default: all), see [`SCENARIOS`];
 //! - `ETHER_BENCH_WORKERS`: comma list of worker counts (default `0,1,3,7` capped by cores);
 //! - `ETHER_BENCH_BLOCK`: buffer frames (default 256); `ETHER_BENCH_SECONDS` (default 4);
-//! - `ETHER_BENCH_PACED=0`: back to back; `ETHER_BENCH_RT=1`: real-time worker priority;
+//! - `ETHER_BENCH_PACED=0`: back to back; `ETHER_BENCH_RT=1`: real-time priority for the
+//!   workers and the render thread (as the host gives its device callback);
 //! - `ETHER_BENCH_SCALE`: multiply every device cost (default 1);
 //! - `ETHER_BENCH_HOGS`: that many normal-priority threads keep the CPU busy during the runs
 //!   (what the UI, plugin editors and other apps do to a real session; default 0), to see
@@ -805,6 +806,13 @@ fn realtime_buffers() {
     });
     let wanted: Option<Vec<String>> = env_list("ETHER_BENCH_SCENARIOS");
     let json = std::env::var("ETHER_BENCH_JSON").ok();
+    if opts.realtime {
+        // Like the host's device callback (`audio.rs`): the render thread gets the
+        // workers' priority too, or real-time workers preempt it.
+        ether_native::workers::promote_current_thread(Duration::from_secs_f64(
+            opts.block as f64 / SR as f64,
+        ));
+    }
     let ns_per_iter = calibrate();
     let hogs = env_num("ETHER_BENCH_HOGS", 0.0) as usize;
     let _hogs = Hogs::start(hogs);
