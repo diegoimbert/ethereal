@@ -185,7 +185,7 @@ pub(super) fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGra
                     .collect(),
                 volume: t.mixer.volume.to_linear(),
                 pan: t.mixer.pan.0,
-                mute: t.mixer.mute,
+                mute: t.mixer.effective_mute(),
                 solo: t.mixer.solo,
                 audio_input: match t.input {
                     TrackInput::Audio { first, count } => Some((first, count)),

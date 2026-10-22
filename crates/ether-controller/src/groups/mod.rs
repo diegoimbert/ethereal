@@ -249,7 +249,7 @@ pub fn vca_descs(p: &Project, ctx: &CompileContext) -> Vec<VcaDesc> {
         .map(|t| VcaDesc {
             id: t.id,
             volume: t.mixer.volume.to_linear(),
-            mute: t.mixer.mute,
+            mute: t.mixer.effective_mute(),
             parent: t
                 .vca
                 .filter(|v| p.tracks.get(v).is_some_and(|v| v.kind == TrackKind::Vca)),

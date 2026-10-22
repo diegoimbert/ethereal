@@ -14,6 +14,7 @@ import type { Track } from "@/generated";
 import { Fader, Meter } from "@/kit";
 import { formatDb } from "@/domain/paramScale";
 import { trackSoloCommand } from "@/domain/soloCommands";
+import { muteOverriddenBySolo } from "@/domain/soloPlan";
 import { listenBlockedReason, useProjectStore, useTrackMeter, useTracksOrdered, useViewer } from "@/state";
 import { cmd } from "@/transport";
 import { useGestureSender } from "@/features/devices/gesture";
@@ -95,9 +96,10 @@ function Strip({ track }: { track: Track }) {
           type="button"
           className="eth-mstrip__toggle eth-mstrip__mute"
           aria-pressed={track.mixer.mute}
+          data-solo-override={muteOverriddenBySolo(track.mixer.mute, track.mixer.solo) || undefined}
           aria-label={t("mobile.track.mute_name", { name })}
           disabled={listenBlocked !== null}
-          title={listenBlocked ?? undefined}
+          title={listenBlocked ?? (muteOverriddenBySolo(track.mixer.mute, track.mixer.solo) ? t("mixer.mute_overridden") : undefined)}
           onClick={() => send(cmd("Mixer", { type: "SetMute", track: track.id, mute: !track.mixer.mute }))}
         >
           {track.mixer.mute ? <VolumeX aria-hidden /> : <Volume2 aria-hidden />}
