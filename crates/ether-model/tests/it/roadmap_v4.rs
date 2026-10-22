@@ -503,7 +503,7 @@ fn drum_rack_presets_store_pads() {
         f(&mut bad);
         load_preset(&save_preset(&bad, "x").unwrap()).is_err()
     };
-    // Unique notes, valid choke groups, mappings inside the preset, 8 macros.
+    // Unique notes, valid choke groups, mappings inside the preset, 16 macros.
     assert!(invalid(&|p| p.rack.as_mut().unwrap().pads[1].note = 36));
     assert!(invalid(&|p| p.rack.as_mut().unwrap().pads[0].note = 200));
     assert!(invalid(
@@ -511,7 +511,7 @@ fn drum_rack_presets_store_pads() {
     ));
     assert!(invalid(&|p| p.rack.as_mut().unwrap().mappings.push(
         PresetModMapping {
-            source: PresetModSource::Macro { index: 8 },
+            source: PresetModSource::Macro { index: 16 },
             target: PresetModTarget::Rack,
             param: ParamId(0),
             depth: 0.5,

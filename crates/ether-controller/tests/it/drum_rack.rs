@@ -72,7 +72,7 @@ fn kit() -> Kit {
         id: rack,
         track,
         device: DeviceSpec::Builtin {
-            device: BuiltinDevice::DrumRack,
+            device: BuiltinDevice::DrumRack { macros: None },
         },
         before: None,
     }));
@@ -267,7 +267,7 @@ fn pads_and_pad_chains_compile_into_the_rack_desc() {
         id: nested,
         pad: snare,
         device: DeviceSpec::Builtin {
-            device: BuiltinDevice::DrumRack,
+            device: BuiltinDevice::DrumRack { macros: None },
         },
         before: None,
     }));
@@ -1126,7 +1126,7 @@ fn a_drum_rack_lives_on_an_instrument_rack_chain() {
         id: inst,
         track,
         device: DeviceSpec::Builtin {
-            device: BuiltinDevice::InstrumentRack,
+            device: BuiltinDevice::InstrumentRack { macros: None },
         },
         before: None,
     }));
@@ -1141,7 +1141,7 @@ fn a_drum_rack_lives_on_an_instrument_rack_chain() {
         id,
         chain: ic,
         device: DeviceSpec::Builtin {
-            device: BuiltinDevice::DrumRack,
+            device: BuiltinDevice::DrumRack { macros: None },
         },
         before: None,
     }));
@@ -1281,7 +1281,7 @@ fn a_drum_rack_lives_on_an_instrument_rack_chain() {
         id: fx,
         track,
         device: DeviceSpec::Builtin {
-            device: BuiltinDevice::AudioEffectRack,
+            device: BuiltinDevice::AudioEffectRack { macros: None },
         },
         before: None,
     }));

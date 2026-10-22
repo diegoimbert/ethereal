@@ -107,7 +107,11 @@ describe("the device menu's always sandbox", () => {
     await waitFor(() => expect(useSandboxDefaults.getState().list).toEqual([]));
 
     const entries = pluginMenuEntries(d, host);
-    expect(entries.map((e) => (e === "separator" ? e : e.label))).toEqual(["run sandboxed (crash-safe, +1 block latency)", "always sandbox this plugin"]);
+    expect(entries.map((e) => (e === "separator" ? e : e.label))).toEqual([
+      "run sandboxed (crash-safe, +1 block latency)",
+      "always sandbox this plugin",
+      "always process (never sleep on silence)",
+    ]);
     (entries[1] as { onSelect(): void }).onSelect();
     await waitFor(() => expect(host.sent.at(-1)).toEqual({ domain: "Plugin", command: { type: "SetSandboxed", device: d.id, sandboxed: true } }));
     expect(host.list).toEqual([{ format: "Clap", plugin_id: VERB.id, name: "Verb" }]);
@@ -126,6 +130,6 @@ describe("the device menu's always sandbox", () => {
     const d = device(false);
     await renderWith(host, <PluginDeviceControls device={d} />);
     await waitFor(() => expect(useSandboxDefaults.getState().unsupported).toBe(true));
-    expect(pluginMenuEntries(d, host)).toHaveLength(1);
+    expect(pluginMenuEntries(d, host)).toHaveLength(2);
   });
 });

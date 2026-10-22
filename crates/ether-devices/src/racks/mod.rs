@@ -1,6 +1,6 @@
 //! v0.2 racks (the v0.2 contracts froze the param tables; see docs/DEVICES.md).
 //!
-//! Racks (`ether_model::rack`): the rack node's params are the 8 macros and the chain
+//! Racks (`ether_model::rack`): the rack node's params are the 16 macros and the chain
 //! selector (shared by the three types, `ether_model::rack_macro_param`,
 //! `RACK_SELECTOR_PARAM`). The node itself ([`RackNode`]) passes audio/events through: chains
 //! are run by the engine before it (`ether_core::rack_chains`), which also replaces a MIDI
@@ -25,6 +25,10 @@
 //! | 6 | Macros | `Macro 7` | 0 ..= 1 None, default 0 |
 //! | 7 | Macros | `Macro 8` | 0 ..= 1 None, default 0 |
 //! | 8 | Chains | `Chain Selector` | 0 ..= 127 (stepped), default 0 |
+//! | 9..=16 | Macros | `Macro 9`..`Macro 16` | 0 ..= 1 None, default 0 |
+//!
+//! Macros 9..16 were appended after the selector (param ids are append-only); a rack shows
+//! `ether_model::RackMacros::visible` macros (default 8).
 //!
 //! # Audio Effect Rack (`BuiltinDeviceType::AudioEffectRack`)
 //!
@@ -57,8 +61,10 @@ pub mod instrument_rack {
     pub const MACRO_7: ParamId = ParamId(6);
     pub const MACRO_8: ParamId = ParamId(7);
     pub const CHAIN_SELECTOR: ParamId = ParamId(8);
+    /// Macro 9 (`MACRO_9 + i` is macro `i + 9`, `i < 8`).
+    pub const MACRO_9: ParamId = ParamId(9);
     /// Number of params.
-    pub const COUNT: usize = 9;
+    pub const COUNT: usize = 17;
 }
 
 /// Param ids of `AudioEffectRack` (stable, append-only).
@@ -75,7 +81,13 @@ pub mod midi_effect_rack {
 /// chains' devices is the rack view the device panel mounts under it (`ui/src/features/racks`),
 /// so the read-only `RackChains` widget is not repeated here.
 fn rack_layout() -> DeviceLayout {
-    let mut macros = item(Widget::Macros { first: ParamId(0) }, WidgetSize::Medium);
+    let mut macros = item(
+        Widget::Macros {
+            first: ParamId(0),
+            upper: instrument_rack::MACRO_9,
+        },
+        WidgetSize::Medium,
+    );
     macros.colspan = 4;
     let mut selector = knob(instrument_rack::CHAIN_SELECTOR, WidgetSize::Small);
     selector.label = Some("Chain Select".into());
@@ -127,6 +139,16 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
         127,
         0,
     ));
+    params.extend((0..8u32).map(|i| {
+        param(
+            instrument_rack::MACRO_9.0 + i,
+            &format!("Macro {}", i + 9),
+            "Macros",
+            ParamUnit::None,
+            (0.0, 1.0, 0.0),
+            ParamScale::Linear,
+        )
+    }));
     let mut d = build(ty, name, category, params, inputs, outputs, midi, 0);
     d.layout = Some(rack_layout());
     d

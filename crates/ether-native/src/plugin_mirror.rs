@@ -393,6 +393,7 @@ mod tests {
             format: PluginFormat::Clap,
             path: PathBuf::from("/fake.clap"),
             plugin_id: "fake".into(),
+            always_process: false,
         }
     }
 
@@ -747,6 +748,7 @@ mod fixture_tests {
             vendor: "Ethereal".into(),
             version: "1".into(),
             sandboxed: false,
+            always_process: false,
             state: None,
         }
     }

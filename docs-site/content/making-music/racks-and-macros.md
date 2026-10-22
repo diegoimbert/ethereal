@@ -60,7 +60,9 @@ Every rack has a **chain selector** parameter (0 to 127). Give each chain a diff
 
 ## macros
 
-Every rack has 8 macros. Open the rack's parameter list (the sliders button on its header) to see them as knobs, with the chain selector.
+Every rack has up to 16 macros; it shows 8 to start with. Open the rack's parameter list (the sliders button on its header) to see them as knobs, with the chain selector. The **+** and **−** buttons under the macros show one more or hide the last one. A hidden macro keeps its mappings and automation: it still moves what it drives.
+
+To rename a macro, double-click its name under the knob (or right-click the knob and choose **rename macro**), type and press Enter. Clear the name to go back to "macro 1", "macro 2"… The name shows wherever the macro does: its mappings' chips, the **assign to macro** menu and the automation lanes.
 
 To map a macro:
 

@@ -131,7 +131,7 @@ impl DeviceKind {
         matches!(
             self,
             DeviceKind::Builtin {
-                device: BuiltinDevice::DrumRack
+                device: BuiltinDevice::DrumRack { .. }
             }
         )
     }
@@ -234,7 +234,13 @@ pub enum BuiltinDevice {
     Utility,
     /// Instrument hosting [`crate::drum_rack::DrumPad`]s, each with its own chain
     /// (`drum-rack`).
-    DrumRack,
+    DrumRack {
+        /// Macro bank settings (visible count, names; `None` = the defaults,
+        /// [`crate::rack::RackMacros`]).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        macros: Option<crate::rack::RackMacros>,
+    },
     // --- v0.2 ---
     /// Polyphonic subtractive/wavetable synth (`synth-2`).
     PolySynth,
@@ -281,11 +287,29 @@ pub enum BuiltinDevice {
     /// Transpose by semitones within a note range, MIDI effect (`midi-fx`).
     Pitch,
     /// Rack of parallel instrument chains ([`crate::rack`]).
-    InstrumentRack,
+    InstrumentRack {
+        /// Macro bank settings (visible count, names; `None` = the defaults,
+        /// [`crate::rack::RackMacros`]).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        macros: Option<crate::rack::RackMacros>,
+    },
     /// Rack of parallel audio effect chains.
-    AudioEffectRack,
+    AudioEffectRack {
+        /// Macro bank settings (visible count, names; `None` = the defaults,
+        /// [`crate::rack::RackMacros`]).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        macros: Option<crate::rack::RackMacros>,
+    },
     /// Rack of parallel MIDI effect chains.
-    MidiEffectRack,
+    MidiEffectRack {
+        /// Macro bank settings (visible count, names; `None` = the defaults,
+        /// [`crate::rack::RackMacros`]).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        macros: Option<crate::rack::RackMacros>,
+    },
     // --- v0.3 ---
     /// Partitioned convolution reverb (`fx-space`). `ir: None` = no IR loaded (dry only); a
     /// new one ([`BuiltinDevice::new`]) starts on the factory [`DEFAULT_CONVOLUTION_IR`].
@@ -321,6 +345,9 @@ pub enum BuiltinDevice {
     /// Guitar-pedal distortion: overdrive / distortion / fuzz with a tone stack
     /// (`fx-color`).
     Pedal,
+    /// Granular delay: transposed, sprayed, randomly detuned grains with feedback
+    /// (`grain-delay`).
+    GrainDelay,
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -370,11 +397,12 @@ pub enum BuiltinDeviceType {
     NoteBlocker,
     Erosion,
     Pedal,
+    GrainDelay,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 42] = [
+    pub const ALL: [BuiltinDeviceType; 43] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -417,6 +445,7 @@ impl BuiltinDeviceType {
         Self::NoteBlocker,
         Self::Erosion,
         Self::Pedal,
+        Self::GrainDelay,
     ];
 
     /// Rack types ([`crate::rack`]).
@@ -457,7 +486,7 @@ impl BuiltinDevice {
             Self::Reverb => BuiltinDeviceType::Reverb,
             Self::Limiter => BuiltinDeviceType::Limiter,
             Self::Utility => BuiltinDeviceType::Utility,
-            Self::DrumRack => BuiltinDeviceType::DrumRack,
+            Self::DrumRack { .. } => BuiltinDeviceType::DrumRack,
             Self::MultiSampler { .. } => BuiltinDeviceType::MultiSampler,
             Self::PolySynth => BuiltinDeviceType::PolySynth,
             Self::Saturator => BuiltinDeviceType::Saturator,
@@ -479,9 +508,9 @@ impl BuiltinDevice {
             Self::Velocity => BuiltinDeviceType::Velocity,
             Self::Randomizer => BuiltinDeviceType::Randomizer,
             Self::Pitch => BuiltinDeviceType::Pitch,
-            Self::InstrumentRack => BuiltinDeviceType::InstrumentRack,
-            Self::AudioEffectRack => BuiltinDeviceType::AudioEffectRack,
-            Self::MidiEffectRack => BuiltinDeviceType::MidiEffectRack,
+            Self::InstrumentRack { .. } => BuiltinDeviceType::InstrumentRack,
+            Self::AudioEffectRack { .. } => BuiltinDeviceType::AudioEffectRack,
+            Self::MidiEffectRack { .. } => BuiltinDeviceType::MidiEffectRack,
             Self::ConvolutionReverb { .. } => BuiltinDeviceType::ConvolutionReverb,
             Self::ExternalInstrument { .. } => BuiltinDeviceType::ExternalInstrument,
             Self::ExternalAudioEffect { .. } => BuiltinDeviceType::ExternalAudioEffect,
@@ -491,7 +520,34 @@ impl BuiltinDevice {
             Self::NoteBlocker => BuiltinDeviceType::NoteBlocker,
             Self::Erosion => BuiltinDeviceType::Erosion,
             Self::Pedal => BuiltinDeviceType::Pedal,
+            Self::GrainDelay => BuiltinDeviceType::GrainDelay,
         }
+    }
+
+    /// A rack's macro bank settings (the defaults when unset); `None` for non-rack devices.
+    pub fn rack_macros(&self) -> Option<crate::rack::RackMacros> {
+        match self {
+            Self::DrumRack { macros }
+            | Self::InstrumentRack { macros }
+            | Self::AudioEffectRack { macros }
+            | Self::MidiEffectRack { macros } => Some(macros.clone().unwrap_or_default()),
+            _ => None,
+        }
+    }
+
+    /// `self` with its macro bank settings replaced (normalized; the defaults are stored as
+    /// `None`). Non-rack devices are returned unchanged.
+    pub fn with_rack_macros(mut self, new: crate::rack::RackMacros) -> Self {
+        let new = new.normalized();
+        let new = (!new.is_default()).then_some(new);
+        match &mut self {
+            Self::DrumRack { macros }
+            | Self::InstrumentRack { macros }
+            | Self::AudioEffectRack { macros }
+            | Self::MidiEffectRack { macros } => *macros = new,
+            _ => {}
+        }
+        self
     }
 
     /// A fresh instance of `ty` with default data (empty sampler, no slices).
@@ -508,7 +564,7 @@ impl BuiltinDevice {
             BuiltinDeviceType::Reverb => Self::Reverb,
             BuiltinDeviceType::Limiter => Self::Limiter,
             BuiltinDeviceType::Utility => Self::Utility,
-            BuiltinDeviceType::DrumRack => Self::DrumRack,
+            BuiltinDeviceType::DrumRack => Self::DrumRack { macros: None },
             BuiltinDeviceType::MultiSampler => Self::MultiSampler { zones: Vec::new() },
             BuiltinDeviceType::PolySynth => Self::PolySynth,
             BuiltinDeviceType::Saturator => Self::Saturator,
@@ -530,9 +586,9 @@ impl BuiltinDevice {
             BuiltinDeviceType::Velocity => Self::Velocity,
             BuiltinDeviceType::Randomizer => Self::Randomizer,
             BuiltinDeviceType::Pitch => Self::Pitch,
-            BuiltinDeviceType::InstrumentRack => Self::InstrumentRack,
-            BuiltinDeviceType::AudioEffectRack => Self::AudioEffectRack,
-            BuiltinDeviceType::MidiEffectRack => Self::MidiEffectRack,
+            BuiltinDeviceType::InstrumentRack => Self::InstrumentRack { macros: None },
+            BuiltinDeviceType::AudioEffectRack => Self::AudioEffectRack { macros: None },
+            BuiltinDeviceType::MidiEffectRack => Self::MidiEffectRack { macros: None },
             BuiltinDeviceType::ConvolutionReverb => Self::ConvolutionReverb {
                 ir: Some(IrSource::Factory {
                     id: DEFAULT_CONVOLUTION_IR.to_owned(),
@@ -552,6 +608,7 @@ impl BuiltinDevice {
             BuiltinDeviceType::NoteBlocker => Self::NoteBlocker,
             BuiltinDeviceType::Erosion => Self::Erosion,
             BuiltinDeviceType::Pedal => Self::Pedal,
+            BuiltinDeviceType::GrainDelay => Self::GrainDelay,
         }
     }
 
@@ -588,6 +645,11 @@ pub struct PluginInstance {
     pub version: String,
     /// Run out-of-process (crash isolation, +1 block latency).
     pub sandboxed: bool,
+    /// Never sleep on silence (CONTRACTS.md §13.19): for plugins that make sound out of
+    /// nothing without reporting a tail. Off by default; omitted from JSON when off.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub always_process: bool,
     /// Last saved plugin state. `None` = fresh instance.
     pub state: Option<Base64Bytes>,
 }

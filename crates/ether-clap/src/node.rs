@@ -127,6 +127,9 @@ pub struct ClapNode {
     /// per-note expression is translated to MPE MIDI by `mpe_out`.
     note_expressions: bool,
     mpe_out: MpeOut,
+    /// The instance's "always process" switch (`PluginNode::always_process`): the plugin's
+    /// `CLAP_PROCESS_SLEEP` / quiet `CONTINUE_IF_NOT_QUIET` are then ignored.
+    always: Arc<AtomicBool>,
 }
 
 pub(crate) struct NodeInit {
@@ -189,6 +192,7 @@ impl ClapNode {
             steady: 0,
             note_expressions,
             mpe_out: MpeOut::default(),
+            always: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -408,6 +412,7 @@ impl Node for ClapNode {
 
     fn wake_requested(&mut self) -> bool {
         self.shared.process_requested.swap(false, Ordering::AcqRel)
+            || self.always.load(Ordering::Relaxed)
     }
 
     fn latency(&self) -> u32 {
@@ -614,6 +619,7 @@ impl ClapNode {
         // comes; `ContinueIfNotQuiet`: the same once the output is quiet
         // (-120 dBFS). `Tail` and `Continue` keep it running.
         match status {
+            _ if self.always.load(Ordering::Relaxed) => ProcessStatus::Continue,
             clack_host::process::ProcessStatus::Sleep => ProcessStatus::Silent,
             clack_host::process::ProcessStatus::ContinueIfNotQuiet
                 if audio
@@ -651,6 +657,10 @@ impl Device for ClapNode {
 impl PluginNode for ClapNode {
     fn is_faulted(&self) -> bool {
         self.shared.faulted.load(Ordering::Relaxed)
+    }
+
+    fn always_process(&self) -> Option<Arc<AtomicBool>> {
+        Some(self.always.clone())
     }
 }
 

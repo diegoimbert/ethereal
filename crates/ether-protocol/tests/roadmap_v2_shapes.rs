@@ -143,7 +143,7 @@ fn tempo_midi_slice_clip_shapes() {
         json!({"type": "Sampler", "sample": null, "slices": {"enabled": false, "base_note": 36, "markers": []}})
     );
     assert_eq!(
-        roundtrip(&BuiltinDevice::DrumRack),
+        roundtrip(&BuiltinDevice::DrumRack { macros: None }),
         json!({"type": "DrumRack"})
     );
 }

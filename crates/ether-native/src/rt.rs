@@ -257,7 +257,14 @@ impl RtRenderer {
                         None => &mut [],
                     })
                 };
-                process_guarded(engine, &inputs, &mut outputs[..n_out], n);
+                // The next engine block: the rest of this buffer, else the next buffer's
+                // first (the same size, as device buffers usually are).
+                let next = if done + n < total {
+                    (total - done - n).min(self.max_block)
+                } else {
+                    total.min(self.max_block)
+                };
+                process_guarded(engine, &inputs, &mut outputs[..n_out], n, next);
             }
             self.input
                 .after_process(&self.outs[0][..n], &self.outs[1][..n]);
@@ -311,11 +318,12 @@ fn process_guarded(
     inputs: &[&[f32]],
     outputs: &mut [&mut [f32]],
     frames: usize,
+    next: usize,
 ) {
     #[cfg(debug_assertions)]
-    assert_no_alloc::assert_no_alloc(|| engine.process(inputs, outputs, frames));
+    assert_no_alloc::assert_no_alloc(|| engine.process_with_hint(inputs, outputs, frames, next));
     #[cfg(not(debug_assertions))]
-    engine.process(inputs, outputs, frames);
+    engine.process_with_hint(inputs, outputs, frames, next);
 }
 
 impl Drop for RtRenderer {
