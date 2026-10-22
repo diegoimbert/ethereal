@@ -84,8 +84,10 @@ use std::time::Duration;
 
 use ether_core::parallel::{Fork, JobGraph, ParallelExecutor};
 
-/// Upper bound of the default worker count (more rarely helps a DAW graph and costs power).
-pub const MAX_DEFAULT_WORKERS: usize = 8;
+/// Upper bound of the default worker count. Heavy projects keep 15 workers + the audio
+/// thread busy (independent tracks, forked rack chains); idle workers park, so a bigger pool
+/// costs nothing on light projects.
+pub const MAX_DEFAULT_WORKERS: usize = 15;
 /// How long `WorkerPool::with_options` waits for its workers to start before panicking.
 const WORKER_START_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -947,8 +949,33 @@ mod os {
         });
     }
 
+    /// Processor cores (`RelationProcessorCore` entries; the current processor group, up
+    /// to 64 logical CPUs). Without this, SMT doubled the count.
     pub(super) fn physical_cores() -> Option<usize> {
-        None
+        use windows_sys::Win32::System::SystemInformation::{
+            GetLogicalProcessorInformation, RelationProcessorCore,
+            SYSTEM_LOGICAL_PROCESSOR_INFORMATION,
+        };
+        let size = std::mem::size_of::<SYSTEM_LOGICAL_PROCESSOR_INFORMATION>();
+        let mut len = 0u32;
+        // SAFETY: a size query (null buffer, `len` out parameter); it fails with
+        // ERROR_INSUFFICIENT_BUFFER and sets `len`.
+        unsafe { GetLogicalProcessorInformation(std::ptr::null_mut(), &mut len) };
+        if len == 0 {
+            return None;
+        }
+        let mut buf =
+            vec![SYSTEM_LOGICAL_PROCESSOR_INFORMATION::default(); (len as usize).div_ceil(size)];
+        let mut len = (buf.len() * size) as u32;
+        // SAFETY: `buf` holds `len` bytes of entries.
+        if unsafe { GetLogicalProcessorInformation(buf.as_mut_ptr(), &mut len) } == 0 {
+            return None;
+        }
+        let n = buf[..len as usize / size]
+            .iter()
+            .filter(|e| e.Relationship == RelationProcessorCore)
+            .count();
+        (n > 0).then_some(n)
     }
 }
 
