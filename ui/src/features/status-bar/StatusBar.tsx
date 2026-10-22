@@ -7,6 +7,7 @@ import { ImportStatus } from "@/features/import/ImportStatus";
 import { MissingPluginsStatus } from "@/features/import-resolver/MissingItems";
 import { MissingMediaStatus } from "@/features/media-refs/MediaRefsRoot";
 import { SafeModeStatus } from "@/features/project/SafeModeStatus";
+import { PluginLoadingStatus } from "@/features/plugins";
 import { RemoteUploadsStatus } from "@/features/remote/UploadsStatus";
 import "./statusBar.css";
 
@@ -21,6 +22,7 @@ export function StatusBar() {
   return (
     <footer className="eth-status-bar" data-slot="status-bar" data-testid="status-bar">
       <SafeModeStatus />
+      <PluginLoadingStatus />
       <MissingPluginsStatus />
       <MissingMediaStatus />
       <ImportStatus />

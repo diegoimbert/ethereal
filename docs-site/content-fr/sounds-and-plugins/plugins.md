@@ -84,6 +84,10 @@ L’isolation ajoute un bloc audio de latence. Pour revenir en arrière, faites 
 > [!note]
 > L’isolation fonctionne sur macOS et Linux. Sous Windows, les plug-ins tournent toujours à l’intérieur d’Ethereal : choisir d’exécuter un plug-in isolé n’y change rien.
 
+## ouvrir un projet avec beaucoup de plug-ins {#opening-a-project-with-many-plugins}
+
+Un projet avec beaucoup de plug-ins les charge quelques-uns à la fois, pour qu’Ethereal reste réactif pendant le chargement. Chaque piste montre une fine barre en bas de son en-tête avec le nombre de ses plug-ins déjà chargés, et la barre d’état en bas indique **chargement des plugins** avec le compte du projet. Les barres disparaissent une fois tous les plug-ins chargés.
+
 ## ouvrir un projet sans les plug-ins {#opening-a-project-without-plugins}
 
 Si un projet plante ou se bloque à cause d’un plug-in, ouvrez-le sans les plug-ins. Faites un clic droit sur le projet dans la liste des projets (ou cliquez sur son bouton **…**) et choisissez **ouvrir sans plug-ins**. La fenêtre de récupération après plantage propose le même bouton. Chaque plug-in est gardé comme un emplacement contourné avec ses réglages enregistrés, marqué **mode sans échec · contourné**, et la barre d’état en bas indique **plug-ins désactivés (mode sans échec)**. Ensuite :

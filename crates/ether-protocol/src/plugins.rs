@@ -207,6 +207,12 @@ pub enum PluginEvent {
         device: DeviceId,
         samples: u32,
     },
+    /// The plugin devices still to load: instances are created a few at a time (a time
+    /// budget per engine tick) when a project opens or many plugins arrive at once. Sent when
+    /// the set changes; empty once all are loaded.
+    Loading {
+        pending: Vec<DeviceId>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

@@ -1409,6 +1409,14 @@ where
         {
             notify(out, level, message);
         }
+        if let Some(pending) = self.engine.take_loading_change() {
+            event(
+                out,
+                Event::Plugin {
+                    event: PluginEvent::Loading { pending },
+                },
+            );
+        }
     }
 
     // ─── Extension seams (`ext` module) ──────────────────────────────────────────────

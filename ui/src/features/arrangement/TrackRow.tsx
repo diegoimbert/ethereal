@@ -7,6 +7,7 @@ import { AudioLines, ChevronDown, Circle, CornerDownRight, Folder, Headphones, P
 import type { Beats, Track, TrackId } from "@/generated";
 import { promptForInputIfNone } from "@/features/audio-settings";
 import { TrackRecordSetup } from "@/features/recording";
+import { TrackPluginLoading } from "@/features/plugins";
 import { animateGroupFold, AutomationToggleButton, TrackAutomationLanes } from "@/features/automation";
 import { groupsTrackMenu, VcaLane } from "@/features/groups";
 import { FreezeHeaderStatus, inertTitle, useFrozenAncestor, withFreezeTrackEntries } from "@/features/freeze";
@@ -476,6 +477,8 @@ const TrackHeader = memo(function TrackHeader({ track, depth, compact }: { track
             <HeaderPan track={track} />
           </span>
         </span>
+        {/* A big project opening: how many of the track's plugins are loaded. */}
+        <TrackPluginLoading track={track.id} />
         {track.kind === "Midi" && !readOnly && <InstrumentPick track={track} />}
       </div>
     </>

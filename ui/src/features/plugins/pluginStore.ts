@@ -47,6 +47,8 @@ export interface PluginRuntimeState {
   crashed: Record<DeviceId, string>;
   /** Devices whose editor window is open. */
   editors: Record<DeviceId, true>;
+  /** Plugin devices still to load (instantiated a few per engine tick when a project opens). */
+  loading: DeviceId[];
   /** Plugin devices whose plugin was missing from the list and a later list has it: the
    * host couldn't load it, so it is still bypassed until reloaded ("found · reload"). */
   found: Record<DeviceId, true>;
@@ -80,6 +82,7 @@ const initial = {
   crashed: {},
   editors: {},
   found: {},
+  loading: [],
 } satisfies Partial<PluginRuntimeState>;
 
 /** Identifies a failed target (a path may be scanned as several formats). */
@@ -136,6 +139,8 @@ export const usePluginStore = create<PluginRuntimeState>((set) => ({
           return { editors: without(s.editors, e.device) };
         case "Crashed":
           return { crashed: { ...s.crashed, [e.device]: e.message }, editors: without(s.editors, e.device) };
+        case "Loading":
+          return { loading: e.pending };
         // Forwarded editor keys are handled by `features/plugin-keys` listeners.
         case "LatencyChanged":
         case "EditorKey":
@@ -171,7 +176,7 @@ function onEvent(e: Event, transport: EngineTransport) {
     refreshPluginList(transport);
   }
   // A new project has other devices: forget per-device runtime state.
-  if (e.type === "ProjectLoaded") usePluginStore.setState({ crashed: {}, editors: {}, found: {}, descriptorEpochs: {} });
+  if (e.type === "ProjectLoaded") usePluginStore.setState({ crashed: {}, editors: {}, found: {}, descriptorEpochs: {}, loading: [] });
 }
 
 /**
