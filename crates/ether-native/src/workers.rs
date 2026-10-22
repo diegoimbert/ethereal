@@ -29,6 +29,16 @@
 //!   workers (one non-blocking syscall each, Dekker-style with SeqCst on both sides so no
 //!   wake-up is lost). A lost race only ever costs parallelism: the audio thread never
 //!   parks and finishes the graph by itself if needed.
+//! - **Forks** ([`Fork::join`], `execute_graph_forking`): a running job (an audio rack's
+//!   chains, `ether_core::rack_chains`) publishes its sub-jobs in a free slot (one per
+//!   thread), unparks parked workers for them, claims sub-jobs itself (`fetch_add`), waits
+//!   for the last one, empties the slot and waits until no helper still looks at it (a
+//!   per-slot user count, SeqCst on both sides). Idle threads help before taking ready
+//!   graph jobs: workers waiting in or outside an epoch (a worker about to park checks for
+//!   unclaimed sub-jobs after announcing it sleeps, so no wake-up is lost; one with nothing
+//!   left to claim parks as usual instead of spinning on a busy core) and the audio thread
+//!   waiting for the graph. Works without an epoch too (a
+//!   graph run on the audio thread alone).
 //! - **Flat batches** (`execute`, `execute_pinned`): indices claimed with one `fetch_add`
 //!   on the batch's counter; the audio thread runs the pinned ones, helps with the rest,
 //!   then waits for the shared ones.
@@ -72,7 +82,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::{JoinHandle, Thread};
 use std::time::Duration;
 
-use ether_core::parallel::{JobGraph, ParallelExecutor};
+use ether_core::parallel::{Fork, JobGraph, ParallelExecutor};
 
 /// Upper bound of the default worker count (more rarely helps a DAW graph and costs power).
 pub const MAX_DEFAULT_WORKERS: usize = 8;
@@ -103,8 +113,9 @@ pub fn physical_cores() -> usize {
 }
 
 /// Non-RT (once per thread, before it renders): the real-time promotion the workers get
-/// (see the module docs), for another thread that renders device buffers.
-pub(crate) fn promote_current_thread(period: Duration) {
+/// (see the module docs), for another thread that renders device buffers (the device
+/// callback, a benchmark's render thread).
+pub fn promote_current_thread(period: Duration) {
     os::promote_current_thread(period);
 }
 
@@ -124,7 +135,29 @@ enum Work<'a> {
     },
 }
 
+/// The sub-jobs of one [`Fork::join`], on the forking thread's stack.
+struct ForkBatch<'a> {
+    sub: &'a (dyn Fn(usize) + Sync),
+    n: usize,
+    /// Next index to claim.
+    next: AtomicUsize,
+    /// Sub-jobs finished.
+    done: AtomicUsize,
+}
+
+/// Where a running `join` publishes its batch for helpers (one slot per thread that can
+/// fork at once: the workers and the audio thread).
+struct ForkSlot {
+    batch: AtomicPtr<ForkBatch<'static>>,
+    /// Helpers that may be looking at `batch` (the forker waits for 0 before returning).
+    users: AtomicUsize,
+}
+
 struct Shared {
+    /// Fork-join batches of running jobs (`Fork::join`), helped by idle threads.
+    forks: Box<[ForkSlot]>,
+    /// Batches published in `forks` (idle threads look only when non-zero).
+    forks_active: AtomicUsize,
     /// `epoch << 1 | open`.
     state: AtomicU64,
     /// Bumped each time a graph job's completion made others ready (lets idle workers that
@@ -220,7 +253,9 @@ impl Shared {
     fn work_graph(&self, graph: &JobGraph, job: &(dyn Fn(usize) + Sync)) -> u64 {
         let mut spins = 0u32;
         loop {
-            if self.graph_step(graph, job, false) {
+            // A running job's sub-jobs first: that job was the most urgent when it started,
+            // and its successors wait for it.
+            if self.help_forks() || self.graph_step(graph, job, false) {
                 spins = 0;
                 continue;
             }
@@ -239,6 +274,63 @@ impl Shared {
                 continue;
             }
             return seen;
+        }
+    }
+
+    /// Help with the published fork batches, if any; whether this thread ran a sub-job.
+    #[inline]
+    fn help_forks(&self) -> bool {
+        if self.forks_active.load(Ordering::Acquire) == 0 {
+            return false;
+        }
+        let mut ran = false;
+        for slot in self.forks.iter() {
+            if slot.batch.load(Ordering::Acquire).is_null() {
+                continue;
+            }
+            // Counted first, then re-read (pairs with the forker's clear + `users` check:
+            // either it sees us, or we see the slot empty).
+            slot.users.fetch_add(1, Ordering::SeqCst);
+            let b = slot.batch.load(Ordering::SeqCst);
+            if !b.is_null() {
+                // SAFETY: we are counted in `users`, so the batch's `join` hasn't returned.
+                ran |= self.run_fork(unsafe { &*b });
+            }
+            slot.users.fetch_sub(1, Ordering::Release);
+        }
+        ran
+    }
+
+    /// Whether a published fork batch still has unclaimed sub-jobs (a worker about to park
+    /// must not sleep through them).
+    fn fork_claimable(&self) -> bool {
+        self.forks_active.load(Ordering::SeqCst) > 0
+            && self.forks.iter().any(|slot| {
+                slot.users.fetch_add(1, Ordering::SeqCst);
+                let b = slot.batch.load(Ordering::SeqCst);
+                // SAFETY: counted in `users`, so a non-null batch is alive (see `help_forks`).
+                let open = !b.is_null() && unsafe { (*b).next.load(Ordering::Relaxed) < (*b).n };
+                slot.users.fetch_sub(1, Ordering::Release);
+                open
+            })
+    }
+
+    /// Claim and run sub-jobs of `b` until none is left; whether any ran here.
+    #[inline]
+    fn run_fork(&self, b: &ForkBatch<'_>) -> bool {
+        let mut ran = false;
+        loop {
+            // Cheap check first: a finished batch costs no write.
+            if b.next.load(Ordering::Relaxed) >= b.n {
+                return ran;
+            }
+            let i = b.next.fetch_add(1, Ordering::Relaxed);
+            if i >= b.n {
+                return ran;
+            }
+            self.run(b.sub, i);
+            b.done.fetch_add(1, Ordering::Release);
+            ran = true;
         }
     }
 
@@ -310,6 +402,13 @@ impl WorkerPool {
     /// Non-RT. See [`PoolOptions`].
     pub fn with_options(workers: usize, options: PoolOptions) -> Self {
         let shared = Arc::new(Shared {
+            forks: (0..=workers)
+                .map(|_| ForkSlot {
+                    batch: AtomicPtr::new(std::ptr::null_mut()),
+                    users: AtomicUsize::new(0),
+                })
+                .collect(),
+            forks_active: AtomicUsize::new(0),
             state: AtomicU64::new(0),
             pushes: AtomicU64::new(0),
             work: AtomicPtr::new(std::ptr::null_mut()),
@@ -446,6 +545,10 @@ fn worker_main(s: &Shared, index: usize, options: PoolOptions) {
             if wanted(st, s.pushes.load(Ordering::Acquire), seen_epoch, seen_push) {
                 break st;
             }
+            if s.help_forks() {
+                spins = 0;
+                continue;
+            }
             if spins < SPIN_ITERS {
                 spins += 1;
                 std::hint::spin_loop();
@@ -456,7 +559,10 @@ fn worker_main(s: &Shared, index: usize, options: PoolOptions) {
             // on the waking side): either we see the work or the waker sees our flag.
             let st = s.state.load(Ordering::SeqCst);
             let pushes = s.pushes.load(Ordering::SeqCst);
-            if !wanted(st, pushes, seen_epoch, seen_push) && !s.shutdown.load(Ordering::SeqCst) {
+            if !wanted(st, pushes, seen_epoch, seen_push)
+                && !s.fork_claimable()
+                && !s.shutdown.load(Ordering::SeqCst)
+            {
                 std::thread::park();
             }
             sleeping.store(false, Ordering::SeqCst);
@@ -538,7 +644,7 @@ impl ParallelExecutor for WorkerPool {
         // Work until the graph finished (pinned jobs are ours alone).
         let mut spins = 0u32;
         while !graph.finished() {
-            if s.graph_step(graph, job, true) {
+            if s.help_forks() || s.graph_step(graph, job, true) {
                 spins = 0;
             } else if spins < WAIT_SPIN_ITERS {
                 spins += 1;
@@ -550,8 +656,81 @@ impl ParallelExecutor for WorkerPool {
         self.close();
     }
 
+    fn execute_graph_forking(&mut self, graph: &JobGraph, job: &(dyn Fn(usize, &dyn Fork) + Sync)) {
+        if self.handles.is_empty() {
+            self.execute_graph(graph, &|id| job(id, &ether_core::parallel::SerialFork));
+            return;
+        }
+        let shared = self.shared.clone();
+        let fork = PoolFork { s: &shared };
+        self.execute_graph(graph, &|id| job(id, &fork));
+        // A sub-job's panic caught outside an epoch (a graph run here, without one).
+        if shared.poisoned.swap(false, Ordering::AcqRel) {
+            let payload = shared.panic.try_lock().ok().and_then(|mut p| p.take());
+            std::panic::resume_unwind(payload.unwrap_or_else(|| Box::new("audio job panicked")));
+        }
+    }
+
     fn workers(&self) -> usize {
         self.handles.len()
+    }
+}
+
+/// [`Fork`] over the pool: the forking thread publishes its batch in a free slot, wakes
+/// parked workers for the other sub-jobs, runs sub-jobs itself, and returns once all
+/// finished and no helper looks at the batch any more. Idle threads (workers waiting for
+/// work or for ready graph jobs, the audio thread waiting for the graph) help.
+struct PoolFork<'a> {
+    s: &'a Shared,
+}
+
+impl Fork for PoolFork<'_> {
+    fn join(&self, n: usize, sub: &(dyn Fn(usize) + Sync)) {
+        let s = self.s;
+        let serial = || {
+            for i in 0..n {
+                sub(i);
+            }
+        };
+        if n <= 1 {
+            return serial();
+        }
+        let batch = ForkBatch {
+            sub,
+            n,
+            next: AtomicUsize::new(0),
+            done: AtomicUsize::new(0),
+        };
+        // The pointer is only dereferenced by helpers counted in the slot's `users`, and
+        // this function waits for them before `batch` goes away; erase the lifetime.
+        let ptr = (&batch as *const ForkBatch<'_>)
+            .cast_mut()
+            .cast::<ForkBatch<'static>>();
+        let Some(slot) = s.forks.iter().find(|slot| {
+            slot.batch
+                .compare_exchange(
+                    std::ptr::null_mut(),
+                    ptr,
+                    Ordering::AcqRel,
+                    Ordering::Relaxed,
+                )
+                .is_ok()
+        }) else {
+            // More concurrent forks than threads: can't happen (one per running job).
+            return serial();
+        };
+        // SeqCst: pairs with a parking worker's announce + re-check (`worker_main`).
+        s.forks_active.fetch_add(1, Ordering::SeqCst);
+        s.wake_any(n - 1);
+        s.run_fork(&batch);
+        wait_until(|| batch.done.load(Ordering::Acquire) >= n);
+        slot.batch.store(std::ptr::null_mut(), Ordering::SeqCst);
+        s.forks_active.fetch_sub(1, Ordering::SeqCst);
+        wait_until(|| slot.users.load(Ordering::SeqCst) == 0);
+    }
+
+    fn parallel(&self) -> bool {
+        true
     }
 }
 
@@ -1013,6 +1192,47 @@ mod tests {
             n.fetch_add(1, Ordering::Relaxed);
         });
         assert_eq!(n.load(Ordering::Relaxed), 40);
+    }
+
+    /// Jobs that fork (several at once, from workers and the audio thread): every sub-job
+    /// runs exactly once, before its job returns, and the pool keeps working after.
+    #[test]
+    fn forked_sub_jobs_run_once_before_their_job_returns() {
+        use ether_core::parallel::JobGraph;
+        let mut pool = quiet_pool(3);
+        // Four independent jobs into a fifth.
+        let graph = JobGraph::new(
+            &[0, 1, 2, 3, 4],
+            &[1, 1, 1, 1, 1],
+            &[vec![4], vec![4], vec![4], vec![4], vec![]],
+            &[false; 5],
+        );
+        let subs = 13;
+        let hits: Vec<AtomicU32> = (0..5 * subs).map(|_| AtomicU32::new(0)).collect();
+        let late = AtomicU32::new(0);
+        for _ in 0..200 {
+            hits.iter().for_each(|h| h.store(0, Ordering::Relaxed));
+            pool.execute_graph_forking(&graph, &|id, fork| {
+                assert!(fork.parallel());
+                fork.join(subs, &|i| {
+                    hits[id * subs + i].fetch_add(1, Ordering::Relaxed);
+                });
+                if (0..subs).any(|i| hits[id * subs + i].load(Ordering::Relaxed) != 1) {
+                    late.fetch_add(1, Ordering::Relaxed);
+                }
+            });
+            assert!(hits.iter().all(|h| h.load(Ordering::Relaxed) == 1));
+        }
+        assert_eq!(late.load(Ordering::Relaxed), 0);
+        // A single-job graph (no epoch) forks too.
+        let one = JobGraph::new(&[0], &[1], &[vec![]], &[false]);
+        let n = AtomicU32::new(0);
+        pool.execute_graph_forking(&one, &|_, fork| {
+            fork.join(9, &|_| {
+                n.fetch_add(1, Ordering::Relaxed);
+            });
+        });
+        assert_eq!(n.load(Ordering::Relaxed), 9);
     }
 
     #[test]

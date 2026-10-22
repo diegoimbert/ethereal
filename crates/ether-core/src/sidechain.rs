@@ -375,6 +375,11 @@ impl Points {
         Some(&mut self.bufs[i].1)
     }
 
+    /// No point of this track is tapped.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.bufs.is_empty()
+    }
+
     /// RT. `point`'s last recorded signal.
     pub(crate) fn get(&self, point: ScPoint) -> Option<&Stereo> {
         self.find(point).map(|i| &self.bufs[i].1)
@@ -433,6 +438,11 @@ impl Taps {
         v.sort_unstable();
         v.dedup();
         v
+    }
+
+    /// RT. Whether entry `node` reads a sidechain or has a planned alignment.
+    pub(crate) fn has(&self, node: NodeKey) -> bool {
+        self.entries.binary_search_by(|e| e.node.cmp(&node)).is_ok()
     }
 
     fn find(&mut self, node: NodeKey) -> Option<&mut EntryRt> {

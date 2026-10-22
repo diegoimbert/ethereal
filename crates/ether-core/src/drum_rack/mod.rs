@@ -679,6 +679,8 @@ impl RacksRt {
                         sc,
                         // No drum rack under a drum pad (`ether_model::rack`).
                         None,
+                        // Pad chains run on the track's job thread, one after another.
+                        &crate::parallel::SerialFork,
                     );
                 }
                 let Some(node) = nodes.get(entry.key) else {

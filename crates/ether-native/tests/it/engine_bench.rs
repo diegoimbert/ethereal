@@ -24,7 +24,8 @@
 //! - `ETHER_BENCH_SCENARIOS`: comma list (default: all), see [`SCENARIOS`];
 //! - `ETHER_BENCH_WORKERS`: comma list of worker counts (default `0,1,3,7` capped by cores);
 //! - `ETHER_BENCH_BLOCK`: buffer frames (default 256); `ETHER_BENCH_SECONDS` (default 4);
-//! - `ETHER_BENCH_PACED=0`: back to back; `ETHER_BENCH_RT=1`: real-time worker priority;
+//! - `ETHER_BENCH_PACED=0`: back to back; `ETHER_BENCH_RT=1`: real-time priority for the
+//!   workers and the render thread (as the host gives its device callback);
 //! - `ETHER_BENCH_SCALE`: multiply every device cost (default 1);
 //! - `ETHER_BENCH_HOGS`: that many normal-priority threads keep the CPU busy during the runs
 //!   (what the UI, plugin editors and other apps do to a real session; default 0), to see
@@ -38,7 +39,7 @@ use std::io::Write as _;
 use std::time::{Duration, Instant};
 
 use ether_core::graph::{ChainEntry, SendDesc, TrackDesc};
-use ether_core::parallel::{ParallelExecutor, SequentialExecutor};
+use ether_core::parallel::{Fork, JobGraph, ParallelExecutor, SequentialExecutor};
 use ether_core::protocol::model::{RackChainId, SendId, TrackId, TrackKind, Ulid};
 use ether_core::rack_chains::{ChainRackDesc, ChainRackKind, RackChainDesc};
 use ether_core::{
@@ -310,6 +311,17 @@ const SCENARIOS: &[Scenario] = &[
         "tiny64",
         "64 independent tracks of 4 ns/frame (scheduling overhead)",
         || flat(64, 4.0),
+    ),
+    (
+        "rack4",
+        "one track: an instrument rack of 4 chains of 1600 ns/frame (rack chain parallelism)",
+        || {
+            let mut t = vec![SimTrack::new(MASTER, TrackKind::Master, None, &[50.0])];
+            let mut s = SimTrack::new(100, TrackKind::Midi, Some(MASTER), &[50.0]);
+            s.rack = vec![vec![800.0, 400.0, 400.0]; 4];
+            t.push(s);
+            t
+        },
     ),
     (
         "empty64",
@@ -794,6 +806,13 @@ fn realtime_buffers() {
     });
     let wanted: Option<Vec<String>> = env_list("ETHER_BENCH_SCENARIOS");
     let json = std::env::var("ETHER_BENCH_JSON").ok();
+    if opts.realtime {
+        // Like the host's device callback (`audio.rs`): the render thread gets the
+        // workers' priority too, or real-time workers preempt it.
+        ether_native::workers::promote_current_thread(Duration::from_secs_f64(
+            opts.block as f64 / SR as f64,
+        ));
+    }
     let ns_per_iter = calibrate();
     let hogs = env_num("ETHER_BENCH_HOGS", 0.0) as usize;
     let _hogs = Hogs::start(hogs);
@@ -1018,6 +1037,22 @@ impl ParallelExecutor for Timeline {
         self.rec.record(u32::MAX, t0, Instant::now());
     }
 
+    fn execute_graph(&mut self, graph: &JobGraph, job: &(dyn Fn(usize) + Sync)) {
+        self.execute_graph_forking(graph, &|id, _| job(id));
+    }
+
+    fn execute_graph_forking(&mut self, graph: &JobGraph, job: &(dyn Fn(usize, &dyn Fork) + Sync)) {
+        let t0 = Instant::now();
+        let rec = &self.rec;
+        let wrapped = |id: usize, fork: &dyn Fork| {
+            let s = Instant::now();
+            job(id, fork);
+            rec.record(thread_index(), s, Instant::now());
+        };
+        self.inner.execute_graph_forking(graph, &wrapped);
+        self.rec.record(u32::MAX, t0, Instant::now());
+    }
+
     fn workers(&self) -> usize {
         self.inner.workers()
     }
@@ -1160,8 +1195,8 @@ fn timeline() {
         pct(&run.times, 0.99)
     );
     println!(
-        "  dispatched levels per buffer: {:.1}; in them {:.0} µs/buffer (longest job {:.0}, \
-         end-of-level wait {:.1}); outside {:.0} µs/buffer",
+        "  dispatched graphs per buffer: {:.1}; in them {:.0} µs/buffer (longest job {:.0}, \
+         end wait {:.1}); outside {:.0} µs/buffer",
         level_span.len() as f64 / buffers,
         sum(&level_span) / buffers,
         sum(&level_longest) / buffers,
