@@ -367,6 +367,9 @@ pub struct RenderSnapshot {
     pub desc: RenderGraphDesc,
     pub tempo: TempoMapRt,
     pub(crate) rt: SnapshotRt,
+    /// Publish number (`EngineHandle`), so a re-ranked job graph reaches only the snapshot
+    /// it was made for.
+    pub(crate) seq: u64,
 }
 
 pub(crate) struct SnapshotRt {
@@ -1035,6 +1038,7 @@ pub fn compile_with(
             clip_ends: crate::automation_rt::clip_ends(&t.clips),
             auto_window: (0, 0),
             awake: true,
+            job_ns: 0.0,
             auto_dirty: false,
             meter: MeterAccum::default(),
             out_latency: out_lat[i],
@@ -1130,7 +1134,12 @@ pub fn compile_with(
     }
 
     let tempo = TempoMapRt::compile(&desc.tempo, &desc.signatures);
-    Ok(RenderSnapshot { desc, tempo, rt })
+    Ok(RenderSnapshot {
+        desc,
+        tempo,
+        rt,
+        seq: 0,
+    })
 }
 
 #[cfg(test)]

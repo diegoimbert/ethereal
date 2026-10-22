@@ -17,8 +17,10 @@
 //!   that track by the light track only, and the master starts the moment its last input
 //!   is done.
 //! - **Critical path first.** When more jobs are ready than threads, the one with the
-//!   longest remaining path to the end of the graph runs first. Each job has a static cost
-//!   estimate (1 + the devices in its chains, rack/pad chains included); its priority is
+//!   longest remaining path to the end of the graph runs first. Each job has a cost: its
+//!   measured run time on native engines (`EngineHandle` re-ranks with it, see
+//!   [`JobGraph::reweighted`]), else a static estimate (1 + the devices in its chains,
+//!   rack/pad chains included); its priority is
 //!   that cost plus the highest priority of the jobs it feeds. Jobs are numbered by
 //!   priority (rank 0 = longest remaining path), and the ready queue is a bitset of ranks,
 //!   so taking the most urgent ready job is "lowest set bit" (one `fetch_and` per take,
@@ -178,6 +180,8 @@ pub struct JobGraph {
     ids: Box<[u32]>,
     /// Rank → priority (cost of the longest path from this job to the end of the graph).
     priority: Box<[u64]>,
+    /// Rank → the job's own cost (as given to `new`, at least 1).
+    cost: Box<[u64]>,
     /// Successor ranks of rank `r`: `succ[succ_start[r]..succ_start[r + 1]]`.
     succ_start: Box<[u32]>,
     succ: Box<[u32]>,
@@ -291,6 +295,7 @@ impl JobGraph {
         Self {
             ids: by_rank.iter().map(|&p| ids[p] as u32).collect(),
             priority: by_rank.iter().map(|&p| prio[p]).collect(),
+            cost: by_rank.iter().map(|&p| cost[p].max(1)).collect(),
             succ_start: succ_start.into(),
             succ: flat.into(),
             deps: deps.into(),
@@ -303,6 +308,28 @@ impl JobGraph {
             ready_pinned: (0..words).map(|_| AtomicU64::new(0)).collect(),
             done: AtomicUsize::new(0),
         }
+    }
+
+    /// Non-RT. The same graph (ids, edges, pinned jobs) with other costs: `cost_of(id)` for
+    /// each job, e.g. measured run times instead of the static estimates. Ids must be
+    /// distinct (positions of the new graph follow rank order).
+    pub fn reweighted(&self, cost_of: impl Fn(usize) -> u64) -> JobGraph {
+        let n = self.len();
+        let ids: Vec<usize> = (0..n).map(|r| self.id(r)).collect();
+        let succ: Vec<Vec<usize>> = (0..n)
+            .map(|r| self.successors(r).iter().map(|&s| s as usize).collect())
+            .collect();
+        let pinned: Vec<bool> = (0..n).map(|r| self.is_pinned(r)).collect();
+        let cost: Vec<u64> = ids.iter().map(|&id| cost_of(id)).collect();
+        JobGraph::new(&ids, &cost, &succ, &pinned)
+    }
+
+    /// The cost job `id` was ranked with.
+    pub fn cost_of(&self, id: usize) -> Option<u64> {
+        self.ids
+            .iter()
+            .position(|&i| i as usize == id)
+            .map(|r| self.cost[r])
     }
 
     /// Jobs.
@@ -448,6 +475,28 @@ fn take_lowest(words: &[AtomicU64]) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Reweighting keeps ids, edges and pinned jobs, and re-ranks by the new costs.
+    #[test]
+    fn reweighted_keeps_the_graph_and_reranks() {
+        // 0 → 2, 1 → 2: 0 has 3 devices, 1 has 1 (static); measured, 1 is 10x slower.
+        let g = JobGraph::new(
+            &[0, 1, 2],
+            &[3, 1, 1],
+            &[vec![2], vec![2], vec![]],
+            &[false, true, false],
+        );
+        assert_eq!(g.order().collect::<Vec<_>>(), vec![0, 1, 2]);
+        let m = g.reweighted(|id| [3, 30, 1][id]);
+        assert_eq!(m.order().collect::<Vec<_>>(), vec![1, 0, 2]);
+        assert_eq!(m.cost_of(1), Some(30));
+        for r in 0..m.len() {
+            let succ: Vec<usize> = m.successors(r).iter().map(|&s| m.id(s as usize)).collect();
+            assert_eq!(succ, if m.id(r) == 2 { vec![] } else { vec![2] });
+            assert_eq!(m.is_pinned(r), m.id(r) == 1);
+        }
+        assert_eq!(m.width(), g.width());
+    }
 
     /// a(1) → c(1) → m(5); b(10) → m; d(1) → b (a light sidechain source of a heavy job).
     fn sample() -> JobGraph {
