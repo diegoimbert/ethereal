@@ -218,7 +218,7 @@ fn bound(w: &Widget) -> Vec<u32> {
         .map(|p| p.0)
         .collect(),
         W::FmAlgorithm { algorithm, .. } => vec![algorithm.0],
-        W::Macros { first } => (0..8).map(|i| first.0 + i).collect(),
+        W::Macros { first, upper } => (0..8).flat_map(|i| [first.0 + i, upper.0 + i]).collect(),
         _ => vec![],
     }
 }

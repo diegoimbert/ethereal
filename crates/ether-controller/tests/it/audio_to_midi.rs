@@ -575,7 +575,7 @@ fn drums_and_harmony_modes() {
     assert!(matches!(
         &h.project().devices[&ids.instrument].kind,
         DeviceKind::Builtin {
-            device: BuiltinDevice::DrumRack
+            device: BuiltinDevice::DrumRack { .. }
         }
     ));
 

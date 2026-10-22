@@ -1,4 +1,4 @@
-//! Drum rack macros: the 8 rack macros (params 2..=9, after the rack's volume and pan) map
+//! Drum rack macros: the 16 rack macros (params 2..=17, after the rack's volume and pan) map
 //! to params of the devices on the rack's pads at any depth (pad racks' chains included),
 //! compile into `TrackDesc::modulation` with `MacroDesc::first`, undo in one step, follow
 //! duplication, survive save/reopen; an outer instrument rack's macros reach into a nested
@@ -180,11 +180,11 @@ fn drum_rack_macros_map_to_pad_devices_and_compile() {
         depth: 0.5,
     }));
     map(&mut h, drums, 3, chorus, chorus_p, -0.25).unwrap();
-    // The rack's own volume is a target; its macros, another device and macro 9 are not.
+    // The rack's own volume is a target; its macros, another device and macro 17 are not.
     map(&mut h, drums, 1, drums, ParamId(0), 0.5).unwrap();
     assert!(map(&mut h, drums, 2, drums, MACRO_1, 0.5).is_err());
     assert!(map(&mut h, drums, 0, other, ParamId(0), 0.5).is_err());
-    assert!(map(&mut h, drums, 8, synth, synth_p, 0.5).is_err());
+    assert!(map(&mut h, drums, 16, synth, synth_p, 0.5).is_err());
 
     // Compiled: the drum rack's macro values from its params 2..=9, mappings onto the pad
     // devices' nodes.
@@ -196,7 +196,11 @@ fn drum_rack_macros_map_to_pad_devices_and_compile() {
         .iter()
         .find(|m| m.rack == rack_node)
         .expect("the drum rack's macros");
-    assert_eq!(m.first, DRUM_RACK_FIRST_MACRO);
+    // Its 16 macros are contiguous: macro 9 follows macro 8.
+    assert_eq!(
+        (m.first, m.upper),
+        (DRUM_RACK_FIRST_MACRO, DRUM_RACK_FIRST_MACRO + 8)
+    );
     assert_eq!(m.values[3], 0.6);
     let targets: Vec<_> = tr
         .modulation

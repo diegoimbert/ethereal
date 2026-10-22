@@ -218,18 +218,19 @@ pub fn modulation_desc(p: &Project, track: TrackId, ctx: &CompileContext) -> Mod
         let (Some(r), Some(node)) = (p.devices.get(&rack), (ctx.nodes)(rack)) else {
             continue;
         };
-        // Macro params: a chain rack's `0..8`, a drum rack's after its volume and pan.
+        // Macro params (`macro_param`): a chain rack's `0..8` then `9..17` (after its chain
+        // selector), a drum rack's `2..18` (after its volume and pan).
         let DeviceKind::Builtin { device } = &r.kind else {
             continue;
         };
-        let Some(first) = macro_param(device.device_type(), 0) else {
+        let ty = device.device_type();
+        let (Some(first), Some(upper)) = (macro_param(ty, 0), macro_param(ty, 8)) else {
             continue;
         };
         let mut values = [0.0; MACROS];
         for (i, v) in values.iter_mut().enumerate() {
-            *v = r
-                .params
-                .get(&ParamId(first.0 + i as u32))
+            *v = macro_param(ty, i as u8)
+                .and_then(|id| r.params.get(&id))
                 .copied()
                 .unwrap_or(0.0)
                 .clamp(0.0, 1.0);
@@ -238,6 +239,7 @@ pub fn modulation_desc(p: &Project, track: TrackId, ctx: &CompileContext) -> Mod
             rack: node,
             values,
             first: first.0,
+            upper: upper.0,
         });
     }
     out

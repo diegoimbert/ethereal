@@ -51,8 +51,7 @@ export function boundParams(w: Widget): ParamId[] {
     case "LfoCurve":
       return [w.sync, w.sync_rate, w.rate, w.phase, w.depth];
     case "Macros":
-      // The 8 macro knobs of a rack: params `first..first + 8` (CONTRACTS.md §12.6).
-      return Array.from({ length: 8 }, (_, i) => (w.first ?? 0) + i);
+      return macrosWidgetParams(w);
     case "ZoneMap":
     case "HardwareRouting":
     case "Spectrum":
@@ -61,6 +60,16 @@ export function boundParams(w: Widget): ParamId[] {
     case "RackChains":
       return [];
   }
+}
+
+/**
+ * The 16 macro knobs of a rack's `Macros` widget, in macro order: macros 1..8 are params
+ * `first..first + 8`, macros 9..16 `upper..upper + 8` (CONTRACTS.md §12.6).
+ */
+export function macrosWidgetParams(w: Extract<Widget, { type: "Macros" }>): ParamId[] {
+  const first = w.first ?? 0;
+  const upper = w.upper ?? 9;
+  return Array.from({ length: 16 }, (_, i) => (i < 8 ? first + i : upper + i - 8));
 }
 
 /** Every param referenced anywhere in `layout`. */

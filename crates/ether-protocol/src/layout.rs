@@ -153,12 +153,16 @@ pub enum Widget {
     },
     /// Rack view: chains list with mix/zones, and the macro bank.
     RackChains,
-    /// The 8 macro knobs of a rack: params `first..first + 8` (0 for chain racks, a drum
-    /// rack's after its volume and pan; `ether_model::rack::macro_param`). `first` defaults to
-    /// 0 when absent.
+    /// The macro knobs of a rack: macros 1..8 are params `first..first + 8`, macros 9..16
+    /// `upper..upper + 8` (a chain rack's 0 and 9, after its chain selector; a drum rack's
+    /// after its volume and pan, 2 and 10; `ether_model::rack::macro_param`). It shows the
+    /// rack's `RackMacros::visible` macros under their names, with show/hide buttons.
+    /// `first` defaults to 0 and `upper` to 9 when absent.
     Macros {
         #[serde(default)]
         first: ParamId,
+        #[serde(default = "default_macros_upper")]
+        upper: ParamId,
     },
     /// Interactive EQ curve (v0.2): the combined magnitude response of
     /// `bands` (`ether_protocol::eq_response`, mirrored in TS) on a log-frequency / dB grid,
@@ -287,4 +291,9 @@ pub enum SpectrumOverlay {
     Post,
     /// Both `Pre` (input) and `Post` (output) frames.
     PrePost,
+}
+
+/// [`Widget::Macros::upper`] when absent: a chain rack's macro 9 (after its chain selector).
+fn default_macros_upper() -> ParamId {
+    ParamId(9)
 }

@@ -1,6 +1,6 @@
 /**
  * Mock of `Rack::*` and `Modulation::*` (v0.2).
- * Rack chains, chain devices, macros (rack params 0..8; a drum rack's 2..10) and Bitwig-style modulators with
+ * Rack chains, chain devices, macros (16: rack params 0..8 then 9..17; a drum rack's 2..18) and Bitwig-style modulators with
  * mappings (`ether_model::{rack, modulation}`), mirroring
  * `crates/ether-controller/src/racks/mod.rs`: chain content rules (audio effect racks hold
  * audio effects, MIDI effect racks MIDI effects, instrument racks anything), nesting (racks
@@ -15,6 +15,7 @@
  */
 
 import type {
+  BuiltinDevice,
   BuiltinDeviceType,
   Device,
   DeviceCategory,
@@ -25,6 +26,7 @@ import type {
   RackChain,
   RackChainId,
   RackCommand,
+  RackMacros,
   ReplyValue,
   Zone,
 } from "@/generated";
@@ -59,16 +61,53 @@ import {
 
 /** `ether_model::DEVICE_ENABLED_PARAM`: a mapping to the device's on/off switch. */
 const DEVICE_ENABLED_PARAM = 0xffff_ffff;
-const MACROS = 8;
+const MACROS = 16;
 /** A drum rack's macro 1 (after its volume and pan; `ether_model::DRUM_RACK_FIRST_MACRO`). */
 const DRUM_RACK_FIRST_MACRO = 2;
+/** `ether_model::DEFAULT_VISIBLE_MACROS`. */
+const DEFAULT_VISIBLE_MACROS = 8;
+
+/** Param id of `d`'s macro `index` (`ether_model::rack::macro_param`), or `null`. */
+function macroParam(d: Device, index: number): number | null {
+  if (index < 0 || index >= MACROS) return null;
+  if (isDrumRack(d)) return DRUM_RACK_FIRST_MACRO + index;
+  if (!isChainRack(d)) return null;
+  return index < 8 ? index : 9 + (index - 8);
+}
 
 /** Macro index of `d`'s param `param` (`ether_model::rack::macro_index`), or `null`. */
 function macroIndex(d: Device, param: number): number | null {
-  const first = isDrumRack(d) ? DRUM_RACK_FIRST_MACRO : isChainRack(d) ? 0 : null;
-  if (first === null) return null;
-  const i = param - first;
-  return i >= 0 && i < MACROS ? i : null;
+  for (let i = 0; i < MACROS; i++) if (macroParam(d, i) === param) return i;
+  return null;
+}
+
+/**
+ * `Device::RenameMacro` / `Device::SetMacroCount` (`ether_model::RackMacros` on any rack):
+ * names trimmed and cut to 64 chars (empty = the default), 1..=16 shown, the defaults stored
+ * as no `macros`.
+ */
+export function setRackMacros(ctx: ReducerContext, id: DeviceId, edit: (m: RackMacros) => void): void {
+  const d = device(ctx, id);
+  if (d.kind.type !== "Builtin" || !isAnyRack(d)) fail("InvalidArgument", `device ${id} is not a rack`);
+  const b = d.kind.device as Extract<BuiltinDevice, { type: "InstrumentRack" }>;
+  const m: RackMacros = { visible: b.macros?.visible ?? DEFAULT_VISIBLE_MACROS, names: [...(b.macros?.names ?? [])] };
+  edit(m);
+  m.visible = Math.min(MACROS, Math.max(1, Math.round(m.visible)));
+  m.names = m.names.slice(0, MACROS).map((n) => [...(n ?? "").trim()].slice(0, 64).join(""));
+  while (m.names.length > 0 && m.names[m.names.length - 1] === "") m.names.pop();
+  const macros = m.visible === DEFAULT_VISIBLE_MACROS && m.names.length === 0 ? undefined : m;
+  if (JSON.stringify(macros ?? null) === JSON.stringify(b.macros ?? null)) return;
+  const { macros: _old, ...rest } = b;
+  const next = (macros ? { ...rest, macros } : rest) as BuiltinDevice;
+  ctx.tx.upsert("Device", { ...d, kind: { type: "Builtin", device: next } });
+}
+
+export function renameMacro(ctx: ReducerContext, id: DeviceId, index: number, name: string): void {
+  if (!(Number.isInteger(index) && index >= 0 && index < MACROS)) fail("InvalidArgument", `macro index must be < ${MACROS}`);
+  setRackMacros(ctx, id, (m) => {
+    while (m.names.length <= index) m.names.push("");
+    m.names[index] = name;
+  });
 }
 const FULL: Zone = { lo: 0, hi: 127 };
 export { MAX_RACK_DEPTH };
@@ -195,7 +234,7 @@ function checkScope(ctx: ReducerContext, source: ModSource, target: Device, para
     }
     if (host === target.id && macroIndex(target, param) !== null) fail("InvalidArgument", "modulators cannot target their rack's macros");
   } else {
-    if (!(Number.isInteger(source.index) && source.index >= 0 && source.index < MACROS)) fail("InvalidArgument", "macro index must be < 8");
+    if (!(Number.isInteger(source.index) && source.index >= 0 && source.index < MACROS)) fail("InvalidArgument", `macro index must be < ${MACROS}`);
     if (!isAnyRack(device(ctx, source.rack))) fail("InvalidArgument", `device ${source.rack} is not a rack`);
     const inside = inRack(ctx, target, source.rack);
     // Never the rack's own macros nor its switch.
