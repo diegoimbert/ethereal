@@ -89,6 +89,7 @@
  * meter noise deterministic.
  */
 
+import { effectiveMute } from "@/domain/soloPlan";
 import { contributions } from "@/ext";
 import type {
   BrowseLocation,
@@ -1507,7 +1508,8 @@ export class MockTransport implements EngineTransport {
         if (snd.to === id) input += postOf(snd.from) * dbToLinear(snd.level) * 0.8;
       }
       visiting.delete(id);
-      const level = t.mixer.mute ? 0 : Math.min(1.2, input) * dbToLinear(t.mixer.volume);
+      // A soloed track is heard even if muted (CONTRACTS.md §12.10).
+      const level = effectiveMute(t.mixer.mute, t.mixer.solo) ? 0 : Math.min(1.2, input) * dbToLinear(t.mixer.volume);
       post.set(id, level);
       return level;
     };

@@ -29,6 +29,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::ids::{ClipId, MediaId, TakeLaneId, TrackId};
+use crate::note::Note;
 use crate::value::{Beats, Color, Decibels};
 use crate::warp::WarpSettings;
 
@@ -74,7 +75,60 @@ impl Clip {
         }
         ls + (pos - le).rem_euclid(le - ls)
     }
+
+    /// The content loop `(start, end)` the engine plays (`ether_core::sched::content_loop`):
+    /// enabled, at least [`MIN_CLIP_LOOP`] long and `offset < loop end`.
+    pub fn played_loop(&self) -> Option<(f64, f64)> {
+        let (ls, le) = (self.looping.start.0, self.looping.end.0);
+        (self.looping.enabled && le - ls >= MIN_CLIP_LOOP && self.offset.0 < le).then_some((ls, le))
+    }
+
+    /// Loop join (CONTRACTS.md §2, Clips, "loop join"; the engine's
+    /// `ether_core::sched::voice_end`): an unmuted note of `pitch` cut by the content loop
+    /// wrap `d` beats after the clip start keeps sounding when the loop has a join partner,
+    /// the unmuted note of that pitch starting before the loop start and still sounding
+    /// there (the latest-ending one). Returns the partner and how long the note keeps
+    /// sounding after the wrap: until the partner ends, or to the clip end when the partner
+    /// is longer than the loop (it joins itself on every wrap). `None`: no partner, or no
+    /// clip after `d`. `notes` are the clip's notes; the caller checks that the note crosses
+    /// the loop end.
+    pub fn loop_join<'a>(
+        &self,
+        notes: impl IntoIterator<Item = &'a Note>,
+        pitch: u8,
+        d: f64,
+    ) -> Option<(&'a Note, f64)> {
+        let (ls, le) = self.played_loop()?;
+        let rest = self.length.0 - d;
+        if rest <= LOOP_JOIN_EPS {
+            return None;
+        }
+        let partner = notes
+            .into_iter()
+            .filter(|n| {
+                !n.muted
+                    && n.pitch == pitch
+                    && n.start.0 < ls - LOOP_JOIN_EPS
+                    && n.start.0 + n.duration.0 > ls + LOOP_JOIN_EPS
+            })
+            .max_by(|a, b| {
+                (a.start.0 + a.duration.0)
+                    .total_cmp(&(b.start.0 + b.duration.0))
+                    .then(b.start.0.total_cmp(&a.start.0))
+            })?;
+        let tail = partner.start.0 + partner.duration.0 - ls;
+        let after = if tail > le - ls + LOOP_JOIN_EPS {
+            rest
+        } else {
+            tail.min(rest)
+        };
+        Some((partner, after))
+    }
 }
+
+/// Loop-join tolerance (beats, the engine's): a note ending exactly on the loop end, or
+/// starting exactly on the loop start, does not join.
+pub const LOOP_JOIN_EPS: f64 = 1e-9;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
 pub struct ClipLoop {

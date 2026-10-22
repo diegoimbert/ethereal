@@ -2577,6 +2577,7 @@
   "arrangement.header.name_title": "{name} (double-click to rename)",
   "arrangement.header.mute": "mute",
   "arrangement.header.unmute": "unmute",
+  "mixer.mute_overridden": "muted, but heard while soloed (click to unmute)",
   "arrangement.header.mute_named": "mute {name}",
   "arrangement.header.solo_named": "solo {name}",
   "arrangement.header.solo_title": "solo (click: only this track; ctrl/cmd-click: add to or remove from the soloed tracks)",

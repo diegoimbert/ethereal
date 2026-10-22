@@ -191,6 +191,24 @@ describe("ArrangementView: tracks", () => {
     expect(screen.queryByRole("button", { name: "solo Master" })).toBeNull();
   });
 
+  it("a soloed muted track's mute button shows the solo override (outlined, with a tooltip)", async () => {
+    const mute = () => screen.getByRole("button", { name: "mute Keys" });
+    fireEvent.click(mute());
+    await flush();
+    expect(mute()).toHaveAttribute("aria-pressed", "true");
+    expect(mute()).not.toHaveAttribute("data-solo-override");
+    expect(mute()).toHaveAttribute("title", "unmute");
+    fireEvent.click(screen.getByRole("button", { name: "solo Keys" }));
+    await flush();
+    expect(mute()).toHaveAttribute("aria-pressed", "true");
+    expect(mute()).toHaveAttribute("data-solo-override", "true");
+    expect(mute()).toHaveAttribute("title", "muted, but heard while soloed (click to unmute)");
+    fireEvent.click(screen.getByRole("button", { name: "solo Keys" }));
+    await flush();
+    expect(trackByName("Keys").mixer.mute).toBe(true);
+    expect(mute()).not.toHaveAttribute("data-solo-override");
+  });
+
   it("exclusive solo: plain click solos only that track, Cmd/Ctrl adds, the only soloed one unsolos", async () => {
     const soloed = () =>
       tracksOrdered(project())
