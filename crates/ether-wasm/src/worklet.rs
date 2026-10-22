@@ -113,9 +113,10 @@ pub mod tap_clock {
     pub const LEN: usize = 14;
 }
 
-/// Most stretcher voices on the web (feature `warp-complex`): every voice runs on the one
-/// AudioWorklet thread (~31 µs per 128-frame stereo block in V8, ~1.2% of the quantum),
-/// so Complex clips beyond this play Repitch.
+/// Most stretcher voices on the web (feature `warp-complex`, Complex and Complex+ together):
+/// every voice runs on the one AudioWorklet thread (per 128-frame stereo block in V8:
+/// Complex ~31 µs, ~1.2% of the quantum; Complex+ ~50–60 µs, ~2%, `stretch.bench.test.ts`),
+/// so clips beyond this play Repitch.
 pub const WEB_STRETCH_VOICES: usize = 12;
 
 /// Engine config for the web: one render quantum per `process`, stereo out, no inputs yet.

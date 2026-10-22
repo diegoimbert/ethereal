@@ -14,7 +14,7 @@ use ether_core::graph::{
 use ether_core::protocol::devices::ParamScale;
 use ether_core::protocol::model::{
     AutomationTarget, ClipId, CurveShape, DeviceId, DrumPadId, FadeCurve, MediaId, MetronomeSound,
-    ParamId, SendId, TempoCurve, TimeSignature, TrackId, TrackKind, Ulid, WarpMode,
+    ParamId, SendId, TempoCurve, TimeSignature, TrackId, TrackKind, Ulid, WarpFormants, WarpMode,
 };
 use ether_core::tempo::{TempoPointDesc, TimeSignatureDesc};
 
@@ -460,7 +460,7 @@ pub fn all_variants() -> RenderGraphDesc {
                             2 => Some(WarpDesc {
                                 mode: WarpMode::ComplexPlus,
                                 markers: vec![(0.0, 0.0), (2.0, 1.5)],
-                                formants: ether_protocol::model::WarpFormants {
+                                formants: WarpFormants {
                                     amount: 0.75,
                                     shift: -3.5,
                                     envelope: 64.0,

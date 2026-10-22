@@ -3,10 +3,9 @@
 //!
 //! Per frame (analysis centred at input sample `c`, synthesis centred at output sample `f`):
 //! 1. **Analysis** of every channel through one real FFT of the (gated) rectangular frame:
-//!    the Hann spectrum and the Hann-derivative spectrum are 3-tap kernels of it; a second FFT
-//!    of the time-weighted frame gives the time-weighted Hann spectrum. From those, the
-//!    reassignment estimates (Auger & Flandrin 1995) of instantaneous frequency and group
-//!    delay, which don't depend on the analysis hop, so any time ratio works.
+//!    the Hann spectrum and the Hann-derivative spectrum are 3-tap kernels of it, giving the
+//!    reassigned instantaneous frequency (Auger & Flandrin 1995), which doesn't depend on the
+//!    analysis hop, so any time ratio works.
 //! 2. **Reference** spectrum shared by the channels (their sum; the loudest channel where the
 //!    sum cancels): phases are integrated once on it and every channel keeps its analysed
 //!    phase offset to it, so the stereo image (inter-channel phase) is preserved exactly.
@@ -77,13 +76,12 @@ pub(crate) enum Edge {
 /// the crossover's source lies lower still). Two resolutions
 /// synthesising the same partial with independently integrated phases would partly cancel
 /// where their bands overlap; instead, in the crossover the follower takes the master's
-/// phase, moved to its own frame time with the instantaneous frequency and to its own bin
-/// frequency with the group delay (`φ(ω) ≈ φ(ω_m) − τ·(ω − ω_m)`), and integrates the rest
-/// of its band from there.
+/// phase (moved to its own frame time with the instantaneous frequency) and integrates the
+/// rest of its band from there. Within a lobe the phase is flat (a centred frame), so no
+/// group-delay correction is needed for the bins of a partial (a noisy one only hurt).
 pub(crate) struct Master<'a> {
     pub phase: &'a [C],
     pub omega: &'a [f32],
-    pub tau: &'a [f32],
     pub clock: i64,
     pub bin_hz: f32,
     pub k_lo: usize,
@@ -165,7 +163,6 @@ pub(crate) struct Path {
     copy1: (usize, usize),
     band_pitch: f32,
     time: Vec<f32>,
-    time_w: Vec<f32>,
     /// The frame in time order, and its gate.
     frame: Vec<f32>,
     gate: Vec<f32>,
@@ -176,14 +173,11 @@ pub(crate) struct Path {
     rot: Vec<C>,
     unit: Vec<C>,
     rect: Vec<Vec<C>>,
-    tw: Vec<Vec<C>>,
     x: Vec<Vec<C>>,
     sum_r: Vec<C>,
-    sum_t: Vec<C>,
     xr: Vec<C>,
     emag: Vec<f32>,
     omega_a: Vec<f32>,
-    tau_a: Vec<f32>,
     // Output bins.
     mag_o: Vec<f32>,
     omega_o: Vec<f32>,
@@ -296,7 +290,6 @@ impl Path {
             copy1: copy,
             band_pitch: 1.0,
             time: vec![0.0; n],
-            time_w: vec![0.0; n],
             frame: vec![0.0; n],
             gate: vec![1.0; n],
             wsyn,
@@ -304,14 +297,11 @@ impl Path {
             rot: cv(),
             unit: cv(),
             rect: (0..channels).map(|_| cv()).collect(),
-            tw: (0..channels).map(|_| cv()).collect(),
             x: (0..channels).map(|_| cv()).collect(),
             sum_r: cv(),
-            sum_t: cv(),
             xr: cv(),
             emag: fv(),
             omega_a: fv(),
-            tau_a: fv(),
             mag_o: fv(),
             omega_o: fv(),
             tau_o: fv(),
@@ -356,7 +346,6 @@ impl Path {
         self.primed.then(|| Master {
             phase: &self.prev_phase,
             omega: &self.prev_omega,
-            tau: &self.tau_o,
             clock: self.last_clock,
             bin_hz: self.bin_hz(),
             k_lo: self.k_lo,
@@ -482,18 +471,9 @@ impl Path {
             }
             self.time[..h].copy_from_slice(&self.frame[h..]);
             self.time[h..].copy_from_slice(&self.frame[..h]);
-            for i in 0..h {
-                self.time_w[i] = self.frame[h + i] * i as f32;
-                self.time_w[h + i] = self.frame[i] * (i as f32 - h as f32);
-            }
             let _ = self.fwd.process_with_scratch(
                 &mut self.time,
                 &mut self.rect[ch],
-                &mut self.scratch,
-            );
-            let _ = self.fwd.process_with_scratch(
-                &mut self.time_w,
-                &mut self.tw[ch],
                 &mut self.scratch,
             );
         }
@@ -517,17 +497,14 @@ impl Path {
         };
         for k in s_lo..s_hi {
             let mut r = C::default();
-            let mut t = C::default();
             let mut e = 0.0f32;
             for ch in 0..channels {
                 let xk = hann(&self.rect[ch], k);
                 self.x[ch][k] = xk;
                 e += xk.norm_sqr();
                 r += self.rect[ch][k];
-                t += self.tw[ch][k];
             }
             self.sum_r[k] = r;
-            self.sum_t[k] = t;
             self.emag[k] = e.sqrt();
         }
         let bin_step = TAU / n as f32;
@@ -539,32 +516,27 @@ impl Path {
             for ch in 0..channels {
                 xr += self.x[ch][k];
             }
-            let (xr, xd, xt) = if channels > 1 && xr.norm() < CANCEL * self.emag[k] {
-                let loud = (0..channels)
-                    .max_by(|a, b| {
-                        self.x[*a][k]
-                            .norm_sqr()
-                            .total_cmp(&self.x[*b][k].norm_sqr())
-                    })
-                    .unwrap_or(0);
-                (
-                    self.x[loud][k],
-                    dhann(&self.rect[loud], k),
-                    hann(&self.tw[loud], k),
-                )
-            } else {
-                (xr, dhann(&self.sum_r, k), hann(&self.sum_t, k))
-            };
+            let (xr, xd) =
+                if channels > 1 && xr.norm_sqr() < CANCEL * CANCEL * self.emag[k] * self.emag[k] {
+                    let loud = (0..channels)
+                        .max_by(|a, b| {
+                            self.x[*a][k]
+                                .norm_sqr()
+                                .total_cmp(&self.x[*b][k].norm_sqr())
+                        })
+                        .unwrap_or(0);
+                    (self.x[loud][k], dhann(&self.rect[loud], k))
+                } else {
+                    (xr, dhann(&self.sum_r, k))
+                };
             self.xr[k] = xr;
             let p2 = xr.norm_sqr();
             let wk = bin_step * k as f32;
             if p2 > 1e-24 {
                 let dw = -(xd * xr.conj()).im / p2;
                 self.omega_a[k] = wk + dw.clamp(-2.5 * bin_step, 2.5 * bin_step);
-                self.tau_a[k] = ((xt * xr.conj()).re / p2).clamp(-(half as f32), half as f32);
             } else {
                 self.omega_a[k] = wk;
-                self.tau_a[k] = 0.0;
             }
             peak = peak.max(self.emag[k]);
         }
@@ -615,7 +587,6 @@ impl Path {
             self.gain[k] = g;
             self.mag_o[k] = em * g;
             self.omega_o[k] = self.omega_a[j] * self.wscale[k] + self.wshift[k];
-            self.tau_o[k] = self.tau_a[j];
         }
         // The formant correction redistributes the frame's energy; bound how much it changes
         // its total (a sparse spectrum, e.g. a lone partial, has no meaningful envelope).
@@ -639,7 +610,7 @@ impl Path {
             && (ci - self.prev_center) == self.synth_hop_samples;
         for k in k_lo..k_hi {
             let r = self.xr[self.src[k] as usize];
-            let rn = r.norm();
+            let rn = r.norm_sqr().sqrt();
             self.ana_o[k] = if rn > 1e-30 { r / rn } else { C::new(1.0, 0.0) };
         }
         let ana_phase = |s: &Self, k: usize| -> C { s.ana_o[k] };
@@ -654,12 +625,10 @@ impl Path {
                 // The master bin at this bin's instantaneous frequency: the centre of the
                 // partial dominating it (a lobe centre has a meaningful phase; the master bin
                 // at the same centre frequency may be a valley between finer-resolved partials).
-                let hz = k as f32 * hz_per_bin;
                 let at = self.omega_o[k] * self.sr / TAU;
                 let km = ((at / m.bin_hz).round().max(0.0) as usize)
                     .clamp(m.k_lo, m.k_hi.max(m.k_lo + 1) - 1);
-                let dw = TAU * (hz - km as f32 * m.bin_hz) / self.sr;
-                self.phase[k] = m.phase[km] * cis(m.omega[km] * dt - m.tau[km] * dw);
+                self.phase[k] = m.phase[km] * cis(m.omega[km] * dt);
             }
             fixed = (c0, c1);
         }
@@ -733,8 +702,9 @@ impl Path {
                 } else {
                     let i0 = (jf as usize).min(bins - 2);
                     let fr = jf - i0 as f32;
-                    let m = xc[i0].norm() * (1.0 - fr) + xc[i0 + 1].norm() * fr;
-                    let zn = z.norm();
+                    let m =
+                        xc[i0].norm_sqr().sqrt() * (1.0 - fr) + xc[i0 + 1].norm_sqr().sqrt() * fr;
+                    let zn = z.norm_sqr().sqrt();
                     let u = if zn > 1e-30 { z / zn } else { C::new(1.0, 0.0) };
                     u * self.rot[k] * m
                 };
