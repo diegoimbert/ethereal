@@ -253,7 +253,12 @@ pub fn rack_command(ctx: &mut DocCtx, c: &DrumRackCommand) -> CmdResult<()> {
                         name: listed.clone().unwrap_or_else(|| plugin_id.clone()),
                         vendor: String::new(),
                         version: String::new(),
-                        sandboxed: sandboxed.unwrap_or(false),
+                        sandboxed: ctx.host.new_instance_sandboxed(
+                            *sandboxed,
+                            format.unwrap_or(PluginFormat::Clap),
+                            plugin_id,
+                        ),
+                        always_process: false,
                         state: None,
                     },
                 },

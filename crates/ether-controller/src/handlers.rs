@@ -822,6 +822,8 @@ where
             | PluginCommand::AddFolder { .. }
             | PluginCommand::RemoveFolder { .. }
             | PluginCommand::SetIncludeDefaults { .. }
+            | PluginCommand::ListSandboxDefaults
+            | PluginCommand::SetSandboxDefault { .. }
             | PluginCommand::OpenEditor { .. }
             | PluginCommand::CloseEditor { .. }
             | PluginCommand::SetEditorKeyCapture { .. }
@@ -848,6 +850,28 @@ where
                 };
                 self.edit_with(label, gesture, now, out, |ctx| {
                     plugin.sandboxed = sandboxed;
+                    ctx.set_device(device, DeviceChange::Plugin(plugin))
+                })?;
+                Ok(ReplyValue::Unit)
+            }
+            PluginCommand::SetAlwaysProcess {
+                device,
+                always_process,
+            } => {
+                let mut plugin = self.plugin_device(*device)?;
+                if plugin.always_process == *always_process {
+                    return Ok(ReplyValue::Unit);
+                }
+                let device = *device;
+                let label = if *always_process {
+                    "always process plugin"
+                } else {
+                    "let plugin sleep on silence"
+                };
+                // The live instance stays (the switch is flipped on it,
+                // `EngineBridge::set_always_process`): no re-instantiation, no state change.
+                self.edit_with(label, gesture, now, out, |ctx| {
+                    plugin.always_process = *always_process;
                     ctx.set_device(device, DeviceChange::Plugin(plugin))
                 })?;
                 Ok(ReplyValue::Unit)
@@ -1514,6 +1538,12 @@ where
 
     /// Why an extension holds saves back, if one does.
     pub fn save_refused(&self) -> Option<CommandError> {
+        if self.discarded_open() {
+            return Some(crate::tx::keyed_err(
+                ether_core::protocol::ErrorCode::InvalidState,
+                crate::text::msg("error.project.discarded"),
+            ));
+        }
         self.ext_ask(|e, ctl| e.save_refused(ctl))
     }
 

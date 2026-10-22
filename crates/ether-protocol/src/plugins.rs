@@ -34,6 +34,13 @@ pub enum PluginCommand {
         device: DeviceId,
         sandboxed: bool,
     },
+    /// Let an instance sleep on silence (`false`, the default) or always process it
+    /// (`PluginInstance::always_process`, CONTRACTS.md §13.19). Undoable; the live instance
+    /// is kept.
+    SetAlwaysProcess {
+        device: DeviceId,
+        always_process: bool,
+    },
     /// Re-instantiate a crashed plugin from its last saved state.
     Reload {
         device: DeviceId,
@@ -55,6 +62,24 @@ pub enum PluginCommand {
     /// are scanned; on by default. Rescans. Replies `PluginFolders`.
     SetIncludeDefaults {
         include: bool,
+    },
+    /// Replies `SandboxDefaults`: the plugins this machine inserts sandboxed by default
+    /// (settings, kept by the engine host next to its plugin list). A new instance of one
+    /// (`Device::Insert` and the like with `sandboxed: null`, a replacement by another plugin,
+    /// an imported project's plugins) starts sandboxed; each instance keeps its own flag after
+    /// that (`SetSandboxed`, saved in the project), and editing the list never changes
+    /// existing instances. Native host only (the web replies `Unsupported`).
+    ListSandboxDefaults,
+    /// Add (`sandboxed: true`) or remove a plugin from `ListSandboxDefaults`, by format and
+    /// plugin id (ids compare case-insensitively). `name` is shown in settings (kept for a
+    /// plugin that is no longer installed). Replies `SandboxDefaults`.
+    SetSandboxDefault {
+        format: PluginFormat,
+        plugin_id: String,
+        #[serde(default)]
+        #[ts(optional)]
+        name: Option<String>,
+        sandboxed: bool,
     },
     /// Keys the host's plugin editor windows forward to the app (as `PluginEvent::EditorKey`)
     /// instead of giving them to the plugin, besides `Space` (always forwarded, the
@@ -135,6 +160,16 @@ pub struct PluginFolder {
     pub path: String,
     /// Only plugins of this format are looked for here; `null` = any format.
     pub format: Option<PluginFormat>,
+}
+
+/// A plugin inserted sandboxed by default (`PluginCommand::ListSandboxDefaults`).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct SandboxDefault {
+    pub format: PluginFormat,
+    /// `PluginInstance.plugin_id` (stable per format; never a path).
+    pub plugin_id: String,
+    /// Its name when it was added (display only).
+    pub name: String,
 }
 
 /// An OS default plugin folder of one format.

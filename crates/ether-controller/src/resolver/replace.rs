@@ -434,7 +434,16 @@ where
                     name: to.name.clone(),
                     vendor: to.vendor.clone(),
                     version: to.version.clone(),
-                    sandboxed: old.sandboxed,
+                    // Another plugin is a new instance: the "sandboxed by default" list
+                    // decides; the same plugin keeps the old instance's flag.
+                    sandboxed: if old.format == Some(to.format)
+                        && old.id.eq_ignore_ascii_case(&to.plugin_id)
+                    {
+                        old.sandboxed
+                    } else {
+                        self.bridge.sandbox_by_default(to.format, &to.plugin_id)
+                    },
+                    always_process: false,
                     state: None,
                 };
                 let pre = plan(

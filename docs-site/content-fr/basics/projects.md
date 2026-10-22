@@ -45,6 +45,8 @@ Un nouveau projet part de votre [modèle par défaut](#templates). Si vous n’e
 
 Un nouveau projet reste un **brouillon** tant que vous n’y changez rien (une modification, une étape d’annulation ou un renommage). Si vous quittez un brouillon sans y avoir touché, en ouvrant un autre projet ou en quittant l’application, il est supprimé et n’apparaît jamais dans vos projets récents. Vous pouvez donc fermer l’écran d’accueil juste pour jeter un œil.
 
+Dès que vous modifiez un brouillon, il est enregistré comme n’importe quel projet, mais tant que vous ne lui donnez pas de nom, il reste **sans titre**. Quand vous quittez un projet sans titre (en ouvrant ou en créant un autre projet, en en important un, en rejoignant une session ou en quittant l’application de bureau), Ethereal vous demande s’il faut le **garder** (vous pouvez lui donner un nom tout de suite) ou l’**abandonner**. L’abandonner le supprime avec ses versions. Une fois le projet nommé, la question ne se pose plus. Fermer un onglet du navigateur ne demande rien : le projet reste enregistré, et la question revient la prochaine fois que vous le quittez.
+
 ### visites guidées {#guided-tours}
 
 La liste **pour commencer** de l’écran d’accueil lance des visites guidées de la vraie application, comme faire votre premier morceau ou enregistrer de l’audio. En lancer une crée un projet pour elle et vous guide pas à pas. Quand vous terminez ou quittez la visite, vous revenez à l’écran d’accueil. Pour retrouver les visites plus tard, choisissez **tutoriels** dans le menu du projet.

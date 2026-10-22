@@ -783,6 +783,9 @@
     "plugins/sandboxing-and-crashes": [
       "sounds-and-plugins/plugins#when-a-plugin-crashes"
     ],
+    "plugins/sandboxed-by-default": [
+      "sounds-and-plugins/plugins#plugins-sandboxed-by-default"
+    ],
     "plugins/open-without-plugins-safe-mode": [
       "sounds-and-plugins/plugins#opening-a-project-without-plugins"
     ],

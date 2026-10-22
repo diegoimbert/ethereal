@@ -18,6 +18,7 @@
  * - paged (100 at a time, more on scroll), re-queried on `IndexChanged`; `IndexProgress`
  *   shows a status line; saved presets trigger a rescan of the User Library.
  */
+import { guardLeave } from "@/features/project/leaveGuard";
 import "../browser.css";
 import "./browserV2.css";
 import clsx from "clsx";
@@ -279,7 +280,8 @@ export function BrowserV2({ initialRoots }: BrowserV2Props) {
     const preset = item.preset;
     void send(loadPresetCommand(device.id, preset)).then((r) => r && setCurrentPreset(device.id, preset, item.name));
   };
-  const openProject = (item: LibraryItem) => void send(cmd("Project", { type: "Open", id: item.path }));
+  // Leaving the open project: an untitled one asks to keep or discard it first.
+  const openProject = (item: LibraryItem) => void guardLeave(() => send(cmd("Project", { type: "Open", id: item.path })));
   const open = (item: LibraryItem) => {
     if (item.kind === "Preset") loadPreset(item);
     else if (item.kind === "Project") openProject(item);

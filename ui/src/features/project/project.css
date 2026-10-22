@@ -544,3 +544,10 @@
     animation: none;
   }
 }
+
+/* "Keep or discard this untitled project?" (UntitledLeaveDialog). */
+.eth-untitled {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-md);
+}

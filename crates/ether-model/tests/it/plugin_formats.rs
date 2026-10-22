@@ -18,6 +18,7 @@ fn plugin(format: PluginFormat, plugin_id: &str) -> PluginInstance {
         vendor: "V".into(),
         version: "1.0".into(),
         sandboxed: false,
+        always_process: false,
         state: Some(Base64Bytes(vec![1, 2, 3])),
     }
 }

@@ -13,6 +13,7 @@ covers:
   - plugins/linux-plugin-editors-need-x11 #plugin-windows-on-linux
   - plugins/keys-in-plugin-windows #keys-in-plugin-windows
   - plugins/sandboxing-and-crashes #when-a-plugin-crashes
+  - plugins/sandboxed-by-default #plugins-sandboxed-by-default
   - plugins/open-without-plugins-safe-mode #opening-a-project-without-plugins
   - plugins/missing-plugins #missing-plugins
   - plugins/plugin-state-is-saved-in-the-project #how-plugin-sounds-are-saved
@@ -80,6 +81,12 @@ Quand une fenêtre de plug-in a le focus :
 Par défaut, les plug-ins tournent à l’intérieur d’Ethereal. Pour un plug-in dont vous vous méfiez, faites un clic droit sur son en-tête et choisissez **exécuter isolé (protégé des plantages, +1 bloc de latence)**. Le plug-in tourne alors dans son propre processus. S’il plante, Ethereal continue de jouer : l’appareil affiche **planté · contourné** et la piste joue sans lui. Cliquez sur **⟳** pour recharger le plug-in depuis son dernier état enregistré.
 
 L’isolation ajoute un bloc audio de latence. Pour revenir en arrière, faites un clic droit sur l’en-tête et choisissez **exécuter dans le processus (sans isolation)**.
+
+### plug-ins isolés par défaut {#plugins-sandboxed-by-default}
+
+Pour qu’un plug-in démarre toujours isolé, faites un clic droit sur un appareil qui l’utilise et choisissez **toujours isoler ce plug-in** (cet appareil est isolé aussi), ou ajoutez-le dans **réglages › plug-ins › isolation** avec **ajouter un plug-in…**. Chaque nouvel appareil de ce plug-in démarre alors isolé : ajouté depuis la bibliothèque d’appareils, glissé, en remplacement d’un autre plug-in, depuis un preset de rack, ou dans un projet importé d’une autre app.
+
+Cette liste ne choisit que la façon dont un nouvel appareil démarre. Chaque appareil garde son propre réglage, enregistré dans le projet, et vous pouvez toujours le changer depuis son menu. Les appareils dupliqués et collés gardent le réglage de l’appareil d’origine, et modifier la liste ne change jamais les appareils déjà dans un projet. La liste est gardée sur l’ordinateur dont le moteur joue le projet : quand vous rejoignez la session de quelqu’un d’autre, c’est la sienne qui s’applique.
 
 > [!note]
 > L’isolation fonctionne sur macOS et Linux. Sous Windows, les plug-ins tournent toujours à l’intérieur d’Ethereal : choisir d’exécuter un plug-in isolé n’y change rien.

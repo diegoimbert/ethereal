@@ -425,6 +425,7 @@ pub struct PluginHost {
     /// Notifications wait in the registry for the next poll ([`Self::has_queued_notes`]).
     notes_queued: Arc<AtomicBool>,
     editor_windows: EditorWindows,
+    always: AlwaysSwitches,
 }
 
 impl std::fmt::Debug for PluginHost {
@@ -449,7 +450,14 @@ pub struct PluginSource {
     /// `PluginDescriptor.path`: the bundle, or the component id for AUs.
     pub path: PathBuf,
     pub plugin_id: String,
+    /// The instance's "always process" switch at creation (`PluginInstance::always_process`;
+    /// later changes: [`PluginHost::set_always_process`]).
+    pub always_process: bool,
 }
+
+/// The "always process" switches of the live plugin nodes, by registry device id
+/// (`PluginNode::always_process`).
+type AlwaysSwitches = Arc<Mutex<HashMap<DeviceId, Arc<AtomicBool>>>>;
 
 impl PluginHost {
     pub fn new(main: Arc<dyn MainThread>) -> Self {
@@ -461,6 +469,16 @@ impl PluginHost {
             poll_pending: Arc::default(),
             notes_queued: Arc::default(),
             editor_windows: EditorWindows::default(),
+            always: Arc::default(),
+        }
+    }
+
+    /// Flip the "always process" switch of `device`'s live node (CONTRACTS.md §13.19).
+    /// Any thread; no plugin call.
+    pub fn set_always_process(&self, device: DeviceId, on: bool) {
+        let switches = self.always.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(switch) = switches.get(&device) {
+            switch.store(on, Ordering::Relaxed);
         }
     }
 
@@ -550,6 +568,7 @@ impl PluginHost {
         let health = self.health.clone();
         let queued = self.notes_queued.clone();
         let windows = self.editor_windows.clone();
+        let always = self.always.clone();
         if let Some(name) = source.path.file_stem().and_then(|n| n.to_str()) {
             health.name_device(device, name);
         }
@@ -569,6 +588,17 @@ impl PluginHost {
                     controller.load_state(state)?;
                 }
                 let node = controller.activate(&prepare)?;
+                let mut switches = always.lock().unwrap_or_else(|e| e.into_inner());
+                match node.always_process() {
+                    Some(switch) => {
+                        switch.store(source.always_process, Ordering::Relaxed);
+                        switches.insert(device, switch);
+                    }
+                    None => {
+                        switches.remove(&device);
+                    }
+                }
+                drop(switches);
                 Ok::<_, PluginError>((controller, node))
             })();
             let (mut controller, node) = match created {
@@ -658,6 +688,10 @@ impl PluginHost {
     /// otherwise when the node returns from the engine.
     pub fn destroy(&self, device: DeviceId) {
         self.editor_windows.set(device, None);
+        self.always
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&device);
         let queued = self.notes_queued.clone();
         let _ = self.call_as(Work::UnloadPlugin, Some(device), move || {
             if close_live_editor(device) {
@@ -1494,6 +1528,7 @@ mod tests {
             format: PluginFormat::Clap,
             path: PathBuf::from("/x.clap"),
             plugin_id: id.into(),
+            always_process: false,
         }
     }
 
@@ -1929,6 +1964,7 @@ mod tests {
             vendor: String::new(),
             version: String::new(),
             sandboxed: false,
+            always_process: false,
             state: None,
         };
         assert_eq!(cat.find_plugin(&inst("Alpha")).unwrap().path, a.path);

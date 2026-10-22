@@ -5,6 +5,7 @@
  */
 
 export * from "./BeatCanvas";
+export * from "./blink";
 export * from "./doublePress";
 export * from "./extendOrRetract";
 export * from "./format";

@@ -20,8 +20,9 @@
 //! (`sidechain_inputs = 2`). When the chain entry has a sidechain source, the engine calls
 //! [`Node::process_sidechain`] with the (latency-aligned) source signal and the detector
 //! listens to it instead of the main input; the gain is still applied to the main input.
-//! The detector signal of the sidechain goes through a one-pole high-pass
-//! (`Sidechain HPF`, off at its 20 Hz minimum) so a kick's sub doesn't dominate.
+//! The detector signal of the sidechain goes through a high-pass (`Sidechain HPF`, off at
+//! its 20 Hz minimum; one-pole 6 dB/oct, or 12 dB/oct with `Sidechain Slope`) so a kick's
+//! sub doesn't dominate.
 //!
 //! The effects pass appends (defaults = the sound before them, bit-exact):
 //! - `Knee` (7, 0..=24 dB, default the former fixed 6 dB): quadratic soft knee width.
@@ -30,6 +31,18 @@
 //!   when a transient arrives; reported as latency (`Node::latency`).
 //! - `Auto Makeup` (10, toggle, default off): adds half the static gain reduction at 0 dBFS
 //!   to `Makeup` (follows threshold, ratio and knee).
+//!
+//! Appended for Live's Glue Compressor (defaults bit-exact):
+//! - `Range` (11, 0..=80 dB, default 80 = no limit): the most gain reduction applied (the
+//!   static curve's target is capped; 0 = no compression). Compressing detectors only.
+//! - `Soft Clip` (12, toggle, default off): the output (after the mix) goes through
+//!   [`soft_clip`]: linear up to -6 dBFS, then a tanh curve towards -0.5 dBFS.
+//!
+//! Appended for Live's sidechain EQ (default bit-exact):
+//! - `Sidechain Slope` (13, choice, default 6 dB/oct = the one-pole above): 12 dB/oct makes
+//!   the sidechain high-pass a 2nd-order Butterworth (Q = 1/√2, Live's sidechain EQ
+//!   default), -3 dB at the cutoff. Both filters run while the high-pass is on and the
+//!   detector crossfades between them ([`SLOPE_FADE_MS`]), so switching doesn't click.
 //!
 //! Analysis (the window's meter and transfer-curve dot): `AnalysisKind::Levels`
 //! `[gain reduction dB (<= 0), detector level dBFS]`, the deepest reduction and the loudest
@@ -69,9 +82,35 @@ pub mod params {
     pub const LOOKAHEAD: ParamId = ParamId(9);
     /// Automatic makeup gain (toggle).
     pub const AUTO_MAKEUP: ParamId = ParamId(10);
+    /// Most gain reduction the compressor applies (dB; the 80 dB maximum = no limit).
+    pub const RANGE: ParamId = ParamId(11);
+    /// A soft clipper on the output, peaking at [`super::SOFT_CLIP_CEILING_DB`] (toggle).
+    pub const SOFT_CLIP: ParamId = ParamId(12);
+    /// Appended (Live's sidechain EQ): slope of the sidechain high-pass, 0 = 6 dB/oct
+    /// (one-pole, the default), 1 = 12 dB/oct (2nd-order Butterworth).
+    pub const SIDECHAIN_SLOPE: ParamId = ParamId(13);
 }
 
-const NUM_PARAMS: usize = 11;
+const NUM_PARAMS: usize = 14;
+/// `Range` at this many dB (its maximum) doesn't limit the gain reduction.
+pub const RANGE_OFF_DB: f32 = 80.0;
+/// The soft clipper's ceiling (dBFS): Live's Glue Compressor's ("the maximum output will be
+/// -0.5 dB", Live Reference Manual).
+pub const SOFT_CLIP_CEILING_DB: f32 = -0.5;
+/// The soft clipper is linear up to this level (linear amplitude, -6 dBFS).
+const SOFT_CLIP_KNEE: f32 = 0.5;
+
+/// The output soft clipper: linear up to [`SOFT_CLIP_KNEE`], then a tanh curve (slope 1 at
+/// the knee) that approaches the ceiling.
+#[inline]
+pub fn soft_clip(x: f32) -> f32 {
+    let a = x.abs();
+    if a <= SOFT_CLIP_KNEE {
+        return x;
+    }
+    let room = util::db_to_amp(SOFT_CLIP_CEILING_DB) - SOFT_CLIP_KNEE;
+    (SOFT_CLIP_KNEE + room * ((a - SOFT_CLIP_KNEE) / room).tanh()).copysign(x)
+}
 /// Longest lookahead (ms).
 pub const MAX_LOOKAHEAD_MS: f32 = 10.0;
 /// Detector level reported when nothing was measured (dBFS).
@@ -87,6 +126,10 @@ pub const RMS_WINDOW_MS: f32 = 10.0;
 pub const MAX_EXPAND_DB: f32 = 60.0;
 /// `Sidechain HPF` at or below this cutoff (Hz) is off.
 const HPF_OFF_HZ: f32 = 20.0;
+/// `Sidechain Slope` labels, in plain-value order.
+pub const SLOPE_LABELS: [&str; 2] = ["6 dB/oct", "12 dB/oct"];
+/// Crossfade between the two sidechain high-pass slopes when switching (ms).
+pub const SLOPE_FADE_MS: f32 = 20.0;
 /// Soft-knee width in dB.
 pub(crate) const KNEE_DB: f32 = 6.0;
 
@@ -183,6 +226,32 @@ pub fn param_infos() -> Vec<ParamInfo> {
             &["Off", "On"],
             0,
         ),
+        // --- appended (Ableton import: Live's Glue Compressor) ---
+        param(
+            11,
+            "Range",
+            "Compressor",
+            ParamUnit::Decibels,
+            (0.0, RANGE_OFF_DB as f64, RANGE_OFF_DB as f64),
+            ParamScale::Linear,
+        ),
+        choice(
+            12,
+            "Soft Clip",
+            "Output",
+            ParamUnit::Toggle,
+            &["Off", "On"],
+            0,
+        ),
+        // --- appended (Ableton import: Live's sidechain EQ high-pass) ---
+        choice(
+            13,
+            "Sidechain Slope",
+            "Sidechain",
+            ParamUnit::None,
+            &SLOPE_LABELS,
+            0,
+        ),
     ]
 }
 
@@ -270,6 +339,13 @@ pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
                     },
                     Small,
                 ),
+                knob(params::RANGE, Small),
+                item(
+                    Widget::Toggle {
+                        param: params::SOFT_CLIP,
+                    },
+                    Small,
+                ),
             ],
         ),
         section(
@@ -277,7 +353,15 @@ pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
             Some("Sidechain"),
             1,
             1,
-            vec![knob(params::SIDECHAIN_HPF, Small)],
+            vec![
+                knob(params::SIDECHAIN_HPF, Small),
+                item(
+                    Widget::Choice {
+                        param: params::SIDECHAIN_SLOPE,
+                    },
+                    Small,
+                ),
+            ],
         ),
     ])
 }
@@ -353,6 +437,12 @@ pub struct Compressor {
     hpf_coef: Option<f32>,
     /// High-pass state per sidechain channel: (previous input, previous output).
     hpf_state: [(f32, f32); SIDECHAIN_CHANNELS],
+    /// 12 dB/oct (Butterworth) high-pass of the sidechain detector and its state per
+    /// channel; runs beside the one-pole while the high-pass is on.
+    hpf2: crate::dsp::svf::Coefs,
+    hpf2_state: [crate::dsp::svf::Svf; SIDECHAIN_CHANNELS],
+    /// Weight of the 12 dB/oct output (0 = one-pole only, 1 = Butterworth only).
+    slope: Smoother,
     /// Dry/wet (0..1).
     mix: Smoother,
     /// Lookahead delay per main channel and its length in samples (0 = off).
@@ -396,6 +486,9 @@ impl Compressor {
             mean_square: 0.0,
             hpf_coef: None,
             hpf_state: [(0.0, 0.0); SIDECHAIN_CHANNELS],
+            hpf2: crate::dsp::svf::Coefs::BYPASS,
+            hpf2_state: [crate::dsp::svf::Svf::ZERO; SIDECHAIN_CHANNELS],
+            slope: Smoother::new(0.0, SLOPE_FADE_MS, 48_000.0),
             mix: Smoother::new(1.0, 20.0, 48_000.0),
             delay: [DelayLine::default(), DelayLine::default()],
             lookahead: LookaheadTap::default(),
@@ -446,6 +539,7 @@ impl Compressor {
         );
         self.makeup = Smoother::new(self.makeup_amp(), 20.0, self.sample_rate);
         self.mix = Smoother::new(self.value(params::MIX) * 0.01, 20.0, self.sample_rate);
+        self.slope = Smoother::new(self.slope_target(), SLOPE_FADE_MS, self.sample_rate);
         self.update_times();
         self.update_hpf();
         self.update_lookahead(false);
@@ -459,6 +553,29 @@ impl Compressor {
             let dt = 1.0 / self.sample_rate;
             rc / (rc + dt)
         });
+        if self.hpf_coef.is_some() {
+            use crate::dsp::svf::{Coefs, Shape};
+            self.hpf2 = Coefs::new(
+                Shape::LowCut,
+                f64::from(fc),
+                0.0,
+                std::f64::consts::FRAC_1_SQRT_2,
+                f64::from(self.sample_rate),
+            );
+        }
+    }
+
+    /// Weight of the 12 dB/oct high-pass for the current `Sidechain Slope`.
+    fn slope_target(&self) -> f32 {
+        if util::index(
+            f64::from(self.value(params::SIDECHAIN_SLOPE)),
+            SLOPE_LABELS.len(),
+        ) == 1
+        {
+            1.0
+        } else {
+            0.0
+        }
     }
 
     fn update_times(&mut self) {
@@ -475,6 +592,14 @@ impl Compressor {
         match id {
             params::ATTACK | params::RELEASE => self.update_times(),
             params::SIDECHAIN_HPF => self.update_hpf(),
+            params::SIDECHAIN_SLOPE => {
+                let w = self.slope_target();
+                if smooth {
+                    self.slope.set_target(w);
+                } else {
+                    self.slope.set_immediate(w);
+                }
+            }
             params::LOOKAHEAD => self.update_lookahead(smooth),
             params::DETECTOR => {
                 self.detector = util::index(value, DETECTOR_LABELS.len());
@@ -512,6 +637,28 @@ impl Compressor {
         self.gr_db
     }
 
+    /// Sidechain channel `c`'s high-pass of `x`, `w` the weight of the 12 dB/oct output.
+    /// Both slopes keep running while the high-pass is on, so a switch crossfades between
+    /// settled filters; at 6 dB/oct the one-pole's output is used as is (bit-exact).
+    #[inline]
+    fn high_pass(&mut self, c: usize, x: f32, w: f32) -> f32 {
+        let Some(a) = self.hpf_coef else {
+            return x;
+        };
+        let st = &mut self.hpf_state[c];
+        let y = a * (st.1 + x - st.0);
+        // Keep the state out of the subnormal range (no FTZ on the audio thread).
+        *st = (x, if y.abs() < 1e-20 { 0.0 } else { y });
+        let y2 = self.hpf2_state[c].tick(f64::from(x), &self.hpf2) as f32;
+        if w == 0.0 {
+            y
+        } else if w == 1.0 {
+            y2
+        } else {
+            y + (y2 - y) * w
+        }
+    }
+
     /// Detector level (linear peak) of frame `i`: the sidechain if connected (high-passed),
     /// else the main input.
     #[inline]
@@ -519,19 +666,10 @@ impl Compressor {
         if sidechain.is_empty() {
             return inputs.iter().fold(0.0f32, |m, ch| m.max(ch[i].abs()));
         }
+        let w = self.slope.tick();
         let mut peak = 0.0f32;
-        for (ch, st) in sidechain.iter().zip(self.hpf_state.iter_mut()) {
-            let x = ch[i];
-            let y = match self.hpf_coef {
-                Some(a) => {
-                    let y = a * (st.1 + x - st.0);
-                    // Keep the state out of the subnormal range (no FTZ on the audio
-                    // thread).
-                    *st = (x, if y.abs() < 1e-20 { 0.0 } else { y });
-                    y
-                }
-                None => x,
-            };
+        for (c, ch) in sidechain.iter().enumerate().take(SIDECHAIN_CHANNELS) {
+            let y = self.high_pass(c, ch[i], w);
             peak = peak.max(y.abs());
         }
         peak
@@ -552,7 +690,9 @@ impl Compressor {
         let below_knee = util::db_to_amp(threshold - knee * 0.5) * 0.999;
         let inputs = audio.inputs;
         let parallel = self.mix.is_smoothing() || self.mix.current() < 1.0;
-        if self.detector != DETECTOR_PEAK || self.lookahead.active() || parallel {
+        let shaped =
+            self.value(params::RANGE) < RANGE_OFF_DB || self.value(params::SOFT_CLIP) >= 0.5;
+        if self.detector != DETECTOR_PEAK || self.lookahead.active() || parallel || shaped {
             self.render_modes(audio, sidechain, start, end);
             return;
         }
@@ -592,8 +732,8 @@ impl Compressor {
         }
     }
 
-    /// RMS and Expand detectors, lookahead and parallel mix (the Peak detector without them
-    /// stays on the original, bit-identical path in [`Self::render`]).
+    /// RMS and Expand detectors, lookahead, parallel mix, `Range` and `Soft Clip` (the Peak
+    /// detector without them stays on the original, bit-identical path in [`Self::render`]).
     fn render_modes(
         &mut self,
         audio: &mut AudioBuffers<'_, '_>,
@@ -606,6 +746,9 @@ impl Compressor {
         let knee = self.value(params::KNEE);
         let expand = self.detector == DETECTOR_EXPAND;
         let rms = self.detector == DETECTOR_RMS;
+        let range = self.value(params::RANGE);
+        let limit = range < RANGE_OFF_DB && !expand;
+        let clip = self.value(params::SOFT_CLIP) >= 0.5;
         let inputs = audio.inputs;
         for i in start..end {
             let peak = self.detect(inputs, sidechain, i);
@@ -632,6 +775,7 @@ impl Compressor {
             } else {
                 gain_reduction_knee_db(util::amp_to_db(peak), threshold, ratio, knee)
             };
+            let target = if limit { target.min(range) } else { target };
             if expand {
                 // Expander: attack while it opens, release while it closes.
                 let coef = if target < self.gr_db {
@@ -671,11 +815,12 @@ impl Compressor {
                     }
                     None => x,
                 };
-                out[i] = if parallel {
+                let y = if parallel {
                     x * (1.0 - mix) + x * gain * mix
                 } else {
                     x * gain
                 };
+                out[i] = if clip { soft_clip(y) } else { y };
             }
             self.lookahead.advance();
         }
@@ -714,7 +859,10 @@ impl Compressor {
             DETECTOR_RMS => self.gr_db < 1e-3 && self.gr_held < 1e-3 && self.mean_square < 1e-12,
             _ => self.gr_db < 1e-3 && self.gr_held < 1e-3,
         };
-        let settled = detector_settled && !self.makeup.is_smoothing() && !self.mix.is_smoothing();
+        let settled = detector_settled
+            && !self.makeup.is_smoothing()
+            && !self.mix.is_smoothing()
+            && !self.slope.is_smoothing();
         let hold = self.lookahead.len() + util::samples(util::BASE_HOLD_SECONDS, self.sample_rate);
         let silent_sc = util::all_zero(sidechain, frames);
         self.tail.status_of(ctx, audio, settled && silent_sc, hold)
@@ -733,6 +881,8 @@ impl Node for Compressor {
         self.gr_held = 0.0;
         self.mean_square = 0.0;
         self.hpf_state = [(0.0, 0.0); SIDECHAIN_CHANNELS];
+        self.hpf2_state = [crate::dsp::svf::Svf::ZERO; SIDECHAIN_CHANNELS];
+        self.slope.settle();
         self.delay.iter_mut().for_each(DelayLine::clear);
         self.meter_gr = 0.0;
         self.meter_peak = 0.0;
@@ -806,5 +956,81 @@ mod tests {
         let hi = gain_reduction_db(t + KNEE_DB / 2.0, t, 4.0);
         assert!(lo.abs() < 1e-6);
         assert!((hi - KNEE_DB / 2.0 * 0.75).abs() < 1e-5);
+    }
+
+    const SR: f32 = 48_000.0;
+
+    /// A compressor at `SR` with the sidechain high-pass at `fc` and slope index `slope`.
+    fn with_hpf(fc: f64, slope: f64) -> Compressor {
+        let mut c = Compressor::new();
+        c.prepare(&PrepareConfig {
+            sample_rate: SR,
+            max_block_size: 512,
+            max_events_per_block: 64,
+        });
+        c.set_param(params::SIDECHAIN_HPF, fc);
+        c.set_param(params::SIDECHAIN_SLOPE, slope);
+        c
+    }
+
+    /// Steady-state gain (dB) of the sidechain high-pass for a unit sine at `freq`: the
+    /// detector's peak over the last second of two.
+    fn hpf_gain_db(c: &mut Compressor, freq: f32) -> f32 {
+        let n = (2.0 * SR) as usize;
+        let mut peak = 0.0f32;
+        for i in 0..n {
+            let x = (std::f32::consts::TAU * freq * i as f32 / SR).sin();
+            let sc = [x, x];
+            let d = c.detect(&[], &[&sc[..1], &sc[1..]], 0);
+            if i >= n / 2 {
+                peak = peak.max(d);
+            }
+        }
+        util::amp_to_db(peak)
+    }
+
+    #[test]
+    fn sidechain_hpf_12_db_per_octave_is_butterworth() {
+        let fc = 100.0;
+        let g = |f| hpf_gain_db(&mut with_hpf(fc, 1.0), f);
+        // -3 dB at the cutoff, flat an octave+ above, then 12 dB/oct below.
+        let at_fc = g(100.0);
+        assert!((at_fc + 3.01).abs() < 0.1, "{at_fc}");
+        assert!(g(1000.0).abs() < 0.05);
+        let (half, quarter, eighth) = (g(50.0), g(25.0), g(12.5));
+        assert!((half + 12.3).abs() < 0.2, "{half}");
+        assert!((quarter + 24.1).abs() < 0.2, "{quarter}");
+        assert!(
+            ((quarter - eighth) - 12.0).abs() < 0.3,
+            "{quarter} {eighth}"
+        );
+        // The default stays the one-pole: ~6 dB/oct.
+        let g6 = |f| hpf_gain_db(&mut with_hpf(fc, 0.0), f);
+        let (q6, e6) = (g6(25.0), g6(12.5));
+        assert!(((q6 - e6) - 6.0).abs() < 0.5, "{q6} {e6}");
+    }
+
+    #[test]
+    fn switching_the_sidechain_slope_does_not_click() {
+        let mut c = with_hpf(200.0, 0.0);
+        let freq = 60.0;
+        let mut prev = 0.0f32;
+        let mut max_step = 0.0f32;
+        let n = SR as usize;
+        for i in 0..n {
+            if i == n / 2 + 37 {
+                c.apply_param(params::SIDECHAIN_SLOPE, 1.0, true);
+            }
+            let x = 0.5 * (std::f32::consts::TAU * freq * i as f32 / SR).sin();
+            let w = c.slope.tick();
+            let y = c.high_pass(0, x, w);
+            if i > SR as usize / 10 {
+                max_step = max_step.max((y - prev).abs());
+            }
+            prev = y;
+        }
+        assert_eq!(c.slope.current(), 1.0);
+        // A 60 Hz sine at <= 0.5 moves < 0.004 per sample; a hard switch would jump ~0.1.
+        assert!(max_step < 0.006, "{max_step}");
     }
 }

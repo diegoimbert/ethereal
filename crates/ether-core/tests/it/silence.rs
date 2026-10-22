@@ -128,6 +128,37 @@ fn asleep_node_is_skipped_until_something_reaches_it() {
     assert_eq!(blocks(&mut r, 5), 0);
 }
 
+/// Plugins may start sound on the transport (CONTRACTS.md §13.19): Play from stopped and
+/// each loop wrap process an asleep node for one sub-block; playing on doesn't.
+#[test]
+fn transport_starts_and_loop_wraps_wake_an_asleep_node() {
+    use ether_core::TransportControl;
+    use ether_core::protocol::model::{BeatRange, Beats};
+    let mut r = rig();
+    assert_eq!(blocks(&mut r, 2), 1);
+    r.handle.transport(TransportControl::Play).unwrap();
+    assert_eq!(blocks(&mut r, 1), 1, "play from stopped");
+    assert_eq!(blocks(&mut r, 200), 0, "playing on");
+    r.handle
+        .transport(TransportControl::SetLoop {
+            enabled: true,
+            region: BeatRange {
+                start: Beats(0.0),
+                end: Beats(1.0),
+            },
+        })
+        .unwrap();
+    r.handle
+        .transport(TransportControl::Locate {
+            position: Beats(0.0),
+        })
+        .unwrap();
+    assert_eq!(blocks(&mut r, 1), 1, "a locate");
+    // A beat is at most a second (≥ 60 bpm): ≥ 2 wraps in 200 blocks of 512 at 48 kHz.
+    let woken = blocks(&mut r, 200);
+    assert!((2..=40).contains(&woken), "{woken} wakes");
+}
+
 #[test]
 fn skipping_can_be_turned_off() {
     let mut r = rig();

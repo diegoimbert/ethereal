@@ -12,7 +12,7 @@ export type ProjectCommand = { "type": "List" } | { "type": "Create", id: Projec
  * clients send) = an explicit save: every plugin's live state is read and the file
  * is on disk when the reply comes.
  */
-autosave?: boolean, } | { "type": "SaveAs", new_id: ProjectId, name: string, } | { "type": "Duplicate", id: ProjectId, new_id: ProjectId, name: string, } | { "type": "Rename", id: ProjectId, name: string, } | { "type": "Delete", id: ProjectId, } | { "type": "Get" } | { "type": "SetScale", scale: MusicalScale, } | { "type": "ExportBundle", id: ProjectId, path: string | null, include_media: boolean, 
+autosave?: boolean, } | { "type": "SaveAs", new_id: ProjectId, name: string, } | { "type": "Duplicate", id: ProjectId, new_id: ProjectId, name: string, } | { "type": "Rename", id: ProjectId, name: string, } | { "type": "Delete", id: ProjectId, } | { "type": "Discard", id: ProjectId, } | { "type": "Get" } | { "type": "SetScale", scale: MusicalScale, } | { "type": "ExportBundle", id: ProjectId, path: string | null, include_media: boolean, 
 /**
  * Strip every device and plugin chain from the packed document (the audio clips
  * stay; the project's own copy is untouched).
