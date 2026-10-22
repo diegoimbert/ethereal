@@ -1735,6 +1735,14 @@
           "platform": "all"
         },
         {
+          "id": "devices/grain-delay",
+          "title": "grain delay",
+          "what": "echoes made of short overlapping grains: pitch (-36..+12, cascades with feedback), frequency (grain rate and size), spray (random start time, wider), random pitch, time in ms or synced, feedback, mix; xy pad for frequency and pitch.",
+          "priority": "nice",
+          "audience": "everyone",
+          "platform": "all"
+        },
+        {
           "id": "devices/reverb",
           "title": "reverb",
           "what": "algorithmic reverb: pre-delay, size, decay (0.2–20 s), damping, width, mix, low / high cut on the input, diffusion, freeze (infinite tail), output (wet level only).",
@@ -1769,7 +1777,7 @@
         {
           "id": "devices/color-effects-saturator-bitcrusher-auto-filter",
           "title": "color effects: saturator, bitcrusher, auto filter",
-          "what": "saturator: 6 curves, drive, bias, tone, oversampling, auto gain (on by default, so more drive doesn't get louder); it always adds a small fixed latency. bitcrusher: bits, rate, jitter, dither. auto filter: 7 filter types with an envelope follower (listens to the sidechain when one is set) and a syncable lfo with stereo phase. erosion: a very short delay wobbled by a sine, noise or wide (per-side) noise; frequency and amount on an xy pad, width of the noise band; tiny fixed latency.",
+          "what": "saturator: 6 curves, drive, bias, tone, oversampling, auto gain (on by default, so more drive doesn't get louder); it always adds a small fixed latency. bitcrusher: bits, rate, jitter, dither. auto filter: 7 filter types with an envelope follower (listens to the sidechain when one is set) and a syncable lfo with stereo phase. erosion: a very short delay wobbled by a sine, noise or wide (per-side) noise; frequency and amount on an xy pad, width of the noise band; tiny fixed latency. pedal: overdrive / distortion / fuzz, gain (level kept steady), bass / mid (500 hz, 1 khz, 2 khz) / treble, sub boost, output, mix; oversampled with a small fixed latency.",
           "priority": "nice",
           "audience": "everyone",
           "platform": "all"
@@ -2134,6 +2142,14 @@
           "what": "by default plugins run inside the app. right-click a plugin header > \"run sandboxed (crash-safe, +1 block latency)\" moves it into its own process; if it crashes the device shows crashed · bypassed with reload, and the app keeps running.",
           "priority": "must",
           "audience": "everyone",
+          "platform": "desktop"
+        },
+        {
+          "id": "plugins/sandboxed-by-default",
+          "title": "plugins sandboxed by default",
+          "what": "settings > plugins > sandboxing lists plugins whose new instances start sandboxed (add from the scanned list, remove); a device's menu has \"always sandbox this plugin\". each device keeps its own setting in the project; duplicates keep theirs; editing the list never changes existing devices. kept by the engine host's computer.",
+          "priority": "should",
+          "audience": "advanced",
           "platform": "desktop"
         },
         {

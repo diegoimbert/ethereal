@@ -113,6 +113,8 @@ pub struct NativeBridge {
     /// Dedicated engines' plugin notifications, by registry salt: the main bridge drains the
     /// registry's one queue and files theirs here; each dedicated bridge takes its own.
     dedicated_notes: DedicatedNotes,
+    /// Settings: the plugins new instances of which start sandboxed (`set_sandbox_defaults`).
+    sandbox_defaults: crate::sandbox_defaults::SandboxDefaults,
 }
 
 /// An extension's part of the native bridge (docs/EXTENSIONS.md): made for every bridge (the
@@ -163,6 +165,12 @@ impl NativeBridge {
         self.scanning = Some(scanning);
     }
 
+    /// Share the host's "sandboxed by default" list, read by
+    /// [`EngineBridge::sandbox_by_default`] (empty without it).
+    pub fn set_sandbox_defaults(&mut self, list: crate::sandbox_defaults::SandboxDefaults) {
+        self.sandbox_defaults = list;
+    }
+
     pub fn new(
         handle: EngineHandle,
         prepare: PrepareConfig,
@@ -196,6 +204,7 @@ impl NativeBridge {
             registry_salt: 0,
             spawned_engines: false,
             dedicated_notes: Default::default(),
+            sandbox_defaults: Default::default(),
             disk_streaming: !std::env::var("ETHER_DISK_STREAMING")
                 .is_ok_and(|v| v == "0" || v == "off"),
         };
@@ -366,6 +375,7 @@ impl NativeBridge {
         );
         bridge.registry_salt = salt;
         bridge.dedicated_notes = self.dedicated_notes.clone();
+        bridge.sandbox_defaults = self.sandbox_defaults.clone();
         if let Ok(mut notes) = self.dedicated_notes.lock() {
             notes.insert(salt, Vec::new());
         }
@@ -718,6 +728,7 @@ impl EngineBridge for NativeBridge {
                     // AUs have no bundle: their path is the component id.
                     path: PathBuf::from(desc.path),
                     plugin_id: plugin.plugin_id.clone(),
+                    always_process: plugin.always_process,
                 },
                 state.map(|s| s.0.clone()),
                 // Activated with the engine's max block size: backends never exceed it.
@@ -767,6 +778,7 @@ impl EngineBridge for NativeBridge {
                     format: desc.format,
                     path: PathBuf::from(desc.path),
                     plugin_id: plugin.plugin_id.clone(),
+                    always_process: plugin.always_process,
                 },
                 state.map(|s| s.0.clone()),
                 // Activated for the offline engine's blocks (never larger).
@@ -782,6 +794,11 @@ impl EngineBridge for NativeBridge {
             host: self.plugins.clone(),
             registry_id,
         }))
+    }
+
+    fn set_always_process(&mut self, device: DeviceId, on: bool) -> Result<(), BridgeError> {
+        self.plugins.set_always_process(self.reg(device), on);
+        Ok(())
     }
 
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError> {
@@ -1105,6 +1122,14 @@ impl EngineBridge for NativeBridge {
         self.plugins.param_values(self.reg(device))
     }
 
+    fn sandbox_by_default(
+        &self,
+        format: ether_core::protocol::model::PluginFormat,
+        plugin_id: &str,
+    ) -> bool {
+        self.sandbox_defaults.contains(format, plugin_id)
+    }
+
     fn probe_plugin(&mut self, plugin: &PluginInstance) -> Option<DeviceDescriptor> {
         let desc = self.catalog.find_plugin(plugin)?;
         self.offline_seq += 1;
@@ -1121,6 +1146,7 @@ impl EngineBridge for NativeBridge {
                     format: desc.format,
                     path: PathBuf::from(desc.path),
                     plugin_id: plugin.plugin_id.clone(),
+                    always_process: plugin.always_process,
                 },
                 None,
                 self.prepare,
@@ -1182,6 +1208,7 @@ impl EngineBridge for NativeBridge {
                     format: desc.format,
                     path: PathBuf::from(desc.path),
                     plugin_id: plugin.plugin_id.clone(),
+                    always_process: plugin.always_process,
                 },
                 state.map(|s| s.0.clone()),
             )
@@ -1621,9 +1648,12 @@ mod tests {
         assert_eq!(b.node_of(d), Some(key), "same node");
         // Other devices (and unknown ones) are re-created by the controller.
         let rack = DeviceId(Ulid(5));
-        b.create_builtin(rack, &BuiltinDevice::DrumRack, &[])
+        b.create_builtin(rack, &BuiltinDevice::DrumRack { macros: None }, &[])
             .unwrap();
-        assert_eq!(b.update_builtin(rack, &BuiltinDevice::DrumRack), Ok(false));
+        assert_eq!(
+            b.update_builtin(rack, &BuiltinDevice::DrumRack { macros: None }),
+            Ok(false)
+        );
         assert_eq!(
             b.update_builtin(DeviceId(Ulid(6)), &sampler(vec![])),
             Ok(false)
@@ -1730,6 +1760,7 @@ mod tests {
             vendor: "T".into(),
             version: "1".into(),
             sandboxed: false,
+            always_process: false,
             state: None,
         };
         b.create_plugin(d, &inst, None).unwrap();
@@ -1774,6 +1805,7 @@ mod tests {
             vendor: "T".into(),
             version: "1".into(),
             sandboxed: false,
+            always_process: false,
             state: None,
         };
         let key = b
@@ -1833,6 +1865,7 @@ mod tests {
             vendor: "T".into(),
             version: "1".into(),
             sandboxed: false,
+            always_process: false,
             state: None,
         };
         let saved = Base64Bytes(b"saved".to_vec());
@@ -1874,6 +1907,7 @@ mod tests {
             vendor: "T".into(),
             version: "1".into(),
             sandboxed: false,
+            always_process: false,
             state: None,
         };
         let state = Base64Bytes(b"abc".to_vec());
@@ -1920,6 +1954,7 @@ mod tests {
             vendor: "T".into(),
             version: "1".into(),
             sandboxed: false,
+            always_process: false,
             state: None,
         };
         b.create_plugin(d, &inst, None).unwrap(); // editor instance 1
@@ -2002,6 +2037,7 @@ mod tests {
             vendor: "T".into(),
             version: "1".into(),
             sandboxed: false,
+            always_process: false,
             state: None,
         };
         let mine = Base64Bytes(b"host".to_vec());
@@ -2039,6 +2075,7 @@ mod tests {
             vendor: "T".into(),
             version: "1".into(),
             sandboxed: false,
+            always_process: false,
             state: None,
         };
         let mine = Base64Bytes(b"main".to_vec());

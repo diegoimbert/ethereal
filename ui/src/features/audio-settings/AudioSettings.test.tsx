@@ -82,6 +82,23 @@ describe("AudioSettingsDialog", () => {
     expect(screen.getByTestId("audio-status")).toHaveTextContent("running · mock");
   });
 
+  it("switches render ahead where the engine offers it", async () => {
+    const { mock } = await setup();
+    act(() => openAudioSettings());
+    const toggle = await screen.findByRole("switch", { name: "render ahead" });
+    expect(toggle).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText(/computed one buffer early/)).toBeInTheDocument();
+    fireEvent.click(toggle);
+    await waitFor(() =>
+      expect(vi.mocked(mock.send).mock.calls.some(([c]) => c.domain === "Engine" && c.command.type === "SetAnticipative" && !c.command.on)).toBe(true),
+    );
+    await waitFor(() => expect(screen.getByRole("switch", { name: "render ahead" })).toHaveAttribute("aria-checked", "false"));
+    // An engine that can't anticipate (web, no worker threads) doesn't report it: no switch.
+    const status = useAudioSettings.getState().status!;
+    act(() => useAudioSettings.setState({ status: { ...status, anticipative: undefined } }));
+    expect(screen.queryByRole("switch", { name: "render ahead" })).toBeNull();
+  });
+
   it("offers all devices only when the engine left some out", async () => {
     const { mock } = await setup();
     act(() => openAudioSettings());

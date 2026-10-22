@@ -1,4 +1,4 @@
-//! fx-color devices (Saturator, Bitcrusher, Auto Filter, Erosion): render tests. Every `process`
+//! fx-color devices (Saturator, Bitcrusher, Auto Filter, Erosion, Pedal): render tests. Every `process`
 //! call runs under `assert_no_alloc` (debug builds abort on allocation on the audio path).
 //!
 //! CPU cost per instance: `cargo test --release -p ether-devices --test it fx_color:: -- --ignored
@@ -11,8 +11,8 @@ use ether_core::{
     ProcessEvent, TransportInfo,
 };
 use ether_devices::fx_color::{
-    AutoFilter, Bitcrusher, Erosion, Saturator, auto_filter as af, bitcrusher as bc, erosion as er,
-    saturator as sat, saturator_device,
+    AutoFilter, Bitcrusher, Erosion, Pedal, Saturator, auto_filter as af, bitcrusher as bc,
+    erosion as er, pedal as pd, pedal_device, saturator as sat, saturator_device,
 };
 
 const SR: f32 = 48_000.0;
@@ -753,6 +753,169 @@ fn erosion_goes_silent_after_its_input() {
     assert!(out[0][40_000..].iter().all(|v| *v == 0.0));
 }
 
+// ─── Pedal ─────────────────────────────────────────────────────────────────────────────
+
+fn pedal(kind: f64, gain: f64) -> Pedal {
+    let mut d = Pedal::new();
+    set(&mut d, pd::TYPE, kind);
+    set(&mut d, pd::GAIN, gain);
+    prepared(&mut d);
+    d
+}
+
+/// Tail of a render (skips the filters' settling).
+fn steady(out: &[Vec<f32>; 2]) -> &[f32] {
+    &out[0][8192..]
+}
+
+#[test]
+fn pedal_extremes_are_finite_without_allocating() {
+    for kind in 0..3 {
+        let mut d = Pedal::new();
+        set(&mut d, pd::TYPE, f64::from(kind));
+        extremes(&mut d, 1000.0, "pedal");
+    }
+}
+
+#[test]
+fn pedal_dry_path_is_the_input_delayed_by_its_latency() {
+    let x = stereo(noise(9600, 0.7));
+    let mut d = pedal(2.0, 100.0);
+    set(&mut d, pd::MIX, 0.0);
+    assert_eq!(d.latency() as usize, pedal_device::LATENCY);
+    let lat = pedal_device::LATENCY;
+    let out = render(&mut d, &x, &[]);
+    for i in lat..x[0].len() {
+        assert_eq!(out[0][i], x[0][i - lat], "at {i}");
+    }
+}
+
+#[test]
+fn pedal_keeps_the_level_across_gain_and_type() {
+    let x = sine(1000.0, 0.25, 48_000);
+    let rin = db(rms(&x[8192..]));
+    for kind in [0.0, 1.0, 2.0] {
+        for gain in [0.0, 50.0, 100.0] {
+            let mut d = pedal(kind, gain);
+            let out = render(&mut d, &stereo(x.clone()), &[]);
+            let g = db(rms(steady(&out))) - rin;
+            assert!(g.abs() < 4.0, "type {kind} gain {gain}: {g} dB");
+        }
+    }
+}
+
+/// Harmonic `h` of a 500 Hz sine through `d`, relative to the fundamental (dB).
+fn harmonic_db(d: &mut Pedal, amp: f32, h: f32) -> f32 {
+    let out = render(d, &stereo(sine(500.0, amp, 48_000)), &[]);
+    let y = steady(&out);
+    db(tone(y, 500.0 * h)) - db(tone(y, 500.0))
+}
+
+#[test]
+fn pedal_distorts_more_with_gain_and_each_type_has_its_harmonics() {
+    for kind in [0.0, 1.0, 2.0] {
+        let lo = harmonic_db(&mut pedal(kind, 0.0), 0.25, 3.0);
+        let hi = harmonic_db(&mut pedal(kind, 100.0), 0.25, 3.0);
+        assert!(hi > lo + 3.0, "type {kind}: 3rd at {lo} → {hi} dB");
+        // Gain 0 % still distorts.
+        assert!(lo > -50.0, "type {kind}: {lo} dB");
+    }
+    // Overdrive and fuzz are asymmetric (even harmonics); the distortion's clipper is
+    // symmetric (odd only).
+    let od = harmonic_db(&mut pedal(0.0, 50.0), 0.25, 2.0);
+    let fz = harmonic_db(&mut pedal(2.0, 50.0), 0.25, 2.0);
+    let ds = harmonic_db(&mut pedal(1.0, 50.0), 0.25, 2.0);
+    assert!(od > -45.0, "overdrive 2nd {od} dB");
+    assert!(fz > -30.0, "fuzz 2nd {fz} dB");
+    assert!(ds < -60.0, "distortion 2nd {ds} dB");
+}
+
+#[test]
+fn pedal_oversampling_keeps_aliases_down() {
+    // A 4.5 kHz sine at full distortion: its harmonics are multiples of 4.5 kHz; the bins
+    // between them (what folds back from above Nyquist) stay far below the fundamental.
+    let x = sine(4500.0, 0.25, 48_000);
+    let mut d = pedal(1.0, 100.0);
+    let out = render(&mut d, &stereo(x), &[]);
+    let y = steady(&out);
+    let f = db(tone(y, 4500.0));
+    for alias in [1500.0, 3000.0, 7500.0, 12_000.0, 16_500.0] {
+        let a = db(tone(y, alias)) - f;
+        assert!(a < -60.0, "{alias} Hz: {a} dB");
+    }
+}
+
+#[test]
+fn pedal_tone_stack_bands() {
+    // A quiet sine (the clipper nearly linear at Gain 0 % of the overdrive), each band at
+    // +100 % vs 0: about +12 dB at its frequency.
+    let boost = |id: ParamId, v: f64, freq: f32, extra: &[(ParamId, f64)]| {
+        let level = |on: bool| {
+            let mut d = pedal(0.0, 0.0);
+            for &(p, x) in extra {
+                set(&mut d, p, x);
+            }
+            if on {
+                set(&mut d, id, v);
+            }
+            let out = render(&mut d, &stereo(sine(freq, 0.01, 48_000)), &[]);
+            db(tone(steady(&out), freq))
+        };
+        level(true) - level(false)
+    };
+    let near = |got: f32, want: f32, what: &str| {
+        assert!((got - want).abs() < 1.5, "{what}: {got} dB, want {want}");
+    };
+    near(boost(pd::BASS, 100.0, 100.0, &[]), 12.0, "bass");
+    near(boost(pd::BASS, -100.0, 100.0, &[]), -12.0, "bass cut");
+    near(boost(pd::TREBLE, 100.0, 12_000.0, &[]), 12.0, "treble");
+    for (i, f) in [500.0, 1000.0, 2000.0].into_iter().enumerate() {
+        near(
+            boost(pd::MID, 100.0, f, &[(pd::MID_FREQ, i as f64)]),
+            12.0,
+            "mid",
+        );
+    }
+    near(boost(pd::SUB, 1.0, 40.0, &[]), 6.0, "sub");
+}
+
+#[test]
+fn pedal_type_change_is_click_free() {
+    let x = sine(220.0, 0.25, 48_000);
+    let mut d = pedal(0.0, 30.0);
+    let out = render(&mut d, &stereo(x), &[(24_000, param(pd::TYPE, 2.0))]);
+    let y = &out[0];
+    let step = |a: usize, b: usize| {
+        (a..b)
+            .map(|i| (y[i] - y[i - 1]).abs())
+            .fold(0.0f32, f32::max)
+    };
+    let before = step(16_000, 24_000);
+    let after = step(26_000, 40_000);
+    let around = step(24_000, 26_000);
+    assert!(
+        around <= before.max(after) * 1.2,
+        "{around} vs {before} / {after}"
+    );
+    assert_eq!(d.param(pd::TYPE), Some(2.0));
+}
+
+#[test]
+fn pedal_goes_silent_after_its_input() {
+    for kind in [0.0, 1.0, 2.0] {
+        let mut d = pedal(kind, 100.0);
+        let mut x = noise(4800, 0.5);
+        x.extend(vec![0.0; 96_000]);
+        let out = render(&mut d, &stereo(x), &[]);
+        let tail = &out[0][90_000..];
+        assert!(
+            tail.iter().all(|v| v.abs() < 1e-6),
+            "type {kind}: {}",
+            tail.iter().fold(0.0f32, |m, v| m.max(v.abs()))
+        );
+    }
+}
+
 /// Block-size independence (CONTRACTS §12.7): the same automation at the same absolute
 /// frames renders identically with blocks of 64 and 512.
 #[test]
@@ -763,7 +926,7 @@ fn renders_are_block_size_independent() {
         fn() -> Box<dyn Device>,
         Vec<(usize, EventKind)>,
     );
-    let devices: [Case; 4] = [
+    let devices: [Case; 5] = [
         (
             "saturator",
             || Box::new(Saturator::new()),
@@ -804,6 +967,18 @@ fn renders_are_block_size_independent() {
                 (7000, param(er::MODE, 2.0)),
                 (11_000, param(er::WIDTH, 2.0)),
                 (16_000, param(er::MODE, 0.0)),
+            ],
+        ),
+        (
+            "pedal",
+            || Box::new(Pedal::new()),
+            vec![
+                (700, param(pd::GAIN, 90.0)),
+                (4000, param(pd::TYPE, 2.0)),
+                (9000, param(pd::BASS, 60.0)),
+                (12_001, param(pd::MID_FREQ, 0.0)),
+                (14_000, param(pd::SUB, 1.0)),
+                (17_000, param(pd::TYPE, 1.0)),
             ],
         ),
     ];
@@ -867,6 +1042,16 @@ fn cpu_cost() {
             let mut d = Erosion::new();
             set(&mut d, er::MODE, mode);
             set(&mut d, er::AMOUNT, 60.0);
+            v.push((name, Box::new(d)));
+        }
+        for (name, kind) in [
+            ("pedal overdrive", 0.0),
+            ("pedal distortion", 1.0),
+            ("pedal fuzz", 2.0),
+        ] {
+            let mut d = Pedal::new();
+            set(&mut d, pd::TYPE, kind);
+            set(&mut d, pd::MID, 50.0);
             v.push((name, Box::new(d)));
         }
         v

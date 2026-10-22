@@ -1,8 +1,8 @@
 //! The built-in devices, one module per device or group: the basic synth, sampler,
 //! compressor, delay, EQ, reverb, limiter, utility and drum rack; [`poly_synth`],
 //! [`fm_synth`] (four-operator FM), [`multisampler`]; the effect groups [`fx_color`],
-//! [`fx_modulation`], [`fx_dynamics`], [`fx_analysis`], [`fx_space`] (convolution reverb) and
-//! [`midi_fx`]; [`racks`] and [`modulators`]; [`external`] (external instruments and
+//! [`fx_modulation`], [`fx_dynamics`], [`fx_analysis`], [`fx_space`] (convolution reverb),
+//! [`grain_delay`] and [`midi_fx`]; [`racks`] and [`modulators`]; [`external`] (external instruments and
 //! effects). Shared scaffolding is in [`contract`]; factory presets come from
 //! [`factory_presets`] ([`factory`] holds the older types).
 //!
@@ -29,6 +29,7 @@ pub mod fx_color;
 pub mod fx_dynamics;
 pub mod fx_modulation;
 pub mod fx_space;
+pub mod grain_delay;
 pub mod limiter;
 pub mod midi_fx;
 pub mod modulators;
@@ -90,7 +91,8 @@ fn type_descriptor(device: BuiltinDeviceType) -> DeviceDescriptor {
         BuiltinDeviceType::Saturator
         | BuiltinDeviceType::Bitcrusher
         | BuiltinDeviceType::AutoFilter
-        | BuiltinDeviceType::Erosion => fx_color::descriptor(device),
+        | BuiltinDeviceType::Erosion
+        | BuiltinDeviceType::Pedal => fx_color::descriptor(device),
         BuiltinDeviceType::Chorus
         | BuiltinDeviceType::Phaser
         | BuiltinDeviceType::Flanger
@@ -120,6 +122,7 @@ fn type_descriptor(device: BuiltinDeviceType) -> DeviceDescriptor {
             external::descriptor(device)
         }
         BuiltinDeviceType::FmSynth => fm_synth::descriptor(device),
+        BuiltinDeviceType::GrainDelay => grain_delay::descriptor(device),
     }
 }
 
@@ -141,7 +144,8 @@ pub fn factory_presets(device: BuiltinDeviceType) -> &'static [contract::Factory
         BuiltinDeviceType::Saturator
         | BuiltinDeviceType::Bitcrusher
         | BuiltinDeviceType::AutoFilter
-        | BuiltinDeviceType::Erosion => fx_color::factory_presets(device),
+        | BuiltinDeviceType::Erosion
+        | BuiltinDeviceType::Pedal => fx_color::factory_presets(device),
         BuiltinDeviceType::Chorus
         | BuiltinDeviceType::Phaser
         | BuiltinDeviceType::Flanger
@@ -170,6 +174,7 @@ pub fn factory_presets(device: BuiltinDeviceType) -> &'static [contract::Factory
             external::factory_presets(device)
         }
         BuiltinDeviceType::FmSynth => fm_synth::factory_presets(device),
+        BuiltinDeviceType::GrainDelay => grain_delay::factory_presets(device),
     }
 }
 
@@ -211,14 +216,15 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         BuiltinDevice::Reverb => reverb::create(),
         BuiltinDevice::Limiter => limiter::create(),
         BuiltinDevice::Utility => utility::create(),
-        BuiltinDevice::DrumRack => drum_rack::create(),
+        BuiltinDevice::DrumRack { .. } => drum_rack::create(),
         // --- v0.2 groups ---
         BuiltinDevice::PolySynth => poly_synth::create(device),
         BuiltinDevice::MultiSampler { .. } => multisampler::create(device, samples),
         BuiltinDevice::Saturator
         | BuiltinDevice::Bitcrusher
         | BuiltinDevice::AutoFilter
-        | BuiltinDevice::Erosion => fx_color::create(device),
+        | BuiltinDevice::Erosion
+        | BuiltinDevice::Pedal => fx_color::create(device),
         BuiltinDevice::Chorus
         | BuiltinDevice::Phaser
         | BuiltinDevice::Flanger
@@ -237,15 +243,16 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         | BuiltinDevice::Randomizer
         | BuiltinDevice::Pitch
         | BuiltinDevice::NoteBlocker => midi_fx::create(device),
-        BuiltinDevice::InstrumentRack
-        | BuiltinDevice::AudioEffectRack
-        | BuiltinDevice::MidiEffectRack => racks::create(device),
+        BuiltinDevice::InstrumentRack { .. }
+        | BuiltinDevice::AudioEffectRack { .. }
+        | BuiltinDevice::MidiEffectRack { .. } => racks::create(device),
         // --- v0.3 groups ---
         BuiltinDevice::ConvolutionReverb { .. } => fx_space::create(device, samples),
         BuiltinDevice::ExternalInstrument { .. } | BuiltinDevice::ExternalAudioEffect { .. } => {
             external::create(device)
         }
         BuiltinDevice::FmSynth => fm_synth::create(device),
+        BuiltinDevice::GrainDelay => grain_delay::create(device),
     }
 }
 

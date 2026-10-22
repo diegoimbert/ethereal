@@ -204,6 +204,7 @@ export interface MessageArgs {
   "devices.library.search": { kind: string };
   "devices.library.show_format": { format: string | number };
   "devices.library.unfavourite": { name: string | number };
+  "devices.macros.name": { name: string | number };
   "devices.param.automated_label": { name: string | number };
   "devices.params.all_title": { name: string | number };
   "devices.params.count_filtered": { shown: string | number; total: string | number };
@@ -498,6 +499,7 @@ export interface MessageArgs {
   "plugins.folders.remove": { path: string | number };
   "plugins.folders.rescan_failed": { error: string | number };
   "plugins.loading.track": { done: string | number; total: string | number };
+  "plugins.sandbox_defaults.remove": { name: string | number };
   "plugins.scan.failed_count": { count: number };
   "plugins.scan.progress": { done: string | number; total: string | number };
   "plugins.scan.scan_failed": { error: string | number };
@@ -531,6 +533,7 @@ export interface MessageArgs {
   "project.start.completed_named": { title: string | number };
   "project.start.failed": { error: string | number };
   "project.time.minutes_ago": { count: string | number };
+  "project.untitled.body": { name: string | number };
   "racks.chain.delete_label": { name: string | number };
   "racks.chain.devices": { name: string | number };
   "racks.chain.label": { name: string | number };

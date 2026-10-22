@@ -107,6 +107,31 @@ fn clamp_param(desc: &DeviceDescriptor, param: ParamId, value: f64) -> CmdResult
     })
 }
 
+/// Edits a rack's macro bank settings ([`RackMacros`], any rack type) as one `Kind` change;
+/// no change when `f` leaves them as they are.
+fn set_rack_macros(
+    ctx: &mut DocCtx,
+    device: DeviceId,
+    f: impl FnOnce(&mut RackMacros),
+) -> CmdResult<()> {
+    let d = ctx.device(device)?;
+    let DeviceKind::Builtin { device: b } = &d.kind else {
+        return Err(invalid(format!("device {} is not a rack", d.id)));
+    };
+    let Some(mut macros) = b.rack_macros() else {
+        return Err(invalid(format!("device {} is not a rack", d.id)));
+    };
+    f(&mut macros);
+    let next = b.clone().with_rack_macros(macros);
+    if &next == b {
+        return Ok(());
+    }
+    ctx.set_device(
+        d.id,
+        DeviceChange::Kind(DeviceKind::Builtin { device: next }),
+    )
+}
+
 pub(super) fn apply(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
     apply_inner(ctx, c)?;
     // v0.2 (`midi-fx`): MIDI effects precede the instrument.
@@ -155,7 +180,12 @@ fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
                         name: listed.clone().unwrap_or_else(|| plugin_id.clone()),
                         vendor: String::new(),
                         version: String::new(),
-                        sandboxed: sandboxed.unwrap_or(false),
+                        sandboxed: ctx.host.new_instance_sandboxed(
+                            *sandboxed,
+                            format.unwrap_or(PluginFormat::Clap),
+                            plugin_id,
+                        ),
+                        always_process: false,
                         state: None,
                     };
                     let desc = ctx.host.instantiate_plugin(*id, &plugin)?;
@@ -356,6 +386,23 @@ fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
                     },
                 }),
             )
+        }
+        // Racks: macro names and the visible macro count (one `Kind` change, one undo step).
+        DeviceCommand::RenameMacro {
+            device,
+            index,
+            name,
+        } => {
+            if *index >= ether_model::RACK_MACROS {
+                return Err(invalid(format!(
+                    "macro index must be < {}",
+                    ether_model::RACK_MACROS
+                )));
+            }
+            set_rack_macros(ctx, *device, |m| m.set_name(*index, name))
+        }
+        DeviceCommand::SetMacroCount { device, count } => {
+            set_rack_macros(ctx, *device, |m| m.visible = *count)
         }
         DeviceCommand::SetSample { device, media } => {
             let d = ctx.device(*device)?;

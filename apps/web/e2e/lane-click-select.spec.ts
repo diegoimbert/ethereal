@@ -112,6 +112,23 @@ test("a click on a lane's empty space selects the track (the inspector folds to 
   await expect(inspector.getByRole("textbox", { name: "clip name" })).toBeVisible();
   await expect(header(a.name)).not.toHaveClass(/eth-arr-header--selected/);
 
+  // --- With the clip shown, A's empty space keeps the inspector expanded, now on A (the click
+  // selects the track, the clip selection clears) ---------------------------------------------------
+  p = await lanePoint(page, a.id, 0.45);
+  await page.mouse.click(p.x, p.y);
+  await page.waitForTimeout(500); // past the collapse animation
+  await expect(inspectorBar).toBeHidden();
+  await expect(trackName).toHaveValue(a.name);
+  await expect(header(a.name)).toHaveClass(/eth-arr-header--selected/);
+
+  // --- With the clip shown, another track's empty space still collapses it -------------------------
+  await page.mouse.click(clipBox!.x + clipBox!.width / 2, clipBox!.y + clipBox!.height * 0.75);
+  await showInspector(page);
+  await expect(inspector.getByRole("textbox", { name: "clip name" })).toBeVisible();
+  p = await lanePoint(page, b.id, 0.45);
+  await page.mouse.click(p.x, p.y);
+  await expect(inspectorBar).toBeVisible();
+
   // --- Double-click on B's empty space still creates a MIDI clip there -------------------------------
   p = await lanePoint(page, b.id, 0.3);
   await page.mouse.dblclick(p.x, p.y);

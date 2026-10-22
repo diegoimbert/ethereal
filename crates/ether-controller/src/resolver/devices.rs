@@ -12,8 +12,8 @@ const KEYWORDS: &[(&[&str], T, &str)] = &[
         T::Reverb,
         "reverb",
     ),
+    (&["grain"], T::GrainDelay, "grain delay"),
     (&["echo", "delay"], T::Delay, "delay"),
-    (&["grain"], T::Delay, "delay"),
     (&["chorus", "ensemble"], T::Chorus, "chorus"),
     (&["phaser"], T::Phaser, "phaser"),
     (&["flanger"], T::Flanger, "flanger"),
@@ -36,10 +36,9 @@ const KEYWORDS: &[(&[&str], T, &str)] = &[
         "volume lfo",
     ),
     (&["filter", "wah"], T::AutoFilter, "filter"),
+    (&["pedal", "overdrive", "fuzz"], T::Pedal, "pedal"),
     (
         &[
-            "pedal",
-            "overdrive",
             "distortion",
             "drive",
             "tube",
@@ -199,9 +198,9 @@ mod tests {
             "ableton:GrainDelay",
             MissingRole::AudioEffect,
         );
-        assert_eq!(first(&grain), T::Delay);
+        assert_eq!(first(&grain), T::GrainDelay);
         let pedal = missing("Live's Pedal", "ableton:Pedal", MissingRole::AudioEffect);
-        assert_eq!(first(&pedal), T::Saturator);
+        assert_eq!(first(&pedal), T::Pedal);
         let op = missing(
             "Live's Operator",
             "ableton:Operator",

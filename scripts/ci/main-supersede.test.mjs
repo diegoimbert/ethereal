@@ -55,3 +55,22 @@ test("re-runs are left alone, and nothing finished in sight means let it finish"
   const none = [run(2, "pending", null, 0.01 * H), run(1, "in_progress", null, 0.2 * H)];
   assert.deepEqual(decide(none, NOW).cancel, []);
 });
+
+test("a run past 70% of a typical run is let finish; one earlier on is cancelled", () => {
+  const M = 60e3;
+  // Finished runs of 11-13 min (their median: 12).
+  const finished = [
+    run(3, "completed", "failure", 0.9 * H, 0.9 * H - 12 * M),
+    run(2, "completed", "success", 1.2 * H, 1.2 * H - 11 * M),
+    run(1, "completed", "success", 1.5 * H, 1.5 * H - 13 * M),
+  ];
+  const going = (startedAgo) => ({ ...run(4, "in_progress", null, 0.5 * H), first_job_at: at(startedAgo) });
+  const nearly = decide([run(5, "pending", null, 0.01 * H), going(9 * M), ...finished], NOW);
+  assert.deepEqual(nearly.cancel, []);
+  assert.match(nearly.reason, /nearly done \(1004 ~75%/);
+  const early = decide([run(5, "pending", null, 0.01 * H), going(5 * M), ...finished], NOW);
+  assert.deepEqual(early.cancel.map((r) => r.id), [1004]);
+  // No start time (its jobs haven't started): judged as just started.
+  const waiting = decide([run(5, "pending", null, 0.01 * H), run(4, "in_progress", null, 0.5 * H), ...finished], NOW);
+  assert.deepEqual(waiting.cancel.map((r) => r.id), [1004]);
+});

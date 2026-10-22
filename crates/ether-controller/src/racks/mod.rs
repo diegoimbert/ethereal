@@ -121,7 +121,7 @@ fn check_nestable(
         && !matches!(
             p.devices.get(&host).map(|h| &h.kind),
             Some(DeviceKind::Builtin {
-                device: BuiltinDevice::InstrumentRack
+                device: BuiltinDevice::InstrumentRack { .. }
             })
         )
     {
@@ -471,7 +471,12 @@ pub fn rack_command(ctx: &mut DocCtx, command: &RackCommand) -> CmdResult<()> {
                         name: listed.clone().unwrap_or_else(|| plugin_id.clone()),
                         vendor: String::new(),
                         version: String::new(),
-                        sandboxed: sandboxed.unwrap_or(false),
+                        sandboxed: ctx.host.new_instance_sandboxed(
+                            *sandboxed,
+                            format.unwrap_or(PluginFormat::Clap),
+                            plugin_id,
+                        ),
+                        always_process: false,
                         state: None,
                     };
                     let desc = ctx.host.instantiate_plugin(*id, &plugin)?;
@@ -1227,7 +1232,7 @@ pub fn modulation_command(ctx: &mut DocCtx, command: &ModulationCommand) -> CmdR
                     modulator(ctx, *m)?;
                 }
                 ModSource::Macro { rack: r, .. } => {
-                    // A chain rack or a drum rack (both have the 8 macros).
+                    // A chain rack or a drum rack (both have the 16 macros).
                     if !ctx.device(*r)?.kind.is_any_rack() {
                         return Err(invalid(format!("device {r} is not a rack")));
                     }

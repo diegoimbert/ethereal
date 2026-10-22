@@ -153,7 +153,9 @@ fn bound(w: &Widget) -> Vec<ParamId> {
         | W::RackChains => {
             vec![]
         }
-        W::Macros { first } => (0..8).map(|i| ParamId(first.0 + i)).collect(),
+        W::Macros { first, upper } => (0..8)
+            .flat_map(|i| [ParamId(first.0 + i), ParamId(upper.0 + i)])
+            .collect(),
     }
 }
 

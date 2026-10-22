@@ -213,7 +213,7 @@ fn take_lanes_and_comp_regions() {
 fn rack_chains_and_nesting() {
     let mut f = Fx::new();
     let t = f.track(TrackKind::Midi);
-    let rack = f.device(t, BuiltinDevice::InstrumentRack);
+    let rack = f.device(t, BuiltinDevice::InstrumentRack { macros: None });
     f.insert(Entity::Device(rack.clone())).unwrap();
     let chain = RackChain {
         id: f.id(),
@@ -253,7 +253,7 @@ fn rack_chains_and_nesting() {
     assert_eq!(f.p.chain_devices_of(chain.id).len(), 1);
     // Racks nest; a drum rack on an instrument rack's chain too (see
     // `drum_racks_nest_in_instrument_rack_chains`).
-    let mut nested = f.device(t, BuiltinDevice::AudioEffectRack);
+    let mut nested = f.device(t, BuiltinDevice::AudioEffectRack { macros: None });
     nested.chain = Some(chain.id);
     f.insert(Entity::Device(nested.clone())).unwrap();
     assert_eq!(f.p.enclosing_racks(nested.id), Some(vec![rack.id]));
@@ -266,7 +266,7 @@ fn rack_chains_and_nesting() {
             ..chain.clone()
         };
         f.insert(Entity::RackChain(c.clone())).unwrap();
-        let mut r = f.device(t, BuiltinDevice::AudioEffectRack);
+        let mut r = f.device(t, BuiltinDevice::AudioEffectRack { macros: None });
         r.chain = Some(c.id);
         f.insert(Entity::Device(r.clone())).unwrap();
         parent = r.id;
@@ -281,14 +281,14 @@ fn rack_chains_and_nesting() {
         ..chain.clone()
     };
     f.insert(Entity::RackChain(last.clone())).unwrap();
-    let mut too_deep = f.device(t, BuiltinDevice::AudioEffectRack);
+    let mut too_deep = f.device(t, BuiltinDevice::AudioEffectRack { macros: None });
     too_deep.chain = Some(last.id);
     assert!(matches!(
         f.insert(Entity::Device(too_deep)),
         Err(ModelError::Invariant(_))
     ));
     // A drum rack is an instrument: never on an audio effect rack's chain.
-    let mut drums = f.device(t, BuiltinDevice::DrumRack);
+    let mut drums = f.device(t, BuiltinDevice::DrumRack { macros: None });
     drums.chain = Some(c_of(&f, parent));
     assert!(f.insert(Entity::Device(drums)).is_err());
     // A non-rack device fits at the deepest level.
@@ -371,7 +371,7 @@ fn modulators_and_mapping_scope() {
     };
     assert!(f.insert(Entity::ModMapping(deep)).is_err());
     // Macros target devices inside their rack (or the rack's non-macro params).
-    let rack = f.device(t, BuiltinDevice::AudioEffectRack);
+    let rack = f.device(t, BuiltinDevice::AudioEffectRack { macros: None });
     f.insert(Entity::Device(rack.clone())).unwrap();
     let own = ModMapping {
         id: f.id(),
@@ -640,11 +640,11 @@ fn drum_racks_nest_in_instrument_rack_chains() {
         .unwrap();
         id
     };
-    let inst = f.device(t, BuiltinDevice::InstrumentRack);
+    let inst = f.device(t, BuiltinDevice::InstrumentRack { macros: None });
     f.insert(Entity::Device(inst.clone())).unwrap();
     let ic = chain_of(&mut f, inst.id);
     // On an instrument rack's chain (level 2) with pads.
-    let mut drums = f.device(t, BuiltinDevice::DrumRack);
+    let mut drums = f.device(t, BuiltinDevice::DrumRack { macros: None });
     drums.chain = Some(ic);
     f.insert(Entity::Device(drums.clone())).unwrap();
     let pad = pad_of(&mut f, drums.id, 36);
@@ -659,11 +659,11 @@ fn drum_racks_nest_in_instrument_rack_chains() {
     assert!(f.p.has_nested_drum_rack(inst.id));
     assert_eq!(f.p.nested_rack_height(inst.id), 1);
     // A chain rack on its pad (level 3), whose chains never take a drum rack.
-    let mut pad_rack = f.device(t, BuiltinDevice::InstrumentRack);
+    let mut pad_rack = f.device(t, BuiltinDevice::InstrumentRack { macros: None });
     pad_rack.pad = Some(pad);
     f.insert(Entity::Device(pad_rack.clone())).unwrap();
     let pc = chain_of(&mut f, pad_rack.id);
-    let mut inner_drums = f.device(t, BuiltinDevice::DrumRack);
+    let mut inner_drums = f.device(t, BuiltinDevice::DrumRack { macros: None });
     inner_drums.chain = Some(pc);
     assert!(matches!(
         f.insert(Entity::Device(inner_drums.clone())),
@@ -674,7 +674,7 @@ fn drum_racks_nest_in_instrument_rack_chains() {
     inner_drums.pad = Some(pad);
     assert!(f.insert(Entity::Device(inner_drums)).is_err());
     // A track-chain drum rack can't move into the pad rack's chain either.
-    let top = f.device(t, BuiltinDevice::DrumRack);
+    let top = f.device(t, BuiltinDevice::DrumRack { macros: None });
     f.insert(Entity::Device(top.clone())).unwrap();
     assert!(
         f.update(EntityUpdate::Device {
@@ -703,12 +703,12 @@ fn drum_racks_nest_in_instrument_rack_chains() {
     // Depth: every rack counts, the drum rack included (inst 1, drums 2, pad rack 3, ...).
     let mut parent_chain = pc;
     for _ in 4..=MAX_RACK_DEPTH {
-        let mut r = f.device(t, BuiltinDevice::InstrumentRack);
+        let mut r = f.device(t, BuiltinDevice::InstrumentRack { macros: None });
         r.chain = Some(parent_chain);
         f.insert(Entity::Device(r.clone())).unwrap();
         parent_chain = chain_of(&mut f, r.id);
     }
-    let mut too_deep = f.device(t, BuiltinDevice::AudioEffectRack);
+    let mut too_deep = f.device(t, BuiltinDevice::AudioEffectRack { macros: None });
     too_deep.chain = Some(parent_chain);
     assert!(f.insert(Entity::Device(too_deep)).is_err());
     f.p.validate().unwrap();
@@ -758,10 +758,13 @@ fn drum_rack_macros_reach_pad_devices_at_any_depth() {
     let drum = BuiltinDeviceType::DrumRack;
     assert_eq!(macro_param(drum, 0), Some(ParamId(DRUM_RACK_FIRST_MACRO)));
     assert_eq!(macro_param(drum, 7), Some(ParamId(9)));
-    assert_eq!(macro_param(drum, 8), None);
+    assert_eq!(macro_param(drum, 8), Some(ParamId(10)));
+    assert_eq!(macro_param(drum, 15), Some(ParamId(17)));
+    assert_eq!(macro_param(drum, 16), None);
     assert_eq!(macro_index(drum, ParamId(1)), None);
     assert_eq!(macro_index(drum, ParamId(4)), Some(2));
-    assert_eq!(macro_index(drum, ParamId(10)), None);
+    assert_eq!(macro_index(drum, ParamId(10)), Some(8));
+    assert_eq!(macro_index(drum, ParamId(18)), None);
     assert_eq!(
         macro_param(BuiltinDeviceType::InstrumentRack, 3),
         Some(ParamId(3))
@@ -769,17 +772,17 @@ fn drum_rack_macros_reach_pad_devices_at_any_depth() {
     assert_eq!(macro_param(BuiltinDeviceType::Synth, 0), None);
 
     // inst > chain > drums > pad > [kick, pad rack > chain > deep]
-    let inst = f.device(t, BuiltinDevice::InstrumentRack);
+    let inst = f.device(t, BuiltinDevice::InstrumentRack { macros: None });
     f.insert(Entity::Device(inst.clone())).unwrap();
     let ic = chain_of(&mut f, inst.id);
-    let mut drums = f.device(t, BuiltinDevice::DrumRack);
+    let mut drums = f.device(t, BuiltinDevice::DrumRack { macros: None });
     drums.chain = Some(ic);
     f.insert(Entity::Device(drums.clone())).unwrap();
     let pad = pad_of(&mut f, drums.id, 36);
     let mut kick = f.device(t, BuiltinDevice::PolySynth);
     kick.pad = Some(pad);
     f.insert(Entity::Device(kick.clone())).unwrap();
-    let mut pad_rack = f.device(t, BuiltinDevice::AudioEffectRack);
+    let mut pad_rack = f.device(t, BuiltinDevice::AudioEffectRack { macros: None });
     pad_rack.pad = Some(pad);
     f.insert(Entity::Device(pad_rack.clone())).unwrap();
     let pc = chain_of(&mut f, pad_rack.id);
@@ -810,11 +813,11 @@ fn drum_rack_macros_reach_pad_devices_at_any_depth() {
     map(&mut f, drums.id, 7, deep.id, 0).unwrap();
     map(&mut f, drums.id, 1, drums.id, 0).unwrap();
     map(&mut f, drums.id, 1, drums.id, 1).unwrap();
-    // Never its own macros, never a device outside it, at most 8 macros.
+    // Never its own macros, never a device outside it, at most 16 macros.
     assert!(map(&mut f, drums.id, 0, drums.id, 2).is_err());
     assert!(map(&mut f, drums.id, 0, other.id, 0).is_err());
     assert!(map(&mut f, drums.id, 0, inst.id, RACK_SELECTOR_PARAM.0).is_err());
-    assert!(map(&mut f, drums.id, 8, kick.id, 1).is_err());
+    assert!(map(&mut f, drums.id, 16, kick.id, 1).is_err());
     // The outer rack's macros reach into the nested drum rack's pads (and the pad rack's
     // chains), and the drum rack's own params.
     map(&mut f, inst.id, 0, kick.id, 0).unwrap();
@@ -825,7 +828,7 @@ fn drum_rack_macros_reach_pad_devices_at_any_depth() {
     assert!(map(&mut f, pad_rack.id, 0, kick.id, 2).is_err());
 
     // A modulator on a track-chain drum rack reaches its pad devices, never its macros.
-    let top = f.device(t, BuiltinDevice::DrumRack);
+    let top = f.device(t, BuiltinDevice::DrumRack { macros: None });
     f.insert(Entity::Device(top.clone())).unwrap();
     let top_pad = pad_of(&mut f, top.id, 38);
     let mut snare = f.device(t, BuiltinDevice::PolySynth);
@@ -874,7 +877,7 @@ fn partial_freeze_freezes_the_chain_up_to_the_freeze_point() {
     // Chain order = insertion order (same order keys, ids increase).
     let eq = f.device(t, BuiltinDevice::Eq);
     f.insert(Entity::Device(eq.clone())).unwrap();
-    let rack = f.device(t, BuiltinDevice::AudioEffectRack);
+    let rack = f.device(t, BuiltinDevice::AudioEffectRack { macros: None });
     f.insert(Entity::Device(rack.clone())).unwrap();
     let chain = RackChain {
         id: f.id(),
@@ -944,4 +947,81 @@ fn track_freeze_without_a_freeze_point_loads_as_the_whole_chain() {
     assert_eq!(f.up_to, None);
     // ...and saves without the field.
     assert!(!serde_json::to_string(&f).unwrap().contains("up_to"));
+}
+
+/// Rack macro banks (`RackMacros` on every rack's `BuiltinDevice`): 16 macros, 1..=16 shown
+/// (default 8), custom names (empty = "Macro N"). Absent in JSON = the defaults, so documents
+/// saved before load unchanged; out-of-range banks are refused.
+#[test]
+fn rack_macro_banks_default_normalize_and_validate() {
+    // Documents and presets without a bank read as the defaults.
+    let old: BuiltinDevice = serde_json::from_str(r#"{"type":"InstrumentRack"}"#).unwrap();
+    assert_eq!(old, BuiltinDevice::InstrumentRack { macros: None });
+    assert_eq!(old.rack_macros(), Some(RackMacros::default()));
+    assert_eq!(
+        serde_json::to_string(&old).unwrap(),
+        r#"{"type":"InstrumentRack"}"#
+    );
+    assert_eq!(BuiltinDevice::Synth.rack_macros(), None);
+
+    let mut m = RackMacros::default();
+    assert_eq!(
+        (m.visible, m.display_name(0)),
+        (DEFAULT_VISIBLE_MACROS, "Macro 1".to_owned())
+    );
+    m.set_name(4, "  Grit ");
+    m.set_name(RACK_MACROS, "ignored");
+    assert_eq!(m.names, vec!["", "", "", "", "Grit"]);
+    assert_eq!(m.display_name(4), "Grit");
+    m.set_name(4, "");
+    assert!(m.is_default());
+    // The defaults are stored as none.
+    let d = BuiltinDevice::DrumRack { macros: None };
+    let named = d.clone().with_rack_macros(RackMacros {
+        visible: 99,
+        names: vec!["A".into()],
+    });
+    assert_eq!(
+        named.rack_macros(),
+        Some(RackMacros {
+            visible: 16,
+            names: vec!["A".into()]
+        })
+    );
+    assert_eq!(named.clone().with_rack_macros(RackMacros::default()), d);
+    let json = serde_json::to_string(&named).unwrap();
+    assert_eq!(serde_json::from_str::<BuiltinDevice>(&json).unwrap(), named);
+
+    // The model refuses a bank out of range (a peer's or a hand-edited document).
+    let mut f = Fx::new();
+    let t = f.track(TrackKind::Midi);
+    for bad in [
+        RackMacros {
+            visible: 0,
+            names: vec![],
+        },
+        RackMacros {
+            visible: 17,
+            names: vec![],
+        },
+        RackMacros {
+            visible: 8,
+            names: vec!["a".into(), String::new()],
+        },
+        RackMacros {
+            visible: 8,
+            names: vec!["a".into(); 17],
+        },
+    ] {
+        let d = f.device(
+            t,
+            BuiltinDevice::AudioEffectRack {
+                macros: Some(bad.clone()),
+            },
+        );
+        assert!(f.insert(Entity::Device(d)).is_err(), "{bad:?}");
+    }
+    let ok = f.device(t, named);
+    f.insert(Entity::Device(ok)).unwrap();
+    f.p.validate().unwrap();
 }

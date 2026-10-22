@@ -3,6 +3,7 @@ import type { ExternalRouting } from "./ExternalRouting";
 import type { IrSource } from "./IrSource";
 import type { LfoCurve } from "./LfoCurve";
 import type { MediaId } from "./MediaId";
+import type { RackMacros } from "./RackMacros";
 import type { SampleZone } from "./SampleZone";
 import type { SliceSettings } from "./SliceSettings";
 
@@ -17,8 +18,28 @@ import type { SliceSettings } from "./SliceSettings";
  * and implemented there (docs/DEVICES.md). Variants after `MidiEffectRack` are v0.3,
  * same rules.
  */
-export type BuiltinDevice = { "type": "Synth" } | { "type": "Sampler", sample: MediaId | null, slices: SliceSettings, } | { "type": "Compressor" } | { "type": "Delay" } | { "type": "Eq" } | { "type": "Reverb" } | { "type": "Limiter" } | { "type": "Utility" } | { "type": "DrumRack" } | { "type": "PolySynth" } | { "type": "MultiSampler", zones: Array<SampleZone>, } | { "type": "Saturator" } | { "type": "Bitcrusher" } | { "type": "AutoFilter" } | { "type": "Chorus" } | { "type": "Phaser" } | { "type": "Flanger" } | { "type": "Tremolo" } | { "type": "Gate" } | { "type": "MultibandCompressor" } | { "type": "TransientShaper" } | { "type": "SpectrumAnalyzer" } | { "type": "Tuner" } | { "type": "Arpeggiator" } | { "type": "Chord" } | { "type": "ScaleQuantize" } | { "type": "NoteLength" } | { "type": "Velocity" } | { "type": "Randomizer" } | { "type": "Pitch" } | { "type": "InstrumentRack" } | { "type": "AudioEffectRack" } | { "type": "MidiEffectRack" } | { "type": "ConvolutionReverb", ir: IrSource | null, } | { "type": "ExternalInstrument", routing: ExternalRouting, } | { "type": "ExternalAudioEffect", routing: ExternalRouting, } | { "type": "FmSynth" } | { "type": "Vibrato" } | { "type": "VolumeLfo", 
+export type BuiltinDevice = { "type": "Synth" } | { "type": "Sampler", sample: MediaId | null, slices: SliceSettings, } | { "type": "Compressor" } | { "type": "Delay" } | { "type": "Eq" } | { "type": "Reverb" } | { "type": "Limiter" } | { "type": "Utility" } | { "type": "DrumRack", 
+/**
+ * Macro bank settings (visible count, names; `None` = the defaults,
+ * [`crate::rack::RackMacros`]).
+ */
+macros?: RackMacros, } | { "type": "PolySynth" } | { "type": "MultiSampler", zones: Array<SampleZone>, } | { "type": "Saturator" } | { "type": "Bitcrusher" } | { "type": "AutoFilter" } | { "type": "Chorus" } | { "type": "Phaser" } | { "type": "Flanger" } | { "type": "Tremolo" } | { "type": "Gate" } | { "type": "MultibandCompressor" } | { "type": "TransientShaper" } | { "type": "SpectrumAnalyzer" } | { "type": "Tuner" } | { "type": "Arpeggiator" } | { "type": "Chord" } | { "type": "ScaleQuantize" } | { "type": "NoteLength" } | { "type": "Velocity" } | { "type": "Randomizer" } | { "type": "Pitch" } | { "type": "InstrumentRack", 
+/**
+ * Macro bank settings (visible count, names; `None` = the defaults,
+ * [`crate::rack::RackMacros`]).
+ */
+macros?: RackMacros, } | { "type": "AudioEffectRack", 
+/**
+ * Macro bank settings (visible count, names; `None` = the defaults,
+ * [`crate::rack::RackMacros`]).
+ */
+macros?: RackMacros, } | { "type": "MidiEffectRack", 
+/**
+ * Macro bank settings (visible count, names; `None` = the defaults,
+ * [`crate::rack::RackMacros`]).
+ */
+macros?: RackMacros, } | { "type": "ConvolutionReverb", ir: IrSource | null, } | { "type": "ExternalInstrument", routing: ExternalRouting, } | { "type": "ExternalAudioEffect", routing: ExternalRouting, } | { "type": "FmSynth" } | { "type": "Vibrato" } | { "type": "VolumeLfo", 
 /**
  * Omitted (an agent's `{"type": "VolumeLfo"}`) = the default pump.
  */
-curve: LfoCurve, } | { "type": "NoteBlocker" } | { "type": "Erosion" };
+curve: LfoCurve, } | { "type": "NoteBlocker" } | { "type": "Erosion" } | { "type": "Pedal" } | { "type": "GrainDelay" };

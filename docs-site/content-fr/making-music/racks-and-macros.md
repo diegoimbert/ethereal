@@ -60,7 +60,9 @@ Chaque rack a un paramètre **sélecteur de chaîne** (0 à 127). Donnez à chaq
 
 ## macros {#macros}
 
-Chaque rack a 8 macros. Ouvrez la liste des paramètres du rack (le bouton à curseurs de son en-tête) pour les voir sous forme de boutons, avec le sélecteur de chaîne.
+Chaque rack a jusqu’à 16 macros ; il en montre 8 au départ. Ouvrez la liste des paramètres du rack (le bouton à curseurs de son en-tête) pour les voir sous forme de boutons, avec le sélecteur de chaîne. Les boutons **+** et **−** sous les macros en affichent une de plus ou masquent la dernière. Une macro masquée garde ses associations et son automation : elle continue de piloter ce qui lui est associé.
+
+Pour renommer une macro, double-cliquez sur son nom sous le bouton (ou faites un clic droit sur le bouton et choisissez **renommer la macro**), tapez le nom puis appuyez sur Entrée. Effacez le nom pour revenir à « macro 1 », « macro 2 »… Le nom apparaît partout où la macro apparaît : les pastilles de ses associations, le menu **assigner à une macro** et les couloirs d’automation.
 
 Pour associer une macro :
 

@@ -1,0 +1,273 @@
+{
+  "GrainDelay": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "GrainDelay",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 2,
+          "id": "grains",
+          "items": [
+            {
+              "colspan": 2,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "type": "XyPad",
+                "x": 5,
+                "y": 6
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 7,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Grains"
+        },
+        {
+          "columns": 2,
+          "id": "delay",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 0,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 2,
+                "type": "Choice"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Delay"
+        },
+        {
+          "columns": 1,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 8,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Output"
+        }
+      ]
+    },
+    "midi_input": false,
+    "name": "Grain Delay",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Delay",
+        "hidden": false,
+        "id": 0,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Sync",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Delay",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 1000.0,
+        "min": 1.0,
+        "name": "Time",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 6.0,
+        "group": "Delay",
+        "hidden": false,
+        "id": 2,
+        "labels": [
+          "1/64",
+          "1/32T",
+          "1/32",
+          "1/16T",
+          "1/16",
+          "1/8T",
+          "1/8",
+          "1/4T",
+          "1/4",
+          "1/2",
+          "1 bar",
+          "2 bars",
+          "4 bars",
+          "8 bars"
+        ],
+        "max": 13.0,
+        "min": 0.0,
+        "name": "Sync Rate",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Delay",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 95.0,
+        "min": 0.0,
+        "name": "Feedback",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 10.0,
+        "group": "Grains",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 500.0,
+        "min": 0.0,
+        "name": "Spray",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 60.0,
+        "group": "Grains",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 150.0,
+        "min": 1.0,
+        "name": "Frequency",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Grains",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 12.0,
+        "min": -36.0,
+        "name": "Pitch",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Semitones"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Grains",
+        "hidden": false,
+        "id": 7,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Random Pitch",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 8,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      }
+    ],
+    "sidechain_inputs": 0
+  }
+}

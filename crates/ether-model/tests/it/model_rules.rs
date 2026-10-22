@@ -473,6 +473,7 @@ fn param_only_device_edits_patch_device_params() {
                 vendor: "Example".into(),
                 version: "1".into(),
                 sandboxed: false,
+                always_process: false,
                 state: Some(state),
             },
         },

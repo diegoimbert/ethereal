@@ -293,7 +293,12 @@ fn pad_devices_take_a_sidechain() {
             sidechain: None,
             pad,
         };
-    let rack = mk_dev(&mut ids, BuiltinDevice::DrumRack, None, "a0");
+    let rack = mk_dev(
+        &mut ids,
+        BuiltinDevice::DrumRack { macros: None },
+        None,
+        "a0",
+    );
     let rack_id = rack.id;
     ins(&mut p, Entity::Device(rack));
     let pad_id: DrumPadId = ids.next(T0);

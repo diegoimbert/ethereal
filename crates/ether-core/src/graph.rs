@@ -391,6 +391,8 @@ pub(crate) struct SnapshotRt {
     pub rack_chain_index: Vec<(NodeKey, usize)>,
     /// v0.2: VCA faders (`crate::vca`).
     pub vcas: crate::vca::VcaRt,
+    /// Anticipative processing (`crate::anticipation`; `EngineConfig::anticipative`).
+    pub antic: Option<crate::anticipation::AnticRt>,
 }
 
 impl RenderSnapshot {
@@ -1114,7 +1116,10 @@ pub fn compile_with(
         .max()
         .unwrap_or(0);
 
+    let antic = (config.anticipative && !cfg!(target_arch = "wasm32"))
+        .then(|| crate::anticipation::AnticRt::compile(&desc, &order_succ, &tracks, &cost, frames));
     let mut rt = SnapshotRt {
+        antic,
         pad_index,
         rack_chain_index,
         vcas: crate::vca::VcaRt::compile(&desc.vcas, &desc.tracks, config),

@@ -16,6 +16,7 @@ import { bindProjectUrl, urlProjectId } from "./projectUrl";
 import { bindSaveOnHide } from "./saveOnHide";
 import { ProjectMenuPanel } from "./ProjectMenuPanel";
 import { ProjectScreen } from "./ProjectScreen";
+import { UntitledLeaveDialog } from "./UntitledLeaveDialog";
 import { useProjectScreen } from "./screenStore";
 import { useT } from "@/i18n";
 
@@ -159,6 +160,8 @@ export function ProjectMenu() {
       </Popover>
       <ProjectScreen commands={commands} />
       <ExportProjectDialog commands={commands} />
+      {/* "Keep or discard this untitled project?" when leaving it (`untitledLeave.ts`). */}
+      <UntitledLeaveDialog />
       {/* templates: save/insert/rename/delete template dialogs (track menu, palette, project screen). */}
       <TemplateDialogs />
       {renaming && name !== null && transport ? (

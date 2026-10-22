@@ -18,13 +18,14 @@ import fxColor from "./fxColor.json";
 import fxDynamics from "./fxDynamics.json";
 import fxModulation from "./fxModulation.json";
 import fxSpace from "./fxSpace.json";
+import grainDelay from "./grainDelay.json";
 import midiFx from "./midiFx.json";
 import modulators from "./modulators.json";
 import multisampler from "./multisampler.json";
 import polySynth from "./polySynth.json";
 import racks from "./racks.json";
 
-/** The v0.2 built-in types (after `DrumRack` in `BuiltinDeviceType::ALL`), the later fx-modulation `Vibrato` and fx-color `Erosion`. */
+/** The v0.2 built-in types (after `DrumRack` in `BuiltinDeviceType::ALL`), the later fx-modulation `Vibrato` and fx-color `Erosion` and `Pedal`, and `GrainDelay`. */
 export type V02DeviceType =
   | "PolySynth"
   | "MultiSampler"
@@ -32,6 +33,8 @@ export type V02DeviceType =
   | "Bitcrusher"
   | "AutoFilter"
   | "Erosion"
+  | "Pedal"
+  | "GrainDelay"
   | "Chorus"
   | "Phaser"
   | "Flanger"
@@ -57,7 +60,7 @@ export type V02DeviceType =
 
 // JSON imports widen enum strings to `string`; the files are generated from the typed Rust
 // values, so the cast is sound.
-const groups = [polySynth, multisampler, fxColor, fxModulation, fxDynamics, fxAnalysis, midiFx, racks] as unknown as Record<V02DeviceType, DeviceDescriptor>[];
+const groups = [polySynth, multisampler, fxColor, fxModulation, fxDynamics, fxAnalysis, midiFx, racks, grainDelay] as unknown as Record<V02DeviceType, DeviceDescriptor>[];
 
 export const V02_DESCRIPTORS: Readonly<Record<V02DeviceType, DeviceDescriptor>> = Object.assign({}, ...groups);
 

@@ -116,8 +116,10 @@ const paramKey = (n: string) => {
 /** The engine's `resolver::devices::candidates` (a subset of its keyword table). */
 const KEYWORDS: Array<[string[], BuiltinDeviceType, string]> = [
   [["reverb", "hybrid", "verb"], "Reverb", "reverb"],
-  [["echo", "delay", "grain"], "Delay", "delay"],
-  [["pedal", "overdrive", "distortion", "drive", "tube", "amp", "saturator"], "Saturator", "distortion"],
+  [["grain"], "GrainDelay", "grain delay"],
+  [["echo", "delay"], "Delay", "delay"],
+  [["pedal", "overdrive", "fuzz"], "Pedal", "pedal"],
+  [["distortion", "drive", "tube", "amp", "saturator"], "Saturator", "distortion"],
   [["erosion"], "Erosion", "erosion"],
   [["redux", "crush"], "Bitcrusher", "lo-fi"],
   [["filter"], "AutoFilter", "filter"],

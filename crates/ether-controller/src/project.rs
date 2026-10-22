@@ -129,6 +129,17 @@ where
                 self.emit_list_changed(out);
                 Ok(ReplyValue::Unit)
             }
+            ProjectCommand::Discard { id } => {
+                if self.doc.as_ref().is_some_and(|d| d.project.id == *id) {
+                    // Deleted once it closes (`close_discarded`); never saved meanwhile.
+                    self.discarded = Some(*id);
+                    self.set_dirty(false, out);
+                    return Ok(ReplyValue::Unit);
+                }
+                self.store.delete(*id).map_err(store_err)?;
+                self.emit_list_changed(out);
+                Ok(ReplyValue::Unit)
+            }
             ProjectCommand::ExportBundle {
                 id,
                 path,
@@ -378,12 +389,38 @@ where
             let now = self.host.now_ms();
             self.finish_recording(now, out);
         }
+        if self.discarded_open() {
+            self.close_discarded(out);
+            return Ok(());
+        }
         self.settle_background_saves(out);
         // Work an extension holds back (`save_refused`) is dropped, never saved.
         if self.has_unsaved_work() && self.save_refused().is_none() {
             self.save_current(out)?;
         }
         Ok(())
+    }
+
+    /// The open project was discarded (`ProjectCommand::Discard`).
+    pub fn discarded_open(&self) -> bool {
+        self.discarded
+            .is_some_and(|id| self.doc.as_ref().is_some_and(|d| d.project.id == id))
+    }
+
+    /// The discarded project closes (another one opens, the host quits): wait for the
+    /// background writes, then delete its folder (document, media, versions, recovery
+    /// marker). A recording in progress is dropped with it.
+    pub fn close_discarded(&mut self, out: &mut dyn MessageSink) {
+        let Some(id) = self.discarded.take() else {
+            return;
+        };
+        self.store.flush_saves();
+        while self.store.take_save_error().is_some() {}
+        self.versions_forget_project(id);
+        if let Err(e) = self.store.delete(id) {
+            tracing::warn!(error = %e, %id, "could not delete the discarded project");
+        }
+        self.emit_list_changed(out);
     }
 
     fn create(
@@ -773,6 +810,10 @@ where
         safe: bool,
         out: &mut dyn MessageSink,
     ) {
+        // Replaced without `autosave_before_switch` (an extension's adopt): deleted all the same.
+        if self.discarded.is_some_and(|d| d != project.id) {
+            self.close_discarded(out);
+        }
         self.engine_on_project_load(project.id, now);
         self.engine.reset();
         self.plugin_states.reset();

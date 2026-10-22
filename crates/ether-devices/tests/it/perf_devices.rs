@@ -55,6 +55,15 @@ fn effects() -> Vec<(BuiltinDeviceType, Vec<(&'static str, f64)>)> {
             Erosion,
             vec![("Erosion/Mode", 2.0), ("Erosion/Amount", 60.0)],
         ),
+        (Pedal, vec![("Drive/Type", 2.0), ("Tone/Mid", 50.0)]),
+        (
+            GrainDelay,
+            vec![
+                ("Grains/Pitch", 12.0),
+                ("Grains/Random Pitch", 50.0),
+                ("Delay/Feedback", 60.0),
+            ],
+        ),
         (ConvolutionReverb, vec![]),
         // The new stages switched on (the defaults above skip them).
         (

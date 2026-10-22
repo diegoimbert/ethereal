@@ -150,15 +150,27 @@ fn set() -> Set {
     let mut f = Fx::new();
     let kick = f.track(TrackKind::Midi);
     let bass = f.track(TrackKind::Midi);
-    let drums = f.device(kick, BuiltinDevice::DrumRack, "m", None, None);
+    let drums = f.device(
+        kick,
+        BuiltinDevice::DrumRack { macros: None },
+        "m",
+        None,
+        None,
+    );
     let kick_pad = f.pad(drums, 36);
     f.device(kick, BuiltinDevice::Synth, "m", None, Some(kick_pad));
-    let outer = f.device(bass, BuiltinDevice::InstrumentRack, "m", None, None);
+    let outer = f.device(
+        bass,
+        BuiltinDevice::InstrumentRack { macros: None },
+        "m",
+        None,
+        None,
+    );
     let outer_chain = f.chain(outer, "m");
     f.device(bass, BuiltinDevice::PolySynth, "a", Some(outer_chain), None);
     let inner = f.device(
         bass,
-        BuiltinDevice::AudioEffectRack,
+        BuiltinDevice::AudioEffectRack { macros: None },
         "m",
         Some(outer_chain),
         None,
@@ -251,8 +263,13 @@ fn own_track_only_before_the_device() {
         assert!(invariant(s.f.key(comp, bass, tap(InputTap::PostFx, c))));
     }
     // A rack placed before the outer rack on the track chain: fine.
-    let before =
-        s.f.device(bass, BuiltinDevice::InstrumentRack, "c", None, None);
+    let before = s.f.device(
+        bass,
+        BuiltinDevice::InstrumentRack { macros: None },
+        "c",
+        None,
+        None,
+    );
     let ghost = s.f.chain(before, "m");
     let c = Some(SidechainChain::Rack { chain: ghost });
     s.f.key(comp, bass, tap(InputTap::PreFx, c)).unwrap();
@@ -262,8 +279,13 @@ fn own_track_only_before_the_device() {
         Err(ModelError::Invariant(_))
     ));
     // A rack after the device's rack: rejected.
-    let after =
-        s.f.device(bass, BuiltinDevice::AudioEffectRack, "y", None, None);
+    let after = s.f.device(
+        bass,
+        BuiltinDevice::AudioEffectRack { macros: None },
+        "y",
+        None,
+        None,
+    );
     let late = s.f.chain(after, "m");
     let c = Some(SidechainChain::Rack { chain: late });
     assert!(invariant(s.f.key(comp, bass, tap(InputTap::PostFx, c))));
@@ -291,7 +313,7 @@ fn own_track_only_before_the_device() {
     // A rack earlier in the same (outer) chain: fine.
     let early = s.f.device(
         bass,
-        BuiltinDevice::InstrumentRack,
+        BuiltinDevice::InstrumentRack { macros: None },
         "b",
         Some(s.outer_chain),
         None,

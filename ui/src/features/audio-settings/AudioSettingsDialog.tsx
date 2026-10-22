@@ -6,6 +6,7 @@ import { useProjectStore, useTrackMeter } from "@/state";
 import { cmd, commandErrorText, isCommandFailed, isTauri, TransportContext, type EngineTransport } from "@/transport";
 import { PluginFoldersPanel } from "@/features/plugins";
 import { PluginListSettings } from "@/features/plugins/PluginListSettings";
+import { SandboxDefaultsSettings } from "@/features/plugins/SandboxDefaultsSettings";
 import { useEngineEvent } from "@/features/transport-bar/engine";
 import { LaunchSettings } from "@/features/project/LaunchSettings";
 import { FileFilterSettings } from "@/features/browser/settings/FileFilterSettings";
@@ -67,6 +68,7 @@ const CATEGORIES: ReadonlyArray<{ id: string; label: MessageKey; pages: Readonly
     pages: [
       { id: "plugins", label: "settings.pages.plugin_folders" },
       { id: "plugin-list", label: "settings.pages.plugin_list" },
+      { id: "plugin-sandbox", label: "settings.pages.plugin_sandbox" },
     ],
   },
   { id: "privacy", label: "settings.tabs.privacy", pages: [{ id: "privacy", label: "settings.tabs.privacy" }] },
@@ -98,7 +100,8 @@ const NO_ENGINE_PAGES: ReadonlySet<string> = new Set(["general", "appearance", "
  *   shortcuts: the shortcuts editor.
  * - Plugins > Folders & scan: the folders scanned for plugins (system folders on/off, the
  *   user's folders with a format filter), Rescan and Full rescan. Plugin list: one format per
- *   plugin (the preferred one) and the hidden plugins (kept on this device).
+ *   plugin (the preferred one) and the hidden plugins (kept on this device). Sandboxing: the
+ *   plugins a new instance of which starts sandboxed (kept by the engine host).
  * - Privacy: "check for news" (docs/NEWS.md). Kept on this device; needs no engine.
  * - Advanced > Engine: the engine server (remote engine). Diagnostics: the engine log and
  *   the debug panels.
@@ -216,6 +219,7 @@ export function AudioSettingsDialog() {
             {transport && page.id === "audio" && <AudioSettingsBody transport={transport} reason={reason} />}
             {transport && page.id === "plugins" && <PluginFoldersPanel transport={transport} />}
             {page.id === "plugin-list" && <PluginListSettings />}
+            {transport && page.id === "plugin-sandbox" && <SandboxDefaultsSettings transport={transport} />}
             {transport && page.id === "advanced" && <AdvancedSettings transport={transport} />}
             {page.id === "diagnostics" && <DiagnosticsSettings />}
             {extra?.Component && (transport || extra.noEngine) && <extra.Component transport={transport} />}
@@ -284,6 +288,16 @@ function AudioSettingsBody({ transport, reason }: { transport: EngineTransport; 
       setError(errorText(e));
     }
     await loadAudioDevices(transport);
+  };
+
+  const setAnticipative = async (on: boolean) => {
+    try {
+      const reply = await transport.send(cmd("Engine", { type: "SetAnticipative", on }));
+      if (reply.type === "Status") useAudioSettings.setState({ status: reply.status });
+      setError(null);
+    } catch (e) {
+      setError(errorText(e));
+    }
   };
 
   if (unavailable) {
@@ -407,6 +421,18 @@ function AudioSettingsBody({ transport, reason }: { transport: EngineTransport; 
         <p className="eth-audio-settings__note" data-testid="buffer-note">
           {buffer.note}
         </p>
+      )}
+      {/* Engines that can't anticipate (web, no worker threads) don't report it. */}
+      {status?.anticipative != null && (
+        <div className="eth-audio-settings__option" data-tour="audio-anticipative">
+          <Toggle
+            size="sm"
+            checked={status.anticipative}
+            label={t("settings.audio.anticipative")}
+            onChange={(on) => void setAnticipative(on)}
+          />
+          <p className="eth-audio-settings__note">{t("settings.audio.anticipative_hint")}</p>
+        </div>
       )}
 
       {status && (

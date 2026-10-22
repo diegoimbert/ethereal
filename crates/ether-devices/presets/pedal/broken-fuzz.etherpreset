@@ -1,0 +1,32 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "broken fuzz",
+    "device": {
+      "type": "Builtin",
+      "device": "Pedal"
+    },
+    "meta": {
+      "tags": [
+        "fuzz",
+        "gated",
+        "sputter"
+      ],
+      "author": "ethereal",
+      "description": "a starved fuzz with scooped mids: tails sputter and gate."
+    },
+    "params": {
+      "0": 2.0,
+      "1": 85.0,
+      "2": 30.0,
+      "3": -30.0,
+      "4": 0.0,
+      "5": 20.0,
+      "6": 0.0,
+      "7": -3.0,
+      "8": 100.0
+    }
+  }
+}

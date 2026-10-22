@@ -32,7 +32,9 @@ use crate::midi_map::{MidiMapCommand, MidiMapEvent};
 use crate::mixer::MixerCommand;
 use crate::model::{GestureId, MediaId, MediaRef, MidiMapping, Patch, Project, ProjectId};
 use crate::notes::NoteCommand;
-use crate::plugins::{PluginCommand, PluginDescriptor, PluginEvent, PluginFolders, ScanFailure};
+use crate::plugins::{
+    PluginCommand, PluginDescriptor, PluginEvent, PluginFolders, SandboxDefault, ScanFailure,
+};
 use crate::presets::{PresetCommand, PresetEvent, PresetInfo};
 use crate::project::{EditCommand, ProjectCommand, ProjectEvent, ProjectSummary};
 use crate::racks::{ModulationCommand, ModulatorDescriptor, RackCommand};
@@ -222,6 +224,10 @@ pub enum ReplyValue {
     },
     PluginFolders {
         folders: PluginFolders,
+    },
+    /// `Plugin::ListSandboxDefaults` / `SetSandboxDefault`, in the order added.
+    SandboxDefaults {
+        plugins: Vec<SandboxDefault>,
     },
     /// `Plugin::ListScanFailures`.
     ScanFailures {

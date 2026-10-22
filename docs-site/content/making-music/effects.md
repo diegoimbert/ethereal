@@ -8,6 +8,7 @@ covers:
   - devices/compressor #compressor
   - devices/eq #eq
   - devices/delay #delay
+  - devices/grain-delay #grain-delay
   - devices/reverb #reverb
   - devices/convolution-reverb #convolution-reverb
   - devices/limiter #limiter
@@ -48,7 +49,7 @@ Evens out the volume: when the sound goes over the **threshold**, it is turned d
 - **mix**: blend in the uncompressed sound (parallel compression).
 - **detector**: **peak** reacts to every peak, **RMS** to the average level, and **expand** turns it into a downward expander that makes quiet parts quieter.
 - **lookahead** (up to 10 ms) catches fast transients, and adds that much latency, which Ethereal compensates.
-- It can be keyed by another track (see [sidechain](/docs/making-music/modulation-and-sidechain#sidechain)). **sidechain HPF** then filters the low end out of the key signal, so a kick's sub doesn't trigger it too much.
+- It can be keyed by another track (see [sidechain](/docs/making-music/modulation-and-sidechain#sidechain)). **sidechain HPF** then filters the low end out of the key signal, so a kick's sub doesn't trigger it too much; **sidechain slope** makes that filter gentle (6 dB/oct) or steeper (12 dB/oct).
 
 ### reverb
 
@@ -70,6 +71,15 @@ Echoes.
 - **low cut** and **high cut** act inside the feedback loop, so each echo gets darker or thinner than the one before.
 - **mod rate** and **mod depth** wobble the delay time, like tape.
 - **freeze** loops what is in the delay right now, without taking new input.
+
+### grain delay
+
+Echoes chopped into tiny overlapping grains, which you can transpose and scatter.
+
+- **pitch** transposes the grains (-36 to +12 semitones); with **feedback**, each echo is transposed again, so the repeats climb or fall.
+- **frequency** sets how many grains start per second, and so their size: low values give long, smooth grains (a simple pitch shifter), high values a buzzy, granular texture. Drag the pad: across for the **frequency**, up for the **pitch**.
+- **spray** scatters each grain's start in time (a little smears the sound, a lot breaks it up and widens it); **random pitch** detunes each grain at random.
+- **time** in milliseconds, or turn on **sync** for a note value that follows the tempo. **mix** blends the dry sound.
 
 ### limiter
 
@@ -98,6 +108,7 @@ A reverb made from a recording of a real space (an impulse response, or IR).
 - **saturator**: adds warmth or distortion. Pick a **curve** (soft, hard, tube, tape, fold, rectify), then set **drive**, **bias** and **tone**. **auto gain** (on by default) keeps the level steady as you add drive. **oversampling** makes it cleaner. It adds a small, fixed latency.
 - **bitcrusher**: lo-fi digital grit. **bits** lowers the resolution, **rate** the sample rate; **jitter** and **dither** roughen or smooth it.
 - **erosion**: digital wear that follows the sound. It wobbles a very short delay with a **sine** (metallic sidebands) or with **noise** (fizz and hiss; **wide noise** is different on each side). Drag the pad: across for the **frequency**, up for the **amount**. **width** sets how wide the noise band is. Bright sounds erode first, and silence stays silent. It adds a tiny, fixed latency.
+- **pedal**: a guitar pedal. Pick a **type**: **overdrive** (warm and smooth, it keeps the lows round), **distortion** (tight and aggressive) or **fuzz** (unstable: the end of each note sputters). **gain** sets how hard it drives; even at 0 % it colors the sound, and the level stays about the same as you turn it up, so use **output** to set the volume. **bass**, **mid** and **treble** shape the tone (**mid freq** picks 500 hz, 1 khz or 2 khz), **sub** adds weight below 250 hz, and **mix** blends in the dry sound. It runs oversampled, which adds a small, fixed latency.
 - **auto filter**: a filter (7 types) that moves by itself. Its **envelope** follows the level of the sound (or of a sidechain, when one is set) to open the filter; its **LFO** sweeps it in a cycle, free or synced to the tempo, with a **stereo phase** offset between left and right. It runs oversampled, so **drive** stays clean; that adds a small, fixed latency.
 
 ## modulation: chorus, phaser, flanger, tremolo

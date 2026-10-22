@@ -19,7 +19,7 @@ fn runner() -> ScanRunner {
 }
 
 fn check(plugins: &[PluginDescriptor], bundle: &Path) {
-    assert_eq!(plugins.len(), 2, "{plugins:?}");
+    assert_eq!(plugins.len(), 3, "{plugins:?}"); // gain, synth, tail effect
     let (fx, synth) = (&plugins[0], &plugins[1]);
     for p in plugins {
         assert_eq!(p.format, PluginFormat::Vst3);
