@@ -9,7 +9,9 @@ use ether_core::protocol::media::{
     BrowseLocation, FileKind, MediaSource, MidiExportRequest, MidiExportResult, MidiFileNote,
     MidiFileTempo, MidiFileTimeSignature,
 };
-use ether_core::protocol::model::{Base64Bytes, Beats, Clip, ClipContent, Project, TrackId};
+use ether_core::protocol::model::{
+    Base64Bytes, Beats, Clip, ClipContent, LOOP_JOIN_EPS, Project, TrackId,
+};
 use ether_media::smf::{self, WriteTrack};
 
 use crate::handlers::store_err;
@@ -146,19 +148,18 @@ fn display_order(p: &Project) -> Vec<TrackId> {
 }
 
 /// The notes `clip` plays, at arrangement beats: its content through its offset and loop
-/// (unrolled like the engine, `Clip::content_at`), cut at the clip's end. Muted notes are
-/// left out.
+/// (unrolled like the engine, `Clip::content_at`), cut at the loop wraps and the clip's end.
+/// A note held across a wrap joins the loop's start note of the same pitch like in the
+/// engine (`Clip::loop_join`: one longer note, the partner's release velocity). Muted notes
+/// are left out.
 fn played_notes(p: &Project, clip: &Clip) -> Vec<MidiFileNote> {
     let notes = p.notes_of(clip.id);
     let end = clip.length.0;
-    let (ls, le) = (clip.looping.start.0, clip.looping.end.0);
-    let loops = clip.looping.enabled
-        && le - ls >= ether_core::protocol::model::MIN_CLIP_LOOP
-        && clip.offset.0 < le;
+    let looping = clip.played_loop();
     // Pieces `(d, content start, content end)`: clip-relative time `d` plays the content
     // from `content start`.
     let mut pieces = Vec::new();
-    if loops {
+    if let Some((ls, le)) = looping {
         let mut d = 0.0;
         let mut from = clip.offset.0;
         while d < end {
@@ -179,12 +180,23 @@ fn played_notes(p: &Project, clip: &Clip) -> Vec<MidiFileNote> {
             if at >= end {
                 continue;
             }
+            let mut duration = n.duration.0.min(end - at);
+            let mut release_velocity = n.release_velocity;
+            let wrap = d + (b - a);
+            if looping.is_some() && n.start.0 + n.duration.0 > b + LOOP_JOIN_EPS && wrap < end {
+                duration = wrap - at;
+                if let Some((partner, after)) = clip.loop_join(notes.iter().copied(), n.pitch, wrap)
+                {
+                    duration += after;
+                    release_velocity = partner.release_velocity;
+                }
+            }
             out.push(MidiFileNote {
                 pitch: n.pitch,
                 velocity: n.velocity,
-                release_velocity: n.release_velocity,
+                release_velocity,
                 start: Beats(clip.start.0 + at),
-                duration: Beats(n.duration.0.min(end - at)),
+                duration: Beats(duration),
             });
         }
     }
