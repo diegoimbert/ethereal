@@ -54,6 +54,7 @@ export interface MessageArgs {
   "arrangement.clip.selected_one": { name: string | number };
   "arrangement.clip_menu.delete": { count: number };
   "arrangement.clip_menu.edit_in_piano_roll": { count: string | number };
+  "arrangement.clip_menu.rename": { count: number };
   "arrangement.header.arm_named": { name: string | number };
   "arrangement.header.choose_instrument": { name: string | number };
   "arrangement.header.color_named": { name: string | number };
@@ -616,8 +617,10 @@ export interface MessageArgs {
   "shell.engine_health.recovered": { secs: string | number };
   "shell.engine_health.recovered_reason": { reason: string | number; secs: string | number };
   "shell.engine_health.stalled_reason": { reason: string | number };
+  "shell.inspector.audio_clips_selected": { count: number };
   "shell.inspector.audio_some": { count: string | number; total: string | number };
-  "shell.inspector.clip_count": { count: number };
+  "shell.inspector.clips_selected": { count: number };
+  "shell.inspector.midi_clips_selected": { count: number };
   "shell.inspector.mute_named": { name: string | number };
   "shell.inspector.output_group": { name: string | number };
   "shell.inspector.output_named": { name: string | number };
@@ -709,6 +712,7 @@ export interface MessageArgs {
   "undo.clips.loop": { count: number };
   "undo.clips.move_to_new_tracks": { count: number; tracks: number };
   "undo.clips.paste": { count: number };
+  "undo.clips.rename": { count: number };
   "undo.clips.resize": { count: number };
   "undo.clips.split": { count: number };
   "undo.clips.unloop": { count: number };
@@ -766,6 +770,7 @@ export interface MessageArgs {
   "versions.snapshot.saved": { name: string | number };
   "versions.title": { name: string | number };
   "versions.when.yesterday": { time: string | number };
+  "warp.clip_count": { count: number };
   "warp.marker_title": { beat: string | number; source: string | number };
   "warp.markers": { count: number };
   "warp.semitones": { value: string | number };

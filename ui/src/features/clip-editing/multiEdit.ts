@@ -35,6 +35,13 @@ export function common<T>(values: ReadonlyArray<T>): T | null {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
+/**
+ * A relative edit of one clip's value: `base` (its value when the gesture started) moved by
+ * `delta`, clamped to `[lo, hi]` (each clip on its own: one at the edge stops there, the others
+ * keep moving). Rounded to 6 decimals so float steps (0.5 dB, ...) stay exact.
+ */
+export const offsetValue = (base: number, delta: number, lo: number, hi: number): number => clamp(Number((base + delta).toFixed(6)), lo, hi);
+
 function batch(label: string, key: TextKey, commands: Command[]): Command | null {
   if (commands.length === 0) return null;
   if (commands.length === 1) return commands[0]!;
@@ -59,12 +66,19 @@ export function setAllTranspose(clips: ReadonlyArray<AudioClip>, semitones: numb
   );
 }
 
-/** Move every clip's transpose by `delta` from its base (clamped per clip). */
+/**
+ * Move every clip's transpose by `delta` from its base (clamped per clip): +2 takes −6 to −4
+ * and +3 to +5. Clips already at their new value are left out (a clip pinned at the range's
+ * edge sends nothing more while the drag goes on).
+ */
 export function offsetTranspose(clips: ReadonlyArray<AudioClip>, bases: Bases, delta: number): Command | null {
   return batch(
     "transpose clips", // i18n-ignore
     { id: "undo.clips.transpose", args: {} },
-    clips.map((c) => transposeCmd(c.clip.id, (bases.get(c.clip.id) ?? c.audio.transpose) + delta)),
+    clips.flatMap((c) => {
+      const v = offsetValue(bases.get(c.clip.id) ?? c.audio.transpose, delta, -TRANSPOSE_MAX, TRANSPOSE_MAX);
+      return v === c.audio.transpose ? [] : [transposeCmd(c.clip.id, v)];
+    }),
   );
 }
 
@@ -77,12 +91,15 @@ export function setAllGain(clips: ReadonlyArray<AudioClip>, gain: number): Comma
   );
 }
 
-/** Move every clip's gain by `delta` dB from its base (clamped per clip). */
+/** Move every clip's gain by `delta` dB from its base (clamped per clip; unchanged clips left out). */
 export function offsetGain(clips: ReadonlyArray<AudioClip>, bases: Bases, delta: number): Command | null {
   return batch(
     "set clip gain", // i18n-ignore
     { id: "undo.clip.set_gain", args: {} },
-    clips.map((c) => gainCmd(c.clip.id, Number(((bases.get(c.clip.id) ?? c.audio.gain) + delta).toFixed(6)))),
+    clips.flatMap((c) => {
+      const v = offsetValue(bases.get(c.clip.id) ?? c.audio.gain, delta, GAIN_MIN_DB, GAIN_MAX_DB);
+      return v === c.audio.gain ? [] : [gainCmd(c.clip.id, v)];
+    }),
   );
 }
 

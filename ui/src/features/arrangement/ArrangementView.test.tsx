@@ -1361,6 +1361,30 @@ describe("ArrangementView: clip editing", () => {
     expect(project().clips[bass.id]!.name).toBe("Low End");
   });
 
+  it("renames every selected clip (MIDI and audio) from the clicked one's menu as one undo step", async () => {
+    const bass = clipByName("Bassline");
+    const chords = clipByName("Chords");
+    const audio = Object.values(project().clips).find((c) => c.content.type === "Audio")!;
+    const before = [chords.name, audio.name];
+    act(() => itemSelection.getState().select("clip", [bass.id, chords.id, audio.id]));
+    const at = partAt(project().clips[bass.id]!);
+    fireEvent.contextMenu(lanes(), { clientX: at.x, clientY: at.y });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "rename 3 clips" }));
+    // One field, over the clicked clip, prefilled with its name.
+    const field = await screen.findByRole("textbox", { name: "rename 3 clips" });
+    expect((field as HTMLInputElement).value).toBe("Bassline");
+    fireEvent.change(field, { target: { value: "Verse" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+    await flush();
+    expect([bass, chords, audio].map((c) => project().clips[c.id]!.name)).toEqual(["Verse", "Verse", "Verse"]);
+    // One batched edit.
+    const edits = sent.filter((c) => (c.domain === "Clip" && c.command.type === "Rename") || (c.domain === "Edit" && c.command.type === "Batch"));
+    expect(edits).toHaveLength(1);
+    expect(edits[0]!.domain === "Edit" && edits[0]!.command.type === "Batch" && edits[0]!.command.commands.length).toBe(3);
+    await undo();
+    expect([bass, chords, audio].map((c) => project().clips[c.id]!.name)).toEqual(["Bassline", ...before]);
+  });
+
   describe("copy / cut / paste", () => {
     const root = () => document.querySelector<HTMLElement>('[data-feature="arrangement"]')!;
     const key = (k: string) => fireEvent.keyDown(root(), { key: k, metaKey: true });

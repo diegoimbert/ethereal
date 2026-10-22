@@ -108,6 +108,20 @@ test("clip selection, marquee, editor, menu, rename and hover cursors", async ({
   await expect.poll(async () => (await clipOf(page, b)).name).toBe("Chorus");
   await expect(field).toHaveCount(0);
 
+  // With several selected, Rename names them all: one field over the clicked clip, one undo step.
+  await selectClip(page, b);
+  await selectClip(page, d, ["Shift"]);
+  await expect.poll(() => selected(page)).toEqual([b, d].sort());
+  await clipMenu(page, d);
+  await page.getByRole("menuitem", { name: "rename 2 clips" }).click();
+  const many = page.getByRole("textbox", { name: "rename 2 clips" });
+  await expect(many).toHaveValue("clip 4");
+  await many.fill("Verse");
+  await many.press("Enter");
+  await expect.poll(async () => [(await clipOf(page, b)).name, (await clipOf(page, d)).name]).toEqual(["Verse", "Verse"]);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(async () => [(await clipOf(page, b)).name, (await clipOf(page, d)).name]).toEqual(["Chorus", "clip 4"]);
+
   // Hover cursors: grab on the title band, ew-resize on the edges.
   const cursorAt = async (p: { x: number; y: number }) => {
     await page.mouse.move(p.x, p.y);
