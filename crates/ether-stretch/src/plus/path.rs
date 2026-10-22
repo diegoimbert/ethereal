@@ -37,8 +37,6 @@ const CANCEL: f32 = 0.25;
 /// Floor of the window normalisation, relative to the nominal overlap (gated regions dip
 /// instead of amplifying leakage).
 const NORM_FLOOR: f32 = 0.35;
-/// Half-width of a Hann main lobe (bins).
-const MAIN_LOBE: usize = 2;
 /// Formant gain limits (dB).
 const GAIN_MAX_DB: f32 = 24.0;
 const GAIN_MIN_DB: f32 = -48.0;
@@ -46,6 +44,27 @@ const GAIN_MIN_DB: f32 = -48.0;
 const FORMANT_FADE_HZ: (f32, f32) = (100.0, 200.0);
 /// Most a frame's energy may change through the formant correction (dB).
 const FORMANT_ENERGY_DB: (f32, f32) = (-3.0, 3.0);
+
+/// `z / |z|` (1 for zero).
+#[inline]
+fn unit(z: C) -> C {
+    let n = z.norm_sqr().sqrt();
+    if n > 1e-30 { z / n } else { C::new(1.0, 0.0) }
+}
+
+/// Partial model (transposition): how far each modelled lobe reaches (bins), the lobe
+/// table's resolution (steps per bin), the weakest peak modelled (relative to the frame's).
+const MODEL_LOBE: usize = 8;
+const LOBE_STEPS: usize = 64;
+const MODEL_FLOOR: f32 = 1e-3;
+/// A modelled peak stands this much (magnitude ratio, 6 dB) above the lowest bin within 2
+/// of it: noise's countless shallow maxima stay in the residual.
+const MODEL_PROMINENCE: f32 = 2.0;
+/// Refinement passes of the partial amplitudes.
+const MODEL_REFINE: usize = 1;
+const NO_PEAK: u32 = u32::MAX;
+/// Most bins a modelled lobe touches.
+const LOBE_SPAN: usize = 2 * MODEL_LOBE + 2;
 
 /// Static description of a resolution.
 #[derive(Clone, Copy, Debug)]
@@ -189,12 +208,21 @@ pub(crate) struct Path {
     src: Vec<u32>,
     srcf: Vec<f32>,
     amp: Vec<f32>,
-    /// Output IF = source IF × `wscale` + `wshift` (rad/sample): a region keeps its bins'
-    /// offsets to the peak (`1`, the peak's shift); gap bins scale (`p`, 0).
-    wscale: Vec<f32>,
-    wshift: Vec<f32>,
     /// Analysis (reference) phase of each output bin's source (unit phasor).
     ana_o: Vec<C>,
+    // Partial model (`model_pitch`).
+    lobe_tab: Vec<C>,
+    res: Vec<Vec<C>>,
+    model: Vec<C>,
+    dom: Vec<u32>,
+    peak_b: Vec<f32>,
+    peak_a: Vec<C>,
+    peak_ref: Vec<C>,
+    peak_rot: Vec<C>,
+    /// Each partial's output lobe: its bins `out_span` and values `out_lobe` (`LOBE_SPAN` each).
+    out_span: Vec<(u32, u32)>,
+    out_lobe: Vec<C>,
+    npk: usize,
     peaks: Vec<u32>,
     prev_mag: Vec<f32>,
     prev_omega: Vec<f32>,
@@ -310,9 +338,18 @@ impl Path {
             src: vec![0; bins],
             srcf: fv(),
             amp: fv(),
-            wscale: vec![1.0; bins],
-            wshift: fv(),
             ana_o: cv(),
+            lobe_tab: lobe_table(n),
+            res: (0..channels).map(|_| cv()).collect(),
+            model: cv(),
+            dom: vec![NO_PEAK; bins],
+            peak_b: vec![0.0; bins],
+            peak_a: vec![C::default(); bins * channels],
+            peak_ref: cv(),
+            peak_rot: cv(),
+            out_span: vec![(0, 0); bins],
+            out_lobe: vec![C::default(); bins * LOBE_SPAN],
+            npk: 0,
             peaks: Vec::with_capacity(bins),
             prev_mag: fv(),
             prev_omega: fv(),
@@ -550,9 +587,15 @@ impl Path {
             return;
         }
 
-        // 3. Output bins: pitch map (`src`, `amp`) and formant gain.
+        // 3. Output bins: pitch map (`src`, `amp`; transposing, the partial model) and formant
+        // gain.
         let (k_lo, k_hi) = (self.k_lo, self.k_hi);
-        self.map_pitch(p, bin_step, s_lo, s_hi);
+        let modeled = p != 1.0;
+        if modeled {
+            self.model_pitch(p, bin_step, s_lo, s_hi);
+        } else {
+            self.map_identity();
+        }
         let hz_per_bin = self.sr / n as f32;
         let (mut plain_energy, mut formant_energy) = (0.0f32, 0.0f32);
         for k in k_lo..k_hi {
@@ -565,7 +608,9 @@ impl Path {
             }
             let j = self.src[k] as usize;
             let jf = self.srcf[k];
-            let em = {
+            let em = if modeled {
+                self.mag_o[k]
+            } else {
                 let i = (jf as usize).min(bins - 2);
                 let f = jf - i as f32;
                 self.emag[i] * (1.0 - f) + self.emag[i + 1] * f
@@ -586,7 +631,9 @@ impl Path {
             }
             self.gain[k] = g;
             self.mag_o[k] = em * g;
-            self.omega_o[k] = self.omega_a[j] * self.wscale[k] + self.wshift[k];
+            if !modeled {
+                self.omega_o[k] = self.omega_a[j];
+            }
         }
         // The formant correction redistributes the frame's energy; bound how much it changes
         // its total (a sparse spectrum, e.g. a lone partial, has no meaningful envelope).
@@ -608,10 +655,10 @@ impl Path {
             && p == 1.0
             && self.prev_ana_valid
             && (ci - self.prev_center) == self.synth_hop_samples;
-        for k in k_lo..k_hi {
-            let r = self.xr[self.src[k] as usize];
-            let rn = r.norm_sqr().sqrt();
-            self.ana_o[k] = if rn > 1e-30 { r / rn } else { C::new(1.0, 0.0) };
+        if !modeled {
+            for k in k_lo..k_hi {
+                self.ana_o[k] = unit(self.xr[self.src[k] as usize]);
+            }
         }
         let ana_phase = |s: &Self, k: usize| -> C { s.ana_o[k] };
         // Crossover bins follow the master. Not on a first frame (every resolution starts from
@@ -686,10 +733,33 @@ impl Path {
             self.unit[k] = self.ana_o[k].conj();
         }
         let lo_out = (a.out_from - (a.clock - half)).clamp(0, n as i64) as usize;
+        if modeled {
+            // Each partial turns by its centre bin's synthesis phase (relative to its modelled
+            // analysis phase there); the residual by its bin's.
+            for i in 0..self.npk {
+                let kc = (self.peak_b[i] * p).round();
+                self.peak_rot[i] =
+                    if kc >= k_lo as f32 && kc < k_hi as f32 && self.dom[kc as usize] == i as u32 {
+                        let kc = kc as usize;
+                        self.phase[kc] * self.ana_o[kc].conj()
+                    } else {
+                        C::default()
+                    };
+            }
+            for k in k_lo..k_hi {
+                self.rot[k] = self.phase[k] * self.ana_o[k].conj() * (self.gain[k] * self.mask[k]);
+            }
+        }
         for ch in 0..channels {
             self.synth.fill(C::default());
+            if modeled {
+                self.synth_modeled(ch, p);
+            }
             let xc = &self.x[ch];
             for k in k_lo..k_hi {
+                if modeled {
+                    break;
+                }
                 if self.rot[k] == C::default() {
                     continue;
                 }
@@ -739,114 +809,260 @@ impl Path {
         self.primed = true;
     }
 
-    /// Pitch map: which source position each output bin of the band reads (`srcf`, nearest
-    /// bin `src`), with what magnitude factor (`amp`) and frequency mapping (`wscale`,
-    /// `wshift`). `p = 1`: the identity. Otherwise each spectral peak's region (down to the
-    /// minima around it, and at least its main lobe) moves as a whole by the (fractional)
-    /// number of bins that puts the peak at `p` times its reassigned frequency, the region's
-    /// bins keeping their offsets to it (Laroche & Dolson, "New phase-vocoder techniques for
-    /// real-time pitch shifting", JAES 1999), so partials keep their lobe shape and level;
-    /// colliding regions add in power. Output bins no region reaches (between partials
-    /// shifted up) take the floor of the source around the bin-scaled position.
-    fn map_pitch(&mut self, p: f32, bin_step: f32, s_lo: usize, s_hi: usize) {
+    /// Transposing (`p != 1`): the source spectrum as windowed sinusoids plus a residual
+    /// (McAulay & Quatieri's sinusoidal model, Serra's deterministic + stochastic split, on the
+    /// phase vocoder's own frames). Each peak (strongest first) gets the amplitude that best
+    /// fits its main lobe (least squares on the 3 bins around it, at its reassigned
+    /// frequency), and its whole lobe, side lobes included, is subtracted. The partials are
+    /// then synthesised at `p` times their frequency with the exact Hann lobe shape
+    /// ([`Path::lobe`]), so the valleys between them come out as deep as the output spacing
+    /// makes them (copying source bins would carry the source's shallower valleys, lifted
+    /// by close neighbours' side lobes); the residual (noise, transients, what the model
+    /// misses) is bin-scaled (`k` reads `k/p`). Fills, per output bin: `mag_o` (before the
+    /// formant gain), `omega_o`, `ana_o`, the residual's source bin `src`, the source
+    /// position for the formants `srcf`, the dominant partial `dom`.
+    fn model_pitch(&mut self, p: f32, bin_step: f32, s_lo: usize, s_hi: usize) {
         let (k_lo, k_hi) = (self.k_lo, self.k_hi);
-        if p == 1.0 {
-            for k in k_lo..k_hi {
-                self.src[k] = k as u32;
-                self.srcf[k] = k as f32;
-                self.amp[k] = 1.0;
-                self.wscale[k] = 1.0;
-                self.wshift[k] = 0.0;
-            }
-            return;
+        let channels = self.acc.len();
+        let lobe = MODEL_LOBE as f32;
+        for ch in 0..channels {
+            self.res[ch][s_lo..s_hi].copy_from_slice(&self.x[ch][s_lo..s_hi]);
         }
-        self.amp[k_lo..k_hi].fill(0.0);
+        // Peaks, strongest first.
         self.peaks.clear();
         let e = &self.emag;
-        let (lo, hi) = (s_lo.max(1), s_hi.saturating_sub(1));
-        for j in lo..hi {
-            if e[j] > 0.0 && e[j] >= e[j - 1] && e[j] > e[j + 1] {
+        let max = e[s_lo..s_hi].iter().fold(0.0f32, |m, v| m.max(*v));
+        let floor = max * MODEL_FLOOR;
+        for j in (s_lo + 1)..s_hi.saturating_sub(1) {
+            if e[j] > floor
+                && e[j] >= e[j - 1]
+                && e[j] > e[j + 1]
+                && e[j]
+                    > MODEL_PROMINENCE
+                        * e[j.saturating_sub(2).max(s_lo)..(j + 3).min(s_hi)]
+                            .iter()
+                            .fold(f32::MAX, |m, v| m.min(*v))
+            {
                 self.peaks.push(j as u32);
             }
         }
-        // Regions: from the minimum before each peak to the minimum after it, and at least
-        // the peak's main lobe (close partials share their lobes' flanks; truncating a lobe
-        // would lose its level). Contributions colliding on an output bin add in power; the
-        // strongest gives the bin its source (phase, frequency). `best` (in `mag_o`) is that
-        // strongest magnitude, `power` (in `gain`) the sum.
-        let best = &mut self.mag_o;
-        let power = &mut self.gain;
-        best[k_lo..k_hi].fill(-1.0);
-        power[k_lo..k_hi].fill(0.0);
-        let np = self.peaks.len();
-        let mut start = s_lo;
-        let interp = |x: f32| {
-            let i = (x as usize).min(e.len() - 2);
-            let f = x - i as f32;
-            e[i] * (1.0 - f) + e[i + 1] * f
-        };
-        for (i, &pk) in self.peaks.iter().enumerate() {
-            let pk = pk as usize;
-            let end = if i + 1 < np {
-                let next = self.peaks[i + 1] as usize;
-                (pk + 1..next)
-                    .min_by(|a, b| e[*a].total_cmp(&e[*b]))
-                    .unwrap_or(next)
-            } else {
-                s_hi
-            };
-            let lo = start.min(pk.saturating_sub(MAIN_LOBE)).max(s_lo);
-            let hi = end.max(pk + MAIN_LOBE + 1).min(s_hi);
-            start = end;
-            // Fractional shift (bins) moving the peak's frequency to `p` times it; output bin
-            // `k` reads the source at `k - shift`.
-            let wshift = self.omega_a[pk] * (p - 1.0);
-            let shift = wshift / bin_step;
-            let k0 = ((lo as f32 + shift).ceil().max(k_lo as f32)) as usize;
-            let k1 = ((hi as f32 - 1.0 + shift).floor() + 1.0).min(k_hi as f32);
-            let k1 = if k1 > 0.0 { k1 as usize } else { 0 };
-            for k in k0..k1 {
-                let jf = k as f32 - shift;
-                if jf < 0.0 || jf > (e.len() - 1) as f32 {
+        self.peaks
+            .sort_unstable_by(|a, b| e[*b as usize].total_cmp(&e[*a as usize]));
+        self.npk = 0;
+        for pi in 0..self.peaks.len() {
+            let pk = self.peaks[pi] as usize;
+            let b = self.omega_a[pk] / bin_step;
+            if (b - pk as f32).abs() > 1.0 || pk < s_lo + 1 || pk + 2 > s_hi {
+                continue;
+            }
+            // Least-squares amplitude on the main lobe's 3 bins, per channel.
+            let w3 = [-1.0f32, 0.0, 1.0].map(|o| self.lobe(pk as f32 + o - b));
+            let den: f32 = w3.iter().map(|w| w.norm_sqr()).sum();
+            if den <= 0.0 {
+                continue;
+            }
+            let i = self.npk;
+            let mut aref = C::default();
+            for ch in 0..channels {
+                let mut num = C::default();
+                for (o, w) in w3.iter().enumerate() {
+                    num += self.res[ch][pk - 1 + o] * w.conj();
+                }
+                let a = num / den;
+                self.peak_a[i * channels + ch] = a;
+                aref += a;
+            }
+            // Subtract the whole lobe.
+            let j0 = ((b - lobe).ceil().max(s_lo as f32)) as usize;
+            let j1 = ((b + lobe).floor() as usize + 1).min(s_hi);
+            for j in j0..j1 {
+                let w = self.lobe(j as f32 - b);
+                for ch in 0..channels {
+                    let a = self.peak_a[i * channels + ch];
+                    self.res[ch][j] -= a * w;
+                }
+            }
+            self.peak_b[i] = b;
+            self.peak_ref[i] = aref;
+            self.npk += 1;
+        }
+        // Refine: each partial re-fitted with the others removed (overlapping lobes bias the
+        // first, greedy estimates): its frequency by a Gauss-Newton step on the reference
+        // (amplitude and lobe derivative fitted on 5 bins), then its amplitudes.
+        for _ in 0..MODEL_REFINE {
+            for i in 0..self.npk {
+                let b = self.peak_b[i];
+                let pk = b.round() as usize;
+                if pk < s_lo + 2 || pk + 3 > s_hi {
                     continue;
                 }
-                let m = interp(jf);
-                power[k] += m * m;
-                if m > best[k] {
-                    best[k] = m;
-                    self.srcf[k] = jf;
-                    self.src[k] = (jf.round() as u32).min(e.len() as u32 - 1);
-                    self.wscale[k] = 1.0;
-                    self.wshift[k] = wshift;
+                // Reference with this partial put back.
+                let (mut g11, mut g12, mut g22) = (0.0f32, C::default(), 0.0f32);
+                let (mut h1, mut h2) = (C::default(), C::default());
+                for j in pk - 2..=pk + 2 {
+                    let d = j as f32 - b;
+                    let w = self.lobe(d);
+                    let dw = (self.lobe(d + 0.01) - self.lobe(d - 0.01)) * 50.0;
+                    let mut r = C::default();
+                    for ch in 0..channels {
+                        r += self.res[ch][j] + self.peak_a[i * channels + ch] * w;
+                    }
+                    g11 += w.norm_sqr();
+                    g12 += w.conj() * dw;
+                    g22 += dw.norm_sqr();
+                    h1 += w.conj() * r;
+                    h2 += dw.conj() * r;
+                }
+                // [g11 g12; g12* g22] [a; c] = [h1; h2]; r ≈ a·W(j-b) + c·W'(j-b), and a lobe
+                // at b + δ is ≈ a·W − aδ·W' (W' = dW/dd), so δ = −Re(c/a).
+                let det = g11 * g22 - g12.norm_sqr();
+                let mut nb = b;
+                if det > 1e-20 {
+                    let a = (h1 * g22 - g12 * h2) / det;
+                    let c = (h2 * g11 - g12.conj() * h1) / det;
+                    if a.norm_sqr() > 0.0 {
+                        nb = b + (-(c / a).re).clamp(-0.25, 0.25);
+                    }
+                }
+                let j0 = ((b.min(nb) - lobe).ceil().max(s_lo as f32)) as usize;
+                let j1 = ((b.max(nb) + lobe).floor() as usize + 1).min(s_hi);
+                // The lobe at the old and the new frequency over the bins it touches.
+                let len = (j1 - j0).min(LOBE_SPAN);
+                let mut wo = [C::default(); LOBE_SPAN];
+                let mut wn = [C::default(); LOBE_SPAN];
+                for o in 0..len {
+                    let j = (j0 + o) as f32;
+                    wo[o] = self.lobe(j - b);
+                    wn[o] = self.lobe(j - nb);
+                }
+                let at = |j: usize| j - j0;
+                let den: f32 = (pk - 1..=pk + 1).map(|j| wn[at(j)].norm_sqr()).sum();
+                if den <= 0.0 {
+                    continue;
+                }
+                let mut aref = C::default();
+                for ch in 0..channels {
+                    let old = self.peak_a[i * channels + ch];
+                    let mut num = C::default();
+                    for j in pk - 1..=pk + 1 {
+                        num += (self.res[ch][j] + old * wo[at(j)]) * wn[at(j)].conj();
+                    }
+                    let a = num / den;
+                    for o in 0..len {
+                        self.res[ch][j0 + o] -= a * wn[o] - old * wo[o];
+                    }
+                    self.peak_a[i * channels + ch] = a;
+                    aref += a;
+                }
+                self.peak_b[i] = nb;
+                self.peak_ref[i] = aref;
+            }
+        }
+        // The partials' lobes at their new frequencies (`model`: their sum on the reference,
+        // `gain` as scratch: the strongest one's magnitude per bin).
+        self.dom[k_lo..k_hi].fill(NO_PEAK);
+        self.gain[k_lo..k_hi].fill(0.0);
+        self.model[k_lo..k_hi].fill(C::default());
+        for i in 0..self.npk {
+            let pos = self.peak_b[i] * p;
+            let k0 = ((pos - lobe).ceil().max(k_lo as f32)) as usize;
+            let k1 = (((pos + lobe).floor() + 1.0).max(0.0) as usize)
+                .min(k_hi)
+                .max(k0);
+            let k1 = k1.min(k0 + LOBE_SPAN);
+            self.out_span[i] = (k0 as u32, k1 as u32);
+            for k in k0..k1 {
+                let w = self.lobe(k as f32 - pos);
+                self.out_lobe[i * LOBE_SPAN + (k - k0)] = w;
+                let c = self.peak_ref[i] * w;
+                self.model[k] += c;
+                let m = c.norm_sqr();
+                if m > self.gain[k] {
+                    self.gain[k] = m;
+                    self.dom[k] = i as u32;
                 }
             }
         }
+        let bins = self.bins;
         for k in k_lo..k_hi {
-            if best[k] > 0.0 {
-                self.amp[k] = power[k].sqrt() / best[k];
+            let q = k as f32 / p;
+            let r = (q.round() as usize)
+                .clamp(s_lo, s_hi.max(s_lo + 1) - 1)
+                .min(bins - 1);
+            let inside = q < (s_hi as f32) && r >= s_lo;
+            let mut rref = C::default();
+            if inside {
+                for ch in 0..channels {
+                    rref += self.res[ch][r];
+                }
+            }
+            // Bin-scaled, the residual keeps its power density: × 1/√p in amplitude.
+            let rscale = p.recip().sqrt();
+            let (mr, mm) = (rref.norm_sqr() * rscale * rscale, self.model[k].norm_sqr());
+            self.mag_o[k] = (mr + mm).sqrt();
+            self.src[k] = r as u32;
+            self.amp[k] = if inside || mm > 0.0 { 1.0 } else { 0.0 };
+            let d = self.dom[k];
+            if d != NO_PEAK && self.gain[k] >= mr {
+                let d = d as usize;
+                let k0 = self.out_span[d].0 as usize;
+                self.srcf[k] = self.peak_b[d];
+                self.omega_o[k] = self.peak_b[d] * bin_step * p;
+                self.ana_o[k] = unit(self.peak_ref[d] * self.out_lobe[d * LOBE_SPAN + (k - k0)]);
+            } else {
+                self.dom[k] = NO_PEAK;
+                self.srcf[k] = q.min((bins - 1) as f32);
+                self.omega_o[k] = self.omega_a[r] * p;
+                self.ana_o[k] = unit(rref);
             }
         }
-        // Gaps: the floor of the source around the bin-scaled position (wider than a main
-        // lobe, so between partials it is the valley, not a lobe's flank).
-        let w = MAIN_LOBE + 1;
+    }
+
+    /// RT. Channel `ch`'s transposed spectrum (`model_pitch`): the residual at each bin,
+    /// turned like its bin, plus every partial's lobe at its new frequency, turned like its
+    /// centre bin.
+    fn synth_modeled(&mut self, ch: usize, p: f32) {
+        let (k_lo, k_hi) = (self.k_lo, self.k_hi);
+        let channels = self.acc.len();
+        let rscale = p.recip().sqrt();
         for k in k_lo..k_hi {
             if self.amp[k] != 0.0 {
+                self.synth[k] = self.res[ch][self.src[k] as usize] * (self.rot[k] * rscale);
+            }
+        }
+        for i in 0..self.npk {
+            let turn = self.peak_rot[i];
+            if turn == C::default() {
                 continue;
             }
-            let q = (k as f32 / p).round() as usize;
-            if q < s_lo + 1 || q + 1 >= s_hi {
-                continue;
+            let a = self.peak_a[i * channels + ch] * turn;
+            let (k0, k1) = self.out_span[i];
+            for k in k0 as usize..k1 as usize {
+                let g = self.gain[k] * self.mask[k];
+                self.synth[k] += a * self.out_lobe[i * LOBE_SPAN + (k - k0 as usize)] * g;
             }
-            let m = e[q.saturating_sub(w).max(s_lo)..(q + w + 1).min(s_hi)]
-                .iter()
-                .fold(f32::MAX, |m, v| m.min(*v));
-            if e[q] > 0.0 {
-                self.src[k] = q as u32;
-                self.srcf[k] = q as f32;
-                self.amp[k] = m / e[q];
-                self.wscale[k] = p;
-                self.wshift[k] = 0.0;
-            }
+        }
+    }
+
+    /// The Hann spectrum of a unit complex sinusoid `d` bins away (the analysis's centred
+    /// frame), from the table built in `new`.
+    #[inline]
+    fn lobe(&self, d: f32) -> C {
+        let x = (d + (MODEL_LOBE + 1) as f32) * LOBE_STEPS as f32;
+        if x < 0.0 || x >= (self.lobe_tab.len() - 1) as f32 {
+            return C::default();
+        }
+        let i = x as usize;
+        let f = x - i as f32;
+        self.lobe_tab[i] * (1.0 - f) + self.lobe_tab[i + 1] * f
+    }
+
+    /// Not transposing: each output bin reads its own source bin.
+    fn map_identity(&mut self) {
+        for k in self.k_lo..self.k_hi {
+            self.src[k] = k as u32;
+            self.srcf[k] = k as f32;
+            self.amp[k] = 1.0;
         }
     }
 
@@ -875,4 +1091,43 @@ impl Path {
         }
         v / norm
     }
+}
+
+/// Non-RT. [`Path::lobe`]'s table: `W(d) = Σ w[m]·e^{-2πi·d·m/N}` over the centred Hann
+/// frame (`w = ½ + ¼e^{2πim/N} + ¼e^{-2πim/N}`), i.e. `½D(d) + ¼D(d−1) + ¼D(d+1)` with the
+/// Dirichlet kernel `D(d) = Σ_{m=-N/2}^{N/2-1} e^{-2πi·d·m/N}`, for `d` within
+/// `±(MODEL_LOBE + 1)` bins.
+fn lobe_table(n: usize) -> Vec<C> {
+    use std::f64::consts::PI;
+    let nf = n as f64;
+    let dirichlet = |d: f64| -> (f64, f64) {
+        let th = 2.0 * PI * d / nf;
+        if th.abs() < 1e-9 {
+            return (nf, 0.0);
+        }
+        // e^{iθN/2}·(1 − e^{−iθN}) / (1 − e^{−iθ}).
+        let (a_re, a_im) = ((th * nf / 2.0).cos(), (th * nf / 2.0).sin());
+        let (b_re, b_im) = (1.0 - (th * nf).cos(), (th * nf).sin());
+        let (c_re, c_im) = (1.0 - th.cos(), th.sin());
+        let (num_re, num_im) = (a_re * b_re - a_im * b_im, a_re * b_im + a_im * b_re);
+        let den = c_re * c_re + c_im * c_im;
+        (
+            (num_re * c_re + num_im * c_im) / den,
+            (num_im * c_re - num_re * c_im) / den,
+        )
+    };
+    let span = (MODEL_LOBE + 1) as f64;
+    let count = (2.0 * span * LOBE_STEPS as f64) as usize + 1;
+    (0..count)
+        .map(|i| {
+            let d = i as f64 / LOBE_STEPS as f64 - span;
+            let (r0, i0) = dirichlet(d);
+            let (r1, i1) = dirichlet(d - 1.0);
+            let (r2, i2) = dirichlet(d + 1.0);
+            C::new(
+                (0.5 * r0 + 0.25 * (r1 + r2)) as f32,
+                (0.5 * i0 + 0.25 * (i1 + i2)) as f32,
+            )
+        })
+        .collect()
 }

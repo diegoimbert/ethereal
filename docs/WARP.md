@@ -61,10 +61,19 @@ the web build.
    (the window sum is accumulated with the gate, so normalisation follows): no frame
    smears the attack before it happens (pre-echo), and a hi-hat doesn't disturb the bass.
    None of this happens at the source's own speed.
-7. **Pitch shifting** in the spectrum: each peak's region moves by the fractional shift that
-   puts the peak at `p` times its reassigned frequency (Laroche & Dolson's region shifting,
-   lobes kept whole, colliding regions added in power); the bins between shifted regions
-   take the source's floor around the bin-scaled position. Fixed latency, no resampler.
+7. **Pitch shifting** in the spectrum, with a partial model. Each frame's spectrum is
+   split into windowed sinusoids and a residual (McAulay & Quatieri's sinusoidal model,
+   Serra's deterministic + stochastic split, on the vocoder's own frames): every prominent
+   peak, strongest first, gets the amplitude that best fits its main lobe (least squares at
+   its reassigned frequency) and its whole lobe, side lobes included, is subtracted; a
+   refinement pass then re-fits each partial's frequency (a Gauss-Newton step on lobe and
+   lobe derivative) and amplitude with the others removed. The partials are synthesised at
+   `p` times their frequency with the exact Hann lobe (a table of the window's transform),
+   each turned by the synthesis phase of its centre bin; the residual (noise, transients,
+   what the model misses) is bin-scaled, keeping its power density. Copying source bins
+   instead (region shifting) carries the source's valleys, lifted by close neighbours'
+   side lobes, into an output where the partials are farther apart. Fixed latency, no
+   resampler.
 8. **Formants.** A true envelope (iterated cepstral smoothing, Röbel & Rodet 2005) of the
    mid resolution's spectrum; the transposed spectrum gets a gain moving the envelope back
    (`formants` 0–100 %: how much stays in place) and optionally elsewhere (`formant shift`,
@@ -113,22 +122,22 @@ hence the large distances). ×T is the output length over the input's.
 | chord ×0.8 | 2.41 | 1.93 | 34.72 |
 | chord ×1.25 | 2.02 | 2.32 | 29.69 |
 | chord ×2 | 3.27 | 2.06 | 34.08 |
-| chord ×4 | 2.79 | 5.29 | 34.60 |
+| chord ×4 | 2.79 | 5.38 | 34.60 |
 | vowel ×0.5 | 1.35 | 3.36 | 27.34 |
 | vowel ×0.8 | 0.95 | 1.86 | 22.04 |
 | vowel ×1.25 | 2.05 | 1.98 | 20.27 |
 | vowel ×2 | 1.18 | 3.31 | 26.43 |
-| vowel ×4 | 1.44 | 6.11 | 37.31 |
+| vowel ×4 | 1.44 | 6.12 | 37.31 |
 | sweep ×0.5 | 3.15 | 2.48 | 48.40 |
 | sweep ×0.8 | 2.16 | 1.20 | 34.69 |
 | sweep ×1.25 | 2.05 | 1.59 | 30.37 |
 | sweep ×2 | 3.20 | 10.90 | 41.80 |
-| sweep ×4 | 4.61 | 13.55 | 44.05 |
+| sweep ×4 | 4.61 | 13.57 | 44.05 |
 | clicks ×0.5 | 5.05 | 10.02 | 32.99 |
 | clicks ×0.8 | 3.62 | 6.89 | 24.62 |
 | clicks ×1.25 | 2.64 | 6.85 | 18.74 |
 | clicks ×2 | 2.95 | 10.08 | 37.87 |
-| clicks ×4 | 3.53 | 19.16 | 44.84 |
+| clicks ×4 | 3.53 | 19.18 | 44.84 |
 
 **Transients: click train (pre-echo dB / attack level)**
 
@@ -136,7 +145,7 @@ hence the large distances). ×T is the output length over the input's.
 |---|---:|---:|---:|
 | clicks ×1.25 | -38.7 / 0.98 | -32.8 / 1.00 | -123.3 / 0.80 |
 | clicks ×2 | -36.7 / 0.99 | -32.4 / 1.20 | -125.9 / 1.00 |
-| clicks ×4 | -40.3 / 0.99 | -1.9 / 0.51 | -128.5 / 1.00 |
+| clicks ×4 | -40.3 / 0.99 | -2.1 / 0.53 | -128.5 / 1.00 |
 
 **Transients: drum loop, attack level (1 = intact)**
 
@@ -145,7 +154,7 @@ hence the large distances). ×T is the output length over the input's.
 | drums ×0.8 | 0.96 | 0.90 | 0.88 |
 | drums ×1.25 | 0.98 | 0.90 | 0.92 |
 | drums ×2 | 0.99 | 0.76 | 0.99 |
-| drums ×4 | 1.00 | 0.44 | 0.94 |
+| drums ×4 | 1.00 | 0.48 | 0.94 |
 
 **Phasiness: stereo chord (partial AM % / inter-channel phase error °)**
 
@@ -153,29 +162,29 @@ hence the large distances). ×T is the output length over the input's.
 |---|---:|---:|---:|
 | chord ×1.25 | 0.0 / 0.0 | 0.0 / 0.0 | 0.1 / 0.1 |
 | chord ×2 | 0.0 / 0.0 | 0.2 / 0.0 | 0.0 / 0.1 |
-| chord ×4 | 0.0 / 0.1 | 32.0 / 0.1 | 0.1 / 1.7 |
+| chord ×4 | 0.0 / 0.1 | 30.4 / 0.1 | 0.1 / 1.7 |
 
 **Transposition: chord, log-spectral distance to the ideal (dB)**
 
 | semitones | complex+ | complex | repitch |
 |---|---:|---:|---:|
-| -24 | 5.48 | 3.76 | — |
-| -12 | 4.14 | 3.23 | — |
-| -7 | 5.49 | 3.63 | — |
-| +7 | 10.61 | 4.00 | — |
-| +12 | 12.38 | 5.44 | — |
-| +24 | 21.41 | 12.61 | — |
+| -24 | 3.38 | 3.76 | — |
+| -12 | 2.77 | 3.23 | — |
+| -7 | 2.04 | 3.63 | — |
+| +7 | 1.26 | 4.00 | — |
+| +12 | 1.48 | 5.44 | — |
+| +24 | 11.75 | 12.61 | — |
 
 **Formants: transposed vowel, audible harmonics' level error vs the source envelope (dB)**
 
 | semitones | complex+ | complex | repitch |
 |---|---:|---:|---:|
-| -12 | 9.24 | 15.87 | — |
-| -7 | 2.44 | 11.17 | — |
-| -3 | 2.56 | 6.12 | — |
-| +3 | 2.54 | 5.06 | — |
-| +7 | 1.38 | 9.17 | — |
-| +12 | 3.23 | 15.29 | — |
+| -12 | 9.02 | 15.87 | — |
+| -7 | 2.72 | 11.17 | — |
+| -3 | 2.65 | 6.12 | — |
+| +3 | 2.60 | 5.06 | — |
+| +7 | 1.32 | 9.17 | — |
+| +12 | 3.16 | 15.29 | — |
 
 **Ratio 1, no transposition: log-spectral distance to the input (dB)**
 
@@ -191,21 +200,21 @@ V8, mean µs per 128-frame quantum of the AudioWorklet's 2667 µs):
 
 | case | complex+ native | complex native | complex+ web | complex web |
 |---|---:|---:|---:|---:|
-| ×1.25 | 10.2 | 9.7 | 49–60 | 26–35 |
-| ×1.25, +3 st (formants kept) | 18.3 | 10.4 | 98–118 | — |
+| ×1.25 | 9–12 | 9–12 | 44–60 | 26–35 |
+| ×1.25, +3 st (formants kept) | 26–29 | 10–14 | ≈100 | — |
 
 Natively Complex+ costs about what Complex does when stretching (a desktop runs dozens of
-voices across its worker threads: 24 voices ≈ 0.25 of one core); transposing with formants
-adds the envelope estimate and pitch mapping (×1.8). On the web it costs about twice the
-Rust Signalsmith port's web preset (scalar FFTs and math in wasm); the web's 12-voice
-limit (shared by Complex and Complex+) keeps 12 Complex+ voices near a quarter of the
-quantum, so no separate fallback is needed. The worst quantum stays far below the budget
+voices across its worker threads: 24 voices ≈ 0.25 of one core); transposing adds the
+partial model and the formant envelope (≈ ×2.5, ≈ 2.5 % of a core per voice). On the
+web it costs about twice the Rust Signalsmith port's web preset when stretching (scalar
+FFTs and math in wasm), four times when transposing; the web's 12-voice limit (shared by
+Complex and Complex+) keeps 12 stretching Complex+ voices near a quarter of the quantum,
+12 transposing ones under half, so no separate fallback is needed. The worst quantum stays far below the budget
 (well under 0.5 ms): the expensive long frames are staggered across quanta and voices.
 
 Reading: Complex+ is better where stretching is hard (extreme lengths, sweeps, clicks,
-drums, vowels, stereo at ×4) and on formants; on stationary chords at moderate lengths the
-two are close. Its weak spot is **transposing dense polyphony up** (+7 st and more): the
-source's valleys between close partials (lifted by their neighbours' side lobes) are
-copied into the output, where the partials are farther apart and the ideal valleys deeper.
-The partials themselves are within 1 dB; the fix (subtracting each partial's lobe and
-shifting it as a unit, the residual bin-scaled) is the next step.
+drums, vowels, stereo at ×4), when transposing (every case; +7 and +12 st by 3–4 dB, with
+the partials within 0.1 dB where Complex leaves holes of up to 25 dB in dense chords) and
+on formants; on stationary chords at moderate stretch the two are close. (At +24 st both
+are dominated by the synthetic ideal's partials above Nyquist, which alias.) Transposing
+costs it about 2.5× Complex's CPU.
