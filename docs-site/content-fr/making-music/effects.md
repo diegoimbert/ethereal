@@ -15,6 +15,7 @@ covers:
   - devices/utility #utility
   - devices/color-effects-saturator-bitcrusher-auto-filter #color-saturator-bitcrusher-auto-filter
   - devices/modulation-effects-chorus-phaser-flanger-tremolo #modulation-chorus-phaser-flanger-tremolo
+  - devices/shifter #shifter
   - devices/dynamics-gate-multiband-compressor-transient-shaper #dynamics-gate-multiband-compressor-transient-shaper
   - devices/analysis-spectrum-and-tuner #analysis-spectrum-and-tuner
   - devices/midi-effects-arpeggiator-chord-scale-note-length-velocity-ra #midi-effects
@@ -119,6 +120,15 @@ Ces effets font bouger le son avec un LFO. La plupart ont **sync** pour caler le
 - **phaser** : un son creux qui balaie, avec 2 à 12 étages.
 - **flanger** : un balayage façon avion à réaction. **passage par zéro** le rend plus spectaculaire.
 - **trémolo** : fait pulser le volume, ou avec **panoramique auto**, déplace le son de gauche à droite.
+
+### décaleur {#shifter}
+
+Déplace la hauteur ou les fréquences d’un son. Choisissez un **mode** :
+
+- **hauteur** transpose de **hauteur** (de -24 à +24 demi-tons) et de **désaccord** (en cents). **fenêtre** règle la longueur des tranches qui le composent : plus longue pour les notes graves et les nappes, plus courte pour les notes aiguës et les batteries.
+- **fréquence** déplace chaque partiel du même nombre de hertz vers le haut ou vers le bas (**décalage**, plus **fin**). Les harmoniques ne sont plus harmoniques : quelques hertz contre le son sec tournoient comme un phaser sans fin, des centaines de hertz sonnent métalliques, comme des cloches.
+- **anneau** multiplie le son par une **porteuse** (plus **fin**) : aux fréquences audio, des bandes latérales robotiques et métalliques ; à quelques hertz sous un peu de son sec, un trémolo haché. **drive** distord le résultat (de la **quantité**).
+- **large** inverse le canal droit (le désaccord ou le décalage opposé ; en mode anneau la porteuse est décalée d’un quart de cycle, donc le trémolo alterne entre les côtés). **mix** mélange le son sec.
 
 ## dynamique : gate, compresseur multibande, transient shaper {#dynamics-gate-multiband-compressor-transient-shaper}
 

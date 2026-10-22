@@ -1,0 +1,34 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "barber pole swirl",
+    "device": {
+      "type": "Builtin",
+      "device": "Shifter"
+    },
+    "meta": {
+      "tags": [
+        "frequency",
+        "phaser",
+        "stereo"
+      ],
+      "author": "ethereal",
+      "description": "a two hertz frequency shift against the dry sound: an endless, phaser-like swirl."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 80.0,
+      "4": 0.0,
+      "5": 2.0,
+      "6": 100.0,
+      "7": 0.0,
+      "8": 6.0,
+      "9": 1.0,
+      "10": 50.0
+    }
+  }
+}

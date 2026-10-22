@@ -324,6 +324,8 @@ pub enum BuiltinDevice {
     /// Granular delay: transposed, sprayed, randomly detuned grains with feedback
     /// (`grain-delay`).
     GrainDelay,
+    /// Pitch shifter, frequency shifter and ring modulator (`shifter`).
+    Shifter,
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -374,11 +376,12 @@ pub enum BuiltinDeviceType {
     Erosion,
     Pedal,
     GrainDelay,
+    Shifter,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 43] = [
+    pub const ALL: [BuiltinDeviceType; 44] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -422,6 +425,7 @@ impl BuiltinDeviceType {
         Self::Erosion,
         Self::Pedal,
         Self::GrainDelay,
+        Self::Shifter,
     ];
 
     /// Rack types ([`crate::rack`]).
@@ -497,6 +501,7 @@ impl BuiltinDevice {
             Self::Erosion => BuiltinDeviceType::Erosion,
             Self::Pedal => BuiltinDeviceType::Pedal,
             Self::GrainDelay => BuiltinDeviceType::GrainDelay,
+            Self::Shifter => BuiltinDeviceType::Shifter,
         }
     }
 
@@ -559,6 +564,7 @@ impl BuiltinDevice {
             BuiltinDeviceType::Erosion => Self::Erosion,
             BuiltinDeviceType::Pedal => Self::Pedal,
             BuiltinDeviceType::GrainDelay => Self::GrainDelay,
+            BuiltinDeviceType::Shifter => Self::Shifter,
         }
     }
 
