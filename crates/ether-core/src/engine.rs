@@ -90,12 +90,15 @@ enum Control {
         data: [u8; 3],
     },
     StreamTap(Option<Box<crate::stream_tap::StreamTapWriter>>),
-    /// The current snapshot's job graph, re-ranked with measured job times (snapshot `seq`
-    /// only).
+    /// The current snapshot's job graphs, re-ranked with measured job times (snapshot `seq`
+    /// only): the full one and the anticipation one (`crate::anticipation::AnticRt::graph`).
     Jobs {
         seq: u64,
         jobs: Box<crate::parallel::JobGraph>,
+        ahead: Option<Box<crate::parallel::JobGraph>>,
     },
+    /// Anticipative processing on/off (`crate::anticipation`).
+    Anticipate(bool),
     /// v0.2: start/stop collecting a node's analysis frames (`crate::analysis`).
     AnalysisWatch {
         key: NodeKey,
@@ -306,7 +309,10 @@ pub fn create(config: EngineConfig) -> EngineParts {
         analysis: analysis_rt,
         hw_io: hw_io_rt,
         beat_table: vec![0.0; config.max_block_size + 1],
+        beat_table_ahead: vec![0.0; config.max_block_size + 1],
         silence_skipping: true,
+        anticipate: config.anticipative,
+        queue: crate::anticipation::PlanQueue::new(),
         suspend: suspend.clone(),
         suspended: false,
         config: config.clone(),
@@ -387,6 +393,13 @@ pub struct Engine {
     beat_table: Vec<f64>,
     /// Skip asleep nodes on silent input (on by default).
     silence_skipping: bool,
+    /// Anticipative processing switched on (`EngineHandle::set_anticipative`; needs
+    /// `EngineConfig::anticipative` and workers, `crate::anticipation`).
+    anticipate: bool,
+    /// The sub-blocks the anticipated tracks rendered ahead of the output.
+    queue: crate::anticipation::PlanQueue,
+    /// Exact beats of the anticipated side's sub-block (like `beat_table`).
+    beat_table_ahead: Vec<f64>,
     /// Set by [`EngineHandle::set_suspended`] (a project is loading): read once per block.
     suspend: Arc<AtomicBool>,
     /// The last block was suspended (the next unsuspended one resumes cleanly).
@@ -433,6 +446,20 @@ impl Engine {
     /// meters/playhead to the output ring, push retired objects to the GC ring. Never
     /// allocates, locks or blocks; bounded by graph size.
     pub fn process(&mut self, inputs: &[&[f32]], outputs: &mut [&mut [f32]], frames: usize) {
+        self.process_with_hint(inputs, outputs, frames, frames);
+    }
+
+    /// **RT.** [`Engine::process`], where `next` is the length of the block that will follow
+    /// (hosts that split a device buffer into several blocks know it): with anticipative
+    /// processing (`crate::anticipation`) the anticipated tracks render that much ahead.
+    /// `process` assumes the next block has the same length.
+    pub fn process_with_hint(
+        &mut self,
+        inputs: &[&[f32]],
+        outputs: &mut [&mut [f32]],
+        frames: usize,
+        next: usize,
+    ) {
         // Zero everything the host asked for; only `max_block_size` frames are rendered
         // (hosts with larger buffers call `process` repeatedly), the rest stays silent.
         for out in outputs.iter_mut() {
@@ -448,6 +475,7 @@ impl Engine {
         self.update_latencies();
 
         if suspended {
+            self.resync();
             self.process_suspended(frames);
             return;
         }
@@ -455,10 +483,8 @@ impl Engine {
             self.resume();
         }
 
-        let mut done = 0;
-        while done < frames {
-            done += self.render_sub(inputs, outputs, done, frames - done);
-        }
+        let max = self.config.max_block_size;
+        self.render_block(inputs, outputs, frames, next.clamp(1, max));
 
         // --- v0.2 analysis channel (`crate::analysis`): after every track job ---
         if self.analysis.due(frames) {
@@ -527,7 +553,19 @@ impl Engine {
     /// Engine sample time of the next block (hosts map it to wall time, e.g. to schedule
     /// hardware MIDI out, `crate::hw_io`).
     pub fn sample_time(&self) -> u64 {
-        self.transport.sample_time
+        self.heard().3
+    }
+
+    /// The output's transport (playing, recording, position, sample time): the frontier
+    /// transport, or the oldest sub-block rendered ahead (`crate::anticipation`).
+    fn heard(&self) -> (bool, bool, f64, u64) {
+        match self.queue.front() {
+            Some(p) => (p.playing, p.recording, p.b0, p.sample_time),
+            None => {
+                let t = &self.transport;
+                (t.playing, t.recording, t.position, t.sample_time)
+            }
+        }
     }
 
     /// Non-RT (call before the audio thread starts processing, or while it is stopped):
@@ -554,6 +592,13 @@ impl Engine {
     pub fn job_order(&self) -> Vec<TrackId> {
         let rt = &self.snapshot.rt;
         rt.jobs.order().map(|i| rt.tracks[i].id).collect()
+    }
+
+    /// Frames the anticipated tracks rendered ahead of the output (`crate::anticipation`;
+    /// tests and diagnostics).
+    #[doc(hidden)]
+    pub fn frames_ahead(&self) -> usize {
+        self.queue.frames
     }
 
     /// Objects leaked because the GC ring was full (should stay 0).
@@ -616,9 +661,16 @@ impl Engine {
                     {
                         let old = &mut self.snapshot.rt;
                         let fresh = &mut new.rt;
-                        for t in fresh.tracks.iter_mut() {
+                        for (i, t) in fresh.tracks.iter_mut().enumerate() {
                             if let Some(oi) = old.lookup_track(t.id) {
                                 t.inherit(&mut old.tracks[oi]);
+                                // What it rendered ahead (`crate::anticipation`).
+                                if let (Some(new), Some(was)) =
+                                    (fresh.antic.as_mut(), old.antic.as_ref())
+                                {
+                                    new.ahead[i] = was.ahead[oi];
+                                    new.front[i].inherit(&was.front[oi]);
+                                }
                             }
                         }
                         fresh.vcas.inherit(&mut old.vcas);
@@ -659,13 +711,27 @@ impl Engine {
                     }
                 }
                 Control::PreviewNote { track, data } => self.recording.queue_preview(track, data),
-                Control::Jobs { seq, mut jobs } => {
+                Control::Jobs {
+                    seq,
+                    mut jobs,
+                    ahead,
+                } => {
                     // Swapped through the box: the old graph leaves in it (no allocation).
                     if seq == self.snapshot.seq && jobs.len() == self.snapshot.rt.jobs.len() {
                         std::mem::swap(&mut self.snapshot.rt.jobs, &mut *jobs);
                     }
                     self.retire(Garbage::Jobs(jobs));
+                    if let Some(mut ahead) = ahead {
+                        if seq == self.snapshot.seq
+                            && let Some(an) = self.snapshot.rt.antic.as_mut()
+                            && ahead.len() == an.graph.len()
+                        {
+                            std::mem::swap(&mut an.graph, &mut *ahead);
+                        }
+                        self.retire(Garbage::Jobs(ahead));
+                    }
                 }
+                Control::Anticipate(on) => self.anticipate = on && self.config.anticipative,
                 Control::AnalysisWatch { key, on } => {
                     self.analysis.watch(key, on);
                     if let Some(slot) = self.nodes.get_mut(key.index as usize)
@@ -852,26 +918,198 @@ impl Engine {
         off: usize,
         max: usize,
     ) -> usize {
-        let sr = self.config.sample_rate as f64;
-        let plan = plan_sub(
-            &mut self.transport,
-            &self.snapshot.desc,
-            &self.snapshot.tempo,
-            sr,
-            max,
-        );
-        self.render_plan(&plan, inputs, outputs, off);
+        let plan = self.plan(max);
+        self.run_pass(Some((&plan, off)), None, Pass::Aligned, inputs, outputs);
         plan.n
     }
 
-    /// RT. Render the sub-block `plan` (decided by [`plan_sub`]) at output offset `off`.
-    fn render_plan(
+    /// RT. The next sub-block of the frontier transport ([`plan_sub`]).
+    fn plan(&mut self, max: usize) -> SubPlan {
+        plan_sub(
+            &mut self.transport,
+            &self.snapshot.desc,
+            &self.snapshot.tempo,
+            self.config.sample_rate as f64,
+            max,
+        )
+    }
+
+    /// RT. Render one host block of `frames`, `hint` = the next one's expected length
+    /// (anticipative processing, `crate::anticipation`; without it, sub-block by sub-block).
+    fn render_block(
         &mut self,
-        plan: &SubPlan,
         inputs: &[&[f32]],
         outputs: &mut [&mut [f32]],
-        off: usize,
+        frames: usize,
+        hint: usize,
     ) {
+        use crate::anticipation::split;
+        let want = self.anticipate
+            && self.executor.workers() > 0
+            && self.snapshot.rt.antic.as_ref().is_some_and(|a| a.any);
+        if self.queue.frames == 0 && !want || self.snapshot.rt.antic.is_none() {
+            if self.queue.frames > 0 {
+                self.resync();
+            }
+            let mut done = 0;
+            while done < frames {
+                done += self.render_sub(inputs, outputs, done, frames - done);
+            }
+            return;
+        }
+        // --- what each track does in this block ---
+        let mut q = self.queue.frames;
+        let both = {
+            let an = self.snapshot.rt.antic.as_mut().expect("checked above");
+            let decide = |an: &mut crate::anticipation::AnticRt, free: bool| {
+                for i in 0..an.eff.len() {
+                    an.eff[i] = if free {
+                        want && an.target[i]
+                    } else {
+                        an.ahead[i]
+                    };
+                }
+            };
+            // Changes wait while more than this block is queued, unless the graph forces
+            // them (an ahead track now reads one that is not).
+            decide(an, q <= frames);
+            if q > frames && !an.closed(&an.eff) {
+                self.resync();
+                q = 0;
+                let an = self.snapshot.rt.antic.as_mut().expect("checked above");
+                decide(an, true);
+            }
+            let an = self.snapshot.rt.antic.as_ref().expect("checked above");
+            (0..an.eff.len()).any(|i| an.eff[i] && !an.ahead[i])
+        };
+        let tempo_sr = self.config.sample_rate as f64;
+        let mut off = 0;
+        if want && q == frames && !both {
+            // Steady state: the queued block (real-time side) and the next one (ahead) at
+            // the same time.
+            let mut left = hint;
+            while off < frames {
+                let Some(now) = self.queue.pop() else { break };
+                let ahead = (left > 0 && !self.queue.is_full()).then(|| self.plan(left));
+                self.run_pass(
+                    Some((&now, off)),
+                    ahead.as_ref(),
+                    Pass::Overlap,
+                    inputs,
+                    outputs,
+                );
+                self.consume_front(now.n);
+                if let Some(a) = ahead {
+                    left -= a.n;
+                    self.queue.push(a);
+                }
+                off += now.n;
+            }
+            while left > 0 && !self.queue.is_full() {
+                let a = self.plan(left);
+                self.run_pass(None, Some(&a), Pass::Ahead, inputs, outputs);
+                left -= a.n;
+                self.queue.push(a);
+            }
+        } else {
+            // 1. The queued frames (real-time side; the ahead tracks rendered them already).
+            let consume = q.min(frames);
+            while off < consume {
+                let Some(&head) = self.queue.front() else {
+                    break;
+                };
+                let now = if head.n > consume - off {
+                    let (first, rest) = split(&head, consume - off, &self.snapshot.tempo, tempo_sr);
+                    self.queue.replace_front(rest);
+                    first
+                } else {
+                    self.queue.pop();
+                    head
+                };
+                self.run_pass(Some((&now, off)), None, Pass::Front, inputs, outputs);
+                self.consume_front(now.n);
+                off += now.n;
+            }
+            // 2. Past them, everything in real time.
+            while off < frames {
+                let plan = self.plan(frames - off);
+                self.run_pass(Some((&plan, off)), None, Pass::Aligned, inputs, outputs);
+                off += plan.n;
+            }
+            // 3. The tracks ending ahead render the next block.
+            let any = self
+                .snapshot
+                .rt
+                .antic
+                .as_ref()
+                .is_some_and(|a| a.eff.iter().any(|&e| e));
+            if any {
+                let mut left = hint.saturating_sub(self.queue.frames);
+                while left > 0 && !self.queue.is_full() {
+                    let a = self.plan(left);
+                    self.run_pass(None, Some(&a), Pass::Ahead, inputs, outputs);
+                    left -= a.n;
+                    self.queue.push(a);
+                }
+            }
+        }
+        // --- held output for the next block ---
+        let queued = self.queue.frames;
+        if let Some(an) = self.snapshot.rt.antic.as_mut() {
+            for i in 0..an.eff.len() {
+                let (front, back) = (&mut an.front[i], &mut an.back[i]);
+                if back.len() > 0 {
+                    front.take_from(back);
+                }
+                an.ahead[i] = an.eff[i] && queued > 0;
+                if !an.ahead[i] {
+                    front.clear();
+                }
+            }
+        }
+    }
+
+    /// RT. The real-time side rendered `n` more frames: drop them from the held output.
+    fn consume_front(&mut self, n: usize) {
+        if let Some(an) = self.snapshot.rt.antic.as_mut() {
+            for (f, &ahead) in an.front.iter_mut().zip(&an.ahead) {
+                if ahead {
+                    f.consume(n);
+                }
+            }
+        }
+    }
+
+    /// RT. Drop what was rendered ahead: every track renders in real time from the next
+    /// pass. The sample clock goes back to the output's; the timeline does not (ahead tracks
+    /// skip the dropped frames).
+    fn resync(&mut self) {
+        if let Some(p) = self.queue.front() {
+            self.transport.sample_time = p.sample_time;
+            self.transport.anchor = None;
+            self.transport.jump = true;
+        }
+        self.queue.clear();
+        if let Some(an) = self.snapshot.rt.antic.as_mut() {
+            an.ahead.fill(false);
+            for h in an.front.iter_mut().chain(an.back.iter_mut()) {
+                h.clear();
+            }
+        }
+    }
+
+    /// RT. One pass over the job graph: the real-time side renders `now` (at output offset
+    /// `.1`), the anticipated side `ahead`, each track as `pass` says
+    /// (`crate::anticipation`).
+    fn run_pass(
+        &mut self,
+        now: Option<(&SubPlan, usize)>,
+        ahead: Option<&SubPlan>,
+        pass: Pass,
+        inputs: &[&[f32]],
+        outputs: &mut [&mut [f32]],
+    ) {
+        use crate::anticipation::Lane;
         let sr = self.config.sample_rate as f64;
         let Engine {
             nodes,
@@ -886,6 +1124,7 @@ impl Engine {
             stream_tap,
             executor,
             beat_table,
+            beat_table_ahead,
             hw_io,
             silence_skipping,
             capture,
@@ -900,16 +1139,47 @@ impl Engine {
             tracks,
             latency: graph_latency,
             vcas,
+            antic,
             ..
         } = rt;
-        let n = plan.n;
-        let playing = plan.playing;
-        let (info, timing) = plan.timing(tempo, sr, beat_table);
-        recording.process(&info, n, &desc.tracks, tracks);
-        // VCA gains and automation for this sub-block (`crate::vca`), before the jobs.
-        vcas.update(tracks, &timing, playing);
-        // Hardware returns of external devices (`crate::hw_io`), before the jobs.
-        hw_io.gather_returns(inputs, off, n, plan.sample_time);
+        if let Some(an) = antic.as_mut() {
+            for i in 0..an.lane.len() {
+                let (was, eff) = (an.ahead[i], an.eff[i]);
+                an.lane[i] = match pass {
+                    Pass::Aligned => Lane::Now,
+                    Pass::Front if was => Lane::Idle,
+                    Pass::Front => Lane::Now,
+                    Pass::Overlap if was && eff => Lane::Ahead,
+                    Pass::Overlap if was => Lane::Idle,
+                    Pass::Overlap => Lane::Now,
+                    Pass::Ahead if eff => Lane::Ahead,
+                    Pass::Ahead => Lane::Idle,
+                };
+            }
+        }
+        let lanes = antic.as_ref().map(|a| &a.lane[..]);
+        let on = |l: Lane| move |i: usize| lanes.is_none_or(|v| v[i] == l);
+        let flags = |plan: &SubPlan| JobFlags {
+            playing: plan.playing,
+            release_notes: plan.release_notes,
+            all_notes_off: plan.all_notes_off,
+            reset_nodes: plan.reset_nodes,
+            relocated: plan.relocated,
+            chase_notes: plan.chase_notes,
+            skip_silence: *silence_skipping,
+        };
+        let now_t = now.map(|(plan, _)| plan.timing(tempo, sr, beat_table));
+        let ahead_t = ahead.map(|plan| plan.timing(tempo, sr, beat_table_ahead));
+        if let (Some((plan, off)), Some((info, timing))) = (now, &now_t) {
+            recording.process(info, plan.n, &desc.tracks, tracks);
+            // VCA gains and automation for this sub-block (`crate::vca`), before the jobs.
+            vcas.update(tracks, timing, plan.playing, &on(Lane::Now));
+            // Hardware returns of external devices (`crate::hw_io`), before the jobs.
+            hw_io.gather_returns(inputs, off, plan.n, plan.sample_time);
+        }
+        if let (Some(plan), Some((_, timing))) = (ahead, &ahead_t) {
+            vcas.update(tracks, timing, plan.playing, &on(Lane::Ahead));
+        }
 
         // --- tracks, by dependency (`crate::parallel`) ---
         // Stopped, the jobs still run devices and plugins at full cost (tails, auditioned
@@ -917,6 +1187,7 @@ impl Engine {
         // Only when the previous sub-block did no real work anywhere (every node
         // asleep, nothing monitored: `TrackRt::awake`) keep the workers parked and run the
         // jobs here, in rank order. Same result either way, bit for bit.
+        let playing = now.is_some_and(|(p, _)| p.playing) || ahead.is_some_and(|p| p.playing);
         let parallel = playing || tracks.iter().any(|t| t.awake || t.monitor);
         let ctx = JobCtx {
             tracks: tracks.as_mut_ptr(),
@@ -926,27 +1197,47 @@ impl Engine {
             warp: warp.table(),
             descs: &desc.tracks,
             sources,
-            inputs,
-            off,
-            n,
             sr,
-            flags: JobFlags {
-                playing,
-                release_notes: plan.release_notes,
-                all_notes_off: plan.all_notes_off,
-                reset_nodes: plan.reset_nodes,
-                relocated: plan.relocated,
-                chase_notes: plan.chase_notes,
-                skip_silence: *silence_skipping,
-            },
-            info: &info,
-            timing: &timing,
+            now: now
+                .zip(now_t.as_ref())
+                .map(|((plan, off), (info, timing))| LaneCtx {
+                    inputs,
+                    off,
+                    n: plan.n,
+                    flags: flags(plan),
+                    info,
+                    timing,
+                }),
+            ahead: ahead
+                .zip(ahead_t.as_ref())
+                .map(|(plan, (info, timing))| LaneCtx {
+                    inputs: &[],
+                    off: 0,
+                    n: plan.n,
+                    flags: flags(plan),
+                    info,
+                    timing,
+                }),
+            antic: antic.as_mut().map(|a| AnticCtx {
+                lane: a.lane.as_ptr(),
+                ahead: a.ahead.as_ptr(),
+                front: a.front.as_ptr(),
+                back: a.back.as_mut_ptr(),
+                front_reads: matches!(pass, Pass::Front | Pass::Overlap),
+            }),
             hw: hw_io.table(),
         };
+        // Overlapping passes run without the edges from ahead to real-time tracks (those
+        // read the held output).
+        let jobs = match antic.as_ref() {
+            Some(a) if matches!(pass, Pass::Overlap | Pass::Ahead) => &a.graph,
+            _ => &*jobs,
+        };
         // SAFETY (`crate::parallel`, "Unsafe sharing"): job `ti` touches track `ti` (one job
-        // per track), its nodes (each node in one chain) and its sources' tracks, which the
-        // graph finished before it; the executor runs each job once, after its sources,
-        // pinned jobs on this thread, and returns after all of them finished.
+        // per track), its nodes (each node in one chain), its own held output (`back`), and
+        // its sources' tracks, which the graph finished before it, or their `front`, which
+        // no job writes; the executor runs each job once, after its sources, pinned jobs on
+        // this thread, and returns after all of them finished.
         let job = |ti: usize, fork: &dyn Fork| unsafe { ctx.run(ti, fork) };
         if jobs.len() == 1 && parallel && executor.workers() > 0 {
             // One track (or a pure chain): no other job to overlap, but its rack chains may
@@ -959,6 +1250,15 @@ impl Engine {
         } else {
             executor.execute_graph_forking(jobs, &job);
         }
+        let Some(((plan, off), (info, _))) = now.zip(now_t.as_ref()) else {
+            for track in tracks.iter_mut() {
+                *overflow |= std::mem::take(&mut track.overflow);
+                *underruns += std::mem::take(&mut track.underruns);
+            }
+            return;
+        };
+        let info = *info;
+        let n = plan.n;
         // --- offline export stems: post-fader, pre-gate taps of the requested tracks ---
         for slot in capture.iter_mut() {
             let found = tracks.iter().find(|t| t.id == slot.id);
@@ -1016,15 +1316,15 @@ impl Engine {
     }
 
     fn publish_playhead(&mut self) {
+        let (playing, recording, pos, sample_time) = self.heard();
         let tempo = &self.snapshot.tempo;
-        let pos = self.transport.position;
         self.playhead.write(&PlayheadState {
-            playing: self.transport.playing,
-            recording: self.transport.recording,
+            playing,
+            recording,
             position: ether_protocol::model::Beats(pos),
             seconds: tempo.beats_to_seconds(pos),
             bpm: tempo.bpm_at(pos),
-            sample_time: self.transport.sample_time,
+            sample_time,
         });
     }
 
@@ -1074,6 +1374,20 @@ impl Engine {
             self.underruns = 0;
         }
     }
+}
+
+/// How the tracks render in one pass of [`Engine::run_pass`] (`crate::anticipation`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Pass {
+    /// Every track renders the output's sub-block.
+    Aligned,
+    /// The real-time side renders the output's sub-block, reading the held output of the
+    /// tracks rendered ahead; those do nothing.
+    Front,
+    /// [`Pass::Front`], and the tracks staying ahead render the next block meanwhile.
+    Overlap,
+    /// Only the tracks ending ahead render, the next block.
+    Ahead,
 }
 
 /// One sub-block of the timeline as the transport decided it ([`plan_sub`]): what rendering
@@ -1410,6 +1724,32 @@ struct JobFlags {
     skip_silence: bool,
 }
 
+/// One side's sub-block as the jobs of a pass see it (`crate::anticipation::Lane`).
+struct LaneCtx<'a> {
+    /// Hardware input (the real-time side only; empty ahead).
+    inputs: &'a [&'a [f32]],
+    /// Offset of the sub-block in the host's block (hardware input).
+    off: usize,
+    n: usize,
+    flags: JobFlags,
+    info: &'a TransportInfo,
+    timing: &'a Timing<'a>,
+}
+
+/// Anticipation state a pass's jobs read (`crate::anticipation`), as raw pointers into
+/// `SnapshotRt::antic`, one entry per track.
+#[derive(Clone, Copy)]
+struct AnticCtx {
+    lane: *const crate::anticipation::Lane,
+    /// Rendered ahead (its readers take `front`).
+    ahead: *const bool,
+    front: *const crate::anticipation::Held,
+    /// Written by the track's own job only.
+    back: *mut crate::anticipation::Held,
+    /// Real-time jobs read ahead sources from `front` in this pass.
+    front_reads: bool,
+}
+
 /// What a track job needs: raw pointers to the per-track/per-node state it gets exclusive
 /// access to (`crate::parallel`, "Unsafe sharing"), plus read-only sub-block context.
 struct JobCtx<'a> {
@@ -1421,13 +1761,12 @@ struct JobCtx<'a> {
     warp: crate::warp::WarpTable,
     descs: &'a [crate::graph::TrackDesc],
     sources: &'a [(MediaId, Arc<dyn AudioSource>)],
-    inputs: &'a [&'a [f32]],
-    off: usize,
-    n: usize,
     sr: f64,
-    flags: JobFlags,
-    info: &'a TransportInfo,
-    timing: &'a Timing<'a>,
+    /// The output's sub-block, and the anticipated one (`crate::anticipation`).
+    now: Option<LaneCtx<'a>>,
+    ahead: Option<LaneCtx<'a>>,
+    /// `None`: every job renders `now`.
+    antic: Option<AnticCtx>,
     /// External devices' entries (`crate::hw_io`): each reached by its node's job only.
     hw: crate::hw_io::HwIoTable,
 }
@@ -1461,6 +1800,25 @@ impl JobCtx<'_> {
     /// jobs only.
     unsafe fn run(&self, ti: usize, fork: &dyn Fork) {
         debug_assert!(ti < self.n_tracks);
+        use crate::anticipation::Lane;
+        // SAFETY: `lane` has one entry per track and is only written between passes.
+        let lane = self.antic.map_or(Lane::Now, |a| unsafe { *a.lane.add(ti) });
+        let lc = match lane {
+            Lane::Idle => None,
+            Lane::Now => self.now.as_ref(),
+            Lane::Ahead => self.ahead.as_ref(),
+        };
+        let Some(lc) = lc else {
+            return;
+        };
+        // The held output of `c` when this job reads it there (a real-time job, `c` rendered
+        // ahead: its own buffers hold the next buffer already, or will).
+        let held = |c: usize| -> Option<&crate::anticipation::Held> {
+            let a = self.antic?;
+            // SAFETY: one entry per track; `ahead` and `front` only change between passes.
+            (lane == Lane::Now && a.front_reads && unsafe { *a.ahead.add(c) })
+                .then(|| unsafe { &*a.front.add(c) })
+        };
         // The job's wall time, for the scheduler's priorities (`TrackRt::job_ns`). Native
         // only: a vDSO clock read at both ends (wasm runs everything in order anyway).
         #[cfg(not(target_arch = "wasm32"))]
@@ -1469,7 +1827,7 @@ impl JobCtx<'_> {
         let track = unsafe { &mut *self.tracks.add(ti) };
         // SAFETY: this job only asks for the keys of its own chain and pad chains.
         let mut nodes = unsafe { NodeTable::shared(self.nodes, self.n_nodes) };
-        let n = self.n;
+        let n = lc.n;
 
         // --- input bus: gather the finished sources in the fixed order ---
         {
@@ -1487,11 +1845,22 @@ impl JobCtx<'_> {
                     BusInput::Send(c, k) => (c, Some(k)),
                 };
                 debug_assert!(c != ti && c < self.n_tracks);
-                // SAFETY: `c != ti` is a source of this job: finished; nothing writes it now.
-                let src = unsafe { &*self.tracks.add(c) };
-                let buf = match sel {
-                    None => &src.a,
-                    Some(k) => &src.sends[k].buf,
+                let buf = if let Some(h) = held(c) {
+                    match sel {
+                        None => h.output(),
+                        Some(k) => match h.send(k) {
+                            Some(b) => b,
+                            None => continue,
+                        },
+                    }
+                } else {
+                    // SAFETY: `c != ti` is a source of this job: finished; nothing writes
+                    // it now.
+                    let src = unsafe { &*self.tracks.add(c) };
+                    match sel {
+                        None => &src.a,
+                        Some(k) => &src.sends[k].buf,
+                    }
                 };
                 for ch in 0..2 {
                     for (d, s) in a[ch][..n].iter_mut().zip(&buf[ch][..n]) {
@@ -1507,6 +1876,9 @@ impl JobCtx<'_> {
                     if s == ti || s >= n_tracks {
                         return None;
                     }
+                    if let Some(h) = held(s) {
+                        return h.sc_point(point);
+                    }
                     // SAFETY: as above (sidechain sources are ordered before their consumer,
                     // `s != ti`).
                     let src = unsafe { &*tracks.add(s) };
@@ -1520,9 +1892,12 @@ impl JobCtx<'_> {
             if s == ti {
                 continue;
             }
-            // SAFETY: as above (sidechain sources are ordered before their consumer).
-            let src = unsafe { &*self.tracks.add(s) };
-            if let Some(tap) = &src.tap {
+            let tap = match held(s) {
+                Some(h) => h.tap(),
+                // SAFETY: as above (sidechain sources are ordered before their consumer).
+                None => unsafe { (*self.tracks.add(s)).tap.as_ref() },
+            };
+            if let Some(tap) = tap {
                 track.modulation.write_sidechain(s, tap, n);
             }
         }
@@ -1531,15 +1906,27 @@ impl JobCtx<'_> {
         if let Some(s) = track.input_tap.source
             && s != ti
         {
-            // SAFETY: as above (tap sources are ordered before their consumer).
-            let src = unsafe { &*self.tracks.add(s) };
-            track.input_tap.gather(&src.taps, n);
+            match held(s) {
+                Some(h) => track.input_tap.gather(h.taps(), n),
+                None => {
+                    // SAFETY: as above (tap sources are ordered before their consumer).
+                    let src = unsafe { &*self.tracks.add(s) };
+                    track.input_tap.gather(&src.taps, n);
+                }
+            }
         }
 
         // SAFETY: this job's own track (ids are unique in a snapshot); the voice table only
         // changes between blocks.
         let voices = unsafe { self.warp.track_voices(track.id) };
-        self.render_track(ti, track, &mut nodes, voices, fork);
+        self.render_track(lc, ti, track, &mut nodes, voices, fork);
+        // Ahead: what other tracks read from this one, held for the real-time side.
+        if lane == Lane::Ahead
+            && let Some(a) = self.antic
+        {
+            // SAFETY: `back[ti]` is touched by this job only.
+            unsafe { &mut *a.back.add(ti) }.append(track, n);
+        }
         #[cfg(not(target_arch = "wasm32"))]
         {
             // Per 1024 frames, so sub-block splits don't look cheaper.
@@ -1556,21 +1943,22 @@ impl JobCtx<'_> {
     /// RT. The body of a track job, after its input bus was gathered into `track.a`.
     fn render_track(
         &self,
+        lc: &LaneCtx<'_>,
         ti: usize,
         track: &mut TrackRt,
         nodes: &mut NodeTable<'_>,
         voices: &mut [crate::warp::Voice],
         fork: &dyn Fork,
     ) {
-        let n = self.n;
-        let off = self.off;
+        let n = lc.n;
+        let off = lc.off;
         let sr = self.sr;
-        let flags = self.flags;
+        let flags = lc.flags;
         let playing = flags.playing;
-        let timing = self.timing;
+        let timing = lc.timing;
         let tempo = timing.tempo;
         let (b0, b1) = (timing.b0, timing.b1);
-        let info = self.info;
+        let info = lc.info;
         let tdesc = &self.descs[ti];
         let TrackRt {
             chain,
@@ -1599,7 +1987,7 @@ impl JobCtx<'_> {
             && let Some((l, r)) = crate::recording::input_channels(track.audio_input)
         {
             for (ch, hw) in [(0usize, l), (1, r)] {
-                if let Some(input) = self.inputs.get(hw as usize) {
+                if let Some(input) = lc.inputs.get(hw as usize) {
                     let src = &input[off.min(input.len())..(off + n).min(input.len())];
                     for (d, s) in a[ch].iter_mut().zip(src) {
                         *d += s;
@@ -1617,7 +2005,11 @@ impl JobCtx<'_> {
         for c in chain.iter_mut() {
             c.events.clear();
             for e in c.pending.as_slice() {
-                c.events.push(*e);
+                // Queued for a sub-block of another length (an anticipated track's events
+                // come from the real-time side's): keep them inside this one.
+                let mut e = *e;
+                e.offset = e.offset.min(n.saturating_sub(1) as u32);
+                c.events.push(e);
             }
             c.pending.clear();
             if flags.all_notes_off {
@@ -2014,6 +2406,8 @@ struct JobCosts {
     /// Of snapshot `seq`: the job graph as ranked now, its tracks (job id = index) and their
     /// static costs.
     shape: Option<(crate::parallel::JobGraph, Vec<TrackId>, Vec<u64>)>,
+    /// Its anticipation graph's shape (`crate::anticipation::AnticRt::graph`).
+    ahead_shape: Option<crate::parallel::JobGraph>,
     /// Engine sample time of the last re-rank.
     last: u64,
 }
@@ -2213,7 +2607,14 @@ impl EngineHandle {
                 .collect();
             if let Some(costs) = self.job_costs.costs(&tracks, &statics) {
                 snapshot.rt.jobs = jobs.reweighted(|id| costs[id]);
+                if let Some(an) = snapshot.rt.antic.as_mut() {
+                    an.graph = an.graph.reweighted(|id| costs[id]);
+                }
             }
+            self.job_costs.ahead_shape = snapshot.rt.antic.as_ref().map(|an| {
+                an.graph
+                    .reweighted(|id| snapshot.rt.jobs.cost_of(id).unwrap_or(1))
+            });
             let shape = snapshot
                 .rt
                 .jobs
@@ -2253,6 +2654,14 @@ impl EngineHandle {
     /// graph: timeline position `p` reaches the hardware `latency()` samples later.
     pub fn latency(&self) -> u32 {
         self.latency
+    }
+
+    /// Anticipative processing on or off (`crate::anticipation`, CONTRACTS.md §11.7), from
+    /// the next block; only takes effect on an engine created with
+    /// `EngineConfig::anticipative` (on by default there) and worker threads. Switching off
+    /// lets what was rendered ahead play out first.
+    pub fn set_anticipative(&mut self, on: bool) -> Result<(), EngineError> {
+        self.send(Control::Anticipate(on))
     }
 
     /// Live parameter change (fader, knob). Lock-free; applied next block.
@@ -2310,17 +2719,24 @@ impl EngineHandle {
         }
         let jobs = shape.reweighted(|id| costs[id]);
         let copy = jobs.reweighted(|id| costs[id]);
+        let ahead = jc
+            .ahead_shape
+            .as_ref()
+            .map(|g| g.reweighted(|id| costs[id]));
+        let ahead_copy = ahead.as_ref().map(|g| g.reweighted(|id| costs[id]));
         let seq = jc.seq;
         if self
             .control
             .push(Control::Jobs {
                 seq,
                 jobs: Box::new(jobs),
+                ahead: ahead.map(Box::new),
             })
             .is_ok()
             && let Some(s) = self.job_costs.shape.as_mut()
         {
             s.0 = copy;
+            self.job_costs.ahead_shape = ahead_copy;
         }
     }
 

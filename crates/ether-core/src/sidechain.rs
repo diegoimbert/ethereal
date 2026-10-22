@@ -384,6 +384,26 @@ impl Points {
     pub(crate) fn get(&self, point: ScPoint) -> Option<&Stereo> {
         self.find(point).map(|i| &self.bufs[i].1)
     }
+
+    /// Non-RT. The same points with `frames`-long silent buffers (`crate::anticipation`).
+    pub(crate) fn like(&self, frames: usize) -> Self {
+        Self {
+            bufs: self
+                .bufs
+                .iter()
+                .map(|(p, _)| (*p, stereo(frames)))
+                .collect(),
+        }
+    }
+
+    /// The tapped points and their buffers, in point order.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (ScPoint, &Stereo)> {
+        self.bufs.iter().map(|(p, b)| (*p, b))
+    }
+
+    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = (ScPoint, &mut Stereo)> {
+        self.bufs.iter_mut().map(|(p, b)| (*p, b))
+    }
 }
 
 #[derive(Debug)]

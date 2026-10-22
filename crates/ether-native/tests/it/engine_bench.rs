@@ -30,6 +30,8 @@
 //! - `ETHER_BENCH_HOGS`: that many normal-priority threads keep the CPU busy during the runs
 //!   (what the UI, plugin editors and other apps do to a real session; default 0), to see
 //!   what thread priorities buy;
+//! - `ETHER_BENCH_ANTICIP`: comma list of `0`/`1`, anticipative processing off/on
+//!   (`EngineConfig::anticipative`; default `0`); rows with it on read `<workers>a`;
 //! - `ETHER_BENCH_JSON`: append one JSON line per run to this file (compare runs over time).
 //!
 //! Only public API, so the same file measures the engine before and after a change.
@@ -614,8 +616,9 @@ fn build(
     }
 }
 
-fn config(block: usize) -> EngineConfig {
+fn config(block: usize, anticipative: bool) -> EngineConfig {
     EngineConfig {
+        anticipative,
         sample_rate: SR,
         max_block_size: block,
         max_nodes: 1024,
@@ -654,8 +657,9 @@ fn render(
     executor: Box<dyn ParallelExecutor>,
     opts: &Opts,
     ns_per_iter: f64,
+    anticipative: bool,
 ) -> Run {
-    let mut parts = create(config(opts.block));
+    let mut parts = create(config(opts.block, anticipative));
     let desc = build(&mut parts.handle, tracks, ns_per_iter, opts.scale);
     parts.handle.publish(desc).expect("graph compiles");
     parts.handle.transport(TransportControl::Play).unwrap();
@@ -814,6 +818,7 @@ fn realtime_buffers() {
     });
     let wanted: Option<Vec<String>> = env_list("ETHER_BENCH_SCENARIOS");
     let json = std::env::var("ETHER_BENCH_JSON").ok();
+    let antic: Vec<usize> = env_list("ETHER_BENCH_ANTICIP").unwrap_or_else(|| vec![0]);
     if opts.realtime {
         // Like the host's device callback (`audio.rs`): the render thread gets the
         // workers' priority too, or real-time workers preempt it.
@@ -876,7 +881,11 @@ fn realtime_buffers() {
             "cores"
         );
         let mut reference: Option<Vec<f32>> = None;
-        for &w in &workers {
+        let runs = workers
+            .iter()
+            .flat_map(|&w| antic.iter().map(move |&a| (w, a != 0)))
+            .filter(|&(w, a)| !(a && w == 0));
+        for (w, ahead) in runs {
             let executor: Box<dyn ParallelExecutor> = if w == 0 {
                 Box::new(SequentialExecutor)
             } else {
@@ -889,12 +898,12 @@ fn realtime_buffers() {
                     },
                 ))
             };
-            let run = render(&tracks, executor, &opts, ns_per_iter);
+            let run = render(&tracks, executor, &opts, ns_per_iter, ahead);
             match &reference {
                 None => reference = Some(run.out.clone()),
                 Some(r) => assert!(
                     r == &run.out,
-                    "{name}: {w} workers differ from the sequential engine"
+                    "{name}: {w} workers (anticipative: {ahead}) differ from the sequential engine"
                 ),
             }
             let mut t = run.times.clone();
@@ -909,8 +918,9 @@ fn realtime_buffers() {
             let over = t.iter().filter(|&&x| x > budget).count();
             let ideal = m.critical.max(m.total / (w + 1) as f64);
             let (sim_levels, sim_dag) = (m.simulate(w + 1, true), m.simulate(w + 1, false));
+            let label = format!("{w}{}", if ahead { "a" } else { "" });
             println!(
-                "  {w:>7} {mean:>7.0} {p50:>7.0} {p99:>7.0} {p999:>7.0} {max:>7.0} {:>5.0}% {over:>6} {:>6} {ideal:>7.0} {sim_levels:>7.0} {sim_dag:>7.0} {:>6}",
+                "  {label:>7} {mean:>7.0} {p50:>7.0} {p99:>7.0} {p999:>7.0} {max:>7.0} {:>5.0}% {over:>6} {:>6} {ideal:>7.0} {sim_levels:>7.0} {sim_dag:>7.0} {:>6}",
                 p99 / budget * 100.0,
                 run.late_starts,
                 run.cores_busy
@@ -918,7 +928,7 @@ fn realtime_buffers() {
             );
             if let Some(path) = &json {
                 let line = format!(
-                    "{{\"scenario\":\"{name}\",\"workers\":{w},\"block\":{},\"paced\":{},\"scale\":{},\"rt\":{},\"hogs\":{hogs},\
+                    "{{\"scenario\":\"{name}\",\"workers\":{w},\"antic\":{ahead},\"block\":{},\"paced\":{},\"scale\":{},\"rt\":{},\"hogs\":{hogs},\
                      \"mean_us\":{mean:.1},\"p50_us\":{p50:.1},\"p99_us\":{p99:.1},\"p999_us\":{p999:.1},\
                      \"max_us\":{max:.1},\"budget_us\":{budget:.1},\"over\":{over},\"late\":{},\
                      \"ideal_us\":{ideal:.1},\"sim_levels_us\":{sim_levels:.1},\"sim_dag_us\":{sim_dag:.1},\"critical_us\":{:.1},\"levels_us\":{:.1},\"total_us\":{:.1},\
@@ -1126,7 +1136,8 @@ fn timeline() {
     };
     // The audio (test) thread is thread 0.
     assert_eq!(thread_index(), 0);
-    let run = render(&tracks, Box::new(tl), &opts, ns_per_iter);
+    let ahead = env_num("ETHER_BENCH_ANTICIP", 0.0) != 0.0;
+    let run = render(&tracks, Box::new(tl), &opts, ns_per_iter, ahead);
     let n = len.load(Ordering::Relaxed).min(capacity);
     let from = (run.measured_from - epoch).as_nanos() as u64;
     let all: Vec<Span> = spans[..n]

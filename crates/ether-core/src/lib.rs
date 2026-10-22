@@ -25,6 +25,7 @@
 //! syscalls/I/O/logging, bounded runtime. Debug tests wrap `process` in `assert_no_alloc`.
 
 pub mod analysis;
+mod anticipation;
 pub mod automation;
 pub mod automation_rt;
 pub mod buffer;

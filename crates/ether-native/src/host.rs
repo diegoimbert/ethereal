@@ -352,6 +352,25 @@ fn env_backend() -> Option<AudioBackendKind> {
 struct EngineSettings {
     /// Audio worker threads (`EngineConfig::worker_threads`); `None` = the default.
     worker_threads: Option<usize>,
+    /// Anticipative processing (`ether_core::EngineHandle::set_anticipative`); `None` = on.
+    anticipative: Option<bool>,
+}
+
+fn engine_settings(data_dir: &std::path::Path) -> EngineSettings {
+    std::fs::read_to_string(data_dir.join("config").join("engine.json"))
+        .ok()
+        .and_then(|j| serde_json::from_str::<EngineSettings>(&j).ok())
+        .unwrap_or_default()
+}
+
+/// Anticipative processing (tracks not listened to live render one block ahead, so the
+/// master chain overlaps them; CONTRACTS.md §11.7): `ETHER_ANTICIPATIVE=0|1`, else
+/// `anticipative` of `<data_dir>/config/engine.json`, else on.
+pub fn anticipative(data_dir: &std::path::Path) -> bool {
+    if let Ok(v) = std::env::var("ETHER_ANTICIPATIVE") {
+        return !matches!(v.trim(), "0" | "false" | "off");
+    }
+    engine_settings(data_dir).anticipative.unwrap_or(true)
 }
 
 /// Worker threads for the engine: `ETHER_WORKERS`, else `worker_threads` of
@@ -362,10 +381,8 @@ pub fn worker_threads(data_dir: &std::path::Path, backend: AudioBackendKind) -> 
     if let Some(n) = crate::workers::env_workers() {
         return n;
     }
-    std::fs::read_to_string(data_dir.join("config").join("engine.json"))
-        .ok()
-        .and_then(|j| serde_json::from_str::<EngineSettings>(&j).ok())
-        .and_then(|s| s.worker_threads)
+    engine_settings(data_dir)
+        .worker_threads
         .unwrap_or_else(|| match backend {
             AudioBackendKind::Cpal => crate::workers::default_workers(),
             _ => HEADLESS_WORKERS,
@@ -447,6 +464,8 @@ impl NativeHost {
             worker_threads: worker_threads(&config.data_dir, settings.backend),
             // Every channel of a multi-channel interface (`crate::recording`).
             input_channels: crate::recording::MAX_INPUT_CHANNELS as u16,
+            // Held output allocated; switched by the setting below (and at run time).
+            anticipative: true,
             ..Default::default()
         };
         let prepare = PrepareConfig {
@@ -455,6 +474,9 @@ impl NativeHost {
             max_events_per_block: engine_config.max_events_per_block,
         };
         let mut parts = ether_core::create(engine_config.clone());
+        if !anticipative(&config.data_dir) {
+            let _ = parts.handle.set_anticipative(false);
+        }
         if engine_config.worker_threads > 0 {
             // Multicore (`crate::workers`): independent tracks run on RT worker threads.
             let block = std::time::Duration::from_secs_f64(
