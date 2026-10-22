@@ -109,6 +109,17 @@ describe("clip fades layer", () => {
     expect(layer.decor("a")).toMatchObject({ crossfadeOut: true, lines: 2 });
   });
 
+  it("draws the hovered clip's handles whole and last, over the clip above it (a crossfade's left edge)", () => {
+    const a = audio("a", 0, 4.5, { fade_out: 1 });
+    const b = audio("b", 3.5, 4.5, { fade_in: 1 });
+    const { inst } = build([a, b], { hover: { clip: "a", part: "header" } });
+    const handles = inst.slice(-4);
+    expect(handles.map((i) => i.mode)).toEqual([FadeMode.Handle, FadeMode.Handle, FadeMode.CurveHandle, FadeMode.CurveHandle]);
+    expect(handles.every((i) => i.box[0] === 0 && i.vis[0]! < -1e6 && i.vis[1]! > 1e6)).toBe(true);
+    // A's fade-out handle sits on B's start: not cut there.
+    expect(handles[1]).toMatchObject({ f0: 3.5, f1: 3.5 });
+  });
+
   it("skips small clips (painted without an overlay) and MIDI clips", () => {
     const midi = { ...audio("m", 0, 8), content: { type: "Midi" } } as unknown as Clip;
     expect(build([audio("a", 0, 0.1, { fade_in: 0.05 }), midi], { selected: ["a"] }).inst).toEqual([]);

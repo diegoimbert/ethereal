@@ -95,6 +95,8 @@ export function clipFadesLayer(renderer: ArrangerRenderer, transport: EngineTran
     const frozen = lane.frozen;
     const hover = input.hover;
     const view = { scrollBeats: 0, pxPerBeat: ctx.window.ppb };
+    // The hovered clip's handles, written after every clip's fades.
+    const handleDraws: Array<() => void> = [];
     order.forEach((it, k) => {
       const a = audioOf(it.clip);
       if (!a || it.ghost || isSmall(it, view)) {
@@ -138,24 +140,32 @@ export function clipFadesLayer(renderer: ArrangerRenderer, transport: EngineTran
           else put({ mode: FadeMode.Dashed, f0, f1, curve: neighbour, dir: dir === 1 ? -1 : 1, fill: colors.neighbour });
           put({ mode: FadeMode.Line, f0, f1, curve, dir, fill: colors.line });
         }
-        if (!handles) continue;
-        const fill = (h: FadeHandle) => (hoveredHandle === h ? colors.handleHover : colors.line);
-        const handle = { stroke: colors.handleBorder };
-        put({ ...handle, mode: FadeMode.Handle, f0: s + fin, f1: s + fin, fill: fill("fade-in"), minFromStart: HANDLE_INSET_PX, radius: 2.5 });
-        put({ ...handle, mode: FadeMode.Handle, f0: e - fout, f1: e - fout, fill: fill("fade-out"), minFromEnd: HANDLE_INSET_PX, radius: 2.5 });
-        put({ ...handle, mode: FadeMode.CurveHandle, f0: s, f1: s + fin, curve: a.fade_in_curve, fill: fill("fade-in-curve"), radius: HANDLE_PX / 2 });
-        put({
-          ...handle,
-          mode: FadeMode.CurveHandle,
-          f0: e - fout,
-          f1: e,
-          curve: a.fade_out_curve,
-          dir: -1,
-          fill: fill("fade-out-curve"),
-          radius: HANDLE_PX / 2,
+      }
+      // The hovered clip's handles: whole (not cut where a clip above covers it, as the clip
+      // on top does a crossfade's left edge) and over every clip's fades. They take the
+      // pointer there too (handleAt).
+      if (handles) {
+        handleDraws.push(() => {
+          const put = (spec: Omit<FadeSpec, "box" | "vis" | "fx" | "alpha">) => writeFade(w, { ...spec, box, vis: [-FAR, FAR], fx, alpha });
+          const fill = (h: FadeHandle) => (hoveredHandle === h ? colors.handleHover : colors.line);
+          const handle = { stroke: colors.handleBorder };
+          put({ ...handle, mode: FadeMode.Handle, f0: s + fin, f1: s + fin, fill: fill("fade-in"), minFromStart: HANDLE_INSET_PX, radius: 2.5 });
+          put({ ...handle, mode: FadeMode.Handle, f0: e - fout, f1: e - fout, fill: fill("fade-out"), minFromEnd: HANDLE_INSET_PX, radius: 2.5 });
+          put({ ...handle, mode: FadeMode.CurveHandle, f0: s, f1: s + fin, curve: a.fade_in_curve, fill: fill("fade-in-curve"), radius: HANDLE_PX / 2 });
+          put({
+            ...handle,
+            mode: FadeMode.CurveHandle,
+            f0: e - fout,
+            f1: e,
+            curve: a.fade_out_curve,
+            dir: -1,
+            fill: fill("fade-out-curve"),
+            radius: HANDLE_PX / 2,
+          });
         });
       }
     });
+    for (const draw of handleDraws) draw();
   };
 
   /** The handle under lane px `x`, row px `y` (with its clip), or null. */
@@ -165,6 +175,14 @@ export function clipFadesLayer(renderer: ArrangerRenderer, transport: EngineTran
     if (!lane || !input) return null;
     const v = arrangementView.getState();
     const h = mainHeight(row);
+    // The hovered clip's handles first: drawn over every clip, they take the pointer even
+    // where a clip above it covers them (a crossfade's left edge is on the top clip's start).
+    const hovered = input.hover && lane.items.find((it) => it.clip.id === input.hover!.clip && !it.ghost);
+    if (hovered && !isSmall(hovered, v)) {
+      const g = fadeGeometry(hovered, v, h);
+      const handle = g && hitFadeHandle(g, x, y);
+      if (handle) return { it: hovered, handle };
+    }
     // The topmost clip under the pointer.
     const order = drawOrder(lane.items, input.selected);
     for (let i = order.length - 1; i >= 0; i--) {
