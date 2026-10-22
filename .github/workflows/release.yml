@@ -286,13 +286,16 @@ jobs:
         # The helpers (plugin scanner, sandbox helper on macOS/Linux) and the MCP server are
         # built and staged by tauri.conf.json's beforeBuildCommand and installed next to the app
         # binary; collect.mjs checks they are in the .app and the .deb. `--features full`: every
-        # Cargo feature (docs/ARCHITECTURE.md "Cargo features").
+        # Cargo feature (docs/ARCHITECTURE.md "Cargo features"). The CLI runs from the app's
+        # install (apps/desktop), not through this directory's node_modules link (ee/app/link.mjs):
+        # `pnpm tauri` installs first and refuses the link, and on Windows the module isn't found
+        # through it.
         env:
           TARGET: ${{ matrix.target }}
           BUNDLES: ${{ matrix.bundles }}
         run: >-
           node ../../../scripts/ci/private-step.mjs tauri-build --
-          pnpm tauri build --ci --features full --target "$TARGET" --bundles "$BUNDLES"
+          node ../../../apps/desktop/node_modules/@tauri-apps/cli/tauri.js build --ci --features full --target "$TARGET" --bundles "$BUNDLES"
           --config "$RUNNER_TEMP/tauri.release.json"
       - name: Collect installers
         shell: bash
