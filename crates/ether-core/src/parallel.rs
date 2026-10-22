@@ -17,8 +17,10 @@
 //!   that track by the light track only, and the master starts the moment its last input
 //!   is done.
 //! - **Critical path first.** When more jobs are ready than threads, the one with the
-//!   longest remaining path to the end of the graph runs first. Each job has a static cost
-//!   estimate (1 + the devices in its chains, rack/pad chains included); its priority is
+//!   longest remaining path to the end of the graph runs first. Each job has a cost: its
+//!   measured run time on native engines (`EngineHandle` re-ranks with it, see
+//!   [`JobGraph::reweighted`]), else a static estimate (1 + the devices in its chains,
+//!   rack/pad chains included); its priority is
 //!   that cost plus the highest priority of the jobs it feeds. Jobs are numbered by
 //!   priority (rank 0 = longest remaining path), and the ready queue is a bitset of ranks,
 //!   so taking the most urgent ready job is "lowest set bit" (one `fetch_and` per take,
