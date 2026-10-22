@@ -3189,6 +3189,7 @@
   "engine.envelope": "enveloppe",
   "engine.envelope_follower": "suiveur d’enveloppe",
   "engine.eq": "eq",
+  "engine.erosion": "érosion",
   "engine.expand": "expansion",
   "engine.expander": "expandeur",
   "engine.external_audio_effect": "effet audio externe",
@@ -3451,6 +3452,7 @@
   "engine.wavetable": "table d’ondes",
   "engine.wavetable_position": "position dans la table",
   "engine.whole_tone": "par tons",
+  "engine.wide_noise": "bruit large",
   "engine.width": "largeur",
   "engine.width_mode": "mode de largeur",
   "engine.zones": "zones"

@@ -97,6 +97,7 @@ A reverb made from a recording of a real space (an impulse response, or IR).
 
 - **saturator**: adds warmth or distortion. Pick a **curve** (soft, hard, tube, tape, fold, rectify), then set **drive**, **bias** and **tone**. **auto gain** (on by default) keeps the level steady as you add drive. **oversampling** makes it cleaner. It adds a small, fixed latency.
 - **bitcrusher**: lo-fi digital grit. **bits** lowers the resolution, **rate** the sample rate; **jitter** and **dither** roughen or smooth it.
+- **erosion**: digital wear that follows the sound. It wobbles a very short delay with a **sine** (metallic sidebands) or with **noise** (fizz and hiss; **wide noise** is different on each side). Drag the pad: across for the **frequency**, up for the **amount**. **width** sets how wide the noise band is. Bright sounds erode first, and silence stays silent. It adds a tiny, fixed latency.
 - **auto filter**: a filter (7 types) that moves by itself. Its **envelope** follows the level of the sound (or of a sidechain, when one is set) to open the filter; its **LFO** sweeps it in a cycle, free or synced to the tempo, with a **stereo phase** offset between left and right. It runs oversampled, so **drive** stays clean; that adds a small, fixed latency.
 
 ## modulation: chorus, phaser, flanger, tremolo

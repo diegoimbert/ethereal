@@ -1,0 +1,29 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "wide hiss",
+    "device": {
+      "type": "Builtin",
+      "device": "Erosion"
+    },
+    "meta": {
+      "tags": [
+        "noise",
+        "stereo",
+        "wide"
+      ],
+      "author": "ethereal",
+      "description": "independent noise on each side: a wide, airy grit around 11 khz."
+    },
+    "params": {
+      "0": 2.0,
+      "1": 11000.0,
+      "2": 0.8,
+      "3": 20.0,
+      "4": 0.0,
+      "5": 100.0
+    }
+  }
+}

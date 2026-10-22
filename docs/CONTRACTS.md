@@ -1354,7 +1354,10 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   every note-on (and the note-offs / per-note expressions of the notes it dropped); param 0
   `Block Everything` (toggle, default off) drops every other MIDI message too. Note-offs of
   notes it never saw and `AllNotesOff` pass; the engine's `AllNotesOff` on a MIDI-effect
-  change or switch releases what was held (`ether_devices::midi_fx`).
+  change or switch releases what was held (`ether_devices::midi_fx`). Then `Erosion`
+  (`fx-color`, no kind data): a very short delay modulated by a sine, shared noise or
+  per-channel noise (param table in `ether_devices::fx_color`); it reports its centre delay
+  as latency.
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.

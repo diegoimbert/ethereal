@@ -51,11 +51,8 @@ const KEYWORDS: &[(&[&str], T, &str)] = &[
         T::Saturator,
         "distortion",
     ),
-    (
-        &["erosion", "redux", "crush", "vinyl", "lofi"],
-        T::Bitcrusher,
-        "lo-fi",
-    ),
+    (&["erosion"], T::Erosion, "erosion"),
+    (&["redux", "crush", "vinyl", "lofi"], T::Bitcrusher, "lo-fi"),
     (&["multiband"], T::MultibandCompressor, "multiband dynamics"),
     (
         &["compressor", "glue", "dynamics"],
