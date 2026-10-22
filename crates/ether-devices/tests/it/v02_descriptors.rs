@@ -65,6 +65,7 @@ const GROUPS: &[(&str, &[BuiltinDeviceType])] = &[
             BuiltinDeviceType::Velocity,
             BuiltinDeviceType::Randomizer,
             BuiltinDeviceType::Pitch,
+            BuiltinDeviceType::NoteBlocker,
         ],
     ),
     (

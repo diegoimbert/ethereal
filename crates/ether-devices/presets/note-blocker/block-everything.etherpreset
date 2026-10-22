@@ -1,0 +1,23 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.4.0",
+  "preset": {
+    "name": "block everything",
+    "device": {
+      "type": "Builtin",
+      "device": "NoteBlocker"
+    },
+    "meta": {
+      "tags": [
+        "mute",
+        "midi"
+      ],
+      "author": "ethereal",
+      "description": "no midi passes: notes, cc, pitch bend and aftertouch are all dropped."
+    },
+    "params": {
+      "0": 1.0
+    }
+  }
+}

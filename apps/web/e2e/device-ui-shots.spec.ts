@@ -42,8 +42,9 @@ const EFFECTS: BuiltinDeviceType[] = [
   "Velocity",
   "Randomizer",
   "Pitch",
+  "NoteBlocker",
 ];
-const MIDI_EFFECTS = new Set<string>(["Arpeggiator", "Chord", "ScaleQuantize", "NoteLength", "Velocity", "Randomizer", "Pitch"]);
+const MIDI_EFFECTS = new Set<string>(["Arpeggiator", "Chord", "ScaleQuantize", "NoteLength", "Velocity", "Randomizer", "Pitch", "NoteBlocker"]);
 const only = process.env.DEVICE_UI_ONLY;
 const types = only === "effects" ? EFFECTS : (only?.split(",").filter(Boolean) ?? V01);
 

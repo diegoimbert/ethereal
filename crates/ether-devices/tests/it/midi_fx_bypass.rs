@@ -78,6 +78,7 @@ fn midi_effects() -> Vec<BuiltinDeviceType> {
         BuiltinDeviceType::Velocity,
         BuiltinDeviceType::Randomizer,
         BuiltinDeviceType::Pitch,
+        BuiltinDeviceType::NoteBlocker,
     ] {
         assert!(all.contains(&ty), "{ty:?} is a MIDI effect");
     }
@@ -324,11 +325,12 @@ fn automating_any_midi_effects_switch_strands_and_drops_no_notes() {
                         if (velocity - 0.3).abs() < 1e-6)),
                 "{what}: the note played while off: {log:?}"
             );
-            // Back on: the effect plays the last note.
-            assert!(
+            // Back on: the effect plays the last note (the note blocker drops it).
+            assert_eq!(
                 log.iter()
                     .any(|&(t, k)| t >= 4 * BEAT && matches!(k, EventKind::NoteOn { .. })),
-                "{what}: nothing after switching back on"
+                ty != BuiltinDeviceType::NoteBlocker,
+                "{what}: what plays after switching back on"
             );
         }
     }

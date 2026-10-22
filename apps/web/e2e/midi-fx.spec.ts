@@ -247,7 +247,7 @@ test("Pitch: before the instrument, its panel, and out-of-range notes blocked or
   expect(errors.filter((e) => /Ethereal engine|panicked|RuntimeError|unreachable/.test(e))).toEqual([]);
 });
 
-const TYPES: BuiltinDeviceType[] = ["Arpeggiator", "Chord", "ScaleQuantize", "NoteLength", "Velocity", "Randomizer", "Pitch"];
+const TYPES: BuiltinDeviceType[] = ["Arpeggiator", "Chord", "ScaleQuantize", "NoteLength", "Velocity", "Randomizer", "Pitch", "NoteBlocker"];
 
 for (const theme of ["dark", "light"]) {
   for (const type of TYPES) {
