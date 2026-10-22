@@ -94,7 +94,8 @@ function RealTrackRow({ row }: { row: Row }) {
   return (
     <div
       className={clsx("eth-arr-row", row.track.freeze && "eth-arr-row--frozen", inert && "eth-arr-row--inert", selected && "eth-arr-row--selected")}
-      style={{ height: row.height }}
+      // The automation lanes' headers indent and tint like the track's (arrangement.css).
+      style={{ height: row.height, ["--eth-track-depth" as string]: depth, ["--eth-track-color" as string]: colorCss(track.color) }}
       data-track={row.track.id}
     >
       {main}

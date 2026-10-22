@@ -1418,3 +1418,40 @@
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* A track's automation lanes (the bar and each lane's header) under its header: indented like
+   it (nested in groups), and a card behind them, tinted like the track's: when the track is
+   hovered (or looks hovered: a selected clip, its group hovered), more when it is selected.
+   --eth-track-depth / --eth-track-color come from the row (TrackRow). */
+.eth-arr-row__automation .eth-auto-bar__header,
+.eth-arr-row__automation .eth-auto-row__header {
+  position: relative;
+  isolation: isolate;
+  padding-left: calc(var(--eth-space-md) + var(--eth-track-depth, 0) * var(--eth-size-track-indent));
+}
+.eth-arr-row__automation .eth-auto-bar__header::before,
+.eth-arr-row__automation .eth-auto-row__header::before {
+  content: "";
+  position: absolute;
+  inset: var(--eth-border-width) var(--eth-space-lg) var(--eth-border-width)
+    calc(var(--eth-size-track-card-inset-left) + var(--eth-track-depth, 0) * var(--eth-size-track-indent));
+  z-index: -1;
+  border-radius: var(--eth-radius-md);
+  background: transparent;
+  pointer-events: none;
+  transition: background-color var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-arr-row:has(.eth-arr-header:hover, .eth-arr-header[data-clip-selected], .eth-arr-header[data-group-hover])
+  .eth-arr-row__automation
+  .eth-auto-bar__header::before,
+.eth-arr-row:has(.eth-arr-header:hover, .eth-arr-header[data-clip-selected], .eth-arr-header[data-group-hover])
+  .eth-arr-row__automation
+  .eth-auto-row__header::before,
+.eth-arr-row__automation .eth-auto-bar__header:hover::before,
+.eth-arr-row__automation .eth-auto-row__header:hover::before {
+  background: color-mix(in srgb, var(--eth-track-color) 8%, transparent);
+}
+.eth-arr-row--selected .eth-arr-row__automation .eth-auto-bar__header::before,
+.eth-arr-row--selected .eth-arr-row__automation .eth-auto-row__header::before {
+  background: color-mix(in srgb, var(--eth-track-color) 14%, transparent);
+}
