@@ -110,7 +110,7 @@ fn markers_validate_and_patch() {
 fn drum_pads_and_pad_chains() {
     let mut f = Fx::new();
     let t = f.track(TrackKind::Midi);
-    let rack = f.device(t, BuiltinDevice::DrumRack, None);
+    let rack = f.device(t, BuiltinDevice::DrumRack { macros: None }, None);
     f.insert(Entity::Device(rack.clone())).unwrap();
     let pad = f.pad(rack.id, 36);
     f.insert(Entity::DrumPad(pad.clone())).unwrap();
@@ -141,7 +141,7 @@ fn drum_pads_and_pad_chains() {
     assert!(f.p.devices_of(t).iter().all(|d| d.id != sampler.id));
     assert_eq!(f.p.pads_of(rack.id).len(), 1);
     // No nested racks; no pad device on another track.
-    let nested = f.device(t, BuiltinDevice::DrumRack, Some(pad.id));
+    let nested = f.device(t, BuiltinDevice::DrumRack { macros: None }, Some(pad.id));
     assert!(f.insert(Entity::Device(nested)).is_err());
     let other = f.track(TrackKind::Midi);
     let elsewhere = f.device(other, BuiltinDevice::Synth, Some(pad.id));
@@ -333,7 +333,7 @@ fn pad_devices_take_a_sidechain() {
     let mut f = Fx::new();
     let t = f.track(TrackKind::Midi);
     let src = f.track(TrackKind::Audio);
-    let rack = f.device(t, BuiltinDevice::DrumRack, None);
+    let rack = f.device(t, BuiltinDevice::DrumRack { macros: None }, None);
     f.insert(Entity::Device(rack.clone())).unwrap();
     let pad = f.pad(rack.id, 36);
     f.insert(Entity::DrumPad(pad.clone())).unwrap();

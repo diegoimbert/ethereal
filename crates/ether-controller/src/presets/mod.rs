@@ -75,8 +75,12 @@ fn kind_media(kind: &BuiltinDevice) -> Vec<MediaId> {
     }
 }
 
-/// Kind data carried by presets (sample-based types and the convolution reverb's IR).
+/// Kind data carried by presets (sample-based types, the convolution reverb's IR, the
+/// Volume LFO's curve, and a rack's macro names and visible count when not the defaults).
 fn preset_kind(kind: &BuiltinDevice) -> Option<BuiltinDevice> {
+    if let Some(m) = kind.rack_macros() {
+        return (!m.is_default()).then(|| kind.clone());
+    }
     matches!(
         kind,
         BuiltinDevice::Sampler { .. }
@@ -90,7 +94,7 @@ fn preset_kind(kind: &BuiltinDevice) -> Option<BuiltinDevice> {
 /// Devices whose presets store their structure in `Preset::rack`: chain racks (chains)
 /// and drum racks (pads).
 fn stores_structure(kind: &BuiltinDevice) -> bool {
-    kind.device_type().is_rack() || matches!(kind, BuiltinDevice::DrumRack)
+    kind.device_type().is_rack() || matches!(kind, BuiltinDevice::DrumRack { .. })
 }
 
 /// `kind` with its media ids mapped through `map` (unmapped ids become `None`).
@@ -548,7 +552,7 @@ where
         let drum = matches!(
             d.kind,
             DeviceKind::Builtin {
-                device: BuiltinDevice::DrumRack
+                device: BuiltinDevice::DrumRack { .. }
             }
         );
         if seed.is_some() && !drum && (d.chain.is_some() || d.pad.is_some()) {
@@ -584,7 +588,14 @@ where
                 } else {
                     self.preset_import_samples(p, gesture, now, out)
                 };
-                let kind = p.kind.as_ref().map(|k| remap_kind(k, &map));
+                // A rack preset without kind data has the default macro names and count.
+                let kind = p.kind.as_ref().map(|k| remap_kind(k, &map)).or_else(|| {
+                    current.rack_macros().map(|_| {
+                        current
+                            .clone()
+                            .with_rack_macros(ether_model::RackMacros::default())
+                    })
+                });
                 let structure = p.rack.as_ref().zip(seed);
                 let mut plugins = Vec::new();
                 let desc = ether_devices::descriptor(current.device_type());

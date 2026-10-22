@@ -1621,9 +1621,12 @@ mod tests {
         assert_eq!(b.node_of(d), Some(key), "same node");
         // Other devices (and unknown ones) are re-created by the controller.
         let rack = DeviceId(Ulid(5));
-        b.create_builtin(rack, &BuiltinDevice::DrumRack, &[])
+        b.create_builtin(rack, &BuiltinDevice::DrumRack { macros: None }, &[])
             .unwrap();
-        assert_eq!(b.update_builtin(rack, &BuiltinDevice::DrumRack), Ok(false));
+        assert_eq!(
+            b.update_builtin(rack, &BuiltinDevice::DrumRack { macros: None }),
+            Ok(false)
+        );
         assert_eq!(
             b.update_builtin(DeviceId(Ulid(6)), &sampler(vec![])),
             Ok(false)

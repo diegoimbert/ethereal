@@ -631,7 +631,8 @@
               "size": "Medium",
               "widget": {
                 "first": 2,
-                "type": "Macros"
+                "type": "Macros",
+                "upper": 10
               }
             }
           ],
@@ -814,6 +815,126 @@
         "max": 1.0,
         "min": 0.0,
         "name": "Macro 8",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 10,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 9",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 11,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 10",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 12,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 11",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 13,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 12",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 14,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 13",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 15,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 14",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 16,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 15",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Macros",
+        "hidden": false,
+        "id": 17,
+        "labels": null,
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Macro 16",
         "scale": {
           "type": "Linear"
         },

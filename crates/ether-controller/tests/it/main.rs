@@ -56,6 +56,7 @@ mod presets;
 mod project;
 mod project_loading;
 mod rack_chain_copy;
+mod rack_macro_bank;
 mod rack_presets;
 mod racks;
 mod replace_device;

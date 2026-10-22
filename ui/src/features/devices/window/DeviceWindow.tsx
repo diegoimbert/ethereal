@@ -9,7 +9,7 @@ import { duration, size } from "@/theme/tokens";
 import { useDescriptor } from "../descriptors";
 import { useGestureSender } from "../gesture";
 import { DrumRackEditor, isDrumRack } from "@/features/drum-rack";
-import { DeviceLayoutView } from "../layout";
+import { DeviceLayoutView, macrosWidgetParams } from "../layout";
 import { SamplePickerWindow, SampleSlot, samplerSample } from "../SampleSlot";
 import { deviceWindowWidth } from "./sizes";
 import { deviceWindowId, useDeviceWindows } from "./store";
@@ -155,8 +155,7 @@ export function DeviceEditor({ device }: { device: Device }) {
 function DrumRackMacros({ device, descriptor, sender }: { device: Device; descriptor: DeviceDescriptor; sender: ReturnType<typeof useGestureSender> }) {
   const macros = useMemo(() => {
     const sections = (descriptor.layout?.sections ?? []).filter((s) => s.items.some((i) => i.widget.type === "Macros"));
-    const firsts = sections.flatMap((s) => s.items.flatMap(({ widget: w }) => (w.type === "Macros" ? [w.first] : [])));
-    const ids = new Set(firsts.flatMap((first) => Array.from({ length: 8 }, (_, k) => first + k)));
+    const ids = new Set(sections.flatMap((s) => s.items.flatMap(({ widget: w }) => (w.type === "Macros" ? macrosWidgetParams(w) : []))));
     return { ...descriptor, params: descriptor.params.filter((p) => ids.has(p.id)), layout: { sections } };
   }, [descriptor]);
   if (macros.layout.sections.length === 0) return null;

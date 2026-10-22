@@ -296,6 +296,7 @@ export type * from "./RackChain";
 export type * from "./RackChainChange";
 export type * from "./RackChainId";
 export type * from "./RackCommand";
+export type * from "./RackMacros";
 export type * from "./RecordingCommand";
 export type * from "./RecordingEvent";
 export type * from "./RecoveryInfo";

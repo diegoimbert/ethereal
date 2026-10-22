@@ -1068,10 +1068,23 @@ runtime; `PresetEvent::Changed` after user-set changes. Sample-based presets car
   `Rack::InsertDevice`, `DrumRack::InsertDevice`) starts with one empty chain "chain 1"
   (id `derive_id(rack, 0)`) in the same undo step; instrument racks start empty, and
   duplicates, presets and loaded documents keep exactly their chains. New built-in
-  devices get the lowercase descriptor name on every insert path. Every rack's params: macros `0..8` (plain 0..1) and the chain
-  selector (`8`, 0..=127). A drum rack has the same 8 macros appended after its volume and
-  pan (params `2..10`, `ether_model::rack::{macro_param, macro_index}`; no selector);
-  `MacroDesc::first` tells the engine where a rack's macros start. Engine: `TrackDesc::chain_racks` (`ether_core::rack_chains`),
+  devices get the lowercase descriptor name on every insert path. Every rack's params: 16
+  macros (plain 0..1; macros 1..8 are params `0..8`, macros 9..16 were appended after the
+  chain selector: `9..17`) and the chain selector (`8`, 0..=127). A drum rack has the same 16
+  macros appended after its volume and pan (params `2..18`; no selector);
+  `ether_model::rack::{macro_param, macro_index}` map between the two for every type, and
+  `MacroDesc::{first, upper}` (graph codec v7) tell the engine where macros 1 and 9 sit.
+  **Macro bank** (`RackMacros { visible, names }` on the rack's `BuiltinDevice`, absent = the
+  defaults: 8 shown, no names): a rack shows its first `visible` (1..=16) macros, Live 11+'s
+  show/hide; hidden macros keep their values, automation and mappings (they still
+  modulate). `names[i]` is macro `i`'s custom name (trimmed, at most 64 chars; empty = "macro
+  N"). `Device::RenameMacro { device, index, name }` and `Device::SetMacroCount { device,
+  count }` are one `Kind` change each (undoable, shared like any edit); the node is kept
+  (`engine.rs` ignores the bank in its node signature). Rack presets carry a non-default
+  bank in `Preset::kind`; a rack preset without one resets the bank to the defaults. The
+  `Macros` widget (`first`, `upper`) shows the shown macros under their names with show one
+  more / hide the last buttons; double-click a name (or "rename macro" in the knob's menu)
+  to rename it. "Assign to macro ›" lists a rack's shown macros. Engine: `TrackDesc::chain_racks` (`ether_core::rack_chains`),
   run at the rack entry before the rack node (pre-wired like drum-rack pads: params,
   automation and latency already reach chain nodes).
 - Modulators live **inside any track-chain device** (not on drum-pad or rack-chain devices in
