@@ -998,10 +998,12 @@ mod tests {
                     MacroDesc {
                         rack: key(2),
                         values: Default::default(),
+                        first: 0,
                     },
                     MacroDesc {
                         rack: gone,
                         values: Default::default(),
+                        first: 0,
                     },
                 ],
             },

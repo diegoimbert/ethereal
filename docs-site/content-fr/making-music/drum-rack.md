@@ -60,6 +60,10 @@ Chaque pad a des boutons muet et solo, comme une piste.
 - Le **muet** d’un pad fait partie du projet, comme le muet d’une piste.
 - Le **solo** d’un pad ne sert qu’à écouter sur le moment : il n’est pas enregistré avec le projet et ne compte pas comme une étape d’annulation.
 
+## macros {#macros}
+
+Un drum rack a **8 macros**, comme les autres [racks](/docs/making-music/racks-and-macros#macros), en haut de sa fenêtre (et dans sa liste de paramètres). Associez une macro aux paramètres des appareils de n’importe quel pad, même dans un rack posé sur un pad : une seule macro peut raccourcir la décroissance de tous les échantillons ou ouvrir les filtres de tout le kit. Une macro d’un rack qui contient le drum rack atteint aussi ses pads. Les macros s’automatisent et s’associent à un contrôleur MIDI comme n’importe quel bouton, et un preset de drum rack les garde.
+
 ## et ensuite {#where-next}
 
 - [Effets](/docs/making-music/effects) : des effets pour chaque pad.

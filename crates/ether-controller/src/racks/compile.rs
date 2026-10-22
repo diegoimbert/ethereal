@@ -218,16 +218,27 @@ pub fn modulation_desc(p: &Project, track: TrackId, ctx: &CompileContext) -> Mod
         let (Some(r), Some(node)) = (p.devices.get(&rack), (ctx.nodes)(rack)) else {
             continue;
         };
+        // Macro params: a chain rack's `0..8`, a drum rack's after its volume and pan.
+        let DeviceKind::Builtin { device } = &r.kind else {
+            continue;
+        };
+        let Some(first) = macro_param(device.device_type(), 0) else {
+            continue;
+        };
         let mut values = [0.0; MACROS];
         for (i, v) in values.iter_mut().enumerate() {
             *v = r
                 .params
-                .get(&ParamId(i as u32))
+                .get(&ParamId(first.0 + i as u32))
                 .copied()
                 .unwrap_or(0.0)
                 .clamp(0.0, 1.0);
         }
-        out.macros.push(MacroDesc { rack: node, values });
+        out.macros.push(MacroDesc {
+            rack: node,
+            values,
+            first: first.0,
+        });
     }
     out
 }
