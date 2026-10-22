@@ -74,3 +74,19 @@ test("a run past 70% of a typical run is let finish; one earlier on is cancelled
   const waiting = decide([run(5, "pending", null, 0.01 * H), run(4, "in_progress", null, 0.5 * H), ...finished], NOW);
   assert.deepEqual(waiting.cancel.map((r) => r.id), [1004]);
 });
+
+test("a run already cancelling is neither cancelled again nor let finish; its successor is judged alone", () => {
+  const M = 60e3;
+  const finished = [run(2, "completed", "success", 1.2 * H, 1.2 * H - 12 * M), run(1, "completed", "success", 1.5 * H, 1.5 * H - 12 * M)];
+  // Run 4 was cancelled 20 min in and is still winding down; run 5 runs (5 min in); run 6 waits.
+  const cancelling = { ...run(4, "in_progress", null, 0.5 * H), first_job_at: at(20 * M), cancelling: true };
+  const running = { ...run(5, "queued", null, 0.2 * H), first_job_at: at(5 * M) };
+  const d = decide([run(6, "pending", null, 0.01 * H), running, cancelling, ...finished], NOW);
+  assert.deepEqual(d.cancel.map((r) => r.id), [1005]);
+  // Run 5 nearly done: nothing is cancelled.
+  const late = { ...running, first_job_at: at(10 * M) };
+  assert.deepEqual(decide([run(6, "pending", null, 0.01 * H), late, cancelling, ...finished], NOW).cancel, []);
+  // An older run nearly done: a run newer than it (its successor) isn't cancelled either.
+  const older = { ...run(3, "in_progress", null, 0.6 * H), first_job_at: at(10 * M) };
+  assert.deepEqual(decide([run(6, "pending", null, 0.01 * H), running, older, ...finished], NOW).cancel, []);
+});
