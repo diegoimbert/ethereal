@@ -13,7 +13,9 @@ import type { TimelineViewStore } from "./viewStore";
 /** Maps song beats to the view's time axis (`null` = hide), e.g. clip-relative views. */
 export type PlayheadMapping = (songBeats: Beats) => Beats | null;
 
-const identity: PlayheadMapping = (b) => b;
+/** Song beats as they are (the default mapping). */
+export const identityMapping: PlayheadMapping = (b) => b;
+const identity = identityMapping;
 
 /** Current song position in beats (0 before the first frame). */
 export function playheadBeats(): Beats {

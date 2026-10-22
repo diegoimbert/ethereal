@@ -19,6 +19,7 @@ export * from "./motion";
 export * from "./playhead";
 export * from "./precisionDrag";
 export * from "./PlayheadLine";
+export * from "./RenderFrozenLayer";
 export * from "./Ruler";
 export { LoopBrace, type LoopBraceProps } from "./LoopBrace";
 export * from "./renderDpr";

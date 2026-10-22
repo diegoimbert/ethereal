@@ -4,16 +4,21 @@
  * Progress 1.0 + Done with `Download` results (a small silent WAV per file) readable with
  * `ReadChunk`. Validation, file naming and the chunk cap mirror the Rust controller
  * (`ether-controller/src/export`). Owned by `export`.
+ *
+ * While a job runs the live engine is paused (`rendering()`, CONTRACTS.md §13.20): the
+ * transport state carries `rendering` with the rendered part growing per phase (start, then
+ * half way), cleared at done/cancel.
  */
 
-import type { ExportCommand, ExportDownload, ExportRange, ExportRequest, Project, ReplyValue } from "@/generated";
+import type { ExportCommand, ExportDownload, ExportRange, ExportRequest, Project, RenderingState, ReplyValue } from "@/generated";
 import { fail } from "../documentReducer";
+import { bpmAt } from "../tempo";
 import type { MockHost } from "./host";
 
 const UNIT: ReplyValue = { type: "Unit" };
 
 export class MockExports {
-  private job: { job: string; request: ExportRequest; phase: number } | null = null;
+  private job: { job: string; request: ExportRequest; phase: number; start: number; end: number } | null = null;
   private readonly downloads = new Map<string, { info: ExportDownload; bytes: Uint8Array }>();
 
   constructor(private readonly host: MockHost) {}
@@ -37,7 +42,7 @@ export class MockExports {
         }
         // Previous results are dropped by a new render.
         this.downloads.clear();
-        this.job = { job: c.job, request: r, phase: 0 };
+        this.job = { job: c.job, request: r, phase: 0, start, end: end + r.tail_seconds * (bpmAt(project, end) / 60) };
         return { type: "ExportStarted", job: c.job };
       }
       case "Cancel":
@@ -66,22 +71,30 @@ export class MockExports {
     }
   }
 
+  /** The render in progress (`TransportState.rendering`), or `null`. */
+  rendering(): RenderingState | null {
+    const j = this.job;
+    if (!j) return null;
+    const progress = j.phase === 0 ? 0 : 0.5;
+    return { start: j.start, end: j.end, until: j.start + (j.end - j.start) * progress, progress, preview: true };
+  }
+
   /** Keep `bytes` as a download (`Project::ExportBundle`). */
   addDownload(info: ExportDownload, bytes: Uint8Array): void {
     this.downloads.set(info.token, { info, bytes });
   }
 
-  /** Advance the running export by one phase (called on every playhead step). */
-  step(): void {
+  /** Advance the running export by one phase (called on every playhead step); `true` if one ran. */
+  step(): boolean {
     const job = this.job;
-    if (!job) return;
+    if (!job) return false;
     job.phase += 1;
     if (job.phase === 1) {
       this.host.emit({
         type: "Export",
         event: { type: "Progress", job: job.job, progress: 0.5 },
       });
-      return;
+      return true;
     }
     this.job = null;
     const project = this.host.project();
@@ -126,6 +139,7 @@ export class MockExports {
         result: { type: "Download", downloads },
       },
     });
+    return true;
   }
 }
 
