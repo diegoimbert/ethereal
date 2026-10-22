@@ -31,6 +31,12 @@
 //! - `Auto Makeup` (10, toggle, default off): adds half the static gain reduction at 0 dBFS
 //!   to `Makeup` (follows threshold, ratio and knee).
 //!
+//! Appended for Live's Glue Compressor (defaults bit-exact):
+//! - `Range` (11, 0..=80 dB, default 80 = no limit): the most gain reduction applied (the
+//!   static curve's target is capped; 0 = no compression). Compressing detectors only.
+//! - `Soft Clip` (12, toggle, default off): the output (after the mix) goes through
+//!   [`soft_clip`]: linear up to -6 dBFS, then a tanh curve towards -0.5 dBFS.
+//!
 //! Analysis (the window's meter and transfer-curve dot): `AnalysisKind::Levels`
 //! `[gain reduction dB (<= 0), detector level dBFS]`, the deepest reduction and the loudest
 //! detector peak since the last read.
@@ -69,9 +75,32 @@ pub mod params {
     pub const LOOKAHEAD: ParamId = ParamId(9);
     /// Automatic makeup gain (toggle).
     pub const AUTO_MAKEUP: ParamId = ParamId(10);
+    /// Most gain reduction the compressor applies (dB; the 80 dB maximum = no limit).
+    pub const RANGE: ParamId = ParamId(11);
+    /// A soft clipper on the output, peaking at [`super::SOFT_CLIP_CEILING_DB`] (toggle).
+    pub const SOFT_CLIP: ParamId = ParamId(12);
 }
 
-const NUM_PARAMS: usize = 11;
+const NUM_PARAMS: usize = 13;
+/// `Range` at this many dB (its maximum) doesn't limit the gain reduction.
+pub const RANGE_OFF_DB: f32 = 80.0;
+/// The soft clipper's ceiling (dBFS): Live's Glue Compressor's ("the maximum output will be
+/// -0.5 dB", Live Reference Manual).
+pub const SOFT_CLIP_CEILING_DB: f32 = -0.5;
+/// The soft clipper is linear up to this level (linear amplitude, -6 dBFS).
+const SOFT_CLIP_KNEE: f32 = 0.5;
+
+/// The output soft clipper: linear up to [`SOFT_CLIP_KNEE`], then a tanh curve (slope 1 at
+/// the knee) that approaches the ceiling.
+#[inline]
+pub fn soft_clip(x: f32) -> f32 {
+    let a = x.abs();
+    if a <= SOFT_CLIP_KNEE {
+        return x;
+    }
+    let room = util::db_to_amp(SOFT_CLIP_CEILING_DB) - SOFT_CLIP_KNEE;
+    (SOFT_CLIP_KNEE + room * ((a - SOFT_CLIP_KNEE) / room).tanh()).copysign(x)
+}
 /// Longest lookahead (ms).
 pub const MAX_LOOKAHEAD_MS: f32 = 10.0;
 /// Detector level reported when nothing was measured (dBFS).
@@ -183,6 +212,23 @@ pub fn param_infos() -> Vec<ParamInfo> {
             &["Off", "On"],
             0,
         ),
+        // --- appended (Ableton import: Live's Glue Compressor) ---
+        param(
+            11,
+            "Range",
+            "Compressor",
+            ParamUnit::Decibels,
+            (0.0, RANGE_OFF_DB as f64, RANGE_OFF_DB as f64),
+            ParamScale::Linear,
+        ),
+        choice(
+            12,
+            "Soft Clip",
+            "Output",
+            ParamUnit::Toggle,
+            &["Off", "On"],
+            0,
+        ),
     ]
 }
 
@@ -267,6 +313,13 @@ pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
                 item(
                     Widget::Toggle {
                         param: params::AUTO_MAKEUP,
+                    },
+                    Small,
+                ),
+                knob(params::RANGE, Small),
+                item(
+                    Widget::Toggle {
+                        param: params::SOFT_CLIP,
                     },
                     Small,
                 ),
@@ -552,7 +605,9 @@ impl Compressor {
         let below_knee = util::db_to_amp(threshold - knee * 0.5) * 0.999;
         let inputs = audio.inputs;
         let parallel = self.mix.is_smoothing() || self.mix.current() < 1.0;
-        if self.detector != DETECTOR_PEAK || self.lookahead.active() || parallel {
+        let shaped =
+            self.value(params::RANGE) < RANGE_OFF_DB || self.value(params::SOFT_CLIP) >= 0.5;
+        if self.detector != DETECTOR_PEAK || self.lookahead.active() || parallel || shaped {
             self.render_modes(audio, sidechain, start, end);
             return;
         }
@@ -592,8 +647,8 @@ impl Compressor {
         }
     }
 
-    /// RMS and Expand detectors, lookahead and parallel mix (the Peak detector without them
-    /// stays on the original, bit-identical path in [`Self::render`]).
+    /// RMS and Expand detectors, lookahead, parallel mix, `Range` and `Soft Clip` (the Peak
+    /// detector without them stays on the original, bit-identical path in [`Self::render`]).
     fn render_modes(
         &mut self,
         audio: &mut AudioBuffers<'_, '_>,
@@ -606,6 +661,9 @@ impl Compressor {
         let knee = self.value(params::KNEE);
         let expand = self.detector == DETECTOR_EXPAND;
         let rms = self.detector == DETECTOR_RMS;
+        let range = self.value(params::RANGE);
+        let limit = range < RANGE_OFF_DB && !expand;
+        let clip = self.value(params::SOFT_CLIP) >= 0.5;
         let inputs = audio.inputs;
         for i in start..end {
             let peak = self.detect(inputs, sidechain, i);
@@ -632,6 +690,7 @@ impl Compressor {
             } else {
                 gain_reduction_knee_db(util::amp_to_db(peak), threshold, ratio, knee)
             };
+            let target = if limit { target.min(range) } else { target };
             if expand {
                 // Expander: attack while it opens, release while it closes.
                 let coef = if target < self.gr_db {
@@ -671,11 +730,12 @@ impl Compressor {
                     }
                     None => x,
                 };
-                out[i] = if parallel {
+                let y = if parallel {
                     x * (1.0 - mix) + x * gain * mix
                 } else {
                     x * gain
                 };
+                out[i] = if clip { soft_clip(y) } else { y };
             }
             self.lookahead.advance();
         }

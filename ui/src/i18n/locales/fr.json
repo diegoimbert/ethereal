@@ -3393,6 +3393,7 @@
   "engine.smooth": "lissage",
   "engine.smoothing": "lissage",
   "engine.soft": "doux",
+  "engine.soft_clip": "écrêtage doux",
   "engine.solo": "solo",
   "engine.spectrum": "spectre",
   "engine.spread": "écart",
