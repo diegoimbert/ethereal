@@ -89,6 +89,11 @@ pub enum EngineMsg {
     Transport {
         control: TransportControl,
     },
+    /// Suspend or resume the engine's processing while a project loads
+    /// (`EngineBridge::set_suspended`).
+    Suspend {
+        suspended: bool,
+    },
     /// `media-preview`: play the audio loaded as `media` (always [`PREVIEW_MEDIA`]) on the
     /// preview voice as preview `id` at `gain`; `media: None` stops the preview.
     Preview {
@@ -158,6 +163,9 @@ enum JsonMsg {
     },
     Transport {
         control: TransportControl,
+    },
+    Suspend {
+        suspended: bool,
     },
     Preview {
         media: Option<MediaId>,
@@ -239,6 +247,7 @@ impl EngineMsg {
             EngineMsg::UnloadMedia { media } => JsonMsg::UnloadMedia { media },
             EngineMsg::SetParam { change } => JsonMsg::SetParam { change },
             EngineMsg::Transport { control } => JsonMsg::Transport { control },
+            EngineMsg::Suspend { suspended } => JsonMsg::Suspend { suspended },
             EngineMsg::Preview { id, media, gain } => JsonMsg::Preview { media, gain, id },
             EngineMsg::NodeScale { key, scale } => JsonMsg::NodeScale { key, scale },
             EngineMsg::WatchAnalysis { key, on } => JsonMsg::WatchAnalysis { key, on },
@@ -417,6 +426,7 @@ impl<'a> Frame<'a> {
                     JsonMsg::UnloadMedia { media } => EngineMsg::UnloadMedia { media },
                     JsonMsg::SetParam { change } => EngineMsg::SetParam { change },
                     JsonMsg::Transport { control } => EngineMsg::Transport { control },
+                    JsonMsg::Suspend { suspended } => EngineMsg::Suspend { suspended },
                     JsonMsg::Preview { media, gain, id } => EngineMsg::Preview { id, media, gain },
                     JsonMsg::NodeScale { key, scale } => EngineMsg::NodeScale { key, scale },
                     JsonMsg::WatchAnalysis { key, on } => EngineMsg::WatchAnalysis { key, on },
@@ -976,6 +986,7 @@ mod tests {
                     position: Beats(3.5),
                 },
             },
+            EngineMsg::Suspend { suspended: true },
             EngineMsg::Preview {
                 id: 7,
                 media: Some(PREVIEW_MEDIA),

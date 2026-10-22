@@ -12,6 +12,7 @@ mod ir_swap;
 mod latency_republish;
 mod media_stream;
 mod pipeline;
+mod project_load_quanta;
 mod stuck_notes;
 #[cfg(feature = "bench")]
 mod web_perf;

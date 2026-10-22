@@ -22,6 +22,7 @@ import { useMidiLearnStore } from "@/features/midi-learn/store";
 import { resolverCommands } from "@/features/import-resolver";
 import { appProjectCommands, openProjectCommands } from "@/features/project/projectCommands";
 import { playOrStopHere, playOrStopToStart } from "@/features/time-edits/marker";
+import { refuseWhileLoading } from "@/features/transport-bar/loading";
 import { nameCurrentCheckpoint } from "@/features/undo-history";
 import { TOGGLE_ACTION as KEYBOARD_MIDI_ACTION, toggleKeyboardMidi, useKeyboardMidi } from "@/features/keyboard-midi";
 import { useEngineServerShown } from "@/features/remote";
@@ -151,7 +152,9 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         label: state?.playing ? tr("shell.command.stop_to_start") : tr("shell.command.play"),
         keywords: "play stop start pause toggle",
         action: "transport.play",
-        run: () => playOrStopToStart(transport),
+        run: () => {
+          if (!refuseWhileLoading()) playOrStopToStart(transport);
+        },
       },
       {
         id: "transport:stopToSelection",
@@ -160,20 +163,24 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
         label: state?.playing ? tr("shell.command.stop_here") : tr("shell.command.play_stop_here"),
         keywords: "play stop pause here stay",
         action: "transport.stopToSelection",
-        run: () => playOrStopHere(transport),
+        run: () => {
+          if (!refuseWhileLoading()) playOrStopHere(transport);
+        },
       },
       {
         id: "transport:record",
         group: "Transport",
         label: state?.recording ? tr("shell.command.stop_recording") : tr("shell.action.transport_record"),
         keywords: "record arm",
-        run: () =>
+        run: () => {
+          if (refuseWhileLoading()) return;
           send(
             cmd("Recording", {
               type: "SetRecording",
               enabled: !state?.recording,
             }),
-          ),
+          );
+        },
       },
       {
         // capture-midi: the command replies InvalidState when nothing was played.

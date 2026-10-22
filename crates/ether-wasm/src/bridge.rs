@@ -544,6 +544,12 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
         Ok(())
     }
 
+    /// In order with everything sent before (the control ring is FIFO and never drops).
+    fn set_suspended(&mut self, suspended: bool) -> Result<(), BridgeError> {
+        self.send(EngineMsg::Suspend { suspended });
+        Ok(())
+    }
+
     /// `media-preview`: the audio goes through the ordinary media chunk path under
     /// [`PREVIEW_MEDIA`], then one `Preview` message plays it (`None` stops).
     fn preview(

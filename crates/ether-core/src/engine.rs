@@ -24,7 +24,7 @@
 //! 4. Publish playhead; every ~33 ms push meter readings.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering, fence};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering, fence};
 
 use ether_protocol::meters::TrackMeter;
 use ether_protocol::model::{InputTap, MediaId, TrackId, TrackKind};
@@ -249,6 +249,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         .collect::<Vec<_>>()
         .into();
     let playhead = Arc::new(SharedPlayhead::default());
+    let suspend = Arc::new(AtomicBool::new(false));
     let (recording_rt, recording_io) = crate::recording::channel(&config);
     let (warp_handle, warp_rt) = crate::warp::channel(&config);
     let snapshot =
@@ -294,6 +295,8 @@ pub fn create(config: EngineConfig) -> EngineParts {
         hw_io: hw_io_rt,
         beat_table: vec![0.0; config.max_block_size + 1],
         silence_skipping: true,
+        suspend: suspend.clone(),
+        suspended: false,
         config: config.clone(),
     };
     let handle = EngineHandle {
@@ -315,6 +318,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         warp: warp_handle,
         analysis: analysis_rx,
         hw_io: hw_io_handle,
+        suspend,
         config,
     };
     EngineParts {
@@ -367,6 +371,10 @@ pub struct Engine {
     beat_table: Vec<f64>,
     /// Skip asleep nodes on silent input (on by default).
     silence_skipping: bool,
+    /// Set by [`EngineHandle::set_suspended`] (a project is loading): read once per block.
+    suspend: Arc<AtomicBool>,
+    /// The last block was suspended (the next unsuspended one resumes cleanly).
+    suspended: bool,
     /// Offline export stems: the tapped tracks copied out after every block.
     capture: Vec<CaptureSlot>,
 }
@@ -416,10 +424,20 @@ impl Engine {
             out[..n].fill(0.0);
         }
         let frames = frames.min(self.config.max_block_size);
+        // Read before draining: everything sent before the flag changed is applied below.
+        let suspended = self.suspend.load(Ordering::Acquire);
         self.drain_control();
         self.warp.drain();
         self.drain_params();
         self.update_latencies();
+
+        if suspended {
+            self.process_suspended(frames);
+            return;
+        }
+        if self.suspended {
+            self.resume();
+        }
 
         let mut done = 0;
         while done < frames {
@@ -440,6 +458,45 @@ impl Engine {
             self.push_meters();
         }
         self.report();
+    }
+
+    /// **RT.** A suspended block ([`EngineHandle::set_suspended`], while a project loads):
+    /// the graph is not processed and the output stays silent. The control and param
+    /// rings were drained (graph swaps, nodes and media still arrive), and so is what
+    /// would otherwise pile up for the resume: live MIDI and preview notes are dropped.
+    /// The sample clock keeps counting, so hosts' wall-clock mappings stay valid; the
+    /// transport does not move.
+    fn process_suspended(&mut self, frames: usize) {
+        self.suspended = true;
+        self.transport.sample_time += frames as u64;
+        self.recording.discard_input(self.transport.sample_time);
+        self.publish_playhead();
+        self.report();
+    }
+
+    /// **RT.** The first block after a suspension: start from a clean state instead of
+    /// whatever the partial graphs left. Every node is reset and gets all-notes-off,
+    /// automation is re-sent and notes are chased at the position, the exact-tempo anchor
+    /// is dropped, and mixer smoothers jump to their targets (no fade from stale values).
+    fn resume(&mut self) {
+        self.suspended = false;
+        let t = &mut self.transport;
+        t.reset_nodes = true;
+        t.all_notes_off = true;
+        t.release_notes = true;
+        t.relocated = true;
+        t.chase_notes = true;
+        t.jump = true;
+        t.anchor = None;
+        for track in self.snapshot.rt.tracks.iter_mut() {
+            track.settle();
+        }
+        self.meter_elapsed = 0;
+    }
+
+    /// The last block was suspended ([`EngineHandle::set_suspended`]).
+    pub fn is_suspended(&self) -> bool {
+        self.suspended
     }
 
     pub fn config(&self) -> &EngineConfig {
@@ -1736,6 +1793,8 @@ pub struct EngineHandle {
     analysis: Consumer<crate::analysis::AnalysisFrame>,
     /// Hardware I/O rings ([`crate::hw_io`], v0.3).
     pub(crate) hw_io: crate::hw_io::HwIoHandle,
+    /// Shared with [`Engine::suspend`].
+    suspend: Arc<AtomicBool>,
 }
 
 struct HandleSlot {
@@ -1757,6 +1816,21 @@ pub enum EngineError {
 }
 
 impl EngineHandle {
+    /// Suspend (`true`) or resume the audio thread's processing, effective at the next
+    /// block: suspended, [`Engine::process`] outputs silence and runs no graph work, while
+    /// everything sent here (nodes, graphs, media, transport) is still applied in order.
+    /// Hosts suspend while a project loads, so the partial graphs of a progressive load
+    /// never run and the callback can't fall behind. Lock-free (an atomic flag, never
+    /// lost to a full queue); everything sent before the call is applied before the change.
+    pub fn set_suspended(&self, suspended: bool) {
+        self.suspend.store(suspended, Ordering::Release);
+    }
+
+    /// The last value given to [`Self::set_suspended`].
+    pub fn suspended(&self) -> bool {
+        self.suspend.load(Ordering::Relaxed)
+    }
+
     fn send(&mut self, msg: Control) -> Result<(), EngineError> {
         self.control.push(msg).map_err(|_| EngineError::QueueFull)
     }

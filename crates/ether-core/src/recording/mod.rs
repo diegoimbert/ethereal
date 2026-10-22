@@ -390,6 +390,18 @@ pub fn midi_event(data: [u8; 3]) -> Option<EventKind> {
 }
 
 impl RecordingRt {
+    /// **RT.** Drop live MIDI due before `end` and the queued preview notes (a suspended
+    /// block: they would otherwise all play at once on the resume).
+    pub(crate) fn discard_input(&mut self, end: u64) {
+        while let Ok(ev) = self.midi_in.peek() {
+            if ev.sample_time >= end {
+                break;
+            }
+            let _ = self.midi_in.pop();
+        }
+        self.previews.clear();
+    }
+
     /// **RT.** Queue a preview note for `track` (played at the next [`Self::process`]).
     /// Dropped when [`PREVIEW_NOTE_CAPACITY`] are already waiting (no allocation).
     pub(crate) fn queue_preview(&mut self, track: TrackId, data: [u8; 3]) {

@@ -263,7 +263,8 @@ impl Rig {
     fn settle(&mut self) {
         for _ in 0..500 {
             self.render(BLOCK);
-            if !self.ctl.media_pending() {
+            // Loaded: media decoded, plugins in and primed (`ether_controller::loading`).
+            if !self.ctl.media_pending() && !self.ctl.loading.active() {
                 break;
             }
         }

@@ -86,8 +86,10 @@ where
             ProjectCommand::LoadPlugins => {
                 self.doc.as_ref().ok_or_else(no_project)?;
                 if self.engine.load_deferred() {
+                    self.begin_load();
                     self.emit_safe_mode(out);
                     self.publish_if_due(now, true, out);
+                    self.load_tick(out);
                 }
                 Ok(ReplyValue::Unit)
             }
@@ -788,6 +790,8 @@ where
             last_engine_playing: self.transport.last_engine_playing,
             ..TransportRt::default()
         };
+        // The engine is silent until every plugin and media is in (`loading`).
+        self.begin_load();
         self.doc = Some(OpenDoc {
             project: project.clone(),
             history: History::new(self.config.history_depth),
@@ -823,6 +827,7 @@ where
         self.media.sync(&mut self.bridge, Some(&doc.project));
         self.engine.graph_dirty = true;
         self.publish_if_due(now, true, out);
+        self.load_tick(out);
         // Hosting/joined sessions of another project pause; this one resumes
         // sharing or reconnects.
         let pid = self.doc.as_ref().expect("just set").project.id;
