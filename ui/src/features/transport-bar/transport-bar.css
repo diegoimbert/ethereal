@@ -265,3 +265,38 @@
 .eth-shell__top[data-compact] .eth-kbmidi__velocity {
   display: none;
 }
+
+/* The project is still loading (`loading.tsx`): what it does, and a bar. */
+.eth-tb__loading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  flex: none;
+  padding-inline: var(--eth-space-xs);
+  font-size: var(--eth-fs-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--eth-color-text-dim);
+  white-space: nowrap;
+}
+.eth-tb__loading-bar {
+  position: relative;
+  display: block;
+  width: var(--eth-size-control-lg);
+  height: var(--eth-space-xs);
+  overflow: hidden;
+  border-radius: var(--eth-radius-pill);
+  background: var(--eth-color-bg-inset);
+}
+.eth-tb__loading-fill {
+  position: absolute;
+  inset: 0;
+  background: var(--eth-color-accent);
+  transform-origin: left center;
+  transform: scaleX(var(--eth-tb-loading, 0));
+  transition: transform var(--eth-duration-fast) var(--eth-ease-out);
+}
+@media (prefers-reduced-motion: reduce) {
+  .eth-tb__loading-fill {
+    transition: none;
+  }
+}

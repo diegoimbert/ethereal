@@ -621,10 +621,12 @@ dirty project before exiting. Dev port offset `remote: 4`
 wasm32). The core never spawns threads; hosts supply an RT-safe `parallel::ParallelExecutor`
 through `Engine::set_executor`. Jobs get disjoint `&mut` access to their tracks through
 raw pointers on the engine side, sound only because the executor runs every index exactly
-once and returns after all jobs finished (see `parallel.rs`). The snapshot is
-partitioned into DAG levels (routing, sends, resampling inputs, sidechains). Tracks of one
-level run as independent jobs (clips → automation → chain → fader → meters, into their own
-buffers). Bus mixing gathers each destination's inputs (at the start of that destination's
+once, each only after its sources, and returns after all jobs finished (see `parallel.rs`).
+The snapshot compiles a `parallel::JobGraph`: one job per track (clips → automation →
+chain → fader → meters, into its own buffers), an edge from every source (routing, sends,
+input taps, sidechains) to what it feeds. A job starts as soon as its own sources finished
+(per-job atomic counters, a lock-free ready bitset), the longest remaining path first;
+there is no barrier between levels. Bus mixing gathers each destination's inputs (at the start of that destination's
 job) in the same fixed order as sequential processing, independent of worker count, so the
 output is bit-identical to sequential processing. Each node belongs to one chain, so jobs
 need no locks.
@@ -1608,6 +1610,31 @@ pressing a pad (pointer, Space / Enter, or its play button) holds `[0x90, pad no
 the rack's track until release, so the note goes through the track chain, the rack and the
 pad's own chain (sampler slice, effects, choke group, pad mix) exactly like playback,
 instead of a `Media::Preview` of the whole file.
+### 13.18 Project loads suspend the engine
+Every load (`EtherController::load_project`: open, version restore, recovery, a joined
+session, and `LoadPlugins` out of safe mode) suspends the engine
+(`EngineBridge::set_suspended`, default a no-op; native: an atomic flag on the
+`EngineHandle`, never lost to a full queue; web: an `EngineMsg::Suspend` frame, in order on
+the control ring). A suspended `Engine::process` drains its rings (nodes, graphs, media and
+transport still arrive), drops live MIDI and preview notes, keeps the sample clock counting,
+outputs silence and runs no graph work; the transport does not move. The controller
+(`ether-controller/src/loading.rs`) resumes it once no plugin waits
+(`PLUGIN_LOAD_BUDGET_MS` batches), the last graph was accepted and the project's media
+load jobs are done. The first block after a suspension resets every node, sends
+all-notes-off, re-sends automation, chases notes and lets the mixer smoothers jump to their
+targets. With plugins, the load then lasts `PRIME_MS` (150 ms) more of rendered audio by the
+engine's clock (the plugins' first blocks, often slow, run with the transport stopped;
+`PRIME_TIMEOUT_MS` if that clock stands still). Meanwhile `TransportState::loading`
+carries `LoadProgress` (plugins and media, done / total) and `Transport::{Play, Stop,
+TogglePlay}` and `Recording::SetRecording` are refused (`InvalidState`,
+`error.project.loading`) before extensions see them: the UI, its shortcuts, MIDI-mapped
+controls, the agent tools and the API alike. Locate works. Edits work as usual: they apply
+to the document at once and are heard when the load ends (the graph keeps being
+republished while suspended). The UI disables play, stop and record and their keys, and
+shows the progress in the transport bar (`ui/src/features/transport-bar/loading.ts`).
+`AudioShared::overruns` counts native callbacks longer than their buffer
+(`ether-native/tests/it/project_load_xruns.rs` measures a load with and without the
+suspension).
 ## 13. Agent API (docs/MCP.md)
 
 - Protocol (`ether_protocol::agent`, exported to TS): `Command::Agent(AgentCommand)`.

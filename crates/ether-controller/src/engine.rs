@@ -305,6 +305,32 @@ impl EngineState {
         self.deferred.iter().copied().collect()
     }
 
+    /// `(loaded, total)` plugin devices of `project` this engine instantiates: loaded when
+    /// it has a node or failed to make one. Safe mode's placeholders and frozen devices
+    /// are not counted (they get no node).
+    pub fn plugin_progress(&self, project: &Project) -> (u32, u32) {
+        let frozen = project.frozen_devices();
+        let (mut loaded, mut total) = (0, 0);
+        for d in project.devices.values() {
+            if !matches!(d.kind, DeviceKind::Plugin { .. })
+                || self.deferred.contains(&d.id)
+                || frozen.contains(&d.id)
+            {
+                continue;
+            }
+            total += 1;
+            if self.nodes.contains_key(&d.id) || self.failed.contains_key(&d.id) {
+                loaded += 1;
+            }
+        }
+        (loaded, total)
+    }
+
+    /// The last sync left plugins to instantiate (the next tick continues).
+    pub fn plugins_pending(&self) -> bool {
+        self.plugins_pending
+    }
+
     /// Plugin devices held as placeholders (safe mode).
     pub fn deferred(&self) -> Vec<DeviceId> {
         self.deferred.iter().copied().collect()
