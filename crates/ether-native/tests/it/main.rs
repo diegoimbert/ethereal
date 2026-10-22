@@ -21,6 +21,7 @@ mod disk_stream_render;
 mod drum_rack_e2e;
 mod e2e_flow;
 mod e2e_warp;
+mod engine_bench;
 mod export_e2e;
 mod file_filters_e2e;
 mod file_import_e2e;
