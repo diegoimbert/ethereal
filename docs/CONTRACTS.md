@@ -1111,6 +1111,31 @@ runtime; `PresetEvent::Changed` after user-set changes. Sample-based presets car
 - UI: the knob shows the base, a ring shows the effective value (`AnalysisData::Modulation`
   for watched devices, ≤ 30 Hz).
 
+#### 12.6.1 Modulated device on/off
+- A mapping with `param == DEVICE_ENABLED_PARAM` (`ParamId(u32::MAX)`: CLAP's
+  `CLAP_INVALID_ID`, VST3's `kNoParamId`, so no plugin param has it) targets the device's
+  **host-side** switch (`Device::enabled`), for every device kind (built-in, plugin,
+  missing): never a plugin's own bypass param. Scope as for params: a macro switches devices
+  inside its rack (never the rack itself), a modulator its host device or the devices inside
+  its rack host. `Modulation::Map` accepts it for any device; one undo step, presets and
+  templates carry it like any mapping.
+- **Threshold:** base `b` = 1 (on) or 0 (off), the static switch, or the switch's
+  `DeviceEnabled` automation when a lane drives it (flip included). The device is on while
+  `clamp(b + Σ depth_i · m_i, 0, 1) >= 0.5`. So an on device mapped with depth −1 turns off
+  when the macro reaches 0.5, an off one with depth +1 turns on there (the UI's default
+  depth: `enabled ? −1 : +1`). Live's macro → On (`MidiCCOnOffThresholds Min..Max` over
+  0..127, on inside, inverted when Min > Max) imports as base + depth with the same crossing.
+- **Timing:** evaluated by `ModulationRt::render` at its knots (grid points, macro changes on
+  their sample, automation flips, note triggers); the first crossing in a sub-block switches
+  the entry there through `ChainRt::set_auto`, exactly like On/Off automation (§12.4.4):
+  audio crossfades over `SWITCH_FADE_MS` against the latency-aligned bypass path (no click),
+  MIDI switches on that sample (thru while off, `AllNotesOff` releases). At most one switch
+  per sub-block; a second crossing switches at the next sub-block. Live macro turns (param
+  queue) land at the next sub-block start.
+- **Readback / UI:** the switch's readback frame carries base and effective as 0/1; the power
+  button shows the effective state (pressed, card dimmed) and a dot per source, and the
+  document keeps the base (clicking the button toggles the base).
+
 ### 12.7 Sample-accurate automation
 The node parameter-event API is `EventKind::Param { param, value }` at a sample `offset`
 (already delivered to every node, sorted). Built-ins apply them at their offset
@@ -1333,7 +1358,10 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   every note-on (and the note-offs / per-note expressions of the notes it dropped); param 0
   `Block Everything` (toggle, default off) drops every other MIDI message too. Note-offs of
   notes it never saw and `AllNotesOff` pass; the engine's `AllNotesOff` on a MIDI-effect
-  change or switch releases what was held (`ether_devices::midi_fx`).
+  change or switch releases what was held (`ether_devices::midi_fx`). Then `Erosion`
+  (`fx-color`, no kind data): a very short delay modulated by a sine, shared noise or
+  per-channel noise (param table in `ether_devices::fx_color`); it reports its centre delay
+  as latency.
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.

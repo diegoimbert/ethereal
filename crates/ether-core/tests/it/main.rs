@@ -17,6 +17,7 @@ mod codec;
 mod codec_fixture;
 mod crossfades_render;
 mod device_switch;
+mod device_switch_modulation;
 mod drum_rack;
 mod drum_rack_no_alloc;
 mod engine;

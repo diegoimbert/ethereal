@@ -1561,7 +1561,11 @@ impl Project {
                 if !r.kind.is_any_rack() {
                     return Err(invariant("macro sources must be racks"));
                 }
-                let own = m.device == rack && target_macro.is_none();
+                // Never the rack's own macros nor its switch (a rack can't bypass itself from
+                // its macros).
+                let own = m.device == rack
+                    && target_macro.is_none()
+                    && m.param != crate::modulation::DEVICE_ENABLED_PARAM;
                 if !own && !in_rack(rack) {
                     return Err(invariant(
                         "a macro can only target devices inside its rack (or the rack's non-macro params)",

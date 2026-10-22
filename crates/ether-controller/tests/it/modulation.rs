@@ -462,3 +462,74 @@ fn plugin_echoes_of_modulated_params_are_ignored() {
         base
     );
 }
+
+#[test]
+fn a_macro_or_a_modulator_can_switch_a_device_on_and_off() {
+    let mut h = Harness::with_project();
+    let t = track(&mut h, TrackKind::Midi);
+    let rack = insert(&mut h, t, BuiltinDeviceType::AudioEffectRack);
+    let chain: RackChainId = h.id();
+    h.ok(Command::Rack(RackCommand::AddChain {
+        id: chain,
+        rack,
+        name: None,
+        before: None,
+    }));
+    let util: DeviceId = h.id();
+    h.ok(Command::Rack(RackCommand::InsertDevice {
+        id: util,
+        chain,
+        device: DeviceSpec::Builtin {
+            device: BuiltinDevice::new(BuiltinDeviceType::Utility),
+        },
+        before: None,
+    }));
+    let other = insert(&mut h, t, BuiltinDeviceType::Delay);
+    let macro1 = ModSource::Macro { rack, index: 0 };
+    // A macro switches a device inside its rack (one undo step)...
+    let before = h.project().clone();
+    ok(&map(&mut h, macro1, util, DEVICE_ENABLED_PARAM, -1.0));
+    let td = graph_track(&mut h, t);
+    let m = &td.modulation.mappings;
+    assert_eq!(m.len(), 1);
+    assert_eq!(m[0].param, DEVICE_ENABLED_PARAM);
+    assert_eq!(
+        (m[0].node, m[0].depth, m[0].base),
+        (node_of(&h, util), -1.0, 1.0)
+    );
+    assert_eq!(m[0].mapping.steps, Some(2));
+    // ...whose base is the device's own switch.
+    h.ok(Command::Device(DeviceCommand::SetEnabled {
+        id: util,
+        enabled: false,
+    }));
+    assert_eq!(graph_track(&mut h, t).modulation.mappings[0].base, 0.0);
+    h.ok(Command::Edit(EditCommand::Undo));
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert_eq!(h.project(), &before);
+    // Never the rack itself, nor a device outside it.
+    assert_ne!(
+        err(&map(&mut h, macro1, rack, DEVICE_ENABLED_PARAM, -1.0)).code,
+        ErrorCode::Unsupported
+    );
+    assert_ne!(
+        err(&map(&mut h, macro1, other, DEVICE_ENABLED_PARAM, -1.0)).code,
+        ErrorCode::Unsupported
+    );
+    assert_eq!(h.project(), &before);
+    // A modulator switches its own device; duplicates are refused.
+    let lfo = add_modulator(&mut h, other, ModulatorKind::Lfo);
+    let src = ModSource::Modulator { modulator: lfo };
+    ok(&map(&mut h, src, other, DEVICE_ENABLED_PARAM, -0.5));
+    assert_eq!(
+        err(&map(&mut h, src, other, DEVICE_ENABLED_PARAM, 0.5)).code,
+        ErrorCode::InvalidArgument
+    );
+    assert!(
+        graph_track(&mut h, t)
+            .modulation
+            .mappings
+            .iter()
+            .any(|mm| mm.node == node_of(&h, other) && mm.param == DEVICE_ENABLED_PARAM)
+    );
+}

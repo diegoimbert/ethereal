@@ -43,9 +43,18 @@
 //!   between the kind's Low (0) and High (1) params (held until the next note).
 //! - **Macros**: the rack's macro value.
 //!
+//! Device on/off targets (`DEVICE_ENABLED_PARAM`, CONTRACTS.md §12.6.1) send no events:
+//! [`ModulationRt::render`] reads the entry's switch for this sub-block (the static switch,
+//! or the value `crate::automation_rt` set from a `DeviceEnabled` lane, flip included) as
+//! the base `0`/`1`, evaluates `base + Σ depth·m` at the knots, and overrides the switch
+//! with [`ChainRt::set_auto`]: on at the sub-block start while the sum is `>= 0.5`, flipping
+//! at the first knot where it crosses (at most one switch per sub-block, like automation;
+//! a later crossing switches at the next sub-block). The switch then crossfades, releases
+//! notes and passes MIDI thru exactly like an automated one.
+//!
 //! RT rules apply (no allocation after compile); compiles on wasm32.
 
-use ether_protocol::model::{ModulatorId, ModulatorKind, ParamId, TrackId};
+use ether_protocol::model::{DEVICE_ENABLED_PARAM, ModulatorId, ModulatorKind, ParamId, TrackId};
 use serde::{Deserialize, Serialize};
 
 use crate::analysis::{AnalysisFrame, AnalysisKind, AnalysisRt};
@@ -526,6 +535,13 @@ struct Target {
     last: f64,
     /// Last normalized effective value (readback).
     effective: f64,
+    /// The device's on/off switch (`DEVICE_ENABLED_PARAM`): no events, drives
+    /// [`ChainRt::set_auto`].
+    switch: bool,
+    /// Switch targets, this sub-block: the base (on at the start, flipping at), and the
+    /// effective switch (on at the start, flipping at).
+    sw_base: (bool, Option<u32>),
+    sw_out: (bool, Option<u32>),
 }
 
 #[derive(Debug)]
@@ -544,6 +560,22 @@ fn push_change<T: Copy>(list: &mut [T; MAX_CHANGES], n: &mut usize, v: T) {
         *n += 1;
     } else {
         list[MAX_CHANGES - 1] = v;
+    }
+}
+
+/// The chain entry of node `node` (track chain, drum pad or rack chain).
+fn target_entry<'a>(
+    node: NodeKey,
+    chain: &'a mut [ChainRt],
+    racks: &'a mut RacksRt,
+    chain_racks: &'a mut ChainRacksRt,
+) -> Option<&'a mut ChainRt> {
+    match chain.iter_mut().find(|c| c.key == node) {
+        Some(c) => Some(c),
+        None => match racks.entry_mut(node) {
+            Some(e) => Some(e),
+            None => chain_racks.entry_mut(node),
+        },
     }
 }
 
@@ -686,6 +718,9 @@ impl ModulationRt {
                     links: vec![link],
                     last: f64::NAN,
                     effective: m.base.clamp(0.0, 1.0),
+                    switch: m.param == DEVICE_ENABLED_PARAM,
+                    sw_base: (m.base >= 0.5, None),
+                    sw_out: (m.base >= 0.5, None),
                 }),
             }
         }
@@ -772,11 +807,21 @@ impl ModulationRt {
                 .targets
                 .binary_search_by(|t| (t.node, t.param).cmp(&(o.node, o.param)))
                 .is_ok();
-            if !kept && self.restore.len() < self.restore.capacity() {
+            // A switch no longer modulated is the entry's own again (nothing to send).
+            if !kept
+                && o.param != DEVICE_ENABLED_PARAM
+                && self.restore.len() < self.restore.capacity()
+            {
                 self.restore
                     .push((o.node, o.param, to_plain(&o.mapping, o.base)));
             }
         }
+    }
+
+    /// Whether a mapping drives a device's on/off switch (the switches are then re-evaluated
+    /// every sub-block, `crate::automation_rt::apply_automation`).
+    pub(crate) fn drives_switches(&self) -> bool {
+        self.targets.iter().any(|t| t.switch)
     }
 
     /// RT. A base value (plain) for `node`/`param`; `true` = consumed (see the module docs).
@@ -907,14 +952,29 @@ impl ModulationRt {
 
         // Knots: grid points, base/macro changes, note triggers, and 0 when re-sending.
         self.knots.clear();
-        let resend = self.targets.iter().any(|t| t.last.is_nan());
+        let resend = self.targets.iter().any(|t| !t.switch && t.last.is_nan());
         let cap = self.knots.capacity();
         let add = |knots: &mut Vec<u32>, o: u32| {
             if knots.len() < cap {
                 knots.push(o);
             }
         };
-        if resend {
+        // Switches: their base this sub-block (the static switch or its automation), from
+        // the start and at its flip.
+        let mut switches = false;
+        for t in self.targets.iter_mut().filter(|t| t.switch) {
+            if let Some(e) = target_entry(t.node, chain, racks, chain_racks) {
+                t.sw_base = (
+                    e.is_enabled(),
+                    e.auto_switch_at.filter(|&a| (a as usize) < n),
+                );
+            }
+            if let Some(a) = t.sw_base.1 {
+                add(&mut self.knots, a);
+            }
+            switches = true;
+        }
+        if resend || switches {
             add(&mut self.knots, 0);
         }
         for g in crate::automation_rt::grid(timing) {
@@ -979,9 +1039,18 @@ impl ModulationRt {
             }
             for ti in 0..self.targets.len() {
                 let t = &mut self.targets[ti];
-                for &(co, v) in &t.changes[..t.n_changes] {
-                    if co <= o {
-                        t.base = v;
+                if t.switch {
+                    let (on, flip) = t.sw_base;
+                    t.base = if on != (o >= flip.unwrap_or(u32::MAX)) {
+                        1.0
+                    } else {
+                        0.0
+                    };
+                } else {
+                    for &(co, v) in &t.changes[..t.n_changes] {
+                        if co <= o {
+                            t.base = v;
+                        }
                     }
                 }
                 let mut sum = t.base;
@@ -993,6 +1062,21 @@ impl ModulationRt {
                     sum += l.depth * m;
                 }
                 let eff = sum.clamp(0.0, 1.0);
+                if t.switch {
+                    // On while the sum is >= 0.5; the first crossing in the sub-block flips.
+                    let on = eff >= 0.5;
+                    if ki == 0 {
+                        t.sw_out = (on, None);
+                    } else if t.sw_out.1.is_none() && on != t.sw_out.0 {
+                        t.sw_out.1 = Some(o);
+                    }
+                    let shown = if on { 1.0 } else { 0.0 };
+                    if shown != t.effective {
+                        self.readback_dirty = true;
+                    }
+                    t.effective = shown;
+                    continue;
+                }
                 t.effective = eff;
                 let plain = to_plain(&t.mapping, eff);
                 if plain == t.last {
@@ -1010,6 +1094,14 @@ impl ModulationRt {
                 };
                 if let Some(buf) = target_events(node, chain, racks, chain_racks) {
                     buf.push(event);
+                }
+            }
+        }
+        // Switches: override the entry's switch for this sub-block.
+        if switches {
+            for t in self.targets.iter().filter(|t| t.switch) {
+                if let Some(e) = target_entry(t.node, chain, racks, chain_racks) {
+                    e.set_auto(t.sw_out.0, t.sw_out.1);
                 }
             }
         }

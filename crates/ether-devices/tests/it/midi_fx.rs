@@ -245,6 +245,54 @@ fn arpeggiator_styles_and_octaves() {
     assert_eq!(r, keys(7.0, 1.0, 16));
 }
 
+/// The styles appended for Live's (Ableton import): turnarounds repeating the ends,
+/// converge-then-diverge, pinky / thumb pivots and the two non-repeating random orders.
+#[test]
+fn arpeggiator_live_styles() {
+    // C E G B held; `steps` sixteenths of style `style` (one octave).
+    let keys = |style: f64, steps: usize| {
+        let mut d = with(BuiltinDeviceType::Arpeggiator, &[(arp::STYLE, style)]);
+        let events = [
+            (0, on(1, 60, 0.8)),
+            (0, on(2, 64, 0.8)),
+            (0, on(3, 67, 0.8)),
+            (0, on(4, 71, 0.8)),
+            (steps * SIXTEENTH - 1, off(1, 60)),
+            (steps * SIXTEENTH - 1, off(2, 64)),
+            (steps * SIXTEENTH - 1, off(3, 67)),
+            (steps * SIXTEENTH - 1, off(4, 71)),
+        ];
+        let out = render(&mut *d, steps * SIXTEENTH, &events);
+        assert_balanced(&out);
+        ons(&out).into_iter().map(|(_, k)| k).collect::<Vec<_>>()
+    };
+    assert_eq!(keys(9.0, 9), [60, 64, 67, 71, 71, 67, 64, 60, 60]); // Up & Down
+    assert_eq!(keys(10.0, 9), [71, 67, 64, 60, 60, 64, 67, 71, 71]); // Down & Up
+    // Con & Diverge: converge (C B E G), then back out without repeating the ends.
+    assert_eq!(keys(11.0, 7), [60, 71, 64, 67, 64, 71, 60]);
+    assert_eq!(keys(12.0, 7), [60, 71, 64, 71, 67, 71, 60]); // Pinky Up
+    // Pinky Up-Down: C E G E under the top note.
+    assert_eq!(keys(13.0, 9), [60, 71, 64, 71, 67, 71, 64, 71, 60]);
+    assert_eq!(keys(14.0, 7), [60, 64, 60, 67, 60, 71, 60]); // Thumb Up
+    // Thumb Up-Down: E G B G over the bottom note.
+    assert_eq!(keys(15.0, 9), [60, 64, 60, 67, 60, 71, 60, 67, 60]);
+    // Random Other: each pass plays every note once, deterministically.
+    let other = keys(16.0, 12);
+    for pass in other.chunks(4) {
+        let mut p = pass.to_vec();
+        p.sort_unstable();
+        assert_eq!(p, [60, 64, 67, 71], "{other:?}");
+    }
+    assert_eq!(other, keys(16.0, 12));
+    // Random Once: one order, repeated while the notes stay.
+    let once = keys(17.0, 12);
+    assert_eq!(once[..4], once[4..8], "{once:?}");
+    assert_eq!(once[..4], once[8..], "{once:?}");
+    let mut first = once[..4].to_vec();
+    first.sort_unstable();
+    assert_eq!(first, [60, 64, 67, 71]);
+}
+
 #[test]
 fn arpeggiator_as_played_order() {
     let mut d = with(BuiltinDeviceType::Arpeggiator, &[(arp::STYLE, 6.0)]);

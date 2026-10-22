@@ -112,6 +112,7 @@ fn fx_color_devices_insert_with_layouts_and_an_auto_filter_sidechain() {
         BuiltinDeviceType::Saturator,
         BuiltinDeviceType::Bitcrusher,
         BuiltinDeviceType::AutoFilter,
+        BuiltinDeviceType::Erosion,
     ]);
     let mut h = Harness::with_project();
     let kick = track(&mut h, TrackKind::Audio);

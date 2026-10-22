@@ -17,6 +17,20 @@ export const DEFAULT_DEPTH = 0.5;
 export const MACROS = 8;
 export const SELECTOR_PARAM = 8;
 export const DRUM_RACK_FIRST_MACRO = 2;
+/**
+ * The param id of a mapping to a device's on/off switch (`ether_model::DEVICE_ENABLED_PARAM`):
+ * the device is on while `base + Σ depth · source >= 0.5`, the base being its switch (1 on,
+ * 0 off).
+ */
+export const DEVICE_ENABLED_PARAM = 0xffff_ffff;
+
+/**
+ * Depth of a new switch mapping: the source flips the device from its switch (an on
+ * device turns off when the source passes 0.5, an off one turns on).
+ */
+export function switchDepth(d: Pick<Device, "enabled">): number {
+  return d.enabled ? -1 : 1;
+}
 
 const RACK_TYPES = new Set(["InstrumentRack", "AudioEffectRack", "MidiEffectRack"]);
 
@@ -89,7 +103,7 @@ export function canTarget(project: Project, source: ModSource, device: Device, p
     if (host === device.id && macroIndex(device, param) !== null) return false;
   } else {
     const inRack = isInsideRack(project, device, source.rack);
-    const own = device.id === source.rack && macroIndex(device, param) === null;
+    const own = device.id === source.rack && macroIndex(device, param) === null && param !== DEVICE_ENABLED_PARAM;
     if (!inRack && !own) return false;
   }
   return !Object.values(project.mod_mappings).some((m) => sameSource(m.source, source) && m.device === device.id && m.param === param);

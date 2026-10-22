@@ -1769,7 +1769,7 @@
         {
           "id": "devices/color-effects-saturator-bitcrusher-auto-filter",
           "title": "color effects: saturator, bitcrusher, auto filter",
-          "what": "saturator: 6 curves, drive, bias, tone, oversampling, auto gain (on by default, so more drive doesn't get louder); it always adds a small fixed latency. bitcrusher: bits, rate, jitter, dither. auto filter: 7 filter types with an envelope follower (listens to the sidechain when one is set) and a syncable lfo with stereo phase.",
+          "what": "saturator: 6 curves, drive, bias, tone, oversampling, auto gain (on by default, so more drive doesn't get louder); it always adds a small fixed latency. bitcrusher: bits, rate, jitter, dither. auto filter: 7 filter types with an envelope follower (listens to the sidechain when one is set) and a syncable lfo with stereo phase. erosion: a very short delay wobbled by a sine, noise or wide (per-side) noise; frequency and amount on an xy pad, width of the noise band; tiny fixed latency.",
           "priority": "nice",
           "audience": "everyone",
           "platform": "all"

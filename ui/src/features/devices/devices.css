@@ -111,6 +111,12 @@
   white-space: nowrap;
   transition: opacity var(--eth-duration-fast) var(--eth-ease-out);
 }
+/* The power button and its modulation dots / drop target (`SwitchModulation`). */
+.eth-device__power-wrap {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
 .eth-device__power[aria-pressed="true"] {
   color: var(--eth-color-accent);
 }

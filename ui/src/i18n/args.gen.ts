@@ -172,6 +172,7 @@ export interface MessageArgs {
   "devices.device.move_left": { name: string | number };
   "devices.device.move_right": { name: string | number };
   "devices.device.power_automated": { action: string; state: string };
+  "devices.device.power_modulated": { action: string; state: string };
   "devices.device.remove": { name: string | number };
   "devices.device.rename": { name: string | number };
   "devices.device.show_params_name": { name: string | number };
@@ -412,9 +413,11 @@ export interface MessageArgs {
   "modulation.panel.add_label": { name: string | number };
   "modulation.panel.label": { name: string | number };
   "modulation.source.macro": { n: string | number };
+  "modulation.switch.dot": { name: string | number };
   "modulation.target.modulate": { name: string | number };
   "modulation.target.param": { n: string | number };
   "modulation.target.remove": { name: string | number };
+  "modulation.target.switch": { name: string | number };
   "mpe.summary": { channels: string | number; master: string | number };
   "name.marker": { n: string | number };
   "name.rack.chain": { n: string | number };

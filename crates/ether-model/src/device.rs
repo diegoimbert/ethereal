@@ -315,6 +315,9 @@ pub enum BuiltinDevice {
     /// Drops every note (and, with `Block Everything`, all other MIDI), MIDI effect
     /// (`midi-fx`).
     NoteBlocker,
+    /// Digital degradation: a very short delay modulated by a sine or band-limited noise
+    /// (`fx-color`).
+    Erosion,
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -362,11 +365,12 @@ pub enum BuiltinDeviceType {
     Vibrato,
     VolumeLfo,
     NoteBlocker,
+    Erosion,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 40] = [
+    pub const ALL: [BuiltinDeviceType; 41] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -407,6 +411,7 @@ impl BuiltinDeviceType {
         Self::Vibrato,
         Self::VolumeLfo,
         Self::NoteBlocker,
+        Self::Erosion,
     ];
 
     /// Rack types ([`crate::rack`]).
@@ -479,6 +484,7 @@ impl BuiltinDevice {
             Self::Vibrato => BuiltinDeviceType::Vibrato,
             Self::VolumeLfo { .. } => BuiltinDeviceType::VolumeLfo,
             Self::NoteBlocker => BuiltinDeviceType::NoteBlocker,
+            Self::Erosion => BuiltinDeviceType::Erosion,
         }
     }
 
@@ -538,6 +544,7 @@ impl BuiltinDevice {
                 curve: LfoCurve::default(),
             },
             BuiltinDeviceType::NoteBlocker => Self::NoteBlocker,
+            BuiltinDeviceType::Erosion => Self::Erosion,
         }
     }
 

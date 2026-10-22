@@ -57,6 +57,8 @@ import {
   trackChainOf,
 } from "./shared";
 
+/** `ether_model::DEVICE_ENABLED_PARAM`: a mapping to the device's on/off switch. */
+const DEVICE_ENABLED_PARAM = 0xffff_ffff;
 const MACROS = 8;
 /** A drum rack's macro 1 (after its volume and pan; `ether_model::DRUM_RACK_FIRST_MACRO`). */
 const DRUM_RACK_FIRST_MACRO = 2;
@@ -196,7 +198,8 @@ function checkScope(ctx: ReducerContext, source: ModSource, target: Device, para
     if (!(Number.isInteger(source.index) && source.index >= 0 && source.index < MACROS)) fail("InvalidArgument", "macro index must be < 8");
     if (!isAnyRack(device(ctx, source.rack))) fail("InvalidArgument", `device ${source.rack} is not a rack`);
     const inside = inRack(ctx, target, source.rack);
-    const own = target.id === source.rack && macroIndex(target, param) === null;
+    // Never the rack's own macros nor its switch.
+    const own = target.id === source.rack && macroIndex(target, param) === null && param !== DEVICE_ENABLED_PARAM;
     if (!inside && !own) fail("InvalidArgument", "a macro can only target devices inside its rack or the rack's own params");
   }
 }
@@ -474,7 +477,7 @@ export function modulationCommand(ctx: ReducerContext, c: ModulationCommand): vo
       if (tx.get("ModMapping", c.id)) return;
       if (!Number.isFinite(c.depth)) fail("InvalidArgument", "depth must be finite");
       const target = device(ctx, c.device);
-      if (target.kind.type === "Builtin") {
+      if (target.kind.type === "Builtin" && c.param !== DEVICE_ENABLED_PARAM) {
         const info = builtinDescriptor(target.kind.device).params.find((p) => p.id === c.param) ?? fail("NotFound", `param ${c.param}`);
         if (!info.automatable) fail("InvalidArgument", `"${info.name}" cannot be modulated`);
       }

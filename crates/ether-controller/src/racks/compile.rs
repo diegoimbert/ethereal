@@ -178,6 +178,19 @@ pub fn modulation_desc(p: &Project, track: TrackId, ctx: &CompileContext) -> Mod
                 ModSourceDesc::Macro { rack: r, index }
             }
         };
+        if m.param == DEVICE_ENABLED_PARAM {
+            // The switch: on/off base (the engine reads the switch it drives, automation
+            // included), stepped like its automation.
+            out.mappings.push(ModMappingDesc {
+                source,
+                node,
+                param: m.param,
+                depth: m.depth,
+                mapping: crate::compile::DEVICE_ENABLED_MAPPING,
+                base: if target.enabled { 1.0 } else { 0.0 },
+            });
+            continue;
+        }
         let desc = match descs.iter().find(|(d, _)| *d == target.id) {
             Some((_, d)) => d.clone(),
             None => {

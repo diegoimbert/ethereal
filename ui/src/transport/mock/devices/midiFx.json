@@ -143,9 +143,18 @@
           "Diverge",
           "As Played",
           "Random",
-          "Chord"
+          "Chord",
+          "Up & Down",
+          "Down & Up",
+          "Con & Diverge",
+          "Pinky Up",
+          "Pinky Up-Down",
+          "Thumb Up",
+          "Thumb Up-Down",
+          "Random Other",
+          "Random Once"
         ],
-        "max": 8.0,
+        "max": 17.0,
         "min": 0.0,
         "name": "Style",
         "scale": {

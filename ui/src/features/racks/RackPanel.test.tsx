@@ -322,4 +322,50 @@ describe("RackPanel", () => {
     await flush();
     expect(Object.values(store().project!.mod_mappings)).toHaveLength(0);
   });
+
+  it("a macro switches a chain device on and off: assigned from its power button, shown live", async () => {
+    await rackWithSynth();
+    const power = () => region("delay").querySelector<HTMLElement>(".eth-device__power")!;
+    const delayId = () => Object.values(store().project!.devices).find((d) => d.name === "delay")!.id;
+    // The power button's menu: "assign to macro › macro 1" (the delay is on: the macro turns
+    // it off from 0.5).
+    fireEvent.contextMenu(power());
+    const assign = useContextMenuStore.getState().menu!.items.find((i) => i !== "separator" && i.label === "assign to macro");
+    if (!assign || assign === "separator" || !assign.submenu) throw new Error("no assign to macro submenu");
+    const macro1 = assign.submenu.find((i) => i !== "separator" && i.label === "macro 1");
+    if (!macro1 || macro1 === "separator") throw new Error("no macro 1");
+    act(() => macro1.onSelect());
+    await flush();
+    const maps = Object.values(store().project!.mod_mappings);
+    expect(maps).toHaveLength(1);
+    expect(maps[0]).toMatchObject({ source: { type: "Macro", index: 0 }, device: delayId(), param: 0xffff_ffff, depth: -1 });
+    expect(within(region("delay")).getByTestId("mod-switch")).toBeInTheDocument();
+    expect(power()).toHaveAttribute("data-modulated", "true");
+    expect(power().title).toContain("switched by a macro or modulator");
+    // The engine's readback: the macro switched it off.
+    const events = (mock as unknown as { events: { emit(e: unknown): void } }).events;
+    act(() =>
+      events.emit({
+        type: "Analysis",
+        event: { type: "Frame", device: delayId(), data: { type: "Modulation", values: [{ param: 0xffff_ffff, base: 1, value: 0 }] } },
+      }),
+    );
+    await waitFor(() => expect(power()).toHaveAttribute("aria-pressed", "false"));
+    expect(region("delay")).toHaveClass("eth-device--bypassed");
+    // Undo removes it.
+    await mock!.send(cmd("Edit", { type: "Undo" }));
+    await flush();
+    expect(Object.values(store().project!.mod_mappings)).toHaveLength(0);
+    expect(power()).toHaveAttribute("aria-pressed", "true");
+    // Mapping mode: the chain device's switch is a target, the rack's own isn't.
+    const rackCard = await openParams("instrument rack");
+    fireEvent.click(within(rackCard).getByRole("button", { name: "map macro 3" }));
+    await flush();
+    expect(rackCard.querySelector(":scope > header .eth-mod-target")).toBeNull();
+    fireEvent.click(within(region("delay")).getByRole("button", { name: "switch delay on and off" }));
+    await flush();
+    expect(Object.values(store().project!.mod_mappings)).toEqual([
+      expect.objectContaining({ source: expect.objectContaining({ type: "Macro", index: 2 }), param: 0xffff_ffff, depth: -1 }),
+    ]);
+  });
 });

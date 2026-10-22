@@ -6,7 +6,7 @@ import { PluginDeviceControls, pluginMenuEntries } from "@/features/plugins";
 import { MissingDeviceControls, ReplacePopover, replaceDeviceEntries, resolvePluginEntries } from "@/features/import-resolver";
 import { PresetMenu } from "@/features/presets";
 import { SidechainSelector } from "@/features/sidechain";
-import { AddModulatorButton, addModulatorEntries, ModulatorsPanel, useModulatorKinds } from "@/features/modulation";
+import { AddModulatorButton, addModulatorEntries, ModulatorsPanel, SwitchModulation, switchMenuEntries, useModulatorKinds } from "@/features/modulation";
 import { groupEntries, isChainRack, RackPanel } from "@/features/racks";
 import { freezeDeviceEntries, useDeviceFrozen } from "@/features/freeze";
 import { ChevronLeft, ChevronRight, Power, SlidersHorizontal, Snowflake, X } from "lucide-react";
@@ -64,7 +64,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
   const paramsId = useId();
   const send = useSend();
   const remove = () => (onRemove ? onRemove() : void send(cmd("Device", { type: "Remove", id: device.id })));
-  const { on, automated } = useDeviceOn(device);
+  const { on, automated, modulated } = useDeviceOn(device);
   // Freeze (#25): a frozen device (its track plays a render through it) is locked; with a
   // partial freeze, the devices after the freeze point stay live.
   const frozen = useDeviceFrozen(device);
@@ -195,26 +195,34 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
           }}
           onDragEnd={() => setDraggingDevice(null)}
         >
-          <IconButton
-            size="sm"
-            tone="ghost"
-            className="eth-device__power"
-            active={on}
-            label={device.enabled ? t("devices.device.bypass_name", { name: device.name }) : t("devices.device.enable_name", { name: device.name })}
-            title={
-              automated
-                ? t("devices.device.power_automated", { state: on ? "on" : "bypassed", action: device.enabled ? "bypass" : "enable" })
-                : device.enabled
-                  ? t("devices.device.power_on")
-                  : t("devices.device.power_bypassed")
-            }
-            data-automated={automated || undefined}
-            icon={<Power />}
-            onClick={() => setEnabled(!device.enabled)}
-            // Like a knob: right-click for its automation lane and reset; MIDI-learnable.
-            onContextMenu={(e) => switchMenu(e, device, setEnabled)}
-            {...midiTarget({ type: "Param", target: switchTarget(device) })}
-          />
+          {/* The switch, with its modulation (sources switching it, drop target while mapping). */}
+          <span className="eth-device__power-wrap">
+            <IconButton
+              size="sm"
+              tone="ghost"
+              className="eth-device__power"
+              active={on}
+              label={device.enabled ? t("devices.device.bypass_name", { name: device.name }) : t("devices.device.enable_name", { name: device.name })}
+              title={
+                modulated
+                  ? t("devices.device.power_modulated", { state: on ? "on" : "bypassed", action: device.enabled ? "bypass" : "enable" })
+                  : automated
+                    ? t("devices.device.power_automated", { state: on ? "on" : "bypassed", action: device.enabled ? "bypass" : "enable" })
+                    : device.enabled
+                      ? t("devices.device.power_on")
+                      : t("devices.device.power_bypassed")
+              }
+              data-automated={automated || undefined}
+              data-modulated={modulated || undefined}
+              icon={<Power />}
+              onClick={() => setEnabled(!device.enabled)}
+              // Like a knob: right-click for its automation lane, reset and "assign to macro";
+              // MIDI-learnable.
+              onContextMenu={(e) => switchMenu(e, device, setEnabled, switchMenuEntries(device, send))}
+              {...midiTarget({ type: "Param", target: switchTarget(device) })}
+            />
+            <SwitchModulation device={device} />
+          </span>
           {/* After the power button. A chain rack has no window (its macros and chains are on
               this card). */}
           {hasWindow(device) && <DeviceWindowButton device={device} control={deviceWindow} />}

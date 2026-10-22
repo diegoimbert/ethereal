@@ -1,5 +1,5 @@
 //! Rack chains and modulation never allocate on the audio thread: every modulator kind,
-//! macros, automated bases, envelope-follower sidechains, readback, instrument / audio /
+//! macros, modulated device switches, automated bases, envelope-follower sidechains, readback, instrument / audio /
 //! MIDI effect racks, snapshot swaps (state carried over, unmapped params restored) and
 //! transport jumps.
 
@@ -15,8 +15,8 @@ use ether_core::modulation::{
 };
 use ether_core::protocol::devices::ParamScale;
 use ether_core::protocol::model::{
-    AutomationTarget, Beats, CurveShape, DeviceId, ModulatorId, ModulatorKind, ParamId,
-    RackChainId, TrackKind, Ulid,
+    AutomationTarget, Beats, CurveShape, DEVICE_ENABLED_PARAM, DeviceId, ModulatorId,
+    ModulatorKind, ParamId, RackChainId, TrackKind, Ulid,
 };
 use ether_core::rack_chains::{ChainRackDesc, ChainRackKind, RackChainDesc};
 use ether_core::{
@@ -193,6 +193,25 @@ fn racks_and_modulation_never_allocate() {
                 },
                 base: 0.0,
             });
+            // Device switches (a rack-chain device from a macro, one from an LFO).
+            for (source, node) in [
+                (ModSourceDesc::Macro { rack, index: 1 }, b),
+                (ModSourceDesc::Modulator(0), fx),
+            ] {
+                mappings.push(ModMappingDesc {
+                    source,
+                    node,
+                    param: DEVICE_ENABLED_PARAM,
+                    depth: -1.0,
+                    mapping: ParamMapping {
+                        min: 0.0,
+                        max: 1.0,
+                        scale: ParamScale::Linear,
+                        steps: Some(2),
+                    },
+                    base: 1.0,
+                });
+            }
             t.modulation = ModulationDesc {
                 modulators: mods,
                 mappings,

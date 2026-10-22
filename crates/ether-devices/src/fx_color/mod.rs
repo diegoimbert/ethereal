@@ -1,8 +1,10 @@
 //! v0.2 color devices (the v0.2 contracts froze the param tables; see docs/DEVICES.md).
 //!
-//! Color effects: saturator (several curves), bitcrusher, auto-filter (multimode + envelope follower + LFO).
+//! Color effects: saturator (several curves), bitcrusher, auto-filter (multimode + envelope
+//! follower + LFO), and the later erosion (a short delay modulated by a sine or noise).
 //!
-//! Implementations: [`saturator_device`], [`bitcrusher_device`], [`auto_filter_device`]
+//! Implementations: [`saturator_device`], [`bitcrusher_device`], [`auto_filter_device`],
+//! [`erosion_device`]
 //! (DSP notes in each). **Param ids are stable and append-only** (documents, automation and
 //! presets store them): never renumber, only append.
 //!
@@ -57,6 +59,19 @@
 //! | 12 | LFO | `Stereo Phase` | 0 ..= 180 None, default 0 |
 //! | 13 | Output | `Mix` | 0 ..= 100 Percent, default 100 |
 //! | 14 | Output | `Output` | -24 ..= 24 Decibels, default 0 |
+//!
+//! # Erosion (`BuiltinDeviceType::Erosion`)
+//!
+//! Reports its centre delay as latency (0.5 ms + 3 samples: 27 samples at 48 kHz).
+//!
+//! | id | group | name | range |
+//! |----|-------|------|-------|
+//! | 0 | Erosion | `Mode` | Sine / Noise / Wide Noise (default Noise) |
+//! | 1 | Erosion | `Frequency` | 300 ..= 18000 Hertz (log), default 3000 |
+//! | 2 | Erosion | `Width` | 0.1 ..= 2.5 None (octaves), default 0.3 |
+//! | 3 | Erosion | `Amount` | 0 ..= 100 Percent, default 25 |
+//! | 4 | Output | `Output` | -24 ..= 24 Decibels, default 0 |
+//! | 5 | Output | `Mix` | 0 ..= 100 Percent, default 100 |
 
 use ether_core::Device;
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, ParamScale, ParamUnit};
@@ -70,12 +85,14 @@ use crate::contract::{
 
 pub mod auto_filter_device;
 pub mod bitcrusher_device;
+pub mod erosion_device;
 pub(crate) mod oversample;
 pub mod saturator_device;
 mod shared;
 
 pub use auto_filter_device::AutoFilter;
 pub use bitcrusher_device::Bitcrusher;
+pub use erosion_device::Erosion;
 pub use saturator_device::Saturator;
 
 /// Param ids of `Saturator` (stable, append-only).
@@ -126,6 +143,19 @@ pub mod auto_filter {
     pub const OUTPUT: ParamId = ParamId(14);
     /// Number of params.
     pub const COUNT: usize = 15;
+}
+
+/// Param ids of `Erosion` (stable, append-only).
+pub mod erosion {
+    use ether_core::protocol::model::ParamId;
+    pub const MODE: ParamId = ParamId(0);
+    pub const FREQUENCY: ParamId = ParamId(1);
+    pub const WIDTH: ParamId = ParamId(2);
+    pub const AMOUNT: ParamId = ParamId(3);
+    pub const OUTPUT: ParamId = ParamId(4);
+    pub const MIX: ParamId = ParamId(5);
+    /// Number of params.
+    pub const COUNT: usize = 6;
 }
 
 /// Descriptor of a type of this group.
@@ -382,6 +412,58 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
             false,
             2,
         ),
+        BuiltinDeviceType::Erosion => build(
+            BuiltinDeviceType::Erosion,
+            "Erosion",
+            DeviceCategory::AudioEffect,
+            vec![
+                choice(0, "Mode", "Erosion", &["Sine", "Noise", "Wide Noise"], 1),
+                param(
+                    1,
+                    "Frequency",
+                    "Erosion",
+                    ParamUnit::Hertz,
+                    (300.0, 18000.0, 3000.0),
+                    ParamScale::Log,
+                ),
+                param(
+                    2,
+                    "Width",
+                    "Erosion",
+                    ParamUnit::None,
+                    (0.1, 2.5, 0.3),
+                    ParamScale::Linear,
+                ),
+                param(
+                    3,
+                    "Amount",
+                    "Erosion",
+                    ParamUnit::Percent,
+                    (0.0, 100.0, 25.0),
+                    ParamScale::Linear,
+                ),
+                param(
+                    4,
+                    "Output",
+                    "Output",
+                    ParamUnit::Decibels,
+                    (-24.0, 24.0, 0.0),
+                    ParamScale::Linear,
+                ),
+                param(
+                    5,
+                    "Mix",
+                    "Output",
+                    ParamUnit::Percent,
+                    (0.0, 100.0, 100.0),
+                    ParamScale::Linear,
+                ),
+            ],
+            2,
+            2,
+            false,
+            0,
+        ),
         other => unreachable!("{other:?} is not a `fx-color` device"),
     }
 }
@@ -532,6 +614,36 @@ fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
                 ),
             ])
         }
+        BuiltinDeviceType::Erosion => {
+            use erosion as p;
+            layout(vec![
+                section(
+                    "erosion",
+                    Some("Erosion"),
+                    2,
+                    2,
+                    vec![
+                        wide(
+                            Widget::XyPad {
+                                x: p::FREQUENCY,
+                                y: p::AMOUNT,
+                            },
+                            Large,
+                            2,
+                        ),
+                        item(Widget::Choice { param: p::MODE }, Small),
+                        knob(p::WIDTH, Small),
+                    ],
+                ),
+                section(
+                    "output",
+                    Some("Output"),
+                    1,
+                    2,
+                    vec![knob(p::OUTPUT, Medium), knob(p::MIX, Large)],
+                ),
+            ])
+        }
         other => unreachable!("{other:?} is not a `fx-color` device"),
     }
 }
@@ -542,6 +654,7 @@ pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
         BuiltinDeviceType::Saturator => Box::new(Saturator::new()),
         BuiltinDeviceType::Bitcrusher => Box::new(Bitcrusher::new()),
         BuiltinDeviceType::AutoFilter => Box::new(AutoFilter::new()),
+        BuiltinDeviceType::Erosion => Box::new(Erosion::new()),
         other => unreachable!("{other:?} is not a `fx-color` device"),
     }
 }
@@ -568,6 +681,9 @@ pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
         BuiltinDeviceType::AutoFilter => presets!(
             "auto-filter": "envelope-wah", "sidechain-pump", "slow-sweep", "tempo-wobble",
             "resonant-rise"
+        ),
+        BuiltinDeviceType::Erosion => presets!(
+            "erosion": "fizz", "wide-hiss", "metal-sine", "broken-codec"
         ),
         _ => &[],
     }
