@@ -1,6 +1,7 @@
 //! Multicore with the real worker pool (`ether_native::workers`): bit-identical to
 //! sequential processing on randomized projects and on a project of real built-in devices,
-//! across worker counts 0/1/2/4/8 and block sizes; more threads than cores never deadlock.
+//! across worker counts 0/1/2/4/8 and block sizes, and on the #196 shape (1, 2, N workers);
+//! more threads than cores never deadlock.
 
 use crate::multicore_real;
 
@@ -91,4 +92,25 @@ fn oversubscribed_pool_never_deadlocks() {
         "took {:?}",
         start.elapsed()
     );
+}
+
+/// The #196 shape (a light drum track keying the heaviest track, groups chained into a
+/// serial master chain) on the real pool: 1, 2 and N workers render the sequential bits.
+#[test]
+fn pool_equals_sequential_on_the_196_shape() {
+    enable_flush_denormals();
+    let frames = graphs::SR as usize;
+    let n = physical_cores().saturating_sub(1).clamp(3, 16);
+    for block in [64, 256] {
+        let reference = graphs::render_196(block, frames, None);
+        assert!(reference.iter().any(|s| *s != 0.0), "silent project");
+        for workers in [1usize, 2, n] {
+            let out = graphs::render_196(block, frames, Some(Box::new(pool(workers))));
+            assert_eq!(
+                first_diff(&reference, &out),
+                None,
+                "{workers} workers, block {block}"
+            );
+        }
+    }
 }

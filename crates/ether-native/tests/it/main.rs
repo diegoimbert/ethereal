@@ -21,6 +21,7 @@ mod disk_stream_render;
 mod drum_rack_e2e;
 mod e2e_flow;
 mod e2e_warp;
+mod engine_bench;
 mod export_e2e;
 mod file_filters_e2e;
 mod file_import_e2e;
@@ -47,7 +48,9 @@ mod plugin_folders_e2e;
 mod plugin_sidechain;
 #[cfg(all(feature = "plugins-clap", feature = "sandbox"))]
 mod plugins_e2e;
+mod project_load_xruns;
 mod quit_save;
 mod recording_e2e;
+mod sched_bench;
 mod sidechain_render;
 mod tempo_metronome;

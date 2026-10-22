@@ -48,6 +48,7 @@ mod sample_accurate_no_alloc;
 mod silence;
 mod stream_tap;
 mod stuck_notes;
+mod suspend;
 mod tap_recording;
 mod tempo_vectors;
 mod touching_notes;

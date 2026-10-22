@@ -32,6 +32,17 @@ Audio→UI: meters/playhead/scopes via lock-free rings at visual rate. Old snaps
 Debug builds wrap the callback in `assert_no_alloc`.
 Work scales with what sounds, not with what exists: a node that returns `ProcessStatus::Silent` is skipped while its input stays digital silence and no event reaches it (built-in effects say so once their tail is under -120 dBFS; CLAP `Sleep` maps to it). Tracks run on the worker pool whenever any device works, playing or stopped.
 
+## Multicore scheduling
+
+Code: `ether-core/src/parallel.rs` (contract, `JobGraph`), `graph.rs` (builds it), `engine.rs` (dispatch), `ether-native/src/workers.rs` (the pool). Contract: CONTRACTS.md §11.7.
+
+- **One job per track, scheduled by dependency.** Each snapshot compiles a `JobGraph` off the audio thread: an edge from every source (output, send, input tap, device or modulator sidechain) to the track it feeds, a per-job count of sources, and everything the run needs (counters, ready bitset) preallocated. Per sub-block the engine calls `ParallelExecutor::execute_graph` once. A finished job decrements its successors' counters; the one reaching zero makes that successor ready. No barrier between levels: a sidechain from a light track onto a heavy one only waits for the light track, and master starts as soon as its last input is done.
+- **Critical path first.** Static cost per track = 1 + its devices (chain, drum-rack pads, rack chains); priority = cost + the highest priority among the jobs it feeds. Jobs are numbered by priority, so the ready queue is a bitset of ranks, and taking the most urgent job means clearing its lowest set bit (`fetch_and`). Rank order is topological, and it is the sequential order (0 workers, wasm, idle engine).
+- **Bit-identical.** Each job collects its inputs at its start, in an order fixed at compile time, so the output does not depend on the schedule or the worker count (`tests/it/parallel.rs`, `ether-native/tests/it/multicore.rs`).
+- **Pool.** Epochs: the audio thread publishes the work, wakes at most `width - 1` parked workers (once per sub-block; a pure chain runs on the audio thread with no wake-up), works itself, and returns once the graph finished and every worker left the epoch. Idle workers spin briefly, then leave. A completion that readies several jobs unparks that many workers minus one. A missed wake-up only costs parallelism, because the audio thread never parks.
+- **Benchmark.** `cargo test -p ether-native --release --test it sched_bench:: -- --ignored --nocapture` (the OSS #196 shape: p50/p99/worst buffer time against the deadline for 4/8/16 workers); `multicore_bench::` for throughput.
+- **Next steps.** Costs are static estimates. Measured per-track times, fed back at compile time, would sharpen the priorities. Thread priorities (e.g. Windows MMCSS) are a separate topic in `workers.rs`.
+
 ## Workspace layout
 
 ```

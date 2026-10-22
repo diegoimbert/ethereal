@@ -166,6 +166,7 @@ export type * from "./LibraryItemKind";
 export type * from "./LibraryItemMeta";
 export type * from "./LiveAudioChunk";
 export type * from "./LiveMidiNote";
+export type * from "./LoadProgress";
 export type * from "./Marker";
 export type * from "./MarkerChange";
 export type * from "./MarkerCommand";

@@ -1,5 +1,5 @@
 //! The parallel path never allocates or frees, on **any** thread: the audio thread
-//! dispatching levels, the workers running track jobs (drum racks, sidechains, latent
+//! dispatching job graphs, the workers running track jobs (drum racks, sidechains, latent
 //! devices, sends, groups), pinned Complex-warp jobs, snapshot swaps and locates.
 //!
 //! `assert_no_alloc` alone checks only the calling thread (and only warns when the

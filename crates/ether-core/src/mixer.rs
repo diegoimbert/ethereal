@@ -474,6 +474,16 @@ pub(crate) struct TrackRt {
 }
 
 impl TrackRt {
+    /// RT. Mixer smoothers jump to their targets (a resume after a suspension).
+    pub(crate) fn settle(&mut self) {
+        self.volume.settle();
+        self.pan.settle();
+        self.gate.settle();
+        for send in &mut self.sends {
+            send.level.settle();
+        }
+    }
+
     /// RT. Carry running state over from the previous snapshot's version of this track.
     pub(crate) fn inherit(&mut self, old: &mut TrackRt) {
         let (vol, pan, gate) = (
