@@ -8,7 +8,9 @@
 //! - **Dependency-driven scheduling.** The compiled snapshot holds a [`JobGraph`]: one job
 //!   per track, an edge from every source to the track it feeds (outputs, sends, input
 //!   taps, sidechains of the device chain and of modulators). Drum-rack pad chains and rack
-//!   chains belong to their track (they run inside its job). Per sub-block the engine hands
+//!   chains belong to their track (they run inside its job; an audio rack's independent
+//!   chains may run as sub-jobs of it on idle threads, see [`Fork`] and
+//!   `crate::rack_chains`). Per sub-block the engine hands
 //!   the whole graph to [`ParallelExecutor::execute_graph`] once: a job starts as soon as
 //!   **its own** sources finished (per-job atomic counters of unfinished sources), not when
 //!   a whole level did. So a sidechain from a light track onto the heaviest track delays
@@ -104,8 +106,42 @@ pub trait ParallelExecutor: Send {
         }
     }
 
+    /// RT. [`ParallelExecutor::execute_graph`] where a job may split part of its work into
+    /// independent sub-jobs through the [`Fork`] it is handed (rack chains,
+    /// `crate::rack_chains`). The default hands every job [`SerialFork`].
+    fn execute_graph_forking(&mut self, graph: &JobGraph, job: &(dyn Fn(usize, &dyn Fork) + Sync)) {
+        self.execute_graph(graph, &|id| job(id, &SerialFork));
+    }
+
     /// Worker threads available (0 = sequential).
     fn workers(&self) -> usize;
+}
+
+/// Fork-join inside a running job (`ParallelExecutor::execute_graph_forking`): idle threads
+/// of the pool help with the sub-jobs while the job's own thread runs them too.
+pub trait Fork: Sync {
+    /// RT. Call `sub(i)` exactly once for every `i` in `0..n` (any thread, any order); return
+    /// when all finished, their writes visible. `sub` must not fork again.
+    fn join(&self, n: usize, sub: &(dyn Fn(usize) + Sync));
+
+    /// Whether `join` may run sub-jobs on other threads (else forking is not worth its setup).
+    fn parallel(&self) -> bool;
+}
+
+/// Runs the sub-jobs in order on the calling thread.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct SerialFork;
+
+impl Fork for SerialFork {
+    fn join(&self, n: usize, sub: &(dyn Fn(usize) + Sync)) {
+        for i in 0..n {
+            sub(i);
+        }
+    }
+
+    fn parallel(&self) -> bool {
+        false
+    }
 }
 
 /// Runs every job on the calling thread (the default; v0.1 behaviour).

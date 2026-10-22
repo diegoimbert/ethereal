@@ -689,7 +689,7 @@ pub fn compile_with(
     // --- job graph (`crate::parallel`) ---
     // One job per track; an edge from every source (outputs, sends, sidechains, input
     // taps) to what it feeds. Static cost: 1 + the devices the track runs (chain, drum-rack
-    // pads, rack chains), for the critical-path priority.
+    // pads, rack chains: the longest one of a forking rack), for the critical-path priority.
     // No track is pinned to the audio thread any more: Complex-warped clips play through
     // their own track's stretcher voices (`crate::warp`). The pinned-jobs
     // path of the executor stays for hosts' future needs.
@@ -703,11 +703,20 @@ pub fn compile_with(
                 .flat_map(|r| &r.pads)
                 .map(|p| p.chain.len())
                 .sum();
+            // Audio racks with several chains fork them onto idle threads
+            // (`crate::rack_chains`): the longest chain is what the track waits for.
             let chains: usize = t
                 .chain_racks
                 .iter()
-                .flat_map(|r| &r.chains)
-                .map(|c| c.chain.len())
+                .map(|r| {
+                    let lens = r.chains.iter().map(|c| c.chain.len());
+                    if r.kind != crate::rack_chains::ChainRackKind::MidiEffect && r.chains.len() > 1
+                    {
+                        lens.max().unwrap_or(0)
+                    } else {
+                        lens.sum()
+                    }
+                })
                 .sum();
             1 + (t.chain.len() + pads + chains) as u64
         })

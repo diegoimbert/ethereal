@@ -629,7 +629,10 @@ input taps, sidechains) to what it feeds. A job starts as soon as its own source
 there is no barrier between levels. Bus mixing gathers each destination's inputs (at the start of that destination's
 job) in the same fixed order as sequential processing, independent of worker count, so the
 output is bit-identical to sequential processing. Each node belongs to one chain, so jobs
-need no locks.
+need no locks. Inside a job, the chains of an audio rack (instrument or audio effect, two or
+more chains, nothing in them reading or tapped by a sidechain, no nested rack) may run as
+sub-jobs on idle threads (`ParallelExecutor::execute_graph_forking`, `parallel::Fork`); the
+rack still mixes them in chain order, so this changes no bits either.
 
 ### 11.8 Web perf: graph codec
 `ether_core::codec::GraphCodec { encode, decode }` for the Worker → Worklet snapshot: exact

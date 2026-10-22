@@ -38,7 +38,7 @@ use std::io::Write as _;
 use std::time::{Duration, Instant};
 
 use ether_core::graph::{ChainEntry, SendDesc, TrackDesc};
-use ether_core::parallel::{ParallelExecutor, SequentialExecutor};
+use ether_core::parallel::{Fork, JobGraph, ParallelExecutor, SequentialExecutor};
 use ether_core::protocol::model::{RackChainId, SendId, TrackId, TrackKind, Ulid};
 use ether_core::rack_chains::{ChainRackDesc, ChainRackKind, RackChainDesc};
 use ether_core::{
@@ -310,6 +310,17 @@ const SCENARIOS: &[Scenario] = &[
         "tiny64",
         "64 independent tracks of 4 ns/frame (scheduling overhead)",
         || flat(64, 4.0),
+    ),
+    (
+        "rack4",
+        "one track: an instrument rack of 4 chains of 1600 ns/frame (rack chain parallelism)",
+        || {
+            let mut t = vec![SimTrack::new(MASTER, TrackKind::Master, None, &[50.0])];
+            let mut s = SimTrack::new(100, TrackKind::Midi, Some(MASTER), &[50.0]);
+            s.rack = vec![vec![800.0, 400.0, 400.0]; 4];
+            t.push(s);
+            t
+        },
     ),
     (
         "empty64",
@@ -1018,6 +1029,22 @@ impl ParallelExecutor for Timeline {
         self.rec.record(u32::MAX, t0, Instant::now());
     }
 
+    fn execute_graph(&mut self, graph: &JobGraph, job: &(dyn Fn(usize) + Sync)) {
+        self.execute_graph_forking(graph, &|id, _| job(id));
+    }
+
+    fn execute_graph_forking(&mut self, graph: &JobGraph, job: &(dyn Fn(usize, &dyn Fork) + Sync)) {
+        let t0 = Instant::now();
+        let rec = &self.rec;
+        let wrapped = |id: usize, fork: &dyn Fork| {
+            let s = Instant::now();
+            job(id, fork);
+            rec.record(thread_index(), s, Instant::now());
+        };
+        self.inner.execute_graph_forking(graph, &wrapped);
+        self.rec.record(u32::MAX, t0, Instant::now());
+    }
+
     fn workers(&self) -> usize {
         self.inner.workers()
     }
@@ -1160,8 +1187,8 @@ fn timeline() {
         pct(&run.times, 0.99)
     );
     println!(
-        "  dispatched levels per buffer: {:.1}; in them {:.0} µs/buffer (longest job {:.0}, \
-         end-of-level wait {:.1}); outside {:.0} µs/buffer",
+        "  dispatched graphs per buffer: {:.1}; in them {:.0} µs/buffer (longest job {:.0}, \
+         end wait {:.1}); outside {:.0} µs/buffer",
         level_span.len() as f64 / buffers,
         sum(&level_span) / buffers,
         sum(&level_longest) / buffers,

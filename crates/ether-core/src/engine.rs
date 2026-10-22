@@ -42,6 +42,7 @@ use crate::media::AudioSource;
 use crate::meter::EngineOutputs;
 use crate::mixer::{BusInput, TrackRt, apply_fader, apply_gate, scale};
 use crate::node::{Node, NodeKey, ProcessContext, ProcessStatus};
+use crate::parallel::{Fork, SerialFork};
 use crate::param::{ParamChange, ParamTarget};
 use crate::sched::{self, NoteSink, Timing};
 use crate::sidechain::{ScIo, ScPoint};
@@ -1001,13 +1002,17 @@ impl Engine {
         // per track), its nodes (each node in one chain) and its sources' tracks, which the
         // graph finished before it; the executor runs each job once, after its sources,
         // pinned jobs on this thread, and returns after all of them finished.
-        let job = |ti: usize| unsafe { ctx.run(ti) };
-        if jobs.len() == 1 || !parallel {
+        let job = |ti: usize, fork: &dyn Fork| unsafe { ctx.run(ti, fork) };
+        if jobs.len() == 1 && parallel && executor.workers() > 0 {
+            // One track (or a pure chain): no other job to overlap, but its rack chains may
+            // still fork.
+            executor.execute_graph_forking(jobs, &job);
+        } else if jobs.len() == 1 || !parallel {
             for ti in jobs.order() {
-                job(ti);
+                job(ti, &SerialFork);
             }
         } else {
-            executor.execute_graph(jobs, &job);
+            executor.execute_graph_forking(jobs, &job);
         }
         // --- offline export stems: post-fader, pre-gate taps of the requested tracks ---
         for slot in capture.iter_mut() {
@@ -1210,6 +1215,42 @@ impl<'a> NodeTable<'a> {
     }
 }
 
+/// A [`NodeTable`]'s slots, handed to sub-jobs of its job (`crate::rack_chains`), which make
+/// their own tables over them ([`SharedNodes::table`]).
+#[derive(Clone, Copy)]
+pub(crate) struct SharedNodes<'a> {
+    ptr: *mut NodeSlot,
+    len: usize,
+    _slots: std::marker::PhantomData<&'a mut [NodeSlot]>,
+}
+
+// SAFETY: only dereferenced through tables made by `table`, under its contract (each sub-job
+// asks for its own nodes only); nodes are `Send`.
+unsafe impl Sync for SharedNodes<'_> {}
+
+impl<'a> NodeTable<'a> {
+    /// RT. The slots, for sub-jobs of this job while it waits for them (`Fork::join`).
+    pub(crate) fn share(&mut self) -> SharedNodes<'_> {
+        SharedNodes {
+            ptr: self.ptr,
+            len: self.len,
+            _slots: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a> SharedNodes<'a> {
+    /// A table for one sub-job.
+    ///
+    /// # Safety
+    /// As [`NodeTable::shared`]: the sub-job only asks for keys no other sub-job (and not the
+    /// waiting job) uses meanwhile.
+    pub(crate) unsafe fn table(&self) -> NodeTable<'a> {
+        // SAFETY: forwarded to the caller.
+        unsafe { NodeTable::shared(self.ptr, self.len) }
+    }
+}
+
 /// Transport flags of the current sub-block (read-only for the jobs).
 #[derive(Clone, Copy)]
 struct JobFlags {
@@ -1272,7 +1313,7 @@ impl JobCtx<'_> {
     /// only after every track in `tracks[ti].inputs` / its sidechain, modulator and tap
     /// sources finished (the job graph's edges); running tracks are touched by their own
     /// jobs only.
-    unsafe fn run(&self, ti: usize) {
+    unsafe fn run(&self, ti: usize, fork: &dyn Fork) {
         debug_assert!(ti < self.n_tracks);
         // SAFETY: exclusive by the contract above.
         let track = unsafe { &mut *self.tracks.add(ti) };
@@ -1348,7 +1389,7 @@ impl JobCtx<'_> {
         // SAFETY: this job's own track (ids are unique in a snapshot); the voice table only
         // changes between blocks.
         let voices = unsafe { self.warp.track_voices(track.id) };
-        self.render_track(ti, track, &mut nodes, voices);
+        self.render_track(ti, track, &mut nodes, voices, fork);
     }
 
     /// RT. The body of a track job, after its input bus was gathered into `track.a`.
@@ -1358,6 +1399,7 @@ impl JobCtx<'_> {
         track: &mut TrackRt,
         nodes: &mut NodeTable<'_>,
         voices: &mut [crate::warp::Voice],
+        fork: &dyn Fork,
     ) {
         let n = self.n;
         let off = self.off;
@@ -1595,6 +1637,7 @@ impl JobCtx<'_> {
                     },
                     // Drum racks on instrument rack chains (`crate::drum_rack`).
                     Some(racks),
+                    fork,
                 );
             }
             modulation.pre_node(k, key, entry.events.as_slice(), a, n);

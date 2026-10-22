@@ -17,9 +17,10 @@ use ether_core::graph::{
 use ether_core::parallel::{JobGraph, ParallelExecutor};
 use ether_core::protocol::devices::ParamScale;
 use ether_core::protocol::model::{
-    AutomationTarget, Beats, ClipId, CurveShape, DrumPadId, FadeCurve, MediaId, ParamId, SendId,
-    TrackId, TrackKind, Ulid, WarpMode,
+    AutomationTarget, Beats, ClipId, CurveShape, DrumPadId, FadeCurve, MediaId, ParamId,
+    RackChainId, SendId, TrackId, TrackKind, Ulid, WarpMode,
 };
+use ether_core::rack_chains::{ChainRackDesc, ChainRackKind, RackChainDesc};
 use ether_core::{
     AudioBuffers, AudioSource, Engine, EngineConfig, EngineHandle, EngineParts, EventKind, Node,
     NodeKey, ParamChange, ParamTarget, PrepareConfig, ProcessContext, ProcessStatus,
@@ -484,6 +485,10 @@ pub struct Project {
 /// Complex-warped clips (needs a stretcher factory on the handle).
 pub fn build(seed: u64, h: &mut EngineHandle, complex: bool) -> Project {
     let mut r = Rng::new(seed);
+    let mut rr = Rng::new(
+        seed.wrapping_mul(0x9E37_79B9_7F4A_7C15)
+            .wrapping_add(0x5EED),
+    );
     h.add_source(MEDIA, source()).unwrap();
     let master_id = tid(1);
     let mut master = track(master_id, TrackKind::Master, None);
@@ -580,6 +585,58 @@ pub fn build(seed: u64, h: &mut EngineHandle, complex: bool) -> Project {
         }
         for _ in 0..r.below(3) {
             t.chain.push(effect(&mut r, h));
+        }
+        // A rack with parallel chains (its own random stream, so the rest of the project
+        // stays what it was): an instrument rack of saws on MIDI tracks, an audio effect
+        // rack on audio tracks; chains of effects with latency (PDC inside the rack), now
+        // and then a sidechained entry (a rack whose chains can't run as sub-jobs).
+        if t.racks.is_empty() && rr.chance(0.35) {
+            let kind = if midi {
+                ChainRackKind::Instrument
+            } else {
+                ChainRackKind::AudioEffect
+            };
+            let node = add(h, Box::new(Clip(1.0 + rr.unit())));
+            let chains = (0..2 + rr.below(3))
+                .map(|c| {
+                    let mut chain = vec![];
+                    if midi {
+                        chain.push(entry(add(h, Box::new(Saw::new(1.0 + c as f32 * 0.013)))));
+                    }
+                    for _ in 0..1 + rr.below(3) {
+                        chain.push(effect(&mut rr, h));
+                    }
+                    if !regular.is_empty() && rr.chance(0.1) {
+                        let mut e = entry(add(
+                            h,
+                            Box::new(Ducker {
+                                depth: 0.5,
+                                env: 0.0,
+                            }),
+                        ));
+                        e.sidechain = Some(regular[rr.below(regular.len())]);
+                        chain.push(e);
+                    }
+                    RackChainDesc {
+                        id: RackChainId(Ulid(70_000 + i as u128 * 16 + c as u128)),
+                        chain,
+                        volume: 0.3 + rr.unit(),
+                        pan: rr.unit() * 2.0 - 1.0,
+                        mute: rr.chance(0.1),
+                        keys: (0, 127),
+                        velocities: (0, 127),
+                        select: (0, 127),
+                    }
+                })
+                .collect();
+            // First: the clip's notes reach the rack (its chains' saws play them).
+            t.chain.insert(0, entry(node));
+            t.chain_racks.push(ChainRackDesc {
+                rack: node,
+                kind,
+                chains,
+                selector: 0,
+            });
         }
         // Sidechain from an earlier regular track.
         if !regular.is_empty() && r.chance(0.3) {
