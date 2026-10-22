@@ -54,7 +54,7 @@ crates/
   ether-devices         synth, sampler, compressor, delay                   (native + wasm)
   ether-media           decode (symphonia), resample (rubato), peaks        (native + wasm)
   ether-controller      commands → model → patches; model → render snapshot (native + wasm)
-  ether-stretch         Stretcher trait + Signalsmith impl                  (native; trait wasm)
+  ether-stretch         Stretcher trait, Signalsmith impls, Complex+        (native + wasm)
   ether-clap            CLAP hosting (clack), PluginNode in-process         (native)
   ether-plugin-host     PluginFormatHost trait, format registry, scan runner (native)
   ether-vst3            VST3 hosting                                        (native)
@@ -90,7 +90,7 @@ removes a whole node (a plugin format or a stretcher) or a bridge hook.
 | Crate | Feature | Compiles in | When off |
 |---|---|---|---|
 | ether-stretch | `signalsmith` (crate default) | Signalsmith Stretch (C++) | trait only |
-| ether-stretch | `rust-stretch` (crate default) | the pure-Rust Signalsmith Stretch port (`rustfft`; builds for wasm32) | no `RustStretcher` |
+| ether-stretch | `rust-stretch` (crate default) | the pure-Rust Signalsmith Stretch port and Complex+ (`rustfft`, `realfft`; build for wasm32) | no `RustStretcher` / `PlusStretcher` |
 | ether-native | `plugins-clap`, `plugins-vst3`, `plugins-au` | that format's host crate | the format is not registered, so loading it is `Unsupported` ("not supported by this build") |
 | ether-native | `sandbox` | `ether-sandbox` (out-of-process instances) | a sandboxed instance fails `Unsupported` |
 | ether-native | `plugins` | all four formats + `sandbox` | |
