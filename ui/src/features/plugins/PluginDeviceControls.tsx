@@ -172,13 +172,6 @@ export function pluginMenuEntries(device: Device, transport: EngineTransport): C
       label: sandboxed ? tr("plugins.device.run_in_process") : tr("plugins.device.run_sandboxed"),
       onSelect: () => void setSandboxed(!sandboxed).catch((e: unknown) => console.warn("sandbox toggle failed", e)),
     },
-    {
-      label: always ? tr("plugins.device.sleep_on_silence") : tr("plugins.device.always_process"),
-      onSelect: () =>
-        void transport
-          .send(cmd("Plugin", { type: "SetAlwaysProcess", device: device.id, always_process: !always }))
-          .catch((e: unknown) => console.warn("always-process toggle failed", e)),
-    },
   ];
   const defaults = useSandboxDefaults.getState();
   if (defaults.from === transport && defaults.list) {
@@ -192,6 +185,13 @@ export function pluginMenuEntries(device: Device, transport: EngineTransport): C
           .catch((e: unknown) => console.warn("sandbox default failed", e)),
     });
   }
+  entries.push({
+    label: always ? tr("plugins.device.sleep_on_silence") : tr("plugins.device.always_process"),
+    onSelect: () =>
+      void transport
+        .send(cmd("Plugin", { type: "SetAlwaysProcess", device: device.id, always_process: !always }))
+        .catch((e: unknown) => console.warn("always-process toggle failed", e)),
+  });
   return entries;
 }
 
