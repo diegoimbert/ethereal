@@ -11,7 +11,7 @@ use crate::parallel_graphs;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use ether_core::parallel::{ParallelExecutor, SequentialExecutor};
+use ether_core::parallel::{JobGraph, ParallelExecutor, SequentialExecutor};
 use parallel_graphs::*;
 
 const FRAMES: usize = SR as usize / 2;
@@ -20,7 +20,7 @@ fn stretch() -> Option<Arc<dyn ether_stretch::StretcherFactory>> {
     Some(Arc::new(ether_stretch::SignalsmithFactory::default()))
 }
 
-/// Records how the engine dispatched (levels, jobs, pinned) and delegates.
+/// Records how the engine dispatched (graph runs, widest graph, pinned jobs) and delegates.
 struct Spy<E> {
     inner: E,
     calls: Arc<AtomicUsize>,
@@ -32,11 +32,12 @@ impl<E: ParallelExecutor> ParallelExecutor for Spy<E> {
     fn execute(&mut self, jobs: usize, job: &(dyn Fn(usize) + Sync)) {
         self.inner.execute(jobs, job);
     }
-    fn execute_pinned(&mut self, jobs: usize, pinned: usize, job: &(dyn Fn(usize) + Sync)) {
+    fn execute_graph(&mut self, graph: &JobGraph, job: &(dyn Fn(usize) + Sync)) {
         self.calls.fetch_add(1, Ordering::Relaxed);
-        self.max_jobs.fetch_max(jobs, Ordering::Relaxed);
+        self.max_jobs.fetch_max(graph.width(), Ordering::Relaxed);
+        let pinned = (0..graph.len()).filter(|&r| graph.is_pinned(r)).count();
         self.pinned.fetch_add(pinned, Ordering::Relaxed);
-        self.inner.execute_pinned(jobs, pinned, job);
+        self.inner.execute_graph(graph, job);
     }
     fn workers(&self) -> usize {
         self.inner.workers()
@@ -121,9 +122,9 @@ fn complex_warp_tracks_run_on_workers_bit_exact() {
     );
 }
 
-/// The engine really dispatches levels with several jobs through the executor.
+/// The engine really dispatches wide job graphs through the executor.
 #[test]
-fn levels_are_dispatched_in_parallel() {
+fn job_graphs_are_dispatched_in_parallel() {
     let calls = Arc::new(AtomicUsize::new(0));
     let max_jobs = Arc::new(AtomicUsize::new(0));
     let spy = Spy {
@@ -144,7 +145,8 @@ fn levels_are_dispatched_in_parallel() {
     assert!(max_jobs.load(Ordering::Relaxed) >= 4);
 }
 
-/// Jobs run in any order: reversing the claim order changes nothing.
+/// Jobs run in any valid order: the least urgent ready job first (the opposite of the
+/// pool's choice) changes nothing.
 #[test]
 fn job_order_does_not_matter() {
     struct Reversed;
@@ -152,6 +154,26 @@ fn job_order_does_not_matter() {
         fn execute(&mut self, jobs: usize, job: &(dyn Fn(usize) + Sync)) {
             for i in (0..jobs).rev() {
                 job(i);
+            }
+        }
+        fn execute_graph(&mut self, graph: &JobGraph, job: &(dyn Fn(usize) + Sync)) {
+            let n = graph.len();
+            let mut indeg = vec![0usize; n];
+            for r in 0..n {
+                for &s in graph.successors(r) {
+                    indeg[s as usize] += 1;
+                }
+            }
+            let mut ready: Vec<usize> = (0..n).filter(|&r| indeg[r] == 0).collect();
+            while let Some(r) = ready.iter().copied().max() {
+                ready.retain(|&x| x != r);
+                job(graph.id(r));
+                for &s in graph.successors(r) {
+                    indeg[s as usize] -= 1;
+                    if indeg[s as usize] == 0 {
+                        ready.push(s as usize);
+                    }
+                }
             }
         }
         fn workers(&self) -> usize {
@@ -169,6 +191,18 @@ fn job_order_does_not_matter() {
             &mut |_| {},
         );
         assert_eq!(first_diff(&reference, &out), None, "seed {seed}");
+    }
+}
+
+/// The #196 shape (a sidechain from a light drum track onto the heaviest track, chained
+/// groups, a serial master chain): 1, 2 and N workers render the sequential bits.
+#[test]
+fn shape_196_is_bit_exact_for_any_worker_count() {
+    let reference = render_196(256, FRAMES, None);
+    assert!(reference.iter().any(|s| *s != 0.0));
+    for workers in [1usize, 2, 16] {
+        let out = render_196(256, FRAMES, Some(Box::new(Threaded(workers))));
+        assert_eq!(first_diff(&reference, &out), None, "{workers} workers");
     }
 }
 

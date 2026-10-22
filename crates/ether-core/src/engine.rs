@@ -13,8 +13,9 @@
 //!    parameter changes.
 //! 2. Split the block at loop ends and tempo/time-signature boundaries so transport
 //!    information is linear within each sub-block.
-//! 3. Per sub-block, process tracks level by level of the routing DAG, one job per track
-//!    (in parallel through the host's [`crate::parallel::ParallelExecutor`], see there):
+//! 3. Per sub-block, process the tracks as a job graph (one job per track, each started
+//!    as soon as its own sources finished, critical path first; in parallel through the
+//!    host's [`crate::parallel::ParallelExecutor`], see there):
 //!    input bus gathered from the finished sources (+ monitored hardware input) → clips
 //!    (audio rendered, MIDI notes scheduled sample-accurately) → automation → device chain →
 //!    pre-fader sends → fader/pan → sidechain tap → mute/solo gate → post-fader sends →
@@ -848,8 +849,7 @@ impl Engine {
         let RenderSnapshot { desc, tempo, rt } = &mut **snapshot;
         let SnapshotRt {
             order,
-            level_order,
-            levels,
+            jobs,
             tracks,
             latency: graph_latency,
             vcas,
@@ -965,12 +965,12 @@ impl Engine {
         // Hardware returns of external devices (`crate::hw_io`), before the jobs.
         hw_io.gather_returns(inputs, off, n, transport.sample_time);
 
-        // --- tracks, level by level (`crate::parallel`) ---
+        // --- tracks, by dependency (`crate::parallel`) ---
         // Stopped, the jobs still run devices and plugins at full cost (tails, auditioned
         // instruments, plugins that never sleep): dispatch them like while playing.
         // Only when the previous sub-block did no real work anywhere (every node
         // asleep, nothing monitored: `TrackRt::awake`) keep the workers parked and run the
-        // jobs here, in level order. Same result either way, bit for bit.
+        // jobs here, in rank order. Same result either way, bit for bit.
         let parallel = playing || tracks.iter().any(|t| t.awake || t.monitor);
         let ctx = JobCtx {
             tracks: tracks.as_mut_ptr(),
@@ -997,20 +997,17 @@ impl Engine {
             timing: &timing,
             hw: hw_io.table(),
         };
-        for level in levels.iter() {
-            let idx = &level_order[level.start..level.end];
-            // SAFETY (`crate::parallel`, "Unsafe sharing"): job `j` touches track `idx[j]`
-            // (distinct within a level), its nodes (each node in one chain) and finished
-            // tracks of earlier levels; the executor runs each `j` once, pinned jobs on this
-            // thread, and returns after all of them finished.
-            let job = |j: usize| unsafe { ctx.run(idx[j]) };
-            if idx.len() == 1 || !parallel {
-                for j in 0..idx.len() {
-                    job(j);
-                }
-            } else {
-                executor.execute_pinned(idx.len(), level.pinned, &job);
+        // SAFETY (`crate::parallel`, "Unsafe sharing"): job `ti` touches track `ti` (one job
+        // per track), its nodes (each node in one chain) and its sources' tracks, which the
+        // graph finished before it; the executor runs each job once, after its sources,
+        // pinned jobs on this thread, and returns after all of them finished.
+        let job = |ti: usize| unsafe { ctx.run(ti) };
+        if jobs.len() == 1 || !parallel {
+            for ti in jobs.order() {
+                job(ti);
             }
+        } else {
+            executor.execute_graph(jobs, &job);
         }
         // --- offline export stems: post-fader, pre-gate taps of the requested tracks ---
         for slot in capture.iter_mut() {
@@ -1160,8 +1157,8 @@ impl<'a> NodeTable<'a> {
     ///   share a slot; only live keys reach a `&mut` (to the slot's `node` field);
     /// - a *stale* key (a pad node removed and its slot reused by another track: the
     ///   compiler tolerates unknown pad nodes) only *reads* the slot's `generation`, which
-    ///   nothing writes while a level runs, and yields `None`;
-    /// - the audio thread doesn't touch the table while a level runs.
+    ///   nothing writes while the job graph runs, and yields `None`;
+    /// - the audio thread doesn't touch the table while the job graph runs.
     ///
     /// So [`NodeTable::get`] never creates two live `&mut` to one node, nor a `&mut` to a
     /// slot another job uses.
@@ -1184,7 +1181,7 @@ impl<'a> NodeTable<'a> {
         // the key is live. A stale key of another track's slot thus never forms a `&mut`.
         let slot = self.ptr.wrapping_add(i);
         // SAFETY: `i < len`: a valid `NodeSlot`; `generation` is only written on the audio
-        // thread between blocks (`drain_control`), never during a level.
+        // thread between blocks (`drain_control`), never while the job graph runs.
         if unsafe { std::ptr::addr_of!((*slot).generation).read() } != key.generation {
             return None;
         }
@@ -1249,8 +1246,9 @@ struct JobCtx<'a> {
 }
 
 // SAFETY: the shared fields are `Sync` (checked below); the raw pointers are only
-// dereferenced by `JobCtx::run` under the level contract: one job per track per level,
-// each node reached by one job, finished tracks only read, each track's voices by its job.
+// dereferenced by `JobCtx::run` under the graph contract: one job per track per sub-block,
+// each node reached by one job, finished source tracks only read, each track's voices by
+// its job.
 // The pointees are `Send` (`TrackRt`, `NodeSlot` via `Node: Send`), so handing them to a
 // worker thread is fine.
 unsafe impl Sync for JobCtx<'_> {}
@@ -1270,9 +1268,9 @@ impl JobCtx<'_> {
     /// RT. Process track `ti` for the sub-block (see [`Engine::process`]).
     ///
     /// # Safety
-    /// Called at most once per track per level, never concurrently for one track; every
-    /// track in `tracks[ti].inputs` / its sidechain sources finished in an earlier level (the level
-    /// partition guarantees it); the tracks of the running level are touched by their own
+    /// Called at most once per track per sub-block, never concurrently for one track, and
+    /// only after every track in `tracks[ti].inputs` / its sidechain, modulator and tap
+    /// sources finished (the job graph's edges); running tracks are touched by their own
     /// jobs only.
     unsafe fn run(&self, ti: usize) {
         debug_assert!(ti < self.n_tracks);
@@ -1298,7 +1296,7 @@ impl JobCtx<'_> {
                     BusInput::Send(c, k) => (c, Some(k)),
                 };
                 debug_assert!(c != ti && c < self.n_tracks);
-                // SAFETY: `c != ti` finished in an earlier level; nothing writes it now.
+                // SAFETY: `c != ti` is a source of this job: finished; nothing writes it now.
                 let src = unsafe { &*self.tracks.add(c) };
                 let buf = match sel {
                     None => &src.a,
@@ -1337,8 +1335,8 @@ impl JobCtx<'_> {
                 track.modulation.write_sidechain(s, tap, n);
             }
         }
-        // Track input from another track (`crate::bus_tap`, v0.2): its source finished in an
-        // earlier level.
+        // Track input from another track (`crate::bus_tap`, v0.2): its source finished before
+        // this job (a graph edge).
         if let Some(s) = track.input_tap.source
             && s != ti
         {
