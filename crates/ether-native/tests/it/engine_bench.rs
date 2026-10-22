@@ -660,6 +660,8 @@ fn render(
     parts.handle.transport(TransportControl::Play).unwrap();
     parts.engine.set_executor(executor);
     let engine = &mut parts.engine;
+    let (handle, gc) = (&mut parts.handle, &mut parts.gc);
+    let mut polled = ether_core::EngineOutputs::default();
     let block = opts.block;
     let period = Duration::from_secs_f64(block as f64 / SR as f64);
     let blocks = ((opts.seconds * SR as f64) as usize / block).max(1);
@@ -702,6 +704,12 @@ fn render(
             out.extend_from_slice(&l);
             out.extend_from_slice(&r);
             next += period;
+        }
+        // The controller's side, at UI rate like a host (meters, measured job times and
+        // their re-ranking, garbage): outside the timed render.
+        if b % 8 == 0 {
+            handle.poll(&mut polled);
+            gc.collect();
         }
     }
     let wall = wall0.elapsed();

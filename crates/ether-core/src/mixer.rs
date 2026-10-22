@@ -454,6 +454,9 @@ pub(crate) struct TrackRt {
     pub src_scratch: Vec<f32>,
     /// Scratch of the Complex warp path (tracks with Complex-warped clips, `crate::warp`).
     pub warp_scratch: Option<crate::warp::WarpScratch>,
+    /// Wall time of the track's job (ns, smoothed: up fast, down slowly), native hosts
+    /// only (`Engine::process` measures, `crate::parallel` priorities use it). 0 = unknown.
+    pub job_ns: f32,
     /// Set by the track's job, collected on the audio thread after the last level.
     pub overflow: bool,
     pub underruns: u32,
@@ -517,6 +520,7 @@ impl TrackRt {
         std::mem::swap(&mut self.live, &mut old.live);
         self.next_note_id = old.next_note_id;
         self.meter = old.meter;
+        self.job_ns = old.job_ns;
         self.racks.inherit(&mut old.racks);
         self.chain_racks.inherit(&mut old.chain_racks);
         self.modulation.inherit(&mut old.modulation);

@@ -26,6 +26,7 @@ mod fades_render;
 mod fades_vectors;
 mod groups;
 mod hw_io;
+mod job_costs;
 mod metronome;
 mod metronome_no_alloc;
 mod midi_fx_bypass;
