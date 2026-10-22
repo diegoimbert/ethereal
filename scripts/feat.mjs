@@ -21,6 +21,8 @@
 //                                                   waits for, and since when
 //   just feat sync [--dry-run] [--ci] [--pr N]      the reconcile the EE-side bot runs
 //   just feat check <oss-pr>                        dry-run the pointer guard for one OSS PR
+//   just feat pair-check [<rev>] [--ee <sha>]       is the EE side in step with a local commit
+//                                                   (regenerated app types, ee/Cargo.lock)?
 //   just feat hooks                                 install the pre-push pointer guard
 //
 // Invariants (docs/EE-WORKFLOW.md): OSS branch x pairs with EE branch x; an OSS PR either
@@ -33,6 +35,7 @@ import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from "node:fs";
 import { hostname } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
+import { EE_TYPES_DIR, LOCK_FIX, OSS_TYPES_DIR, TYPES_FIX, describe, lockDrift, manifestDeps, staleTypes } from "./ci/ee-pair-check.mjs";
 
 class Fail extends Error {}
 const die = (msg) => {
@@ -165,6 +168,57 @@ function apiContains(repo, b, a) {
   const st = api(repo, `compare/${a}...${b}`).status;
   return st === "ahead" || st === "identical";
 }
+// Read files of a commit, through the API or from a local clone that has it.
+const apiReader = (repo) => ({
+  // name -> blob sha of the files of a directory (empty when it has none)
+  dir: (sha, dir) => new Map((api(repo, `git/trees/${sha}:${dir}`, { allow404: true })?.tree ?? []).filter((e) => e.type === "blob").map((e) => [e.path, e.sha])),
+  file: (sha, path) => {
+    const r = gh(repo, ["api", `repos/${repo}/contents/${path}?ref=${sha}`, "-H", "Accept: application/vnd.github.raw"], { allowFail: true, full: true });
+    return r.status === 0 ? r.stdout : null;
+  },
+});
+const gitReader = (cwd) => ({
+  dir: (sha, dir) =>
+    new Map(
+      (gitTry(cwd, "ls-tree", `${sha}:${dir}`) ?? "")
+        .split("\n")
+        .filter(Boolean)
+        .map((l) => l.split(/\s+/))
+        .filter(([, type]) => type === "blob")
+        .map(([, , blob, ...name]) => [name.join(" "), blob]),
+    ),
+  file: (sha, path) => gitTry(cwd, "show", `${sha}:${path}`),
+});
+
+// What the EE side must follow for an OSS change from `base` to `head` (pointers `basePtr`,
+// `ptr`; `files`: the paths it changes, or null when unknown): the regenerated app types and
+// the OSS crates' new dependencies in ee/Cargo.lock (scripts/ci/ee-pair-check.mjs). Returns a
+// status description, or null when the EE side is in step.
+function pairProblem({ oss, ee, base, head, basePtr, ptr, files }) {
+  if (!basePtr || !ptr) return null;
+  const touches = (re) => files === null || files.some((f) => re.test(f));
+  if (touches(new RegExp(`^${OSS_TYPES_DIR}/`))) {
+    const stale = staleTypes({ ossBase: oss.dir(base, OSS_TYPES_DIR), ossHead: oss.dir(head, OSS_TYPES_DIR), eeBase: ee.dir(basePtr, EE_TYPES_DIR), eeHead: ee.dir(ptr, EE_TYPES_DIR) });
+    if (stale.length) return describe("EE app types not regenerated", stale, TYPES_FIX);
+  }
+  if (touches(/^Cargo\.lock$/)) {
+    const locks = [oss.file(base, "Cargo.lock"), oss.file(head, "Cargo.lock"), ee.file(basePtr, "Cargo.lock"), ee.file(ptr, "Cargo.lock")];
+    if (locks.every((t) => t !== null)) {
+      const manifests = new Map();
+      for (const f of (files ?? []).filter((f) => /(^|\/)Cargo\.toml$/.test(f))) {
+        const t = oss.file(head, f);
+        const m = t && manifestDeps(t);
+        if (m?.name) manifests.set(m.name, m.deps);
+      }
+      const [ossBase, ossHead, eeBase, eeHead] = locks;
+      const drift = lockDrift({ ossBase, ossHead, eeBase, eeHead }, (crate, dep) => manifests.get(crate)?.has(dep) ?? false);
+      if (drift.length) return describe("ee/Cargo.lock misses OSS deps", drift, LOCK_FIX);
+    }
+  }
+  return null;
+}
+const PAIR_PREFIXES = ["EE app types not regenerated", "ee/Cargo.lock misses OSS deps"];
+
 const PR_FIELDS = "number,url,headRefName,headRefOid,baseRefName,isCrossRepository,isDraft,title,body,mergeCommit,state";
 function prs(repo, head, state = "open") {
   const out = gh(repo, ["pr", "list", "-R", repo, "--head", head, "--state", state, "-L", "20", "--json", PR_FIELDS]);
@@ -1241,11 +1295,27 @@ function sync({ dry = false, ci = false, only = null, build = false, quiet = fal
     if (ptr === null) continue; // a branch from before the ee/ submodule existed
     const base = api(OSS, `compare/${pr.baseRefName}...${head}`).merge_base_commit.sha;
     const touched = ptr !== apiPointer(base);
+    // A success also needs the EE side in step with what the PR changes (pairProblem). Its
+    // verdict depends on the head only: a status this already posted on it is reused.
+    const paired = (h, p, state, desc, prev) => {
+      if (state !== "success") return [state, desc];
+      const had = prev.get(POINTER_CTX);
+      if (had?.state === "success" && had.description === desc) return [state, desc];
+      if (had?.state === "failure" && PAIR_PREFIXES.some((k) => had.description.startsWith(k))) return ["failure", had.description];
+      const c = api(OSS, `compare/${pr.baseRefName}...${h}`);
+      const b = c.merge_base_commit.sha;
+      const files = c.files && c.files.length < 300 ? c.files.map((f) => f.filename) : null;
+      const problem = pairProblem({ oss: apiReader(OSS), ee: apiReader(EE), base: b, head: h, basePtr: apiPointer(b), ptr: p, files });
+      if (problem) log(`#${pr.number}: ${problem}`); // even when quiet: `feat push` shows it
+      return problem ? ["failure", problem] : [state, desc];
+    };
     if (pr.isCrossRepository) {
       // A fork can't have an EE branch: it must leave ee alone. Never built automatically.
-      const state = touched ? "failure" : "success";
+      const prev = statusesOf(head);
+      const [state, desc] = paired(head, ptr, touched ? "failure" : "success", touched ? "forks cannot change the ee pointer" : "leaves ee untouched", prev);
       say(`#${pr.number} (fork) ${state}`);
-      write(`status #${pr.number}`, () => postStatus(head, POINTER_CTX, state, touched ? "forks cannot change the ee pointer" : "leaves ee untouched"));
+      if (prev.get(POINTER_CTX)?.state !== state || prev.get(POINTER_CTX)?.description !== desc)
+        write(`status #${pr.number}`, () => postStatus(head, POINTER_CTX, state, desc));
       continue;
     }
     const shipping = fresh && lock.branch === x;
@@ -1273,8 +1343,9 @@ function sync({ dry = false, ci = false, only = null, build = false, quiet = fal
     else if (want) [state, desc] = ["pending", "pointer is behind the paired EE branch; it is being updated"];
     else if (!touched) [state, desc] = ["success", "leaves ee untouched"];
     else [state, desc] = ["failure", "points at an EE commit that is not the tip of a paired EE branch (just feat push)"];
-    say(`#${pr.number} ${x}: ${state} (${desc})`);
     const prev = statusesOf(head);
+    [state, desc] = paired(head, now, state, desc, prev);
+    say(`#${pr.number} ${x}: ${state} (${desc})`);
     if (prev.get(POINTER_CTX)?.state !== state || prev.get(POINTER_CTX)?.description !== desc)
       write(`status #${pr.number}`, () => postStatus(head, POINTER_CTX, state, desc));
     if (build && !pr.isDraft && !prev.has(BUILD_CTX) && !buildRun(head)) {
@@ -1300,6 +1371,22 @@ function cmdSync(args) {
   const ci = argFlag(args, "--ci");
   const only = argVal(args, "--pr") ?? null;
   sync({ dry, ci, only, build: argFlag(args, "--build") });
+}
+// `feat pair-check [<rev>] [--ee <sha>] [--base <rev>]`: the EE side check of the ee/pointer
+// status for a local commit (default HEAD) against origin/main (or --base), with its pointer or `--ee` (the EE commit it
+// will point at, e.g. EE main once the paired EE PR merged). For merge tooling: exit 1 when the
+// EE side is not in step.
+function cmdPairCheck(args) {
+  const eeArg = argVal(args, "--ee");
+  const baseArg = argVal(args, "--base");
+  const rev = args.find((a) => !a.startsWith("--")) ?? "HEAD";
+  const head = git("rev-parse", rev);
+  const base = git("merge-base", baseArg ?? `origin/${MAIN}`, head);
+  const ptr = eeArg ?? pointerAt(head);
+  const files = git("diff", "--name-only", `${base}...${head}`).split("\n").filter(Boolean);
+  const problem = pairProblem({ oss: gitReader(ROOT), ee: apiReader(EE), base, head, basePtr: pointerAt(base), ptr, files });
+  if (problem) die(problem);
+  log(`EE side in step (${short(head)}, ee ${short(ptr)})`);
 }
 function cmdCheck(args) {
   const n = args[0] ?? die("usage: feat check <oss-pr-number>");
@@ -1427,6 +1514,7 @@ const commands = {
   queue: cmdQueue,
   sync: cmdSync,
   check: cmdCheck,
+  "pair-check": cmdPairCheck,
   hooks: cmdHooks,
   "pre-push": cmdPrePush,
 };

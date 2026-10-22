@@ -55,6 +55,7 @@ Rules:
 | `queue [--prune]` | Who holds the ship lock and what every running ship waits for (its checks, the full build, the lock), with ages. `--prune` deletes the tickets of ships that died. |
 | `sync [--dry-run] [--pr N] [--build]` | The reconcile the private-side bot runs (needs write access to both repos). |
 | `check <pr>` | Dry-run the pointer guard for one OSS PR. |
+| `pair-check [<rev>] [--ee <sha>] [--base <rev>]` | Is the EE side in step with a local commit (regenerated app types, `ee/Cargo.lock`)? The `ee/pointer` check, for merge tooling. |
 | `hooks` | Install a pre-push hook that refuses OSS commits pointing at unpushed EE commits. |
 
 Typical paired feature:
@@ -137,6 +138,13 @@ All CI runs in this repository, on GitHub-hosted runners; the private repository
   PR's pointer on its EE branch tip (or EE `main` once that merged), merges `main` into a PR
   whose only conflict is the gitlink, and posts the **`ee/pointer`** status on OSS PRs. Its API
   commits touch nothing but `ee` and are fast-forward only, retried when the branch moved.
+- **`ee/pointer` also checks the EE side follows the PR** (`scripts/ci/ee-pair-check.mjs`,
+  no build): a PR that changes `ui/src/generated` needs `ee/app/src/generated` regenerated in
+  its paired EE PR (`cd ee && just gen-types`, commit, `just feat push`), and a PR that gives
+  an OSS crate a new dependency in `Cargo.lock` needs it in `ee/Cargo.lock` too (`cd ee &&
+  cargo fetch`, commit). Only what the PR changes counts. Merge tooling outside `feat ship`
+  can run the same check on a local commit: `node scripts/feat.mjs pair-check HEAD --ee <EE
+  commit it will point at>` (exit 1 with the fix).
 - **Release** (`.github/workflows/release.yml`; docs/RELEASING.md): the same `ee/` fetch and
   encrypted logs; the signing and Cloudflare secrets live in the protected `release`
   environment (`main` only, and the owner's approval).
