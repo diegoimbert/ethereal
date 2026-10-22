@@ -19,7 +19,7 @@ import { create } from "zustand";
 import type { ProjectId } from "@/generated";
 import { LAST_PROJECT_KEY, previousSession, trackWebSession, webSessionLeftOpen } from "@/features/versions/session";
 import { useProjectStore } from "@/state";
-import { cmd, type EngineTransport } from "@/transport";
+import { cmd, listProjects, type EngineTransport } from "@/transport";
 import { useTransportSwitch } from "@/transport/createDefaultTransport";
 import { createDraftProject } from "./drafts";
 import { MISSING_PROJECT_NOTICE, projectStored, syncProjectUrl, urlProjectId } from "./projectUrl";
@@ -64,7 +64,7 @@ export async function projectToReopen(transport: EngineTransport): Promise<Proje
   if (!useLaunchPrefs.getState().reopenLast) return null;
   const last = read(LAST_PROJECT_KEY);
   if (!last) return null;
-  const [session, list] = await Promise.all([previousSession(transport), transport.send(cmd("Project", { type: "List" }))]);
+  const [session, list] = await Promise.all([previousSession(transport), listProjects(transport)]);
   if (!session.clean) return null;
   if (list.type !== "Projects" || !list.projects.some((p) => p.id === last)) return null;
   return last;

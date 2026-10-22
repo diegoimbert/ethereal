@@ -9,7 +9,7 @@
 // here runs there.
 import { contributions } from "@/ext";
 import { useProjectStore } from "@/state";
-import { cmd, type EngineTransport } from "@/transport";
+import { listProjects, type EngineTransport } from "@/transport";
 import type { MessageKey } from "@/i18n";
 import { isDraft } from "./drafts";
 import { openProject } from "./actions";
@@ -92,7 +92,7 @@ export function showMissingProject(): void {
 
 /** Is project `id` stored on this engine? */
 export async function projectStored(transport: EngineTransport, id: string): Promise<boolean> {
-  const list = await transport.send(cmd("Project", { type: "List" }));
+  const list = await listProjects(transport);
   return list.type === "Projects" && list.projects.some((p) => p.id === id);
 }
 

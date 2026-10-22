@@ -245,13 +245,64 @@ fn modified_ms(path: &Path) -> f64 {
 
 /// Display name stored in a `.ether` file (`project.settings.name`), read leniently so it
 /// works across format versions.
-fn name_from_ether(json: &str) -> Option<String> {
-    let v: serde_json::Value = serde_json::from_str(json).ok()?;
-    v.get("project")?
-        .get("settings")?
-        .get("name")?
-        .as_str()
-        .map(str::to_string)
+///
+/// Streams the file and stops at the name: the app writes `project.settings.name` within
+/// the first few hundred bytes (the field order of `EtherFile`, `Project` and
+/// `ProjectSettings`), so listing a library reads a few KB per project however big its
+/// documents are (plugin states make them tens of MB). Other key orders still work: what
+/// comes before the name is skipped without being kept (`IgnoredAny`).
+fn name_from_ether(reader: impl std::io::Read) -> Option<String> {
+    let mut name = None;
+    let mut de = serde_json::Deserializer::from_reader(reader);
+    // Finding the name aborts the parse with an error, on purpose.
+    let _ = serde::de::DeserializeSeed::deserialize(
+        KeyPath {
+            path: &["project", "settings", "name"],
+            out: &mut name,
+        },
+        &mut de,
+    );
+    name
+}
+
+/// [`name_from_ether`]: the string at `path` (object keys from the top) into `out`, then
+/// an error to stop reading.
+struct KeyPath<'a> {
+    path: &'a [&'a str],
+    out: &'a mut Option<String>,
+}
+
+impl<'de> serde::de::DeserializeSeed<'de> for KeyPath<'_> {
+    type Value = ();
+
+    fn deserialize<D: serde::Deserializer<'de>>(self, de: D) -> Result<(), D::Error> {
+        if self.path.is_empty() {
+            *self.out = Some(serde::Deserialize::deserialize(de)?);
+            return Err(serde::de::Error::custom("found"));
+        }
+        de.deserialize_map(self)
+    }
+}
+
+impl<'de> serde::de::Visitor<'de> for KeyPath<'_> {
+    type Value = ();
+
+    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.write_str("an object")
+    }
+
+    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<(), A::Error> {
+        while let Some(key) = map.next_key::<String>()? {
+            if key == self.path[0] {
+                return map.next_value_seed(KeyPath {
+                    path: &self.path[1..],
+                    out: self.out,
+                });
+            }
+            map.next_value::<serde::de::IgnoredAny>()?;
+        }
+        Ok(())
+    }
 }
 
 /// List `dir`; entry paths are `rel` + name. Hidden files are skipped; folders first, then
@@ -433,13 +484,14 @@ impl DiskStore {
 
     fn summary(&self, id: ProjectId) -> Result<ProjectSummary, StoreError> {
         let file = self.project_dir(id).join(PROJECT_FILE);
-        let json = fs::read_to_string(&file).map_err(|e| match e.kind() {
+        let reader = fs::File::open(&file).map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => StoreError::NotFound(id.to_string()),
             _ => io_err(e),
         })?;
         Ok(ProjectSummary {
             id,
-            name: name_from_ether(&json).unwrap_or_else(|| "Untitled".to_string()),
+            name: name_from_ether(std::io::BufReader::new(reader))
+                .unwrap_or_else(|| "Untitled".to_string()),
             modified_ms: modified_ms(&file),
             ext: self.summary_ext(id),
         })
@@ -1337,6 +1389,82 @@ mod tests {
         s.save(a, &ether("short")).unwrap();
         assert_eq!(s.load(a).unwrap(), ether("short"));
         assert!(matches!(s.save(pid(9), "{}"), Err(StoreError::NotFound(_))));
+    }
+
+    /// A document as the app writes it (`file::save`) named `name`, with `blob_bytes` of
+    /// data after the settings (where plugin states and the rest of a big project go).
+    fn saved_ether(name: &str, blob_bytes: usize) -> String {
+        use ether_core::protocol::model::{file, ids::IdGen, project::Project};
+        let mut project = Project::new(&mut IdGen::new(7), 1_700_000_000_000);
+        project.settings.name = name.to_string();
+        let mut json = file::save(&project, "test").unwrap();
+        // The end of `project` (the last `}` at its indentation).
+        let end = json.rfind("\n  }").unwrap();
+        let item = r#"{"id": "01HZY3K8Q2J7W9X4V6B5N1M0PA", "value": 0.5, "state": "AAECAwQFBgc="},"#;
+        let items = item.repeat(blob_bytes / item.len());
+        json.insert_str(end, &format!(",\n    \"blob\": [{}0]", items));
+        json
+    }
+
+    /// Counts the bytes read through it.
+    struct Counting<'a, R>(R, &'a std::cell::Cell<usize>);
+
+    impl<R: std::io::Read> std::io::Read for Counting<'_, R> {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            let n = self.0.read(buf)?;
+            self.1.set(self.1.get() + n);
+            Ok(n)
+        }
+    }
+
+    #[test]
+    fn the_name_is_read_from_the_head_of_the_document() {
+        let name = "mix \"2\" \u{e9}t\u{e9}";
+        let json = saved_ether(name, 4 << 20);
+        serde_json::from_str::<serde_json::Value>(&json).expect("valid JSON");
+        let read = std::cell::Cell::new(0);
+        let reader = std::io::BufReader::new(Counting(json.as_bytes(), &read));
+        assert_eq!(name_from_ether(reader).as_deref(), Some(name));
+        assert!(read.get() <= 16 << 10, "read {} of {} bytes", read.get(), json.len());
+
+        // Other key orders (`ether()` sorts them), with data before the name.
+        let late = serde_json::json!({
+            "format": "ethereal-project",
+            "project": { "a": ["x".repeat(100_000), { "name": "no" }], "settings": { "name": "late" } }
+        })
+        .to_string();
+        assert_eq!(name_from_ether(late.as_bytes()).as_deref(), Some("late"));
+        for bad in [
+            "",
+            "not json",
+            "[]",
+            r#"{"project": 3}"#,
+            r#"{"project": {"settings": {"name": 3}}}"#,
+            r#"{"project": {"settings": {}}, "name": "x"}"#,
+            r#"{"project": {"settings": {"name": "trunc"#,
+        ] {
+            assert_eq!(name_from_ether(bad.as_bytes()), None, "{bad}");
+        }
+    }
+
+    /// `cargo test -p ether-native --release -- --ignored --nocapture list_a_big_library`:
+    /// list 25 projects of 20 MB (500 MB).
+    #[test]
+    #[ignore = "writes 500 MB"]
+    fn list_a_big_library() {
+        let tmp = TempDir::new("store-big-library");
+        let mut s = store(&tmp);
+        for n in 0..25 {
+            s.create(pid(n)).unwrap();
+            s.save(pid(n), &saved_ether(&format!("song {n}"), 20 << 20))
+                .unwrap();
+        }
+        let started = std::time::Instant::now();
+        let list = ProjectStore::list(&mut s).unwrap();
+        let elapsed = started.elapsed();
+        eprintln!("listed {} projects in {elapsed:?}", list.len());
+        assert_eq!(list.len(), 25);
+        assert!(list.iter().all(|p| p.name.starts_with("song ")));
     }
 
     fn render(json: String) -> RenderDocument {
