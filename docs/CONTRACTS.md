@@ -664,8 +664,10 @@ of each block.
   sub-blocks are split differently, so only partition-sensitive devices may differ by
   rounding). If a graph change forces a side change while more than one block is queued, what
   was rendered ahead is dropped (a skip of up to one block on those tracks).
-- *Switch*: `EngineHandle::set_anticipative(bool)` (desktop: `anticipative` in
-  `<data_dir>/config/engine.json`, or `ETHER_ANTICIPATIVE=0|1`; on by default). Off, the
+- *Switch*: `EngineHandle::set_anticipative(bool)` (desktop: settings > audio > "render
+  ahead", `EngineCommand::SetAnticipative`, saved as `anticipative` in
+  `<data_dir>/config/engine.json`; `ETHER_ANTICIPATIVE=0|1` wins; on by default;
+  `EngineStatus::anticipative` is `None` where the engine can't anticipate). Off, the
   engine renders exactly as without it once the queued block has played.
 
 ### 11.8 Web perf: graph codec
