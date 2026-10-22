@@ -38,14 +38,15 @@ export function typicalMs(runs) {
 
 /**
  * What to cancel among a workflow's push runs on `main` (newest first, any status; a running run
- * may carry `first_job_at`, when its first job started). Returns `{ cancel: [run], reason }`.
+ * may carry `first_job_at`, when its first job started, and `cancelling`, when a job of it was
+ * cancelled already: a cancel takes minutes to land). Returns `{ cancel: [run], reason }`.
  */
 export function decide(runs, now, starvingMs = STARVING_MS) {
   const active = runs.filter((r) => r.status !== "completed");
   if (active.length < 2) return { cancel: [], reason: "nothing superseded" };
   const [newest, ...older] = [...active].sort((a, b) => b.run_number - a.run_number);
-  const cancel = older.filter((r) => (r.run_attempt ?? 1) === 1);
-  if (!cancel.length) return { cancel, reason: "only re-runs are superseded" };
+  const cancel = older.filter((r) => (r.run_attempt ?? 1) === 1 && !r.cancelling);
+  if (!cancel.length) return { cancel, reason: "only re-runs or runs already cancelling are superseded" };
   const last = latestFinished(runs);
   if (!last) return { cancel: [], reason: "no finished run in sight: let it finish" };
   const since = runs.filter((r) => r.run_number > last.run_number).map((r) => Date.parse(r.created_at));
@@ -56,7 +57,9 @@ export function decide(runs, now, starvingMs = STARVING_MS) {
   const done = (r) => (typical && r.first_job_at ? (now - Date.parse(r.first_job_at)) / typical : 0);
   const nearly = cancel.filter((r) => done(r) >= NEARLY_DONE);
   if (nearly.length) {
-    const rest = cancel.filter((r) => !nearly.includes(r));
+    // Only the runs older than the one let finish go: a newer one would be its successor.
+    const keep = Math.max(...nearly.map((r) => r.run_number));
+    const rest = cancel.filter((r) => r.run_number < keep && !nearly.includes(r));
     const pct = nearly.map((r) => `${r.id} ~${Math.round(done(r) * 100)}%`).join(", ");
     return { cancel: rest, reason: `nearly done (${pct} of a typical run): let it finish` };
   }
@@ -96,14 +99,14 @@ async function main() {
       // a running one can read "queued" while its next jobs wait for runners).
       for (const r of runs.filter((r) => r.status !== "completed")) {
         try {
-          const starts = api(`repos/${repo}/actions/runs/${r.id}/jobs?per_page=100`)
-            .jobs.map((j) => Date.parse(j.started_at ?? ""))
-            .filter((t) => t > 0);
+          const jobs = api(`repos/${repo}/actions/runs/${r.id}/jobs?per_page=100`).jobs;
+          const starts = jobs.map((j) => Date.parse(j.started_at ?? "")).filter((t) => t > 0);
           if (starts.length) r.first_job_at = new Date(Math.min(...starts)).toISOString();
+          r.cancelling = jobs.some((j) => j.conclusion === "cancelled");
         } catch (e) {
           console.log(`${w.name}: run ${r.id}: no job times (${String(e.stderr ?? e).trim()}); judged as just started`);
         }
-        console.log(`${w.name}: run ${r.id} ${r.status}, first job ${r.first_job_at ?? "not started"}`);
+        console.log(`${w.name}: run ${r.id} ${r.status}${r.cancelling ? " (cancelling)" : ""}, first job ${r.first_job_at ?? "not started"}`);
       }
       const d = decide(runs, Date.now());
       console.log(`${w.name}: ${d.cancel.length ? `cancel ${d.cancel.map((r) => r.id).join(", ")}, ` : ""}${d.reason}`);
