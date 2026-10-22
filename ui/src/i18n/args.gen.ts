@@ -662,7 +662,6 @@ export interface MessageArgs {
   "sidechain.source_label": { name: string | number };
   "sidechain.source_loop": { name: string | number };
   "sidechain.source_own": { name: string | number };
-  "sidechain.tap_label": { name: string | number };
   "sidechain.tap_refused": { reason: string | number; tap: string | number };
   "storage.status": { state: string | number };
   "storage.usage": { quota: string | number; used: string | number };

@@ -1,5 +1,4 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { pickOption } from "@/kit/testing";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Device, DeviceId } from "@/generated";
 import { devicesOfTrack, useProjectStore } from "@/state";
@@ -41,13 +40,26 @@ function Devices({ ids }: { ids: () => DeviceId[] }) {
   );
 }
 
-const selector = (name: string) => screen.findByRole("combobox", { name: `sidechain source for ${name}` });
-const tapSelector = (name: string) => screen.findByRole("combobox", { name: `sidechain tap for ${name}` });
-/** The options of a kit Select (opens it; they are only rendered while open). */
-const optionsOf = (select: HTMLElement) => {
-  if (select.getAttribute("aria-expanded") !== "true") fireEvent.click(select);
-  return within(document.getElementById(select.getAttribute("aria-controls")!)!);
-};
+const selector = (name: string) => screen.findByRole("button", { name: `sidechain source for ${name}` });
+/** Opens the picker of device `name`: its list of sources. */
+async function sources(name: string) {
+  const button = await selector(name);
+  if (button.getAttribute("aria-expanded") !== "true") fireEvent.click(button);
+  return within(await screen.findByRole("menu", { name: "sidechain sources" }));
+}
+/** The tap points of source `track` (its submenu, opened by hovering it). */
+function tapsOf(list: ReturnType<typeof within>, track: string) {
+  fireEvent.mouseEnter(list.getByRole("menuitem", { name: track }));
+  return within(screen.getByRole("menu", { name: track }));
+}
+/** Picks source `track` (its default tap point) in device `name`'s picker. */
+async function pickSource(name: string, track: string) {
+  fireEvent.click((await sources(name)).getByRole("menuitem", { name: track }));
+}
+/** Picks tap `tap` of source `track` in device `name`'s picker. */
+async function pickTap(name: string, track: string, tap: string) {
+  fireEvent.click(tapsOf(await sources(name), track).getByRole("menuitem", { name: tap }));
+}
 
 describe("SidechainSelector", () => {
   it("renders only for devices with a sidechain input", async () => {
@@ -55,15 +67,13 @@ describe("SidechainSelector", () => {
     const synth = deviceOf("Keys", "Synth");
     await selector("Compressor");
     await flush();
-    expect(within(screen.getByTestId(synth.id)).queryByRole("combobox")).toBeNull();
+    expect(within(screen.getByTestId(synth.id)).queryByRole("button", { name: /sidechain source/ })).toBeNull();
   });
 
   it("lists tracks and returns (not master; its own track for its pre-FX signal) and sets / clears the source", async () => {
     await renderAll(() => [deviceOf("Keys", "Compressor").id]);
-    const select = await selector("Compressor");
-    const labels = optionsOf(select)
-      .getAllByRole("option")
-      .map((o) => o.textContent);
+    const list = await sources("Compressor");
+    const labels = list.getAllByRole("menuitem").map((o) => o.textContent);
     const p = store().project!;
     const expected = Object.values(p.tracks).filter((t) => t.kind !== "Master").length;
     expect(labels[0]).toBe("no sidechain");
@@ -71,22 +81,20 @@ describe("SidechainSelector", () => {
     expect(labels).toContain("Drums");
     expect(labels).toContain("Keys (this track)");
     expect(labels).not.toContain("master");
-    fireEvent.keyDown(select, { key: "Escape" });
-    expect(select).toHaveTextContent("no sidechain");
+    // A search narrows the tracks.
+    fireEvent.change(screen.getByRole("searchbox", { name: "search tracks" }), { target: { value: "dru" } });
+    expect(list.getAllByRole("menuitem").map((o) => o.textContent)).toEqual(["Drums"]);
+    fireEvent.keyDown(screen.getByRole("searchbox", { name: "search tracks" }), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("menu", { name: "sidechain sources" })).toBeNull());
+    expect(await selector("Compressor")).toHaveTextContent("no sidechain");
 
+    // A click on a track takes its default point: post-fader ("post mixer"); one picker shows both.
     const drums = trackByName("Drums");
-    await act(async () => {
-      pickOption(select, { value: drums.id });
-    });
+    await pickSource("Compressor", "Drums");
     await waitFor(() => expect(deviceOf("Keys", "Compressor").sidechain).toBe(drums.id));
-    expect(await selector("Compressor")).toHaveTextContent("Drums");
-    // The tap picker appears with the source: post-fader ("post mixer") by default.
-    expect(await tapSelector("Compressor")).toHaveTextContent("post mixer");
+    expect(await selector("Compressor")).toHaveTextContent("Drums · post mixer");
 
-    const current = await selector("Compressor");
-    await act(async () => {
-      pickOption(current, { value: "" });
-    });
+    fireEvent.click((await sources("Compressor")).getByRole("menuitem", { name: "no sidechain" }));
     await waitFor(() => expect(deviceOf("Keys", "Compressor").sidechain).toBeNull());
 
     // One undo step per change.
@@ -119,8 +127,7 @@ describe("SidechainSelector", () => {
         }),
       );
     });
-    const select = await selector("limiter");
-    const keysOption = optionsOf(select).getByRole("option", {
+    const keysOption = (await sources("limiter")).getByRole("menuitem", {
       name: `${keys.name} (would loop)`,
     });
     expect(keysOption).toHaveAttribute("aria-disabled", "true");
@@ -208,16 +215,14 @@ describe("SidechainSelector", () => {
     });
     // The nested compressor has its picker.
     await flush();
-    const select = await selector("compressor");
-    pickOption(select, { value: keys.id });
+    await pickSource("compressor", "Keys");
     await waitFor(() => expect(store().project!.devices[comp]!.sidechain).toBe(keys.id));
-    const tap = await tapSelector("compressor");
-    const labels = optionsOf(tap)
-      .getAllByRole("option")
+    // Keys' tap points, in its submenu.
+    const labels = tapsOf(await sources("compressor"), "Keys")
+      .getAllByRole("menuitem")
       .map((o) => o.textContent);
     expect(labels).toContain("instrument rack | Kick SC | pre fx");
-    fireEvent.keyDown(tap, { key: "Escape" });
-    pickOption(tap, { value: `PreFx|R|${keysChain}` });
+    await pickTap("compressor", "Keys", "instrument rack | Kick SC | pre fx");
     await waitFor(() =>
       expect(store().project!.devices[comp]!.sidechain_tap).toEqual({
         point: "PreFx",
@@ -225,26 +230,22 @@ describe("SidechainSelector", () => {
       }),
     );
     // Its own track: only points heard before it (pre FX), not its own racks' chains.
-    pickOption(await selector("compressor"), { value: bass.id });
+    await pickSource("compressor", "Bass (this track)");
     await waitFor(() => expect(store().project!.devices[comp]!.sidechain).toBe(bass.id));
     expect(store().project!.devices[comp]!.sidechain_tap).toEqual({
       point: "PreFx",
     });
-    const ownSelect = await tapSelector("compressor");
-    const own = optionsOf(ownSelect);
-    expect(own.getByRole("option", { name: "post fx (comes after this device)" })).toHaveAttribute("aria-disabled", "true");
+    const own = tapsOf(await sources("compressor"), "Bass (this track)");
+    expect(own.getByRole("menuitem", { name: "post fx (comes after this device)" })).toHaveAttribute("aria-disabled", "true");
     expect(
-      own.getByRole("option", {
+      own.getByRole("menuitem", {
         name: "audio effect rack | Wet | post fx (holds this device)",
       }),
     ).toHaveAttribute("aria-disabled", "true");
-    fireEvent.keyDown(ownSelect, { key: "Escape" });
+    fireEvent.click(await selector("compressor"));
     // Removing the tapped chain cuts the sidechain; undo brings both back.
-    pickOption(await selector("compressor"), { value: keys.id });
+    await pickTap("compressor", "Keys", "instrument rack | Kick SC | post fx");
     await waitFor(() => expect(store().project!.devices[comp]!.sidechain).toBe(keys.id));
-    pickOption(await tapSelector("compressor"), {
-      value: `PostFx|R|${keysChain}`,
-    });
     await waitFor(() => expect(store().project!.devices[comp]!.sidechain_tap?.point).toBe("PostFx"));
     await act(async () => {
       await mock!.send(cmd("Rack", { type: "RemoveChain", id: keysChain }));

@@ -57,8 +57,8 @@ New mappings start at 50 % depth. The modulator's card also lists its targets wi
 
 Some devices have a sidechain input: the **compressor**, **limiter**, **gate**, **multiband compressor** and **auto filter**, and plugins that accept a sidechain. Their header shows a **sidechain** menu.
 
-1. In the sidechain menu, pick the source track. **no sidechain** turns it off.
-2. A second menu then picks where to listen on that track: **pre FX** (before its devices), **post FX** (after its devices) or **post mixer** (after its volume and pan), on the track itself or on one of its rack chains or drum pads.
+1. Open the sidechain menu and click the source track (type in its search box to find one). It listens after the track's volume and pan. **no sidechain** turns it off.
+2. To listen somewhere else on that track, hover the track: a submenu lists where: **pre FX** (before its devices), **post FX** (after its devices) or **post mixer** (after its volume and pan), on the track itself or on one of its rack chains or drum pads. The menu then shows the track and that point.
 
 The device then reacts to the source instead of to its own input: a compressor on the bass, keyed from the kick, turns the bass down on every kick. Choices that would create a loop are greyed out, with the reason.
 

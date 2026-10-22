@@ -9,7 +9,7 @@
 // header with its source and chain tap, and the tap picker open.
 import { expect, test, type Page } from "@playwright/test";
 import type { Device, Project } from "@/generated";
-import { addDevice, addToRackChain, createTrack, launch, newProject, openDeviceTab, pickOption, playButton, rackChains, rackPanel } from "./ui";
+import { addDevice, addToRackChain, createTrack, launch, newProject, openDeviceTab, playButton, rackChains, rackPanel } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -65,19 +65,18 @@ test("set a compressor sidechain from the device header", async ({ page }) => {
   const delay = chain.find((d) => d.id !== comp.id)!;
   const panel = (id: string) => page.locator(`[data-device="${id}"]`);
 
-  const selector = panel(comp.id).getByRole("combobox", {
+  const selector = panel(comp.id).getByRole("button", {
     name: `sidechain source for ${comp.name}`,
   });
   await expect(selector).toBeVisible();
   await expect(selector).toHaveText("no sidechain");
-  await expect(panel(delay.id).getByRole("combobox", { name: /sidechain source/ })).toHaveCount(0);
+  await expect(panel(delay.id).getByRole("button", { name: /sidechain source/ })).toHaveCount(0);
 
-  // Only other non-master tracks are offered.
+  // Only other non-master tracks are offered (one dropdown, with a search).
   await selector.click();
-  const labels = await page
-    .locator(`[id="${await selector.getAttribute("aria-controls")}"]`)
-    .getByRole("option")
-    .allTextContents();
+  const sources = page.getByRole("menu", { name: "sidechain sources" });
+  const labels = (await sources.getByRole("menuitem").allTextContents()).map((l) => l.trim());
+  await expect(page.getByRole("searchbox", { name: "search tracks" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(selector).toHaveAttribute("aria-expanded", "false");
   expect(labels).toContain(source.name);
@@ -85,18 +84,23 @@ test("set a compressor sidechain from the device header", async ({ page }) => {
   expect(labels).not.toContain("master");
 
   const sidechainOf = async () => (await doc(page)).devices[comp.id]?.sidechain;
-  await pickOption(page, selector, source.name);
+  /** Opens the picker and clicks the source `name` (its default tap point). */
+  const pick = async (name: string) => {
+    await selector.click();
+    await page.getByRole("menu", { name: "sidechain sources" }).getByRole("menuitem", { name, exact: true }).click();
+  };
+  await pick(source.name);
   await expect.poll(sidechainOf).toBe(source.id);
-  await expect(selector).toHaveText(source.name);
+  await expect(selector).toHaveText(`${source.name} · post mixer`);
 
   // One undo step.
   await page.getByRole("button", { name: "undo" }).click();
   await expect.poll(sidechainOf).toBeNull();
   await expect(selector).toHaveText("no sidechain");
 
-  await pickOption(page, selector, source.name);
+  await pick(source.name);
   await expect.poll(sidechainOf).toBe(source.id);
-  await pickOption(page, selector, "no sidechain");
+  await pick("no sidechain");
   await expect.poll(sidechainOf).toBeNull();
 
   expect(errors).toEqual([]);
@@ -160,18 +164,22 @@ test("a compressor two racks deep keys from a rack chain of another track", asyn
 
   const card = page.locator(`section[data-device="${comp.id}"]`);
   await expect(card).toBeVisible();
-  const source = card.getByRole("combobox", { name: `sidechain source for ${comp.name}` }).first();
+  const source = card.getByRole("button", { name: `sidechain source for ${comp.name}` }).first();
   await expect(source).toHaveText("no sidechain");
-  await pickOption(page, source, kick.name);
+  const sources = page.getByRole("menu", { name: "sidechain sources" });
+  await source.click();
+  await sources.getByRole("menuitem", { name: kick.name, exact: true }).click();
   const sc = async () => (await doc(page)).devices[comp.id]!;
   await expect.poll(async () => (await sc()).sidechain).toBe(kick.id);
+  await expect(source).toHaveText(`${kick.name} · post mixer`);
 
-  const tap = card.getByRole("combobox", { name: `sidechain tap for ${comp.name}` }).first();
-  await expect(tap).toHaveText("post mixer");
-  await pickOption(page, tap, "audio effect rack | chain 1 | post fx");
+  // The tap point: in the track's submenu (hover it).
+  await source.click();
+  await sources.getByRole("menuitem", { name: kick.name, exact: true }).hover();
+  await page.getByRole("menu", { name: kick.name }).getByRole("menuitem", { name: "audio effect rack | chain 1 | post fx" }).click();
   const kickChain = Object.values((await doc(page)).rack_chains).find((c) => c.rack === kickRack.id)!;
   await expect.poll(async () => (await sc()).sidechain_tap).toEqual({ point: "PostFx", chain: { type: "Rack", chain: kickChain.id } });
-  await expect(tap).toHaveText("audio effect rack | chain 1 | post fx");
+  await expect(source).toHaveText(`${kick.name} · audio effect rack | chain 1 | post fx`);
 
   const shots = process.env.SIDECHAIN_SHOTS;
   if (shots) {
@@ -180,8 +188,9 @@ test("a compressor two racks deep keys from a rack chain of another track", asyn
       path: `${shots}/nested-sidechain.png`,
       timeout: 15_000,
     });
-    await tap.click();
-    await expect(tap).toHaveAttribute("aria-expanded", "true");
+    await source.click();
+    await sources.getByRole("menuitem", { name: kick.name, exact: true }).hover();
+    await expect(page.getByRole("menu", { name: kick.name })).toBeVisible();
     await page.screenshot({
       path: `${shots}/nested-sidechain-taps.png`,
       timeout: 15_000,

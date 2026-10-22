@@ -57,8 +57,8 @@ Les nouvelles assignations commencent à 50 % de profondeur. La carte du modulat
 
 Certains appareils ont une entrée sidechain : le **compresseur**, le **limiteur**, le **gate**, le **compresseur multibande** et le **filtre auto**, ainsi que les plug-ins qui acceptent un sidechain. Leur en-tête affiche un menu **sidechain**.
 
-1. Dans le menu sidechain, choisissez la piste source. **pas de sidechain** le désactive.
-2. Un second menu choisit ensuite où écouter sur cette piste : **pré-fx** (avant ses appareils), **post-fx** (après ses appareils) ou **post-mixeur** (après son volume et son panoramique), sur la piste elle-même ou sur l’une de ses chaînes de rack ou l’un de ses pads de batterie.
+1. Ouvrez le menu sidechain et cliquez sur la piste source (tapez dans sa zone de recherche pour en trouver une). Il écoute après le volume et le panoramique de la piste. **pas de sidechain** le désactive.
+2. Pour écouter ailleurs sur cette piste, survolez-la : un sous-menu liste les points : **pré-fx** (avant ses appareils), **post-fx** (après ses appareils) ou **post-mixeur** (après son volume et son panoramique), sur la piste elle-même ou sur l’une de ses chaînes de rack ou l’un de ses pads de batterie. Le menu affiche alors la piste et ce point.
 
 L’appareil réagit alors à la source au lieu de sa propre entrée : un compresseur sur la basse, déclenché par la grosse caisse, baisse la basse à chaque coup. Les choix qui créeraient une boucle sont grisés, avec la raison.
 
