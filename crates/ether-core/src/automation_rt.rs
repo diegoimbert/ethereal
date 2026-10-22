@@ -264,6 +264,15 @@ pub(crate) fn apply_automation(
     let mut drive = MixerDrive::default();
     // `env_last` has one slot per clip envelope: empty = no clip has any.
     if tdesc.automation.is_empty() && env_last.is_empty() {
+        // Modulated switches override the entries' switches every sub-block: start from the
+        // static ones (`ModulationRt::render` reads them as the base).
+        if modulation.drives_switches() {
+            for e in chain.iter_mut() {
+                e.clear_auto();
+            }
+            racks.clear_auto_enabled();
+            chain_racks.clear_auto_enabled();
+        }
         return drive;
     }
     let src = Sources::new(tdesc, ends, timing, playing);

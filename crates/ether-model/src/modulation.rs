@@ -16,6 +16,14 @@
 //!     of the devices on that rack's chains, and the rack's own params from
 //!     `RACK_SELECTOR_PARAM` on (never its macros).
 //! - One mapping per `(source, device, param)`.
+//! - **Device on/off** ([`DEVICE_ENABLED_PARAM`], any device kind, plugins included): the
+//!   reserved param id `u32::MAX` (CLAP's `CLAP_INVALID_ID`, VST3's `kNoParamId`, so no
+//!   plugin param has it) targets the device's host-side switch (`Device::enabled`), not a
+//!   param of the device. Its base is `1` (on) or `0` (off): the document switch, or its
+//!   `DeviceEnabled` automation when a lane drives it. The device is on while
+//!   `clamp(b + Σ depth_i · m_i, 0, 1) >= 0.5`, switched exactly like the automated
+//!   switch (CONTRACTS.md §12.6.1). A macro may switch any device inside its rack, never
+//!   the rack itself; a modulator its host device or the devices inside its rack.
 //!
 //! # Composition (frozen)
 //! For a target param with normalized base value `b`:
@@ -53,6 +61,10 @@ use ts_rs::TS;
 
 use crate::ids::{DeviceId, ModMappingId, ModulatorId, TrackId};
 use crate::value::{OrderKey, ParamId};
+
+/// The param id a [`ModMapping`] uses to target its device's on/off switch (see the
+/// module docs). No device param has it.
+pub const DEVICE_ENABLED_PARAM: ParamId = ParamId(u32::MAX);
 
 /// Modulator kinds. Append-only (serialized by name).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]

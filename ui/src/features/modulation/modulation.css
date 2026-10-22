@@ -216,3 +216,19 @@
   align-items: flex-start;
   gap: var(--eth-space-xs);
 }
+
+/* ---- Device switch (a device's on/off button switched by macros or modulators) ---- */
+.eth-mod-switch {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  gap: var(--eth-space-hair);
+}
+.eth-mod-switch__dot {
+  width: var(--eth-space-xs);
+  height: var(--eth-space-xs);
+  border-radius: var(--eth-radius-round);
+  background: var(--mod-color);
+}
