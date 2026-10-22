@@ -7,6 +7,13 @@
 //! copies the main output back. Param values that reached the processor are sent to the
 //! controller (so its `IEditController` and GUI follow automation); edits made in the GUI
 //! arrive from the controller and are fed to the processor.
+//!
+//! Sleep on silence (CONTRACTS.md §13.19): once nothing reached the plugin (silent input,
+//! no event, no param change, no held note, no transport jump) for longer than its tail
+//! (`getTailSamples`, refreshed on the main thread) and its output is silent, the node
+//! reports [`ProcessStatus::Silent`] and stops calling `process` until something arrives.
+//! Input buses carry `kSilentFlag` for channels of digital silence; output channels the
+//! plugin flags silent are silence.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -36,7 +43,7 @@ use vst3::Steinberg::Vst::{
     IAudioProcessorTrait, IEditController, IEventList, IMidiMapping, IMidiMappingTrait,
     INoteExpressionController, INoteExpressionControllerTrait, IParameterChanges,
     NoteExpressionValueEvent, NoteOffEvent, NoteOnEvent, PolyPressureEvent,
-    ProcessContext as Vst3Context, ProcessData,
+    ProcessContext as Vst3Context, ProcessData, kInfiniteTail,
 };
 use vst3::Steinberg::{kResultFalse, kResultOk, kResultTrue};
 use vst3::{ComPtr, ComWrapper};
@@ -53,6 +60,37 @@ pub(crate) type ParamMsg = (u32, f64);
 pub(crate) struct NodeShared {
     pub faulted: AtomicBool,
     pub latency: AtomicU32,
+    /// `IAudioProcessor::getTailSamples` (main thread): `kInfiniteTail` never
+    /// sleeps, `kNoTail` (0) sleeps as soon as input and output are silent.
+    pub tail: AtomicU32,
+}
+
+/// Output at or below this level (-120 dBFS) counts as silent.
+const QUIET: f32 = 1e-6;
+
+/// `kSilentFlag` bits of the channels of `buf` (`max` frames each) that are digital
+/// silence over `frames`.
+fn silence_flags(buf: &[f32], max: usize, frames: usize) -> u64 {
+    let mut flags = 0u64;
+    for (c, ch) in buf.chunks_exact(max).enumerate().take(64) {
+        if ch[..frames].iter().all(|&s| s == 0.0) {
+            flags |= 1 << c;
+        }
+    }
+    flags
+}
+
+/// Sleep-on-silence state of a node (audio thread).
+#[derive(Debug, Default)]
+struct Sleep {
+    /// The last block reported `Silent`: `process` is skipped while nothing arrives.
+    asleep: bool,
+    /// Frames since something last reached the plugin.
+    quiet: u64,
+    /// Transport of the last block: playing, and where the next block starts when it
+    /// continues (`projectTimeSamples`), to see starts, stops and jumps.
+    playing: bool,
+    next_pos: i64,
 }
 
 /// Audio bus channel counts (after `setBusArrangements`) + whether there's an event input.
@@ -252,6 +290,9 @@ pub struct Vst3Node {
     /// (member channels via `IMidiMapping`).
     note_expressions: bool,
     mpe_out: MpeOut,
+    /// The instance's "always process" switch (`PluginNode::always_process`).
+    always: Arc<AtomicBool>,
+    sleep: Sleep,
     /// Keeps the library loaded while this node (its `IAudioProcessor`) lives, even if the
     /// controller is dropped first. Declared last: dropped after `processor`.
     _module: Arc<Module>,
@@ -350,6 +391,8 @@ impl Vst3Node {
             midi_map,
             note_expressions,
             mpe_out: MpeOut::default(),
+            always: Arc::new(AtomicBool::new(false)),
+            sleep: Sleep::default(),
             _module: module,
         }
     }
@@ -680,6 +723,14 @@ impl Node for Vst3Node {
         self.layout.sidechain_channels()
     }
 
+    fn wake_requested(&mut self) -> bool {
+        // Values sent outside the engine's events (GUI edits, modulation, immediate sets).
+        !self.from_main.is_empty()
+            || !self.pending.is_empty()
+            || self.release_all
+            || self.always.load(Ordering::Relaxed)
+    }
+
     fn process_sidechain(
         &mut self,
         ctx: &mut ProcessContext<'_>,
@@ -729,6 +780,30 @@ impl Vst3Node {
             return ProcessStatus::Continue;
         }
 
+        // Sleep on silence: did anything reach the plugin? A transport start, stop or jump
+        // counts (plugins may start sound on it).
+        let t = ctx.transport;
+        let pos = (t.seconds * self.sample_rate).round() as i64;
+        let jump =
+            t.playing != self.sleep.playing || (t.playing && (pos - self.sleep.next_pos).abs() > 1);
+        self.sleep.playing = t.playing;
+        self.sleep.next_pos = pos + frames as i64;
+        let silent = |ch: &&[f32]| ch[..frames.min(ch.len())].iter().all(|&s| s == 0.0);
+        let active = jump
+            || !ctx.events.is_empty()
+            || !self.pending.is_empty()
+            || !self.from_main.is_empty()
+            || self.release_all
+            || self.held.iter().any(|&h| h != 0)
+            || self.always.load(Ordering::Relaxed)
+            || !audio.inputs.iter().all(silent)
+            || !sidechain.iter().all(silent);
+        if self.sleep.asleep && !active {
+            audio.clear_outputs();
+            return ProcessStatus::Silent;
+        }
+        self.sleep.asleep = false;
+
         // Inputs: GUI edits and immediate sets (offset 0), then the engine's sorted events.
         self.in_changes.clear();
         self.in_events.clear();
@@ -775,7 +850,12 @@ impl Vst3Node {
                 }
             }
         }
-        for bus in self.ins.buses.iter_mut().chain(self.outs.buses.iter_mut()) {
+        // Silence flags: set for input channels of digital silence; the plugin sets the
+        // output ones.
+        for (bus, data) in self.ins.buses.iter_mut().zip(&self.ins.data) {
+            bus.silenceFlags = silence_flags(data, max, frames);
+        }
+        for bus in self.outs.buses.iter_mut() {
             bus.silenceFlags = 0;
         }
 
@@ -788,13 +868,22 @@ impl Vst3Node {
             return ProcessStatus::Silent;
         }
 
-        // First output bus → node outputs (mono output feeds every channel).
+        // First output bus → node outputs (mono output feeds every channel); channels the
+        // plugin flagged silent are silence.
+        let mut quiet = true;
         match self.layout.outputs.first() {
             Some(&ch) if ch > 0 => {
                 let src = &self.outs.data[0];
+                let flags = self.outs.buses[0].silenceFlags;
                 for (c, dst) in audio.outputs.iter_mut().enumerate() {
                     let c = c.min(ch as usize - 1);
-                    dst[..frames].copy_from_slice(&src[c * max..c * max + frames]);
+                    let dst = &mut dst[..frames];
+                    if c < 64 && flags & (1 << c) != 0 {
+                        dst.fill(0.0);
+                    } else {
+                        dst.copy_from_slice(&src[c * max..c * max + frames]);
+                        quiet &= dst.iter().all(|s| s.abs() <= QUIET);
+                    }
                 }
             }
             _ => audio.clear_outputs(),
@@ -835,7 +924,27 @@ impl Vst3Node {
             };
             ctx.out_events.push(ProcessEvent { offset, kind });
         }
-        ProcessStatus::Continue
+
+        // Sleep once nothing reached the plugin for its tail and its output is silent (no
+        // sound, no notes out). Plugins without audio output (note generators, which may
+        // follow the transport) never sleep: they are cheap anyway.
+        if active {
+            self.sleep.quiet = 0;
+        } else {
+            self.sleep.quiet += frames as u64;
+        }
+        let tail = self.shared.tail.load(Ordering::Relaxed);
+        self.sleep.asleep = !active
+            && quiet
+            && self.layout.outputs.first().is_some_and(|&ch| ch > 0)
+            && self.out_events.len() == 0
+            && tail != kInfiniteTail
+            && self.sleep.quiet >= u64::from(tail);
+        if self.sleep.asleep {
+            ProcessStatus::Silent
+        } else {
+            ProcessStatus::Continue
+        }
     }
 }
 
@@ -868,6 +977,10 @@ impl Device for Vst3Node {
 impl PluginNode for Vst3Node {
     fn is_faulted(&self) -> bool {
         self.shared.faulted.load(Ordering::Relaxed)
+    }
+
+    fn always_process(&self) -> Option<Arc<AtomicBool>> {
+        Some(self.always.clone())
     }
 }
 

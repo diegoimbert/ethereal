@@ -204,6 +204,7 @@ mod tests {
                     vendor: String::new(),
                     version: String::new(),
                     sandboxed: false,
+                    always_process: false,
                     state: None,
                 },
             },

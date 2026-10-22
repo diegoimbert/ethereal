@@ -54,7 +54,8 @@ export function confirmDeleteProject(transport: EngineTransport, id: string, nam
 }
 
 export function deleteOpenProject(transport: EngineTransport, id: string): void {
-  attempt(() => guardLeave(() => closeAndDelete(transport, id), t("project.leave.delete")));
+  // Deleted anyway: no "keep or discard?" for an untitled one.
+  attempt(() => guardLeave(() => closeAndDelete(transport, id), t("project.leave.delete"), { untitled: false }));
 }
 
 /** The extensions' project commands (`@/ext` "project.commands") for `project` (`null`: app-level ones). */

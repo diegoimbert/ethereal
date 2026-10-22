@@ -277,6 +277,9 @@ where
 
     /// Called every tick: a rolling autosave version when due.
     pub fn versions_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+        if self.discarded_open() {
+            return;
+        }
         let Some(id) = self.doc.as_ref().map(|d| d.project.id) else {
             return;
         };
@@ -346,6 +349,14 @@ where
     /// A copied project folder (Duplicate, Save As) must not carry the source's marker.
     pub fn versions_forget_marker(&mut self, id: ProjectId) {
         let _ = self.store.remove(id, SESSION_MARKER);
+    }
+
+    /// A discarded project is about to be deleted: its session ends with its folder.
+    pub fn versions_forget_project(&mut self, id: ProjectId) {
+        if self.versions.project == Some(id) {
+            self.versions.project = None;
+        }
+        self.versions.stale_on_open.remove(&id);
     }
 
     /// Clean close: remove the open project's marker.

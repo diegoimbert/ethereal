@@ -240,6 +240,8 @@ export class MockTransport implements EngineTransport {
   /** Plugin devices held as placeholders (`OpenSafe`). */
   private safeMode: DeviceId[] = [];
   private safe = false;
+  /** The open project the user discarded (`Project::Discard`): deleted once another opens. */
+  private discarded: string | null = null;
   private revision = 0;
   private undoStack: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
@@ -341,7 +343,9 @@ export class MockTransport implements EngineTransport {
         for (const m of media) tx.upsert("Media", m);
         return UNIT;
       }),
-    save: () => void this.saveCurrent(),
+    save: () => {
+      if (this.discarded !== this.project.id) this.saveCurrent();
+    },
     libraryHash: (rel) => hashHex(`library:${normalize(rel)}`),
   });
   /** Missing plugins / audio files (`roadmap/resolver.ts`). */
@@ -369,7 +373,7 @@ export class MockTransport implements EngineTransport {
     now: () => this.wallNow(),
     newProject: (id, name, template) => {
       const checked = this.checkNewProject(id, name);
-      if (this.dirty) this.saveCurrent();
+      this.saveBeforeSwitch();
       const project = template ? { ...template, id, settings: { ...template.settings, name: checked } } : createStarterProject(this.newId, checked, id);
       this.storeProject(project, this.wallNow());
       this.loadProject(project);
@@ -430,7 +434,7 @@ export class MockTransport implements EngineTransport {
         this.setDirty(true);
       },
       saveIfDirty: () => {
-        if (this.dirty) this.saveCurrent();
+        this.saveBeforeSwitch();
       },
     },
     parseEtherFile,
@@ -467,7 +471,7 @@ export class MockTransport implements EngineTransport {
     storedJson: (id) => this.stored(id).json,
     emptyProject: (id, name) => createEmptyProject(this.newId, name, id),
     storeAndOpen: (project) => {
-      if (this.dirty) this.saveCurrent();
+      this.saveBeforeSwitch();
       const summary = this.storeProject(project, this.wallNow());
       this.loadProject(project);
       this.emitListChanged();
@@ -854,6 +858,12 @@ export class MockTransport implements EngineTransport {
 
   private loadProject(project: Project): void {
     this.liveRecord.abort();
+    // A discarded project is deleted once another opens (as the controller).
+    if (this.discarded && this.discarded !== project.id) {
+      this.store.delete(this.discarded);
+      this.discarded = null;
+      this.emitListChanged();
+    }
     this.project = project;
     this.safe = false;
     this.safeMode = [];
@@ -928,7 +938,13 @@ export class MockTransport implements EngineTransport {
   }
 
   /** Save the current project into the store. */
+  /** Before another project opens: save unsaved changes (not a discarded project's). */
+  private saveBeforeSwitch(): void {
+    if (this.dirty && this.discarded !== this.project.id) this.saveCurrent();
+  }
+
   private saveCurrent(): ProjectSummary {
+    if (this.discarded === this.project.id) fail("InvalidState", "this project was discarded: it is deleted when it closes");
     const summary = this.storeProject(this.project, this.wallNow());
     this.emit({ type: "Project", event: { type: "Saved", project: summary } });
     this.emitListChanged();
@@ -944,7 +960,7 @@ export class MockTransport implements EngineTransport {
         return { type: "Project", project: this.project };
       case "Create": {
         const name = this.checkNewProject(c.id, c.name);
-        if (this.dirty) this.saveCurrent();
+        this.saveBeforeSwitch();
         const project = createEmptyProject(this.newId, name, c.id);
         this.storeProject(project, this.wallNow());
         this.loadProject(project);
@@ -954,7 +970,7 @@ export class MockTransport implements EngineTransport {
       case "Open":
       case "OpenSafe": {
         const entry = this.stored(c.id);
-        if (this.dirty) this.saveCurrent();
+        this.saveBeforeSwitch();
         // Re-read after a possible autosave (opening the current project reloads it).
         this.loadProject(parseEtherFile(this.store.get(c.id)?.json ?? entry.json));
         // Safe mode: the mock hosts no plugins; it reports their devices as held.
@@ -1020,6 +1036,17 @@ export class MockTransport implements EngineTransport {
         this.emitListChanged();
         return UNIT;
       }
+      case "Discard":
+        if (c.id === this.project.id) {
+          // Never saved again; deleted once another project opens.
+          this.discarded = c.id;
+          this.setDirty(false);
+          return UNIT;
+        }
+        this.stored(c.id);
+        this.store.delete(c.id);
+        this.emitListChanged();
+        return UNIT;
       case "Delete":
         if (c.id === this.project.id) fail("InvalidState", "cannot delete the open project");
         this.stored(c.id);

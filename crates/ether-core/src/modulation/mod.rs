@@ -73,7 +73,7 @@ use crate::transport::TransportInfo;
 /// Most params of a modulator kind (Steps has 19).
 pub const MAX_MOD_PARAMS: usize = 24;
 /// Macros per rack (`ether_model::RACK_MACROS`).
-pub const MACROS: usize = 8;
+pub const MACROS: usize = 16;
 /// Readback frames pushed per analysis pass (all tracks together).
 pub const READBACK_FRAMES_PER_PASS: usize = 16;
 /// Modulated params per readback frame (triples).
@@ -138,7 +138,7 @@ pub struct ModulatorDesc {
 pub enum ModSourceDesc {
     /// Index into `ModulationDesc::modulators`.
     Modulator(u32),
-    /// Macro `index` of the rack node `rack` (its param `MacroDesc::first + index`, plain
+    /// Macro `index` of the rack node `rack` (its param [`MacroDesc::param`], plain
     /// 0..=1).
     Macro { rack: NodeKey, index: u8 },
 }
@@ -163,9 +163,44 @@ pub struct ModMappingDesc {
 pub struct MacroDesc {
     pub rack: NodeKey,
     pub values: [f64; MACROS],
-    /// Param id of macro 0 (0 for chain racks; a drum rack's follow its volume and pan).
+    /// Param id of macro 0: macros 0..8 are `first..first + 8` (0 for chain racks; a drum
+    /// rack's follow its volume and pan).
     #[serde(default)]
     pub first: u32,
+    /// Param id of macro 8: macros 8..16 are `upper..upper + 8` (9 for chain racks, after
+    /// their chain selector; `first + 8` for drum racks).
+    #[serde(default = "default_upper")]
+    pub upper: u32,
+}
+
+fn default_upper() -> u32 {
+    9
+}
+
+impl MacroDesc {
+    /// Param id of macro `index` (`< MACROS`).
+    pub fn param(&self, index: u8) -> u32 {
+        macro_param(self.first, self.upper, index)
+    }
+}
+
+fn macro_param(first: u32, upper: u32, index: u8) -> u32 {
+    if index < 8 {
+        first + u32::from(index)
+    } else {
+        upper + u32::from(index - 8)
+    }
+}
+
+/// Macro index of param `param` of a rack whose macros start at `first` and `upper`.
+fn macro_index(first: u32, upper: u32, param: u32) -> Option<u8> {
+    if param.wrapping_sub(first) < 8 {
+        Some((param - first) as u8)
+    } else if param.wrapping_sub(upper) < 8 {
+        Some((param - upper) as u8 + 8)
+    } else {
+        None
+    }
 }
 
 /// PDC inputs of envelope-follower sidechains (from `graph.rs`).
@@ -547,8 +582,9 @@ struct Target {
 #[derive(Debug)]
 struct MacroRt {
     rack: NodeKey,
-    /// Param id of macro 0.
+    /// Param ids of macros 0 and 8 ([`MacroDesc`]).
     first: u32,
+    upper: u32,
     values: [f64; MACROS],
     changes: [(u32, u8, f64); MAX_CHANGES],
     n_changes: usize,
@@ -680,6 +716,7 @@ impl ModulationRt {
             .map(|m| MacroRt {
                 rack: m.rack,
                 first: m.first,
+                upper: m.upper,
                 values: m.values.map(|v| v.clamp(0.0, 1.0)),
                 changes: [(0, 0, 0.0); MAX_CHANGES],
                 n_changes: 0,
@@ -837,12 +874,12 @@ impl ModulationRt {
         plain: f64,
         offset: u32,
     ) -> bool {
-        if let Some(m) = self
+        if let Some((m, index)) = self
             .macros
             .iter_mut()
-            .find(|m| m.rack == node && param.0.wrapping_sub(m.first) < MACROS as u32)
+            .filter(|m| m.rack == node)
+            .find_map(|m| macro_index(m.first, m.upper, param.0).map(|i| (m, i)))
         {
-            let index = (param.0 - m.first) as u8;
             let v = if plain.is_finite() {
                 plain.clamp(0.0, 1.0)
             } else {

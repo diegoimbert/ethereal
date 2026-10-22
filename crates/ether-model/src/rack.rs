@@ -21,14 +21,16 @@
 //! - PDC inside a rack: every chain is delayed to the longest chain's latency (like drum pads).
 //!
 //! # Macros and the chain selector
-//! Every rack has the same leading params: [`RACK_MACROS`] macro knobs (ids `0..8`, plain
-//! `0..=1`, named "Macro 1".."Macro 8") and the chain selector (id [`RACK_SELECTOR_PARAM`],
-//! `0..=127`). Macros do nothing by themselves: they are **modulation sources**
+//! Every rack has the same params: [`RACK_MACROS`] (16) macro knobs (plain `0..=1`, named
+//! "Macro 1".."Macro 16"; ids `0..8`, then `9..17` after the chain selector, appended
+//! later: [`rack_macro_param`]) and the chain selector (id [`RACK_SELECTOR_PARAM`],
+//! `0..=127`). A rack shows [`RackMacros::visible`] of them (default 8, like Live 11+) and
+//! may rename them ([`RackMacros::names`]). Macros do nothing by themselves: they are **modulation sources**
 //! (`ModSource::Macro`, see [`crate::modulation`]) mapped to params of devices inside the rack.
 //! Rack-type-specific params follow from id [`RACK_FIRST_TYPE_PARAM`] (append-only).
 //!
-//! A drum rack ([`crate::drum_rack`]) has the same 8 macros, appended after its own volume
-//! and pan (ids [`DRUM_RACK_FIRST_MACRO`]`..+8`; no chain selector). [`macro_param`] and
+//! A drum rack ([`crate::drum_rack`]) has the same 16 macros, appended after its own volume
+//! and pan (ids [`DRUM_RACK_FIRST_MACRO`]`..+16`; no chain selector). [`macro_param`] and
 //! [`macro_index`] map between a rack's macro index and its param id for every rack type.
 //!
 //! # Structure rules (model invariants)
@@ -53,13 +55,23 @@ use crate::device::BuiltinDeviceType;
 use crate::ids::{DeviceId, RackChainId};
 use crate::value::{Color, Decibels, OrderKey, Pan, ParamId};
 
-/// Number of macro knobs of every rack.
-pub const RACK_MACROS: u8 = 8;
-/// Param id of macro `i` (`0..RACK_MACROS`).
+/// Number of macro knobs of every rack (shown: [`RackMacros::visible`]).
+pub const RACK_MACROS: u8 = 16;
+/// Macros shown on a new rack (and on racks saved before 16 macros).
+pub const DEFAULT_VISIBLE_MACROS: u8 = 8;
+/// Longest custom macro name, in chars (longer names are cut).
+pub const MACRO_NAME_MAX: usize = 64;
+/// Param id of a chain rack's macro `i` (`0..RACK_MACROS`): macros 1..8 are `0..8`, macros
+/// 9..16 follow the chain selector (`9..17`; param ids are append-only).
 pub const fn rack_macro_param(i: u8) -> ParamId {
-    ParamId(i as u32)
+    if i < 8 {
+        ParamId(i as u32)
+    } else {
+        ParamId(RACK_SELECTOR_PARAM.0 + 1 + (i as u32 - 8))
+    }
 }
-/// Param id of a drum rack's macro 1 (after its volume and pan; append-only).
+/// Param id of a drum rack's macro 1 (after its volume and pan; append-only). Its 16 macros
+/// are contiguous: `2..18`.
 pub const DRUM_RACK_FIRST_MACRO: u32 = 2;
 
 /// Param id of macro `index` of a rack of type `ty` (`None`: not a rack, or `index` out of
@@ -77,9 +89,7 @@ pub fn macro_param(ty: BuiltinDeviceType, index: u8) -> Option<ParamId> {
 
 /// Macro index of param `param` of a rack of type `ty` (`None`: not a macro param).
 pub fn macro_index(ty: BuiltinDeviceType, param: ParamId) -> Option<u8> {
-    let first = macro_param(ty, 0)?.0;
-    let i = param.0.checked_sub(first)?;
-    (i < u32::from(RACK_MACROS)).then_some(i as u8)
+    (0..RACK_MACROS).find(|&i| macro_param(ty, i) == Some(param))
 }
 
 /// [`macro_index`] of a device kind (`None` for non-rack devices).
@@ -90,10 +100,89 @@ pub fn kind_macro_index(kind: &crate::device::DeviceKind, param: ParamId) -> Opt
     }
 }
 
+/// A rack's macro bank settings (every rack type, drum racks included; Live 11+'s
+/// show/hide macros and macro names), on the rack's `BuiltinDevice` (absent = the defaults).
+/// Hidden macros keep their values and mappings: they still modulate.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct RackMacros {
+    /// Macros shown, `1..=RACK_MACROS` (default [`DEFAULT_VISIBLE_MACROS`]).
+    #[serde(default = "default_visible_macros")]
+    pub visible: u8,
+    /// Custom names by macro index; a missing or empty entry = the default name ("Macro N").
+    /// At most [`RACK_MACROS`] entries, no trailing empty ones.
+    #[serde(default)]
+    pub names: Vec<String>,
+}
+
+fn default_visible_macros() -> u8 {
+    DEFAULT_VISIBLE_MACROS
+}
+
+impl Default for RackMacros {
+    fn default() -> Self {
+        Self {
+            visible: DEFAULT_VISIBLE_MACROS,
+            names: Vec::new(),
+        }
+    }
+}
+
+impl RackMacros {
+    /// The custom name of macro `index` (`None`: the default name).
+    pub fn name(&self, index: u8) -> Option<&str> {
+        self.names
+            .get(usize::from(index))
+            .map(String::as_str)
+            .filter(|n| !n.is_empty())
+    }
+
+    /// Display name of macro `index`: its custom name, else "Macro N".
+    pub fn display_name(&self, index: u8) -> String {
+        self.name(index)
+            .map_or_else(|| format!("Macro {}", index + 1), str::to_owned)
+    }
+
+    /// Sets macro `index`'s custom name (trimmed and cut to [`MACRO_NAME_MAX`] chars; empty =
+    /// the default name). Out-of-range indices are ignored.
+    pub fn set_name(&mut self, index: u8, name: &str) {
+        if index >= RACK_MACROS {
+            return;
+        }
+        let name: String = name.trim().chars().take(MACRO_NAME_MAX).collect();
+        let i = usize::from(index);
+        if self.names.len() <= i {
+            self.names.resize(i + 1, String::new());
+        }
+        self.names[i] = name;
+        self.normalize();
+    }
+
+    /// Clamps `visible` to `1..=RACK_MACROS` and tidies the names (at most `RACK_MACROS`, no
+    /// trailing empty entries).
+    pub fn normalize(&mut self) {
+        self.visible = self.visible.clamp(1, RACK_MACROS);
+        self.names.truncate(usize::from(RACK_MACROS));
+        while self.names.last().is_some_and(String::is_empty) {
+            self.names.pop();
+        }
+    }
+
+    /// `self` normalized ([`RackMacros::normalize`]).
+    pub fn normalized(mut self) -> Self {
+        self.normalize();
+        self
+    }
+
+    /// Whether these are the defaults (8 shown, no names).
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
 /// Chain selector param (plain `0..=127`, default 0).
 pub const RACK_SELECTOR_PARAM: ParamId = ParamId(8);
-/// First rack-type-specific param id.
-pub const RACK_FIRST_TYPE_PARAM: u32 = 9;
+/// First rack-type-specific param id (after macros 9..16).
+pub const RACK_FIRST_TYPE_PARAM: u32 = 17;
 /// Deepest rack nesting: a track-chain rack is level 1, a rack on its chain (or on its pad,
 /// for a drum rack) level 2, ...
 pub const MAX_RACK_DEPTH: usize = 6;

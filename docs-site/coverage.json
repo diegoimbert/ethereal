@@ -635,6 +635,9 @@
     "devices/delay": [
       "making-music/effects#delay"
     ],
+    "devices/grain-delay": [
+      "making-music/effects#grain-delay"
+    ],
     "devices/reverb": [
       "making-music/effects#reverb"
     ],

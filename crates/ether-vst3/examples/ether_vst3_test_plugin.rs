@@ -2,7 +2,7 @@
 //! tests, written with the `vst3` crate's plugin side (`ComWrapper` classes). Wrapped into a
 //! `.vst3` bundle by `ether_vst3::testing::make_bundle`.
 //!
-//! Two audio-module classes:
+//! Three audio-module classes:
 //!
 //! **Gain effect** (`E7E1E4A1000000000000000000000001`, `Fx|Dynamics`): a processor with a
 //! *separate* edit controller, connected through `IConnectionPoint`. Stereo in/out.
@@ -37,6 +37,22 @@
 //! Loading aborts the process if the module path contains `ether-crash`, and hangs forever if
 //! it contains `ether-hang` (scanner crash/timeout tests).
 //!
+//! **Tail effect** (`E7E1E4A1000000000000000000000003`, `Fx|Delay`): a single component,
+//! stereo in/out, for the host's sleep on silence. What it does is param 20 `Kind`
+//! (3 steps):
+//! - 0 `Echo`: the input [`ECHO`] samples later (no dry signal), tail = [`ECHO`]; flags its
+//!   output silent when it is;
+//! - 1 `Generator`: a click (0.5) every [`CLICK_PERIOD`] samples out of nothing, tail =
+//!   `kInfiniteTail`;
+//! - 2 `Liar`: the same clicks, but tail = `kNoTail` (a misbehaving plugin);
+//! - 3 `Flagged`: writes 0.5 everywhere and flags the outputs silent whenever the input
+//!   is (hosts must honour the flags).
+//!
+//! Hidden, read-only params report what the processor saw: 21 `Calls` (process calls with
+//! frames, normalized = calls / 10⁶) and 22 `InFlags` (the main input's last silence flags,
+//! normalized = flags / 3). Param 23 `Cost` burns `1000 × normalized` dependent
+//! multiply-adds per frame (an expensive plugin for benchmarks).
+//!
 //! A note-on with key 127 makes the instrument's `process` return `kInternalError` (host
 //! fault handling).
 //!
@@ -63,7 +79,7 @@ use vst3::Steinberg::Vst::BusInfo_::BusFlags_::kDefaultActive;
 use vst3::Steinberg::Vst::BusTypes_::{kAux, kMain};
 use vst3::Steinberg::Vst::Event_::EventTypes_::{kNoteOffEvent, kNoteOnEvent};
 use vst3::Steinberg::Vst::MediaTypes_::{kAudio, kEvent};
-use vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_::{kCanAutomate, kIsHidden};
+use vst3::Steinberg::Vst::ParameterInfo_::ParameterFlags_::{kCanAutomate, kIsHidden, kIsReadOnly};
 use vst3::Steinberg::Vst::RestartFlags_::kLatencyChanged;
 use vst3::Steinberg::Vst::SymbolicSampleSizes_::kSample32;
 use vst3::Steinberg::Vst::*;
@@ -80,6 +96,16 @@ const LATENCY: ParamID = 3;
 const TRIGGER: ParamID = 4;
 const LEVEL: ParamID = 10;
 const INVERT: ParamID = 11;
+const KIND: ParamID = 20;
+const CALLS: ParamID = 21;
+const IN_FLAGS: ParamID = 22;
+const COST: ParamID = 23;
+const TAIL_CID: TUID = uid(0xE7E1E4A1, 0, 0, 3);
+
+/// Delay of the tail effect's `Echo` kind, in samples.
+const ECHO: usize = 300;
+/// Samples between the clicks of the `Generator` and `Liar` kinds.
+const CLICK_PERIOD: u64 = 1000;
 
 const LATENCY_UNIT: u32 = 64;
 
@@ -1228,6 +1254,313 @@ impl IEditControllerTrait for Instrument {
 }
 
 // ---------------------------------------------------------------------------------------
+// tail effect (single component)
+
+struct TailDsp {
+    ring: [[f32; ECHO]; 2],
+    pos: usize,
+    /// Samples rendered (the generators' clock).
+    clock: u64,
+    /// The `Cost` loop's state (kept so the work isn't optimized away).
+    burn: f32,
+}
+
+struct TailFx {
+    _live: Live,
+    kind: AtomicU32,
+    calls: AtomicU64,
+    in_flags: AtomicU64,
+    cost: AtomicU64,
+    dsp: Mutex<TailDsp>,
+}
+
+impl Class for TailFx {
+    type Interfaces = (IComponent, IAudioProcessor, IEditController);
+}
+
+impl TailFx {
+    fn new() -> Self {
+        Self {
+            _live: Live::new(),
+            kind: AtomicU32::new(0),
+            calls: AtomicU64::new(0),
+            in_flags: AtomicU64::new(0),
+            cost: AtomicU64::new(0.0f64.to_bits()),
+            dsp: Mutex::new(TailDsp {
+                ring: [[0.0; ECHO]; 2],
+                pos: 0,
+                clock: 0,
+                burn: 0.0,
+            }),
+        }
+    }
+
+    fn set(&self, id: ParamID, v: f64) -> bool {
+        match id {
+            KIND => self.kind.store((v * 3.0).round() as u32, Ordering::Relaxed),
+            COST => store_f64(&self.cost, v),
+            _ => return false,
+        }
+        true
+    }
+}
+
+impl IPluginBaseTrait for TailFx {
+    unsafe fn initialize(&self, _context: *mut FUnknown) -> tresult {
+        kResultOk
+    }
+    unsafe fn terminate(&self) -> tresult {
+        kResultOk
+    }
+}
+
+impl IComponentTrait for TailFx {
+    unsafe fn getControllerClassId(&self, _class_id: *mut TUID) -> tresult {
+        kNotImplemented
+    }
+    unsafe fn setIoMode(&self, _mode: IoMode) -> tresult {
+        kResultOk
+    }
+    unsafe fn getBusCount(&self, media: MediaType, _dir: BusDirection) -> i32 {
+        i32::from(media == kAudio as MediaType)
+    }
+    unsafe fn getBusInfo(
+        &self,
+        media: MediaType,
+        dir: BusDirection,
+        index: i32,
+        bus: *mut BusInfo,
+    ) -> tresult {
+        if index != 0 || media != kAudio as MediaType {
+            return kInvalidArgument;
+        }
+        let name = if dir == kInput as BusDirection {
+            "Input"
+        } else {
+            "Output"
+        };
+        stereo_bus(bus, dir, name)
+    }
+    unsafe fn getRoutingInfo(&self, _i: *mut RoutingInfo, _o: *mut RoutingInfo) -> tresult {
+        kNotImplemented
+    }
+    unsafe fn activateBus(&self, _m: MediaType, _d: BusDirection, _i: i32, _s: TBool) -> tresult {
+        kResultOk
+    }
+    unsafe fn setActive(&self, _state: TBool) -> tresult {
+        kResultOk
+    }
+    unsafe fn setState(&self, _state: *mut IBStream) -> tresult {
+        kResultOk
+    }
+    unsafe fn getState(&self, _state: *mut IBStream) -> tresult {
+        kResultOk
+    }
+}
+
+impl IAudioProcessorTrait for TailFx {
+    unsafe fn setBusArrangements(
+        &self,
+        inputs: *mut SpeakerArrangement,
+        num_ins: i32,
+        outputs: *mut SpeakerArrangement,
+        num_outs: i32,
+    ) -> tresult {
+        if num_ins == 1
+            && num_outs == 1
+            && *inputs == SpeakerArr::kStereo
+            && *outputs == SpeakerArr::kStereo
+        {
+            kResultTrue
+        } else {
+            kResultFalse
+        }
+    }
+    unsafe fn getBusArrangement(
+        &self,
+        _dir: BusDirection,
+        index: i32,
+        arr: *mut SpeakerArrangement,
+    ) -> tresult {
+        if index != 0 {
+            return kInvalidArgument;
+        }
+        *arr = SpeakerArr::kStereo;
+        kResultOk
+    }
+    unsafe fn canProcessSampleSize(&self, size: i32) -> tresult {
+        if size == kSample32 as i32 {
+            kResultOk
+        } else {
+            kNotImplemented
+        }
+    }
+    unsafe fn getLatencySamples(&self) -> u32 {
+        0
+    }
+    unsafe fn setupProcessing(&self, _setup: *mut ProcessSetup) -> tresult {
+        kResultOk
+    }
+    unsafe fn setProcessing(&self, _state: TBool) -> tresult {
+        kResultOk
+    }
+    unsafe fn process(&self, data: *mut ProcessData) -> tresult {
+        let data = &mut *data;
+        let frames = data.numSamples.max(0) as usize;
+        if let Some(changes) = ComRef::from_raw(data.inputParameterChanges) {
+            for i in 0..changes.getParameterCount() {
+                let Some(q) = ComRef::from_raw(changes.getParameterData(i)) else {
+                    continue;
+                };
+                if let Some(&(_, v)) = Points::read(&q).points().last() {
+                    self.set(q.getParameterId(), v);
+                }
+            }
+        }
+        if frames == 0 {
+            return kResultOk;
+        }
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        let in_flags = if data.numInputs > 0 && !data.inputs.is_null() {
+            (*data.inputs).silenceFlags
+        } else {
+            0
+        };
+        self.in_flags.store(in_flags, Ordering::Relaxed);
+        let Some((in_l, in_r)) = channel_slices(data.inputs, data.numInputs, frames) else {
+            return kResultOk;
+        };
+        let Some((out_l, out_r)) = channel_slices(data.outputs, data.numOutputs, frames) else {
+            return kResultOk;
+        };
+        let mut dsp = self.dsp.lock().unwrap();
+        let iters = (load_f64(&self.cost) * 1000.0) as usize;
+        let mut burn = dsp.burn;
+        for _ in 0..frames * iters {
+            burn = std::hint::black_box(burn * 0.999_99 + 1e-7);
+        }
+        dsp.burn = burn;
+        let kind = self.kind.load(Ordering::Relaxed);
+        let mut silent = true;
+        for i in 0..frames {
+            let (l, r) = match kind {
+                0 => {
+                    let pos = dsp.pos;
+                    let out = (dsp.ring[0][pos], dsp.ring[1][pos]);
+                    dsp.ring[0][pos] = in_l[i];
+                    dsp.ring[1][pos] = in_r[i];
+                    dsp.pos = (pos + 1) % ECHO;
+                    out
+                }
+                1 | 2 => {
+                    let v = if dsp.clock.is_multiple_of(CLICK_PERIOD) {
+                        0.5
+                    } else {
+                        0.0
+                    };
+                    (v, v)
+                }
+                _ => (0.5, 0.5),
+            };
+            dsp.clock += 1;
+            silent &= l == 0.0 && r == 0.0;
+            out_l[i] = l;
+            out_r[i] = r;
+        }
+        let flags = match kind {
+            0 if silent => 0b11,
+            3 if in_flags & 0b11 == 0b11 => 0b11,
+            _ => 0,
+        };
+        if data.numOutputs > 0 && !data.outputs.is_null() {
+            (*data.outputs).silenceFlags = flags;
+        }
+        kResultOk
+    }
+    unsafe fn getTailSamples(&self) -> u32 {
+        match self.kind.load(Ordering::Relaxed) {
+            0 => ECHO as u32,
+            1 => kInfiniteTail,
+            _ => kNoTail,
+        }
+    }
+}
+
+impl IEditControllerTrait for TailFx {
+    unsafe fn setComponentState(&self, _state: *mut IBStream) -> tresult {
+        kResultOk
+    }
+    unsafe fn setState(&self, _state: *mut IBStream) -> tresult {
+        kResultOk
+    }
+    unsafe fn getState(&self, _state: *mut IBStream) -> tresult {
+        kResultOk
+    }
+    unsafe fn getParameterCount(&self) -> i32 {
+        4
+    }
+    unsafe fn getParameterInfo(&self, index: i32, info: *mut ParameterInfo) -> tresult {
+        let info = &mut *info;
+        let hidden = (kIsHidden | kIsReadOnly) as u32;
+        match index {
+            0 => param_info(info, KIND, "Kind", 3, 0.0, kCanAutomate as u32),
+            1 => param_info(info, CALLS, "Calls", 0, 0.0, hidden),
+            2 => param_info(info, IN_FLAGS, "InFlags", 0, 0.0, hidden),
+            3 => param_info(info, COST, "Cost", 0, 0.0, kCanAutomate as u32),
+            _ => return kInvalidArgument,
+        }
+        kResultOk
+    }
+    unsafe fn getParamStringByValue(
+        &self,
+        _id: ParamID,
+        value: ParamValue,
+        string: *mut String128,
+    ) -> tresult {
+        copy_wstring(&format!("{value:.2}"), &mut *string);
+        kResultOk
+    }
+    unsafe fn getParamValueByString(
+        &self,
+        _id: ParamID,
+        _string: *mut TChar,
+        _value: *mut ParamValue,
+    ) -> tresult {
+        kNotImplemented
+    }
+    unsafe fn normalizedParamToPlain(&self, _id: ParamID, value: ParamValue) -> ParamValue {
+        value
+    }
+    unsafe fn plainParamToNormalized(&self, _id: ParamID, value: ParamValue) -> ParamValue {
+        value
+    }
+    unsafe fn getParamNormalized(&self, id: ParamID) -> ParamValue {
+        match id {
+            KIND => f64::from(self.kind.load(Ordering::Relaxed)) / 3.0,
+            CALLS => self.calls.load(Ordering::Relaxed) as f64 / 1e6,
+            IN_FLAGS => self.in_flags.load(Ordering::Relaxed) as f64 / 3.0,
+            COST => load_f64(&self.cost),
+            _ => 0.0,
+        }
+    }
+    unsafe fn setParamNormalized(&self, id: ParamID, value: ParamValue) -> tresult {
+        // Single component: the controller value is the processor value (the read-only
+        // reports ignore what the host echoes back).
+        if self.set(id, value) || matches!(id, CALLS | IN_FLAGS) {
+            kResultOk
+        } else {
+            kInvalidArgument
+        }
+    }
+    unsafe fn setComponentHandler(&self, _handler: *mut IComponentHandler) -> tresult {
+        kResultOk
+    }
+    unsafe fn createView(&self, _name: FIDString) -> *mut IPlugView {
+        std::ptr::null_mut()
+    }
+}
+
+// ---------------------------------------------------------------------------------------
 // factory + entry points
 
 struct Factory {
@@ -1238,7 +1571,7 @@ impl Class for Factory {
     type Interfaces = (IPluginFactory2,);
 }
 
-const CLASSES: [(TUID, &str, &str, &str); 3] = [
+const CLASSES: [(TUID, &str, &str, &str); 4] = [
     (
         EFFECT_CID,
         "Audio Module Class",
@@ -1250,6 +1583,12 @@ const CLASSES: [(TUID, &str, &str, &str); 3] = [
         "Audio Module Class",
         "Ether VST3 Synth",
         "Instrument|Synth",
+    ),
+    (
+        TAIL_CID,
+        "Audio Module Class",
+        "Ether VST3 Tail",
+        "Fx|Delay",
     ),
     (
         EFFECT_CONTROLLER_CID,
@@ -1291,6 +1630,7 @@ impl IPluginFactoryTrait for Factory {
         let instance = match *(cid as *const TUID) {
             EFFECT_CID => ComWrapper::new(EffectProcessor::new()).to_com_ptr::<FUnknown>(),
             INSTRUMENT_CID => ComWrapper::new(Instrument::new()).to_com_ptr::<FUnknown>(),
+            TAIL_CID => ComWrapper::new(TailFx::new()).to_com_ptr::<FUnknown>(),
             EFFECT_CONTROLLER_CID => {
                 ComWrapper::new(EffectController::new()).to_com_ptr::<FUnknown>()
             }

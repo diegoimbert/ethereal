@@ -102,8 +102,11 @@ fn dc_track(p: &mut ether_core::EngineParts) -> (TrackDesc, NodeKey, NodeKey) {
 fn macros(rack: NodeKey, m0: f64) -> Vec<MacroDesc> {
     vec![MacroDesc {
         rack,
-        values: [m0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        values: [
+            m0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        ],
         first: 0,
+        upper: 9,
     }]
 }
 

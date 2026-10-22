@@ -92,7 +92,7 @@ const EVERY_WIDGET: DeviceLayout = {
         it_({ type: "Tuner" }),
         it_({ type: "Meter", index: 0, min_db: -24, max_db: 0 }),
         it_({ type: "RackChains" }),
-        it_({ type: "Macros", first: 0 }),
+        it_({ type: "Macros", first: 0, upper: 9 }),
         it_({ type: "EqCurve", bands: [{ on: null, kind: null, shapes: ["Bell"], freq: 6, gain: null, q: null }], crossovers: [], spectrum: "None" }),
       ],
     },

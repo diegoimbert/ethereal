@@ -45,6 +45,8 @@ A new project starts from your [default template](#templates). If you haven't se
 
 A new project is a **draft** until you change something in it (an edit, an undo step or a rename). If you leave a draft untouched, by opening another project or quitting, it's deleted and never shows up in your recent projects. So feel free to close the welcome screen just to look around.
 
+Once you change a draft, it's saved like any project, but until you give it a name it stays **untitled**. When you leave an untitled project (open or create another one, import one, join a session, or quit the desktop app), Ethereal asks whether to **keep** it (you can type a name right there) or **discard** it. Discarding deletes it with its versions. Once you've named a project, you're never asked. Closing a browser tab doesn't ask: the project stays saved, and the question comes the next time you leave it.
+
 ### guided tours
 
 The **get started** list on the welcome screen starts guided tours of the real app, such as making your first track or recording audio. Starting one makes a project for it and walks you through the steps. When you finish or leave the tour, you come back to the welcome screen. To find the tours again later, choose **tutorials** in the project menu.
