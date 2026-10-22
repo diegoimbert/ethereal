@@ -65,6 +65,26 @@ describe("project loading", () => {
     await waitFor(() => expect(store().transport?.playing).toBe(true));
   });
 
+  it("the position says the project is loading, with a spinner and the percent, in the same boxes (#260)", async () => {
+    await renderWithMock(<TransportBar />);
+    expect(screen.getByTestId("position-bars")).toBeTruthy();
+    expect(screen.queryByTestId("position-loading")).toBeNull();
+
+    setLoading(progress({ plugins_loaded: 1, plugins_total: 4 }));
+    const shown = screen.getByTestId("position-loading");
+    expect(shown).toHaveAttribute("aria-label", "loading 25%");
+    expect(shown).toHaveAttribute("title", "loading plugins 1/4");
+    expect(screen.queryByTestId("position-bars")).toBeNull();
+    // The bars' and the time's boxes (their widths), the spinner hidden from screen readers.
+    expect(shown.querySelector(".eth-tb__bars .eth-tb__position-spin")).toHaveAttribute("aria-hidden", "true");
+    expect(shown.querySelector(".eth-tb__bars")).toHaveTextContent("loading");
+    expect(shown.querySelector(".eth-tb__time")).toHaveTextContent("25%");
+
+    setLoading(null);
+    expect(screen.queryByTestId("position-loading")).toBeNull();
+    expect(screen.getByTestId("position-bars")).toBeTruthy();
+  });
+
   it("the palette's transport entries say the project is loading instead of playing", async () => {
     await renderWithMock(<TransportBar />);
     expect(refuseWhileLoading()).toBe(false);

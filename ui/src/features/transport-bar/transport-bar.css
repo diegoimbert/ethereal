@@ -280,6 +280,46 @@
   display: none;
 }
 
+/* The position while the project loads (`PositionLoading`, #260): "loading" and a spinner in
+   the bars' box, the percent in the time's; the same boxes, so nothing moves when the time
+   comes back. The bars' box keeps its font size (its line height); the text is smaller. */
+.eth-tb__position--loading[data-compact] {
+  padding: 0;
+}
+.eth-tb__position--loading .eth-tb__bars {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--eth-space-xs);
+  color: var(--eth-color-text-dim);
+}
+.eth-tb__position-loading {
+  font-size: var(--eth-fs-md);
+  font-weight: 500;
+  letter-spacing: normal;
+}
+.eth-tb__position-spin {
+  flex: none;
+  width: var(--eth-size-icon-md);
+  height: var(--eth-size-icon-md);
+  color: var(--eth-color-accent);
+  animation: eth-tb-position-spin calc(var(--eth-duration-slow) * 3) linear infinite;
+}
+@keyframes eth-tb-position-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+/* Reduced motion (the system's, or Settings > Appearance): a still spinner. */
+:root[data-motion="reduced"] .eth-tb__position-spin {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion]) .eth-tb__position-spin {
+    animation: none;
+  }
+}
+
 /* The project is still loading (`loading.tsx`): what it does, and a bar. */
 .eth-tb__loading {
   display: inline-flex;

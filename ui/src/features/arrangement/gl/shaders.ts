@@ -47,6 +47,7 @@ vec3 saturateCss(vec3 c, float s) {
     dot(c, vec3(0.213 - 0.213 * s, 0.715 - 0.715 * s, 0.072 + 0.928 * s)));
 }
 // Clip effects (fx code): 1 = muted (saturate .15, opacity .55), 2 = frozen track (.35, .75),
+// 3 = a track still loading (saturate .2; its opacity is the lane's, eased back as it loads),
 // times the clip's own opacity (dragged .85, ghost .45). CSS applies the opacity to the clip
 // as one layer: here each part is mixed into the arranger background instead, which is the
 // same over the lane background (parts of one clip don't show through each other, as they
@@ -55,8 +56,8 @@ vec4 clipFx(vec4 c, float fx, float opacity) {
   float o = opacity;
   vec3 rgb = c.rgb;
   if (fx > 0.5) {
-    rgb = saturateCss(rgb, fx < 1.5 ? 0.15 : 0.35);
-    o *= fx < 1.5 ? 0.55 : 0.75;
+    rgb = saturateCss(rgb, fx < 1.5 ? 0.15 : fx < 2.5 ? 0.35 : 0.2);
+    o *= fx < 1.5 ? 0.55 : fx < 2.5 ? 0.75 : 1.0;
   }
   if (o < 1.0) rgb = mix(u_bg, rgb, o);
   return vec4(rgb, c.a);

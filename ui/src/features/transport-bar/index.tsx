@@ -3,8 +3,8 @@ import { contributions } from "@/ext";
 import "./transport-bar.css";
 import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import type { EngineStatus, GestureId, TimeSignaturePoint } from "@/generated";
-import { Circle, Metronome, Pause, Play, Redo2, Repeat, Square, Undo2 } from "lucide-react";
+import type { EngineStatus, GestureId, LoadProgress, TimeSignaturePoint } from "@/generated";
+import { Circle, LoaderCircle, Metronome, Pause, Play, Redo2, Repeat, Square, Undo2 } from "lucide-react";
 import { Button, DismissibleError, Menu, Popover } from "@/kit";
 import { notify } from "@/features/notifications";
 import { timeSignaturePoints, useCpuLoad, usePlayhead, useProjectStore, useReadOnly, useRecordSupport } from "@/state";
@@ -17,7 +17,7 @@ import { CaptureButton } from "@/features/capture";
 import { KeyboardMidiButton } from "@/features/keyboard-midi";
 import { MetronomePanel } from "@/features/tempo";
 import { midiTarget } from "@/features/midi-learn/targets";
-import { tText, useT } from "@/i18n";
+import { formatNumber, tText, useT } from "@/i18n";
 import { CommitField } from "./CommitField";
 import { diskTitle, useDiskStore } from "./disk";
 import { errorMessage, isTextEntry, useEngineCommands, useEngineEvent, useOptionalConnection, useOptionalTransport } from "./engine";
@@ -35,7 +35,7 @@ import {
   parseSignature,
 } from "./format";
 import { useCompactTopBar } from "./compact";
-import { useProjectLoading } from "./loading";
+import { loadFraction, loadingText, useProjectLoading } from "./loading";
 import { LoadingStatus } from "./LoadingStatus";
 import { useRendering } from "./rendering";
 import { RenderingStatus } from "./RenderingStatus";
@@ -332,8 +332,10 @@ export function PositionDisplay() {
   const mobile = useMobileUi((s) => s.enabled);
   const compact = useCompactTopBar() && !mobile;
   const [showBars, setShowBars] = useState(false);
+  const loading = useProjectLoading();
   const beats = frame?.transport.position ?? 0;
   const seconds = frame?.transport.seconds ?? 0;
+  if (loading) return <PositionLoading progress={loading} compact={compact} />;
   if (compact) {
     return (
       <button
@@ -357,6 +359,32 @@ export function PositionDisplay() {
       <output className="eth-tb__time" data-testid="position-time">
         {formatSeconds(seconds)}
       </output>
+    </div>
+  );
+}
+
+/**
+ * The position while the project loads (#260): "loading" and a spinner in the bars' place, the
+ * load's percent in the time's (compact: the first alone). The same boxes (their min widths),
+ * so the bar doesn't move when the time comes back.
+ */
+function PositionLoading({ progress, compact }: { progress: LoadProgress; compact: boolean }) {
+  const t = useT();
+  const label = t("shell.transport.position_loading");
+  const percent = formatNumber(loadFraction(progress), { style: "percent", maximumFractionDigits: 0 });
+  return (
+    <div
+      className="eth-tb__position eth-tb__position--loading"
+      data-compact={compact || undefined}
+      aria-label={`${label} ${percent}`}
+      title={loadingText(progress)}
+      data-testid="position-loading"
+    >
+      <output className="eth-tb__bars">
+        <LoaderCircle className="eth-tb__position-spin" aria-hidden />
+        <span className="eth-tb__position-loading">{label}</span>
+      </output>
+      {!compact && <output className="eth-tb__time">{percent}</output>}
     </div>
   );
 }
