@@ -62,9 +62,18 @@ test("a click on a lane's empty space selects the track (the inspector folds to 
   p = await lanePoint(page, a.id, 0.6);
   await page.mouse.click(p.x, p.y);
   await expect(header(a.name)).toHaveClass(/eth-arr-header--selected/);
+  await expect(inspectorBar).toBeVisible();
   await showInspector(page);
   await expect(trackName).toHaveValue(a.name);
   await expect(header(b.name)).not.toHaveClass(/eth-arr-header--selected/);
+
+  // --- Again on A's empty space, with the inspector expanded on A: it stays expanded (#221) ---------
+  p = await lanePoint(page, a.id, 0.45); // (left of the expanded inspector, which floats over the lanes)
+  await page.mouse.click(p.x, p.y);
+  await page.waitForTimeout(500); // past the collapse animation: asserts it stayed, not that it has not folded yet
+  await expect(trackName).toBeVisible();
+  await expect(trackName).toHaveValue(a.name);
+  await expect(inspectorBar).toBeHidden();
 
   // --- Cmd/Ctrl-click adds B, like on the header -----------------------------------------------------
   p = await lanePoint(page, b.id, 0.6);
