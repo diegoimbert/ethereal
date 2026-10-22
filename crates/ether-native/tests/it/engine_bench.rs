@@ -1288,7 +1288,7 @@ fn idle_vst3_plugins() {
     let mut means = Vec::new();
     let mut reference: Option<Vec<f32>> = None;
     for always in [true, false] {
-        let mut parts = create(config(block));
+        let mut parts = create(config(block, false));
         let prepare = PrepareConfig {
             sample_rate: SR as f32,
             max_block_size: block,
