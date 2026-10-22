@@ -278,6 +278,8 @@ export interface MessageArgs {
   "error.store.unsupported": { error: string | number };
   "export_audio.large": { size: string | number };
   "export_audio.progress_button": { pct: string | number };
+  "expression.badge.many": { count: string | number };
+  "expression.clip_lanes.label": { name: string | number };
   "expression.confirm.clear_body": { count: number };
   "expression.confirm.clear_notes_body": { count: number; lane: string | number };
   "expression.confirm.clear_title": { lane: string | number };

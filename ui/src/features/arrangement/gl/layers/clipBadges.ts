@@ -1,14 +1,17 @@
 /**
  * Clip title badges, after the loop icon: the extensions' (`@/ext` "clips.badge", e.g.
- * "loading", optionally with a soft hatch over the clip), "REV" on reversed audio clips
- * and "Missing" on clips whose sample can't be found (media-refs; the clip is
- * also hatched and outlined).
+ * "loading", optionally with a soft hatch over the clip), the controllers a MIDI clip holds
+ * ("sustain", "bend · sustain": its expression lanes with points, edited in the automation
+ * tab), "REV" on reversed audio clips and "Missing" on clips whose sample can't be found
+ * (media-refs; the clip is also hatched and outlined).
  *
  * The scene lays the clip name out after them (`titleBadgesWidth`); this layer draws them.
  */
 
-import type { Clip, ClipId } from "@/generated";
+import type { Clip, ClipId, ExpressionKind, ExpressionLane } from "@/generated";
 import { useMediaRefs } from "@/features/media-refs";
+import { controllerBadgeText } from "@/features/expression";
+import { useProjectStore } from "@/state";
 import { contributions, type ClipBadgeProvider } from "@/ext";
 import { CLIP_INSET, CLIP_DRAW_MIN_PX, CLIP_RADIUS } from "../../laneBodyGeometry";
 import type { GlyphAtlas, FontSpec } from "../glyphAtlas";
@@ -24,8 +27,8 @@ export const CLIP_BADGES_LAYER = "clip-badges";
 /** Beats standing for "no clip above covers this side". */
 const FAR = 1e7;
 
-/** A badge: the app's two, or an extension's (its text). */
-export type BadgeKind = "reversed" | "missing" | (string & {});
+/** A badge: the app's, or an extension's (its text). */
+export type BadgeKind = "reversed" | "missing" | "controllers" | (string & {});
 
 interface Badge {
   kind: BadgeKind;
@@ -59,6 +62,27 @@ const TITLE_PAD_TOP = 1;
 const ALERT_PATHS = ["m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3", "M12 9v4", "M12 17h.01"];
 const ALERT_STROKE = 2;
 
+type Lanes = Readonly<Record<string, ExpressionLane>> | undefined;
+let lanesSeen: Lanes;
+let kindsByClip = new Map<ClipId, ExpressionKind[]>();
+
+/** The project's expression lanes (the badge layer's dependency). */
+export const expressionLanes = (): Lanes => useProjectStore.getState().project?.expression_lanes;
+
+/** Clip → the kinds of its lanes with points (cached per `expression_lanes` table). */
+function controllerKinds(lanes: Lanes): ReadonlyMap<ClipId, ExpressionKind[]> {
+  if (lanes === lanesSeen) return kindsByClip;
+  lanesSeen = lanes;
+  kindsByClip = new Map();
+  for (const l of Object.values(lanes ?? {})) {
+    if (l.points.length === 0) continue;
+    const list = kindsByClip.get(l.clip);
+    if (list) list.push(l.kind);
+    else kindsByClip.set(l.clip, [l.kind]);
+  }
+  return kindsByClip;
+}
+
 /** The badges a clip's title shows, in order. */
 export function badgesOf(
   clip: Clip,
@@ -76,6 +100,10 @@ function badgeList(clip: Clip, missing: ReadonlySet<string>, providers: Readonly
     if (!b) continue;
     out.push({ kind: b.id, text: b.text, hatch: b.hatch });
     hidesMissing ||= !!b.hidesMissing;
+  }
+  if (clip.content.type === "Midi") {
+    const text = controllerBadgeText(controllerKinds(expressionLanes()).get(clip.id) ?? []);
+    if (text) out.push({ kind: "controllers", text });
   }
   if (clip.content.type !== "Audio") return out;
   if (clip.content.reversed) out.push({ kind: "reversed" });
@@ -135,7 +163,7 @@ export function clipBadgesLayer(pipeline: Pipeline): ClipBadgesLayer {
     id: CLIP_BADGES_LAYER,
     z: "over-clips",
     pipelines: [pipeline],
-    deps: (ctx) => [ctx.lane.staticVersion, ctx.lane.view, useMediaRefs.getState().missing, extVersion],
+    deps: (ctx) => [ctx.lane.staticVersion, ctx.lane.view, useMediaRefs.getState().missing, extVersion, expressionLanes()],
     build({ lane, input, window }, out) {
       const colors = editColors(input.palette);
       const order = drawOrder(lane.items, input.selected);
