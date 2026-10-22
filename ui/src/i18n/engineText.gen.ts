@@ -339,6 +339,7 @@ export const ENGINE_TEXT: Readonly<Record<string, MessageKey | readonly [Message
   Smooth: "engine.smooth",
   Smoothing: "engine.smoothing",
   Soft: "engine.soft",
+  "Soft Clip": "engine.soft_clip",
   Solo: "engine.solo",
   Spectrum: "engine.spectrum",
   Spread: "engine.spread",
