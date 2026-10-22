@@ -550,7 +550,7 @@ export const size = {
   settingsNavWidth: "168px",
   audioSettingsMeterNameWidth: "120px",
   /** Settings > Appearance: a theme card (its least width) and its preview's height. */
-  themeCardMinWidth: "112px",
+  themeCardMinWidth: "140px",
   themeCardPreviewHeight: "56px",
   // Guided tours (features/tutorials).
   /** The tour's step bubble (narrower on small screens), and the most an illustration in it takes. */
