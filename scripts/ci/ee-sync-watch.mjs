@@ -13,7 +13,8 @@
 // a failed one is retried after WATCH_RETRY_S seconds. Each sync's output goes to the
 // encrypted log (private-step.mjs): the public log only says when one ran and its result.
 //
-//   FEAT_OSS_REPO, FEAT_EE_REPO, FEAT_EE_TOKEN (read access to EE), as for `feat sync --ci`.
+//   FEAT_OSS_REPO, FEAT_EE_REPO, FEAT_EE_TOKEN (read access to EE), as for `feat sync --ci`;
+//   WATCH_DRY_RUN=1 syncs with --dry-run (a local trial).
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -88,7 +89,7 @@ async function main() {
       n++;
       console.log(`${stamp()} sync ${n} (${why})`);
       // The digests from before the sync: what the sync itself pushes runs one more (no-op) one.
-      const r = spawnSync("node", [join(HERE, "private-step.mjs"), `sync-${n}`, "--", "node", join(HERE, "..", "feat.mjs"), "sync", "--ci"], { stdio: "inherit" });
+      const r = spawnSync("node", [join(HERE, "private-step.mjs"), `sync-${n}`, "--", "node", join(HERE, "..", "feat.mjs"), "sync", "--ci", ...(process.env.WATCH_DRY_RUN === "1" ? ["--dry-run"] : [])], { stdio: "inherit" });
       lastSync = Date.now();
       if (r.status === 0) [last, failedAt] = [now ?? last, null];
       else [failed, failedAt] = [failed + 1, Date.now()];
