@@ -41,6 +41,7 @@ pub mod fades;
 pub mod freeze;
 pub mod graph;
 mod held_notes;
+mod history;
 pub mod hw_io;
 pub mod media;
 pub mod meter;

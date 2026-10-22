@@ -9,7 +9,7 @@
  * several: one undo step), or null when there is nothing to send.
  */
 
-import type { AudioContent, Clip, ClipId, Command, TextKey, WarpSettings } from "@/generated";
+import type { AudioContent, Clip, ClipId, Command, TextKey, WarpFormants, WarpSettings } from "@/generated";
 import { cmd } from "@/transport";
 
 export const TRANSPOSE_MAX = 48;
@@ -99,6 +99,47 @@ export function offsetGain(clips: ReadonlyArray<AudioClip>, bases: Bases, delta:
     clips.flatMap((c) => {
       const v = offsetValue(bases.get(c.clip.id) ?? c.audio.gain, delta, GAIN_MIN_DB, GAIN_MAX_DB);
       return v === c.audio.gain ? [] : [gainCmd(c.clip.id, v)];
+    }),
+  );
+}
+
+/** Complex+'s formant settings when a clip has none (`ether_model::WarpFormants::DEFAULT`). */
+export const FORMANTS_DEFAULT: WarpFormants = { amount: 1, shift: 0, envelope: 128 };
+export type FormantKey = keyof WarpFormants;
+/** Each formant setting's range (`ether_model::WarpFormants`). */
+export const FORMANT_RANGE: Readonly<Record<FormantKey, readonly [number, number]>> = {
+  amount: [0, 1],
+  shift: [-24, 24],
+  envelope: [8, 256],
+};
+
+export const formantsOf = (c: AudioClip): WarpFormants => c.audio.warp.formants ?? FORMANTS_DEFAULT;
+export const formantBases = (clips: ReadonlyArray<AudioClip>, key: FormantKey): Bases => new Map(clips.map((c) => [c.clip.id, formantsOf(c)[key]]));
+
+const formantCmd = (c: AudioClip, key: FormantKey, value: number) =>
+  cmd("Warp", { type: "SetWarp", clip: c.clip.id, warp: { ...c.audio.warp, formants: { ...formantsOf(c), [key]: value } } });
+
+/** Set every clip's formant setting `key` to `value` (clamped to its range). */
+export function setAllFormant(clips: ReadonlyArray<AudioClip>, key: FormantKey, value: number): Command | null {
+  const [lo, hi] = FORMANT_RANGE[key];
+  const v = clamp(value, lo, hi);
+  return batch(
+    "set warp", // i18n-ignore
+    { id: "undo.warp.set", args: {} },
+    clips.filter((c) => formantsOf(c)[key] !== v).map((c) => formantCmd(c, key, v)),
+  );
+}
+
+/** Move every clip's formant setting `key` by `delta` from its base (clamped per clip; unchanged clips left out). */
+export function offsetFormant(clips: ReadonlyArray<AudioClip>, key: FormantKey, bases: Bases, delta: number): Command | null {
+  const [lo, hi] = FORMANT_RANGE[key];
+  return batch(
+    "set warp", // i18n-ignore
+    { id: "undo.warp.set", args: {} },
+    clips.flatMap((c) => {
+      const now = formantsOf(c)[key];
+      const v = offsetValue(bases.get(c.clip.id) ?? now, delta, lo, hi);
+      return v === now ? [] : [formantCmd(c, key, v)];
     }),
   );
 }

@@ -454,6 +454,10 @@ pub struct Compressor {
     meter_peak: f32,
     /// Silence reporting.
     tail: util::Tail,
+    /// With lookahead the gain meets the audio `lookahead` samples into the line: every
+    /// param but the lookahead itself waits that long (the detector looks ahead by design;
+    /// a new threshold applies from the audio it arrived with on).
+    late: util::LateEvents,
 }
 
 impl Default for Compressor {
@@ -495,6 +499,7 @@ impl Compressor {
             meter_gr: 0.0,
             meter_peak: 0.0,
             tail: util::Tail::default(),
+            late: util::LateEvents::new(),
         };
         c.allocate();
         c
@@ -840,10 +845,18 @@ impl Compressor {
         } else {
             &[]
         };
-        util::split_at_events(
+        let lookahead = self.lookahead.len();
+        util::LateEvents::split(
             self,
-            ctx.events,
-            frames,
+            |s| &mut s.late,
+            ctx,
+            |kind| match kind {
+                EventKind::Param {
+                    param: params::LOOKAHEAD,
+                    ..
+                } => util::Route::Now,
+                _ => util::Route::Late(lookahead),
+            },
             |s, a, b| s.render(audio, sidechain, a, b),
             |s, kind| {
                 if let EventKind::Param { param, value } = *kind {
@@ -862,7 +875,8 @@ impl Compressor {
         let settled = detector_settled
             && !self.makeup.is_smoothing()
             && !self.mix.is_smoothing()
-            && !self.slope.is_smoothing();
+            && !self.slope.is_smoothing()
+            && self.late.is_idle();
         let hold = self.lookahead.len() + util::samples(util::BASE_HOLD_SECONDS, self.sample_rate);
         let silent_sc = util::all_zero(sidechain, frames);
         self.tail.status_of(ctx, audio, settled && silent_sc, hold)
@@ -873,10 +887,16 @@ impl Node for Compressor {
     fn prepare(&mut self, config: &PrepareConfig) {
         self.sample_rate = config.sample_rate.max(1.0);
         self.allocate();
+        self.late.prepare(self.delay[0].max_delay(), config);
         self.reset();
     }
 
     fn reset(&mut self) {
+        util::LateEvents::flush(self, |s| &mut s.late, |s, kind| {
+            if let EventKind::Param { param, value } = *kind {
+                s.apply_param(param, value, false);
+            }
+        });
         self.gr_db = 0.0;
         self.gr_held = 0.0;
         self.mean_square = 0.0;
@@ -933,10 +953,11 @@ impl Device for Compressor {
     }
 
     fn param(&self, id: ParamId) -> Option<f64> {
-        self.values.get(id.0 as usize).copied()
+        self.late.readback(id, self.values.get(id.0 as usize).copied())
     }
 
     fn set_param(&mut self, id: ParamId, value: f64) {
+        self.late.cancel(id);
         self.apply_param(id, value, false);
     }
 }

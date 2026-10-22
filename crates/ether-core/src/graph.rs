@@ -7,7 +7,7 @@
 
 use ether_protocol::model::{
     AutomationTarget, ClipId, CurveShape, DrumPadId, FadeCurve, InputTap, MediaId, MetronomeSound,
-    ParamId, SendId, TrackId, TrackKind, WarpMode,
+    ParamId, SendId, TrackId, TrackKind, WarpFormants, WarpMode,
 };
 use std::collections::BTreeSet;
 
@@ -296,6 +296,8 @@ pub struct WarpDesc {
     pub mode: WarpMode,
     /// `(content beat, source seconds)`, sorted, at least two.
     pub markers: Vec<(f64, f64)>,
+    /// Complex+'s formant settings (other modes ignore them).
+    pub formants: WarpFormants,
 }
 
 /// An automation curve resolved to an engine target.
@@ -1007,6 +1009,7 @@ pub fn compile_with(
             Some(o) => DelayLine::new(check(in_lat[o] - out_lat[i])?),
             None => DelayLine::new(0),
         };
+        let env_targets = crate::automation_rt::envelope_targets(t);
         tracks.push(TrackRt {
             id: t.id,
             parent: parents[i],
@@ -1027,18 +1030,11 @@ pub fn compile_with(
             out_events: EventBuffer::with_capacity(config.max_events_per_block),
             notes: Vec::with_capacity(MAX_ACTIVE_NOTES),
             auto_last: vec![f64::NAN; t.automation.len()],
-            env_last: vec![f64::NAN; t.clips.iter().map(|c| c.envelopes.len()).sum()],
-            env_base: t
-                .clips
-                .iter()
-                .scan(0, |acc, c| {
-                    let base = *acc;
-                    *acc += c.envelopes.len();
-                    Some(base)
-                })
-                .collect(),
+            env_last: vec![f64::NAN; env_targets.len()],
+            env_targets,
+            auto_delays: sc_plans[i].inputs.clone(),
+            mixer_delay: sc_plans[i].post_fx,
             clip_ends: crate::automation_rt::clip_ends(&t.clips),
-            auto_window: (0, 0),
             awake: true,
             job_ns: 0.0,
             auto_dirty: false,
@@ -1064,7 +1060,7 @@ pub fn compile_with(
             warp_scratch: t
                 .clips
                 .iter()
-                .any(|c| crate::warp::complex_warp(c).is_some())
+                .any(|c| crate::warp::stretched_warp(c).is_some())
                 .then(|| crate::warp::WarpScratch::new(f64::from(config.sample_rate), frames)),
             overflow: false,
             underruns: 0,
@@ -1222,6 +1218,7 @@ mod tests {
                 warp: Some(WarpDesc {
                     mode: WarpMode::Complex,
                     markers: vec![(0.0, 0.0), (1.0, 1.0)],
+                    formants: Default::default(),
                 }),
                 fade_in_curve: FadeCurve::default(),
                 fade_out_curve: FadeCurve::default(),

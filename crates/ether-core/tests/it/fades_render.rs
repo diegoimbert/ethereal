@@ -357,6 +357,7 @@ fn reversed_clip_equals_forward_clip_of_reversed_media() {
     let warp = WarpDesc {
         mode: WarpMode::Repitch,
         markers: vec![(0.0, 0.0), (1.0, 0.6), (4.0, 1.4)],
+        formants: Default::default(),
     };
     let variants = [
         Clip::default(),
@@ -433,6 +434,7 @@ fn complex_warp_reverse_and_fades() {
     let warp = WarpDesc {
         mode: WarpMode::Complex,
         markers: vec![(0.0, 0.0), (6.0, 3.0)],
+        formants: Default::default(),
     };
     let clip = |reversed: bool| Clip {
         start: 1.0,

@@ -19,7 +19,7 @@ The UI runs unchanged in Tauri (desktop) and in a browser; the engine core compi
 | UI | React + TS. `EngineTransport` interface with `TauriTransport`, `WasmTransport`, `MockTransport`. SVG for automation, `<canvas>` per clip for waveforms (peak mipmaps computed in Rust). Visual polish/perf later. |
 | Plugins | CLAP, VST3 and AU (macOS), each behind the format-agnostic `PluginFormatHost` trait (`ether-plugin-host`; see docs/PLUGIN-FORMATS.md). Floating plugin windows (no embedding). Scanner always out-of-process (one target per child, a bounded pool of children, incremental via a per-target scan cache; system + user plugin folders). Plugin state blob is authoritative on load; params are mirrored in the document for UI/automation. VST2 is not in this build (the private repository registers it). |
 | Built-in devices | Sampler, basic-shape synth, compressor, delay. Minimal. |
-| Time-stretch | Signalsmith Stretch behind a `Stretcher` trait: the vendored C++ natively, a pure-Rust port of it on the web (`ether-stretch` `rust-stretch`; cheaper `Web` preset, at most 12 voices in the AudioWorklet). Warp modes: Repitch + Complex (Signalsmith) only. |
+| Time-stretch | Signalsmith Stretch behind a `Stretcher` trait: the vendored C++ natively, a pure-Rust port of it on the web (`ether-stretch` `rust-stretch`; cheaper `Web` preset, at most 12 voices in the AudioWorklet). Warp modes: Repitch, Complex (Signalsmith), Complex+ (`ether-stretch` `plus`, the same Rust everywhere; `docs/WARP.md`). |
 | Automation | Enabled lanes always drive their target; no "manual move overrides automation / re-enable" in v0.1. |
 | Workflow | Arrangement view only (linear timeline). No Session view / clip launching. |
 | Collaboration | Not in v0.1, but the model must stay CRDT-ready (stable IDs, op log). |
@@ -95,10 +95,10 @@ removes a whole node (a plugin format or a stretcher) or a bridge hook.
 | ether-native | `plugins-clap`, `plugins-vst3`, `plugins-au` | that format's host crate | the format is not registered, so loading it is `Unsupported` ("not supported by this build") |
 | ether-native | `sandbox` | `ether-sandbox` (out-of-process instances) | a sandboxed instance fails `Unsupported` |
 | ether-native | `plugins` | all four formats + `sandbox` | |
-| ether-native | `warp-complex` | `ether-stretch/signalsmith` | no stretcher: Complex-warped clips play Repitch |
+| ether-native | `warp-complex` | `ether-stretch/signalsmith`, `ether-stretch/rust-stretch` (Complex+) | no stretcher: Complex- and Complex+-warped clips play Repitch |
 | ether-desktop | `mcp` | `ether-server` agent bridge for `ether-mcp` | enabling "Allow AI agents (MCP)" fails "not available in this build" |
 | ether-desktop, ether-server | `plugins`, `warp-complex` | pass-throughs to ether-native | |
-| ether-wasm | `warp-complex` | `ether-stretch/rust-stretch` (the Worklet's stretcher factory) | no stretcher: Complex-warped clips play Repitch |
+| ether-wasm | `warp-complex` | `ether-stretch/rust-stretch` (the Worklet's stretcher factories) | no stretcher: Complex- and Complex+-warped clips play Repitch |
 | ether-wasm | `bench` | graph snapshot benchmark (`perf`, the large fixture, the `bench_graph_snapshot` export); not in `full`, `just bench-wasm` builds it | no benchmark export (release builds) |
 | all of the above apps/hosts | `full` | every feature of the crate and its dependencies | |
 

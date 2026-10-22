@@ -268,6 +268,18 @@ describe("Inspector: several audio clips (base-150)", () => {
     pickOption(screen.getByRole("combobox", { name: "warp mode" }), "complex");
     await flush();
     expect([audioOf(a).warp.mode, audioOf(b).warp.mode]).toEqual(["Complex", "Complex"]);
+    expect(screen.queryByRole("spinbutton", { name: "formants" })).toBeNull();
+
+    // Complex+: its formant settings, for both clips.
+    pickOption(screen.getByRole("combobox", { name: "warp mode" }), "complex+");
+    await flush();
+    expect([audioOf(a).warp.mode, audioOf(b).warp.mode]).toEqual(["ComplexPlus", "ComplexPlus"]);
+    const formants = screen.getByRole("spinbutton", { name: "formants" });
+    fireEvent.change(formants, { target: { value: "50" } });
+    fireEvent.keyDown(formants, { key: "Enter" });
+    await flush();
+    expect([audioOf(a).warp.formants?.amount, audioOf(b).warp.formants?.amount]).toEqual([0.5, 0.5]);
+    expect(screen.getByRole("spinbutton", { name: "envelope" })).toHaveValue("128");
   });
 
   it("a mixed audio + MIDI selection edits only the audio clips", async () => {

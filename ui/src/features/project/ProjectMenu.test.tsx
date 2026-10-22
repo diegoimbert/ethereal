@@ -5,6 +5,7 @@ import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils"
 import { useProjectStore } from "@/state";
 import { cmd } from "@/transport";
 import { useContextMenuStore } from "@/kit";
+import { contribute } from "@/ext";
 import { AUTOSAVE_MS, ProjectMenu } from "./index";
 import { useProjectScreen } from "./screenStore";
 
@@ -179,6 +180,27 @@ describe("ProjectMenu", () => {
     await projectAction(dialog, "Beats 2", "delete…");
     fireEvent.click(await enabledButton(dialog, "confirm delete Beats 2"));
     await waitFor(() => expect(names()).not.toContain("Beats 2"));
+  });
+
+  it("offers the extensions' delete choices and list sections", async () => {
+    const ran: string[] = [];
+    const offs = [
+      contribute("project.deleteChoices", (p) => [{ id: "cloud", label: "also delete it from the cloud", run: async () => void ran.push(p.id) }]),
+      contribute("project.listSection", ({ query }) => <p>in the cloud: {query || "all"}</p>),
+    ];
+    try {
+      await renderWithMock(<ProjectMenu />);
+      const dialog = await openManager();
+      expect(within(dialog).getByText("in the cloud: all")).toBeTruthy();
+      const id = store().projects.find((p) => p.name === "Beat sketch")!.id;
+      await projectAction(dialog, "Beat sketch", "delete…");
+      fireEvent.click(within(dialog).getByRole("switch", { name: "also delete it from the cloud" }));
+      fireEvent.click(await enabledButton(dialog, "confirm delete Beat sketch"));
+      await waitFor(() => expect(ran).toEqual([id]));
+      expect(names()).not.toContain("Beat sketch");
+    } finally {
+      offs.forEach((off) => off());
+    }
   });
 
   it("renames the open project in place: a click on its name (undoable document edit)", async () => {

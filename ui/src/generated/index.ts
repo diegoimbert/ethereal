@@ -385,6 +385,7 @@ export type * from "./VersionEvent";
 export type * from "./VersionInfo";
 export type * from "./VersionKind";
 export type * from "./WarpCommand";
+export type * from "./WarpFormants";
 export type * from "./WarpMarker";
 export type * from "./WarpMarkerChange";
 export type * from "./WarpMarkerId";

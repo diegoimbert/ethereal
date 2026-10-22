@@ -1745,7 +1745,7 @@
         {
           "id": "devices/shifter",
           "title": "shifter",
-          "what": "pitch shifter (-24..+24 semitones, detune, window), frequency shifter (shift + fine in hz, inharmonic / phaser-like), ring modulator (carrier + fine, drive and amount); wide mirrors the right channel; mix.",
+          "what": "pitch shifter (-24..+24 semitones, detune, window), frequency shifter (shift + fine in hz, inharmonic / phaser-like), ring modulator (carrier + fine, drive and amount); wide mirrors the right channel; mix; an lfo (10 waveforms, free or synced, stereo phase or spin, offset, duty, s&h width) and an envelope follower move the shift (hz) or the pitch (semitones); a delay after it (time or synced, feedback through the shifter so repeats keep shifting, tone).",
           "priority": "nice",
           "audience": "everyone",
           "platform": "all"

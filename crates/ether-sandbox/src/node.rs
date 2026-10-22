@@ -175,8 +175,13 @@ pub struct SandboxedNode {
     reset_pending: bool,
     /// Current plain values, sorted by id.
     values: Vec<(u32, f64)>,
-    /// `Device::set_param` calls not yet sent.
+    /// `Device::set_param` calls not yet sent (and the param events of blocks that were
+    /// not posted, coalesced the same way).
     pending: Vec<(u32, f64)>,
+    /// The other events (notes, MIDI) of blocks that were not posted (the helper still
+    /// owned the region): sent at the start of the next posted block, so no note on or
+    /// off is lost. At most one block's worth (`max_in_events`).
+    carry: Vec<ProcessEvent>,
     /// The instance's "always process" switch, passed to the helper's node with every
     /// block (`Block::always_process`).
     always: Arc<AtomicBool>,
@@ -224,6 +229,7 @@ impl SandboxedNode {
             reset_pending: false,
             values,
             pending: Vec::with_capacity(pending_cap),
+            carry: Vec::with_capacity(layout.max_in_events),
             always: Arc::new(AtomicBool::new(false)),
         }
     }
@@ -315,6 +321,33 @@ impl SandboxedNode {
         }
     }
 
+    /// RT. Keep the events of a block that is not posted: params coalesce into `pending`
+    /// (the latest value reaches the plugin), the rest into `carry`.
+    fn carry_over(&mut self, events: &[ProcessEvent]) {
+        for e in events {
+            match e.kind {
+                EventKind::Param { param, value } => self.queue_param(param.0, value),
+                _ => {
+                    if self.carry.len() < self.carry.capacity() {
+                        self.carry.push(*e);
+                    }
+                }
+            }
+        }
+    }
+
+    /// RT. Mirror `value` and queue it for the next posted block.
+    fn queue_param(&mut self, id: u32, value: f64) {
+        set_value(&mut self.values, id, value);
+        // Coalesce per param: the list stays bounded by the param count and the latest
+        // value always reaches the plugin.
+        if let Some(p) = self.pending.iter_mut().find(|(k, _)| *k == id) {
+            p.1 = value;
+        } else if self.pending.len() < self.pending.capacity() {
+            self.pending.push((id, value));
+        }
+    }
+
     /// Write this call's request and wake the helper. `sidechain`: this block's sidechain
     /// signal (`None` = no source).
     fn post(
@@ -369,6 +402,17 @@ impl SandboxedNode {
             n += 1;
         }
         self.pending.clear();
+        for e in &self.carry {
+            if n == events.len() {
+                break;
+            }
+            events[n] = WireEvent::encode(&ProcessEvent {
+                offset: 0,
+                kind: e.kind,
+            });
+            n += 1;
+        }
+        self.carry.clear();
         for e in ctx.events {
             if let EventKind::Param { param, value } = e.kind {
                 set_value(&mut self.values, param.0, value);
@@ -499,11 +543,13 @@ impl SandboxedNode {
             }
         }
 
-        // 2. Post this call (or, if the helper still owns the region, replace it by silence).
+        // 2. Post this call (or, if the helper still owns the region, replace it by silence
+        // and keep its events for the next posted block).
         if self.in_flight.is_none() {
             self.post(ctx, audio, sidechain);
         } else {
             self.fifo.push(frames, None);
+            self.carry_over(ctx.events);
         }
 
         // 3. Play the delayed output.
@@ -525,14 +571,7 @@ impl Device for SandboxedNode {
     }
 
     fn set_param(&mut self, id: ParamId, value: f64) {
-        set_value(&mut self.values, id.0, value);
-        // Coalesce per param: the list stays bounded by the param count and the latest
-        // value always reaches the plugin.
-        if let Some(p) = self.pending.iter_mut().find(|(k, _)| *k == id.0) {
-            p.1 = value;
-        } else if self.pending.len() < self.pending.capacity() {
-            self.pending.push((id.0, value));
-        }
+        self.queue_param(id.0, value);
     }
 }
 
@@ -593,6 +632,15 @@ mod tests {
     }
 
     fn run(node: &mut SandboxedNode, input: f32, frames: usize) -> Vec<f32> {
+        run_with(node, input, frames, &[])
+    }
+
+    fn run_with(
+        node: &mut SandboxedNode,
+        input: f32,
+        frames: usize,
+        events: &[ProcessEvent],
+    ) -> Vec<f32> {
         let transport = TransportInfo::STOPPED;
         let mut out_events = EventBuffer::with_capacity(16);
         let inp = vec![input; frames];
@@ -603,7 +651,7 @@ mod tests {
             sample_rate: 48_000.0,
             frames,
             transport: &transport,
-            events: &[],
+            events,
             out_events: &mut out_events,
         };
         let mut audio = AudioBuffers {
@@ -654,6 +702,65 @@ mod tests {
         })
         .join()
         .unwrap();
+    }
+
+    /// A block the late helper never saw (it still owned the region) hands its events to
+    /// the next posted block: params (latest value) and notes, at offset 0.
+    #[test]
+    fn events_of_an_unposted_block_reach_the_next_one() {
+        let mut n = node("carry", 4);
+        n.wait_budget = WaitBudget::Fixed(Duration::ZERO);
+        assert_eq!(run(&mut n, 1.0, 4), [0.0; 4]); // posts block 1; no answer yet
+        let note = EventKind::NoteOn {
+            note_id: 7,
+            channel: 0,
+            key: 60,
+            velocity: 0.5,
+        };
+        let param = |value| EventKind::Param {
+            param: ParamId(3),
+            value,
+        };
+        let events = [
+            ProcessEvent {
+                offset: 1,
+                kind: param(0.25),
+            },
+            ProcessEvent {
+                offset: 2,
+                kind: note,
+            },
+            ProcessEvent {
+                offset: 3,
+                kind: param(0.75),
+            },
+        ];
+        // Late: block 2 is replaced by silence, not posted.
+        run_with(&mut n, 1.0, 4, &events);
+        assert_eq!(n.shared.underruns.load(Ordering::Relaxed), 1);
+        assert_eq!(n.region.header().posted.load(Ordering::Acquire), 1);
+        complete(&n, 1.0);
+        // Block 3 is posted with block 2's events first.
+        run(&mut n, 1.0, 4);
+        assert_eq!(n.region.header().posted.load(Ordering::Acquire), 2);
+        let count = n.region.block().n_in_events as usize;
+        let sent: Vec<ProcessEvent> = n.region.in_events()[..count]
+            .iter()
+            .filter_map(WireEvent::decode)
+            .collect();
+        assert_eq!(
+            sent,
+            [
+                ProcessEvent {
+                    offset: 0,
+                    kind: param(0.75),
+                },
+                ProcessEvent {
+                    offset: 0,
+                    kind: note,
+                },
+            ]
+        );
     }
 
     #[test]

@@ -518,3 +518,87 @@ pub fn measure_media_ir_swap(seconds: f64, runs: usize, now: impl Fn() -> f64) -
         quantum_budget_ms: RENDER_QUANTUM as f64 / 48.0,
     }
 }
+
+/// One stretcher voice per web warp mode on 128-frame quanta (the Worklet's), stereo,
+/// ×1.25 (and +3 st with formants kept, Complex+): mean time per quantum and the worst one,
+/// fastest of `runs`. Feature `warp-complex` (the web's stretchers).
+#[derive(Clone, Debug, Serialize)]
+pub struct StretchCosts {
+    /// Complex (Signalsmith Stretch's Rust port, web preset).
+    pub complex_quantum_ms: f64,
+    pub complex_worst_ms: f64,
+    /// Complex+.
+    pub plus_quantum_ms: f64,
+    pub plus_worst_ms: f64,
+    /// Complex+ transposing (+3 st) with formants kept.
+    pub plus_transposed_quantum_ms: f64,
+    pub plus_transposed_worst_ms: f64,
+    pub quantum_budget_ms: f64,
+}
+
+#[cfg(feature = "warp-complex")]
+pub fn measure_stretch(seconds: f64, runs: usize, now: impl Fn() -> f64) -> StretchCosts {
+    use ether_stretch::{
+        PlusStretchFactory, RustPreset, RustStretchFactory, Stretcher, StretcherFactory,
+    };
+    const Q: usize = RENDER_QUANTUM;
+    let frames = (seconds * 48_000.0) as usize;
+    // A chord over a pulse of noise bursts (deterministic).
+    let mut seed = 1u32;
+    let x: Vec<f32> = (0..frames)
+        .map(|i| {
+            let t = i as f32 / 48_000.0;
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            let noise = (seed >> 8) as f32 / (1u32 << 24) as f32 - 0.5;
+            let burst = (-(t * 4.0).fract() * 30.0).exp();
+            [220.0f32, 277.2, 329.6, 440.0]
+                .iter()
+                .map(|f| 0.1 * (std::f32::consts::TAU * f * t).sin())
+                .sum::<f32>()
+                + 0.3 * noise * burst
+        })
+        .collect();
+    let run = |f: &dyn StretcherFactory, semitones: f32| -> (f64, f64) {
+        let mut st: Box<dyn Stretcher> = f.create();
+        st.configure(2, 48_000.0, Q);
+        st.set_transpose_semitones(semitones);
+        let (mut l, mut r) = (vec![0.0f32; Q], vec![0.0f32; Q]);
+        let (mut pos, mut o, mut worst, mut total, mut n) = (0usize, 0usize, 0.0f64, 0.0, 0);
+        while pos + 2 * Q < frames {
+            let n_in = ((o + Q) as f64 * 0.8) as usize - (o as f64 * 0.8) as usize;
+            let src = &x[pos..pos + n_in];
+            let t0 = now();
+            st.process(&[src, src], n_in, &mut [&mut l, &mut r], Q);
+            let dt = now() - t0;
+            worst = f64::max(worst, dt);
+            total += dt;
+            n += 1;
+            pos += n_in;
+            o += Q;
+        }
+        std::hint::black_box((&l, &r));
+        (total / n.max(1) as f64, worst)
+    };
+    let best = |f: &dyn StretcherFactory, semitones: f32| {
+        (0..runs.max(1))
+            .map(|_| run(f, semitones))
+            .fold((f64::MAX, f64::MAX), |a, b| (a.0.min(b.0), a.1.min(b.1)))
+    };
+    let complex = best(
+        &RustStretchFactory {
+            preset: RustPreset::Web,
+        },
+        0.0,
+    );
+    let plus = best(&PlusStretchFactory, 0.0);
+    let plus_t = best(&PlusStretchFactory, 3.0);
+    StretchCosts {
+        complex_quantum_ms: complex.0,
+        complex_worst_ms: complex.1,
+        plus_quantum_ms: plus.0,
+        plus_worst_ms: plus.1,
+        plus_transposed_quantum_ms: plus_t.0,
+        plus_transposed_worst_ms: plus_t.1,
+        quantum_budget_ms: Q as f64 / 48.0,
+    }
+}

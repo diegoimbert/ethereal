@@ -314,6 +314,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         hw_io: hw_io_rt,
         beat_table: vec![0.0; config.max_block_size + 1],
         beat_table_ahead: vec![0.0; config.max_block_size + 1],
+        history: crate::history::TimelineHistory::new(),
         silence_skipping: true,
         anticipate: anticipate.clone(),
         queue: crate::anticipation::PlanQueue::new(),
@@ -407,6 +408,9 @@ pub struct Engine {
     queue: crate::anticipation::PlanQueue,
     /// Exact beats of the anticipated side's sub-block (like `beat_table`).
     beat_table_ahead: Vec<f64>,
+    /// The recent sub-block plans: automation delayed by PDC reads the timeline there
+    /// (`crate::history`, issue #270).
+    history: crate::history::TimelineHistory,
     /// Set by [`EngineHandle::set_suspended`] (a project is loading): read once per block.
     suspend: Arc<AtomicBool>,
     /// The last block was suspended (the next unsuspended one resumes cleanly).
@@ -992,13 +996,15 @@ impl Engine {
 
     /// RT. The next sub-block of the frontier transport ([`plan_sub`]).
     fn plan(&mut self, max: usize) -> SubPlan {
-        plan_sub(
+        let plan = plan_sub(
             &mut self.transport,
             &self.snapshot.desc,
             &self.snapshot.tempo,
             self.config.sample_rate as f64,
             max,
-        )
+        );
+        self.history.push(&plan);
+        plan
     }
 
     /// RT. Render one host block of `frames`, `hint` = the next one's expected length
@@ -1192,6 +1198,7 @@ impl Engine {
             executor,
             beat_table,
             beat_table_ahead,
+            history,
             hw_io,
             silence_skipping,
             capture,
@@ -1236,8 +1243,9 @@ impl Engine {
             jump: plan.jump,
             skip_silence: *silence_skipping,
         };
-        let now_t = now.map(|(plan, _)| plan.timing(tempo, sr, beat_table));
-        let ahead_t = ahead.map(|plan| plan.timing(tempo, sr, beat_table_ahead));
+        let history = &*history;
+        let now_t = now.map(|(plan, _)| plan.timing(tempo, sr, beat_table, history));
+        let ahead_t = ahead.map(|plan| plan.timing(tempo, sr, beat_table_ahead, history));
         if let (Some((plan, off)), Some((info, timing))) = (now, &now_t) {
             recording.process(info, plan.n, &desc.tracks, tracks);
             // VCA gains and automation for this sub-block (`crate::vca`), before the jobs.
@@ -1460,7 +1468,7 @@ enum Pass {
 
 /// One sub-block of the timeline as the transport decided it ([`plan_sub`]): what rendering
 /// it needs from the transport, so the decision and the render are separate steps.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct SubPlan {
     /// Frames.
     pub n: usize,
@@ -1489,6 +1497,41 @@ pub(crate) struct SubPlan {
 }
 
 impl SubPlan {
+    /// A stopped stretch of `n` frames at beat `b0` (seconds `s0`).
+    pub(crate) fn stopped(sample_time: u64, n: usize, b0: f64, s0: f64) -> Self {
+        Self {
+            n,
+            sample_time,
+            b0,
+            b1: b0,
+            s0,
+            ..Self::default()
+        }
+    }
+
+    /// RT. The sub-block's timing for automation read from the past
+    /// ([`crate::history::TimelineHistory`]): beats on tempo ramps are integrated per call
+    /// (no beat table).
+    pub(crate) fn view<'a>(&self, tempo: &'a crate::tempo::TempoMapRt, sr: f64) -> Timing<'a> {
+        Timing {
+            tempo,
+            b0: self.b0,
+            b1: self.b1,
+            s0: self.s0,
+            sample_rate: sr,
+            frames: self.n,
+            sample_time: self.sample_time,
+            wraps: self.wraps,
+            exact: self.exact.map(|(beat, seconds, since)| sched::Exact {
+                beat,
+                seconds,
+                since,
+                beats: &[],
+            }),
+            history: None,
+        }
+    }
+
     /// RT. The sub-block's transport info and timing; `beats` (at least `n + 1` entries)
     /// holds the exact per-sample beats on ramped tempo maps.
     fn timing<'a>(
@@ -1496,6 +1539,7 @@ impl SubPlan {
         tempo: &'a crate::tempo::TempoMapRt,
         sr: f64,
         beats: &'a mut [f64],
+        history: &'a crate::history::TimelineHistory,
     ) -> (TransportInfo, Timing<'a>) {
         let (n, b0, b1) = (self.n, self.b0, self.b1);
         let exact = self.exact.map(|(beat, seconds, since)| {
@@ -1539,6 +1583,7 @@ impl SubPlan {
             sample_time: self.sample_time,
             wraps: self.wraps,
             exact,
+            history: Some(history),
         };
         (info, timing)
     }
@@ -2189,13 +2234,13 @@ impl JobCtx<'_> {
         let mixer_auto = apply_automation(
             tdesc,
             &track.clip_ends,
-            &mut track.auto_window,
             timing,
             playing,
             flags.chase_notes,
             &mut track.auto_last,
+            &track.env_targets,
             &mut track.env_last,
-            &track.env_base,
+            &track.auto_delays,
             &mut track.volume,
             &mut track.pan,
             &mut track.sends,
@@ -2384,6 +2429,7 @@ impl JobCtx<'_> {
         // --- sends (pre), fader, sends (post) ---
         // Each send's signal goes to its own buffer, gathered by the destination's job.
         let gate = track.gate.current();
+        let mixer_delay = track.mixer_delay;
         for pass_pre in [true, false] {
             if !pass_pre {
                 // Automated volume/pan: ramped per sample (`crate::automation_rt`).
@@ -2392,6 +2438,7 @@ impl JobCtx<'_> {
                     &track.clip_ends,
                     timing,
                     mixer_auto,
+                    track.mixer_delay,
                     a,
                     &mut track.volume,
                     &mut track.pan,
@@ -2425,7 +2472,14 @@ impl JobCtx<'_> {
                 }
                 send.delay.process(&mut sl[..n], &mut sr_[..n]);
                 // Automated send level: ramped per sample (`crate::automation_rt`).
-                if !automation_rt::send_level(tdesc, &track.clip_ends, timing, mixer_auto, send) {
+                if !automation_rt::send_level(
+                    tdesc,
+                    &track.clip_ends,
+                    timing,
+                    mixer_auto,
+                    mixer_delay,
+                    send,
+                ) {
                     let [sl, sr_] = &mut send.buf;
                     scale(&mut sl[..n], &mut send.level, false);
                     scale(&mut sr_[..n], &mut send.level, true);

@@ -44,6 +44,9 @@ pub(crate) struct ChainRt {
     pub events: EventBuffer,
     /// Live param changes waiting for the next sub-block.
     pub pending: EventBuffer,
+    /// The latest param changes that arrived while the device was off (one per param),
+    /// delivered where it is on again so it never resumes with stale values (issue #270).
+    held: EventBuffer,
     /// The entry reads a sidechain (planned in the track's `crate::sidechain::Taps`).
     pub sidechain: bool,
     /// Whether the device ran the last time its chain reached it ([`Self::switch_notes`];
@@ -68,6 +71,10 @@ pub(crate) struct ChainRt {
 /// Crossfade between a device's output and its bypass path when it switches on or off.
 pub(crate) const SWITCH_FADE_MS: f32 = 10.0;
 
+/// Distinct params whose changes an off device keeps for when it is on again
+/// (`ChainRt::held`; beyond that, the oldest are dropped).
+const MAX_HELD_PARAMS: usize = 64;
+
 impl ChainRt {
     /// Non-RT. A chain entry with its event lists. `latency`: how much the bypass path
     /// delays the entry's input (its latency plus a sidechain main delay planned before it).
@@ -88,6 +95,7 @@ impl ChainRt {
             channels,
             events: EventBuffer::with_capacity(config.max_events_per_block),
             pending: EventBuffer::with_capacity(MAX_PENDING_EVENTS),
+            held: EventBuffer::with_capacity(MAX_HELD_PARAMS),
             sidechain,
             was_enabled: enabled,
             fade: if enabled { 1.0 } else { 0.0 },
@@ -139,9 +147,9 @@ impl ChainRt {
     /// ([`Self::switch_notes`], and at an automated flip inside the sub-block, on its
     /// sample), sorts the entry's events, then passes those that arrive while the device is
     /// off on to `next` (MIDI thru: an off device is as if absent; its own params stay
-    /// behind and are dropped). The device keeps the events of the span it is on. `next`:
-    /// the next entry's events, or where the chain's MIDI goes (`None`: nowhere). Returns
-    /// `true` if an event list was full.
+    /// behind: the latest per param is delivered where the device is on again). The device
+    /// keeps the events of the span it is on. `next`: the next entry's events, or where the
+    /// chain's MIDI goes (`None`: nowhere). Returns `true` if an event list was full.
     pub(crate) fn route_midi(&mut self, mut next: Option<&mut EventBuffer>) -> bool {
         let mut overflow = self.switch_notes(next.as_deref_mut());
         if let Some(at) = self.auto_switch_at {
@@ -160,20 +168,61 @@ impl ChainRt {
                 overflow |= !next.push(off);
             }
         }
-        self.events.sort();
-        if self.is_enabled() && self.auto_switch_at.is_none() {
-            return overflow;
-        }
         let flip = self.auto_switch_at.unwrap_or(u32::MAX);
         let on = self.is_enabled();
+        // Param changes held while off, where the device is on again (before this
+        // sub-block's own changes at that sample, which win).
+        let on_at = if on {
+            Some(0)
+        } else {
+            (flip < u32::MAX).then_some(flip)
+        };
+        if let Some(at) = on_at
+            && !self.held.is_empty()
+        {
+            for h in self.held.as_slice() {
+                let EventKind::Param { param, .. } = h.kind else {
+                    continue;
+                };
+                let fresh = self.events.as_slice().iter().any(|e| {
+                    e.offset == at
+                        && matches!(e.kind, EventKind::Param { param: p, .. } if p == param)
+                });
+                if !fresh {
+                    overflow |= !self.events.push(ProcessEvent {
+                        offset: at,
+                        kind: h.kind,
+                    });
+                }
+            }
+            self.held.clear();
+        }
+        self.events.sort();
+        if on && flip == u32::MAX {
+            return overflow;
+        }
+        let held = &mut self.held;
         self.events.retain(|e| {
             if on != (e.offset >= flip) {
                 return true;
             }
-            if let Some(next) = next.as_deref_mut()
-                && !matches!(e.kind, EventKind::Param { .. })
-            {
-                overflow |= !next.push(*e);
+            match e.kind {
+                EventKind::Param { param, .. } => {
+                    held.retain(
+                        |h| !matches!(h.kind, EventKind::Param { param: p, .. } if p == param),
+                    );
+                    if !held.push(*e) {
+                        // Full: drop the oldest.
+                        let mut first = true;
+                        held.retain(|_| !std::mem::take(&mut first));
+                        held.push(*e);
+                    }
+                }
+                _ => {
+                    if let Some(next) = next.as_deref_mut() {
+                        overflow |= !next.push(*e);
+                    }
+                }
             }
             false
         });
@@ -338,6 +387,40 @@ pub(crate) struct ActiveNote {
     pub end: f64,
     /// v0.3: the clip note this voice plays (note expressions).
     pub source: NoteSource,
+    /// The voice was held across a content loop wrap into the loop's start note
+    /// (`sched::voice_end`): from the wrap on it plays that note.
+    pub join: Option<NoteJoin>,
+}
+
+impl ActiveNote {
+    /// The clip note the voice plays at timeline beat `beat` (its note expressions).
+    #[inline]
+    pub(crate) fn source_at(&self, beat: f64) -> NoteSource {
+        match self.join {
+            Some(j) if beat >= j.at => {
+                // A loop start note longer than the loop joins itself on every wrap.
+                let k = ((beat - j.at) / j.period).floor().max(0.0);
+                NoteSource {
+                    clip: self.source.clip,
+                    note: j.note,
+                    start: j.at + k * j.period - j.lead,
+                }
+            }
+            _ => self.source,
+        }
+    }
+}
+
+/// A loop join (CONTRACTS.md §2, Clips, "loop join"): the voice keeps sounding across
+/// the content loop wrap at timeline beat `at` and plays clip note `note` (which starts
+/// `lead` beats before the loop start) from there; `period` is the loop length (the next
+/// wraps, when that note is longer than the loop).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct NoteJoin {
+    pub at: f64,
+    pub note: u32,
+    pub lead: f64,
+    pub period: f64,
 }
 
 /// The clip note a sounding note plays (v0.3): its note expressions
@@ -427,15 +510,17 @@ pub(crate) struct TrackRt {
     pub notes: Vec<ActiveNote>,
     /// Last node-param value sent per automation lane (NaN = send again).
     pub auto_last: Vec<f64>,
-    /// Same for clip envelopes: `env_base[clip] + envelope index`.
+    /// Same for the targets only clip envelopes automate (`env_targets`).
     pub env_last: Vec<f64>,
-    pub env_base: Vec<usize>,
+    pub env_targets: Vec<crate::graph::ResolvedTarget>,
+    /// Latency at each node's input (sorted by node, any depth): its automation is read
+    /// that late (`automation_rt::views`, issue #270).
+    pub auto_delays: Vec<(NodeKey, u32)>,
+    /// Latency where the fader, sends and VCA gain apply (after the chain).
+    pub mixer_delay: u32,
     /// Running maximum of the clips' ends (`automation_rt::clip_ends`): the first clip
     /// that can still play is a binary search away.
     pub clip_ends: Vec<f64>,
-    /// Clip index range automation looked at in the previous sub-block
-    /// (`automation_rt::apply_automation`).
-    pub auto_window: (usize, usize),
     /// The track's job did real work in the last sub-block (processed a node, monitored
     /// input, ran racks or a frozen render). While stopped, the engine dispatches jobs to
     /// the workers only when some track was awake.

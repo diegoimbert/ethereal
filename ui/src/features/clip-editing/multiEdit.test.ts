@@ -1,6 +1,21 @@
 import { describe, expect, it } from "vitest";
-import type { AudioContent, Clip, Command } from "@/generated";
-import { audioClips, common, gainBases, offsetGain, offsetTranspose, offsetValue, setAllTranspose, transposeBases, type AudioClip } from "./multiEdit";
+import type { AudioContent, Clip, Command, WarpFormants } from "@/generated";
+import {
+  audioClips,
+  common,
+  FORMANTS_DEFAULT,
+  formantBases,
+  formantsOf,
+  gainBases,
+  offsetFormant,
+  offsetGain,
+  offsetTranspose,
+  offsetValue,
+  setAllFormant,
+  setAllTranspose,
+  transposeBases,
+  type AudioClip,
+} from "./multiEdit";
 
 function clip(id: string, audio: Partial<AudioContent> = {}): Clip {
   const content: AudioContent = {
@@ -115,5 +130,49 @@ describe("multi audio-clip builders", () => {
     expect(common([2, 2])).toBe(2);
     expect(common([2, 3])).toBeNull();
     expect(common([])).toBeNull();
+  });
+});
+
+describe("complex+ formant builders", () => {
+  /** The (clip id, formants) pairs a builder's command sets. */
+  const formants = (c: Command | null): Array<[string, WarpFormants | undefined]> => {
+    if (!c) return [];
+    if (c.domain === "Edit" && c.command.type === "Batch") return c.command.commands.flatMap((x) => formants(x));
+    if (c.domain === "Warp" && c.command.type === "SetWarp") return [[c.command.clip, c.command.warp.formants]];
+    return [];
+  };
+  const plus = { enabled: true, mode: "ComplexPlus" as const, source_bpm: 120 };
+  const list = (): AudioClip[] =>
+    audioClips([
+      clip("a", { warp: plus }),
+      clip("b", { warp: { ...plus, formants: { amount: 0.5, shift: 3, envelope: 64 } } }),
+      clip("c", { warp: { ...plus, formants: { amount: 1, shift: 23, envelope: 250 } } }),
+    ]);
+
+  it("a clip without formant settings reads the defaults", () => {
+    expect(formantsOf(list()[0]!)).toEqual(FORMANTS_DEFAULT);
+  });
+
+  it("a relative edit moves each clip from its own value, clamped per clip, other settings kept", () => {
+    const l = list();
+    const c = offsetFormant(l, "shift", formantBases(l, "shift"), 2);
+    expect(formants(c)).toEqual([
+      ["a", { amount: 1, shift: 2, envelope: 128 }],
+      ["b", { amount: 0.5, shift: 5, envelope: 64 }],
+      ["c", { amount: 1, shift: 24, envelope: 250 }],
+    ]);
+    expect(c?.domain === "Edit" && c.command.type === "Batch" && c.command.key?.id).toBe("undo.warp.set");
+    // The warp itself is kept.
+    const one = offsetFormant(l.slice(0, 1), "envelope", formantBases(l, "envelope"), -200);
+    expect(one?.domain === "Warp" && one.command.type === "SetWarp" && one.command.warp).toEqual({ ...plus, formants: { amount: 1, shift: 0, envelope: 8 } });
+  });
+
+  it("a typed value sets every clip (clamped), leaving out the ones already there", () => {
+    expect(formants(setAllFormant(list(), "amount", 0.5))).toEqual([
+      ["a", { amount: 0.5, shift: 0, envelope: 128 }],
+      ["c", { amount: 0.5, shift: 23, envelope: 250 }],
+    ]);
+    // Clamped to 100 %: only "b" (at 50 %) changes.
+    expect(formants(setAllFormant(list(), "amount", 7)).map(([id, f]) => [id, f?.amount])).toEqual([["b", 1]]);
   });
 });

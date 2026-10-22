@@ -579,3 +579,12 @@ pub fn bench_media_ir_swap(runs: u32) -> String {
     let costs = crate::perf::measure_media_ir_swap(6.0, runs as usize, performance_now);
     serde_json::to_string(&costs).expect("costs serialize")
 }
+
+/// Stretcher costs per Worklet quantum (Complex, Complex+), in wasm: JSON of
+/// [`crate::perf::StretchCosts`], fastest of `runs`. Diagnostics only (feature `bench`).
+#[cfg(all(feature = "bench", feature = "warp-complex"))]
+#[wasm_bindgen]
+pub fn bench_stretch(runs: u32) -> String {
+    let costs = crate::perf::measure_stretch(10.0, runs as usize, performance_now);
+    serde_json::to_string(&costs).expect("costs serialize")
+}

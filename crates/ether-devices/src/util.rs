@@ -243,6 +243,225 @@ pub(crate) fn split_at_events<S>(
     }
 }
 
+/// Where a latent device applies an event, relative to its offset (see [`LateEvents`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Route {
+    /// At its offset: params acting on the input as it arrives (detectors, sends, the
+    /// latency itself), notes.
+    Now,
+    /// `n` samples after its offset: params acting on audio that is already `n` samples
+    /// into the device's path (output gain, mix, a delay line's read side).
+    Late(usize),
+    /// Twice: as is `early` samples after its offset, and [`tagged`] `late` samples after
+    /// it. For a param with a part inside the path (an oversampled drive) and a part on
+    /// the output (the gain compensating it).
+    Split { early: usize, late: usize },
+}
+
+/// Bit set on the param id of a [`Route::Split`] event's late copy.
+const LATE_TAG: u32 = 1 << 31;
+
+/// The late copy of a param event (its id tagged, see [`untag`]).
+#[inline]
+fn tagged(kind: ether_core::EventKind) -> ether_core::EventKind {
+    match kind {
+        ether_core::EventKind::Param { param, value } => ether_core::EventKind::Param {
+            param: ParamId(param.0 | LATE_TAG),
+            value,
+        },
+        other => other,
+    }
+}
+
+/// A param id as [`LateEvents`] delivers it: the plain id and whether this is the late
+/// copy of a [`Route::Split`] event.
+#[inline]
+pub(crate) fn untag(id: ParamId) -> (ParamId, bool) {
+    (ParamId(id.0 & !LATE_TAG), id.0 & LATE_TAG != 0)
+}
+
+/// Most events a [`LateEvents`] holds (32 bytes each).
+const LATE_MAX: usize = 8192;
+/// Capacity before `prepare` sizes it.
+const LATE_DEFAULT: usize = 256;
+
+/// Param events delayed inside a device by (part of) its latency, sample-accurately.
+///
+/// A device reporting latency `L` gets its input and its events at the same timeline time,
+/// and its output plays `L` samples late. A param that acts on audio already `L` samples
+/// into the path (output gain, mix, tone after an oversampler, the read side of a delay)
+/// must change at its offset `+ L`, else it is heard `L` samples early. Each block, the
+/// device routes its events ([`Route`]) and runs the merged list (this block's
+/// immediate events and the delayed ones falling due in it, in time order) through
+/// [`split_at_events`] as usual; its smoothing then starts at the delayed point.
+///
+/// Time is the device's own sample count, which skips forward with the engine's
+/// `sample_time` when the device wasn't called (bypassed, asleep): events due then apply
+/// at the start of the next call. RT: fixed capacity, sized in [`LateEvents::prepare`];
+/// when full, the oldest event applies at once (early, never lost).
+#[derive(Debug)]
+pub(crate) struct LateEvents {
+    /// `(due, event)`, sorted by due time (FIFO among equal times).
+    pending: Vec<(u64, ether_core::EventKind)>,
+    /// The merged list of the current block (lent out by [`LateEvents::take`]).
+    merged: Vec<ether_core::ProcessEvent>,
+    clock: u64,
+    /// Engine sample time expected at the next call.
+    next: Option<u64>,
+}
+
+impl Default for LateEvents {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl LateEvents {
+    /// Non-RT.
+    pub(crate) fn new() -> Self {
+        Self {
+            pending: Vec::with_capacity(LATE_DEFAULT),
+            merged: Vec::with_capacity(2 * LATE_DEFAULT),
+            clock: 0,
+            next: None,
+        }
+    }
+
+    /// Non-RT. Room for the events of `max_latency` samples (keeps the pending ones).
+    pub(crate) fn prepare(&mut self, max_latency: usize, config: &ether_core::PrepareConfig) {
+        let per_block = config.max_events_per_block.max(16);
+        let blocks = max_latency.div_ceil(config.max_block_size.max(1)) + 1;
+        let cap = (2 * per_block * blocks).clamp(LATE_DEFAULT, LATE_MAX);
+        if self.pending.capacity() < cap {
+            self.pending.reserve_exact(cap - self.pending.len());
+        }
+        let merged = cap + 2 * per_block;
+        if self.merged.capacity() < merged {
+            self.merged.reserve_exact(merged - self.merged.len());
+        }
+    }
+
+    /// No event waiting (a device may only report silence then).
+    #[inline]
+    pub(crate) fn is_idle(&self) -> bool {
+        self.pending.is_empty()
+    }
+
+    /// The value of the last pending event of `param`: what `Device::param` reports
+    /// (the latest value sent, also while it waits to act).
+    pub(crate) fn latest(&self, param: ParamId) -> Option<f64> {
+        self.pending.iter().rev().find_map(|(_, k)| match *k {
+            ether_core::EventKind::Param { param: p, value } if p == param => Some(value),
+            _ => None,
+        })
+    }
+
+    /// `stored` (a device's own value of `param`, `None` if it has no such param) or the
+    /// latest pending one ([`LateEvents::latest`]).
+    pub(crate) fn readback(&self, param: ParamId, stored: Option<f64>) -> Option<f64> {
+        stored.map(|v| self.latest(param).unwrap_or(v))
+    }
+
+    /// Drop the pending events of `param` (a `Device::set_param` overrides them).
+    pub(crate) fn cancel(&mut self, param: ParamId) {
+        self.pending.retain(|(_, k)| match k {
+            ether_core::EventKind::Param { param: p, .. } => untag(*p).0 != param,
+            _ => true,
+        });
+    }
+
+    #[inline]
+    fn insert(&mut self, due: u64, kind: ether_core::EventKind) {
+        if self.pending.len() == self.pending.capacity() {
+            // Full: the oldest applies now.
+            let (_, k) = self.pending.remove(0);
+            if self.merged.len() < self.merged.capacity() {
+                self.merged.push(ether_core::ProcessEvent { offset: 0, kind: k });
+            }
+        }
+        let at = self.pending.partition_point(|(d, _)| *d <= due);
+        self.pending.insert(at, (due, kind));
+    }
+
+    /// RT. This block's events, merged (see the type docs): give the list back with
+    /// [`LateEvents::restore`].
+    pub(crate) fn take(
+        &mut self,
+        ctx: &ether_core::ProcessContext<'_>,
+        mut route: impl FnMut(&ether_core::EventKind) -> Route,
+    ) -> Vec<ether_core::ProcessEvent> {
+        let now = ctx.transport.sample_time;
+        if let Some(expected) = self.next
+            && now > expected
+        {
+            self.clock += now - expected;
+        }
+        self.next = Some(now + ctx.frames as u64);
+        self.merged.clear();
+        let frames = ctx.frames as u64;
+        let start = self.clock;
+        for ev in ctx.events {
+            let at = start + u64::from(ev.offset).min(frames);
+            match route(&ev.kind) {
+                Route::Now => self.insert(at, ev.kind),
+                Route::Late(n) => self.insert(at + n as u64, ev.kind),
+                Route::Split { early, late } => {
+                    self.insert(at + early as u64, ev.kind);
+                    self.insert(at + late as u64, tagged(ev.kind));
+                }
+            }
+        }
+        let end = start + frames;
+        let due = self.pending.partition_point(|(d, _)| *d < end);
+        for &(at, kind) in &self.pending[..due] {
+            if self.merged.len() < self.merged.capacity() {
+                self.merged.push(ether_core::ProcessEvent {
+                    offset: at.saturating_sub(start) as u32,
+                    kind,
+                });
+            }
+        }
+        self.pending.drain(..due);
+        self.clock = end;
+        std::mem::take(&mut self.merged)
+    }
+
+    /// RT. Give back the list [`LateEvents::take`] lent.
+    #[inline]
+    pub(crate) fn restore(&mut self, merged: Vec<ether_core::ProcessEvent>) {
+        self.merged = merged;
+    }
+
+    /// RT. Apply every pending event now, in order (`reset`: the params end where the
+    /// events left them). `late` picks the queue out of the device.
+    pub(crate) fn flush<S>(
+        state: &mut S,
+        late: impl Fn(&mut S) -> &mut Self,
+        mut apply: impl FnMut(&mut S, &ether_core::EventKind),
+    ) {
+        let mut pending = std::mem::take(&mut late(state).pending);
+        for (_, kind) in &pending {
+            apply(state, kind);
+        }
+        pending.clear();
+        late(state).pending = pending;
+    }
+
+    /// RT. [`split_at_events`] over this block's merged events (see the type docs).
+    pub(crate) fn split<S>(
+        state: &mut S,
+        late: impl Fn(&mut S) -> &mut Self,
+        ctx: &ether_core::ProcessContext<'_>,
+        route: impl FnMut(&ether_core::EventKind) -> Route,
+        render: impl FnMut(&mut S, usize, usize),
+        event: impl FnMut(&mut S, &ether_core::EventKind),
+    ) {
+        let events = late(state).take(ctx, route);
+        split_at_events(state, &events, ctx.frames, render, event);
+        late(state).restore(events);
+    }
+}
+
 /// Level under which an effect's signal counts as silent: -120 dBFS.
 pub(crate) const SILENCE_FLOOR: f32 = 1e-6;
 
@@ -369,6 +588,81 @@ mod tests {
         assert_eq!(t.status(false, true, true, true, 64, 100), Continue);
     }
 
+    /// The events [`LateEvents`] delivers for a block of `frames` at `time`.
+    fn late_block(
+        late: &mut LateEvents,
+        time: u64,
+        frames: usize,
+        events: &[ether_core::ProcessEvent],
+        route: impl FnMut(&ether_core::EventKind) -> Route,
+    ) -> Vec<(u32, u32, bool)> {
+        let transport = ether_core::TransportInfo {
+            sample_time: time,
+            ..ether_core::TransportInfo::STOPPED
+        };
+        let mut out_events = ether_core::EventBuffer::with_capacity(4);
+        let ctx = ether_core::ProcessContext {
+            sample_rate: 48_000.0,
+            frames,
+            transport: &transport,
+            events,
+            out_events: &mut out_events,
+        };
+        let merged = late.take(&ctx, route);
+        let got = merged
+            .iter()
+            .map(|e| match e.kind {
+                ether_core::EventKind::Param { param, .. } => {
+                    let (id, tag) = untag(param);
+                    (e.offset, id.0, tag)
+                }
+                _ => (e.offset, u32::MAX, false),
+            })
+            .collect();
+        late.restore(merged);
+        got
+    }
+
+    fn ev(offset: u32, id: u32) -> ether_core::ProcessEvent {
+        ether_core::ProcessEvent {
+            offset,
+            kind: ether_core::EventKind::Param {
+                param: ParamId(id),
+                value: 0.0,
+            },
+        }
+    }
+
+    #[test]
+    fn late_events_fall_due_after_their_delay_in_time_order() {
+        let mut late = LateEvents::new();
+        let route = |k: &ether_core::EventKind| match k {
+            ether_core::EventKind::Param { param, .. } if param.0 == 0 => Route::Now,
+            ether_core::EventKind::Param { param, .. } if param.0 == 1 => Route::Late(100),
+            _ => Route::Split { early: 10, late: 70 },
+        };
+        // Block 0..64: id 0 now, id 1 due at 105, id 2 at 30 (+ its late copy at 90).
+        let got = late_block(&mut late, 0, 64, &[ev(5, 0), ev(5, 1), ev(20, 2)], route);
+        assert_eq!(got, [(5, 0, false), (30, 2, false)]);
+        assert!(!late.is_idle());
+        // Block 64..128, with a new immediate event at 100.
+        let got = late_block(&mut late, 64, 64, &[ev(36, 0)], route);
+        assert_eq!(got, [(26, 2, true), (36, 0, false), (41, 1, false)]);
+        assert!(late.is_idle());
+    }
+
+    #[test]
+    fn late_events_skip_ahead_with_the_engine_and_cancel() {
+        let mut late = LateEvents::new();
+        let route = |_: &ether_core::EventKind| Route::Late(100);
+        assert!(late_block(&mut late, 0, 64, &[ev(10, 1), ev(12, 2)], route).is_empty());
+        // Not called for 64..192 (asleep / bypassed): due at 110, both at the next call's
+        // start; a `set_param` dropped id 2.
+        late.cancel(ParamId(2));
+        let got = late_block(&mut late, 192, 64, &[], route);
+        assert_eq!(got, [(0, 1, false)]);
+        assert!(late.is_idle());
+    }
     #[test]
     fn adsr_shape() {
         let r = AdsrRates::new(1.0, 10.0, 0.5, 10.0, 1000.0);

@@ -13,6 +13,7 @@ mod common;
 static ALLOC: assert_no_alloc::AllocDisabler = assert_no_alloc::AllocDisabler;
 
 mod anticipation;
+mod automation_timing;
 mod base24_hooks;
 mod codec;
 mod codec_fixture;
@@ -29,6 +30,7 @@ mod fades_vectors;
 mod groups;
 mod hw_io;
 mod job_costs;
+mod loop_join;
 mod metronome;
 mod metronome_no_alloc;
 mod midi_fx_bypass;

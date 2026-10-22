@@ -379,10 +379,23 @@ fn clip(nan: bool) -> impl Strategy<Value = ClipDesc> {
         },
     );
     let warp = (
-        prop_oneof![Just(WarpMode::Repitch), Just(WarpMode::Complex)],
+        prop_oneof![
+            Just(WarpMode::Repitch),
+            Just(WarpMode::Complex),
+            Just(WarpMode::ComplexPlus)
+        ],
         vec((f64s(nan), f64s(nan)), 0..4),
+        (f32s(nan), f32s(nan), f32s(nan)),
     )
-        .prop_map(|(mode, markers)| WarpDesc { mode, markers });
+        .prop_map(|(mode, markers, (amount, shift, envelope))| WarpDesc {
+            mode,
+            markers,
+            formants: ether_protocol::model::WarpFormants {
+                amount,
+                shift,
+                envelope,
+            },
+        });
     let audio = (
         ulid(),
         f32s(nan),

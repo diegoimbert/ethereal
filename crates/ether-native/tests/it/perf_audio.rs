@@ -136,6 +136,7 @@ fn complex_warp_block_times() {
                     warp: Some(WarpDesc {
                         mode: WarpMode::Complex,
                         markers: vec![(0.0, 0.0), (2.0, 1.25)],
+                        formants: Default::default(),
                     }),
                     gain_envelope: None,
                     transpose_envelope: None,

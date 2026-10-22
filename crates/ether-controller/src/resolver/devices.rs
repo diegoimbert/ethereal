@@ -206,7 +206,11 @@ mod tests {
         assert_eq!(first(&grain), T::GrainDelay);
         let pedal = missing("Live's Pedal", "ableton:Pedal", MissingRole::AudioEffect);
         assert_eq!(first(&pedal), T::Pedal);
-        let shifter = missing("Live's Shifter", "ableton:Shifter", MissingRole::AudioEffect);
+        let shifter = missing(
+            "Live's Shifter",
+            "ableton:Shifter",
+            MissingRole::AudioEffect,
+        );
         assert_eq!(first(&shifter), T::Shifter);
         let op = missing(
             "Live's Operator",

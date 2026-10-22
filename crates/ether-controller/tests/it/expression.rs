@@ -464,6 +464,61 @@ fn copies_keep_expression() {
 }
 
 #[test]
+fn consolidate_joins_notes_held_across_loop_wraps() {
+    // Loop [1, 3): C4 at 0.5..1.5 sounds at the loop start (pressure 0), the C4 at
+    // 2.5..3.5 is held across the loop end (pressure 1): consolidated as one note per wrap
+    // that switches to the loop start note's curve at the wrap (CONTRACTS.md §2, Clips,
+    // "loop join").
+    let mut h = Harness::with_project();
+    let t = track(&mut h, TrackKind::Midi);
+    let c = clip(&mut h, t, 0.0, 8.0);
+    for (start, v) in [(0.5, 0.0), (2.5, 1.0)] {
+        let n = note(&mut h, c, 60, start, 1.0);
+        let id: NoteExpressionId = h.id();
+        h.ok(x(ExpressionCommand::SetNoteExpression {
+            id,
+            note: n,
+            kind: NoteExpressionKind::Pressure,
+            points: vec![pt(0.0, v)],
+        }));
+    }
+    h.ok(Command::Clip(ClipCommand::SetLoop {
+        id: c,
+        looping: ClipLoop {
+            enabled: true,
+            start: Beats(1.0),
+            end: Beats(3.0),
+        },
+    }));
+    let (seed_clips, seed_notes, seed_media): (ClipId, ClipId, MediaId) = (h.id(), h.id(), h.id());
+    h.ok(Command::Freeze(FreezeCommand::Consolidate {
+        job: "x".into(),
+        tracks: vec![t],
+        start: Beats(0.0),
+        end: Beats(8.0),
+        seed_clips,
+        seed_notes,
+        seed_media,
+    }));
+    let merged = ether_model::derive_id::<_, ClipId>(seed_clips, 0);
+    let p = h.project();
+    let notes = p.notes_of(merged);
+    let got: Vec<(f64, f64)> = notes.iter().map(|n| (n.start.0, n.duration.0)).collect();
+    assert_eq!(got, [(0.5, 1.0), (2.5, 1.0), (4.5, 1.0), (6.5, 1.0)]);
+    let at = |n: &Note, t: f64| {
+        let e = p.note_expressions_of(n.id);
+        assert_eq!(e.len(), 1);
+        let pts = &e[0].points;
+        pts[pts.partition_point(|q| q.time.0 <= t) - 1].value
+    };
+    assert_eq!(at(notes[0], 0.25), 0.0);
+    for n in &notes[1..] {
+        assert_eq!(at(n, 0.25), 1.0, "before the wrap: its own curve");
+        assert_eq!(at(n, 0.75), 0.0, "after the wrap: the loop start note's");
+    }
+}
+
+#[test]
 fn comp_flatten_keeps_expression() {
     let mut h = Harness::with_project();
     let t = track(&mut h, TrackKind::Midi);

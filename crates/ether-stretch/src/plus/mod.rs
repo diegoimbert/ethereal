@@ -281,22 +281,30 @@ impl State {
 
     fn push_input(&mut self, input: &[&[f32]], from: usize, frames: usize) {
         let mask = self.input.mask;
+        let start = self.input.count as usize;
+        // Each channel into its ring (missing input reads silence).
+        for ch in 0..self.channels {
+            let src = input.get(ch).map_or(&[][..], |c| {
+                &c[from.min(c.len())..(from + frames).min(c.len())]
+            });
+            let data = &mut self.input.data[ch];
+            for (i, v) in src
+                .iter()
+                .chain(std::iter::repeat(&0.0))
+                .take(frames)
+                .enumerate()
+            {
+                data[(start + i) & mask] = *v;
+            }
+        }
+        // Their mix feeds the onset detector.
         let inv = 1.0 / self.channels as f32;
         for i in 0..frames {
-            let at = self.input.count as usize & mask;
-            let mut mono = 0.0;
-            for ch in 0..self.channels {
-                let v = input
-                    .get(ch)
-                    .and_then(|c| c.get(from + i))
-                    .copied()
-                    .unwrap_or(0.0);
-                self.input.data[ch][at] = v;
-                mono += v;
-            }
-            self.input.count += 1;
+            let at = (start + i) & mask;
+            let mono: f32 = self.input.data[..self.channels].iter().map(|d| d[at]).sum();
             self.onsets.push(mono * inv);
         }
+        self.input.count += frames as i64;
         self.onsets.run();
     }
 
