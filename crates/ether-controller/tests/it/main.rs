@@ -19,6 +19,7 @@ mod compile_perf;
 mod comping;
 mod contract_vectors;
 mod crossfades;
+mod discard;
 mod drum_rack;
 mod drum_rack_macros;
 mod drum_rack_presets;

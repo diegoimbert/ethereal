@@ -746,6 +746,9 @@ where
     pub samples: sample_pack::SamplesState,
     pub next_gesture: u32,
     pub last_transport: Option<TransportState>,
+    /// The open project the user discarded (`ProjectCommand::Discard`): never saved again,
+    /// deleted once it closes.
+    pub discarded: Option<ether_core::protocol::model::ProjectId>,
     /// The project load in progress: the engine is suspended until it ends (`loading`).
     pub loading: loading::LoadState,
     pub outputs: EngineOutputs,
@@ -827,6 +830,7 @@ where
             // space, away from UI-allocated ones.
             next_gesture: 0x8000_0000,
             last_transport: None,
+            discarded: None,
             loading: Default::default(),
             outputs: EngineOutputs::default(),
             config,
