@@ -875,6 +875,11 @@ impl EngineBridge for NativeBridge {
         self.handle.set_param(change).map_err(engine_err)
     }
 
+    fn set_suspended(&mut self, suspended: bool) -> Result<(), BridgeError> {
+        self.handle.set_suspended(suspended);
+        Ok(())
+    }
+
     fn transport(&mut self, control: TransportControl) -> Result<(), BridgeError> {
         if let Some(ext) = self.ext.as_deref_mut() {
             ext.observe_transport(&control);

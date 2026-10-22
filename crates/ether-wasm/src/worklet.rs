@@ -591,6 +591,10 @@ impl<M: RingMemory> EngineHost<M> {
             EngineMsg::Transport { control } => {
                 self.handle.transport(control).map_err(|e| e.to_string())
             }
+            EngineMsg::Suspend { suspended } => {
+                self.handle.set_suspended(suspended);
+                Ok(())
+            }
             EngineMsg::Preview { id, media, gain } => {
                 use ether_core::preview::PreviewControl;
                 let control = match media {

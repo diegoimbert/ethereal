@@ -212,6 +212,12 @@ impl MediaState {
         !self.jobs.is_empty()
     }
 
+    /// Media of the project still being loaded for the engine (not imports, not reverb
+    /// IRs): what a project load waits for.
+    pub fn load_jobs(&self) -> usize {
+        self.jobs.iter().filter(|j| !j.report && !j.ir).count()
+    }
+
     /// Are any media of the project streamed?
     pub fn any_streamed(&self) -> bool {
         !self.streamed.is_empty()

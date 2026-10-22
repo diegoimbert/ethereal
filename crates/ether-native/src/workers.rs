@@ -2,35 +2,45 @@
 //! `ether_core::parallel` and CONTRACTS.md §11.7).
 //!
 //! [`WorkerPool`] implements [`ParallelExecutor`]: `workers` threads created up front
-//! ([`WorkerPool::new`], non-RT), which the audio thread hands each DAG level's track jobs.
+//! ([`WorkerPool::new`], non-RT), which the audio thread hands each sub-block's track job
+//! graph ([`ParallelExecutor::execute_graph`]), or a flat batch of independent jobs.
 //!
 //! # Dispatch (RT, lock-free, no allocation)
-//! - One 64-bit claim word packs `epoch:32 | jobs:16 | next:16`. `execute` stores a pointer
-//!   to a stack [`Batch`] (the job closure), then publishes a new epoch with `next` = the
-//!   first shared index (Release). Everyone (workers and the audio thread) claims indices
-//!   with a CAS that only succeeds for that epoch while `next < jobs`, runs the job, and
-//!   bumps `done` (Release). The audio thread runs the pinned jobs, helps with the rest,
-//!   then spins until `done` covers every shared job (Acquire) and returns.
-//! - A worker reads the batch pointer only **after** a successful claim: the epoch is then
-//!   still running (its claimed job is unfinished, so `execute` can't have returned), hence
-//!   the pointer is that epoch's and the closure is alive. A late worker that wakes after
-//!   the epoch finished fails its CAS and never touches the closure. Epochs wrap after 2^32
-//!   dispatches (days of audio), far beyond any preemption.
-//! - Waiting: workers spin (bounded, [`SPIN_ITERS`]) for the next epoch, so levels dispatched
-//!   back to back within a block are picked up without a syscall, then park
-//!   (`std::thread::park`: a futex / ulock / dispatch semaphore, never a mutex shared with
-//!   non-RT threads on Linux/macOS/Windows). `execute` wakes (`unpark`: one non-blocking
-//!   syscall) only the workers that announced they sleep, Dekker-style with SeqCst on both
-//!   sides so no wake-up is lost. The audio thread never blocks: it only spins on `done`.
-//! - More than 65535 jobs in one level (never in practice) run on the audio thread.
+//! - **Epochs.** `execute*` puts the work (graph + job closure, or flat batch) on its stack,
+//!   stores a pointer to it, and opens a new epoch in the state word (`epoch << 1 | open`,
+//!   SeqCst). Workers that see an open epoch *enter* it: bump `active`, re-check that the
+//!   same epoch is still open, and only then read the work pointer. When every job is done
+//!   the audio thread closes the epoch and waits until `active` is 0 before returning, so
+//!   no worker ever touches the work (or the snapshot's graph) after `execute*` returned.
+//!   A late worker sees the epoch closed (or another one) and backs off untouched.
+//! - **Graph.** Everyone (workers and the audio thread) takes the most urgent ready job
+//!   ([`JobGraph::pop`], a lock-free bitset), runs it and completes it
+//!   ([`JobGraph::complete`]: per-job atomic counters of unfinished sources; the last
+//!   source makes its successor ready). There is no barrier: a job starts as soon as its
+//!   own sources are done. The audio thread takes pinned jobs too, and keeps working until
+//!   the graph finished.
+//! - **Waking (as cheap as level dispatch, usually cheaper).** Opening the graph epoch
+//!   wakes at most `width - 1` parked workers (the widest dependency level; none for a
+//!   graph that is a single chain, which runs on the audio thread) — once per sub-block,
+//!   where level dispatch woke workers again for every level. A worker that finds nothing
+//!   ready spins ([`SPIN_ITERS`]), then leaves the epoch and waits as usual (spin, then
+//!   park). A completion that makes several jobs ready at once bumps a push counter (which
+//!   spinning workers watch, to rejoin) and unparks up to that many minus one parked
+//!   workers (one non-blocking syscall each, Dekker-style with SeqCst on both sides so no
+//!   wake-up is lost). A lost race only ever costs parallelism: the audio thread never
+//!   parks and finishes the graph by itself if needed.
+//! - **Flat batches** (`execute`, `execute_pinned`): indices claimed with one `fetch_add`
+//!   on the batch's counter; the audio thread runs the pinned ones, helps with the rest,
+//!   then waits for the shared ones.
 //! - **Panics.** Every job runs under `catch_unwind` (free when nothing panics), on the
-//!   workers and on the audio thread alike, and always counts as done. The first payload
-//!   is kept and re-raised with `resume_unwind` on the audio thread once *every* job of
-//!   the epoch finished, so a panic never leaves `execute` waiting forever, never unwinds
-//!   the audio thread past the `Batch` workers still use, and reaches the host callback's
+//!   workers and on the audio thread alike, and always counts as done (a graph job still
+//!   releases its successors). The first payload is kept and re-raised with
+//!   `resume_unwind` on the audio thread once *every* job of the epoch finished and every
+//!   worker left it, so a panic never leaves `execute*` waiting forever, never unwinds the
+//!   audio thread past work other threads still use, and reaches the host callback's
 //!   existing poison path (`audio.rs`: the stream goes silent).
-//! - The audio thread's final wait spins, then yields; see `execute_pinned` for the
-//!   priority-inversion note when workers don't get real-time priority.
+//! - The audio thread's waits spin, then yield; see `wait_done` for the priority-inversion
+//!   note when workers don't get real-time priority.
 //!
 //! # Threads
 //! Workers enable flush-to-zero like the audio thread ([`crate::rt::enable_flush_denormals`]),
@@ -58,23 +68,22 @@
 use std::any::Any;
 use std::panic::AssertUnwindSafe;
 use std::sync::atomic::{AtomicBool, AtomicPtr, AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
-use std::thread::JoinHandle;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::thread::{JoinHandle, Thread};
 use std::time::Duration;
 
-use ether_core::parallel::ParallelExecutor;
+use ether_core::parallel::{JobGraph, ParallelExecutor};
 
 /// Upper bound of the default worker count (more rarely helps a DAW graph and costs power).
 pub const MAX_DEFAULT_WORKERS: usize = 8;
 /// How long `WorkerPool::with_options` waits for its workers to start before panicking.
 const WORKER_START_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Spin iterations (`spin_loop` hints, ~tens of µs) before a worker parks.
+/// Spin iterations (`spin_loop` hints, ~tens of µs) before a worker parks, or before an
+/// idle worker leaves a graph epoch.
 pub const SPIN_ITERS: u32 = 1 << 12;
 /// Spin iterations of the audio thread waiting for the last jobs before it yields.
 const WAIT_SPIN_ITERS: u32 = 1 << 14;
-/// Jobs per level the claim word can address.
-const MAX_JOBS: usize = u16::MAX as usize;
 
 /// `ETHER_WORKERS` if set (and a number), else physical cores - 1, capped at
 /// [`MAX_DEFAULT_WORKERS`].
@@ -99,24 +108,41 @@ pub(crate) fn promote_current_thread(period: Duration) {
     os::promote_current_thread(period);
 }
 
-/// The job batch of one `execute` call, on the audio thread's stack.
-struct Batch<'a> {
-    job: &'a (dyn Fn(usize) + Sync),
+/// The work of one `execute*` call, on the audio thread's stack.
+enum Work<'a> {
+    Flat {
+        job: &'a (dyn Fn(usize) + Sync),
+        jobs: usize,
+        /// Next index to claim (starts after the pinned ones).
+        next: AtomicUsize,
+        /// Shared jobs finished.
+        done: AtomicUsize,
+    },
+    Graph {
+        graph: &'a JobGraph,
+        job: &'a (dyn Fn(usize) + Sync),
+    },
 }
 
 struct Shared {
-    /// `epoch:32 | jobs:16 | next:16`.
-    claim: AtomicU64,
-    /// Jobs of the current epoch finished (shared ones only).
-    done: AtomicUsize,
-    /// The current epoch's batch (valid while that epoch runs; see the module docs).
-    batch: AtomicPtr<Batch<'static>>,
+    /// `epoch << 1 | open`.
+    state: AtomicU64,
+    /// Bumped each time a graph job's completion made others ready (lets idle workers that
+    /// left the epoch rejoin it).
+    pushes: AtomicU64,
+    /// The open epoch's work (valid while that epoch is open and for entered workers; see
+    /// the module docs).
+    work: AtomicPtr<Work<'static>>,
+    /// Workers inside an epoch (entered, not yet left).
+    active: AtomicUsize,
     shutdown: AtomicBool,
     /// Per worker: parked (or about to park) and wants an `unpark`.
     sleeping: Box<[AtomicBool]>,
+    /// The workers' handles (set once, before the pool is handed out).
+    threads: OnceLock<Box<[Thread]>>,
     /// A job panicked in the current epoch (fast check; the payload is in `panic`).
     poisoned: AtomicBool,
-    /// First panic payload of the epoch, re-raised on the audio thread by `execute` once
+    /// First panic payload of the epoch, re-raised on the audio thread by `execute*` once
     /// every job finished. Only touched on the panic path (`try_lock`, never blocks).
     panic: Mutex<Option<Box<dyn Any + Send>>>,
     /// Workers that finished their start-up (thread-local setup, RT promotion) and entered
@@ -126,43 +152,18 @@ struct Shared {
 }
 
 #[inline]
-fn pack(epoch: u32, jobs: usize, next: usize) -> u64 {
-    ((epoch as u64) << 32) | ((jobs as u64) << 16) | next as u64
+fn open(epoch: u64) -> u64 {
+    (epoch << 1) | 1
 }
 
 #[inline]
-fn unpack(c: u64) -> (u32, usize, usize) {
-    (
-        (c >> 32) as u32,
-        ((c >> 16) & 0xffff) as usize,
-        (c & 0xffff) as usize,
-    )
+fn is_open(state: u64) -> bool {
+    state & 1 == 1
 }
 
 impl Shared {
-    /// Claim the next index of `epoch`, if any is left.
-    #[inline]
-    fn claim(&self, epoch: u32) -> Option<usize> {
-        let mut c = self.claim.load(Ordering::Acquire);
-        loop {
-            let (e, jobs, next) = unpack(c);
-            if e != epoch || next >= jobs {
-                return None;
-            }
-            match self.claim.compare_exchange_weak(
-                c,
-                pack(e, jobs, next + 1),
-                Ordering::AcqRel,
-                Ordering::Acquire,
-            ) {
-                Ok(_) => return Some(next),
-                Err(now) => c = now,
-            }
-        }
-    }
-
-    /// Run one job, catching a panic (so `done` is always bumped and the audio thread never
-    /// unwinds past a `Batch` other threads still use). The payload is kept for `execute`.
+    /// Run one job, catching a panic (so it always counts as done and the audio thread
+    /// never unwinds past work other threads still use). The payload is kept for `execute*`.
     #[inline]
     fn run(&self, job: &(dyn Fn(usize) + Sync), i: usize) {
         if let Err(payload) = std::panic::catch_unwind(AssertUnwindSafe(|| job(i))) {
@@ -175,20 +176,86 @@ impl Shared {
         }
     }
 
-    /// Run claimed jobs of `epoch` until none is left; returns how many ran.
+    /// Claim and run flat jobs until none is left.
     #[inline]
-    fn work(&self, epoch: u32) -> usize {
-        let mut ran = 0;
-        while let Some(i) = self.claim(epoch) {
-            // SAFETY: we hold an unfinished job of `epoch`, so `execute` for it hasn't
-            // returned: `batch` points to its live `Batch` (stored before the epoch was
-            // published, which our Acquire claim observed).
-            let batch = unsafe { &*self.batch.load(Ordering::Acquire) };
-            self.run(batch.job, i);
-            self.done.fetch_add(1, Ordering::Release);
-            ran += 1;
+    fn work_flat(
+        &self,
+        job: &(dyn Fn(usize) + Sync),
+        jobs: usize,
+        next: &AtomicUsize,
+        done: &AtomicUsize,
+    ) {
+        loop {
+            let i = next.fetch_add(1, Ordering::Relaxed);
+            if i >= jobs {
+                return;
+            }
+            self.run(job, i);
+            done.fetch_add(1, Ordering::Release);
         }
-        ran
+    }
+
+    /// Take, run and complete one ready graph job; false if none was ready.
+    #[inline]
+    fn graph_step(&self, graph: &JobGraph, job: &(dyn Fn(usize) + Sync), caller: bool) -> bool {
+        let Some(r) = graph.pop(caller) else {
+            return false;
+        };
+        self.run(job, graph.id(r));
+        let readied = graph.complete(r);
+        if readied > 0 {
+            // SeqCst: pairs with an idle worker's announce + re-check (`worker_main`).
+            self.pushes.fetch_add(1, Ordering::SeqCst);
+            if readied > 1 {
+                // This thread takes one of them; wake parked workers for the others.
+                self.wake_any(readied - 1);
+            }
+        }
+        true
+    }
+
+    /// A worker inside a graph epoch: work until the graph finished, or until nothing was
+    /// ready for [`SPIN_ITERS`] (then leave; a later push brings us back). Returns the
+    /// push count seen before leaving.
+    fn work_graph(&self, graph: &JobGraph, job: &(dyn Fn(usize) + Sync)) -> u64 {
+        let mut spins = 0u32;
+        loop {
+            if self.graph_step(graph, job, false) {
+                spins = 0;
+                continue;
+            }
+            if graph.finished() {
+                return self.pushes.load(Ordering::SeqCst);
+            }
+            if spins < SPIN_ITERS {
+                spins += 1;
+                std::hint::spin_loop();
+                continue;
+            }
+            // Read the push count *before* the last look: a push after it wakes us again.
+            let seen = self.pushes.load(Ordering::SeqCst);
+            if graph.has_ready(false) {
+                spins = 0;
+                continue;
+            }
+            return seen;
+        }
+    }
+
+    /// Unpark up to `n` parked workers (any of them).
+    fn wake_any(&self, mut n: usize) {
+        let Some(threads) = self.threads.get() else {
+            return;
+        };
+        for (flag, t) in self.sleeping.iter().zip(threads.iter()) {
+            if n == 0 {
+                return;
+            }
+            if flag.load(Ordering::SeqCst) {
+                t.unpark();
+                n -= 1;
+            }
+        }
     }
 }
 
@@ -196,7 +263,7 @@ impl Shared {
 pub struct WorkerPool {
     shared: Arc<Shared>,
     handles: Vec<JoinHandle<()>>,
-    epoch: u32,
+    epoch: u64,
 }
 
 impl std::fmt::Debug for WorkerPool {
@@ -243,11 +310,13 @@ impl WorkerPool {
     /// Non-RT. See [`PoolOptions`].
     pub fn with_options(workers: usize, options: PoolOptions) -> Self {
         let shared = Arc::new(Shared {
-            claim: AtomicU64::new(pack(0, 0, 0)),
-            done: AtomicUsize::new(0),
-            batch: AtomicPtr::new(std::ptr::null_mut()),
+            state: AtomicU64::new(0),
+            pushes: AtomicU64::new(0),
+            work: AtomicPtr::new(std::ptr::null_mut()),
+            active: AtomicUsize::new(0),
             shutdown: AtomicBool::new(false),
             sleeping: (0..workers).map(|_| AtomicBool::new(false)).collect(),
+            threads: OnceLock::new(),
             poisoned: AtomicBool::new(false),
             panic: Mutex::new(None),
             started: AtomicUsize::new(0),
@@ -266,6 +335,9 @@ impl WorkerPool {
                 }
             }
         }
+        let _ = shared
+            .threads
+            .set(handles.iter().map(|h| h.thread().clone()).collect());
         // Wait until every spawned worker is in its loop (non-RT: this is construction).
         // Bounded: a worker that died before signalling (panic in RT setup) is a bug, not
         // something to spin on forever.
@@ -292,12 +364,56 @@ impl WorkerPool {
         }
     }
 
+    /// Wake the first `want` workers if parked: the spinning ones pick the epoch up by
+    /// themselves.
     fn wake(&self, want: usize) {
-        // The first `want` workers: the spinning ones pick the epoch up by themselves.
         for (flag, h) in self.shared.sleeping.iter().zip(&self.handles).take(want) {
             if flag.load(Ordering::SeqCst) {
                 h.thread().unpark();
             }
+        }
+    }
+
+    /// Open a new epoch for `work` (on the caller's stack until `close`).
+    fn open(&mut self, work: &Work<'_>) {
+        self.epoch = self.epoch.wrapping_add(1) & (u64::MAX >> 1);
+        // The pointer is only dereferenced by workers that entered this epoch, and `close`
+        // waits for all of them to leave before `work` goes away; erase the lifetime.
+        self.shared.work.store(
+            (work as *const Work<'_>).cast_mut().cast::<Work<'static>>(),
+            Ordering::Release,
+        );
+        self.shared.state.store(open(self.epoch), Ordering::SeqCst);
+    }
+
+    /// Close the epoch and wait until no worker is inside it; then re-raise a job's panic
+    /// here, on the audio thread (the host's callback turns it into a silent stream).
+    fn close(&self) {
+        let s = &*self.shared;
+        s.state.store(self.epoch << 1, Ordering::SeqCst);
+        // Entered workers leave right away: their work is finished (bounded by their
+        // scheduling latency, like `wait_done`).
+        wait_until(|| s.active.load(Ordering::SeqCst) == 0);
+        if s.poisoned.swap(false, Ordering::AcqRel) {
+            let payload = s.panic.try_lock().ok().and_then(|mut p| p.take());
+            std::panic::resume_unwind(payload.unwrap_or_else(|| Box::new("audio job panicked")));
+        }
+    }
+}
+
+/// The audio thread's bounded waits: spin first (jobs are short), then yield so a
+/// preempted worker can finish on a busy core. If the audio thread is real-time and a
+/// worker is not (e.g. SCHED_FIFO refused on Linux), this wait is a priority inversion
+/// bounded by that worker's scheduling latency.
+#[inline]
+fn wait_until(mut done: impl FnMut() -> bool) {
+    let mut spins = 0u32;
+    while !done() {
+        if spins < WAIT_SPIN_ITERS {
+            spins += 1;
+            std::hint::spin_loop();
+        } else {
+            std::thread::yield_now();
         }
     }
 }
@@ -311,19 +427,24 @@ fn worker_main(s: &Shared, index: usize, options: PoolOptions) {
         // Nodes here wait on the device callback's shared deadline.
         ether_core::period::mark_device_thread();
     }
-    let mut seen = unpack(s.claim.load(Ordering::Acquire)).0;
+    let mut seen_epoch = s.state.load(Ordering::Acquire) >> 1;
+    let mut seen_push = s.pushes.load(Ordering::Acquire);
     let sleeping = &s.sleeping[index];
+    // Work to do: an open epoch we haven't entered, or new ready jobs in the one we left.
+    let wanted = |st: u64, pushes: u64, seen_epoch: u64, seen_push: u64| {
+        is_open(st) && (st >> 1 != seen_epoch || pushes != seen_push)
+    };
     s.started.fetch_add(1, Ordering::Release);
     loop {
-        // Wait for a new epoch: spin, then park.
+        // Wait: spin, then park.
         let mut spins = 0u32;
-        let epoch = loop {
+        let st = loop {
             if s.shutdown.load(Ordering::Acquire) {
                 return;
             }
-            let e = unpack(s.claim.load(Ordering::Acquire)).0;
-            if e != seen {
-                break e;
+            let st = s.state.load(Ordering::Acquire);
+            if wanted(st, s.pushes.load(Ordering::Acquire), seen_epoch, seen_push) {
+                break st;
             }
             if spins < SPIN_ITERS {
                 spins += 1;
@@ -331,18 +452,37 @@ fn worker_main(s: &Shared, index: usize, options: PoolOptions) {
                 continue;
             }
             sleeping.store(true, Ordering::SeqCst);
-            // Re-check after announcing (pairs with the SeqCst publish + flag load in
-            // `execute`): either we see the new epoch or `execute` sees our flag.
-            if unpack(s.claim.load(Ordering::SeqCst)).0 == seen
-                && !s.shutdown.load(Ordering::SeqCst)
-            {
+            // Re-check after announcing (pairs with the SeqCst publish / push + flag load
+            // on the waking side): either we see the work or the waker sees our flag.
+            let st = s.state.load(Ordering::SeqCst);
+            let pushes = s.pushes.load(Ordering::SeqCst);
+            if !wanted(st, pushes, seen_epoch, seen_push) && !s.shutdown.load(Ordering::SeqCst) {
                 std::thread::park();
             }
             sleeping.store(false, Ordering::SeqCst);
             spins = 0;
         };
-        seen = epoch;
-        s.work(epoch);
+        seen_epoch = st >> 1;
+        seen_push = s.pushes.load(Ordering::SeqCst);
+        // Enter: counted first, then the epoch must still be the one we saw (pairs with
+        // `close`: either it sees us in `active`, or we see the epoch closed).
+        s.active.fetch_add(1, Ordering::SeqCst);
+        if s.state.load(Ordering::SeqCst) == st {
+            // SAFETY: we are counted in `active` and the epoch is still open, so `close`
+            // hasn't finished: `work` points to that epoch's live `Work` (stored before the
+            // epoch opened, which our SeqCst load observed).
+            let work = unsafe { &*s.work.load(Ordering::Acquire) };
+            match work {
+                Work::Flat {
+                    job,
+                    jobs,
+                    next,
+                    done,
+                } => s.work_flat(*job, *jobs, next, done),
+                Work::Graph { graph, job } => seen_push = s.work_graph(graph, *job),
+            }
+        }
+        s.active.fetch_sub(1, Ordering::Release);
     }
 }
 
@@ -354,53 +494,60 @@ impl ParallelExecutor for WorkerPool {
     fn execute_pinned(&mut self, jobs: usize, pinned: usize, job: &(dyn Fn(usize) + Sync)) {
         let pinned = pinned.min(jobs);
         let shared_jobs = jobs - pinned;
-        if self.handles.is_empty() || shared_jobs <= 1 || jobs > MAX_JOBS {
+        if self.handles.is_empty() || shared_jobs <= 1 {
             for i in 0..jobs {
                 job(i);
             }
             return;
         }
-        let s = &*self.shared;
-        let batch = Batch { job };
-        self.epoch = self.epoch.wrapping_add(1);
-        let epoch = self.epoch;
-        s.done.store(0, Ordering::Relaxed);
-        // The pointer is only dereferenced for this epoch, while `batch` is alive (see
-        // `Shared::work`); erase the lifetime to store it.
-        s.batch.store(
-            (&batch as *const Batch<'_>)
-                .cast_mut()
-                .cast::<Batch<'static>>(),
-            Ordering::Release,
-        );
-        s.claim.store(pack(epoch, jobs, pinned), Ordering::SeqCst);
+        let work = Work::Flat {
+            job,
+            jobs,
+            next: AtomicUsize::new(pinned),
+            done: AtomicUsize::new(0),
+        };
+        self.open(&work);
         // The audio thread takes one shared job itself (or the pinned ones).
         self.wake(shared_jobs.saturating_sub(if pinned == 0 { 1 } else { 0 }));
-
+        let s = &*self.shared;
         for i in 0..pinned {
             s.run(job, i);
         }
-        s.work(epoch);
-        // Everything is claimed; wait for the workers still running theirs. Spin first
-        // (jobs are short); then yield so a preempted worker can finish on a busy core
-        // (bounded: every claimed job finishes, panics included). If the audio thread is
-        // real-time and a worker is not (e.g. SCHED_FIFO refused on Linux), this wait is
-        // a priority inversion bounded by that worker's scheduling latency.
+        let Work::Flat { next, done, .. } = &work else {
+            unreachable!()
+        };
+        s.work_flat(job, jobs, next, done);
+        // Everything is claimed; wait for the workers still running theirs.
+        wait_until(|| done.load(Ordering::Acquire) >= shared_jobs);
+        self.close();
+    }
+
+    fn execute_graph(&mut self, graph: &JobGraph, job: &(dyn Fn(usize) + Sync)) {
+        // A chain (or a single job) has nothing to overlap: no wake-up at all.
+        if self.handles.is_empty() || graph.len() <= 1 || graph.width() <= 1 {
+            for id in graph.order() {
+                job(id);
+            }
+            return;
+        }
+        graph.reset();
+        let work = Work::Graph { graph, job };
+        self.open(&work);
+        self.wake((graph.width() - 1).min(self.handles.len()));
+        let s = &*self.shared;
+        // Work until the graph finished (pinned jobs are ours alone).
         let mut spins = 0u32;
-        while s.done.load(Ordering::Acquire) < shared_jobs {
-            if spins < WAIT_SPIN_ITERS {
+        while !graph.finished() {
+            if s.graph_step(graph, job, true) {
+                spins = 0;
+            } else if spins < WAIT_SPIN_ITERS {
                 spins += 1;
                 std::hint::spin_loop();
             } else {
                 std::thread::yield_now();
             }
         }
-        // Every job finished and `batch` is no longer reachable: re-raise a job's panic
-        // here, on the audio thread (the host's callback turns it into a silent stream).
-        if s.poisoned.swap(false, Ordering::AcqRel) {
-            let payload = s.panic.try_lock().ok().and_then(|mut p| p.take());
-            std::panic::resume_unwind(payload.unwrap_or_else(|| Box::new("audio job panicked")));
-        }
+        self.close();
     }
 
     fn workers(&self) -> usize {
@@ -641,15 +788,6 @@ mod tests {
     use std::sync::atomic::AtomicU32;
 
     #[test]
-    fn claim_word_round_trips() {
-        assert_eq!(unpack(pack(7, 300, 12)), (7, 300, 12));
-        assert_eq!(
-            unpack(pack(u32::MAX, MAX_JOBS, MAX_JOBS)),
-            (u32::MAX, MAX_JOBS, MAX_JOBS)
-        );
-    }
-
-    #[test]
     fn runs_every_job_exactly_once() {
         for workers in [0, 1, 2, 4] {
             let mut pool = WorkerPool::with_options(
@@ -759,6 +897,122 @@ mod tests {
             n.fetch_add(1, Ordering::Relaxed);
         });
         assert_eq!(n.load(Ordering::Relaxed), 4);
+    }
+
+    /// Deterministic random DAG over `n` jobs (edges only forward in position order).
+    fn random_graph(seed: u64, n: usize, pinned_every: usize) -> (JobGraph, Vec<Vec<usize>>) {
+        let mut x = seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1;
+        let mut next = move || {
+            x ^= x >> 12;
+            x ^= x << 25;
+            x ^= x >> 27;
+            x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        };
+        let succ: Vec<Vec<usize>> = (0..n)
+            .map(|a| (a + 1..n).filter(|_| next() % 5 == 0).collect())
+            .collect();
+        let mut sources = vec![Vec::new(); n];
+        for (a, s) in succ.iter().enumerate() {
+            for &b in s {
+                sources[b].push(a);
+            }
+        }
+        let cost: Vec<u64> = (0..n).map(|_| 1 + next() % 8).collect();
+        let pinned: Vec<bool> = (0..n)
+            .map(|i| pinned_every > 0 && i % pinned_every == 1)
+            .collect();
+        let ids: Vec<usize> = (0..n).collect();
+        (JobGraph::new(&ids, &cost, &succ, &pinned), sources)
+    }
+
+    /// Every job exactly once, only after all its sources, pinned ones on the caller,
+    /// whatever the worker count; repeated runs of one graph.
+    #[test]
+    fn graph_runs_every_job_once_after_its_sources() {
+        let me = std::thread::current().id();
+        for workers in [0, 1, 2, 4, 8] {
+            let mut pool = quiet_pool(workers);
+            for seed in 0..12u64 {
+                let n = [1, 2, 7, 40, 70, 130][seed as usize % 6];
+                let (graph, sources) = random_graph(seed, n, if seed % 3 == 0 { 5 } else { 0 });
+                let pinned: Vec<bool> = {
+                    let mut p = vec![false; n];
+                    for r in 0..n {
+                        p[graph.id(r)] = graph.is_pinned(r);
+                    }
+                    p
+                };
+                for _ in 0..20 {
+                    let done: Vec<AtomicBool> = (0..n).map(|_| AtomicBool::new(false)).collect();
+                    let hits: Vec<AtomicU32> = (0..n).map(|_| AtomicU32::new(0)).collect();
+                    let wrong = AtomicU32::new(0);
+                    pool.execute_graph(&graph, &|id| {
+                        hits[id].fetch_add(1, Ordering::Relaxed);
+                        if sources[id]
+                            .iter()
+                            .any(|&s| !done[s].load(Ordering::Relaxed))
+                        {
+                            wrong.fetch_add(1, Ordering::Relaxed);
+                        }
+                        if pinned[id] && std::thread::current().id() != me {
+                            wrong.fetch_add(1, Ordering::Relaxed);
+                        }
+                        // Relaxed on purpose: the graph's own ordering must make it visible.
+                        done[id].store(true, Ordering::Relaxed);
+                    });
+                    let ctx = format!("{workers} workers, seed {seed}");
+                    assert!(hits.iter().all(|h| h.load(Ordering::Relaxed) == 1), "{ctx}");
+                    assert_eq!(wrong.load(Ordering::Relaxed), 0, "{ctx}");
+                }
+            }
+        }
+    }
+
+    /// Wide graphs really spread over the workers.
+    #[test]
+    fn graph_jobs_run_on_workers() {
+        let mut pool = quiet_pool(3);
+        let me = std::thread::current().id();
+        let n = 32;
+        let succ: Vec<Vec<usize>> = (0..n)
+            .map(|i| if i + 1 < n { vec![n - 1] } else { vec![] })
+            .collect();
+        let ids: Vec<usize> = (0..n).collect();
+        let graph = JobGraph::new(&ids, &vec![1; n], &succ, &vec![false; n]);
+        let elsewhere = AtomicU32::new(0);
+        for _ in 0..20 {
+            pool.execute_graph(&graph, &|_| {
+                std::thread::sleep(Duration::from_micros(200));
+                if std::thread::current().id() != me {
+                    elsewhere.fetch_add(1, Ordering::Relaxed);
+                }
+            });
+        }
+        assert!(elsewhere.load(Ordering::Relaxed) > 0);
+    }
+
+    /// A panicking graph job: its successors still run, the panic is re-raised on the
+    /// caller after everything finished, and the pool keeps working.
+    #[test]
+    fn graph_panic_is_reraised_after_every_job() {
+        let mut pool = quiet_pool(3);
+        let (graph, _) = random_graph(7, 40, 0);
+        let ran = AtomicU32::new(0);
+        let r = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            pool.execute_graph(&graph, &|id| {
+                ran.fetch_add(1, Ordering::Relaxed);
+                if id == 3 {
+                    panic!("job {id} failed");
+                }
+            })
+        }));
+        assert!(r.is_err());
+        assert_eq!(ran.load(Ordering::Relaxed), 40);
+        let n = AtomicU32::new(0);
+        pool.execute_graph(&graph, &|_| {
+            n.fetch_add(1, Ordering::Relaxed);
+        });
+        assert_eq!(n.load(Ordering::Relaxed), 40);
     }
 
     #[test]

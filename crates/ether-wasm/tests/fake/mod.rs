@@ -149,6 +149,7 @@ impl<B: EngineBridge, H: HostServices, S: ProjectStore> FakeController<B, H, S> 
                 .unwrap_or_default(),
             metronome: p.settings.metronome,
             start_position: Beats(self.start),
+            loading: None,
         })
     }
 

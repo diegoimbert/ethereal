@@ -53,6 +53,7 @@ mod plugin_sidechain;
 mod plugin_state_saves;
 mod presets;
 mod project;
+mod project_loading;
 mod rack_chain_copy;
 mod rack_presets;
 mod racks;

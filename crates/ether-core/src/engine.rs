@@ -13,8 +13,9 @@
 //!    parameter changes.
 //! 2. Split the block at loop ends and tempo/time-signature boundaries so transport
 //!    information is linear within each sub-block.
-//! 3. Per sub-block, process tracks level by level of the routing DAG, one job per track
-//!    (in parallel through the host's [`crate::parallel::ParallelExecutor`], see there):
+//! 3. Per sub-block, process the tracks as a job graph (one job per track, each started
+//!    as soon as its own sources finished, critical path first; in parallel through the
+//!    host's [`crate::parallel::ParallelExecutor`], see there):
 //!    input bus gathered from the finished sources (+ monitored hardware input) → clips
 //!    (audio rendered, MIDI notes scheduled sample-accurately) → automation → device chain →
 //!    pre-fader sends → fader/pan → sidechain tap → mute/solo gate → post-fader sends →
@@ -23,7 +24,7 @@
 //! 4. Publish playhead; every ~33 ms push meter readings.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering, fence};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering, fence};
 
 use ether_protocol::meters::TrackMeter;
 use ether_protocol::model::{InputTap, MediaId, TrackId, TrackKind};
@@ -248,6 +249,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         .collect::<Vec<_>>()
         .into();
     let playhead = Arc::new(SharedPlayhead::default());
+    let suspend = Arc::new(AtomicBool::new(false));
     let (recording_rt, recording_io) = crate::recording::channel(&config);
     let (warp_handle, warp_rt) = crate::warp::channel(&config);
     let snapshot =
@@ -293,6 +295,8 @@ pub fn create(config: EngineConfig) -> EngineParts {
         hw_io: hw_io_rt,
         beat_table: vec![0.0; config.max_block_size + 1],
         silence_skipping: true,
+        suspend: suspend.clone(),
+        suspended: false,
         config: config.clone(),
     };
     let handle = EngineHandle {
@@ -314,6 +318,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         warp: warp_handle,
         analysis: analysis_rx,
         hw_io: hw_io_handle,
+        suspend,
         config,
     };
     EngineParts {
@@ -366,6 +371,10 @@ pub struct Engine {
     beat_table: Vec<f64>,
     /// Skip asleep nodes on silent input (on by default).
     silence_skipping: bool,
+    /// Set by [`EngineHandle::set_suspended`] (a project is loading): read once per block.
+    suspend: Arc<AtomicBool>,
+    /// The last block was suspended (the next unsuspended one resumes cleanly).
+    suspended: bool,
     /// Offline export stems: the tapped tracks copied out after every block.
     capture: Vec<CaptureSlot>,
 }
@@ -415,10 +424,20 @@ impl Engine {
             out[..n].fill(0.0);
         }
         let frames = frames.min(self.config.max_block_size);
+        // Read before draining: everything sent before the flag changed is applied below.
+        let suspended = self.suspend.load(Ordering::Acquire);
         self.drain_control();
         self.warp.drain();
         self.drain_params();
         self.update_latencies();
+
+        if suspended {
+            self.process_suspended(frames);
+            return;
+        }
+        if self.suspended {
+            self.resume();
+        }
 
         let mut done = 0;
         while done < frames {
@@ -439,6 +458,45 @@ impl Engine {
             self.push_meters();
         }
         self.report();
+    }
+
+    /// **RT.** A suspended block ([`EngineHandle::set_suspended`], while a project loads):
+    /// the graph is not processed and the output stays silent. The control and param
+    /// rings were drained (graph swaps, nodes and media still arrive), and so is what
+    /// would otherwise pile up for the resume: live MIDI and preview notes are dropped.
+    /// The sample clock keeps counting, so hosts' wall-clock mappings stay valid; the
+    /// transport does not move.
+    fn process_suspended(&mut self, frames: usize) {
+        self.suspended = true;
+        self.transport.sample_time += frames as u64;
+        self.recording.discard_input(self.transport.sample_time);
+        self.publish_playhead();
+        self.report();
+    }
+
+    /// **RT.** The first block after a suspension: start from a clean state instead of
+    /// whatever the partial graphs left. Every node is reset and gets all-notes-off,
+    /// automation is re-sent and notes are chased at the position, the exact-tempo anchor
+    /// is dropped, and mixer smoothers jump to their targets (no fade from stale values).
+    fn resume(&mut self) {
+        self.suspended = false;
+        let t = &mut self.transport;
+        t.reset_nodes = true;
+        t.all_notes_off = true;
+        t.release_notes = true;
+        t.relocated = true;
+        t.chase_notes = true;
+        t.jump = true;
+        t.anchor = None;
+        for track in self.snapshot.rt.tracks.iter_mut() {
+            track.settle();
+        }
+        self.meter_elapsed = 0;
+    }
+
+    /// The last block was suspended ([`EngineHandle::set_suspended`]).
+    pub fn is_suspended(&self) -> bool {
+        self.suspended
     }
 
     pub fn config(&self) -> &EngineConfig {
@@ -791,8 +849,7 @@ impl Engine {
         let RenderSnapshot { desc, tempo, rt } = &mut **snapshot;
         let SnapshotRt {
             order,
-            level_order,
-            levels,
+            jobs,
             tracks,
             latency: graph_latency,
             vcas,
@@ -908,12 +965,12 @@ impl Engine {
         // Hardware returns of external devices (`crate::hw_io`), before the jobs.
         hw_io.gather_returns(inputs, off, n, transport.sample_time);
 
-        // --- tracks, level by level (`crate::parallel`) ---
+        // --- tracks, by dependency (`crate::parallel`) ---
         // Stopped, the jobs still run devices and plugins at full cost (tails, auditioned
         // instruments, plugins that never sleep): dispatch them like while playing.
         // Only when the previous sub-block did no real work anywhere (every node
         // asleep, nothing monitored: `TrackRt::awake`) keep the workers parked and run the
-        // jobs here, in level order. Same result either way, bit for bit.
+        // jobs here, in rank order. Same result either way, bit for bit.
         let parallel = playing || tracks.iter().any(|t| t.awake || t.monitor);
         let ctx = JobCtx {
             tracks: tracks.as_mut_ptr(),
@@ -940,20 +997,17 @@ impl Engine {
             timing: &timing,
             hw: hw_io.table(),
         };
-        for level in levels.iter() {
-            let idx = &level_order[level.start..level.end];
-            // SAFETY (`crate::parallel`, "Unsafe sharing"): job `j` touches track `idx[j]`
-            // (distinct within a level), its nodes (each node in one chain) and finished
-            // tracks of earlier levels; the executor runs each `j` once, pinned jobs on this
-            // thread, and returns after all of them finished.
-            let job = |j: usize| unsafe { ctx.run(idx[j]) };
-            if idx.len() == 1 || !parallel {
-                for j in 0..idx.len() {
-                    job(j);
-                }
-            } else {
-                executor.execute_pinned(idx.len(), level.pinned, &job);
+        // SAFETY (`crate::parallel`, "Unsafe sharing"): job `ti` touches track `ti` (one job
+        // per track), its nodes (each node in one chain) and its sources' tracks, which the
+        // graph finished before it; the executor runs each job once, after its sources,
+        // pinned jobs on this thread, and returns after all of them finished.
+        let job = |ti: usize| unsafe { ctx.run(ti) };
+        if jobs.len() == 1 || !parallel {
+            for ti in jobs.order() {
+                job(ti);
             }
+        } else {
+            executor.execute_graph(jobs, &job);
         }
         // --- offline export stems: post-fader, pre-gate taps of the requested tracks ---
         for slot in capture.iter_mut() {
@@ -1103,8 +1157,8 @@ impl<'a> NodeTable<'a> {
     ///   share a slot; only live keys reach a `&mut` (to the slot's `node` field);
     /// - a *stale* key (a pad node removed and its slot reused by another track: the
     ///   compiler tolerates unknown pad nodes) only *reads* the slot's `generation`, which
-    ///   nothing writes while a level runs, and yields `None`;
-    /// - the audio thread doesn't touch the table while a level runs.
+    ///   nothing writes while the job graph runs, and yields `None`;
+    /// - the audio thread doesn't touch the table while the job graph runs.
     ///
     /// So [`NodeTable::get`] never creates two live `&mut` to one node, nor a `&mut` to a
     /// slot another job uses.
@@ -1127,7 +1181,7 @@ impl<'a> NodeTable<'a> {
         // the key is live. A stale key of another track's slot thus never forms a `&mut`.
         let slot = self.ptr.wrapping_add(i);
         // SAFETY: `i < len`: a valid `NodeSlot`; `generation` is only written on the audio
-        // thread between blocks (`drain_control`), never during a level.
+        // thread between blocks (`drain_control`), never while the job graph runs.
         if unsafe { std::ptr::addr_of!((*slot).generation).read() } != key.generation {
             return None;
         }
@@ -1192,8 +1246,9 @@ struct JobCtx<'a> {
 }
 
 // SAFETY: the shared fields are `Sync` (checked below); the raw pointers are only
-// dereferenced by `JobCtx::run` under the level contract: one job per track per level,
-// each node reached by one job, finished tracks only read, each track's voices by its job.
+// dereferenced by `JobCtx::run` under the graph contract: one job per track per sub-block,
+// each node reached by one job, finished source tracks only read, each track's voices by
+// its job.
 // The pointees are `Send` (`TrackRt`, `NodeSlot` via `Node: Send`), so handing them to a
 // worker thread is fine.
 unsafe impl Sync for JobCtx<'_> {}
@@ -1213,9 +1268,9 @@ impl JobCtx<'_> {
     /// RT. Process track `ti` for the sub-block (see [`Engine::process`]).
     ///
     /// # Safety
-    /// Called at most once per track per level, never concurrently for one track; every
-    /// track in `tracks[ti].inputs` / its sidechain sources finished in an earlier level (the level
-    /// partition guarantees it); the tracks of the running level are touched by their own
+    /// Called at most once per track per sub-block, never concurrently for one track, and
+    /// only after every track in `tracks[ti].inputs` / its sidechain, modulator and tap
+    /// sources finished (the job graph's edges); running tracks are touched by their own
     /// jobs only.
     unsafe fn run(&self, ti: usize) {
         debug_assert!(ti < self.n_tracks);
@@ -1241,7 +1296,7 @@ impl JobCtx<'_> {
                     BusInput::Send(c, k) => (c, Some(k)),
                 };
                 debug_assert!(c != ti && c < self.n_tracks);
-                // SAFETY: `c != ti` finished in an earlier level; nothing writes it now.
+                // SAFETY: `c != ti` is a source of this job: finished; nothing writes it now.
                 let src = unsafe { &*self.tracks.add(c) };
                 let buf = match sel {
                     None => &src.a,
@@ -1280,8 +1335,8 @@ impl JobCtx<'_> {
                 track.modulation.write_sidechain(s, tap, n);
             }
         }
-        // Track input from another track (`crate::bus_tap`, v0.2): its source finished in an
-        // earlier level.
+        // Track input from another track (`crate::bus_tap`, v0.2): its source finished before
+        // this job (a graph edge).
         if let Some(s) = track.input_tap.source
             && s != ti
         {
@@ -1738,6 +1793,8 @@ pub struct EngineHandle {
     analysis: Consumer<crate::analysis::AnalysisFrame>,
     /// Hardware I/O rings ([`crate::hw_io`], v0.3).
     pub(crate) hw_io: crate::hw_io::HwIoHandle,
+    /// Shared with [`Engine::suspend`].
+    suspend: Arc<AtomicBool>,
 }
 
 struct HandleSlot {
@@ -1759,6 +1816,21 @@ pub enum EngineError {
 }
 
 impl EngineHandle {
+    /// Suspend (`true`) or resume the audio thread's processing, effective at the next
+    /// block: suspended, [`Engine::process`] outputs silence and runs no graph work, while
+    /// everything sent here (nodes, graphs, media, transport) is still applied in order.
+    /// Hosts suspend while a project loads, so the partial graphs of a progressive load
+    /// never run and the callback can't fall behind. Lock-free (an atomic flag, never
+    /// lost to a full queue); everything sent before the call is applied before the change.
+    pub fn set_suspended(&self, suspended: bool) {
+        self.suspend.store(suspended, Ordering::Release);
+    }
+
+    /// The last value given to [`Self::set_suspended`].
+    pub fn suspended(&self) -> bool {
+        self.suspend.load(Ordering::Relaxed)
+    }
+
     fn send(&mut self, msg: Control) -> Result<(), EngineError> {
         self.control.push(msg).map_err(|_| EngineError::QueueFull)
     }
