@@ -117,4 +117,53 @@ describe("MockTransport export", () => {
     expect(sanitize("..x/y.")).toBe("x_y");
     expect(sanitize(" ")).toBe("Export");
   });
+
+  it("pauses the engine while rendering: transport.rendering grows, locate clamped, record refused", async () => {
+    const rendering = () => {
+      const states = f.events.flatMap((e) => (e.type === "Transport" ? [e.state] : []));
+      return states[states.length - 1]?.rendering ?? null;
+    };
+    await f.mock.send(
+      cmd("Export", {
+        type: "Render",
+        job: "r",
+        request: {
+          range: { type: "Custom", start: 2, end: 10 },
+          format: { container: "Wav", bit_depth: "Int16", sample_rate: null },
+          mode: { type: "Mix" },
+          normalize: false,
+          tail_seconds: 0,
+          name: null,
+        },
+      }),
+    );
+    expect(rendering()).toEqual({ start: 2, end: 10, until: 2, progress: 0, preview: true });
+    await expect(f.mock.send(cmd("Recording", { type: "SetRecording", enabled: true }))).rejects.toMatchObject({ code: "InvalidState" });
+    f.mock.tick(16);
+    expect(rendering()).toMatchObject({ until: 6, progress: 0.5 });
+    await f.mock.send(cmd("Transport", { type: "Locate", position: 9 }));
+    expect(f.mock.playheadPosition).toBe(6);
+    await f.mock.send(cmd("Transport", { type: "Locate", position: 0 }));
+    expect(f.mock.playheadPosition).toBe(2);
+    f.mock.tick(16);
+    expect(rendering()).toBeNull();
+    await f.mock.send(cmd("Transport", { type: "Locate", position: 9 }));
+    expect(f.mock.playheadPosition).toBe(9);
+  });
+
+  it("a cancelled render resumes the engine", async () => {
+    const request: ExportRequest = {
+      range: { type: "Custom", start: 0, end: 4 },
+      format: { container: "Wav", bit_depth: "Int16", sample_rate: null },
+      mode: { type: "Mix" },
+      normalize: false,
+      tail_seconds: 0,
+      name: null,
+    };
+    await f.mock.send(cmd("Export", { type: "Render", job: "c", request }));
+    await f.mock.send(cmd("Export", { type: "Cancel", job: "c" }));
+    const states = f.events.flatMap((e) => (e.type === "Transport" ? [e.state] : []));
+    expect(states.at(-2)?.rendering).toBeTruthy();
+    expect(states.at(-1)?.rendering).toBeUndefined();
+  });
 });
