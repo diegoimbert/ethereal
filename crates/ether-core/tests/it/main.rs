@@ -28,6 +28,7 @@ mod groups;
 mod hw_io;
 mod metronome;
 mod metronome_no_alloc;
+mod midi_fx_bypass;
 mod midi_fx_engine;
 mod modulation;
 mod modulation_no_alloc;
