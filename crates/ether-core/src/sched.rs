@@ -111,6 +111,7 @@ pub(crate) const EVENT_SHIFT: f64 = 1e-7;
 ///   closed-form tempo integral of the engine's sample clock since the last timeline jump
 ///   ([`Exact`]), never an accumulation of sub-block lengths, so positions are identical
 ///   for every block size and match the tempo map to rounding error over any duration.
+#[derive(Clone, Copy)]
 pub(crate) struct Timing<'a> {
     pub tempo: &'a crate::tempo::TempoMapRt,
     /// Sub-block start/end in beats (`b1` exclusive).
@@ -128,6 +129,9 @@ pub(crate) struct Timing<'a> {
     pub wraps: bool,
     /// Exact per-sample beats (tempo ramps), `None` = linear.
     pub exact: Option<Exact<'a>>,
+    /// The engine's recent sub-blocks: automation delayed by plugin delay compensation
+    /// reads the timeline there (`crate::automation_rt`). `None`: read it here.
+    pub history: Option<&'a crate::history::TimelineHistory>,
 }
 
 /// Exact timing of a sub-block on a ramped tempo map: beat of sample `o` =
@@ -221,8 +225,15 @@ impl Timing<'_> {
     /// to `0..=frames`.
     #[inline]
     pub(crate) fn sample_at_or_after(&self, t: f64) -> usize {
+        self.sample_at_or_after_upto(t, self.frames)
+    }
+
+    /// [`Self::sample_at_or_after`] clamped to `0..=limit` (mixer ramps look past the
+    /// sub-block).
+    #[inline]
+    pub(crate) fn sample_at_or_after_upto(&self, t: f64, limit: usize) -> usize {
         let o = ((self.tempo.beats_to_seconds(t) - self.s0) * self.sample_rate - 1e-6).ceil();
-        (o.max(0.0) as usize).min(self.frames)
+        (o.max(0.0) as usize).min(limit)
     }
 }
 

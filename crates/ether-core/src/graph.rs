@@ -1007,6 +1007,7 @@ pub fn compile_with(
             Some(o) => DelayLine::new(check(in_lat[o] - out_lat[i])?),
             None => DelayLine::new(0),
         };
+        let env_targets = crate::automation_rt::envelope_targets(t);
         tracks.push(TrackRt {
             id: t.id,
             parent: parents[i],
@@ -1027,18 +1028,11 @@ pub fn compile_with(
             out_events: EventBuffer::with_capacity(config.max_events_per_block),
             notes: Vec::with_capacity(MAX_ACTIVE_NOTES),
             auto_last: vec![f64::NAN; t.automation.len()],
-            env_last: vec![f64::NAN; t.clips.iter().map(|c| c.envelopes.len()).sum()],
-            env_base: t
-                .clips
-                .iter()
-                .scan(0, |acc, c| {
-                    let base = *acc;
-                    *acc += c.envelopes.len();
-                    Some(base)
-                })
-                .collect(),
+            env_last: vec![f64::NAN; env_targets.len()],
+            env_targets,
+            auto_delays: sc_plans[i].inputs.clone(),
+            mixer_delay: sc_plans[i].post_fx,
             clip_ends: crate::automation_rt::clip_ends(&t.clips),
-            auto_window: (0, 0),
             awake: true,
             job_ns: 0.0,
             auto_dirty: false,
