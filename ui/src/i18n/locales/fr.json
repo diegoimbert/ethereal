@@ -2577,6 +2577,7 @@
   "arrangement.header.name_title": "{name} (double-clic pour renommer)",
   "arrangement.header.mute": "muet",
   "arrangement.header.unmute": "réactiver le son",
+  "mixer.mute_overridden": "muet, mais audible tant qu’en solo (clic pour réactiver le son)",
   "arrangement.header.mute_named": "rendre muet {name}",
   "arrangement.header.solo_named": "solo {name}",
   "arrangement.header.solo_title": "solo (clic : seulement cette piste ; ctrl/cmd-clic : l’ajouter aux pistes en solo ou l’en retirer)",

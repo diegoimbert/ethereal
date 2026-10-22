@@ -27,7 +27,7 @@ import { deviceSpec, type LibraryDevicePayload } from "@/features/devices/librar
 import { recordDeviceUse } from "@/features/devices/libraryStats";
 import { DEVICE_DRAG_TYPE } from "@/features/devices/chainUtils";
 import { chainSoloCommand } from "@/domain/soloCommands";
-import { additiveClick } from "@/domain/soloPlan";
+import { additiveClick, muteOverriddenBySolo } from "@/domain/soloPlan";
 import { useGestureSender, useSend } from "@/features/devices/gesture";
 import { firstMatch, shortcutLabel } from "@/features/keymap";
 import { useT, type MessageKey } from "@/i18n";
@@ -389,8 +389,9 @@ function ChainItem({
             type="button"
             className="eth-arr-header__toggle eth-arr-header__mute eth-rack__toggle"
             aria-pressed={c.mute}
+            data-solo-override={muteOverriddenBySolo(c.mute, c.solo) || undefined}
             aria-label={t("racks.chain.mute_label", { name: c.name })}
-            title={c.mute ? t("racks.chain.unmute") : t("racks.chain.mute")}
+            title={muteOverriddenBySolo(c.mute, c.solo) ? t("mixer.mute_overridden") : c.mute ? t("racks.chain.unmute") : t("racks.chain.mute")}
             onClick={() => void send(mix({ mute: !c.mute }))}
           >
             {c.mute ? <VolumeX /> : <Volume2 />}

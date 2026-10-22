@@ -175,6 +175,26 @@ fn chains_compile_with_devices_mix_zones_and_solo() {
     let td = graph_track(&mut h, t);
     assert!(!td.chain_racks[0].chains[0].mute);
     assert!(td.chain_racks[0].chains[1].mute);
+    // A muted chain is heard while soloed, and muted again once unsoloed.
+    let mix = |mute, solo| RackCommand::SetChainMix {
+        id: a,
+        volume: None,
+        pan: None,
+        mute,
+        solo,
+    };
+    rack_cmd(&mut h, mix(Some(true), None));
+    let td = graph_track(&mut h, t);
+    assert!(
+        !td.chain_racks[0].chains[0].mute,
+        "soloed overrides its own mute"
+    );
+    assert!(td.chain_racks[0].chains[1].mute);
+    rack_cmd(&mut h, mix(None, Some(false)));
+    let td = graph_track(&mut h, t);
+    assert!(td.chain_racks[0].chains[0].mute, "unsoloed: muted again");
+    assert!(!td.chain_racks[0].chains[1].mute);
+    assert!(h.project().rack_chains[&a].mute);
 }
 
 #[test]

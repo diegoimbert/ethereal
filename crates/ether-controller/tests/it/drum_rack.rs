@@ -422,8 +422,18 @@ fn solo_is_runtime_and_compiles_as_mute_of_the_other_pads() {
     let t = graph_track(&mut h, track);
     let mutes: Vec<bool> = t.racks[0].pads.iter().map(|p| p.mute).collect();
     assert_eq!(mutes, vec![true, false, false]);
+    // A muted pad is heard while soloed and muted again once unsoloed (its mute is kept).
+    rack_cmd(&mut h, DrumRackCommand::SetPadMute { id: c, mute: true });
+    let t = graph_track(&mut h, track);
+    let mutes: Vec<bool> = t.racks[0].pads.iter().map(|p| p.mute).collect();
+    assert_eq!(mutes, vec![true, false, false]);
     rack_cmd(&mut h, DrumRackCommand::SetPadSolo { id: b, solo: false });
     rack_cmd(&mut h, DrumRackCommand::SetPadSolo { id: c, solo: false });
+    let t = graph_track(&mut h, track);
+    let mutes: Vec<bool> = t.racks[0].pads.iter().map(|p| p.mute).collect();
+    assert_eq!(mutes, vec![false, false, true]);
+    assert!(h.project().drum_pads[&c].mute);
+    rack_cmd(&mut h, DrumRackCommand::SetPadMute { id: c, mute: false });
     let t = graph_track(&mut h, track);
     assert!(t.racks[0].pads.iter().all(|p| !p.mute));
     let missing: DrumPadId = h.id();

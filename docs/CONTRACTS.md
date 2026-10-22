@@ -761,7 +761,9 @@ MIDI clips (`groove::swing_notes`).
 - Engine: `TrackDesc::racks: Vec<RackDesc { rack: NodeKey, pads: Vec<PadDesc> }>`. At the
   rack's chain entry the engine routes notes by key to pads (transposed to
   `PAD_PLAY_NOTE` = 60), applies choke groups, runs the pad chains (PDC-aligned to the
-  longest), mixes them (volume/pan/mute) and runs the rack node.
+  longest), mixes them (volume/pan/mute) and runs the rack node. Pad solo (runtime) compiles
+  as `PadDesc::mute`: in a rack with a soloed pad, soloed pads are unmuted (a soloed pad is
+  heard even if muted, its `mute` kept, as for tracks in §12.10) and the others muted.
 - Slicing: `BuiltinDevice::Sampler { sample, slices: SliceSettings { enabled, base_note,
   markers } }`. The data travels with the node; edits reach a live sampler in place through
   `EngineBridge::update_builtin` → `EngineHandle::set_node_data` → `Node::set_data`
@@ -1118,7 +1120,9 @@ runtime; `PresetEvent::Changed` after user-set changes. Sample-based presets car
   MIDI effect rack chains), never under a drum pad (directly or in a pad rack's chain).
   **Empty = nothing goes through:** a rack with no chains outputs silence (audio effect
   rack) / no notes (MIDI effect rack) / adds nothing (instrument rack); every chain muted
-  is silence. A chain with no devices passes what reaches it (the rack's input, or its
+  is silence. Chain solo compiles into `RackChainDesc::mute`: while a chain of the rack is
+  soloed the others are muted, and a soloed chain is heard even if muted (its `mute` kept;
+  unsolo = muted again, as for tracks in §12.10). A chain with no devices passes what reaches it (the rack's input, or its
   zone-filtered notes). A freshly inserted audio or MIDI effect rack (`Device::Insert`,
   `Rack::InsertDevice`, `DrumRack::InsertDevice`) starts with one empty chain "chain 1"
   (id `derive_id(rack, 0)`) in the same undo step; instrument racks start empty, and
@@ -1281,6 +1285,18 @@ Migration: v0.1 media are `Project`; nothing moves.
   muted VCA its tracks); while anything is soloed a track is audible if it is soloed, inside
   a soloed group, a group/bus on the output path of a soloed track (solo in place through the
   bus chain), a return, or master; soloing a VCA solos its tracks (folded at compile).
+- **Solo overrides the soloed track's own mute** (`TrackMixer::effective_mute` = mute && !solo,
+  for tracks, groups, returns and VCAs): a muted track that is itself soloed is heard while it
+  stays soloed; `mixer.mute` is untouched, so unsoloing makes it silent again. The controller
+  compiles `TrackDesc::mute` / `VcaDesc::mute` from it and sends the same value as the live
+  `ParamTarget::TrackMute` (a mute flip while soloed sends 0); switching goes through the
+  usual mute/solo gate ramp. **Not recursive:** only the exact soloed track's own mute is
+  overridden. A muted child of a soloed group stays muted; a soloed child of a muted group
+  stays silent (the group's mute still mutes everything inside); solo folded from a VCA
+  doesn't override its tracks' own mutes, and a soloed parent VCA doesn't unmute a muted
+  child VCA. UI: a mute button whose mute is overridden shows outlined instead of filled
+  (`data-solo-override`, tooltip `mixer.mute_overridden`); the same applies to rack chains and
+  drum pads (§12.6, §11.12).
 - `TrackInput::Track { track, tap: PreFx | PostFx | PostFader }` (default `PostFader`): a
   routing edge (no cycles, model and compiler). PDC: tap latency = `in_lat(source)` (PreFx)
   or `out_lat(source)`; the consumer's `in_lat` includes it and the tap is delayed by the

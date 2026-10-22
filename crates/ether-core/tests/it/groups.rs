@@ -254,6 +254,43 @@ fn soloed_group_solos_its_children_and_muted_group_mutes_them() {
     assert!(close(settled(&mut p), 0.25));
 }
 
+/// CONTRACTS.md §12.10: only a track's own solo overrides its own mute (the controller
+/// compiles `TrackDesc::mute` as mute && !solo), so a muted group still silences a soloed
+/// child, and a soloed group doesn't unmute a muted child.
+#[test]
+fn group_mute_beats_a_soloed_child_and_child_mute_beats_a_soloed_group() {
+    let mut p = create(config());
+    let mut g = track(tid(10), TrackKind::Group, Some(tid(1)));
+    g.mute = true;
+    let mut child = dc_track(&mut p, tid(2), 1.0, Some(tid(10)));
+    child.group = Some(tid(10));
+    child.solo = true;
+    let other = dc_track(&mut p, tid(3), 0.25, Some(tid(1)));
+    publish(&mut p, vec![master(), g, child, other], vec![]);
+    assert!(
+        close(settled(&mut p), 0.0),
+        "muted group, soloed child: silent"
+    );
+
+    // Soloed (and muted, overridden: compiled unmuted) group, muted child.
+    let g = {
+        let mut g = track(tid(10), TrackKind::Group, Some(tid(1)));
+        g.solo = true;
+        g
+    };
+    let mut child = dc_track(&mut p, tid(2), 1.0, Some(tid(10)));
+    child.group = Some(tid(10));
+    child.mute = true;
+    let mut sibling = dc_track(&mut p, tid(4), 0.5, Some(tid(10)));
+    sibling.group = Some(tid(10));
+    let other = dc_track(&mut p, tid(3), 0.25, Some(tid(1)));
+    publish(&mut p, vec![master(), g, child, sibling, other], vec![]);
+    assert!(
+        close(settled(&mut p), 0.5),
+        "only the unmuted child is heard"
+    );
+}
+
 #[test]
 fn snapshot_swaps_keep_taps_and_vcas_allocation_free() {
     let mut p = create(config());
