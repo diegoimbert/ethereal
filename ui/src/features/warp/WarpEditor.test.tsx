@@ -67,6 +67,13 @@ const view = () => screen.getByTestId("warp-view");
 const pxPerBeat = () => Number(view().dataset.pxPerBeat);
 const markerEl = (id: string) => document.querySelector(`[data-testid="warp-marker"][data-marker-id="${id}"]`)!;
 
+/** Types a transpose value and commits it (Enter). */
+function typeTranspose(value: string) {
+  const field = screen.getByRole("spinbutton", { name: "transpose" });
+  fireEvent.change(field, { target: { value } });
+  fireEvent.keyDown(field, { key: "Enter" });
+}
+
 async function addMarker(beat: number) {
   fireEvent.doubleClick(view(), { clientX: beat * pxPerBeat() });
   await flush();
@@ -101,7 +108,7 @@ describe("WarpEditor", () => {
     expect(content().warp.enabled).toBe(false);
     expect(screen.getByRole("combobox", { name: "warp mode" })).toBeDisabled();
     expect(screen.getByTestId("warp-marker-count").textContent).toBe("unwarped");
-    fireEvent.change(screen.getByRole("spinbutton", { name: "transpose" }), { target: { value: "7" } });
+    typeTranspose("7");
     await flush();
     expect(content().transpose).toBe(7);
     expect(sent.map((s) => s.command)).toContainEqual(cmd("Clip", { type: "SetTranspose", id: clip.id, semitones: 7 }));
@@ -248,6 +255,39 @@ describe("WarpEditor", () => {
     act(() => itemSelection.getState().select("clip", [clip.id, "clip-b"], "replace"));
     await flush();
     const tr = (id: string) => (clipNow(id).content as Extract<Clip["content"], { type: "Audio" }>).transpose;
+    const undo = async () => {
+      await act(async () => {
+        await mock!.send(cmd("Edit", { type: "Undo" }));
+      });
+    };
+    // The toolbar says it edits both; their transposes differ: mixed.
+    expect(screen.getByTestId("warp-clip-count").textContent).toBe("2 audio clips selected");
+    expect(screen.getByRole("spinbutton", { name: "transpose" })).toHaveValue("—");
+    expect(screen.getByRole("slider", { name: "transpose" })).toHaveAttribute("aria-valuetext", "mixed");
+
+    // −6 and +3 dragged up 2 semitones on the field: −4 and +5 (not both +2), shown as +2
+    // while dragging; one gesture = one undo step.
+    await act(async () => {
+      await mock!.send(cmd("Clip", { type: "SetTranspose", id: clip.id, semitones: -6 }));
+    });
+    sent.length = 0;
+    const field = screen.getByRole("spinbutton", { name: "transpose" });
+    fireEvent.pointerDown(field, { button: 0, pointerId: 1, clientY: 100 });
+    fireEvent.pointerMove(field, { pointerId: 1, clientY: 96 });
+    fireEvent.pointerMove(field, { pointerId: 1, clientY: 92 });
+    await flush();
+    expect(screen.getByRole("spinbutton", { name: "transpose" })).toHaveValue("+2");
+    fireEvent.pointerUp(field, { pointerId: 1, clientY: 92 });
+    await flush();
+    expect([tr(clip.id), tr("clip-b")]).toEqual([-4, 5]);
+    expect(screen.getByRole("spinbutton", { name: "transpose" })).toHaveValue("—");
+    const gestures = new Set(sent.filter((s) => s.command.domain === "Edit" && s.command.command.type === "Batch").map((s) => s.gesture));
+    expect(gestures.size).toBe(1);
+    expect([...gestures][0]).not.toBeNull();
+    await undo();
+    expect([tr(clip.id), tr("clip-b")]).toEqual([-6, 3]);
+    await undo();
+    expect([tr(clip.id), tr("clip-b")]).toEqual([0, 3]);
 
     // A knob step moves each by the same amount (differences kept), one Batch = one undo step.
     sent.length = 0;
@@ -261,7 +301,7 @@ describe("WarpEditor", () => {
     expect([tr(clip.id), tr("clip-b")]).toEqual([0, 3]);
 
     // A typed value sets all.
-    fireEvent.change(screen.getByRole("spinbutton", { name: "transpose" }), { target: { value: "-5" } });
+    typeTranspose("-5");
     await flush();
     expect([tr(clip.id), tr("clip-b")]).toEqual([-5, -5]);
 
@@ -275,7 +315,8 @@ describe("WarpEditor", () => {
     // Not part of the selection: only the edited clip.
     act(() => itemSelection.getState().select("clip", ["clip-b"], "replace"));
     await flush();
-    fireEvent.change(screen.getByRole("spinbutton", { name: "transpose" }), { target: { value: "7" } });
+    expect(screen.queryByTestId("warp-clip-count")).toBeNull();
+    typeTranspose("7");
     await flush();
     expect([tr(clip.id), tr("clip-b")]).toEqual([7, -5]);
   });

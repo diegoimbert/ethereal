@@ -219,10 +219,15 @@ function ManyClipsInspector({ clips }: { clips: ReadonlyArray<Clip> }) {
   const t = useT();
   const send = useSend();
   const allMuted = clips.every((c) => c.muted);
+  const kind = common(clips.map((c) => c.content.type));
+  const heading =
+    kind === "Audio" ? "shell.inspector.audio_clips_selected" : kind === "Midi" ? "shell.inspector.midi_clips_selected" : "shell.inspector.clips_selected";
   return (
     <>
       <Section>
-        <div className="eth-inspector__heading">{t("shell.inspector.clip_count", { count: clips.length })}</div>
+        <div className="eth-inspector__heading" data-testid="inspector-clip-count">
+          {t(heading, { count: clips.length })}
+        </div>
       </Section>
       <Section title={t("shell.inspector.clips")}>
         <Row label={t("shell.inspector.muted")}>

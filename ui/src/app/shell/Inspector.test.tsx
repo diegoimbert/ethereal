@@ -154,7 +154,7 @@ describe("Inspector: clip", () => {
 
   it("several clips: a count and shared actions", async () => {
     mock = await renderWithMock(<Subject pick={() => ({ kind: "clips", ids: [clipByName("Chords").id, clipByName("Bassline").id] })} />);
-    expect(screen.getByText("2 clips")).toBeInTheDocument();
+    expect(screen.getByText("2 midi clips selected")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("switch", { name: "mute clips" }));
     await flush();
     expect(clipByName("Chords").muted && clipByName("Bassline").muted).toBe(true);
@@ -191,6 +191,7 @@ describe("Inspector: several audio clips (base-150)", () => {
 
   it("shows mixed values; a typed value sets all; an arrow step and a drag move each by the same amount; one undo each", async () => {
     const { a, b } = await twoClips();
+    expect(screen.getByTestId("inspector-clip-count")).toHaveTextContent("2 audio clips selected");
     const field = screen.getByLabelText("clip transpose");
     expect(field).toHaveValue("—");
     expect(field).toHaveAttribute("aria-valuetext", "mixed");
@@ -216,9 +217,13 @@ describe("Inspector: several audio clips (base-150)", () => {
     fireEvent.pointerDown(f, { button: 0, pointerId: 1, clientY: 100 });
     fireEvent.pointerMove(f, { pointerId: 1, clientY: 96 });
     fireEvent.pointerMove(f, { pointerId: 1, clientY: 92 });
+    await flush();
+    // Mid-drag the mixed field shows the offset applied to each clip.
+    expect(screen.getByLabelText("clip transpose")).toHaveValue("+2");
     fireEvent.pointerUp(f, { pointerId: 1, clientY: 92 });
     await flush();
     expect([audioOf(a).transpose, audioOf(b).transpose]).toEqual([2, 4]);
+    expect(screen.getByLabelText("clip transpose")).toHaveValue("—");
     await undo();
     expect([audioOf(a).transpose, audioOf(b).transpose]).toEqual([0, 2]);
   });
@@ -267,6 +272,7 @@ describe("Inspector: several audio clips (base-150)", () => {
 
   it("a mixed audio + MIDI selection edits only the audio clips", async () => {
     mock = await renderWithMock(<Subject pick={() => ({ kind: "clips", ids: [firstAudioClip().id, clipByName("Chords").id] })} />);
+    expect(screen.getByTestId("inspector-clip-count")).toHaveTextContent("2 clips selected");
     expect(screen.getByText("audio (1 of 2 clips)")).toBeInTheDocument();
     const field = screen.getByLabelText("clip transpose");
     fireEvent.change(field, { target: { value: "3" } });

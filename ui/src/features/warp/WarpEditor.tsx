@@ -5,6 +5,9 @@
  * - Toolbar: Warp on/off, mode (Repitch | Complex), transpose (semitones), source tempo.
  *   Complex keeps pitch in every build (the browser runs a pure-Rust Signalsmith Stretch);
  *   should an engine lack a stretcher, the toolbar says Complex plays as Repitch.
+ *   With several audio clips selected (the open one among them) the toolbar says
+ *   "N audio clips selected" and its edits apply to all of them (relative drags, see
+ *   `TransposeControl`); values they don't share show as mixed.
  * - Waveform on the clip's content timeline (beats), drawn exactly as the engine maps it
  *   (`clipSourceMapper`), with the warp markers on top.
  * - Markers (warp on): double-click the waveform to add one at that beat (pinned to the
@@ -20,14 +23,24 @@
 import { useEffect, useMemo, useReducer, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from "react";
 import { useShallow } from "zustand/react/shallow";
 import type { AudioContent, Beats, Clip, MediaRef, WarpMarker, WarpMarkerId, WarpMode } from "@/generated";
-import { Knob, openContextMenu, Select, useScopedDrag, useThemeColor, type SelectOption } from "@/kit";
+import { Knob, NumberField, openContextMenu, Select, useScopedDrag, useThemeColor, type SelectOption } from "@/kit";
 import { resolveClipEntries } from "@/features/import-resolver/menus";
 import { size } from "@/theme";
 import { clipDisplayName, useClip, useEditedClipId, useProjectStore, warpMarkersOfClip } from "@/state";
 import { createTimelineViewStore, useSelectedItems, useTempoMap } from "@/timeline";
 import { ClipEnvelopeStrip } from "@/features/automation";
 import { clipTempoMap } from "@/features/piano-roll/clipTime";
-import { audioClips, offsetTranspose, setAllTranspose, setAllWarp, transposeBases, type AudioClip, type Bases } from "@/features/clip-editing/multiEdit";
+import {
+  audioClips,
+  common,
+  offsetTranspose,
+  setAllTranspose,
+  setAllWarp,
+  TRANSPOSE_MAX,
+  transposeBases,
+  type AudioClip,
+  type Bases,
+} from "@/features/clip-editing/multiEdit";
 import { cmd, newId, useTransport } from "@/transport";
 import { PeakCache, peakLevel, peakRange, TILE_PEAKS } from "@/features/arrangement/peaks";
 import { dbToGain, drawClipMarks, waveColumn, type WaveColumn } from "@/features/arrangement/clipDraw";
@@ -44,7 +57,7 @@ const WARP_MODES: ReadonlyArray<{ value: WarpMode; label: MessageKey }> = [
   { value: "Repitch", label: "warp.mode.repitch" },
   { value: "Complex", label: "warp.mode.complex" },
 ];
-const TRANSPOSE_RANGE = 48;
+const TRANSPOSE_RANGE = TRANSPOSE_MAX;
 const HEIGHT = 140;
 const RULER = 16;
 const FALLBACK_WIDTH = 800;
@@ -198,6 +211,8 @@ function WarpClipEditor({ clip, content }: { clip: Clip; content: AudioContent }
   };
 
   const webFallback = warp.enabled && warp.mode === "Complex" && !complexStretches(transport.kind);
+  // Several clips: a mode they don't share shows as "—".
+  const mode = targets.length > 1 ? common(targets.map((a) => a.audio.warp.mode)) : warp.mode;
 
   return (
     <div
@@ -215,6 +230,11 @@ function WarpClipEditor({ clip, content }: { clip: Clip; content: AudioContent }
         <span className="eth-warp__title eth-user-text" title={clipName}>
           {clipName}
         </span>
+        {targets.length > 1 && (
+          <span className="eth-warp__clip-count" data-testid="warp-clip-count" title={t("warp.clip_count_title")}>
+            {t("warp.clip_count", { count: targets.length })}
+          </span>
+        )}
         <label className="eth-warp__field">
           <input type="checkbox" aria-label={t("warp.toggle")} checked={warp.enabled} onChange={(e) => setWarp({ enabled: e.target.checked })} />
           {t("warp.toggle")}
@@ -224,7 +244,8 @@ function WarpClipEditor({ clip, content }: { clip: Clip; content: AudioContent }
           <Select<WarpMode>
             size="sm"
             aria-label={t("warp.mode_aria")}
-            value={warp.mode}
+            value={(mode ?? "") as WarpMode}
+            placeholder="—"
             disabled={!warp.enabled}
             options={WARP_MODES.map((m): SelectOption<WarpMode> => ({ value: m.value, label: t(m.label) }))}
             onChange={(mode) => setWarp({ mode })}
@@ -311,11 +332,41 @@ function useEditTargets(clip: Clip): AudioClip[] {
   return targets.some((t) => t.clip.id === clip.id) ? targets : audioClips([clip]);
 }
 
+/**
+ * Transpose (knob + field) of the edited clip, or of every target: a drag, an arrow step or a
+ * wheel turn moves each target by the same amount from its own value (−6 and +3 dragged up 2
+ * become −4 and +5; each clamped to ±48 on its own), a typed value sets them all. Values that
+ * differ show as mixed ("—"), and as the offset applied while a drag runs.
+ */
 function TransposeControl({ targets, semitones }: { targets: AudioClip[]; semitones: number }) {
   const t = useT();
   const transport = useTransport();
   const gesture = useRef<{ g: ReturnType<typeof openGesture>; bases: Bases; from: number } | null>(null);
+  // The offset of the running knob drag (shown in place of "mixed").
+  const [offset, setOffset] = useState<number | null>(null);
   const clampSt = (st: number) => Math.max(-TRANSPOSE_RANGE, Math.min(TRANSPOSE_RANGE, st));
+  const mixed = targets.length > 1 && common(targets.map((a) => a.audio.transpose)) === null;
+  const signed = (st: number) => `${st > 0 ? "+" : ""}${st}`;
+  const valueText = mixed
+    ? offset !== null
+      ? t("warp.semitones", { value: signed(offset) })
+      : t("kit.number.mixed")
+    : t("warp.semitones", { value: signed(semitones) });
+  /** Every target moved by `delta` from `bases`: inside a drag part of its gesture, else one undo step. */
+  const nudge = (delta: number, bases: Bases) => {
+    const c = offsetTranspose(targets, bases, delta);
+    if (!c) return;
+    if (gesture.current) gesture.current.g.send(c);
+    else sendOne(transport, c);
+  };
+  const start = () => {
+    gesture.current = { g: openGesture(transport), bases: transposeBases(targets), from: semitones };
+  };
+  const end = () => {
+    gesture.current?.g.end();
+    gesture.current = null;
+    setOffset(null);
+  };
   return (
     <span className="eth-warp__field eth-warp__transpose">
       <Knob
@@ -323,40 +374,33 @@ function TransposeControl({ targets, semitones }: { targets: AudioClip[]; semito
         bipolar
         size={parseFloat(size.knobSm)}
         label={t("warp.transpose")}
-        valueText={t("warp.semitones", { value: `${semitones > 0 ? "+" : ""}${semitones}` })}
-        onChangeStart={() => {
-          gesture.current = { g: openGesture(transport), bases: transposeBases(targets), from: semitones };
-        }}
+        valueText={valueText}
+        onChangeStart={start}
         onChange={(v) => {
           const st = clampSt(Math.round(v * 2 * TRANSPOSE_RANGE - TRANSPOSE_RANGE));
-          // The knob moves every target by the same amount (their differences are kept).
-          // Inside a drag: part of its gesture. Keyboard/wheel/reset: one undo step each.
+          // Keyboard/wheel/reset (no drag): a step from the current values.
           const d = gesture.current;
-          const c = offsetTranspose(targets, d?.bases ?? transposeBases(targets), st - (d?.from ?? semitones));
-          if (!c) return;
-          if (d) d.g.send(c);
-          else sendOne(transport, c);
+          if (d) setOffset(st - d.from);
+          nudge(st - (d?.from ?? semitones), d?.bases ?? transposeBases(targets));
         }}
-        onChangeEnd={() => {
-          gesture.current?.g.end();
-          gesture.current = null;
-        }}
+        onChangeEnd={end}
       />
-      <input
-        type="number"
+      <NumberField
+        size="sm"
         aria-label={t("warp.transpose")}
         className="eth-warp__number"
         min={-TRANSPOSE_RANGE}
         max={TRANSPOSE_RANGE}
-        step={1}
         value={semitones}
-        onChange={(e) => {
-          // A typed value: every target gets it.
-          const v = Number(e.target.value);
-          if (!Number.isFinite(v)) return;
-          const c = setAllTranspose(targets, clampSt(v));
+        mixed={mixed}
+        onChangeStart={start}
+        onChangeEnd={end}
+        // A typed value: every target gets it.
+        onChange={(v) => {
+          const c = setAllTranspose(targets, clampSt(Math.round(v)));
           if (c) sendOne(transport, c);
         }}
+        onNudge={(d) => nudge(d, gesture.current?.bases ?? transposeBases(targets))}
       />
       {t("warp.semitones_unit")}
     </span>
