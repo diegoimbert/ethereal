@@ -7,6 +7,8 @@
 //   node scripts/ci/private-step.mjs <name> -- <command> [args...]
 //   node scripts/ci/private-step.mjs <name> -- "<shell command line>"     (one argument: bash -c)
 //
+// On Windows the first form runs through bash too (npm and pnpm are .cmd shims there).
+//
 // The log file is $FULL_LOG_DIR/<name>.log (default: $RUNNER_TEMP/full-logs). Exits with the
 // command's code. Never prints a line of the command's output.
 import { spawn } from "node:child_process";
@@ -29,7 +31,10 @@ const file = join(dir, `${name}.log`);
 const out = createWriteStream(file);
 
 const start = Date.now();
-const [prog, ...rest] = cmd.length === 1 ? ["bash", "-c", cmd[0]] : cmd;
+// On Windows, npm/pnpm/npx are .cmd shims that spawn() without a shell cannot start (ENOENT,
+// exit -4058): a command given as separate arguments runs through bash there too, quoted.
+const quote = (a) => `'${a.replaceAll("'", `'\\''`)}'`;
+const [prog, ...rest] = cmd.length === 1 ? ["bash", "-c", cmd[0]] : process.platform === "win32" ? ["bash", "-c", cmd.map(quote).join(" ")] : cmd;
 const child = spawn(prog, rest, { stdio: ["ignore", "pipe", "pipe"], shell: false });
 child.stdout.pipe(out, { end: false });
 child.stderr.pipe(out, { end: false });

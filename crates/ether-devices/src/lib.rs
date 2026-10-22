@@ -108,7 +108,8 @@ fn type_descriptor(device: BuiltinDeviceType) -> DeviceDescriptor {
         | BuiltinDeviceType::NoteLength
         | BuiltinDeviceType::Velocity
         | BuiltinDeviceType::Randomizer
-        | BuiltinDeviceType::Pitch => midi_fx::descriptor(device),
+        | BuiltinDeviceType::Pitch
+        | BuiltinDeviceType::NoteBlocker => midi_fx::descriptor(device),
         BuiltinDeviceType::InstrumentRack
         | BuiltinDeviceType::AudioEffectRack
         | BuiltinDeviceType::MidiEffectRack => racks::descriptor(device),
@@ -157,7 +158,8 @@ pub fn factory_presets(device: BuiltinDeviceType) -> &'static [contract::Factory
         | BuiltinDeviceType::NoteLength
         | BuiltinDeviceType::Velocity
         | BuiltinDeviceType::Randomizer
-        | BuiltinDeviceType::Pitch => midi_fx::factory_presets(device),
+        | BuiltinDeviceType::Pitch
+        | BuiltinDeviceType::NoteBlocker => midi_fx::factory_presets(device),
         BuiltinDeviceType::InstrumentRack
         | BuiltinDeviceType::AudioEffectRack
         | BuiltinDeviceType::MidiEffectRack => racks::factory_presets(device),
@@ -230,7 +232,8 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         | BuiltinDevice::NoteLength
         | BuiltinDevice::Velocity
         | BuiltinDevice::Randomizer
-        | BuiltinDevice::Pitch => midi_fx::create(device),
+        | BuiltinDevice::Pitch
+        | BuiltinDevice::NoteBlocker => midi_fx::create(device),
         BuiltinDevice::InstrumentRack
         | BuiltinDevice::AudioEffectRack
         | BuiltinDevice::MidiEffectRack => racks::create(device),

@@ -13,6 +13,7 @@ import { useTimelineView } from "@/timeline";
 import { stopButton } from "@/features/time-edits/marker";
 import { PositionDisplay } from "@/features/transport-bar";
 import { useEngineCommands } from "@/features/transport-bar/engine";
+import { useProjectLoading } from "@/features/transport-bar/loading";
 import { formatBpm, formatSignature } from "@/features/transport-bar/format";
 import { arrangementView } from "@/features/arrangement/uiStore";
 import { unsupportedTooltip, useRecordingUnsupported } from "@/features/recording/support";
@@ -26,6 +27,8 @@ export function TransportDock() {
   const hasProject = useProjectStore((s) => s.project !== null);
   const follow = useTimelineView(arrangementView, (s) => s.followPlayhead);
   const disabled = !transport || !hasProject;
+  // Still loading: no play, stop or record yet (the rest works).
+  const loading = useProjectLoading() !== null;
   const readOnly = useReadOnly();
   // The browser has no audio or MIDI inputs: no recording there, like the desktop bar.
   const noRecording = useRecordingUnsupported(transport ?? null, !disabled && !readOnly);
@@ -66,7 +69,8 @@ export function TransportDock() {
           aria-label={t("mobile.transport.stop")}
           data-testid="transport-stop"
           className="eth-mdock__btn"
-          disabled={disabled}
+          title={loading ? t("error.project.loading") : undefined}
+          disabled={disabled || loading}
           onClick={() => transport && stopButton(transport)}
         >
           <Square aria-hidden />
@@ -76,7 +80,8 @@ export function TransportDock() {
           aria-label={playing ? t("mobile.transport.pause") : t("mobile.transport.play")}
           active={playing}
           className="eth-mdock__btn eth-mdock__play"
-          disabled={disabled}
+          title={loading ? t("error.project.loading") : undefined}
+          disabled={disabled || loading}
           onClick={() => void send(cmd("Transport", { type: playing ? "Stop" : "Play" }))}
         >
           {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
@@ -87,8 +92,8 @@ export function TransportDock() {
             aria-label={t("mobile.transport.record")}
             active={recording}
             className="eth-mdock__btn eth-mdock__record"
-            title={noRecording ? unsupportedTooltip() : undefined}
-            disabled={disabled || noRecording}
+            title={noRecording ? unsupportedTooltip() : loading ? t("error.project.loading") : undefined}
+            disabled={disabled || noRecording || loading}
             onClick={() => void send(cmd("Recording", { type: "SetRecording", enabled: !recording }))}
           >
             <Circle aria-hidden />

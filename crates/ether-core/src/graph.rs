@@ -367,24 +367,16 @@ pub struct RenderSnapshot {
     pub desc: RenderGraphDesc,
     pub tempo: TempoMapRt,
     pub(crate) rt: SnapshotRt,
-}
-
-/// One level of the processing DAG (`crate::parallel`): `SnapshotRt::level_order[start..end]`,
-/// the first `pinned` of which must run on the audio thread.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) struct Level {
-    pub start: usize,
-    pub end: usize,
-    pub pinned: usize,
+    /// Publish number (`EngineHandle`), so a re-ranked job graph reaches only the snapshot
+    /// it was made for.
+    pub(crate) seq: u64,
 }
 
 pub(crate) struct SnapshotRt {
     /// Track indices (into `desc.tracks` / `tracks`) in processing order.
     pub order: Vec<usize>,
-    /// Track indices grouped by level (`levels`), pinned tracks first within a level, then
-    /// processing order.
-    pub level_order: Vec<usize>,
-    pub levels: Vec<Level>,
+    /// The tracks' jobs, scheduled by dependency (`crate::parallel`); job id = track index.
+    pub jobs: crate::parallel::JobGraph,
     pub tracks: Vec<TrackRt>,
     /// Sorted lookups (binary search on the audio thread).
     pub track_index: Vec<(TrackId, usize)>,
@@ -697,39 +689,47 @@ pub fn compile_with(
         return Err(CompileError::Cycle(desc.tracks[stuck].id));
     }
 
-    // --- levels (`crate::parallel`) ---
-    // Level = 1 + max level of every source (outputs, sends, sidechains): tracks of one
-    // level never depend on each other.
-    let mut level = vec![0usize; n];
-    for &i in &order {
-        for &d in &order_succ[i] {
-            level[d] = level[d].max(level[i] + 1);
-        }
-    }
+    // --- job graph (`crate::parallel`) ---
+    // One job per track; an edge from every source (outputs, sends, sidechains, input
+    // taps) to what it feeds. Static cost: 1 + the devices the track runs (chain, drum-rack
+    // pads, rack chains: the longest one of a forking rack), for the critical-path priority.
     // No track is pinned to the audio thread any more: Complex-warped clips play through
     // their own track's stretcher voices (`crate::warp`). The pinned-jobs
     // path of the executor stays for hosts' future needs.
-    let pinned = vec![false; n];
-    let mut pos = vec![0usize; n];
-    for (p, &i) in order.iter().enumerate() {
-        pos[i] = p;
-    }
-    let mut level_order = order.clone();
-    level_order.sort_by_key(|&i| (level[i], !pinned[i], pos[i]));
-    let mut levels: Vec<Level> = Vec::new();
-    for (k, &i) in level_order.iter().enumerate() {
-        match levels.last_mut() {
-            Some(l) if level[level_order[l.start]] == level[i] => {
-                l.end = k + 1;
-                l.pinned += pinned[i] as usize;
-            }
-            _ => levels.push(Level {
-                start: k,
-                end: k + 1,
-                pinned: pinned[i] as usize,
-            }),
-        }
-    }
+    let cost: Vec<u64> = desc
+        .tracks
+        .iter()
+        .map(|t| {
+            let pads: usize = t
+                .racks
+                .iter()
+                .flat_map(|r| &r.pads)
+                .map(|p| p.chain.len())
+                .sum();
+            // Audio racks with several chains fork them onto idle threads
+            // (`crate::rack_chains`): the longest chain is what the track waits for.
+            let chains: usize = t
+                .chain_racks
+                .iter()
+                .map(|r| {
+                    let lens = r.chains.iter().map(|c| c.chain.len());
+                    if r.kind != crate::rack_chains::ChainRackKind::MidiEffect && r.chains.len() > 1
+                    {
+                        lens.max().unwrap_or(0)
+                    } else {
+                        lens.sum()
+                    }
+                })
+                .sum();
+            1 + (t.chain.len() + pads + chains) as u64
+        })
+        .collect();
+    let jobs = crate::parallel::JobGraph::new(
+        &(0..n).collect::<Vec<_>>(),
+        &cost,
+        &order_succ,
+        &vec![false; n],
+    );
 
     // --- bus inputs, in the sequential summation order (`crate::parallel`) ---
     let mut bus_inputs: Vec<Vec<BusInput>> = vec![Vec::new(); n];
@@ -1038,6 +1038,7 @@ pub fn compile_with(
             clip_ends: crate::automation_rt::clip_ends(&t.clips),
             auto_window: (0, 0),
             awake: true,
+            job_ns: 0.0,
             auto_dirty: false,
             meter: MeterAccum::default(),
             out_latency: out_lat[i],
@@ -1118,8 +1119,7 @@ pub fn compile_with(
         rack_chain_index,
         vcas: crate::vca::VcaRt::compile(&desc.vcas, &desc.tracks, config),
         order,
-        level_order,
-        levels,
+        jobs,
         tracks,
         track_index,
         send_index,
@@ -1134,7 +1134,12 @@ pub fn compile_with(
     }
 
     let tempo = TempoMapRt::compile(&desc.tempo, &desc.signatures);
-    Ok(RenderSnapshot { desc, tempo, rt })
+    Ok(RenderSnapshot {
+        desc,
+        tempo,
+        rt,
+        seq: 0,
+    })
 }
 
 #[cfg(test)]
@@ -1179,10 +1184,10 @@ mod tests {
         }
     }
 
-    /// Levels follow outputs, sends and sidechains; each level lists pinned tracks first;
-    /// bus inputs keep the sequential summation order.
+    /// The job graph follows outputs, sends and sidechains, critical path first; bus
+    /// inputs keep the sequential summation order.
     #[test]
-    fn levels_partition_the_dag() {
+    fn job_graph_follows_the_dag() {
         let mut t1 = t(10, TrackKind::Midi, Some(2));
         t1.sends.push(SendDesc {
             id: SendId(Ulid(1)),
@@ -1235,21 +1240,22 @@ mod tests {
         };
         let snap = compile(desc, &EngineConfig::default()).unwrap();
         let rt = &snap.rt;
-        let level_of = |ti: usize| {
-            rt.levels
-                .iter()
-                .position(|l| rt.level_order[l.start..l.end].contains(&ti))
-                .unwrap()
-        };
-        // t1, t3 | group, return, t2 (sidechained by t1; Complex clips, not pinned) | master
-        assert_eq!(rt.levels.len(), 3);
-        assert_eq!(level_of(3), 0);
-        assert_eq!(level_of(5), 0);
-        assert_eq!(level_of(4), 1);
-        assert_eq!(level_of(1), 1);
-        assert_eq!(level_of(2), 1);
-        assert_eq!(level_of(0), 2);
-        assert!(rt.levels.iter().all(|l| l.pinned == 0));
+        let jobs = &rt.jobs;
+        let rank_of = |ti: usize| (0..jobs.len()).find(|&r| jobs.id(r) == ti).unwrap();
+        let feeds = |a: usize, b: usize| jobs.successors(rank_of(a)).contains(&(rank_of(b) as u32));
+        // Edges: t1 → group, return (send), t2 (sidechain); t3 → group; t2, group,
+        // return → master. Nothing pinned (Complex clips run on the workers).
+        assert_eq!(jobs.len(), 6);
+        for (a, b) in [(3, 1), (3, 2), (3, 4), (5, 1), (4, 0), (1, 0), (2, 0)] {
+            assert!(feeds(a, b), "{a} → {b}");
+        }
+        assert!(!feeds(5, 4) && !feeds(4, 1));
+        assert!((0..jobs.len()).all(|r| !jobs.is_pinned(r)));
+        // t1 feeds three jobs on the way to master: most urgent; master last.
+        assert_eq!(jobs.id(0), 3);
+        assert_eq!(jobs.order().last(), Some(0));
+        assert_eq!(jobs.width(), 3);
+        let level_of = rank_of;
         assert!(rt.tracks[4].warp_scratch.is_some());
         for (ti, track) in rt.tracks.iter().enumerate() {
             for input in &track.inputs {

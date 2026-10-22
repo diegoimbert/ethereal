@@ -34,9 +34,13 @@ import {
   parseSignature,
 } from "./format";
 import { useCompactTopBar } from "./compact";
+import { useProjectLoading } from "./loading";
+import { LoadingStatus } from "./LoadingStatus";
 import { useMobileUi } from "@/features/mobile/mode";
 
 export { COMPACT_TOP_BAR_QUERY, useCompactTopBar } from "./compact";
+export { loadingText, projectLoading, refuseWhileLoading, useProjectLoading } from "./loading";
+export { LoadingStatus } from "./LoadingStatus";
 
 const EMPTY_POINTS: TimeSignaturePoint[] = [];
 
@@ -60,8 +64,12 @@ export function TransportBar() {
   const disabled = !transport || !hasProject;
   // A shared project's viewer: play, stop, loop and the position; tempo and signature shown, not set.
   const readOnly = useReadOnly();
+  // The project is still loading (its audio is suspended): no play, stop or record yet,
+  // shortcuts included. Everything else works (the project can be explored and edited).
+  const loading = useProjectLoading();
   // An extension says nothing here can play now (e.g. joined with no engine): the reason.
-  const blocked = useTransportBlocked();
+  const extBlocked = useTransportBlocked();
+  const blocked = loading ? t("error.project.loading") : extBlocked;
   const compact = useCompactTopBar();
   const recordUnsupported = useRecordSupport((s) => s.unsupported);
   // The metronome's settings: a right-click on its button.
@@ -110,6 +118,7 @@ export function TransportBar() {
   };
   useTransportShortcuts({ enabled: !disabled, undo, redo });
   useTransportKeys({ enabled: !disabled && !blocked, run: runTransportKey });
+  const transportOff = disabled || !!loading;
 
   return (
     <div className="eth-tb" data-feature="transport-bar" role="toolbar" aria-label={t("shell.transport.toolbar")}>
@@ -132,7 +141,7 @@ export function TransportBar() {
             className="eth-tb__btn eth-tb__play"
             data-tour="play"
             {...midiTarget({ type: "Transport", action: "TogglePlay" })}
-            disabled={disabled || (!!blocked && !playing)}
+            disabled={transportOff || (!!blocked && !playing)}
             onClick={togglePlay}
           >
             {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
@@ -140,11 +149,11 @@ export function TransportBar() {
           <Button
             tone="ghost"
             aria-label={t("shell.transport.stop")}
-            title={t("shell.transport.stop_title")}
+            title={loading ? t("error.project.loading") : t("shell.transport.stop_title")}
             data-testid="transport-stop"
             className="eth-tb__btn"
             {...midiTarget({ type: "Transport", action: "Stop" })}
-            disabled={disabled}
+            disabled={transportOff}
             onClick={() => transport && stopButton(transport)}
           >
             <Square aria-hidden />
@@ -161,7 +170,7 @@ export function TransportBar() {
                 active={recording}
                 className="eth-tb__btn eth-tb__record"
                 {...midiTarget({ type: "Transport", action: "ToggleRecord" })}
-                disabled={disabled || !!recordUnsupported || (!!blocked && !recording)}
+                disabled={transportOff || !!recordUnsupported || (!!blocked && !recording)}
                 onClick={() => void send(cmd("Recording", { type: "SetRecording", enabled: !recording }))}
               >
                 <Circle aria-hidden />
@@ -172,6 +181,7 @@ export function TransportBar() {
           {!readOnly && <CaptureButton className="eth-tb__btn" />}
           {/* keyboard-midi: play notes from the computer keyboard (M). */}
           {!readOnly && <KeyboardMidiButton className="eth-tb__btn" />}
+          {loading && <LoadingStatus progress={loading} compact={compact} />}
         </div>
 
         <span className="eth-tb__divider" aria-hidden />

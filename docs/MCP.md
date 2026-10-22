@@ -84,7 +84,7 @@ in-app AI chat ─────────────────────�
 | `delete_clip`, `duplicate_clip` | Delete clips; or copy one: once, `count` times, or back to back until a span is covered (`span_seconds` through the tempo map, `span_bars`, `span_beats`, `until_beats`), one undo step. |
 | `split_clip`, `transpose` | Split at song positions; transpose MIDI notes / audio clips by semitones (clips, a track, or a song range, splitting at its edges; drums skipped unless asked). |
 | `set_tempo`, `set_time_signature` | `{bpm}`; `{numerator, denominator}`. |
-| `transport` | `play`, `stop`, `seek` (`position_beats`), `loop` (region and on/off). |
+| `transport` | `play`, `stop`, `seek` (`position_beats`), `loop` (region and on/off). While the project loads (`get_project_overview`: `transport.loading`), `play` and `stop` fail with "the project is still loading". |
 | `undo`, `redo` | The app's shared history. |
 | `save_project` | Save (headless mode: also writes the `--project` file). |
 | `search_browser`, `load_browser_item` | Search the sound library and load a sample or preset. These need the browser index; without it they return an error. |

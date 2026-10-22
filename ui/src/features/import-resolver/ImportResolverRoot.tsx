@@ -1,6 +1,7 @@
 import { useContext, useEffect } from "react";
 import { TransportContext, type EngineTransport } from "@/transport";
 import { skipNotifications, type NotificationEvent } from "@/features/notifications/store";
+import { usePluginStore } from "@/features/plugins/pluginStore";
 import { useProjectStore } from "@/state";
 import { catalogNow, isMissingPlugin } from "./catalog";
 import { ResolverDialog } from "./ResolverDialog";
@@ -48,8 +49,14 @@ function Sync({ transport }: { transport: EngineTransport }) {
       if (e.type === "ProjectLoaded" && !importing) armAutoShow(transport);
       if (e.type === "Media" && e.event.type === "Missing") noteMissing(transport);
     });
+    // The engine host's plugin list came (or changed) after the project opened: what is
+    // missing is its answer, not this computer's (the dialog or count is brought up to date).
+    const offPlugins = usePluginStore.subscribe((s, prev) => {
+      if (s.remote !== prev.remote) noteMissing(transport);
+    });
     return () => {
       off();
+      offPlugins();
       setResolverTransport(null);
       setReplaceTransport(null);
     };

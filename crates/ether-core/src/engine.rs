@@ -13,8 +13,9 @@
 //!    parameter changes.
 //! 2. Split the block at loop ends and tempo/time-signature boundaries so transport
 //!    information is linear within each sub-block.
-//! 3. Per sub-block, process tracks level by level of the routing DAG, one job per track
-//!    (in parallel through the host's [`crate::parallel::ParallelExecutor`], see there):
+//! 3. Per sub-block, process the tracks as a job graph (one job per track, each started
+//!    as soon as its own sources finished, critical path first; in parallel through the
+//!    host's [`crate::parallel::ParallelExecutor`], see there):
 //!    input bus gathered from the finished sources (+ monitored hardware input) → clips
 //!    (audio rendered, MIDI notes scheduled sample-accurately) → automation → device chain →
 //!    pre-fader sends → fader/pan → sidechain tap → mute/solo gate → post-fader sends →
@@ -23,7 +24,7 @@
 //! 4. Publish playhead; every ~33 ms push meter readings.
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering, fence};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering, fence};
 
 use ether_protocol::meters::TrackMeter;
 use ether_protocol::model::{InputTap, MediaId, TrackId, TrackKind};
@@ -41,6 +42,7 @@ use crate::media::AudioSource;
 use crate::meter::EngineOutputs;
 use crate::mixer::{BusInput, TrackRt, apply_fader, apply_gate, scale};
 use crate::node::{Node, NodeKey, ProcessContext, ProcessStatus};
+use crate::parallel::{Fork, SerialFork};
 use crate::param::{ParamChange, ParamTarget};
 use crate::sched::{self, NoteSink, Timing};
 use crate::sidechain::{ScIo, ScPoint};
@@ -88,6 +90,12 @@ enum Control {
         data: [u8; 3],
     },
     StreamTap(Option<Box<crate::stream_tap::StreamTapWriter>>),
+    /// The current snapshot's job graph, re-ranked with measured job times (snapshot `seq`
+    /// only).
+    Jobs {
+        seq: u64,
+        jobs: Box<crate::parallel::JobGraph>,
+    },
     /// v0.2: start/stop collecting a node's analysis frames (`crate::analysis`).
     AnalysisWatch {
         key: NodeKey,
@@ -102,10 +110,13 @@ enum Garbage {
     Source(#[allow(dead_code)] Arc<dyn AudioSource>),
     StreamTap(#[allow(dead_code)] Box<crate::stream_tap::StreamTapWriter>),
     HwIo(#[allow(dead_code)] Box<crate::hw_io::HwIoRt>),
+    Jobs(#[allow(dead_code)] Box<crate::parallel::JobGraph>),
 }
 
 enum Output {
     Meter(TrackMeter),
+    /// A track's smoothed job time (ns per 1024 frames, `TrackRt::job_ns`).
+    JobCost(TrackId, u32),
     Overflow,
     Underruns(u32),
     PreviewEnded(u64),
@@ -248,6 +259,7 @@ pub fn create(config: EngineConfig) -> EngineParts {
         .collect::<Vec<_>>()
         .into();
     let playhead = Arc::new(SharedPlayhead::default());
+    let suspend = Arc::new(AtomicBool::new(false));
     let (recording_rt, recording_io) = crate::recording::channel(&config);
     let (warp_handle, warp_rt) = crate::warp::channel(&config);
     let snapshot =
@@ -279,6 +291,8 @@ pub fn create(config: EngineConfig) -> EngineParts {
         transport: TransportRt::default(),
         meter_interval: (config.sample_rate as usize / 30).max(1),
         meter_elapsed: 0,
+        cost_interval: (config.sample_rate as usize / 2).max(1),
+        cost_elapsed: 0,
         overflow: false,
         underruns: 0,
         leaked: 0,
@@ -293,6 +307,8 @@ pub fn create(config: EngineConfig) -> EngineParts {
         hw_io: hw_io_rt,
         beat_table: vec![0.0; config.max_block_size + 1],
         silence_skipping: true,
+        suspend: suspend.clone(),
+        suspended: false,
         config: config.clone(),
     };
     let handle = EngineHandle {
@@ -314,6 +330,8 @@ pub fn create(config: EngineConfig) -> EngineParts {
         warp: warp_handle,
         analysis: analysis_rx,
         hw_io: hw_io_handle,
+        suspend,
+        job_costs: JobCosts::default(),
         config,
     };
     EngineParts {
@@ -339,6 +357,9 @@ pub struct Engine {
     transport: TransportRt,
     meter_interval: usize,
     meter_elapsed: usize,
+    /// Job times are reported every `cost_interval` frames (`Output::JobCost`).
+    cost_interval: usize,
+    cost_elapsed: usize,
     overflow: bool,
     underruns: u32,
     /// Objects that could not be handed to the GC (ring full) and were leaked instead of
@@ -366,6 +387,10 @@ pub struct Engine {
     beat_table: Vec<f64>,
     /// Skip asleep nodes on silent input (on by default).
     silence_skipping: bool,
+    /// Set by [`EngineHandle::set_suspended`] (a project is loading): read once per block.
+    suspend: Arc<AtomicBool>,
+    /// The last block was suspended (the next unsuspended one resumes cleanly).
+    suspended: bool,
     /// Offline export stems: the tapped tracks copied out after every block.
     capture: Vec<CaptureSlot>,
 }
@@ -415,10 +440,20 @@ impl Engine {
             out[..n].fill(0.0);
         }
         let frames = frames.min(self.config.max_block_size);
+        // Read before draining: everything sent before the flag changed is applied below.
+        let suspended = self.suspend.load(Ordering::Acquire);
         self.drain_control();
         self.warp.drain();
         self.drain_params();
         self.update_latencies();
+
+        if suspended {
+            self.process_suspended(frames);
+            return;
+        }
+        if self.suspended {
+            self.resume();
+        }
 
         let mut done = 0;
         while done < frames {
@@ -438,7 +473,51 @@ impl Engine {
             self.meter_elapsed = 0;
             self.push_meters();
         }
+        self.cost_elapsed += frames;
+        if self.cost_elapsed >= self.cost_interval {
+            self.cost_elapsed = 0;
+            self.push_job_costs();
+        }
         self.report();
+    }
+
+    /// **RT.** A suspended block ([`EngineHandle::set_suspended`], while a project loads):
+    /// the graph is not processed and the output stays silent. The control and param
+    /// rings were drained (graph swaps, nodes and media still arrive), and so is what
+    /// would otherwise pile up for the resume: live MIDI and preview notes are dropped.
+    /// The sample clock keeps counting, so hosts' wall-clock mappings stay valid; the
+    /// transport does not move.
+    fn process_suspended(&mut self, frames: usize) {
+        self.suspended = true;
+        self.transport.sample_time += frames as u64;
+        self.recording.discard_input(self.transport.sample_time);
+        self.publish_playhead();
+        self.report();
+    }
+
+    /// **RT.** The first block after a suspension: start from a clean state instead of
+    /// whatever the partial graphs left. Every node is reset and gets all-notes-off,
+    /// automation is re-sent and notes are chased at the position, the exact-tempo anchor
+    /// is dropped, and mixer smoothers jump to their targets (no fade from stale values).
+    fn resume(&mut self) {
+        self.suspended = false;
+        let t = &mut self.transport;
+        t.reset_nodes = true;
+        t.all_notes_off = true;
+        t.release_notes = true;
+        t.relocated = true;
+        t.chase_notes = true;
+        t.jump = true;
+        t.anchor = None;
+        for track in self.snapshot.rt.tracks.iter_mut() {
+            track.settle();
+        }
+        self.meter_elapsed = 0;
+    }
+
+    /// The last block was suspended ([`EngineHandle::set_suspended`]).
+    pub fn is_suspended(&self) -> bool {
+        self.suspended
     }
 
     pub fn config(&self) -> &EngineConfig {
@@ -467,6 +546,14 @@ impl Engine {
     /// compare both).
     pub fn set_silence_skipping(&mut self, on: bool) {
         self.silence_skipping = on;
+    }
+
+    /// Non-RT (allocates; tests and diagnostics): the tracks in job rank order, most
+    /// urgent first (`crate::parallel`).
+    #[doc(hidden)]
+    pub fn job_order(&self) -> Vec<TrackId> {
+        let rt = &self.snapshot.rt;
+        rt.jobs.order().map(|i| rt.tracks[i].id).collect()
     }
 
     /// Objects leaked because the GC ring was full (should stay 0).
@@ -572,6 +659,13 @@ impl Engine {
                     }
                 }
                 Control::PreviewNote { track, data } => self.recording.queue_preview(track, data),
+                Control::Jobs { seq, mut jobs } => {
+                    // Swapped through the box: the old graph leaves in it (no allocation).
+                    if seq == self.snapshot.seq && jobs.len() == self.snapshot.rt.jobs.len() {
+                        std::mem::swap(&mut self.snapshot.rt.jobs, &mut *jobs);
+                    }
+                    self.retire(Garbage::Jobs(jobs));
+                }
                 Control::AnalysisWatch { key, on } => {
                     self.analysis.watch(key, on);
                     if let Some(slot) = self.nodes.get_mut(key.index as usize)
@@ -788,11 +882,12 @@ impl Engine {
             capture,
             ..
         } = self;
-        let RenderSnapshot { desc, tempo, rt } = &mut **snapshot;
+        let RenderSnapshot {
+            desc, tempo, rt, ..
+        } = &mut **snapshot;
         let SnapshotRt {
             order,
-            level_order,
-            levels,
+            jobs,
             tracks,
             latency: graph_latency,
             vcas,
@@ -908,12 +1003,12 @@ impl Engine {
         // Hardware returns of external devices (`crate::hw_io`), before the jobs.
         hw_io.gather_returns(inputs, off, n, transport.sample_time);
 
-        // --- tracks, level by level (`crate::parallel`) ---
+        // --- tracks, by dependency (`crate::parallel`) ---
         // Stopped, the jobs still run devices and plugins at full cost (tails, auditioned
         // instruments, plugins that never sleep): dispatch them like while playing.
         // Only when the previous sub-block did no real work anywhere (every node
         // asleep, nothing monitored: `TrackRt::awake`) keep the workers parked and run the
-        // jobs here, in level order. Same result either way, bit for bit.
+        // jobs here, in rank order. Same result either way, bit for bit.
         let parallel = playing || tracks.iter().any(|t| t.awake || t.monitor);
         let ctx = JobCtx {
             tracks: tracks.as_mut_ptr(),
@@ -940,20 +1035,21 @@ impl Engine {
             timing: &timing,
             hw: hw_io.table(),
         };
-        for level in levels.iter() {
-            let idx = &level_order[level.start..level.end];
-            // SAFETY (`crate::parallel`, "Unsafe sharing"): job `j` touches track `idx[j]`
-            // (distinct within a level), its nodes (each node in one chain) and finished
-            // tracks of earlier levels; the executor runs each `j` once, pinned jobs on this
-            // thread, and returns after all of them finished.
-            let job = |j: usize| unsafe { ctx.run(idx[j]) };
-            if idx.len() == 1 || !parallel {
-                for j in 0..idx.len() {
-                    job(j);
-                }
-            } else {
-                executor.execute_pinned(idx.len(), level.pinned, &job);
+        // SAFETY (`crate::parallel`, "Unsafe sharing"): job `ti` touches track `ti` (one job
+        // per track), its nodes (each node in one chain) and its sources' tracks, which the
+        // graph finished before it; the executor runs each job once, after its sources,
+        // pinned jobs on this thread, and returns after all of them finished.
+        let job = |ti: usize, fork: &dyn Fork| unsafe { ctx.run(ti, fork) };
+        if jobs.len() == 1 && parallel && executor.workers() > 0 {
+            // One track (or a pure chain): no other job to overlap, but its rack chains may
+            // still fork.
+            executor.execute_graph_forking(jobs, &job);
+        } else if jobs.len() == 1 || !parallel {
+            for ti in jobs.order() {
+                job(ti, &SerialFork);
             }
+        } else {
+            executor.execute_graph_forking(jobs, &job);
         }
         // --- offline export stems: post-fader, pre-gate taps of the requested tracks ---
         for slot in capture.iter_mut() {
@@ -1048,6 +1144,21 @@ impl Engine {
         });
     }
 
+    /// RT. Report the measured job times (none on wasm, where nothing measures them).
+    fn push_job_costs(&mut self) {
+        for t in self.snapshot.rt.tracks.iter() {
+            if t.job_ns <= 0.0 {
+                continue;
+            }
+            if self.out.slots() == 0 {
+                break;
+            }
+            let _ = self
+                .out
+                .push(Output::JobCost(t.id, t.job_ns.min(u32::MAX as f32) as u32));
+        }
+    }
+
     fn push_meters(&mut self) {
         for t in self.snapshot.rt.tracks.iter_mut() {
             if self.out.slots() == 0 {
@@ -1103,8 +1214,8 @@ impl<'a> NodeTable<'a> {
     ///   share a slot; only live keys reach a `&mut` (to the slot's `node` field);
     /// - a *stale* key (a pad node removed and its slot reused by another track: the
     ///   compiler tolerates unknown pad nodes) only *reads* the slot's `generation`, which
-    ///   nothing writes while a level runs, and yields `None`;
-    /// - the audio thread doesn't touch the table while a level runs.
+    ///   nothing writes while the job graph runs, and yields `None`;
+    /// - the audio thread doesn't touch the table while the job graph runs.
     ///
     /// So [`NodeTable::get`] never creates two live `&mut` to one node, nor a `&mut` to a
     /// slot another job uses.
@@ -1127,7 +1238,7 @@ impl<'a> NodeTable<'a> {
         // the key is live. A stale key of another track's slot thus never forms a `&mut`.
         let slot = self.ptr.wrapping_add(i);
         // SAFETY: `i < len`: a valid `NodeSlot`; `generation` is only written on the audio
-        // thread between blocks (`drain_control`), never during a level.
+        // thread between blocks (`drain_control`), never while the job graph runs.
         if unsafe { std::ptr::addr_of!((*slot).generation).read() } != key.generation {
             return None;
         }
@@ -1153,6 +1264,42 @@ impl<'a> NodeTable<'a> {
         let rt = unsafe { &mut *std::ptr::addr_of_mut!((*slot).rt) };
         let node = unsafe { (*std::ptr::addr_of_mut!((*slot).node)).as_mut() }?;
         Some((node, rt))
+    }
+}
+
+/// A [`NodeTable`]'s slots, handed to sub-jobs of its job (`crate::rack_chains`), which make
+/// their own tables over them ([`SharedNodes::table`]).
+#[derive(Clone, Copy)]
+pub(crate) struct SharedNodes<'a> {
+    ptr: *mut NodeSlot,
+    len: usize,
+    _slots: std::marker::PhantomData<&'a mut [NodeSlot]>,
+}
+
+// SAFETY: only dereferenced through tables made by `table`, under its contract (each sub-job
+// asks for its own nodes only); nodes are `Send`.
+unsafe impl Sync for SharedNodes<'_> {}
+
+impl<'a> NodeTable<'a> {
+    /// RT. The slots, for sub-jobs of this job while it waits for them (`Fork::join`).
+    pub(crate) fn share(&mut self) -> SharedNodes<'_> {
+        SharedNodes {
+            ptr: self.ptr,
+            len: self.len,
+            _slots: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<'a> SharedNodes<'a> {
+    /// A table for one sub-job.
+    ///
+    /// # Safety
+    /// As [`NodeTable::shared`]: the sub-job only asks for keys no other sub-job (and not the
+    /// waiting job) uses meanwhile.
+    pub(crate) unsafe fn table(&self) -> NodeTable<'a> {
+        // SAFETY: forwarded to the caller.
+        unsafe { NodeTable::shared(self.ptr, self.len) }
     }
 }
 
@@ -1192,8 +1339,9 @@ struct JobCtx<'a> {
 }
 
 // SAFETY: the shared fields are `Sync` (checked below); the raw pointers are only
-// dereferenced by `JobCtx::run` under the level contract: one job per track per level,
-// each node reached by one job, finished tracks only read, each track's voices by its job.
+// dereferenced by `JobCtx::run` under the graph contract: one job per track per sub-block,
+// each node reached by one job, finished source tracks only read, each track's voices by
+// its job.
 // The pointees are `Send` (`TrackRt`, `NodeSlot` via `Node: Send`), so handing them to a
 // worker thread is fine.
 unsafe impl Sync for JobCtx<'_> {}
@@ -1213,12 +1361,16 @@ impl JobCtx<'_> {
     /// RT. Process track `ti` for the sub-block (see [`Engine::process`]).
     ///
     /// # Safety
-    /// Called at most once per track per level, never concurrently for one track; every
-    /// track in `tracks[ti].inputs` / its sidechain sources finished in an earlier level (the level
-    /// partition guarantees it); the tracks of the running level are touched by their own
+    /// Called at most once per track per sub-block, never concurrently for one track, and
+    /// only after every track in `tracks[ti].inputs` / its sidechain, modulator and tap
+    /// sources finished (the job graph's edges); running tracks are touched by their own
     /// jobs only.
-    unsafe fn run(&self, ti: usize) {
+    unsafe fn run(&self, ti: usize, fork: &dyn Fork) {
         debug_assert!(ti < self.n_tracks);
+        // The job's wall time, for the scheduler's priorities (`TrackRt::job_ns`). Native
+        // only: a vDSO clock read at both ends (wasm runs everything in order anyway).
+        #[cfg(not(target_arch = "wasm32"))]
+        let started = std::time::Instant::now();
         // SAFETY: exclusive by the contract above.
         let track = unsafe { &mut *self.tracks.add(ti) };
         // SAFETY: this job only asks for the keys of its own chain and pad chains.
@@ -1241,7 +1393,7 @@ impl JobCtx<'_> {
                     BusInput::Send(c, k) => (c, Some(k)),
                 };
                 debug_assert!(c != ti && c < self.n_tracks);
-                // SAFETY: `c != ti` finished in an earlier level; nothing writes it now.
+                // SAFETY: `c != ti` is a source of this job: finished; nothing writes it now.
                 let src = unsafe { &*self.tracks.add(c) };
                 let buf = match sel {
                     None => &src.a,
@@ -1280,8 +1432,8 @@ impl JobCtx<'_> {
                 track.modulation.write_sidechain(s, tap, n);
             }
         }
-        // Track input from another track (`crate::bus_tap`, v0.2): its source finished in an
-        // earlier level.
+        // Track input from another track (`crate::bus_tap`, v0.2): its source finished before
+        // this job (a graph edge).
         if let Some(s) = track.input_tap.source
             && s != ti
         {
@@ -1293,7 +1445,18 @@ impl JobCtx<'_> {
         // SAFETY: this job's own track (ids are unique in a snapshot); the voice table only
         // changes between blocks.
         let voices = unsafe { self.warp.track_voices(track.id) };
-        self.render_track(ti, track, &mut nodes, voices);
+        self.render_track(ti, track, &mut nodes, voices, fork);
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            // Per 1024 frames, so sub-block splits don't look cheaper.
+            let ns = started.elapsed().as_nanos() as f32 * 1024.0 / n.max(1) as f32;
+            let e = track.job_ns;
+            track.job_ns = if ns > e {
+                e + (ns - e) * 0.5
+            } else {
+                e + (ns - e) * 0.01
+            };
+        }
     }
 
     /// RT. The body of a track job, after its input bus was gathered into `track.a`.
@@ -1303,6 +1466,7 @@ impl JobCtx<'_> {
         track: &mut TrackRt,
         nodes: &mut NodeTable<'_>,
         voices: &mut [crate::warp::Voice],
+        fork: &dyn Fork,
     ) {
         let n = self.n;
         let off = self.off;
@@ -1494,26 +1658,15 @@ impl JobCtx<'_> {
         for k in 0..chain.len() {
             let (head, tail) = chain.split_at_mut(k + 1);
             let entry = &mut head[k];
-            *overflow |= entry.switch_notes(tail.first_mut().map(|e| &mut e.events));
-            entry.events.sort();
+            // Off = MIDI thru (v0.2 `midi-fx`, `ChainRt::route_midi`): its notes reach the
+            // next device (its own params don't). One still fading out runs without events.
+            *overflow |= entry.route_midi(tail.first_mut().map(|e| &mut e.events));
             *overflow |= entry.events.overflowed();
             let key = entry.key;
             // The bypass path keeps the input (`ChainRt::blend`), before anything writes it.
             entry.push_dry(a, n);
             // Sidechain PDC: delay the main signal before this entry if planned.
             rt_sidechain.align_main(key, a, n);
-            // Off = MIDI thru (v0.2 `midi-fx`): its notes reach the next device (its own
-            // params don't). One still fading out runs without events.
-            if !entry.is_enabled() {
-                if let Some(next) = tail.first_mut() {
-                    for e in entry.events.as_slice() {
-                        if !matches!(e.kind, EventKind::Param { .. }) {
-                            next.events.push(*e);
-                        }
-                    }
-                }
-                entry.events.clear();
-            }
             let runs = entry.runs();
             // Drum rack: pad chains feed the rack node's input (`crate::drum_rack`).
             if runs && !racks.is_empty() && racks.is_rack(key) {
@@ -1551,6 +1704,7 @@ impl JobCtx<'_> {
                     },
                     // Drum racks on instrument rack chains (`crate::drum_rack`).
                     Some(racks),
+                    fork,
                 );
             }
             modulation.pre_node(k, key, entry.events.as_slice(), a, n);
@@ -1642,9 +1796,7 @@ impl JobCtx<'_> {
                 chain_racks.finish(key, out_events);
             }
             // A device fading out sends no MIDI (it is thru already).
-            if !entry.is_enabled() {
-                out_events.clear();
-            }
+            entry.gate_output(out_events);
             match n_out {
                 0 => {}
                 1 => {
@@ -1751,6 +1903,61 @@ pub struct EngineHandle {
     analysis: Consumer<crate::analysis::AnalysisFrame>,
     /// Hardware I/O rings ([`crate::hw_io`], v0.3).
     pub(crate) hw_io: crate::hw_io::HwIoHandle,
+    /// Shared with [`Engine::suspend`].
+    suspend: Arc<AtomicBool>,
+    /// Measured job times per track (`Output::JobCost`), and the job graph of the last
+    /// publish for re-ranking with them ([`EngineHandle::poll`]).
+    job_costs: JobCosts,
+}
+
+/// The handle's side of measured job priorities (`crate::parallel`): the published graph's
+/// shape, the costs it was last ranked with, and the latest measurements.
+#[derive(Default)]
+struct JobCosts {
+    measured: std::collections::HashMap<TrackId, u32>,
+    /// Publish counter (`RenderSnapshot::seq`).
+    seq: u64,
+    /// Of snapshot `seq`: the job graph as ranked now, its tracks (job id = index) and their
+    /// static costs.
+    shape: Option<(crate::parallel::JobGraph, Vec<TrackId>, Vec<u64>)>,
+    /// Engine sample time of the last re-rank.
+    last: u64,
+}
+
+/// Re-rank at most this often (seconds of engine time).
+const RERANK_SECONDS: u64 = 2;
+/// A track's measured cost has to move by this factor before the graph is re-ranked.
+const RERANK_RATIO: f64 = 1.3;
+
+impl JobCosts {
+    /// Job costs (µs per 1024 frames, at least 1) of `tracks` from the measurements; tracks
+    /// not measured yet get their static cost scaled like the measured ones. `None` while
+    /// nothing is measured (hosts without a clock: wasm).
+    fn costs(&self, tracks: &[TrackId], statics: &[u64]) -> Option<Vec<u64>> {
+        let mut per_unit: Vec<f64> = tracks
+            .iter()
+            .zip(statics)
+            .filter_map(|(t, &c)| self.measured.get(t).map(|&ns| ns as f64 / c.max(1) as f64))
+            .collect();
+        if per_unit.is_empty() {
+            return None;
+        }
+        per_unit.sort_by(f64::total_cmp);
+        let unit = per_unit[per_unit.len() / 2];
+        Some(
+            tracks
+                .iter()
+                .zip(statics)
+                .map(|(t, &c)| {
+                    let ns = self
+                        .measured
+                        .get(t)
+                        .map_or(c as f64 * unit, |&ns| ns as f64);
+                    ((ns / 1000.0).round() as u64).max(1)
+                })
+                .collect(),
+        )
+    }
 }
 
 struct HandleSlot {
@@ -1772,6 +1979,21 @@ pub enum EngineError {
 }
 
 impl EngineHandle {
+    /// Suspend (`true`) or resume the audio thread's processing, effective at the next
+    /// block: suspended, [`Engine::process`] outputs silence and runs no graph work, while
+    /// everything sent here (nodes, graphs, media, transport) is still applied in order.
+    /// Hosts suspend while a project loads, so the partial graphs of a progressive load
+    /// never run and the callback can't fall behind. Lock-free (an atomic flag, never
+    /// lost to a full queue); everything sent before the call is applied before the change.
+    pub fn set_suspended(&self, suspended: bool) {
+        self.suspend.store(suspended, Ordering::Release);
+    }
+
+    /// The last value given to [`Self::set_suspended`].
+    pub fn suspended(&self) -> bool {
+        self.suspend.load(Ordering::Relaxed)
+    }
+
     fn send(&mut self, msg: Control) -> Result<(), EngineError> {
         self.control.push(msg).map_err(|_| EngineError::QueueFull)
     }
@@ -1886,6 +2108,24 @@ impl EngineHandle {
                 t.tap = Some(crate::mixer::stereo(self.config.max_block_size));
             }
         }
+        // Rank the jobs by measured times where known (`crate::parallel`).
+        self.job_costs.seq += 1;
+        snapshot.seq = self.job_costs.seq;
+        {
+            let jobs = &snapshot.rt.jobs;
+            let tracks: Vec<TrackId> = snapshot.desc.tracks.iter().map(|t| t.id).collect();
+            let statics: Vec<u64> = (0..tracks.len())
+                .map(|id| jobs.cost_of(id).unwrap_or(1))
+                .collect();
+            if let Some(costs) = self.job_costs.costs(&tracks, &statics) {
+                snapshot.rt.jobs = jobs.reweighted(|id| costs[id]);
+            }
+            let shape = snapshot
+                .rt
+                .jobs
+                .reweighted(|id| snapshot.rt.jobs.cost_of(id).unwrap_or(1));
+            self.job_costs.shape = Some((shape, tracks, statics));
+        }
         let latency = snapshot.latency();
         let hw = crate::hw_io::HwIoRt::for_graph(&snapshot.desc, self.config.max_block_size);
         self.send(Control::Swap(Box::new(snapshot), hw))?;
@@ -1937,12 +2177,57 @@ impl EngineHandle {
         while let Ok(msg) = self.out.pop() {
             match msg {
                 Output::Meter(m) => merge_meter(&mut out.meters, m),
+                Output::JobCost(track, ns) => {
+                    self.job_costs.measured.insert(track, ns);
+                }
                 Output::Overflow => out.event_overflow = true,
                 Output::Underruns(n) => out.underruns += n,
                 Output::PreviewEnded(id) => out.preview_ended = Some(id),
             }
         }
         out.playhead = Some(self.playhead());
+        self.rerank_jobs();
+    }
+
+    /// Non-RT. Re-rank the running graph's jobs with the measured job times when one of them
+    /// moved by more than [`RERANK_RATIO`] since the last ranking (at most every
+    /// [`RERANK_SECONDS`] of engine time): a new `JobGraph` is built here and swapped in by
+    /// the audio thread, nothing else of the snapshot changes.
+    fn rerank_jobs(&mut self) {
+        let now = self.playhead().sample_time;
+        let jc = &mut self.job_costs;
+        if now.saturating_sub(jc.last) < RERANK_SECONDS * self.config.sample_rate as u64 {
+            return;
+        }
+        let Some((shape, tracks, statics)) = &jc.shape else {
+            return;
+        };
+        let Some(costs) = jc.costs(tracks, statics) else {
+            return;
+        };
+        jc.last = now;
+        let moved = costs.iter().enumerate().any(|(id, &c)| {
+            let was = shape.cost_of(id).unwrap_or(1) as f64;
+            let r = c as f64 / was.max(1.0);
+            !(1.0 / RERANK_RATIO..=RERANK_RATIO).contains(&r)
+        });
+        if !moved {
+            return;
+        }
+        let jobs = shape.reweighted(|id| costs[id]);
+        let copy = jobs.reweighted(|id| costs[id]);
+        let seq = jc.seq;
+        if self
+            .control
+            .push(Control::Jobs {
+                seq,
+                jobs: Box::new(jobs),
+            })
+            .is_ok()
+            && let Some(s) = self.job_costs.shape.as_mut()
+        {
+            s.0 = copy;
+        }
     }
 
     /// Drain the analysis frames pushed since the last call ([`crate::analysis`], v0.2),

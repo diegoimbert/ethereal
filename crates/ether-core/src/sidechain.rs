@@ -26,7 +26,7 @@
 //!   is delayed by `L - L_sc` ([`Taps::read`]).
 //! - **RT.** Buffers and delay lines are allocated at compile; the audio thread copies,
 //!   delays and reads only. Other-track sources are copied at the start of the consumer's
-//!   job ([`Taps::gather`], the source finished in an earlier level); own-track sources at
+//!   job ([`Taps::gather`], the source finished before it); own-track sources at
 //!   the read. Snapshot swaps rebuild the delay lines (a sidechain edit may click once).
 //! - **Mute/solo.** They only silence what a track contributes to the mix, never what it feeds a
 //!   sidechain: the post-fader tap sits before the mute/solo gate (`engine.rs`), so soloing
@@ -375,6 +375,11 @@ impl Points {
         Some(&mut self.bufs[i].1)
     }
 
+    /// No point of this track is tapped.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.bufs.is_empty()
+    }
+
     /// RT. `point`'s last recorded signal.
     pub(crate) fn get(&self, point: ScPoint) -> Option<&Stereo> {
         self.find(point).map(|i| &self.bufs[i].1)
@@ -435,6 +440,11 @@ impl Taps {
         v
     }
 
+    /// RT. Whether entry `node` reads a sidechain or has a planned alignment.
+    pub(crate) fn has(&self, node: NodeKey) -> bool {
+        self.entries.binary_search_by(|e| e.node.cmp(&node)).is_ok()
+    }
+
     fn find(&mut self, node: NodeKey) -> Option<&mut EntryRt> {
         self.entries
             .binary_search_by(|e| e.node.cmp(&node))
@@ -442,8 +452,8 @@ impl Taps {
             .map(|i| &mut self.entries[i])
     }
 
-    /// RT. Start of the consumer's job: copy the other-track sources' taps (finished in an
-    /// earlier level). `source(s, point)` gives track `s`'s tapped buffer.
+    /// RT. Start of the consumer's job: copy the other-track sources' taps (finished before
+    /// this job). `source(s, point)` gives track `s`'s tapped buffer.
     pub(crate) fn gather<'s>(
         &mut self,
         n: usize,

@@ -134,6 +134,7 @@ MIDI effects go on MIDI tracks, before the instrument.
 | **velocity** | reshapes velocities with a curve, an output range and some randomness |
 | **random** | randomly changes pitches (optionally within the scale), velocity, timing and length. It's driven by a **seed**, so the same seed gives the same result every time you play or export. |
 | **pitch** | transposes notes, and can block, fold or limit them to a key range |
+| **note blocker** | drops every note, so nothing after it plays: like muting the MIDI going in, while keeping the chain. CC, pitch bend and aftertouch still pass unless **block everything** is on. Notes held when you add it or switch it on stop, and switching it off doesn't replay them: they come back with the next note. |
 
 ## external audio effect
 

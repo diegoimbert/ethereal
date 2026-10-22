@@ -1,9 +1,10 @@
 name: Main status
 
 # The green/red signal of `main`: after a push run of CI, CI (Windows), Full product or Full product
-# (macOS, Windows) finishes, report the latest *finished* push run of each on the one open `ci-main` issue (scripts/ci/main-status.mjs):
-# a comment per red run, and the issue closes itself once every workflow's latest finished run is
-# green. A run skipped by the main concurrency group (reported as cancelled) is ignored.
+# (macOS, Windows) finishes, report the latest *finished* push run of each on the one open
+# `ci-main` issue (scripts/ci/main-status.mjs): a comment per red run, and the issue closes itself
+# once every workflow's latest finished run is green. A cancelled run (skipped by the main concurrency group, or superseded by main-supersede.yml)
+# is no signal: it never opens, comments on or closes the issue.
 #
 # Safety: `workflow_run` runs this file from the default branch with a write token; it checks out
 # `main` (never the triggering run's code) and reads run metadata only.

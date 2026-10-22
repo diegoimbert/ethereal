@@ -654,16 +654,13 @@ impl RacksRt {
             for k in 0..pad.chain.len() {
                 let (head, tail) = pad.chain.split_at_mut(k + 1);
                 let entry = &mut head[k];
-                overflow |= entry.switch_notes(tail.first_mut().map(|e| &mut e.events));
-                entry.events.sort();
+                // Off = MIDI thru, like on a track chain (`ChainRt::route_midi`): its notes
+                // reach the next entry. One fading out runs without events.
+                overflow |= entry.route_midi(tail.first_mut().map(|e| &mut e.events));
                 overflow |= entry.events.overflowed();
                 // The bypass path keeps the input (`ChainRt::blend`).
                 entry.push_dry(&pad.a, n);
                 sc.taps.align_main(entry.key, &mut pad.a, n);
-                // Off: no events (one fading out runs without them).
-                if !entry.is_enabled() {
-                    entry.events.clear();
-                }
                 let runs = entry.runs();
                 // A chain rack on the pad (v0.2): its chains feed its node's input first,
                 // like at a track-chain entry (`crate::rack_chains`).
@@ -682,6 +679,8 @@ impl RacksRt {
                         sc,
                         // No drum rack under a drum pad (`ether_model::rack`).
                         None,
+                        // Pad chains run on the track's job thread, one after another.
+                        &crate::parallel::SerialFork,
                     );
                 }
                 let Some(node) = nodes.get(entry.key) else {
@@ -731,10 +730,8 @@ impl RacksRt {
                 if nested {
                     chain_racks.finish(entry.key, &mut pad.out_events);
                 }
-                // Fading out: its MIDI goes nowhere.
-                if !entry.is_enabled() {
-                    pad.out_events.clear();
-                }
+                // Fading out: its MIDI goes nowhere (its input went thru).
+                entry.gate_output(&mut pad.out_events);
                 match n_out {
                     0 => {}
                     1 => {

@@ -353,6 +353,15 @@ where
             "selection": self.agent.selection_json(),
             "tracks": tracks,
         });
+        // Still loading: play/stop/record are refused until it is ready.
+        if let Some(l) = self.loading.progress() {
+            v["transport"]["loading"] = json!({
+                "plugins_loaded": l.plugins_loaded,
+                "plugins_total": l.plugins_total,
+                "media_loaded": l.media_loaded,
+                "media_total": l.media_total,
+            });
+        }
         if p.tempo_points.len() > 1 || p.time_signatures.len() > 1 {
             v["tempo_changes"] = json!(p.tempo_points.len() + p.time_signatures.len() - 2);
         }

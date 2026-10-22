@@ -621,13 +621,19 @@ dirty project before exiting. Dev port offset `remote: 4`
 wasm32). The core never spawns threads; hosts supply an RT-safe `parallel::ParallelExecutor`
 through `Engine::set_executor`. Jobs get disjoint `&mut` access to their tracks through
 raw pointers on the engine side, sound only because the executor runs every index exactly
-once and returns after all jobs finished (see `parallel.rs`). The snapshot is
-partitioned into DAG levels (routing, sends, resampling inputs, sidechains). Tracks of one
-level run as independent jobs (clips → automation → chain → fader → meters, into their own
-buffers). Bus mixing gathers each destination's inputs (at the start of that destination's
+once, each only after its sources, and returns after all jobs finished (see `parallel.rs`).
+The snapshot compiles a `parallel::JobGraph`: one job per track (clips → automation →
+chain → fader → meters, into its own buffers), an edge from every source (routing, sends,
+input taps, sidechains) to what it feeds. A job starts as soon as its own sources finished
+(per-job atomic counters, a lock-free ready bitset), the longest remaining path first
+(measured job times on native engines, static estimates elsewhere);
+there is no barrier between levels. Bus mixing gathers each destination's inputs (at the start of that destination's
 job) in the same fixed order as sequential processing, independent of worker count, so the
 output is bit-identical to sequential processing. Each node belongs to one chain, so jobs
-need no locks.
+need no locks. Inside a job, the chains of an audio rack (instrument or audio effect, two or
+more chains, nothing in them reading or tapped by a sidechain, no nested rack) may run as
+sub-jobs on idle threads (`ParallelExecutor::execute_graph_forking`, `parallel::Fork`); the
+rack still mixes them in chain order, so this changes no bits either.
 
 ### 11.8 Web perf: graph codec
 `ether_core::codec::GraphCodec { encode, decode }` for the Worker → Worklet snapshot: exact
@@ -1016,9 +1022,14 @@ and each entry's `out_events` to the next entry. Contract: a MIDI effect has
 `ctx.events` and writes the transformed note/MIDI stream to `ctx.out_events`, forwarding what
 it doesn't transform and every `AllNotesOff`, never `Param` events; generated notes use ids
 `0x8000_0000 | n`; it only delays (never earlier than its input) and reports no latency.
-Stuck notes: an off device is MIDI thru, so switching any device on or off (switch or
-On/Off automation; track chain, rack chain or pad) sends `AllNotesOff` to the next device,
-and to the device itself when it comes back on; adding or removing a MIDI effect sends it to
+An off device is MIDI thru, as if absent, wherever it is (track chain, instrument / audio /
+MIDI effect rack chain at any depth, drum pad): the events it gets, minus its own `Param`s,
+go to the next device (or out of a MIDI effect rack chain it ends), and a device fading out
+sends no MIDI of its own. On/Off automation switches MIDI on the breakpoint's sample, like
+audio: events before it follow the old state, events from it on the new one.
+Stuck notes: switching any device on or off (switch or On/Off automation) sends
+`AllNotesOff` to the next device, and to the device itself when it comes back on (at the
+breakpoint's sample for automation); adding or removing a MIDI effect sends it to
 every entry of that chain; an `AllNotesOff` reaching a rack entry reaches all its chains or
 pads. A track that stops monitoring releases the live notes and sustain pedals it holds, and
 Stop releases every node's notes even while stopped.
@@ -1314,7 +1325,11 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   one wrapping cycle; `curve` omitted in JSON = the default pump). `Device::SetLfoCurve
   { device, curve }` replaces it (sanitized; one `DeviceChange::Kind`, one undo step); live
   nodes take it through `EngineBridge::update_builtin` → `Node::set_data`. Its presets
-  carry the curve in `Preset::kind`.
+  carry the curve in `Preset::kind`. Then `NoteBlocker` (`midi-fx`, no kind data): drops
+  every note-on (and the note-offs / per-note expressions of the notes it dropped); param 0
+  `Block Everything` (toggle, default off) drops every other MIDI message too. Note-offs of
+  notes it never saw and `AllNotesOff` pass; the engine's `AllNotesOff` on a MIDI-effect
+  change or switch releases what was held (`ether_devices::midi_fx`).
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.
@@ -1599,6 +1614,31 @@ pressing a pad (pointer, Space / Enter, or its play button) holds `[0x90, pad no
 the rack's track until release, so the note goes through the track chain, the rack and the
 pad's own chain (sampler slice, effects, choke group, pad mix) exactly like playback,
 instead of a `Media::Preview` of the whole file.
+### 13.18 Project loads suspend the engine
+Every load (`EtherController::load_project`: open, version restore, recovery, a joined
+session, and `LoadPlugins` out of safe mode) suspends the engine
+(`EngineBridge::set_suspended`, default a no-op; native: an atomic flag on the
+`EngineHandle`, never lost to a full queue; web: an `EngineMsg::Suspend` frame, in order on
+the control ring). A suspended `Engine::process` drains its rings (nodes, graphs, media and
+transport still arrive), drops live MIDI and preview notes, keeps the sample clock counting,
+outputs silence and runs no graph work; the transport does not move. The controller
+(`ether-controller/src/loading.rs`) resumes it once no plugin waits
+(`PLUGIN_LOAD_BUDGET_MS` batches), the last graph was accepted and the project's media
+load jobs are done. The first block after a suspension resets every node, sends
+all-notes-off, re-sends automation, chases notes and lets the mixer smoothers jump to their
+targets. With plugins, the load then lasts `PRIME_MS` (150 ms) more of rendered audio by the
+engine's clock (the plugins' first blocks, often slow, run with the transport stopped;
+`PRIME_TIMEOUT_MS` if that clock stands still). Meanwhile `TransportState::loading`
+carries `LoadProgress` (plugins and media, done / total) and `Transport::{Play, Stop,
+TogglePlay}` and `Recording::SetRecording` are refused (`InvalidState`,
+`error.project.loading`) before extensions see them: the UI, its shortcuts, MIDI-mapped
+controls, the agent tools and the API alike. Locate works. Edits work as usual: they apply
+to the document at once and are heard when the load ends (the graph keeps being
+republished while suspended). The UI disables play, stop and record and their keys, and
+shows the progress in the transport bar (`ui/src/features/transport-bar/loading.ts`).
+`AudioShared::overruns` counts native callbacks longer than their buffer
+(`ether-native/tests/it/project_load_xruns.rs` measures a load with and without the
+suspension).
 ## 13. Agent API (docs/MCP.md)
 
 - Protocol (`ether_protocol::agent`, exported to TS): `Command::Agent(AgentCommand)`.
