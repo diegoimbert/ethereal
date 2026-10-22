@@ -3,8 +3,8 @@ import { contributions } from "@/ext";
 import "./transport-bar.css";
 import { useEffect, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import type { EngineStatus, GestureId, TimeSignaturePoint } from "@/generated";
-import { Circle, Metronome, Pause, Play, Redo2, Repeat, Square, Undo2 } from "lucide-react";
+import type { EngineStatus, GestureId, LoadProgress, TimeSignaturePoint } from "@/generated";
+import { Circle, LoaderCircle, Metronome, Pause, Play, Redo2, Repeat, Square, Undo2 } from "lucide-react";
 import { Button, DismissibleError, Menu, Popover } from "@/kit";
 import { notify } from "@/features/notifications";
 import { timeSignaturePoints, useCpuLoad, usePlayhead, useProjectStore, useReadOnly, useRecordSupport } from "@/state";
@@ -17,7 +17,7 @@ import { CaptureButton } from "@/features/capture";
 import { KeyboardMidiButton } from "@/features/keyboard-midi";
 import { MetronomePanel } from "@/features/tempo";
 import { midiTarget } from "@/features/midi-learn/targets";
-import { tText, useT } from "@/i18n";
+import { formatNumber, tText, useT } from "@/i18n";
 import { CommitField } from "./CommitField";
 import { diskTitle, useDiskStore } from "./disk";
 import { errorMessage, isTextEntry, useEngineCommands, useEngineEvent, useOptionalConnection, useOptionalTransport } from "./engine";
@@ -35,13 +35,16 @@ import {
   parseSignature,
 } from "./format";
 import { useCompactTopBar } from "./compact";
-import { useProjectLoading } from "./loading";
+import { loadFraction, loadingText, useProjectLoading } from "./loading";
 import { LoadingStatus } from "./LoadingStatus";
+import { useRendering } from "./rendering";
+import { RenderingStatus } from "./RenderingStatus";
 import { useMobileUi } from "@/features/mobile/mode";
 
 export { COMPACT_TOP_BAR_QUERY, useCompactTopBar } from "./compact";
 export { loadingText, projectLoading, refuseWhileLoading, useProjectLoading } from "./loading";
 export { LoadingStatus } from "./LoadingStatus";
+export { RenderingStatus } from "./RenderingStatus";
 
 const EMPTY_POINTS: TimeSignaturePoint[] = [];
 
@@ -71,6 +74,11 @@ export function TransportBar() {
   // An extension says nothing here can play now (e.g. joined with no engine): the reason.
   const extBlocked = useTransportBlocked();
   const blocked = loading ? t("error.project.loading") : extBlocked;
+  // A render runs (the live engine is paused): play and stop play what is rendered so far,
+  // record waits until it ends. A render with nothing to preview can't play at all.
+  const render = useRendering();
+  const recordBlocked = blocked ?? (render ? t("error.render.running") : null);
+  const playBlocked = blocked ?? (render && !render.preview ? t("error.render.no_preview") : null);
   const compact = useCompactTopBar();
   const recordUnsupported = useRecordSupport((s) => s.unsupported);
   // The metronome's settings: a right-click on its button.
@@ -132,9 +140,11 @@ export function TransportBar() {
             tone="ghost"
             aria-label={playing ? t("shell.transport.stop") : t("shell.transport.play")}
             title={
-              blocked
-                ? blocked
-                : playKey
+              playBlocked
+                ? playBlocked
+                : render && !playing
+                  ? t("shell.transport.rendering_title")
+                  : playKey
                   ? t(playing ? "shell.transport.stop_key" : "shell.transport.play_key", { key: playKey })
                   : t(playing ? "shell.transport.stop" : "shell.transport.play")
             }
@@ -142,7 +152,7 @@ export function TransportBar() {
             className="eth-tb__btn eth-tb__play"
             data-tour="play"
             {...midiTarget({ type: "Transport", action: "TogglePlay" })}
-            disabled={transportOff || (!!blocked && !playing)}
+            disabled={transportOff || (!!playBlocked && !playing)}
             onClick={togglePlay}
           >
             {playing ? <Pause aria-hidden /> : <Play aria-hidden />}
@@ -167,11 +177,11 @@ export function TransportBar() {
               <Button
                 tone="ghost"
                 aria-label={t("shell.transport.record")}
-                title={recordUnsupported ?? blocked ?? t("shell.transport.record_title")}
+                title={recordUnsupported ?? recordBlocked ?? t("shell.transport.record_title")}
                 active={recording}
                 className="eth-tb__btn eth-tb__record"
                 {...midiTarget({ type: "Transport", action: "ToggleRecord" })}
-                disabled={transportOff || !!recordUnsupported || (!!blocked && !recording)}
+                disabled={transportOff || !!recordUnsupported || (!!recordBlocked && !recording)}
                 onClick={() => void send(cmd("Recording", { type: "SetRecording", enabled: !recording }))}
               >
                 <Circle aria-hidden />
@@ -183,6 +193,7 @@ export function TransportBar() {
           {/* keyboard-midi: play notes from the computer keyboard (M). */}
           {!readOnly && <KeyboardMidiButton className="eth-tb__btn" />}
           {loading && <LoadingStatus progress={loading} compact={compact} />}
+          {render && !loading && <RenderingStatus state={render} compact={compact} />}
         </div>
 
         <span className="eth-tb__divider" aria-hidden />
@@ -321,8 +332,10 @@ export function PositionDisplay() {
   const mobile = useMobileUi((s) => s.enabled);
   const compact = useCompactTopBar() && !mobile;
   const [showBars, setShowBars] = useState(false);
+  const loading = useProjectLoading();
   const beats = frame?.transport.position ?? 0;
   const seconds = frame?.transport.seconds ?? 0;
+  if (loading) return <PositionLoading progress={loading} compact={compact} />;
   if (compact) {
     return (
       <button
@@ -346,6 +359,32 @@ export function PositionDisplay() {
       <output className="eth-tb__time" data-testid="position-time">
         {formatSeconds(seconds)}
       </output>
+    </div>
+  );
+}
+
+/**
+ * The position while the project loads (#260): "loading" and a spinner in the bars' place, the
+ * load's percent in the time's (compact: the first alone). The same boxes (their min widths),
+ * so the bar doesn't move when the time comes back.
+ */
+function PositionLoading({ progress, compact }: { progress: LoadProgress; compact: boolean }) {
+  const t = useT();
+  const label = t("shell.transport.position_loading");
+  const percent = formatNumber(loadFraction(progress), { style: "percent", maximumFractionDigits: 0 });
+  return (
+    <div
+      className="eth-tb__position eth-tb__position--loading"
+      data-compact={compact || undefined}
+      aria-label={`${label} ${percent}`}
+      title={loadingText(progress)}
+      data-testid="position-loading"
+    >
+      <output className="eth-tb__bars">
+        <LoaderCircle className="eth-tb__position-spin" aria-hidden />
+        <span className="eth-tb__position-loading">{label}</span>
+      </output>
+      {!compact && <output className="eth-tb__time">{percent}</output>}
     </div>
   );
 }

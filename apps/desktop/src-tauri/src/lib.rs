@@ -36,6 +36,7 @@ pub mod log_file;
 mod main_queue;
 pub mod path_drop;
 pub mod quit;
+mod text_file;
 
 /// The app's version: the release's `ETHER_RELEASE_VERSION`, else the repo `VERSION` file
 /// (`build.rs`), never `tauri.conf.json`'s placeholder.
@@ -628,7 +629,9 @@ pub fn run_with(context: tauri::Context<tauri::Wry>, ext: DesktopExt) {
                 quit::app_quit_cancel,
                 app_menu::menu_set_shortcuts,
                 app_menu::menu_native_edit,
-                app_menu::menu_set_labels
+                app_menu::menu_set_labels,
+                text_file::text_file_save,
+                text_file::text_file_open
             ],
         ))
         .build(context)

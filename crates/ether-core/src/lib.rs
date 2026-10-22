@@ -58,6 +58,7 @@ pub mod plugin;
 pub mod preview;
 pub mod rack_chains;
 pub mod recording;
+pub mod render_preview;
 mod sched;
 mod sidechain;
 pub mod stream_tap;

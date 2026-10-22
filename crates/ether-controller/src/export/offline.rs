@@ -24,10 +24,9 @@ pub fn engine_err(e: ether_core::EngineError) -> String {
     format!("offline engine: {e}")
 }
 
-/// The project's tempo map for the engine (beats ↔ seconds of a render).
-pub fn tempo_rt(p: &Project) -> TempoMapRt {
-    let map = p.tempo_map();
-    let tempo: Vec<TempoPointDesc> = map
+/// The project's tempo points for the engine.
+pub fn tempo_points(p: &Project) -> Vec<TempoPointDesc> {
+    p.tempo_map()
         .tempo
         .iter()
         .map(|t| TempoPointDesc {
@@ -35,7 +34,13 @@ pub fn tempo_rt(p: &Project) -> TempoMapRt {
             bpm: t.bpm,
             curve: t.curve,
         })
-        .collect();
+        .collect()
+}
+
+/// The project's tempo map for the engine (beats ↔ seconds of a render).
+pub fn tempo_rt(p: &Project) -> TempoMapRt {
+    let map = p.tempo_map();
+    let tempo = tempo_points(p);
     let sigs: Vec<TimeSignatureDesc> = map
         .signatures
         .iter()

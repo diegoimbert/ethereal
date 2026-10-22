@@ -112,6 +112,7 @@ pub mod project_export;
 pub mod racks;
 #[doc(hidden)]
 pub mod recording;
+pub mod rendering;
 #[doc(hidden)]
 pub mod resolver;
 // The default sample pack (docs/SAMPLES.md).
@@ -263,6 +264,29 @@ pub trait EngineBridge {
     fn set_suspended(&mut self, suspended: bool) -> Result<(), BridgeError> {
         let _ = suspended;
         Ok(())
+    }
+    /// While suspended for a render, play its master as far as it is rendered (CONTRACTS.md
+    /// §13.20, `ether_core::render_preview`): a new, empty preview of `spec`, replacing
+    /// any. The default (engines that can't) says `Unsupported`: the render then has no
+    /// preview.
+    fn begin_render_preview(
+        &mut self,
+        spec: ether_core::render_preview::PreviewSpec,
+    ) -> Result<(), BridgeError> {
+        let _ = spec;
+        Err(BridgeError::Unsupported("render preview".into()))
+    }
+    /// Append the next rendered master frames (planar stereo) to the preview.
+    fn push_render_preview(&mut self, left: &[f32], right: &[f32]) {
+        let _ = (left, right);
+    }
+    /// The render ended: drop the preview (the engine plays silence again until resumed).
+    fn end_render_preview(&mut self) {}
+    /// Worker threads for an offline render while the live engine is suspended for it
+    /// (its own workers idle meanwhile): a fresh pool, dropped with the render. `None`
+    /// (the default; hosts without threads): the render runs on the calling thread only.
+    fn offline_executor(&mut self) -> Option<Box<dyn ether_core::parallel::ParallelExecutor>> {
+        None
     }
     fn poll(&mut self, out: &mut EngineOutputs);
 
@@ -759,6 +783,8 @@ where
     pub discarded: Option<ether_core::protocol::model::ProjectId>,
     /// The project load in progress: the engine is suspended until it ends (`loading`).
     pub loading: loading::LoadState,
+    /// The render in progress: the engine is suspended and plays its preview (`rendering`).
+    pub rendering: rendering::RenderSuspension,
     pub outputs: EngineOutputs,
     /// An extension's own state (`ext` module; `()` without one).
     pub ext: X,
@@ -840,6 +866,7 @@ where
             last_transport: None,
             discarded: None,
             loading: Default::default(),
+            rendering: Default::default(),
             outputs: EngineOutputs::default(),
             config,
             ext,
