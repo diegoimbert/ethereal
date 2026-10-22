@@ -1231,7 +1231,10 @@ pub fn modulation_command(ctx: &mut DocCtx, command: &ModulationCommand) -> CmdR
                     modulator(ctx, *m)?;
                 }
                 ModSource::Macro { rack: r, .. } => {
-                    rack(ctx, *r)?;
+                    // A chain rack or a drum rack (both have the 8 macros).
+                    if !ctx.device(*r)?.kind.is_any_rack() {
+                        return Err(invalid(format!("device {r} is not a rack")));
+                    }
                 }
             }
             if ctx

@@ -224,6 +224,9 @@ pub enum PresetModTarget {
     Rack,
     /// `PresetRack::chains[chain].devices[device]`.
     ChainDevice { chain: u32, device: u32 },
+    /// `PresetRack::pads[pad].devices[device]` (a drum rack's macros and modulators;
+    /// additive).
+    PadDevice { pad: u32, device: u32 },
 }
 
 /// Parse and validate a preset file (format tag, version, device/kind consistency).
@@ -251,7 +254,6 @@ pub fn load_preset(json: &str) -> Result<Preset, FileError> {
             PresetDevice::Builtin { device } => Some(*device),
             PresetDevice::Plugin { .. } => None,
         };
-        let drum = ty == Some(BuiltinDeviceType::DrumRack);
         // Chain racks store chains, drum racks pads (unique notes, valid choke groups).
         let is_rack = match ty {
             Some(t) if t.is_rack() => rack.pads.is_empty(),
@@ -272,10 +274,7 @@ pub fn load_preset(json: &str) -> Result<Preset, FileError> {
         };
         let refs_ok = rack.mappings.iter().all(|m| {
             let source = match m.source {
-                // Drum racks have no macros.
-                PresetModSource::Macro { index } => {
-                    !drum && usize::from(index) < crate::rack::RACK_MACROS as usize
-                }
+                PresetModSource::Macro { index } => index < crate::rack::RACK_MACROS,
                 PresetModSource::Modulator { index } => (index as usize) < rack.modulators.len(),
             };
             let target = match m.target {
@@ -284,6 +283,10 @@ pub fn load_preset(json: &str) -> Result<Preset, FileError> {
                     .chains
                     .get(chain as usize)
                     .is_some_and(|c| (device as usize) < c.devices.len()),
+                PresetModTarget::PadDevice { pad, device } => rack
+                    .pads
+                    .get(pad as usize)
+                    .is_some_and(|p| (device as usize) < p.devices.len()),
             };
             source && target && m.depth.is_finite()
         });

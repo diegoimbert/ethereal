@@ -631,6 +631,59 @@ fn synced_tremolo_follows_the_song_position() {
     }
 }
 
+/// Synced to 1/4 from beat 0.4 like above, with `Phase` / `Invert` / `Hardness`: the minimum
+/// moves by the phase (90° → beat n + 0.5) or half a cycle (inverted → n + 0.25), and the
+/// hardened sine spends longer near its limits (more samples near the extremes).
+#[test]
+fn tremolo_phase_invert_and_hardness() {
+    let bpm = 120.0;
+    let run = |extra: &[(ParamId, f64)]| {
+        let x = vec![1.0f32; secs(3.0)];
+        let mut params = vec![
+            (tremolo::SYNC, 1.0),
+            (tremolo::SYNC_RATE, 8.0),
+            (tremolo::DEPTH, 100.0),
+        ];
+        params.extend_from_slice(extra);
+        let mut d = device(BuiltinDeviceType::Tremolo, &params);
+        let play = Play {
+            playing: true,
+            bpm,
+            start: 0.4,
+        };
+        let [l, _] = render_with(d.as_mut(), [&x, &x], &[], BLOCK, play);
+        l
+    };
+    let spb = 60.0 / bpm * f64::from(SR);
+    let min_phase = |l: &[f32]| {
+        let beat = ((l.len() as f64 / spb) + 0.4).floor() - 1.0;
+        let from = ((beat - 0.4) * spb) as usize;
+        let argmin = (from..from + spb as usize)
+            .min_by(|&a, &b| l[a].partial_cmp(&l[b]).unwrap())
+            .unwrap();
+        (argmin as f64 / spb + 0.4).rem_euclid(1.0)
+    };
+    let shifted = min_phase(&run(&[(tremolo::PHASE, 90.0)]));
+    assert!((shifted - 0.5).abs() < 0.01, "{shifted}");
+    let inverted = min_phase(&run(&[(tremolo::INVERT, 1.0)]));
+    assert!((inverted - 0.25).abs() < 0.01, "{inverted}");
+    let near_limits = |l: &[f32]| {
+        l[secs(1.0)..]
+            .iter()
+            .filter(|v| **v < 0.1 || **v > 0.9)
+            .count()
+    };
+    let (soft, hard) = (run(&[]), run(&[(tremolo::HARDNESS, 100.0)]));
+    assert!(
+        near_limits(&hard) > 2 * near_limits(&soft),
+        "{} vs {}",
+        near_limits(&hard),
+        near_limits(&soft)
+    );
+    // Still between silence and unity.
+    assert!(hard.iter().all(|v| (-1e-6..=1.0 + 1e-6).contains(v)));
+}
+
 // ─── CPU cost (run with `--release -- --ignored --nocapture cpu_cost`) ───────────────────
 
 #[test]

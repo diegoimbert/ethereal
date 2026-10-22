@@ -1,0 +1,32 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "sub fuzz bass",
+    "device": {
+      "type": "Builtin",
+      "device": "Pedal"
+    },
+    "meta": {
+      "tags": [
+        "bass",
+        "fuzz",
+        "parallel"
+      ],
+      "author": "ethereal",
+      "description": "fuzz blended under a bass: the sub boost keeps the low end, the dry signal its body."
+    },
+    "params": {
+      "0": 2.0,
+      "1": 60.0,
+      "2": -100.0,
+      "3": 20.0,
+      "4": 0.0,
+      "5": -20.0,
+      "6": 1.0,
+      "7": 0.0,
+      "8": 50.0
+    }
+  }
+}

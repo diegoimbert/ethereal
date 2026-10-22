@@ -28,6 +28,7 @@ const GROUPS: &[(&str, &[BuiltinDeviceType])] = &[
             BuiltinDeviceType::Bitcrusher,
             BuiltinDeviceType::AutoFilter,
             BuiltinDeviceType::Erosion,
+            BuiltinDeviceType::Pedal,
         ],
     ),
     (
@@ -119,7 +120,7 @@ fn mock_descriptors_match_rust() {
     }
     // Every v0.2 type belongs to exactly one group (the 9 earlier ones are in
     // `builtinDevices.ts`, the 3 v0.3 ones in `v03_descriptors.rs`, the FM Synth in
-    // `fm_synth.rs`; the later Vibrato and Volume LFO are in the fxModulation group, Erosion in fxColor).
+    // `fm_synth.rs`; the later Vibrato and Volume LFO are in the fxModulation group, Erosion and Pedal in fxColor).
     assert_eq!(covered, BuiltinDeviceType::ALL.len() - 9 - 3 - 1);
     // The EQ carries the v0.2 `EqCurve` layout: generated too.
     check_file(
@@ -374,6 +375,7 @@ fn check_rack_preset(id: &str, rack_type: BuiltinDeviceType, rack: &PresetRack) 
             PresetModTarget::ChainDevice { chain, device } => {
                 descs[chain as usize][device as usize].clone()
             }
+            PresetModTarget::PadDevice { .. } => panic!("{id}: a chain rack maps onto a pad"),
         };
         let info = desc.params.iter().find(|q| q.id == m.param);
         assert!(

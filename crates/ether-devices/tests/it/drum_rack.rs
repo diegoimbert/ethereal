@@ -240,9 +240,22 @@ fn create_passes_the_slices_to_the_sampler() {
 fn rack_node_applies_volume_and_pan_to_the_pad_mix() {
     let mut r = drum_rack::create();
     prepared(&mut *r);
-    assert_eq!(r.descriptor().params.len(), 2);
+    // Volume, pan, then the 8 macros (appended: ids 2..=9).
+    let params = r.descriptor().params;
+    assert_eq!(params.len(), 10);
+    for (i, p) in params[2..].iter().enumerate() {
+        assert_eq!(p.id.0, 2 + i as u32);
+        assert_eq!(p.name, format!("Macro {}", i + 1));
+        assert_eq!((p.min, p.max, p.default), (0.0, 1.0, 0.0));
+        assert!(p.automatable);
+    }
     let out = render(&mut *r, 0.5, &[], 512, |_, _| {});
     assert_eq!((out[0][10], out[1][10]), (0.5, 0.5), "unity by default");
+    // A macro is a modulation source: its value is kept for readback, the audio untouched.
+    r.set_param(drum_rack::params::MACRO_1, 0.75);
+    assert_eq!(r.param(drum_rack::params::MACRO_1), Some(0.75));
+    let out = render(&mut *r, 0.5, &[], 512, |_, _| {});
+    assert_eq!((out[0][10], out[1][10]), (0.5, 0.5));
 
     r.set_param(drum_rack::params::VOLUME, -6.0);
     r.set_param(drum_rack::params::PAN, 0.5);

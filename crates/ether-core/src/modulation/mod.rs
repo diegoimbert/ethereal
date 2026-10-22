@@ -138,7 +138,8 @@ pub struct ModulatorDesc {
 pub enum ModSourceDesc {
     /// Index into `ModulationDesc::modulators`.
     Modulator(u32),
-    /// Macro `index` of the rack node `rack` (its param `index`, plain 0..=1).
+    /// Macro `index` of the rack node `rack` (its param `MacroDesc::first + index`, plain
+    /// 0..=1).
     Macro { rack: NodeKey, index: u8 },
 }
 
@@ -162,6 +163,9 @@ pub struct ModMappingDesc {
 pub struct MacroDesc {
     pub rack: NodeKey,
     pub values: [f64; MACROS],
+    /// Param id of macro 0 (0 for chain racks; a drum rack's follow its volume and pan).
+    #[serde(default)]
+    pub first: u32,
 }
 
 /// PDC inputs of envelope-follower sidechains (from `graph.rs`).
@@ -543,6 +547,8 @@ struct Target {
 #[derive(Debug)]
 struct MacroRt {
     rack: NodeKey,
+    /// Param id of macro 0.
+    first: u32,
     values: [f64; MACROS],
     changes: [(u32, u8, f64); MAX_CHANGES],
     n_changes: usize,
@@ -673,6 +679,7 @@ impl ModulationRt {
             .iter()
             .map(|m| MacroRt {
                 rack: m.rack,
+                first: m.first,
                 values: m.values.map(|v| v.clamp(0.0, 1.0)),
                 changes: [(0, 0, 0.0); MAX_CHANGES],
                 n_changes: 0,
@@ -830,15 +837,18 @@ impl ModulationRt {
         plain: f64,
         offset: u32,
     ) -> bool {
-        if (param.0 as usize) < MACROS
-            && let Some(m) = self.macros.iter_mut().find(|m| m.rack == node)
+        if let Some(m) = self
+            .macros
+            .iter_mut()
+            .find(|m| m.rack == node && param.0.wrapping_sub(m.first) < MACROS as u32)
         {
+            let index = (param.0 - m.first) as u8;
             let v = if plain.is_finite() {
                 plain.clamp(0.0, 1.0)
             } else {
                 0.0
             };
-            push_change(&mut m.changes, &mut m.n_changes, (offset, param.0 as u8, v));
+            push_change(&mut m.changes, &mut m.n_changes, (offset, index, v));
             return true;
         }
         let Ok(i) = self

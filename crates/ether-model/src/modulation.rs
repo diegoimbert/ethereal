@@ -10,11 +10,13 @@
 //! - A [`ModMapping`] routes a [`ModSource`] to one param of one device with a bipolar
 //!   `depth` in `-1..=1` (normalized param units). Sources:
 //!   - `Modulator { modulator }`: may target params of the modulator's host device and, when
-//!     the host is a rack, params of the devices on the rack's chains; never the rack's own
-//!     macros (no modulation of modulation in v0.2).
-//!   - `Macro { rack, index }`: macro `index` (`0..RACK_MACROS`) of a rack; may target params
-//!     of the devices on that rack's chains, and the rack's own params from
-//!     `RACK_SELECTOR_PARAM` on (never its macros).
+//!     the host is a rack (a drum rack included), params of the devices inside it at any
+//!     depth (`Project::is_inside`: its chains or pads, and those of the racks nested in
+//!     them); never the rack's own macros (no modulation of modulation in v0.2).
+//!   - `Macro { rack, index }`: macro `index` (`0..RACK_MACROS`) of a rack or a drum rack
+//!     (param `crate::rack::macro_param(type, index)`); may target params of the devices
+//!     inside that rack at any depth, and the rack's own non-macro params (a chain rack's
+//!     from `RACK_SELECTOR_PARAM` on, a drum rack's volume and pan).
 //! - One mapping per `(source, device, param)`.
 //! - **Device on/off** ([`DEVICE_ENABLED_PARAM`], any device kind, plugins included): the
 //!   reserved param id `u32::MAX` (CLAP's `CLAP_INVALID_ID`, VST3's `kNoParamId`, so no
@@ -134,7 +136,7 @@ pub enum ModSource {
     Modulator {
         modulator: ModulatorId,
     },
-    /// Macro `index` (`0..RACK_MACROS`) of a rack device.
+    /// Macro `index` (`0..RACK_MACROS`) of a rack device (a chain rack or a drum rack).
     Macro {
         rack: DeviceId,
         index: u8,

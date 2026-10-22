@@ -75,7 +75,7 @@ pub mod midi_effect_rack {
 /// chains' devices is the rack view the device panel mounts under it (`ui/src/features/racks`),
 /// so the read-only `RackChains` widget is not repeated here.
 fn rack_layout() -> DeviceLayout {
-    let mut macros = item(Widget::Macros, WidgetSize::Medium);
+    let mut macros = item(Widget::Macros { first: ParamId(0) }, WidgetSize::Medium);
     macros.colspan = 4;
     let mut selector = knob(instrument_rack::CHAIN_SELECTOR, WidgetSize::Small);
     selector.label = Some("Chain Select".into());

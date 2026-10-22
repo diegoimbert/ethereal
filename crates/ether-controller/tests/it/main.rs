@@ -20,6 +20,7 @@ mod comping;
 mod contract_vectors;
 mod crossfades;
 mod drum_rack;
+mod drum_rack_macros;
 mod drum_rack_presets;
 mod engine;
 mod export;
