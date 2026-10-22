@@ -7,7 +7,10 @@
 //! - **Auto-Pan**: balance `Depth × lfo` (`-1` = left). The louder side stays at unity and
 //!   the other follows an equal-power curve (no level boost); `Stereo Phase` is ignored.
 //!
-//! The gain signal is smoothed by a 1 ms one-pole so square and saw edges don't click.
+//! The waveform starts `Phase` degrees in (against the song position when synced), is
+//! pushed to its limits by `Hardness` (`tanh(k·x) / tanh(k)`) and flipped by `Invert` (Live's
+//! Auto Pan Offset, Shape and Invert). The gain signal is smoothed by a 1 ms one-pole so
+//! square and saw edges don't click (and so a jump of `Phase` doesn't either).
 
 use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::{BuiltinDeviceType, ParamId};
@@ -22,6 +25,33 @@ use crate::util::{self, db_to_amp};
 const N: usize = p::COUNT;
 /// Edge smoothing of the gain signal (ms).
 const EDGE_MS: f32 = 1.0;
+/// `Hardness` 100 % as the waveshaper's `k` (`tanh(k·x) / tanh(k)`: a sine ends up close to
+/// a square with rounded edges).
+const HARDNESS_K: f32 = 8.0;
+
+/// The LFO waveform with `Phase`, `Hardness` and `Invert` applied.
+#[derive(Clone, Copy)]
+struct Wave {
+    shape: Shape,
+    /// Start offset, cycles.
+    offset: f64,
+    /// Waveshaper `k` (0 = off).
+    hardness: f32,
+    sign: f32,
+}
+
+impl Wave {
+    #[inline]
+    fn at(self, phase: f64) -> f32 {
+        let x = self.shape.at(phase + self.offset);
+        let x = if self.hardness > 1e-3 {
+            (self.hardness * x).tanh() / self.hardness.tanh()
+        } else {
+            x
+        };
+        self.sign * x
+    }
+}
 
 pub(super) struct Tremolo {
     params: Params<N>,
@@ -80,15 +110,25 @@ impl Tremolo {
 
     /// Modulation gains `[left, right]` for the LFO phase `phase`.
     #[inline]
-    fn gains(auto_pan: bool, shape: Shape, phase: f64, depth: f32, stereo: f32) -> [f32; 2] {
+    fn gains(auto_pan: bool, wave: Wave, phase: f64, depth: f32, stereo: f32) -> [f32; 2] {
         if auto_pan {
-            let pan = (depth * shape.at(phase)).clamp(-1.0, 1.0);
+            let pan = (depth * wave.at(phase)).clamp(-1.0, 1.0);
             let theta = (pan + 1.0) * std::f32::consts::FRAC_PI_4;
             let s2 = std::f32::consts::SQRT_2;
             [(s2 * theta.cos()).min(1.0), (s2 * theta.sin()).min(1.0)]
         } else {
-            let g = |ph: f64| 1.0 - depth * (1.0 - (shape.at(ph) + 1.0) * 0.5);
+            let g = |ph: f64| 1.0 - depth * (1.0 - (wave.at(ph) + 1.0) * 0.5);
             [g(phase), g(phase + f64::from(stereo))]
+        }
+    }
+
+    /// The waveform as the params shape it.
+    fn wave(&self) -> Wave {
+        Wave {
+            shape: Shape::ALL[self.params.index(p::SHAPE, Shape::ALL.len())],
+            offset: f64::from(self.params.get(p::PHASE)) / 360.0,
+            hardness: self.params.get(p::HARDNESS) * 0.01 * HARDNESS_K,
+            sign: if self.params.on(p::INVERT) { -1.0 } else { 1.0 },
         }
     }
 
@@ -110,7 +150,7 @@ impl Tremolo {
     ) {
         let step = LfoStep::new(self.rate(), ctx.transport, self.sample_rate);
         let auto_pan = self.params.index(p::MODE, 2) == 1;
-        let shape = Shape::ALL[self.params.index(p::SHAPE, Shape::ALL.len())];
+        let wave = self.wave();
         let channels = audio.outputs.len().min(2);
         let inputs = audio.inputs;
         let k = self.edge_coef;
@@ -119,7 +159,7 @@ impl Tremolo {
             let depth = self.depth.tick();
             let stereo = self.stereo.tick();
             let gain = self.gain.tick();
-            let g = Self::gains(auto_pan, shape, self.lfo.phase(), depth, stereo);
+            let g = Self::gains(auto_pan, wave, self.lfo.phase(), depth, stereo);
             for (ch, &target) in g.iter().enumerate().take(channels) {
                 let sm = &mut self.smoothed[ch];
                 *sm = crate::dsp::flush32(target + (*sm - target) * k);
@@ -141,10 +181,9 @@ impl Node for Tremolo {
 
     fn reset(&mut self) {
         let auto_pan = self.params.index(p::MODE, 2) == 1;
-        let shape = Shape::ALL[self.params.index(p::SHAPE, Shape::ALL.len())];
         self.smoothed = Self::gains(
             auto_pan,
-            shape,
+            self.wave(),
             self.lfo.phase(),
             self.params.get(p::DEPTH) * 0.01,
             self.params.get(p::STEREO_PHASE) / 360.0,
