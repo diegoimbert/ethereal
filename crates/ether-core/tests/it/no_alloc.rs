@@ -155,6 +155,7 @@ fn process_never_allocates() {
             warp: Some(ether_core::graph::WarpDesc {
                 mode: ether_core::protocol::model::WarpMode::Repitch,
                 markers: vec![(0.0, 0.0), (2.0, 1.3), (6.0, 2.9)],
+                formants: Default::default(),
             }),
             gain_envelope: None,
             transpose_envelope: None,

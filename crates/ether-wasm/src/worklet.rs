@@ -212,8 +212,9 @@ impl<M: RingMemory> EngineHost<M> {
         let config = web_engine_config(sample_rate);
         let latency = LatencyTracker::new(sample_rate, RENDER_QUANTUM, config.max_nodes);
         let mut parts = ether_core::create(config);
-        // Complex warp (feature `warp-complex`): the pure-Rust Signalsmith Stretch with the
-        // web preset; without it Complex clips play Repitch.
+        // Complex and Complex+ warp (feature `warp-complex`): the pure-Rust Signalsmith
+        // Stretch with the web preset, and Complex+; without them those clips play Repitch.
+        // The voice limit covers both.
         #[cfg(feature = "warp-complex")]
         {
             parts
@@ -221,6 +222,9 @@ impl<M: RingMemory> EngineHost<M> {
                 .set_stretcher_factory(Arc::new(ether_stretch::RustStretchFactory {
                     preset: ether_stretch::RustPreset::Web,
                 }));
+            parts
+                .handle
+                .set_plus_stretcher_factory(Arc::new(ether_stretch::PlusStretchFactory));
             parts.handle.set_stretch_voice_limit(WEB_STRETCH_VOICES);
         }
         let (tap_writer, tap) = stream_tap_ring(TAP_RING_FRAMES);

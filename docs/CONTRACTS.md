@@ -354,12 +354,16 @@ v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with sl
   path; for AU the id). `DeviceSpec::Plugin.format` and `ScanRequest.format` are optional
   (omitted = CLAP / inferred from the path). Details: `docs/PLUGIN-FORMATS.md`.
 - **`Stretcher`** (`ether-stretch`): `configure`, `reset`, latencies,
-  `set_transpose_semitones`, `seek`,
-  `process(input, in_frames, output, out_frames)`, plus a `StretcherFactory`. The
-  Signalsmith implementation is behind the native-only `signalsmith` feature; its
-  pure-Rust port (`RustStretcher`, feature `rust-stretch`, same algorithm and output) is
-  what the web Worklet uses (`ether-wasm` `warp-complex`, `RustPreset::Web`, voices capped
-  by `EngineHandle::set_stretch_voice_limit`).
+  `set_transpose_semitones`, `set_formants` (Complex+; others ignore it), `seek`,
+  `process(input, in_frames, output, out_frames)`, plus a `StretcherFactory`. After output
+  sample `o` the caller has fed input up to `src(o + output_latency) + input_latency`; output
+  `o` is then `src(o)`. The Signalsmith implementation (`WarpMode::Complex`) is behind the
+  native-only `signalsmith` feature; its pure-Rust port (`RustStretcher`, feature
+  `rust-stretch`, same algorithm and output) is what the web Worklet uses (`ether-wasm`
+  `warp-complex`, `RustPreset::Web`). Complex+ (`PlusStretcher`, `WarpMode::ComplexPlus`,
+  `rust-stretch`, `docs/WARP.md`) is the same code everywhere. Each mode has its own
+  factory (`EngineHandle::set_stretcher_factory`, `set_plus_stretcher_factory`) and voice
+  pool; `set_stretch_voice_limit` caps both together (the web: 12).
 
 ## 5. Controller: `crates/ether-controller`
 
@@ -440,7 +444,7 @@ v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with sl
   (`plugins-*`, `sandbox`); the native stream hooks keep their `Unsupported` defaults and
   `stream_capabilities` reports no native sender; collab connections and
   share signaling close at once (`fatal`, "not available in this build") (`net`);
-  Complex warp plays Repitch (`warp-complex`); the desktop agent bridge does not start
+  Complex and Complex+ warp play Repitch (`warp-complex`); the desktop agent bridge does not start
   (`mcp`). New gated code follows the same rule. Its tests declare `required-features`.
 
 ## 8. Decisions that extend or deviate from ARCHITECTURE.md
@@ -479,7 +483,9 @@ v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with sl
 4. **Automation override/re-enable.** Not in v0.1; no flag or command exists for it.
 5. **Group tracks.** In v0.1, via `parent` in the model and group bus routing in the
    render graph (`TrackDesc.output`/`group`).
-6. **Warp modes.** Repitch and Complex (Signalsmith) only.
+6. **Warp modes.** Repitch, Complex (Signalsmith) and Complex+ (ethereal's own stretcher,
+   with formant settings per clip: `WarpSettings::formants`, written only when not the
+   defaults). `WarpMode` is append-only.
 7. **Storage.** My original proposal (UI-side JSON save/OPFS) was rejected. All file
    handling is engine-side, as specified in §2b: a `ProjectStore` of UUIDv7-named project
    folders, a `Library` for the browser, and upload reserved for later.

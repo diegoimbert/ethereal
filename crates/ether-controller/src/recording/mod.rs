@@ -883,6 +883,7 @@ where
                             enabled: false,
                             mode: WarpMode::Complex,
                             source_bpm: Some(ctx.p().tempo_map().bpm_at(start)),
+                            formants: Default::default(),
                         };
                         doc::apply(ctx, &Command::Warp(WarpCommand::SetWarp { clip: id, warp }))?;
                         if as_takes {

@@ -46,7 +46,7 @@ const GAIN_MIN_DB: f32 = -48.0;
 /// Formant correction fades in between these output frequencies (Hz).
 const FORMANT_FADE_HZ: (f32, f32) = (100.0, 200.0);
 /// Most a frame's energy may change through the formant correction (dB).
-const FORMANT_ENERGY_DB: (f32, f32) = (-9.0, 6.0);
+const FORMANT_ENERGY_DB: (f32, f32) = (-3.0, 3.0);
 
 /// Static description of a resolution.
 #[derive(Clone, Copy, Debug)]

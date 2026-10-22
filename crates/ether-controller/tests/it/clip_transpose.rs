@@ -227,6 +227,7 @@ fn warped_complex_clip_keeps_its_length_repitch_warp_follows() {
             enabled: true,
             mode: WarpMode::Complex,
             source_bpm: Some(120.0),
+            formants: Default::default(),
         },
     }));
     f.transpose(c, -12.0);
@@ -241,6 +242,7 @@ fn warped_complex_clip_keeps_its_length_repitch_warp_follows() {
             enabled: true,
             mode: WarpMode::Repitch,
             source_bpm: Some(120.0),
+            formants: Default::default(),
         },
     }));
     f.transpose(d, 12.0);

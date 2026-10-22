@@ -287,6 +287,7 @@ fn a_warped_clip_mirrors_its_markers() {
             enabled: true,
             mode: WarpMode::Repitch,
             source_bpm: Some(120.0),
+            formants: Default::default(),
         },
     }));
     // Replace the pinned markers by a non-linear map: 0 → 0 s, 2 → 0.75 s, 6 → 2.5 s.

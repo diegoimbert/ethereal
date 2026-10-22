@@ -462,6 +462,7 @@ fn notes_map_through_warp_window_transpose_and_reverse() {
             enabled: true,
             mode: WarpMode::Complex,
             source_bpm: None,
+            formants: Default::default(),
         },
     }));
     // Window: skip the first beat (= first note), 2 beats long → notes 2..=4 of 6.

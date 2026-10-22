@@ -315,6 +315,7 @@ fn looping_transposed_and_repitched_clips_crossfade_without_clicks() {
                 warp: Some(WarpDesc {
                     mode: WarpMode::Repitch,
                     markers: vec![(0.0, 0.0), (8.0, 3.0)],
+                    formants: Default::default(),
                 }),
                 ..clip(1, 0.0, 3.0, 0.0)
             },

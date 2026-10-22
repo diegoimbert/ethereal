@@ -7,7 +7,7 @@
 
 use ether_protocol::model::{
     AutomationTarget, ClipId, CurveShape, DrumPadId, FadeCurve, InputTap, MediaId, MetronomeSound,
-    ParamId, SendId, TrackId, TrackKind, WarpMode,
+    ParamId, SendId, TrackId, TrackKind, WarpFormants, WarpMode,
 };
 use std::collections::BTreeSet;
 
@@ -296,6 +296,8 @@ pub struct WarpDesc {
     pub mode: WarpMode,
     /// `(content beat, source seconds)`, sorted, at least two.
     pub markers: Vec<(f64, f64)>,
+    /// Complex+'s formant settings (other modes ignore them).
+    pub formants: WarpFormants,
 }
 
 /// An automation curve resolved to an engine target.
@@ -1064,7 +1066,7 @@ pub fn compile_with(
             warp_scratch: t
                 .clips
                 .iter()
-                .any(|c| crate::warp::complex_warp(c).is_some())
+                .any(|c| crate::warp::stretched_warp(c).is_some())
                 .then(|| crate::warp::WarpScratch::new(f64::from(config.sample_rate), frames)),
             overflow: false,
             underruns: 0,
@@ -1222,6 +1224,7 @@ mod tests {
                 warp: Some(WarpDesc {
                     mode: WarpMode::Complex,
                     markers: vec![(0.0, 0.0), (1.0, 1.0)],
+                    formants: Default::default(),
                 }),
                 fade_in_curve: FadeCurve::default(),
                 fade_out_curve: FadeCurve::default(),

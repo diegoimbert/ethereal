@@ -332,9 +332,14 @@ impl NativeBridge {
         #[allow(unused_mut)] // the stretcher needs it with `warp-complex`
         let mut parts = ether_core::create(config);
         #[cfg(feature = "warp-complex")]
-        parts
-            .handle
-            .set_stretcher_factory(Arc::new(ether_stretch::SignalsmithFactory::default()));
+        {
+            parts
+                .handle
+                .set_stretcher_factory(Arc::new(ether_stretch::SignalsmithFactory::default()));
+            parts
+                .handle
+                .set_plus_stretcher_factory(Arc::new(ether_stretch::PlusStretchFactory));
+        }
         let shared = Arc::new(AudioShared::default());
         if let Some(root) = self.audio.recording.projects_root() {
             shared.recording.set_projects_root(root);

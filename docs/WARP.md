@@ -72,12 +72,27 @@ the web build.
    semitones). `envelope` (8–256, default 128, Live's Complex Pro "Envelope") sets the
    cepstral cutoff (half the value in samples at 44.1 kHz): lower for high voices, higher
    for low ones. The correction fades in above 100–200 Hz and a frame's energy may change by
-   at most −9/+6 dB (a sparse spectrum, e.g. one sine, has no meaningful envelope).
+   at most ±3 dB (loudness stays; a sparse spectrum, e.g. one sine, has no meaningful
+   envelope).
 
 **Latency** (48 kHz): input 3584 samples (half the long frame plus the transient lead),
 output 2048; compensated like Complex's (60 + 90 ms). **Real-time safety**: everything is
 allocated in `configure`; `process`, `seek`, `reset` and the parameter setters don't
 allocate or lock (tested with `assert_no_alloc`).
+
+### In the product
+
+`WarpMode::ComplexPlus` (append-only enum) with per-clip `WarpSettings::formants`
+(`amount` 0–1 shown as 0–100 %, `shift` ±24 st, `envelope` 8–256; written to documents
+only when not the defaults, so older projects re-save unchanged). The warp editor's toolbar
+and the inspector show the three fields for Complex+ clips; several selected clips edit
+together like the transpose (a drag moves each from its own value, a typed value sets all,
+differing values show as mixed). The engine gives Complex+ clips voices of their own
+(`set_plus_stretcher_factory`; desktop, server, offline render/bounce and the web worklet
+all register it), hands the formant settings to the stretcher every chunk, and plays a
+Complex+ clip straight (no stretcher) only at its source's speed with no transposition and
+no formant shift. Without the factory (a build without `warp-complex`) Complex+ plays
+Repitch, like Complex.
 
 ### Evaluation
 

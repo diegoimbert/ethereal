@@ -722,6 +722,7 @@ mod tests {
         let w = WarpDesc {
             mode: ether_protocol::model::WarpMode::Repitch,
             markers: vec![(0.0, 0.0), (4.0, 1.0), (8.0, 3.0)],
+            formants: Default::default(),
         };
         assert_eq!(source_seconds(Some(&w), 120.0, 2.0), 0.5);
         assert_eq!(source_seconds(Some(&w), 120.0, 6.0), 2.0);
