@@ -104,6 +104,20 @@ pub enum DeviceCommand {
         device: DeviceId,
         curve: LfoCurve,
     },
+    /// Rename macro `index` (`< RACK_MACROS`) of a rack (any rack type, drum racks
+    /// included; `ether_model::RackMacros`): trimmed, at most 64 chars; empty = the default
+    /// name ("Macro N"). One undo step.
+    RenameMacro {
+        device: DeviceId,
+        index: u8,
+        name: String,
+    },
+    /// Show the first `count` macros of a rack (`1..=RACK_MACROS`, default 8; clamped).
+    /// Hidden macros keep their values and mappings. One undo step.
+    SetMacroCount {
+        device: DeviceId,
+        count: u8,
+    },
 }
 
 /// A factory impulse response (v0.3, `fx-space`).

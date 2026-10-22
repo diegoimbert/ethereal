@@ -38,9 +38,7 @@ async function drumRackWithSynthPad() {
   const rack = Object.values(store().project!.devices).find((d) => d.name === "drum rack")!;
   await act(async () => {
     await mock!.send(cmd("DrumRack", { type: "AddPad", id: PAD, rack: rack.id, note: 36, name: "Kick" }));
-    await mock!.send(
-      cmd("DrumRack", { type: "InsertDevice", id: SYNTH, pad: PAD, device: { type: "Builtin", device: { type: "Synth" } }, before: null }),
-    );
+    await mock!.send(cmd("DrumRack", { type: "InsertDevice", id: SYNTH, pad: PAD, device: { type: "Builtin", device: { type: "Synth" } }, before: null }));
   });
   await flush();
   return rack;
@@ -82,9 +80,9 @@ describe("drum rack macros", () => {
     const maps = Object.values(store().project!.mod_mappings);
     expect(maps).toHaveLength(1);
     expect(maps[0]).toMatchObject({ source: { type: "Macro", rack: rack.id, index: 3 }, device: SYNTH, param: 0 });
-    // The rack's own macros are no target of its macros.
+    // The rack's own macros are no target of its macros: only "rename macro".
     const rackMenu = paramMenuEntries(project.devices[rack.id]!, { id: 2, name: "macro 1", automatable: true } as ParamInfo, () => {});
-    expect(rackMenu).toEqual([]);
+    expect(labels(rackMenu)).toEqual(["rename macro"]);
     expect(sent).toHaveLength(1);
   });
 
@@ -94,7 +92,15 @@ describe("drum rack macros", () => {
     const drums = Object.values(p0.devices).find((d) => d.name === "drum rack")!;
     // Group the drum rack into an instrument rack.
     await act(async () => {
-      await mock!.send(cmd("Rack", { type: "Group", rack: "01DRMACINST000000000000000", rack_type: "InstrumentRack", chain: "01DRMACCHAIN00000000000000", devices: [drums.id] }));
+      await mock!.send(
+        cmd("Rack", {
+          type: "Group",
+          rack: "01DRMACINST000000000000000",
+          rack_type: "InstrumentRack",
+          chain: "01DRMACCHAIN00000000000000",
+          devices: [drums.id],
+        }),
+      );
     });
     await flush();
     const p = store().project!;

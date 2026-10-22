@@ -640,13 +640,18 @@ fn track_ext() -> impl Strategy<Value = TrackExt> {
             mapping,
             base,
         });
-    let macro_desc = (node_key(), prop::array::uniform8(finite64()), any::<u32>()).prop_map(
-        |(rack, values, first)| MacroDesc {
+    let macro_desc = (
+        node_key(),
+        prop::array::uniform16(finite64()),
+        any::<u32>(),
+        any::<u32>(),
+    )
+        .prop_map(|(rack, values, first, upper)| MacroDesc {
             rack,
             values,
             first,
-        },
-    );
+            upper,
+        });
     let modulation = (
         vec(modulator, 0..3),
         vec(mapping, 0..3),

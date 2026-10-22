@@ -34,6 +34,7 @@ import {
   sourceSlot,
   switchDepth,
   useModMapping,
+  customMacroName,
 } from "./model";
 import { useModulatedValue } from "./readback";
 import "./modulation.css";
@@ -77,12 +78,13 @@ export function ParamModulation({ device, info, normalized }: ParamModulationPro
   if (!real) return <span className="eth-param__mod" aria-hidden="true" />;
 
   const macro = macroIndex(real, info.id);
+  const name = (macro !== null && customMacroName(real, macro)) || info.name;
   return (
     <>
       <span className="eth-param__mod" aria-hidden="true" />
-      {mappings.length > 0 && <Rings mappings={mappings} normalized={normalized} live={live} param={info.name} />}
-      {macro !== null && <MacroHandle rack={real.id} index={macro} name={info.name} />}
-      {target && mapping && <DropTarget source={mapping} device={real} param={info.id} label={t("modulation.target.modulate", { name: info.name })} />}
+      {mappings.length > 0 && <Rings mappings={mappings} normalized={normalized} live={live} param={name} />}
+      {macro !== null && <MacroHandle rack={real.id} index={macro} name={name} />}
+      {target && mapping && <DropTarget source={mapping} device={real} param={info.id} label={t("modulation.target.modulate", { name })} />}
     </>
   );
 }

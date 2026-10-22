@@ -12,6 +12,7 @@ mod common;
 #[global_allocator]
 static ALLOC: assert_no_alloc::AllocDisabler = assert_no_alloc::AllocDisabler;
 
+mod anticipation;
 mod base24_hooks;
 mod codec;
 mod codec_fixture;

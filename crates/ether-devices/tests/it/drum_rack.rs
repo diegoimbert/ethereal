@@ -240,9 +240,9 @@ fn create_passes_the_slices_to_the_sampler() {
 fn rack_node_applies_volume_and_pan_to_the_pad_mix() {
     let mut r = drum_rack::create();
     prepared(&mut *r);
-    // Volume, pan, then the 8 macros (appended: ids 2..=9).
+    // Volume, pan, then the 16 macros (appended: ids 2..=17).
     let params = r.descriptor().params;
-    assert_eq!(params.len(), 10);
+    assert_eq!(params.len(), 18);
     for (i, p) in params[2..].iter().enumerate() {
         assert_eq!(p.id.0, 2 + i as u32);
         assert_eq!(p.name, format!("Macro {}", i + 1));

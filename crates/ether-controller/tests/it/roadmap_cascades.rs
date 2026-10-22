@@ -170,7 +170,7 @@ fn rack_pads_cascade_duplicate_and_move_rules() {
     let mut d = Doc::new();
     let drums = d.track(TrackKind::Midi, "a1");
     let other = d.track(TrackKind::Midi, "a2");
-    let rack = d.device(drums, BuiltinDevice::DrumRack, None, "a0");
+    let rack = d.device(drums, BuiltinDevice::DrumRack { macros: None }, None, "a0");
     let kick = d.pad(rack, 36);
     let snare = d.pad(rack, 38);
     let kick_sampler = d.device(

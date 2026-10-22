@@ -635,6 +635,39 @@ more chains, nothing in them reading or tapped by a sidechain, no nested rack) m
 sub-jobs on idle threads (`ParallelExecutor::execute_graph_forking`, `parallel::Fork`); the
 rack still mixes them in chain order, so this changes no bits either.
 
+**Anticipative processing** (`EngineConfig::anticipative`, `crate::anticipation`; on in the
+desktop engine, off by default in the core, never on wasm32 or without worker threads).
+Tracks nobody listens to live render one block ahead of the output, so the real-time side
+(master and its chain) overlaps the next block's tracks instead of running alone at the end
+of each block.
+- *Real-time tracks*: monitored or armed tracks and tracks holding an external device
+  (`hw_io`), every track feeding one of them, the tracks writing the hardware output
+  (master), and everything downstream of those. Every other track is *anticipated*; every
+  source of an anticipated track is anticipated too.
+- *Timeline*: anticipated tracks render up to the next host block ahead
+  (`Engine::process_with_hint` tells its length; `process` assumes the same as this one).
+  The transport is decided where they render, and the real-time side renders the same planned
+  sub-blocks one block later, so both play the same timeline and the output is
+  **bit-identical** to the engine without anticipation for the same host block lengths. It
+  reads what anticipated tracks feed it (output, sends, sidechain points, input taps,
+  envelope-follower taps) from copies the tracks' jobs make (`Held`), never from their live
+  buffers.
+- *Latency* (the only audible difference): transport controls (play, stop, locate, loop)
+  take effect one block later everywhere; live parameter, fader, pan, send, mute/solo and
+  VCA changes, preview notes, and graph changes (snapshot swaps) reach anticipated tracks one
+  block later, real-time tracks at once. Output latency and PDC do not change.
+- *Changes of side* (arming or monitoring a track, routing it to or from a live track, the
+  switch): a track leaving the real-time side renders its block twice once (the current block
+  in real time, then the next ahead); a track joining it renders nothing for one block (its
+  readers take what it rendered ahead). A host block shorter than announced keeps the
+  remainder queued; a longer one renders the rest in real time; the timeline stays exact (the
+  sub-blocks are split differently, so only partition-sensitive devices may differ by
+  rounding). If a graph change forces a side change while more than one block is queued, what
+  was rendered ahead is dropped (a skip of up to one block on those tracks).
+- *Switch*: `EngineHandle::set_anticipative(bool)` (desktop: `anticipative` in
+  `<data_dir>/config/engine.json`, or `ETHER_ANTICIPATIVE=0|1`; on by default). Off, the
+  engine renders exactly as without it once the queued block has played.
+
 ### 11.8 Web perf: graph codec
 `ether_core::codec::GraphCodec { encode, decode }` for the Worker → Worklet snapshot: exact
 round trip, version byte first, unknown versions rejected (`CodecError::Version`). On the
@@ -1068,10 +1101,23 @@ runtime; `PresetEvent::Changed` after user-set changes. Sample-based presets car
   `Rack::InsertDevice`, `DrumRack::InsertDevice`) starts with one empty chain "chain 1"
   (id `derive_id(rack, 0)`) in the same undo step; instrument racks start empty, and
   duplicates, presets and loaded documents keep exactly their chains. New built-in
-  devices get the lowercase descriptor name on every insert path. Every rack's params: macros `0..8` (plain 0..1) and the chain
-  selector (`8`, 0..=127). A drum rack has the same 8 macros appended after its volume and
-  pan (params `2..10`, `ether_model::rack::{macro_param, macro_index}`; no selector);
-  `MacroDesc::first` tells the engine where a rack's macros start. Engine: `TrackDesc::chain_racks` (`ether_core::rack_chains`),
+  devices get the lowercase descriptor name on every insert path. Every rack's params: 16
+  macros (plain 0..1; macros 1..8 are params `0..8`, macros 9..16 were appended after the
+  chain selector: `9..17`) and the chain selector (`8`, 0..=127). A drum rack has the same 16
+  macros appended after its volume and pan (params `2..18`; no selector);
+  `ether_model::rack::{macro_param, macro_index}` map between the two for every type, and
+  `MacroDesc::{first, upper}` (graph codec v7) tell the engine where macros 1 and 9 sit.
+  **Macro bank** (`RackMacros { visible, names }` on the rack's `BuiltinDevice`, absent = the
+  defaults: 8 shown, no names): a rack shows its first `visible` (1..=16) macros, Live 11+'s
+  show/hide; hidden macros keep their values, automation and mappings (they still
+  modulate). `names[i]` is macro `i`'s custom name (trimmed, at most 64 chars; empty = "macro
+  N"). `Device::RenameMacro { device, index, name }` and `Device::SetMacroCount { device,
+  count }` are one `Kind` change each (undoable, shared like any edit); the node is kept
+  (`engine.rs` ignores the bank in its node signature). Rack presets carry a non-default
+  bank in `Preset::kind`; a rack preset without one resets the bank to the defaults. The
+  `Macros` widget (`first`, `upper`) shows the shown macros under their names with show one
+  more / hide the last buttons; double-click a name (or "rename macro" in the knob's menu)
+  to rename it. "Assign to macro ›" lists a rack's shown macros. Engine: `TrackDesc::chain_racks` (`ether_core::rack_chains`),
   run at the rack entry before the rack node (pre-wired like drum-rack pads: params,
   automation and latency already reach chain nodes).
 - Modulators live **inside any track-chain device** (not on drum-pad or rack-chain devices in

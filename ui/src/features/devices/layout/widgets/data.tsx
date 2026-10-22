@@ -6,19 +6,23 @@
 
 import clsx from "clsx";
 import { useRef, useState } from "react";
-import type { AnalysisData, MediaRef, ParamInfo, PeakData } from "@/generated";
+import { Minus, Plus } from "lucide-react";
+import type { AnalysisData, Command, MediaRef, ParamInfo, PeakData } from "@/generated";
+import { cmd } from "@/transport";
 import { useProjectStore } from "@/state";
 import { SamplerModeSwitch, SliceEditor } from "@/features/drum-rack/SliceEditor";
 import { slicesOf } from "@/features/drum-rack/padUtils";
 import { useOverviewPeaks } from "../../overviewPeaks";
 import { SampleSlot, useSampleDrop } from "../../SampleSlot";
 import { useLayoutContext, useParam, type ParamBinding } from "../context";
+import { customMacroName, RACK_MACROS, useMacroRename, visibleMacros } from "../macros";
+import { macrosWidgetParams } from "../model";
 import { freqToX } from "../curves";
 import { GridLines, Plot } from "../plot";
 import { useDeviceAnalysis } from "../seams";
 import { WidgetView } from "../Widget";
 import { Missing, TypedFrame, type TypedProps } from "./typed";
-import { clamp01 } from "@/kit";
+import { clamp01, IconButton } from "@/kit";
 import { sourceParam, useT } from "@/i18n";
 
 const HIT = 14;
@@ -314,18 +318,79 @@ export function MeterWidget({ widget: w, size, label }: TypedProps<"Meter">) {
 
 // ---- Racks -----------------------------------------------------------------------------
 
+/**
+ * A rack's macro bank: its shown macros (`RackMacros::visible`, 1..16) under their names,
+ * with buttons to show one more or hide the last one (Live 11+). Double-click a name (or
+ * "rename macro" in the knob's menu) to rename it in place; an empty name is the default.
+ */
 export function MacrosWidget({ widget, size, label }: TypedProps<"Macros">) {
-  const { params } = useLayoutContext();
-  // Params `first..first + 8` (a drum rack's follow its volume and pan).
-  const first = widget.first ?? 0;
-  const ids = Array.from({ length: 8 }, (_, i) => first + i).filter((id) => params.has(id));
-  if (ids.length === 0) return <Missing type="Macros" />;
+  const t = useT();
+  const { device, params, sender } = useLayoutContext();
+  const editing = useMacroRename((s) => (s.editing?.device === device.id ? s.editing.index : null));
+  const count = visibleMacros(device);
+  const all = macrosWidgetParams(widget);
+  const shown = all.slice(0, count).flatMap((id, index) => (params.has(id) ? [{ id, index }] : []));
+  if (shown.length === 0) return <Missing type="Macros" />;
+  const send = (c: Command) => void sender.send(c);
+  const setCount = (n: number) => send(cmd("Device", { type: "SetMacroCount", device: device.id, count: n }));
+  const rename = (index: number, name: string) => {
+    useMacroRename.getState().stop();
+    if (name.trim() === (customMacroName(device, index) ?? "")) return;
+    send(cmd("Device", { type: "RenameMacro", device: device.id, index, name }));
+  };
   return (
     <TypedFrame type="macros" size={size} label={label}>
-      <div className="eth-widget__grid">
-        {ids.map((id) => (
-          <WidgetView key={id} widget={{ type: "Knob", param: id }} size={size === "Small" ? "Small" : "Medium"} label={params.get(id)!.name} />
-        ))}
+      <div className="eth-widget__grid eth-macros" data-count={count}>
+        {shown.map(({ id, index }) => {
+          const custom = customMacroName(device, index);
+          const name = custom ?? params.get(id)!.name;
+          return (
+            <div
+              key={id}
+              className={clsx("eth-macros__cell", custom && "eth-macros__cell--named")}
+              data-macro={index}
+              onDoubleClickCapture={(e) => {
+                // The name under the knob renames; the knob itself resets on double-click.
+                if (!(e.target as Element).closest(".eth-knob__label")) return;
+                e.stopPropagation();
+                e.preventDefault();
+                useMacroRename.getState().start(device.id, index);
+              }}
+            >
+              <WidgetView widget={{ type: "Knob", param: id }} size={size === "Small" ? "Small" : "Medium"} label={name} />
+              {editing === index && (
+                <input
+                  className="eth-macros__rename eth-user-text"
+                  aria-label={t("devices.macros.name", { name })}
+                  defaultValue={custom ?? ""}
+                  placeholder={params.get(id)!.name}
+                  autoFocus
+                  maxLength={64}
+                  onFocus={(e) => e.currentTarget.select()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onDoubleClick={(e) => e.stopPropagation()}
+                  onBlur={(e) => rename(index, e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    e.stopPropagation();
+                    if (e.key === "Enter") rename(index, e.currentTarget.value);
+                    else if (e.key === "Escape") useMacroRename.getState().stop();
+                  }}
+                />
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="eth-macros__count">
+        <IconButton size="sm" tone="ghost" icon={<Minus />} label={t("devices.macros.remove")} disabled={count <= 1} onClick={() => setCount(count - 1)} />
+        <IconButton
+          size="sm"
+          tone="ghost"
+          icon={<Plus />}
+          label={t("devices.macros.add")}
+          disabled={count >= RACK_MACROS}
+          onClick={() => setCount(count + 1)}
+        />
       </div>
     </TypedFrame>
   );

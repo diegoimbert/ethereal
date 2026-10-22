@@ -204,6 +204,7 @@ export interface MessageArgs {
   "devices.library.search": { kind: string };
   "devices.library.show_format": { format: string | number };
   "devices.library.unfavourite": { name: string | number };
+  "devices.macros.name": { name: string | number };
   "devices.param.automated_label": { name: string | number };
   "devices.params.all_title": { name: string | number };
   "devices.params.count_filtered": { shown: string | number; total: string | number };
