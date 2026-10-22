@@ -156,6 +156,8 @@ pub enum EngineMsg {
     },
     /// The render ended: the engine drops its preview.
     RenderPreviewEnd,
+    /// WebCLAP instances (`crate::webclap::proto`).
+    Webclap(crate::webclap::proto::WebclapMsg),
 }
 
 /// The JSON-encoded subset of [`EngineMsg`].
@@ -208,6 +210,7 @@ enum JsonMsg {
         spec: ether_core::render_preview::PreviewSpec,
     },
     RenderPreviewEnd,
+    Webclap(crate::webclap::proto::WebclapMsg),
 }
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
@@ -293,6 +296,7 @@ impl EngineMsg {
             EngineMsg::UpdateBuiltin { key, device } => JsonMsg::UpdateBuiltin { key, device },
             EngineMsg::RenderPreviewBegin { spec } => JsonMsg::RenderPreviewBegin { spec },
             EngineMsg::RenderPreviewEnd => JsonMsg::RenderPreviewEnd,
+            EngineMsg::Webclap(msg) => JsonMsg::Webclap(msg),
         };
         let mut out = vec![TAG_JSON];
         serde_json::to_writer(&mut out, &json).expect("engine messages serialize");
@@ -486,6 +490,7 @@ impl<'a> Frame<'a> {
                     }
                     JsonMsg::RenderPreviewBegin { spec } => EngineMsg::RenderPreviewBegin { spec },
                     JsonMsg::RenderPreviewEnd => EngineMsg::RenderPreviewEnd,
+                    JsonMsg::Webclap(msg) => EngineMsg::Webclap(msg),
                 }))
             }
             t => Err(DecodeError::Tag(t)),

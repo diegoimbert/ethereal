@@ -38,6 +38,7 @@ fn format_key(format: PluginFormat) -> &'static str {
         PluginFormat::Vst3 => "vst3",
         PluginFormat::Au => "au",
         PluginFormat::Vst2 => "vst2",
+        PluginFormat::Webclap => "webclap",
     }
 }
 

@@ -589,6 +589,7 @@ fn format_rank(f: PluginFormat) -> u8 {
         PluginFormat::Vst3 => 1,
         PluginFormat::Au => 2,
         PluginFormat::Vst2 => 3,
+        PluginFormat::Webclap => 4,
     }
 }
 

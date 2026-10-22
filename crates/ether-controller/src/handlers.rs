@@ -821,6 +821,17 @@ where
         out: &mut dyn MessageSink,
     ) -> CmdResult<ReplyValue> {
         match c {
+            // A host whose bridge holds the catalog itself (the web version's WebCLAP
+            // plugins): the controller answers. Native hosts intercept `List` before.
+            PluginCommand::List if self.bridge.plugin_catalog().is_some() => {
+                Ok(ReplyValue::Plugins {
+                    plugins: self
+                        .bridge
+                        .plugin_catalog()
+                        .map(|c| c.plugins)
+                        .unwrap_or_default(),
+                })
+            }
             PluginCommand::Rescan { .. }
             | PluginCommand::List
             | PluginCommand::ListFolders

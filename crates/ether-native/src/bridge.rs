@@ -41,13 +41,22 @@ fn plugin_err(e: PluginError) -> BridgeError {
 }
 
 /// The error for a plugin missing from the scanned catalog (the device stays in the
-/// document without an engine node, i.e. bypassed, until a rescan finds it).
+/// document without an engine node, i.e. bypassed, until a rescan finds it). A format the
+/// native host can't load at all (WebCLAP, web version only) says so instead: no rescan
+/// would find it.
 fn not_installed(plugin: &PluginInstance) -> String {
     let name = if plugin.name.is_empty() || plugin.name == plugin.plugin_id {
         String::new()
     } else {
         format!("{} ", plugin.name)
     };
+    if !plugin.format.is_native() {
+        return format!(
+            "{} plugin {name}({}) is not available on this platform (web version only)",
+            format_label(plugin.format),
+            plugin.plugin_id
+        );
+    }
     format!(
         "{} plugin {name}({}) is not installed (rescan plugins)",
         format_label(plugin.format),
@@ -1912,6 +1921,19 @@ mod tests {
             other => panic!("{other:?}"),
         }
         assert!(b.descriptor(DeviceId(Ulid(8))).is_none());
+        // A WebCLAP device (web version only) is unavailable here, never "rescan".
+        let web = PluginInstance {
+            format: PluginFormat::Webclap,
+            name: "web gain".into(),
+            ..inst.clone()
+        };
+        match b.create_plugin(DeviceId(Ulid(9)), &web, None) {
+            Err(BridgeError::Other(m)) => assert_eq!(
+                m,
+                "WebCLAP plugin web gain (fake) is not available on this platform (web version only)"
+            ),
+            other => panic!("{other:?}"),
+        }
 
         b.destroy_node(key).unwrap();
         assert!(b.descriptor(d).is_none());

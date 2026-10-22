@@ -210,6 +210,8 @@ pub struct EngineHost<M: RingMemory> {
     /// `keyboard-midi`: the engine's live MIDI ring (`EngineMsg::LiveMidi`). The rest of the
     /// recording rings is dropped: the web build captures nothing.
     live_midi: Option<ether_core::recording::rtrb::Producer<ether_core::recording::LiveMidi>>,
+    /// WebCLAP instances (`crate::webclap`).
+    webclap: crate::webclap::worklet::WorkletWebclap,
 }
 
 impl<M: RingMemory> EngineHost<M> {
@@ -270,6 +272,7 @@ impl<M: RingMemory> EngineHost<M> {
             irs: BTreeMap::new(),
             render_preview: None,
             live_midi,
+            webclap: Default::default(),
         }
     }
 
@@ -323,6 +326,7 @@ impl<M: RingMemory> EngineHost<M> {
             self.send_report();
         }
         self.send_latency();
+        self.webclap.after_render(&mut self.reports);
         self.gc.collect();
     }
 
@@ -409,7 +413,9 @@ impl<M: RingMemory> EngineHost<M> {
             Ok(Frame::Msg(msg)) => (
                 matches!(
                     msg,
-                    EngineMsg::Publish { .. } | EngineMsg::StreamOpen { .. }
+                    EngineMsg::Publish { .. }
+                        | EngineMsg::StreamOpen { .. }
+                        | EngineMsg::Webclap(crate::webclap::proto::WebclapMsg::Create { .. })
                 ),
                 self.apply(msg),
             ),
@@ -549,6 +555,20 @@ impl<M: RingMemory> EngineHost<M> {
             .map_err(|e| e.to_string())
     }
 
+    /// Add `node` under the Worker's virtual `key` (replacing what had it).
+    fn add_node(&mut self, key: NodeKey, node: Box<dyn ether_core::Node>) -> Result<(), String> {
+        let real = self.handle.add_node(node).map_err(|e| e.to_string())?;
+        // The latency the engine compiles PDC with until it changes (not reported).
+        self.latency
+            .add(key, self.handle.node_latency(real).unwrap_or(0));
+        if let Some(old) = self.keys.insert(key, real) {
+            self.virtual_keys.remove(&old);
+            let _ = self.handle.remove_node(old);
+        }
+        self.virtual_keys.insert(real, key);
+        Ok(())
+    }
+
     fn real_key(&self, key: NodeKey) -> Result<NodeKey, String> {
         self.keys
             .get(&key)
@@ -568,16 +588,7 @@ impl<M: RingMemory> EngineHost<M> {
                     node.set_param(id, v);
                 }
                 self.irs.remove(&key);
-                let real = self.handle.add_node(node).map_err(|e| e.to_string())?;
-                // The latency the engine compiles PDC with until it changes (not reported).
-                self.latency
-                    .add(key, self.handle.node_latency(real).unwrap_or(0));
-                if let Some(old) = self.keys.insert(key, real) {
-                    self.virtual_keys.remove(&old);
-                    let _ = self.handle.remove_node(old);
-                }
-                self.virtual_keys.insert(real, key);
-                Ok(())
+                self.add_node(key, node)
             }
             EngineMsg::DestroyNode { key } => {
                 self.irs.remove(&key);
@@ -587,8 +598,16 @@ impl<M: RingMemory> EngineHost<M> {
                     .ok_or_else(|| format!("unknown node {key:?}"))?;
                 self.virtual_keys.remove(&real);
                 self.latency.remove(key);
+                self.webclap.forget(key);
                 self.handle.remove_node(real).map_err(|e| e.to_string())
             }
+            EngineMsg::Webclap(msg @ crate::webclap::proto::WebclapMsg::Create { .. }) => {
+                let (key, node) =
+                    self.webclap
+                        .create(&msg, f64::from(self.sample_rate), RENDER_QUANTUM)?;
+                self.add_node(key, node)
+            }
+            EngineMsg::Webclap(msg) => self.webclap.apply(msg),
             EngineMsg::LoadMedia { media, audio } => self.add_source(media, audio),
             EngineMsg::UnloadMedia { media } => {
                 self.media.cancel(media);
