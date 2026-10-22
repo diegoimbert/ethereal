@@ -1078,10 +1078,11 @@ fn opening_a_project_loads_its_plugins_progressively() {
         2,
         "the open loads what fits in the budget"
     );
-    assert_eq!(loading(&out), vec![3]);
+    // Told at each tick (a command's reply stays its last message): what the open left,
+    // then what this tick left.
     let out = h.tick();
     assert_eq!(creates(&h) - before, 4, "the next tick continues");
-    assert_eq!(loading(&out), vec![1]);
+    assert_eq!(loading(&out), vec![3, 1]);
     let out = h.tick();
     assert_eq!(creates(&h) - before, 5);
     assert_eq!(loading(&out), vec![0], "all loaded");

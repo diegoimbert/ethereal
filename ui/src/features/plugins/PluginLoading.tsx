@@ -1,12 +1,10 @@
 /**
  * Plugins loading: a big project's plugin instances are created a few per engine tick
  * (`PluginEvent::Loading` lists those still to load). Each track's header shows how far its
- * own plugins are, and the status bar the whole project's, until all are loaded.
+ * own plugins are, until all are loaded (the transport bar shows the whole load's progress).
  */
 import { useMemo } from "react";
-import { Loader } from "lucide-react";
 import type { DeviceId, Project, TrackId } from "@/generated";
-import { StatusText } from "@/features/status-bar/StatusButton";
 import { useProjectStore } from "@/state";
 import { useT } from "@/i18n";
 import { usePluginEvents, usePluginStore } from "./pluginStore";
@@ -53,18 +51,5 @@ export function TrackPluginLoading({ track }: { track: TrackId }) {
     >
       <span className="eth-plugin-loading__fill" style={{ transform: `scaleX(${done / total})` }} />
     </span>
-  );
-}
-
-/** In the status bar: the project's plugins loaded so far, while some still load. */
-export function PluginLoadingStatus() {
-  const t = useT();
-  const progress = useLoadProgress();
-  if (!progress) return null;
-  const [done, total] = progress;
-  return (
-    <StatusText icon={<Loader className="eth-plugin-loading__spin" aria-hidden />} data-testid="plugins-loading">
-      {t("plugins.loading.status", { done, total })}
-    </StatusText>
   );
 }

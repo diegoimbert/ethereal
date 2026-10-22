@@ -86,7 +86,7 @@ L’isolation ajoute un bloc audio de latence. Pour revenir en arrière, faites 
 
 ## ouvrir un projet avec beaucoup de plug-ins {#opening-a-project-with-many-plugins}
 
-Un projet avec beaucoup de plug-ins les charge quelques-uns à la fois, pour qu’Ethereal reste réactif pendant le chargement. Chaque piste montre une fine barre en bas de son en-tête avec le nombre de ses plug-ins déjà chargés, et la barre d’état en bas indique **chargement des plugins** avec le compte du projet. Les barres disparaissent une fois tous les plug-ins chargés.
+Un projet avec beaucoup de plug-ins les charge quelques-uns à la fois, pour qu’Ethereal reste réactif pendant le chargement. La barre de transport montre la progression du chargement du projet, et chaque piste une fine barre en bas de son en-tête avec le nombre de ses propres plug-ins déjà chargés. Les barres disparaissent une fois tous les plug-ins chargés.
 
 ## ouvrir un projet sans les plug-ins {#opening-a-project-without-plugins}
 

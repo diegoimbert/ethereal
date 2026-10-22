@@ -342,7 +342,7 @@ impl EngineState {
 
     /// The last sync left plugins to instantiate (the next tick continues).
     pub fn plugins_pending(&self) -> bool {
-        self.plugins_pending
+        !self.plugins_pending.is_empty()
     }
 
     /// Plugin devices held as placeholders (safe mode).

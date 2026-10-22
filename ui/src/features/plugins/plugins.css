@@ -247,11 +247,3 @@
   background: var(--eth-color-accent);
   transition: transform var(--eth-duration-fast) var(--eth-ease-out);
 }
-.eth-plugin-loading__spin {
-  animation: eth-failed-plugins-spin calc(var(--eth-duration-slow) * 3) linear infinite;
-}
-@media (prefers-reduced-motion: reduce) {
-  .eth-plugin-loading__spin {
-    animation: none;
-  }
-}

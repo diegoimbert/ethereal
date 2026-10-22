@@ -1231,6 +1231,8 @@ where
     pub fn tick_impl(&mut self, now: u64, out: &mut dyn MessageSink) {
         // The engine went off or on another way (an extension's engine choice, a project load).
         self.engine_report_running(out);
+        // Plugins loaded by a command since the last tick (a project opening).
+        self.report_plugin_loading(out);
         // Engine outputs.
         let mut outputs = std::mem::take(&mut self.outputs);
         self.bridge.poll(&mut outputs);
@@ -1344,6 +1346,7 @@ where
         self.autosave_tick(now, out);
 
         self.publish_if_due(now, true, out);
+        self.report_plugin_loading(out);
         self.load_tick(out);
         self.emit_transport_if_changed(out);
     }
@@ -1427,6 +1430,11 @@ where
         {
             notify(out, level, message);
         }
+    }
+
+    /// Tell the UI which plugin devices are still to load, when that changed (from the tick:
+    /// a command's reply stays its last message).
+    pub fn report_plugin_loading(&mut self, out: &mut dyn MessageSink) {
         if let Some(pending) = self.engine.take_loading_change() {
             event(
                 out,

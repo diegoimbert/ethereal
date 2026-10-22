@@ -491,7 +491,6 @@ export interface MessageArgs {
   "plugins.folders.formats_in": { path: string | number };
   "plugins.folders.remove": { path: string | number };
   "plugins.folders.rescan_failed": { error: string | number };
-  "plugins.loading.status": { done: string | number; total: string | number };
   "plugins.loading.track": { done: string | number; total: string | number };
   "plugins.scan.failed_count": { count: number };
   "plugins.scan.progress": { done: string | number; total: string | number };

@@ -3076,7 +3076,6 @@
   "piano_roll.draw": "dessin",
   "piano_roll.draw_mode": "mode dessin",
   "plugins.loading.track": "chargement des plugins : {done} sur {total}",
-  "plugins.loading.status": "chargement des plugins {done} / {total}",
   "modulation.macro.assign": "assigner à une macro",
   "modulation.macro.assigned": "déjà assignée",
   "engine.1_bar": "1 mesure",
