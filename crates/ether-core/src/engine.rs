@@ -844,15 +844,6 @@ impl Engine {
         }
     }
 
-    fn loop_region(&self) -> (bool, f64, f64) {
-        let (on, s, e) = self.transport.loop_override.unwrap_or((
-            self.snapshot.desc.loop_enabled,
-            self.snapshot.desc.loop_start,
-            self.snapshot.desc.loop_end,
-        ));
-        (on && e - s > 1e-6, s, e)
-    }
-
     /// Render up to `max` frames starting at output offset `off`; returns frames rendered.
     fn render_sub(
         &mut self,
@@ -861,13 +852,31 @@ impl Engine {
         off: usize,
         max: usize,
     ) -> usize {
-        let (loop_on, loop_start, loop_end) = self.loop_region();
+        let sr = self.config.sample_rate as f64;
+        let plan = plan_sub(
+            &mut self.transport,
+            &self.snapshot.desc,
+            &self.snapshot.tempo,
+            sr,
+            max,
+        );
+        self.render_plan(&plan, inputs, outputs, off);
+        plan.n
+    }
+
+    /// RT. Render the sub-block `plan` (decided by [`plan_sub`]) at output offset `off`.
+    fn render_plan(
+        &mut self,
+        plan: &SubPlan,
+        inputs: &[&[f32]],
+        outputs: &mut [&mut [f32]],
+        off: usize,
+    ) {
         let sr = self.config.sample_rate as f64;
         let Engine {
             nodes,
             sources,
             snapshot,
-            transport,
             overflow,
             underruns,
             recording,
@@ -893,115 +902,14 @@ impl Engine {
             vcas,
             ..
         } = rt;
-
-        // --- sub-block extent ---
-        let playing = transport.playing;
-        let b0 = transport.position;
-        // Ramped tempo maps are integrated exactly from the sample clock (`sched::Exact`,
-        // CONTRACTS.md §12.7); others keep the v0.1 math, bit for bit.
-        let anchor = if playing && tempo.has_ramps() {
-            let sample_time = transport.sample_time;
-            Some(
-                *transport
-                    .anchor
-                    .get_or_insert_with(|| (b0, tempo.beats_to_seconds(b0), sample_time)),
-            )
-        } else {
-            transport.anchor = None;
-            None
-        };
-        let since = anchor.map_or(0, |(_, _, at)| transport.sample_time - at);
-        let s0 = match anchor {
-            Some((_, seconds, _)) if since > 0 => seconds + since as f64 / sr,
-            Some((_, seconds, _)) => seconds,
-            None => tempo.beats_to_seconds(b0),
-        };
-        let mut n = max;
-        let mut b1 = None;
-        let mut hit_loop = false;
-        if playing {
-            let mut limit = None;
-            let mut limit_is_loop = false;
-            if loop_on && b0 < loop_end - EPS {
-                limit = Some(loop_end);
-                limit_is_loop = true;
-            }
-            if let Some(nb) = tempo.next_boundary(b0)
-                && limit.is_none_or(|l| nb < l - EPS)
-            {
-                limit = Some(nb);
-                limit_is_loop = false;
-            }
-            if let Some(l) = limit {
-                let f = ((tempo.beats_to_seconds(l) - s0) * sr - 1e-7)
-                    .ceil()
-                    .max(1.0) as usize;
-                if f <= n {
-                    n = f;
-                    b1 = Some(l);
-                    hit_loop = limit_is_loop;
-                }
-            }
-        }
-        // A loop end or tempo/signature boundary ends the sub-block on the first sample at
-        // or after it, and the timeline restarts exactly there (v0.1: every boundary lands
-        // on a whole sample; exact integration re-anchors on it).
-        let split = b1.is_some();
-        let b1 = match (playing, b1, anchor) {
-            (false, _, _) => b0,
-            (true, Some(b), _) => b,
-            (true, None, Some((beat, seconds, _))) => {
-                sched::exact_beat(tempo, sr, (beat, seconds), since, n as f64)
-            }
-            (true, None, None) => tempo.seconds_to_beats(s0 + n as f64 / sr),
-        };
-        let exact = anchor.map(|(beat, seconds, _)| {
-            let beats = &mut beat_table[..=n];
-            beats[0] = b0;
-            for (o, b) in beats.iter_mut().enumerate().skip(1) {
-                *b = sched::exact_beat(tempo, sr, (beat, seconds), since, o as f64);
-            }
-            sched::Exact {
-                beat,
-                seconds,
-                since,
-                beats,
-            }
-        });
-        let (signature, bar_start, bar_number) = tempo.bar_at(b0);
-        let (bpm, end_bpm) = tempo.bpm_span(b0, b1);
-        let info = TransportInfo {
-            playing,
-            recording: transport.recording,
-            sample_time: transport.sample_time,
-            position: b0,
-            seconds: s0,
-            bpm,
-            beats_per_sample: (b1 - b0) / n as f64,
-            tempo_inc: (end_bpm - bpm) / n as f64,
-            time_signature: signature,
-            bar_start,
-            bar_number: bar_number.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32,
-            loop_active: loop_on,
-            loop_start,
-            loop_end,
-        };
-        let timing = Timing {
-            tempo,
-            b0,
-            b1,
-            s0,
-            sample_rate: sr,
-            frames: n,
-            sample_time: transport.sample_time,
-            wraps: hit_loop,
-            exact,
-        };
+        let n = plan.n;
+        let playing = plan.playing;
+        let (info, timing) = plan.timing(tempo, sr, beat_table);
         recording.process(&info, n, &desc.tracks, tracks);
         // VCA gains and automation for this sub-block (`crate::vca`), before the jobs.
         vcas.update(tracks, &timing, playing);
         // Hardware returns of external devices (`crate::hw_io`), before the jobs.
-        hw_io.gather_returns(inputs, off, n, transport.sample_time);
+        hw_io.gather_returns(inputs, off, n, plan.sample_time);
 
         // --- tracks, by dependency (`crate::parallel`) ---
         // Stopped, the jobs still run devices and plugins at full cost (tails, auditioned
@@ -1024,11 +932,11 @@ impl Engine {
             sr,
             flags: JobFlags {
                 playing,
-                release_notes: transport.release_notes,
-                all_notes_off: transport.all_notes_off,
-                reset_nodes: transport.reset_nodes,
-                relocated: transport.relocated,
-                chase_notes: transport.chase_notes,
+                release_notes: plan.release_notes,
+                all_notes_off: plan.all_notes_off,
+                reset_nodes: plan.reset_nodes,
+                relocated: plan.relocated,
+                chase_notes: plan.chase_notes,
                 skip_silence: *silence_skipping,
             },
             info: &info,
@@ -1086,9 +994,9 @@ impl Engine {
             }
         }
         // --- external devices' hardware sends and MIDI (`crate::hw_io`), after master ---
-        hw_io.write_sends(outputs, off, n, transport.sample_time);
+        hw_io.write_sends(outputs, off, n, plan.sample_time);
         // --- metronome (after master reached the hardware outputs; not metered) ---
-        if transport.reset_nodes {
+        if plan.reset_nodes {
             metronome.reset();
         }
         metronome.render(
@@ -1102,33 +1010,9 @@ impl Engine {
             outputs,
         );
         // --- stream tap: master + metronome/count-in, never the preview ---
-        stream_tap.write(&info, *graph_latency, transport.jump, off, n, outputs);
-        transport.jump = false;
+        stream_tap.write(&info, *graph_latency, plan.jump, off, n, outputs);
         // --- browser preview (after master; not metered, transport-independent) ---
         preview.render(off, n, outputs);
-
-        // --- advance ---
-        transport.release_notes = false;
-        transport.all_notes_off = false;
-        transport.reset_nodes = false;
-        transport.relocated = false;
-        transport.sample_time += n as u64;
-        if playing {
-            transport.chase_notes = false;
-            if hit_loop {
-                transport.position = loop_start;
-                transport.anchor = None;
-                transport.release_notes = true;
-                transport.chase_notes = true;
-                transport.jump = true;
-            } else {
-                transport.position = b1;
-                if split {
-                    transport.anchor = None;
-                }
-            }
-        }
-        n
     }
 
     fn publish_playhead(&mut self) {
@@ -1190,6 +1074,216 @@ impl Engine {
             self.underruns = 0;
         }
     }
+}
+
+/// One sub-block of the timeline as the transport decided it ([`plan_sub`]): what rendering
+/// it needs from the transport, so the decision and the render are separate steps.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SubPlan {
+    /// Frames.
+    pub n: usize,
+    pub playing: bool,
+    pub recording: bool,
+    /// Engine sample clock at the start.
+    pub sample_time: u64,
+    /// Start/end in beats (`b1` exclusive) and seconds at `b0`.
+    pub b0: f64,
+    pub b1: f64,
+    pub s0: f64,
+    /// Ends at the loop end: the timeline jumps back after it (`Timing::wraps`).
+    pub wraps: bool,
+    /// Exact tempo integration (`sched::Exact`): anchor beat and seconds, samples since it.
+    pub exact: Option<(f64, f64, u64)>,
+    pub loop_on: bool,
+    pub loop_start: f64,
+    pub loop_end: f64,
+    /// The transport's one-shot flags for this sub-block (see `TransportRt`).
+    pub release_notes: bool,
+    pub all_notes_off: bool,
+    pub reset_nodes: bool,
+    pub relocated: bool,
+    pub chase_notes: bool,
+    pub jump: bool,
+}
+
+impl SubPlan {
+    /// RT. The sub-block's transport info and timing; `beats` (at least `n + 1` entries)
+    /// holds the exact per-sample beats on ramped tempo maps.
+    fn timing<'a>(
+        &self,
+        tempo: &'a crate::tempo::TempoMapRt,
+        sr: f64,
+        beats: &'a mut [f64],
+    ) -> (TransportInfo, Timing<'a>) {
+        let (n, b0, b1) = (self.n, self.b0, self.b1);
+        let exact = self.exact.map(|(beat, seconds, since)| {
+            let beats = &mut beats[..=n];
+            beats[0] = b0;
+            for (o, b) in beats.iter_mut().enumerate().skip(1) {
+                *b = sched::exact_beat(tempo, sr, (beat, seconds), since, o as f64);
+            }
+            sched::Exact {
+                beat,
+                seconds,
+                since,
+                beats,
+            }
+        });
+        let (signature, bar_start, bar_number) = tempo.bar_at(b0);
+        let (bpm, end_bpm) = tempo.bpm_span(b0, b1);
+        let info = TransportInfo {
+            playing: self.playing,
+            recording: self.recording,
+            sample_time: self.sample_time,
+            position: b0,
+            seconds: self.s0,
+            bpm,
+            beats_per_sample: (b1 - b0) / n as f64,
+            tempo_inc: (end_bpm - bpm) / n as f64,
+            time_signature: signature,
+            bar_start,
+            bar_number: bar_number.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32,
+            loop_active: self.loop_on,
+            loop_start: self.loop_start,
+            loop_end: self.loop_end,
+        };
+        let timing = Timing {
+            tempo,
+            b0,
+            b1,
+            s0: self.s0,
+            sample_rate: sr,
+            frames: n,
+            sample_time: self.sample_time,
+            wraps: self.wraps,
+            exact,
+        };
+        (info, timing)
+    }
+}
+
+/// The loop region in effect (`SetLoop` override, else the graph's), `on` only when it is
+/// longer than a hair.
+fn loop_region(t: &TransportRt, desc: &RenderGraphDesc) -> (bool, f64, f64) {
+    let (on, s, e) = t
+        .loop_override
+        .unwrap_or((desc.loop_enabled, desc.loop_start, desc.loop_end));
+    (on && e - s > 1e-6, s, e)
+}
+
+/// RT. Decide the next sub-block (at most `max` frames) and advance the transport past it.
+///
+/// A sub-block ends early on the first sample at or after a loop end or a tempo/signature
+/// boundary, and the timeline restarts exactly there (v0.1: every boundary lands on a whole
+/// sample; exact integration re-anchors on it).
+fn plan_sub(
+    t: &mut TransportRt,
+    desc: &RenderGraphDesc,
+    tempo: &crate::tempo::TempoMapRt,
+    sr: f64,
+    max: usize,
+) -> SubPlan {
+    let (loop_on, loop_start, loop_end) = loop_region(t, desc);
+    let playing = t.playing;
+    let b0 = t.position;
+    // Ramped tempo maps are integrated exactly from the sample clock (`sched::Exact`,
+    // CONTRACTS.md §12.7); others keep the v0.1 math, bit for bit.
+    let anchor = if playing && tempo.has_ramps() {
+        let sample_time = t.sample_time;
+        Some(
+            *t.anchor
+                .get_or_insert_with(|| (b0, tempo.beats_to_seconds(b0), sample_time)),
+        )
+    } else {
+        t.anchor = None;
+        None
+    };
+    let since = anchor.map_or(0, |(_, _, at)| t.sample_time - at);
+    let s0 = match anchor {
+        Some((_, seconds, _)) if since > 0 => seconds + since as f64 / sr,
+        Some((_, seconds, _)) => seconds,
+        None => tempo.beats_to_seconds(b0),
+    };
+    let mut n = max;
+    let mut b1 = None;
+    let mut hit_loop = false;
+    if playing {
+        let mut limit = None;
+        let mut limit_is_loop = false;
+        if loop_on && b0 < loop_end - EPS {
+            limit = Some(loop_end);
+            limit_is_loop = true;
+        }
+        if let Some(nb) = tempo.next_boundary(b0)
+            && limit.is_none_or(|l| nb < l - EPS)
+        {
+            limit = Some(nb);
+            limit_is_loop = false;
+        }
+        if let Some(l) = limit {
+            let f = ((tempo.beats_to_seconds(l) - s0) * sr - 1e-7)
+                .ceil()
+                .max(1.0) as usize;
+            if f <= n {
+                n = f;
+                b1 = Some(l);
+                hit_loop = limit_is_loop;
+            }
+        }
+    }
+    let split = b1.is_some();
+    let b1 = match (playing, b1, anchor) {
+        (false, _, _) => b0,
+        (true, Some(b), _) => b,
+        (true, None, Some((beat, seconds, _))) => {
+            sched::exact_beat(tempo, sr, (beat, seconds), since, n as f64)
+        }
+        (true, None, None) => tempo.seconds_to_beats(s0 + n as f64 / sr),
+    };
+    let plan = SubPlan {
+        n,
+        playing,
+        recording: t.recording,
+        sample_time: t.sample_time,
+        b0,
+        b1,
+        s0,
+        wraps: hit_loop,
+        exact: anchor.map(|(beat, seconds, _)| (beat, seconds, since)),
+        loop_on,
+        loop_start,
+        loop_end,
+        release_notes: t.release_notes,
+        all_notes_off: t.all_notes_off,
+        reset_nodes: t.reset_nodes,
+        relocated: t.relocated,
+        chase_notes: t.chase_notes,
+        jump: t.jump,
+    };
+
+    // --- advance ---
+    t.jump = false;
+    t.release_notes = false;
+    t.all_notes_off = false;
+    t.reset_nodes = false;
+    t.relocated = false;
+    t.sample_time += n as u64;
+    if playing {
+        t.chase_notes = false;
+        if hit_loop {
+            t.position = loop_start;
+            t.anchor = None;
+            t.release_notes = true;
+            t.chase_notes = true;
+            t.jump = true;
+        } else {
+            t.position = b1;
+            if split {
+                t.anchor = None;
+            }
+        }
+    }
+    plan
 }
 
 /// RT. Keyed access to the engine's node table from one track job (its chain and drum-rack

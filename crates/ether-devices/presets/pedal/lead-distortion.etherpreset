@@ -1,0 +1,32 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "lead distortion",
+    "device": {
+      "type": "Builtin",
+      "device": "Pedal"
+    },
+    "meta": {
+      "tags": [
+        "distortion",
+        "lead",
+        "sustain"
+      ],
+      "author": "ethereal",
+      "description": "high-gain lead tone: thick lows, forward mids, long sustain."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 70.0,
+      "2": 20.0,
+      "3": 40.0,
+      "4": 1.0,
+      "5": 15.0,
+      "6": 0.0,
+      "7": -2.0,
+      "8": 100.0
+    }
+  }
+}

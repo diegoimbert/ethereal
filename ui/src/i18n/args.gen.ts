@@ -498,6 +498,7 @@ export interface MessageArgs {
   "plugins.folders.remove": { path: string | number };
   "plugins.folders.rescan_failed": { error: string | number };
   "plugins.loading.track": { done: string | number; total: string | number };
+  "plugins.sandbox_defaults.remove": { name: string | number };
   "plugins.scan.failed_count": { count: number };
   "plugins.scan.progress": { done: string | number; total: string | number };
   "plugins.scan.scan_failed": { error: string | number };

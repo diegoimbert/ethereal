@@ -51,6 +51,7 @@ mod plugins_e2e;
 mod project_load_xruns;
 mod quit_save;
 mod recording_e2e;
+mod sandbox_defaults_e2e;
 mod sched_bench;
 mod sidechain_render;
 mod tempo_metronome;

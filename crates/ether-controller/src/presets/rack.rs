@@ -16,8 +16,9 @@
 //!   warning; content the rack refuses (an instrument on an audio effect rack chain) fails
 //!   the whole load.
 //! - Drum racks: [`snapshot`] stores the pads sorted by note (note, name, color,
-//!   choke group, mix) with their chains' devices instead of chains (the rack's modulators
-//!   only map onto the rack itself: they don't reach pad devices); [`rebuild`] also removes the rack's pads (with their chains) and creates the
+//!   choke group, mix) with their chains' devices instead of chains, and the mappings of the
+//!   rack's macros and modulators onto the rack and its pad devices
+//!   (`PresetModTarget::PadDevice`); [`rebuild`] also removes the rack's pads (with their chains) and creates the
 //!   preset's pads, then each pad's devices, after the (empty) chains and before the
 //!   modulators, so chain rack ids are unchanged. A drum rack nested in a rack chain can't
 //!   host modulators: the preset's modulators (and the mappings from them) are skipped there.
@@ -125,7 +126,8 @@ pub(super) fn snapshot(
     let pads: Vec<PresetPad> = p
         .pads_of(rack)
         .into_iter()
-        .map(|pad| PresetPad {
+        .enumerate()
+        .map(|(pi, pad)| PresetPad {
             note: pad.note,
             name: pad.name.clone(),
             color: pad.color,
@@ -133,12 +135,19 @@ pub(super) fn snapshot(
             volume: pad.volume,
             pan: pad.pan,
             mute: pad.mute,
-            // Modulators don't reach pad devices: no mapping targets here.
             devices: p
                 .pad_devices_of(pad.id)
                 .into_iter()
                 .filter_map(|d| Some((preset_device(d)?, d)))
-                .map(|(device, d)| chain_device(d, device, &mut media, plugin_state))
+                .enumerate()
+                .map(|(di, (device, d))| {
+                    let target = PresetModTarget::PadDevice {
+                        pad: pi as u32,
+                        device: di as u32,
+                    };
+                    where_is.insert(d.id, target);
+                    chain_device(d, device, &mut media, plugin_state)
+                })
                 .collect(),
         })
         .collect();
@@ -180,6 +189,7 @@ pub(super) fn snapshot(
     let target_key = |t: &PresetModTarget| match *t {
         PresetModTarget::Rack => (0, 0, 0),
         PresetModTarget::ChainDevice { chain, device } => (1, chain, device),
+        PresetModTarget::PadDevice { pad, device } => (2, pad, device),
     };
     let source_key = |s: &PresetModSource| match *s {
         PresetModSource::Macro { index } => (0, u32::from(index)),
@@ -282,14 +292,18 @@ pub(super) fn rebuild(
     for (pad, id) in preset.pads.iter().zip(&pad_ids) {
         add_pad(ctx, *id, rack, pad)?;
     }
+    let mut pad_device_ids: Vec<Vec<DeviceId>> = Vec::new();
     for (pad, pad_id) in preset.pads.iter().zip(&pad_ids) {
+        let mut ids = Vec::new();
         for pd in &pad.devices {
             let id: DeviceId = derive_id(seed, mint());
             insert_device(ctx, id, Parent::Pad(*pad_id), pd, media)?;
             if matches!(pd.device, PresetDevice::Plugin { .. }) {
                 plugins.push(id);
             }
+            ids.push(id);
         }
+        pad_device_ids.push(ids);
     }
     // Only track-chain devices host modulators (a drum rack may sit in a rack chain).
     let hosts_modulators = ctx.device(rack)?.chain.is_none();
@@ -339,6 +353,15 @@ pub(super) fn rebuild(
             PresetModTarget::ChainDevice { chain, device } => {
                 match device_ids
                     .get(chain as usize)
+                    .and_then(|c| c.get(device as usize))
+                {
+                    Some(d) => *d,
+                    None => continue,
+                }
+            }
+            PresetModTarget::PadDevice { pad, device } => {
+                match pad_device_ids
+                    .get(pad as usize)
                     .and_then(|c| c.get(device as usize))
                 {
                     Some(d) => *d,
@@ -474,7 +497,8 @@ fn insert_device(
                 name: name.clone(),
                 vendor: vendor.clone(),
                 version: String::new(),
-                sandboxed: false,
+                // A preset keeps no flag: its plugins are new instances here.
+                sandboxed: ctx.host.sandbox_by_default(*format, plugin_id),
                 state: pd.state.clone(),
             },
         },

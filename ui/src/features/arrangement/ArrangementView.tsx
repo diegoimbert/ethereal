@@ -13,6 +13,7 @@ import { isReadOnly, useEditorStore, useReadOnly, dismissOnRelease, showClipOnCl
 import {
   BeatCanvas,
   gridLines,
+  itemSelection,
   marqueeHits,
   PlayheadLine,
   pxToBeats,
@@ -318,7 +319,7 @@ function ConnectedArrangementView() {
    * shows that clip in the editor drawer and the inspector, each as a bar unless already
    * expanded (a click never expands a pane: a double-click expands the drawer). Anywhere else it collapses the drawer, and on the lanes'
    * empty space the inspector too (a track header expands it: TrackRow), unless it shows that
-   * row's track already; pinned, each stays.
+   * row's track (or a clip on it) already; pinned, each stays.
    */
   const onTracksPointerDownCapture = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -336,9 +337,14 @@ function ConnectedArrangementView() {
     const shell = useShellStore.getState();
     if (!clip) {
       dismissOnRelease();
-      // Empty space of the track the inspector already shows (expanded): it stays open.
+      // Empty space of the track the inspector already shows (expanded), or of the track of a
+      // clip it shows: it stays open. (The click then selects that track: the inspector
+      // switches to it, as the clip selection clears.)
       const row = rowsRef.current[rowIndexAt(rowsRef.current, y)];
-      const showing = !!row && row.track.id === useArrangementUi.getState().trackFocus && shell.right.open && !shell.right.collapsed;
+      const shown = itemSelection.getState().selected.clip;
+      const inspected = (id: TrackId) =>
+        shown.size > 0 ? [...shown].some((c) => project.clips[c]?.track === id) : id === useArrangementUi.getState().trackFocus;
+      const showing = !!row && inspected(row.track.id) && shell.right.open && !shell.right.collapsed;
       if (inTracks && x >= hw && !shell.right.pinned && !showing) shell.setCollapsed("right", true);
       return;
     }

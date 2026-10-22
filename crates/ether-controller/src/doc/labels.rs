@@ -581,6 +581,8 @@ pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
             Pl::AddFolder { .. } => k("undo.plugin.add_folder"),
             Pl::RemoveFolder { .. } => k("undo.plugin.remove_folder"),
             Pl::SetIncludeDefaults { .. } => k("undo.plugin.set_default_folders"),
+            Pl::ListSandboxDefaults => k("undo.plugin.list_sandbox_defaults"),
+            Pl::SetSandboxDefault { .. } => k("undo.plugin.set_sandbox_default"),
             Pl::SetEditorKeyCapture { .. } => k("undo.plugin.set_keys"),
             Pl::ListScanFailures => k("undo.plugin.list_failures"),
             Pl::RetryScan { .. } => k("undo.plugin.retry_scan"),

@@ -474,12 +474,21 @@ fn drum_rack_presets_store_pads() {
                 kind: ModulatorKind::Lfo,
                 params: Default::default(),
             }],
-            mappings: vec![PresetModMapping {
-                source: PresetModSource::Modulator { index: 0 },
-                target: PresetModTarget::Rack,
-                param: ParamId(1),
-                depth: 0.5,
-            }],
+            mappings: vec![
+                PresetModMapping {
+                    source: PresetModSource::Modulator { index: 0 },
+                    target: PresetModTarget::Rack,
+                    param: ParamId(1),
+                    depth: 0.5,
+                },
+                // The drum rack's macros (and modulators) reach its pads' devices.
+                PresetModMapping {
+                    source: PresetModSource::Macro { index: 2 },
+                    target: PresetModTarget::PadDevice { pad: 1, device: 0 },
+                    param: ParamId(0),
+                    depth: -0.25,
+                },
+            ],
             pads: vec![pad(36), pad(38)],
         }),
     };
@@ -494,7 +503,7 @@ fn drum_rack_presets_store_pads() {
         f(&mut bad);
         load_preset(&save_preset(&bad, "x").unwrap()).is_err()
     };
-    // Unique notes, valid choke groups, mappings inside the preset, no macros on drum racks.
+    // Unique notes, valid choke groups, mappings inside the preset, 8 macros.
     assert!(invalid(&|p| p.rack.as_mut().unwrap().pads[1].note = 36));
     assert!(invalid(&|p| p.rack.as_mut().unwrap().pads[0].note = 200));
     assert!(invalid(
@@ -502,8 +511,24 @@ fn drum_rack_presets_store_pads() {
     ));
     assert!(invalid(&|p| p.rack.as_mut().unwrap().mappings.push(
         PresetModMapping {
-            source: PresetModSource::Macro { index: 0 },
+            source: PresetModSource::Macro { index: 8 },
             target: PresetModTarget::Rack,
+            param: ParamId(0),
+            depth: 0.5,
+        }
+    )));
+    assert!(invalid(&|p| p.rack.as_mut().unwrap().mappings.push(
+        PresetModMapping {
+            source: PresetModSource::Macro { index: 0 },
+            target: PresetModTarget::PadDevice { pad: 2, device: 0 },
+            param: ParamId(0),
+            depth: 0.5,
+        }
+    )));
+    assert!(invalid(&|p| p.rack.as_mut().unwrap().mappings.push(
+        PresetModMapping {
+            source: PresetModSource::Macro { index: 0 },
+            target: PresetModTarget::PadDevice { pad: 0, device: 1 },
             param: ParamId(0),
             depth: 0.5,
         }

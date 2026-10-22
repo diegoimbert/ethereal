@@ -28,6 +28,7 @@ const EFFECTS: BuiltinDeviceType[] = [
   "Bitcrusher",
   "AutoFilter",
   "Erosion",
+  "Pedal",
   "Chorus",
   "Phaser",
   "Flanger",

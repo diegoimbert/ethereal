@@ -1069,7 +1069,9 @@ runtime; `PresetEvent::Changed` after user-set changes. Sample-based presets car
   (id `derive_id(rack, 0)`) in the same undo step; instrument racks start empty, and
   duplicates, presets and loaded documents keep exactly their chains. New built-in
   devices get the lowercase descriptor name on every insert path. Every rack's params: macros `0..8` (plain 0..1) and the chain
-  selector (`8`, 0..=127). Engine: `TrackDesc::chain_racks` (`ether_core::rack_chains`),
+  selector (`8`, 0..=127). A drum rack has the same 8 macros appended after its volume and
+  pan (params `2..10`, `ether_model::rack::{macro_param, macro_index}`; no selector);
+  `MacroDesc::first` tells the engine where a rack's macros start. Engine: `TrackDesc::chain_racks` (`ether_core::rack_chains`),
   run at the rack entry before the rack node (pre-wired like drum-rack pads: params,
   automation and latency already reach chain nodes).
 - Modulators live **inside any track-chain device** (not on drum-pad or rack-chain devices in
@@ -1078,9 +1080,11 @@ runtime; `PresetEvent::Changed` after user-set changes. Sample-based presets car
   kinds `Lfo`, `Envelope`, `EnvelopeFollower`, `Steps`, `Random`, `Keytrack`, `Velocity` (appended in unipolar); param tables frozen in
   `ether_devices::modulators`). `ModMapping { source: Modulator | Macro { rack, index },
   device, param, depth -1..=1 }`, one per (source, target). Scope: a modulator targets its
-  host and, for a rack host, devices on the rack's chains, never the rack's own macros (no
-  modulation of modulation in v0.2); a macro targets devices on its rack's chains and the
-  rack's own non-macro params.
+  host and, for a rack host (drum racks included), devices inside the rack, never the rack's
+  own macros (no modulation of modulation in v0.2); a macro (of a chain rack or a drum rack)
+  targets devices inside its rack and the rack's own non-macro params. "Inside" is
+  `Project::is_inside`: on the rack's chains or pads at any depth, through nested racks'
+  chains and pads (an instrument rack's macros reach the pads of a drum rack on its chain).
 - **Envelope-follower sidechain:** `Modulator::sidechain: Option<TrackId>` (followers only,
   `Modulation::SetSidechain`) follows that track's sidechain tap (post-fader, before its PDC
   delay, like device sidechains §11.10) instead of the host's input. It reuses the sidechain
@@ -1357,7 +1361,9 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   change or switch releases what was held (`ether_devices::midi_fx`). Then `Erosion`
   (`fx-color`, no kind data): a very short delay modulated by a sine, shared noise or
   per-channel noise (param table in `ether_devices::fx_color`); it reports its centre delay
-  as latency.
+  as latency. Then `Pedal` (`fx-color`, no kind data): overdrive / distortion / fuzz with a
+  bass / mid / treble tone stack and a sub boost, 4x oversampled (it reports the 29-sample
+  round trip as latency).
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.
@@ -1498,8 +1504,9 @@ in order, then modulators, then mappings); `seed` is required then (`InvalidArgu
 ignored otherwise (omitted from JSON when `None`, TS optional). No nested racks in v0.3.
 Drum racks (still version 2, additive): a `DrumRack` preset's `rack` has no chains and
 `pads: [PresetPad { note, name, color, choke_group, volume, pan, mute, devices:
-[PresetChainDevice] }]` sorted by note (omitted when empty; unique notes, no macro sources),
-with the rack's modulators and their mappings onto the rack; pad samples are stored like a
+[PresetChainDevice] }]` sorted by note (omitted when empty; unique notes), with the rack's
+modulators and the mappings of its macros and modulators onto the rack and its pad devices
+(`PresetModTarget::PadDevice { pad, device }`, additive); pad samples are stored like a
 sampler preset's. Loading replaces the rack's pads (with their chains) in the same undo step;
 pads take their ids after the chain devices (pads, then each pad's devices), before the
 modulators. A drum rack inside a rack chain loads the pads and skips the modulators. Drum

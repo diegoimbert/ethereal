@@ -1,0 +1,32 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "crunch",
+    "device": {
+      "type": "Builtin",
+      "device": "Pedal"
+    },
+    "meta": {
+      "tags": [
+        "crunch",
+        "distortion",
+        "rhythm"
+      ],
+      "author": "ethereal",
+      "description": "edge-of-breakup distortion with a 2 khz bite."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 25.0,
+      "2": 0.0,
+      "3": 15.0,
+      "4": 2.0,
+      "5": 10.0,
+      "6": 0.0,
+      "7": 0.0,
+      "8": 100.0
+    }
+  }
+}

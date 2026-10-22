@@ -103,6 +103,7 @@ fn macros(rack: NodeKey, m0: f64) -> Vec<MacroDesc> {
     vec![MacroDesc {
         rack,
         values: [m0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        first: 0,
     }]
 }
 
