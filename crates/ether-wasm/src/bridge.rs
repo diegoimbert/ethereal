@@ -672,6 +672,29 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
     }
 
     /// In order with everything sent before (the control ring is FIFO and never drops).
+    fn begin_render_preview(
+        &mut self,
+        spec: ether_core::render_preview::PreviewSpec,
+    ) -> Result<(), BridgeError> {
+        self.send(EngineMsg::RenderPreviewBegin { spec });
+        Ok(())
+    }
+
+    fn push_render_preview(&mut self, left: &[f32], right: &[f32]) {
+        // 16-bit on the wire (what the preview holds anyway): half the bytes.
+        use ether_core::render_preview::to_i16;
+        let samples = left
+            .iter()
+            .zip(right)
+            .flat_map(|(&l, &r)| [to_i16(l), to_i16(r)])
+            .collect();
+        self.send(EngineMsg::RenderPreviewChunk { samples });
+    }
+
+    fn end_render_preview(&mut self) {
+        self.send(EngineMsg::RenderPreviewEnd);
+    }
+
     fn set_suspended(&mut self, suspended: bool) -> Result<(), BridgeError> {
         self.send(EngineMsg::Suspend { suspended });
         Ok(())

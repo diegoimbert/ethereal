@@ -34,7 +34,8 @@
 //! that block through one file's resampler and encoders, [`job::UNIT_FRAMES`] frames of a
 //! normalized signal encoded, [`job::UNIT_BUILTINS`] built-in nodes or one plugin instance
 //! per unit); a tick runs units until
-//! [`TICK_BUDGET_MS`] elapsed (at most [`MAX_UNITS_PER_TICK`]), so the controller stays
+//! [`TICK_BUDGET_MS`] elapsed ([`RENDERING_TICK_BUDGET_MS`] while the live engine is
+//! suspended for it; at most [`MAX_UNITS_PER_TICK`]), so the controller stays
 //! responsive whatever the export length. A few steps still take time proportional to a
 //! file's length rather than to a unit: reading a media file from the store (one
 //! `ProjectStore::read`), the media resamplers' final step (`IncrementalResampler::finish`
@@ -105,6 +106,10 @@ pub const MAX_CHUNK_BYTES: usize = 1 << 20;
 const MAX_UNITS_PER_TICK: usize = 256;
 /// ...and no more than this long (when the host clock advances).
 const TICK_BUDGET_MS: u64 = 12;
+/// ...or this long while the live engine is suspended for the render (`rendering`): the
+/// audio thread asks nothing of the CPU meanwhile, the controller still answers within a
+/// tick.
+const RENDERING_TICK_BUDGET_MS: u64 = 14;
 
 struct Download {
     project: ProjectId,
@@ -114,7 +119,7 @@ struct Download {
 /// The running job and finished downloads.
 #[derive(Default)]
 pub struct ExportState {
-    job: Option<Box<Job>>,
+    pub(crate) job: Option<Box<Job>>,
     downloads: BTreeMap<String, Download>,
     last_progress: Option<f32>,
     /// Unit sizes of the last job (tests/diagnostics).
@@ -261,11 +266,14 @@ where
                     end,
                     passes,
                 )));
+                // The live engine is suspended and plays the render (`rendering`).
+                self.begin_render();
                 Ok(ReplyValue::ExportStarted { job: job.clone() })
             }
             ExportCommand::Cancel { job } => {
                 if self.export.job.as_ref().is_some_and(|j| &j.id == job) {
                     self.export.job = None;
+                    self.end_render();
                     export_event(out, ExportEvent::Cancelled { job: job.clone() });
                 }
                 Ok(ReplyValue::Unit)
@@ -309,6 +317,17 @@ where
 
     /// Called from every tick: steps the running job, emits `Event::Export`.
     pub fn export_tick(&mut self, now: u64, out: &mut dyn MessageSink) {
+        self.step_export(now, out);
+        // A job that ended (or was dropped) resumes the engine; a running one reports
+        // how far it is.
+        if self.export.job.is_none() {
+            self.end_render();
+        } else {
+            self.render_progress();
+        }
+    }
+
+    fn step_export(&mut self, now: u64, out: &mut dyn MessageSink) {
         let current = self.doc.as_ref().map(|d| d.project.id);
         // Closing/switching the project drops its downloads and stops its job.
         self.export
@@ -328,6 +347,11 @@ where
             return;
         }
         let started = self.host.now_ms().max(now);
+        let budget = if self.rendering.active() {
+            RENDERING_TICK_BUDGET_MS
+        } else {
+            TICK_BUDGET_MS
+        };
         for _ in 0..MAX_UNITS_PER_TICK {
             let step = job.step(
                 &mut self.bridge,
@@ -356,7 +380,7 @@ where
                     return;
                 }
             }
-            if self.host.now_ms().saturating_sub(started) >= TICK_BUDGET_MS {
+            if self.host.now_ms().saturating_sub(started) >= budget {
                 break;
             }
         }

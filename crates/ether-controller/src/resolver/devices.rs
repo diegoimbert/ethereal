@@ -13,6 +13,11 @@ const KEYWORDS: &[(&[&str], T, &str)] = &[
         "reverb",
     ),
     (&["grain"], T::GrainDelay, "grain delay"),
+    (
+        &["shifter", "ringmod", "ring", "frequency", "freqshift"],
+        T::Shifter,
+        "shifter",
+    ),
     (&["echo", "delay"], T::Delay, "delay"),
     (&["chorus", "ensemble"], T::Chorus, "chorus"),
     (&["phaser"], T::Phaser, "phaser"),
@@ -201,6 +206,8 @@ mod tests {
         assert_eq!(first(&grain), T::GrainDelay);
         let pedal = missing("Live's Pedal", "ableton:Pedal", MissingRole::AudioEffect);
         assert_eq!(first(&pedal), T::Pedal);
+        let shifter = missing("Live's Shifter", "ableton:Shifter", MissingRole::AudioEffect);
+        assert_eq!(first(&shifter), T::Shifter);
         let op = missing(
             "Live's Operator",
             "ableton:Operator",

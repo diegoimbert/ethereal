@@ -106,7 +106,8 @@ pub fn chain_racks_desc(p: &Project, track: TrackId, ctx: &CompileContext) -> Ve
                             .collect(),
                         volume: c.volume.to_linear(),
                         pan: c.pan.0,
-                        mute: c.mute || (any_solo && !c.solo),
+                        // A soloed chain is heard even if muted (CONTRACTS.md §12.6).
+                        mute: !c.solo && (c.mute || any_solo),
                         keys: (c.keys.lo, c.keys.hi),
                         velocities: (c.velocities.lo, c.velocities.hi),
                         select: (c.select.lo, c.select.hi),

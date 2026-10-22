@@ -447,6 +447,27 @@ describe("MockTransport playback", () => {
     expect(peak).toBeGreaterThan(0.05);
   });
 
+  it("a soloed muted track meters while soloed and goes silent once unsoloed (CONTRACTS.md §12.10)", async () => {
+    const env = await setup();
+    mock = env.mock;
+    const keys = env.trackNamed("Keys").id;
+    let level = 0;
+    env.mock.subscribeMeters((f) => {
+      level = f.tracks.find((t) => t.track === keys)?.peak[0] ?? 0;
+    });
+    await env.mock.send(cmd("Transport", { type: "Play" }));
+    await env.mock.send(cmd("Mixer", { type: "SetMute", track: keys, mute: true }));
+    env.mock.tick(3000);
+    expect(level).toBe(0);
+    await env.mock.send(cmd("Mixer", { type: "SetSolo", track: keys, solo: true, exclusive: false }));
+    env.mock.tick(500);
+    expect(level).toBeGreaterThan(0);
+    expect(env.p().tracks[keys]!.mixer.mute).toBe(true);
+    await env.mock.send(cmd("Mixer", { type: "SetSolo", track: keys, solo: false, exclusive: false }));
+    env.mock.tick(3000);
+    expect(level).toBe(0);
+  });
+
   it("simulates latency but keeps patch-before-reply ordering", async () => {
     const env = await setup({ latencyMs: 5 });
     mock = env.mock;

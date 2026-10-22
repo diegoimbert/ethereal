@@ -89,6 +89,7 @@
  * meter noise deterministic.
  */
 
+import { effectiveMute } from "@/domain/soloPlan";
 import { contributions } from "@/ext";
 import type {
   BrowseLocation,
@@ -627,8 +628,11 @@ export class MockTransport implements EngineTransport {
         const m = this.project.media[cl.content.media] ?? fail("NotFound", `media ${cl.content.media}`);
         return { type: "Tempo", bpm: detectBpm(m.frames / Math.max(1, m.sample_rate)) };
       }
-      case "Export":
-        return this.exports.command(command.command);
+      case "Export": {
+        const reply = this.exports.command(command.command);
+        this.syncTransport();
+        return reply;
+      }
       case "MidiMap":
         return this.midiLearn.command(command.command);
       // v0.2.
@@ -843,6 +847,8 @@ export class MockTransport implements EngineTransport {
       time_signature: signatureAt(this.project, this.position),
       metronome: s.metronome,
       start_position: this.startPosition,
+      // An export runs: the live engine is paused and plays the render so far.
+      ...(this.exports.rendering() ? { rendering: this.exports.rendering()! } : {}),
     };
   }
 
@@ -1109,11 +1115,14 @@ export class MockTransport implements EngineTransport {
         if (this.playing) this.stopPlaying();
         else this.startPlaying();
         break;
-      case "Locate":
-        this.position = Math.max(0, c.position);
+      case "Locate": {
+        // A render runs: the playhead stays in its rendered part (as the controller).
+        const r = this.exports.rendering();
+        this.position = r ? Math.min(Math.max(c.position, r.start), Math.max(r.start, r.until)) : Math.max(0, c.position);
         // As the controller: the start position follows a locate only while stopped.
         if (!this.playing) this.startPosition = this.position;
         break;
+      }
       case "TapTempo": {
         const now = this.now();
         this.tapTimes = [...this.tapTimes.filter((t) => now - t < 2000), now].slice(-4);
@@ -1197,6 +1206,7 @@ export class MockTransport implements EngineTransport {
       };
     }
     if (c.type === "SetRecording") {
+      if (c.enabled && this.exports.rendering()) fail("InvalidState", "a render is running: record is available once it ends");
       const reply = this.liveRecord.set(c.enabled);
       this.syncTransport();
       return reply;
@@ -1436,7 +1446,8 @@ export class MockTransport implements EngineTransport {
       this.syncTransport(); // tempo/signature at the playhead may change
     }
     if (this.playing || this.playheadDirty) this.emitPlayhead();
-    this.exports.step();
+    // A running export advanced: its `rendering` state moved.
+    if (this.exports.step()) this.syncTransport();
     this.freeze.step();
     this.preview.step();
     this.liveRecord.step();
@@ -1497,7 +1508,8 @@ export class MockTransport implements EngineTransport {
         if (snd.to === id) input += postOf(snd.from) * dbToLinear(snd.level) * 0.8;
       }
       visiting.delete(id);
-      const level = t.mixer.mute ? 0 : Math.min(1.2, input) * dbToLinear(t.mixer.volume);
+      // A soloed track is heard even if muted (CONTRACTS.md §12.10).
+      const level = effectiveMute(t.mixer.mute, t.mixer.solo) ? 0 : Math.min(1.2, input) * dbToLinear(t.mixer.volume);
       post.set(id, level);
       return level;
     };

@@ -92,6 +92,8 @@ enum Control {
         data: [u8; 3],
     },
     StreamTap(Option<Box<crate::stream_tap::StreamTapWriter>>),
+    /// The render preview played while suspended ([`EngineHandle::set_render_preview`]).
+    RenderPreview(Option<Arc<crate::render_preview::PreviewBuffer>>),
     /// The current snapshot's job graphs, re-ranked with measured job times (snapshot `seq`
     /// only): the full one and the anticipation one (`crate::anticipation::AnticRt::graph`).
     Jobs {
@@ -114,6 +116,7 @@ enum Garbage {
     StreamTap(#[allow(dead_code)] Box<crate::stream_tap::StreamTapWriter>),
     HwIo(#[allow(dead_code)] Box<crate::hw_io::HwIoRt>),
     Jobs(#[allow(dead_code)] Box<crate::parallel::JobGraph>),
+    RenderPreview(#[allow(dead_code)] Arc<crate::render_preview::PreviewBuffer>),
 }
 
 enum Output {
@@ -316,6 +319,8 @@ pub fn create(config: EngineConfig) -> EngineParts {
         queue: crate::anticipation::PlanQueue::new(),
         suspend: suspend.clone(),
         suspended: false,
+        render_preview: None,
+        preview_meter: Default::default(),
         config: config.clone(),
     };
     let handle = EngineHandle {
@@ -406,6 +411,11 @@ pub struct Engine {
     suspend: Arc<AtomicBool>,
     /// The last block was suspended (the next unsuspended one resumes cleanly).
     suspended: bool,
+    /// While suspended, play this render's master instead of silence
+    /// ([`EngineHandle::set_render_preview`], [`crate::render_preview`]).
+    render_preview: Option<Arc<crate::render_preview::PreviewBuffer>>,
+    /// The preview's output level, reported as the master's meter.
+    preview_meter: crate::mixer::MeterAccum,
     /// Offline export stems: the tapped tracks copied out after every block.
     capture: Vec<CaptureSlot>,
 }
@@ -478,7 +488,7 @@ impl Engine {
 
         if suspended {
             self.resync();
-            self.process_suspended(frames);
+            self.process_suspended(outputs, frames);
             return;
         }
         if self.suspended {
@@ -515,12 +525,61 @@ impl Engine {
     /// would otherwise pile up for the resume: live MIDI and preview notes are dropped.
     /// The sample clock keeps counting, so hosts' wall-clock mappings stay valid; the
     /// transport does not move.
-    fn process_suspended(&mut self, frames: usize) {
+    ///
+    /// With a render preview ([`EngineHandle::set_render_preview`]) the output plays the
+    /// rendered master instead, following the transport (play, stop, locate, loop) and
+    /// stopping where nothing is rendered yet; the master's meter shows it, the other
+    /// tracks' meters fall to silence.
+    fn process_suspended(&mut self, outputs: &mut [&mut [f32]], frames: usize) {
         self.suspended = true;
+        if let Some(buf) = self.render_preview.as_deref()
+            && let [left, right, ..] = outputs
+        {
+            let (on, start, end) = loop_region(&self.transport, &self.snapshot.desc);
+            let t = &mut self.transport;
+            crate::render_preview::play(
+                buf,
+                crate::render_preview::PreviewTransport {
+                    position: &mut t.position,
+                    playing: &mut t.playing,
+                    loop_region: (on, start, end),
+                },
+                self.config.sample_rate,
+                [&mut left[..], &mut right[..]],
+                frames,
+            );
+            let n = frames.min(left.len()).min(right.len());
+            self.preview_meter.add(&left[..n], &right[..n]);
+            self.meter_elapsed += frames;
+            if self.meter_elapsed >= self.meter_interval {
+                self.meter_elapsed = 0;
+                self.push_preview_meters();
+            }
+        }
         self.transport.sample_time += frames as u64;
         self.recording.discard_input(self.transport.sample_time);
         self.publish_playhead();
         self.report();
+    }
+
+    /// **RT.** Meters while a render preview plays: the master shows the preview, every
+    /// other track silence (their accumulators are dropped).
+    fn push_preview_meters(&mut self) {
+        let preview = std::mem::take(&mut self.preview_meter);
+        let rt = &mut self.snapshot.rt;
+        for (t, d) in rt.tracks.iter_mut().zip(self.snapshot.desc.tracks.iter()) {
+            if self.out.slots() == 0 {
+                break;
+            }
+            t.meter = Default::default();
+            let master = d.kind == TrackKind::Master;
+            let _ = self.out.push(Output::Meter(TrackMeter {
+                track: t.id,
+                peak: if master { preview.peak } else { [0.0; 2] },
+                rms: if master { preview.rms() } else { [0.0; 2] },
+                clipped: master && preview.clipped,
+            }));
+        }
     }
 
     /// **RT.** The first block after a suspension: start from a clean state instead of
@@ -740,6 +799,12 @@ impl Engine {
                         && slot.generation == key.generation
                     {
                         slot.rt.watched = on;
+                    }
+                }
+                Control::RenderPreview(p) => {
+                    self.preview_meter = Default::default();
+                    if let Some(old) = std::mem::replace(&mut self.render_preview, p) {
+                        self.retire(Garbage::RenderPreview(old));
                     }
                 }
                 Control::StreamTap(w) => {
@@ -2500,6 +2565,16 @@ impl EngineHandle {
     /// lost to a full queue); everything sent before the call is applied before the change.
     pub fn set_suspended(&self, suspended: bool) {
         self.suspend.store(suspended, Ordering::Release);
+    }
+
+    /// Play `preview` while suspended (`None`: silence again), in order with everything
+    /// else sent here; the previous preview is retired (dropped off the audio thread). See
+    /// [`crate::render_preview`].
+    pub fn set_render_preview(
+        &mut self,
+        preview: Option<Arc<crate::render_preview::PreviewBuffer>>,
+    ) -> Result<(), EngineError> {
+        self.send(Control::RenderPreview(preview))
     }
 
     /// The last value given to [`Self::set_suspended`].

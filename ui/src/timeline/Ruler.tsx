@@ -18,6 +18,7 @@ import type { BeatRange, Beats, Command } from "@/generated";
 import { cmd, nextGestureId, useTransport, type EngineTransport } from "@/transport";
 import { loopFromPoints } from "./loop";
 import { LoopBrace } from "./LoopBrace";
+import { RenderFrozenLayer } from "./RenderFrozenLayer";
 import { DEFAULT_GRID, resolveGrid, snapToGrid, type GridSetting, type GridStep } from "./grid";
 import { useFollowPlayhead, usePlayheadPosition, type PlayheadMapping } from "./playhead";
 import { rulerMarks, type RulerFormat, type RulerMarks } from "./rulerMarks";
@@ -243,6 +244,8 @@ export function Ruler({
       />
       {showLoop && loopBrace && <LoopBrace view={view} snap={snap} />}
       {TempoMarkers && <TempoMarkers vp={vp} widthPx={widthPx} snap={snap} gridStep={gridStep} />}
+      {/* A render runs: what isn't rendered yet is frozen (playback stays before it). */}
+      <RenderFrozenLayer view={view} mapping={playheadMapping} label />
       <div ref={playheadRef} className="eth-ruler__playhead" data-testid="ruler-playhead" aria-hidden />
     </div>
   );

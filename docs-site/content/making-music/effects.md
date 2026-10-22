@@ -15,6 +15,7 @@ covers:
   - devices/utility #utility
   - devices/color-effects-saturator-bitcrusher-auto-filter #color-saturator-bitcrusher-auto-filter
   - devices/modulation-effects-chorus-phaser-flanger-tremolo #modulation-chorus-phaser-flanger-tremolo
+  - devices/shifter #shifter
   - devices/dynamics-gate-multiband-compressor-transient-shaper #dynamics-gate-multiband-compressor-transient-shaper
   - devices/analysis-spectrum-and-tuner #analysis-spectrum-and-tuner
   - devices/midi-effects-arpeggiator-chord-scale-note-length-velocity-ra #midi-effects
@@ -119,6 +120,15 @@ These effects make the sound move with an LFO. Most have **sync** to lock their 
 - **phaser**: a sweeping, hollow sound, with 2 to 12 stages.
 - **flanger**: a jet-like sweep. **through zero** makes it more dramatic.
 - **tremolo**: makes the volume pulse, or with **auto-pan**, moves the sound from left to right.
+
+### shifter
+
+Moves the pitch or the frequencies of a sound. Pick a **mode**:
+
+- **pitch** transposes by **pitch** (-24 to +24 semitones) and **detune** (cents). **window** sets the length of the slices it is made of: longer for low notes and pads, shorter for high notes and drums.
+- **frequency** moves every partial up or down by the same number of hertz (**shift**, plus **fine**). Harmonics stop being harmonic: a few hertz against the dry sound swirls like a phaser that never ends, hundreds of hertz sound metallic or bell-like.
+- **ring** multiplies the sound by a **carrier** tone (plus **fine**): audio rates give robotic, clangorous sidebands; a few hertz under some dry sound give a choppy tremolo. **drive** distorts the result (by **amount**).
+- **wide** mirrors the right channel (the opposite detune or shift; in ring mode the carrier is a quarter cycle apart, so the tremolo alternates between the sides). **mix** blends the dry sound.
 
 ## dynamics: gate, multiband compressor, transient shaper
 

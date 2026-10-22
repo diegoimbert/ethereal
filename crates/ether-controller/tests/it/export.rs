@@ -31,6 +31,9 @@ use ether_core::{
 };
 use ether_media::{DecodedAudio, InMemorySource};
 
+/// A render suspends the live engine and plays its preview (`rendering`).
+mod render_preview;
+
 const SR: u32 = 48_000;
 /// The offline engine's block size. Automation and tempo ramps are evaluated at block
 /// rate by the engine, so sample-exact equality with a live render needs the live engine
@@ -55,6 +58,8 @@ struct RealBridge {
     gc: GarbageCollector,
     sources: HashMap<MediaId, Arc<dyn AudioSource>>,
     devices: BTreeMap<DeviceId, BuiltinDeviceType>,
+    /// The render preview the engine plays while suspended (`begin_render_preview`).
+    preview: Option<ether_core::render_preview::PreviewWriter>,
 }
 
 impl RealBridge {
@@ -71,6 +76,7 @@ impl RealBridge {
             gc: parts.gc,
             sources: HashMap::new(),
             devices: BTreeMap::new(),
+            preview: None,
         }
     }
 
@@ -161,6 +167,30 @@ impl EngineBridge for RealBridge {
         self.devices
             .get(&device)
             .map(|t| ether_devices::descriptor(*t))
+    }
+    fn set_suspended(&mut self, suspended: bool) -> Result<(), BridgeError> {
+        self.handle.set_suspended(suspended);
+        Ok(())
+    }
+    fn begin_render_preview(
+        &mut self,
+        spec: ether_core::render_preview::PreviewSpec,
+    ) -> Result<(), BridgeError> {
+        let w = ether_core::render_preview::PreviewWriter::new(spec);
+        self.handle
+            .set_render_preview(Some(w.buffer()))
+            .map_err(|e| BridgeError::Other(e.to_string()))?;
+        self.preview = Some(w);
+        Ok(())
+    }
+    fn push_render_preview(&mut self, left: &[f32], right: &[f32]) {
+        if let Some(w) = self.preview.as_mut() {
+            w.push(left, right);
+        }
+    }
+    fn end_render_preview(&mut self) {
+        self.preview = None;
+        let _ = self.handle.set_render_preview(None);
     }
 }
 

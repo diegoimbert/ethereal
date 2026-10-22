@@ -49,6 +49,9 @@ const TAG_STREAM_CHUNK: u8 = b'S';
 /// A prepared convolution IR for a live node (see [`encode_prepared_ir`]).
 const TAG_IR_BEGIN: u8 = b'I';
 const TAG_IR_CHUNK: u8 = b'K';
+/// `[P][count u32][count x i16 LE]`: interleaved stereo frames of the render preview
+/// ([`EngineMsg::RenderPreviewChunk`]).
+const TAG_RENDER_PREVIEW: u8 = b'P';
 /// [`Frame::StreamChunk`] flags: first frame of the chunk (claims the slot), last one
 /// (publishes it).
 pub const STREAM_BEGIN: u8 = 1;
@@ -142,6 +145,17 @@ pub enum EngineMsg {
         track: TrackId,
         data: [u8; 3],
     },
+    /// A render's preview starts (`EngineBridge::begin_render_preview`): the Worklet
+    /// allocates its writer and hands the buffer to the engine.
+    RenderPreviewBegin {
+        spec: ether_core::render_preview::PreviewSpec,
+    },
+    /// The next rendered frames of the preview (interleaved 16-bit stereo; binary).
+    RenderPreviewChunk {
+        samples: Vec<i16>,
+    },
+    /// The render ended: the engine drops its preview.
+    RenderPreviewEnd,
     /// WebCLAP instances (`crate::webclap::proto`).
     Webclap(crate::webclap::proto::WebclapMsg),
 }
@@ -192,6 +206,10 @@ enum JsonMsg {
         key: NodeKey,
         device: BuiltinDevice,
     },
+    RenderPreviewBegin {
+        spec: ether_core::render_preview::PreviewSpec,
+    },
+    RenderPreviewEnd,
     Webclap(crate::webclap::proto::WebclapMsg),
 }
 
@@ -230,12 +248,22 @@ impl EngineMsg {
                 BinaryCodec.encode(graph, &mut out);
                 return vec![out];
             }
+            EngineMsg::RenderPreviewChunk { samples } => {
+                let mut out = Vec::with_capacity(5 + samples.len() * 2);
+                out.push(TAG_RENDER_PREVIEW);
+                out.extend_from_slice(&(samples.len() as u32).to_le_bytes());
+                for s in samples {
+                    out.extend_from_slice(&s.to_le_bytes());
+                }
+                return vec![out];
+            }
             _ => {}
         }
         let json = match self.clone() {
             EngineMsg::LoadMedia { .. }
             | EngineMsg::Publish { .. }
             | EngineMsg::LiveMidi { .. }
+            | EngineMsg::RenderPreviewChunk { .. }
             | EngineMsg::PreviewNote { .. } => unreachable!(),
             EngineMsg::CreateBuiltin {
                 key,
@@ -266,6 +294,8 @@ impl EngineMsg {
                 slots,
             },
             EngineMsg::UpdateBuiltin { key, device } => JsonMsg::UpdateBuiltin { key, device },
+            EngineMsg::RenderPreviewBegin { spec } => JsonMsg::RenderPreviewBegin { spec },
+            EngineMsg::RenderPreviewEnd => JsonMsg::RenderPreviewEnd,
             EngineMsg::Webclap(msg) => JsonMsg::Webclap(msg),
         };
         let mut out = vec![TAG_JSON];
@@ -322,6 +352,10 @@ pub enum Frame<'a> {
         offset: u32,
         /// `f32` LE values.
         values: &'a [u8],
+    },
+    /// The next frames of the render preview: interleaved stereo `i16` LE samples.
+    RenderPreviewChunk {
+        samples: &'a [u8],
     },
 }
 
@@ -410,6 +444,12 @@ impl<'a> Frame<'a> {
                     values,
                 })
             }
+            TAG_RENDER_PREVIEW => {
+                let count = c.u32()? as usize;
+                Ok(Frame::RenderPreviewChunk {
+                    samples: c.take(count * 2)?,
+                })
+            }
             TAG_GRAPH => Ok(Frame::Msg(EngineMsg::Publish {
                 graph: Box::new(BinaryCodec.decode(rest)?),
             })),
@@ -448,6 +488,8 @@ impl<'a> Frame<'a> {
                     JsonMsg::UpdateBuiltin { key, device } => {
                         EngineMsg::UpdateBuiltin { key, device }
                     }
+                    JsonMsg::RenderPreviewBegin { spec } => EngineMsg::RenderPreviewBegin { spec },
+                    JsonMsg::RenderPreviewEnd => EngineMsg::RenderPreviewEnd,
                     JsonMsg::Webclap(msg) => EngineMsg::Webclap(msg),
                 }))
             }
@@ -875,7 +917,10 @@ mod tests {
                 } => asm.chunk(media, channel, offset, samples).unwrap(),
                 Frame::MediaEnd { media } => done = asm.end(media).map(|a| (media, a)),
                 Frame::Msg(m) => panic!("unexpected {m:?}"),
-                Frame::StreamChunk { .. } | Frame::IrBegin { .. } | Frame::IrChunk { .. } => {
+                Frame::StreamChunk { .. }
+                | Frame::IrBegin { .. }
+                | Frame::IrChunk { .. }
+                | Frame::RenderPreviewChunk { .. } => {
                     panic!("unexpected frame")
                 }
             }
@@ -1002,10 +1047,42 @@ mod tests {
                 media: None,
                 gain: 1.0,
             },
+            EngineMsg::RenderPreviewBegin {
+                spec: ether_core::render_preview::PreviewSpec {
+                    rate: 48_000,
+                    start_seconds: 1.5,
+                    frames: 96_000,
+                    tempo: vec![ether_core::tempo::TempoPointDesc {
+                        beat: 0.0,
+                        bpm: 97.0,
+                        curve: Default::default(),
+                    }],
+                },
+            },
+            EngineMsg::RenderPreviewEnd,
         ];
         for m in msgs {
             assert_eq!(decode_one(&m), m);
         }
+    }
+
+    #[test]
+    fn render_preview_chunks_are_binary() {
+        let msg = EngineMsg::RenderPreviewChunk {
+            samples: vec![1, -2, i16::MAX, i16::MIN],
+        };
+        let frame = msg.encode().remove(0);
+        assert_eq!(frame.len(), 1 + 4 + 8);
+        let Frame::RenderPreviewChunk { samples } = Frame::decode(&frame).unwrap() else {
+            panic!("a preview chunk");
+        };
+        let back: Vec<i16> = samples
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|b| i16::from_le_bytes(*b))
+            .collect();
+        assert_eq!(back, [1, -2, i16::MAX, i16::MIN]);
     }
 
     #[test]

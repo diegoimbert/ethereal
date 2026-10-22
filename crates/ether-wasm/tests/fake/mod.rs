@@ -150,6 +150,7 @@ impl<B: EngineBridge, H: HostServices, S: ProjectStore> FakeController<B, H, S> 
             metronome: p.settings.metronome,
             start_position: Beats(self.start),
             loading: None,
+            rendering: None,
         })
     }
 
