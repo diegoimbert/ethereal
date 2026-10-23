@@ -617,6 +617,7 @@ pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
             F::Flatten { .. } => k("undo.freeze.flatten"),
             F::Bounce { .. } | F::BounceRange { .. } => k("undo.freeze.bounce"),
             F::Consolidate { tracks, .. } => kn("undo.freeze.consolidate_tracks", tracks.len()),
+            F::ConvertToSampler { .. } => k("undo.freeze.convert_sampler"),
             F::Cancel { .. } => k("undo.freeze.cancel"),
         },
         Command::TimeEdit(c) => match c {

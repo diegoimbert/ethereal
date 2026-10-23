@@ -4,6 +4,23 @@ import type { BounceTarget } from "./BounceTarget";
 import type { ClipId } from "./ClipId";
 import type { DeviceId } from "./DeviceId";
 import type { MediaId } from "./MediaId";
+import type { Seconds } from "./Seconds";
 import type { TrackId } from "./TrackId";
 
-export type FreezeCommand = { "type": "Freeze", job: string, track: TrackId, media: MediaId, up_to?: DeviceId, } | { "type": "Unfreeze", track: TrackId, } | { "type": "Flatten", track: TrackId, clip: ClipId, new_track: TrackId, } | { "type": "Bounce", job: string, track: TrackId, start: Beats, end: Beats, include_chain: boolean, media: MediaId, target: BounceTarget, } | { "type": "Consolidate", job: string, tracks: Array<TrackId>, start: Beats, end: Beats, seed_clips: ClipId, seed_notes: ClipId, seed_media: MediaId, } | { "type": "Cancel", job: string, } | { "type": "BounceRange", job: string, tracks: Array<TrackId>, start: Beats, end: Beats, seed_tracks: TrackId, seed_clips: ClipId, seed_media: MediaId, };
+export type FreezeCommand = { "type": "Freeze", job: string, track: TrackId, media: MediaId, up_to?: DeviceId, } | { "type": "Unfreeze", track: TrackId, } | { "type": "Flatten", track: TrackId, clip: ClipId, new_track: TrackId, } | { "type": "Bounce", job: string, track: TrackId, start: Beats, end: Beats, include_chain: boolean, media: MediaId, target: BounceTarget, } | { "type": "Consolidate", job: string, tracks: Array<TrackId>, start: Beats, end: Beats, seed_clips: ClipId, seed_notes: ClipId, seed_media: MediaId, } | { "type": "ConvertToSampler", job: string, device: DeviceId, new_device: DeviceId, seed_media: MediaId, first_key: number, last_key: number, 
+/**
+ * Semitones between sampled keys (1 = every note).
+ */
+key_step: number, 
+/**
+ * Velocity layers (1..=16).
+ */
+velocity_steps: number, 
+/**
+ * How long each note is held before note-off.
+ */
+note_seconds: Seconds, 
+/**
+ * Longest release tail kept after note-off (silence beyond is trimmed).
+ */
+tail_seconds: Seconds, } | { "type": "Cancel", job: string, } | { "type": "BounceRange", job: string, tracks: Array<TrackId>, start: Beats, end: Beats, seed_tracks: TrackId, seed_clips: ClipId, seed_media: MediaId, };
