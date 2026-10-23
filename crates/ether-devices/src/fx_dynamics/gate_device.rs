@@ -307,8 +307,8 @@ impl Gate {
             },
             |s, a, b| s.render(audio, sidechain, a, b),
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
-                    s.apply_param(param, value, true);
+                if let EventKind::Param { param, value, step } = *kind {
+                    s.apply_param(param, value, !step);
                 }
             },
         );
@@ -359,7 +359,7 @@ impl Node for Gate {
             self,
             |s| &mut s.late,
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
+                if let EventKind::Param { param, value, .. } = *kind {
                     s.apply_param(param, value, false);
                 }
             },

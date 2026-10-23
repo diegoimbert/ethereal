@@ -424,6 +424,7 @@ mod tests {
             kind: EventKind::Param {
                 param: ether_protocol::model::ParamId(1),
                 value: 0.5,
+                step: false,
             },
         };
         entry.push(param);

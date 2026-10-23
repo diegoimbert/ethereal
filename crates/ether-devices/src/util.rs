@@ -265,9 +265,10 @@ const LATE_TAG: u32 = 1 << 31;
 #[inline]
 fn tagged(kind: ether_core::EventKind) -> ether_core::EventKind {
     match kind {
-        ether_core::EventKind::Param { param, value } => ether_core::EventKind::Param {
+        ether_core::EventKind::Param { param, value, step } => ether_core::EventKind::Param {
             param: ParamId(param.0 | LATE_TAG),
             value,
+            step,
         },
         other => other,
     }
@@ -351,7 +352,9 @@ impl LateEvents {
     /// (the latest value sent, also while it waits to act).
     pub(crate) fn latest(&self, param: ParamId) -> Option<f64> {
         self.pending.iter().rev().find_map(|(_, k)| match *k {
-            ether_core::EventKind::Param { param: p, value } if p == param => Some(value),
+            ether_core::EventKind::Param {
+                param: p, value, ..
+            } if p == param => Some(value),
             _ => None,
         })
     }
@@ -630,6 +633,7 @@ mod tests {
             kind: ether_core::EventKind::Param {
                 param: ParamId(id),
                 value: 0.0,
+                step: false,
             },
         }
     }

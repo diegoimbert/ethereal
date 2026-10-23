@@ -266,7 +266,7 @@ impl ClapNode {
                 self.push_in(&NoteOffEvent::new(t, Pckn::match_all(), 0.0));
                 self.push_in(&MidiEvent::new(t, 0, [0xB0, 123, 0]));
             }
-            EventKind::Param { param, value } => {
+            EventKind::Param { param, value, .. } => {
                 self.set_value(param.0, value);
                 self.push_in(&ParamValueEvent::new(
                     t,

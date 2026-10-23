@@ -161,7 +161,7 @@ impl Node for ParamProbe {
     ) -> ProcessStatus {
         let mut log = self.0.lock().unwrap();
         for e in ctx.events {
-            if let EventKind::Param { param, value } = e.kind {
+            if let EventKind::Param { param, value, .. } = e.kind {
                 log.push((param.0, value));
             }
         }

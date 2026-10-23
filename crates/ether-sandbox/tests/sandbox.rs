@@ -106,7 +106,11 @@ impl Harness {
 fn param(offset: u32, p: ParamId, value: f64) -> ProcessEvent {
     ProcessEvent {
         offset,
-        kind: EventKind::Param { param: p, value },
+        kind: EventKind::Param {
+            param: p,
+            value,
+            step: false,
+        },
     }
 }
 

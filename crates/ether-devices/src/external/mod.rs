@@ -413,8 +413,8 @@ impl ExternalNode {
             route,
             |s, a, b| s.render(audio, ret, a, b),
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
-                    s.apply(param, value, true);
+                if let EventKind::Param { param, value, step } = *kind {
+                    s.apply(param, value, !step);
                 }
             },
         );
@@ -453,7 +453,7 @@ impl Node for ExternalNode {
             self,
             |s| &mut s.late,
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
+                if let EventKind::Param { param, value, .. } = *kind {
                     s.apply(param, value, false);
                 }
             },

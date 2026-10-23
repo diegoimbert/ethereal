@@ -266,7 +266,7 @@ impl WebclapNode {
                 key,
             } => note(kind::NOTE_CHOKE, note_id, channel, key, 0.0),
             EventKind::AllNotesOff => note(kind::ALL_NOTES_OFF, 0, 0, 0, 0.0),
-            EventKind::Param { param, value } => {
+            EventKind::Param { param, value, .. } => {
                 self.set_value(param.0, value);
                 EventRec {
                     offset: e.offset,

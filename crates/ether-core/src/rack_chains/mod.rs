@@ -255,7 +255,7 @@ pub(crate) struct ChainRacksRt {
 /// The selector value a `Param` event sets, if it is the rack's selector.
 fn selector_event(e: &ProcessEvent) -> Option<u8> {
     match e.kind {
-        EventKind::Param { param, value } if param == SELECTOR_PARAM => {
+        EventKind::Param { param, value, .. } if param == SELECTOR_PARAM => {
             Some(if value.is_finite() {
                 value.round().clamp(0.0, 127.0) as u8
             } else {

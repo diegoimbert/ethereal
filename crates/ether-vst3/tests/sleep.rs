@@ -252,6 +252,7 @@ fn a_sleeping_plugin_wakes_on_events_param_sets_and_the_transport() {
         kind: EventKind::Param {
             param: ParamId(23),
             value: 0.0,
+            step: false,
         },
     }];
     d.block(node.as_mut(), &silence, &ev);

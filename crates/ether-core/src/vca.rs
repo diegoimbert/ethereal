@@ -380,10 +380,13 @@ impl TrackVcaRt {
             ),
             assigned,
             // One chunk per grid interval of the largest block, plus the partial ends, the
-            // breakpoints and the pieces of a delayed timeline (`automation_rt::views`).
+            // pieces of a delayed timeline (`automation_rt::views`) and two per breakpoint
+            // (its own sample is a chunk).
             knots: if assigned {
                 Vec::with_capacity(
-                    config.max_block_size / crate::automation_rt::PARAM_GRID as usize * 2 + 64,
+                    config.max_block_size / crate::automation_rt::PARAM_GRID as usize * 2
+                        + 64
+                        + 2 * crate::automation_rt::MAX_KNOTS,
                 )
             } else {
                 Vec::new()

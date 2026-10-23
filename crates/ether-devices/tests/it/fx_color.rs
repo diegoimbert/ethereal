@@ -149,7 +149,11 @@ fn set(d: &mut dyn Device, id: ParamId, v: f64) {
 }
 
 fn param(id: ParamId, value: f64) -> EventKind {
-    EventKind::Param { param: id, value }
+    EventKind::Param {
+        param: id,
+        value,
+        step: false,
+    }
 }
 
 fn finite_and_bounded(out: &[Vec<f32>; 2], bound: f32, what: &str) {

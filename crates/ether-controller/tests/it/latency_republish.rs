@@ -71,7 +71,7 @@ impl ether_core::Node for Lookahead {
         audio: &mut ether_core::AudioBuffers<'_, '_>,
     ) -> ether_core::ProcessStatus {
         for e in ctx.events {
-            if let EventKind::Param { param, value } = e.kind
+            if let EventKind::Param { param, value, .. } = e.kind
                 && param == LOOKAHEAD
             {
                 self.set_ms(value);

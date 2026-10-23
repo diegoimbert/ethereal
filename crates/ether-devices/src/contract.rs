@@ -207,7 +207,7 @@ impl Node for Placeholder {
     ) -> ProcessStatus {
         for e in ctx.events {
             match e.kind {
-                EventKind::Param { param, value } => self.set_param(param, value),
+                EventKind::Param { param, value, .. } => self.set_param(param, value),
                 _ if self.mode == PlaceholderMode::MidiThru => {
                     ctx.out_events.push(*e);
                 }

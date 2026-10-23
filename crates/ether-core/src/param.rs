@@ -38,9 +38,10 @@ pub enum ParamTarget {
 /// smoothed by the receiver. `TrackVolume`/`TrackMute` of a VCA id reach `crate::vca` (v0.2).
 ///
 /// **Node parameter-event API (v0.2, frozen; CONTRACTS.md §12.7).** Nodes receive every
-/// param change (live, automation, modulation) as `EventKind::Param { param, value }` at a
-/// sample `offset` in `ProcessContext::events`, sorted. Built-in devices apply them at their
-/// offset (`ether_devices::util::split_at_events` + per-param smoothing); plugin hosts
+/// param change (live, automation, modulation) as `EventKind::Param { param, value, step }`
+/// at a sample `offset` in `ProcessContext::events`, sorted. Built-in devices apply them at
+/// their offset (`ether_devices::util::split_at_events` + per-param smoothing, none for an
+/// automation `step`); plugin hosts
 /// forward the offset: CLAP `clap_event_param_value.header.time`, VST3
 /// `IParameterChanges`/`IParamValueQueue::addPoint(sampleOffset)`, AU
 /// `AudioUnitScheduleParameters` (`AUParameterEvent` with `eventSampleTime`). A node that

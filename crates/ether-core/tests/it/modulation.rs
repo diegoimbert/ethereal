@@ -68,7 +68,7 @@ fn params_of(seen: &[Seen]) -> Vec<(u64, f64)> {
     events(seen)
         .into_iter()
         .filter_map(|(t, k)| match k {
-            EventKind::Param { param, value } if param == P => Some((t, value)),
+            EventKind::Param { param, value, .. } if param == P => Some((t, value)),
             _ => None,
         })
         .collect()

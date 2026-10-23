@@ -1212,6 +1212,50 @@
           "title": "Character"
         },
         {
+          "columns": 4,
+          "id": "shimmer",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 11,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "Amount",
+              "size": "Medium",
+              "widget": {
+                "param": 12,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "Pitch",
+              "size": "Medium",
+              "widget": {
+                "param": 13,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "Tone",
+              "size": "Medium",
+              "widget": {
+                "param": 14,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Shimmer"
+        },
+        {
           "columns": 3,
           "id": "output",
           "items": [
@@ -1420,6 +1464,71 @@
           "type": "Linear"
         },
         "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Shimmer",
+        "hidden": false,
+        "id": 11,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Shimmer",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Shimmer",
+        "hidden": false,
+        "id": 12,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Shimmer Amount",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 12.0,
+        "group": "Shimmer",
+        "hidden": false,
+        "id": 13,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Shimmer Pitch",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Semitones"
+      },
+      {
+        "automatable": true,
+        "default": 8000.0,
+        "group": "Shimmer",
+        "hidden": false,
+        "id": 14,
+        "labels": null,
+        "max": 20000.0,
+        "min": 500.0,
+        "name": "Shimmer Tone",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
       }
     ],
     "sidechain_inputs": 0

@@ -335,7 +335,7 @@ impl Node for Tuner {
                 }
             },
             |t, kind| {
-                if let EventKind::Param { param, value } = *kind {
+                if let EventKind::Param { param, value, .. } = *kind {
                     t.set(param, value, true);
                 }
             },

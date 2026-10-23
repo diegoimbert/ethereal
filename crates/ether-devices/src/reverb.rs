@@ -33,9 +33,29 @@
 //! | 8  | `Diffusion` | 0 ..= 100 %, default 60 (the former fixed allpass gain 0.6) |
 //! | 9  | `Freeze`    | toggle: the tank stops taking input and sustains (unity loop gain, no damping) |
 //! | 10 | `Output`    | -36 ..= +12 dB, default 0: wet level trim (the dry path is untouched) |
+//! | 11 | `Shimmer`   | toggle, default off: the pitch-shifted feedback below |
+//! | 12 | `Shimmer Amount` | 0 ..= 100 %, default 50 |
+//! | 13 | `Shimmer Pitch`  | -24 ..= +24 semitones (whole steps), default +12 |
+//! | 14 | `Shimmer Tone`   | 500 ..= 20000 Hz (log), default 8000: low-pass on the shifted path |
 //!
 //! The cut filters shape what enters the tank (12 dB/oct; with both off the input is
 //! untouched); every appended param defaults to the sound before it (bit-exact).
+//!
+//! # Shimmer
+//!
+//! A pitch shifter inside the loop: each pass of the tail is transposed again by `Shimmer
+//! Pitch` (+12: octave upon octave, +7: stacked fifths, -12: a falling cloud). The tank's
+//! wet outputs are its state projected on the two output patterns (`OUT_L`, `OUT_R`, scaled
+//! to unit vectors); with shimmer on, the feedback replaces a fraction `Shimmer Amount` of
+//! that 2-dimensional part by its shifted copy (the two-tap delay-line shifter of
+//! `dsp::pitch_taps`, one per side, their sweeps a quarter apart) through the `Shimmer
+//! Tone` one-pole low-pass. It is a crossfade, not an addition: the shifted copy is a
+//! convex mix of delayed samples (never above their peak) and the low-pass has unity gain
+//! at most, so the loop gain stays the plain tank's (< 1) and the tail can't run away at
+//! any decay, amount or pitch; higher partials fade through `Damping` and `Tone` on every
+//! pass. `Freeze` suspends the shimmer (a frozen tail holds still). Amount (with the
+//! switch), pitch and tone glide; off, the shimmer costs nothing and the output is the
+//! plain reverb's, bit for bit.
 
 use ether_core::protocol::devices::{
     DeviceCategory, DeviceDescriptor, DeviceTypeRef, ParamInfo, ParamScale, ParamUnit,
@@ -48,6 +68,7 @@ use ether_core::{
 use crate::dsp::cut_filter::{CutFilter, HIGH_OFF_HZ, LOW_OFF_HZ};
 use crate::dsp::delay_line::DelayLine;
 use crate::dsp::flush32;
+use crate::dsp::pitch_taps::PitchTaps;
 use crate::util;
 
 /// Parameter ids (stable: stored in documents and automation).
@@ -70,9 +91,17 @@ pub mod params {
     /// Wet level trim (dB, 0 = the reverb's level before it existed). Level-matches imported
     /// reverbs (Ableton's Reflect / Diffuse levels).
     pub const OUTPUT: ParamId = ParamId(10);
+    /// Shimmer: pitch-shifted feedback (toggle, default off).
+    pub const SHIMMER: ParamId = ParamId(11);
+    /// Fraction of the tail shifted on each pass (percent).
+    pub const SHIMMER_AMOUNT: ParamId = ParamId(12);
+    /// Transposition of each pass (semitones).
+    pub const SHIMMER_PITCH: ParamId = ParamId(13);
+    /// Low-pass on the shifted path (Hz).
+    pub const SHIMMER_TONE: ParamId = ParamId(14);
 }
 
-const NUM_PARAMS: usize = 11;
+const NUM_PARAMS: usize = 15;
 const LINES: usize = 8;
 /// FDN line lengths at 48 kHz for a size factor of 1 (mutually prime).
 const BASE_LENGTHS: [f32; LINES] = [
@@ -114,6 +143,14 @@ const DIFF_POS: [[[f32; DIFF_CH]; DIFF_STAGES]; 2] = [
         [0.77, 0.35, 0.49, 0.03],
     ],
 ];
+/// The shimmer shifter's window (ms): long, for smooth splices on a diffuse tail.
+const SHIMMER_WINDOW_MS: f64 = 100.0;
+/// Glide of `Shimmer Pitch` (ms).
+const SHIMMER_PITCH_GLIDE_MS: f32 = 60.0;
+/// Peak bound of the shifted path (a guard: the loop's gain keeps it far below).
+const SHIMMER_LIMIT: f32 = 16.0;
+/// Scale of the output patterns to unit vectors (1/√8).
+const OUT_NORM: f32 = 0.353_553_4;
 /// Polarity of each channel after each stage's delays.
 const DIFF_FLIPS: [[f32; DIFF_CH]; DIFF_STAGES] = [
     [1.0, -1.0, 1.0, -1.0],
@@ -207,6 +244,41 @@ pub fn param_infos() -> Vec<ParamInfo> {
             (-36.0, 12.0, 0.0),
             ParamScale::Linear,
         ),
+        util::choice(
+            11,
+            "Shimmer",
+            "Shimmer",
+            ParamUnit::Toggle,
+            &["Off", "On"],
+            0,
+        ),
+        param(
+            12,
+            "Shimmer Amount",
+            "Shimmer",
+            ParamUnit::Percent,
+            (0.0, 100.0, 50.0),
+            ParamScale::Linear,
+        ),
+        ParamInfo {
+            step: Some(1.0),
+            ..param(
+                13,
+                "Shimmer Pitch",
+                "Shimmer",
+                ParamUnit::Semitones,
+                (-24.0, 24.0, 12.0),
+                ParamScale::Linear,
+            )
+        },
+        param(
+            14,
+            "Shimmer Tone",
+            "Shimmer",
+            ParamUnit::Hertz,
+            (500.0, 20_000.0, 8000.0),
+            ParamScale::Log,
+        ),
     ]
 }
 
@@ -230,10 +302,14 @@ pub fn descriptor() -> DeviceDescriptor {
 
 /// Declarative panel (drawn by the shared renderer in the device's window): the decay
 /// display (with its decay / pre-delay / size / damping / freeze controls), then the input
-/// filter, the diffusion and the output.
+/// filter, the diffusion, the shimmer and the output.
 pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
     use crate::contract::{item, knob, layout, section};
-    use ether_core::protocol::layout::{Widget, WidgetSize::*};
+    use ether_core::protocol::layout::{LayoutItem, Widget, WidgetSize::*};
+    let labeled = |param, label: &str| LayoutItem {
+        label: Some(label.to_owned()),
+        ..knob(param, Medium)
+    };
     layout(vec![
         section(
             "decay",
@@ -267,6 +343,23 @@ pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
             1,
             1,
             vec![knob(params::DIFFUSION, Medium)],
+        ),
+        section(
+            "shimmer",
+            Some("Shimmer"),
+            1,
+            4,
+            vec![
+                item(
+                    Widget::Toggle {
+                        param: params::SHIMMER,
+                    },
+                    Small,
+                ),
+                labeled(params::SHIMMER_AMOUNT, "Amount"),
+                labeled(params::SHIMMER_PITCH, "Pitch"),
+                labeled(params::SHIMMER_TONE, "Tone"),
+            ],
         ),
         section(
             "output",
@@ -401,6 +494,17 @@ pub struct Reverb {
     diffusion: Smoother,
     freeze: Smoother,
     filter: CutFilter,
+    /// Shimmer: one shifter per output pattern, the fraction of it fed back (`Shimmer` ×
+    /// `Shimmer Amount`), the pitch (semitones) and its ratio, the tone low-pass
+    /// coefficient and state.
+    shimmer_taps: [PitchTaps; 2],
+    shimmer: Smoother,
+    shimmer_pitch: Smoother,
+    shimmer_ratio: f64,
+    shimmer_tone: Smoother,
+    shimmer_lp: [f32; 2],
+    /// The shimmer runs (on, or fading out); off, it is skipped entirely.
+    shimmer_active: bool,
     /// Silence reporting: the tank or the diffusers carried signal above
     /// the floor in this block.
     loud: bool,
@@ -451,6 +555,13 @@ impl Reverb {
             diffusion: s(),
             freeze: s(),
             filter: CutFilter::default(),
+            shimmer_taps: [PitchTaps::new(), PitchTaps::new()],
+            shimmer: s(),
+            shimmer_pitch: s(),
+            shimmer_ratio: 1.0,
+            shimmer_tone: s(),
+            shimmer_lp: [0.0; 2],
+            shimmer_active: false,
             loud: false,
             hold: 0,
             tail: util::Tail::default(),
@@ -501,6 +612,19 @@ impl Reverb {
         self.freeze = mk(self.freeze_target());
         self.filter.prepare(self.sample_rate);
         self.update_filter(false);
+        let window = SHIMMER_WINDOW_MS * 0.001 * f64::from(sr);
+        for t in &mut self.shimmer_taps {
+            t.allocate(f64::from(sr), window, SHIMMER_WINDOW_MS);
+        }
+        self.shimmer = mk(self.shimmer_target());
+        self.shimmer_pitch = Smoother::new(
+            self.value(params::SHIMMER_PITCH),
+            SHIMMER_PITCH_GLIDE_MS,
+            sr,
+        );
+        self.shimmer_ratio = Self::ratio(self.shimmer_pitch.current());
+        self.shimmer_tone = mk(self.shimmer_tone_coef());
+        self.shimmer_active = self.shimmer.current() > 0.0;
         self.reset();
     }
 
@@ -510,6 +634,37 @@ impl Reverb {
         } else {
             0.0
         }
+    }
+
+    /// The shimmer's feedback fraction: `Shimmer Amount` with the switch on, else 0.
+    fn shimmer_target(&self) -> f32 {
+        if self.value(params::SHIMMER) >= 0.5 {
+            self.value(params::SHIMMER_AMOUNT) * 0.01
+        } else {
+            0.0
+        }
+    }
+
+    /// One-pole low-pass coefficient of `Shimmer Tone`.
+    fn shimmer_tone_coef(&self) -> f32 {
+        let fc = self
+            .value(params::SHIMMER_TONE)
+            .min(self.sample_rate * 0.45);
+        (-std::f32::consts::TAU * fc / self.sample_rate).exp()
+    }
+
+    fn ratio(semitones: f32) -> f64 {
+        (f64::from(semitones) / 12.0).exp2()
+    }
+
+    /// Start the shimmer from empty shifters (it was off).
+    fn shimmer_start(&mut self) {
+        for (c, t) in self.shimmer_taps.iter_mut().enumerate() {
+            t.reset();
+            // A quarter sweep apart: the two sides splice at different times.
+            t.set_phase(0.25 * c as f64);
+        }
+        self.shimmer_lp = [0.0; 2];
     }
 
     fn update_filter(&mut self, smooth: bool) {
@@ -561,6 +716,25 @@ impl Reverb {
                 diffusion_gain(percent)
             }
             params::FREEZE => self.freeze_target(),
+            params::SHIMMER | params::SHIMMER_AMOUNT => {
+                let v = self.shimmer_target();
+                if v > 0.0 && !self.shimmer_active {
+                    self.shimmer_start();
+                    self.shimmer_active = true;
+                }
+                v
+            }
+            params::SHIMMER_PITCH => {
+                let st = self.value(params::SHIMMER_PITCH);
+                if smooth {
+                    self.shimmer_pitch.set_target(st);
+                } else {
+                    self.shimmer_pitch.set_immediate(st);
+                    self.shimmer_ratio = Self::ratio(st);
+                }
+                return;
+            }
+            params::SHIMMER_TONE => self.shimmer_tone_coef(),
             params::LOW_CUT | params::HIGH_CUT => {
                 self.update_filter(smooth);
                 return;
@@ -580,6 +754,8 @@ impl Reverb {
             params::DIFFUSION => &mut self.diffusion,
             params::FREEZE => &mut self.freeze,
             params::OUTPUT => &mut self.output,
+            params::SHIMMER | params::SHIMMER_AMOUNT => &mut self.shimmer,
+            params::SHIMMER_TONE => &mut self.shimmer_tone,
             _ => &mut self.mix,
         };
         if smooth {
@@ -595,6 +771,47 @@ impl Reverb {
         for (g, base) in self.gains.iter_mut().zip(BASE_LENGTHS) {
             let seconds = base * scale / self.sample_rate;
             *g = 10f32.powf(-3.0 * seconds / rt60);
+        }
+    }
+
+    /// The shimmer's part of the feedback `o` (after damping and loop gains, before the
+    /// matrix): the projections on the output patterns move a fraction toward their shifted
+    /// copies (see the module docs).
+    #[inline]
+    fn shimmer_tick(&mut self, o: &mut [f32; LINES], freeze: f32) {
+        let amount = self.shimmer.tick() * (1.0 - freeze);
+        if self.shimmer_pitch.is_smoothing() {
+            self.shimmer_ratio = Self::ratio(self.shimmer_pitch.tick());
+        }
+        let tone = self.shimmer_tone.tick();
+        let window = SHIMMER_WINDOW_MS * 0.001 * f64::from(self.sample_rate);
+        let mut proj = [0.0f32; 2];
+        for (k, v) in o.iter().enumerate() {
+            proj[0] += v * OUT_L[k];
+            proj[1] += v * OUT_R[k];
+        }
+        let mut delta = [0.0f32; 2];
+        for c in 0..2 {
+            let p = proj[c] * OUT_NORM;
+            let taps = &mut self.shimmer_taps[c];
+            taps.push(p);
+            let shifted = taps.pitched(self.shimmer_ratio, window);
+            let lp = &mut self.shimmer_lp[c];
+            *lp = flush32(shifted * (1.0 - tone) + *lp * tone);
+            let y = if lp.is_finite() {
+                lp.clamp(-SHIMMER_LIMIT, SHIMMER_LIMIT)
+            } else {
+                *lp = 0.0;
+                0.0
+            };
+            delta[c] = amount * (y - p) * OUT_NORM;
+        }
+        for (k, v) in o.iter_mut().enumerate() {
+            *v += delta[0] * OUT_L[k] + delta[1] * OUT_R[k];
+        }
+        if self.shimmer.current() == 0.0 && !self.shimmer.is_smoothing() {
+            // Faded out: off from the next sample on.
+            self.shimmer_active = false;
         }
     }
 
@@ -700,6 +917,9 @@ impl Reverb {
                     *v = *lp * g;
                 }
             }
+            if self.shimmer_active {
+                self.shimmer_tick(&mut o, freeze);
+            }
             hadamard8(&mut o);
             for (k, line) in self.lines.iter_mut().enumerate() {
                 line.push(o[k] + lanes[k & 1][k >> 1]);
@@ -741,6 +961,7 @@ impl Node for Reverb {
         self.lines.iter_mut().for_each(DelayLine::clear);
         self.lp = [0.0; LINES];
         self.filter.reset();
+        self.shimmer_start();
         self.snap = true;
     }
 
@@ -756,8 +977,8 @@ impl Node for Reverb {
             ctx.frames,
             |s, a, b| s.render(audio, a, b),
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
-                    s.apply_param(param, value, true);
+                if let EventKind::Param { param, value, step } = *kind {
+                    s.apply_param(param, value, !step);
                 }
             },
         );
@@ -779,6 +1000,9 @@ impl Node for Reverb {
                 &self.diffusion,
                 &self.angle,
                 &self.freeze,
+                &self.shimmer,
+                &self.shimmer_pitch,
+                &self.shimmer_tone,
             ]
             .iter()
             .any(|s| s.is_smoothing())
@@ -790,7 +1014,13 @@ impl Node for Reverb {
             quiet,
             settled,
             n,
-            self.hold,
+            // The shimmer's shifters hold another window of the tail.
+            self.hold
+                + if self.shimmer_active {
+                    self.shimmer_taps[0].len()
+                } else {
+                    0
+                },
         )
     }
 }
@@ -849,7 +1079,11 @@ mod tests {
             let before = r.gains;
             let ev = ether_core::ProcessEvent {
                 offset: 3,
-                kind: EventKind::Param { param: id, value },
+                kind: EventKind::Param {
+                    param: id,
+                    value,
+                    step: false,
+                },
             };
             // Up to and including the event's sample.
             run(&mut r, 4, &[ev]);

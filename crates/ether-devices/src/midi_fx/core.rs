@@ -321,7 +321,7 @@ pub(crate) fn run<D: MidiFx>(d: &mut D, ctx: &mut ProcessContext<'_>) {
             cursor = o;
         }
         match e.kind {
-            EventKind::Param { param, value } => {
+            EventKind::Param { param, value, .. } => {
                 if d.params().set(param, value) {
                     d.param_changed(param);
                 }

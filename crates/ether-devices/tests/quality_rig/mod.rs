@@ -161,6 +161,7 @@ pub fn param(id: u32, value: f64) -> EventKind {
     EventKind::Param {
         param: ParamId(id),
         value,
+        step: false,
     }
 }
 

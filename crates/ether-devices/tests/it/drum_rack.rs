@@ -270,6 +270,7 @@ fn rack_node_applies_volume_and_pan_to_the_pad_mix() {
         EventKind::Param {
             param: drum_rack::params::VOLUME,
             value: 6.0,
+            step: false,
         },
     )];
     r.set_param(drum_rack::params::PAN, 0.0);

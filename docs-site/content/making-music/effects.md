@@ -60,6 +60,7 @@ An algorithmic reverb: the sound of a room or hall.
 - **damping** darkens the tail, **diffusion** makes it smoother, **width** sets its stereo size.
 - **low cut** and **high cut** filter what goes into the reverb.
 - **freeze** holds the tail forever.
+- **shimmer** pitch-shifts the tail inside the reverb, so every echo rises again: **amount** sets how much, **pitch** by how many semitones (+12 an octave, +7 a fifth, -12 falls), **tone** darkens the shifted sound. Presets: *shimmer hall*, *octave cloud*.
 - **mix** and **output**. Output sets the level of the reverb itself, not the dry sound.
 
 ### delay

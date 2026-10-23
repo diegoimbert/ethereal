@@ -347,7 +347,7 @@ impl Node for Erosion {
             self,
             |s| &mut s.late,
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
+                if let EventKind::Param { param, value, .. } = *kind {
                     s.set(param, value, false);
                 }
             },
@@ -370,8 +370,8 @@ impl Node for Erosion {
             |_| Route::Late(center),
             |s, a, b| s.render(audio, a, b),
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
-                    s.set(param, value, true);
+                if let EventKind::Param { param, value, step } = *kind {
+                    s.set(param, value, !step);
                 }
             },
         );
