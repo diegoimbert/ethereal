@@ -1004,7 +1004,7 @@ every default renders bit-identically to the device before it, `ether-devices/te
 effects_defaults.rs`): Compressor `Knee` (7, dB, default 6), `Mix` (8, %), `Lookahead` (9, ms,
 reported as `Node::latency`), `Auto Makeup` (10); Delay `Low Cut` / `High Cut` (6, 7, feedback
 path, off at 20 Hz / 20 kHz), `Mod Rate` / `Mod Depth` (8, 9), `Freeze` (10); Reverb `Low Cut`
-/ `High Cut` (6, 7, input), `Diffusion` (8, default 60 %), `Freeze` (9); later `Output` (10, wet trim, -36..+12 dB, default 0: level-matches imported Ableton reverbs); Utility `Channel` (6:
+/ `High Cut` (6, 7, input), `Diffusion` (8, default 60 %), `Freeze` (9); later `Output` (10, wet trim, -36..+12 dB, default 0: level-matches imported Ableton reverbs); then the shimmer, a pitch shifter in the tank's feedback (`Shimmer` 11, toggle, default off; `Shimmer Amount` 12, %; `Shimmer Pitch` 13, -24..+24 semitones, default +12; `Shimmer Tone` 14, 500..20000 Hz); Utility `Channel` (6:
 Stereo / Left / Right / Swap), `Width Mode` (7: Width / Mid/Side), `Mid/Side` (8, -100..100 %),
 `Bass Mono` + `Bass Mono Freq` (9, 10), `DC Filter` (11), `Mute` (12); EQ `Channel` (41: Stereo
 / Left / Right / Mid / Side); Chorus `Sync` + `Sync Rate` (10, 11); Phaser and Flanger `LFO

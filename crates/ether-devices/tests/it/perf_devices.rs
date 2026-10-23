@@ -93,6 +93,10 @@ fn effects() -> Vec<(BuiltinDeviceType, Vec<(&'static str, f64)>)> {
             vec![("Filter/Low Cut", 200.0), ("Filter/High Cut", 6000.0)],
         ),
         (
+            Reverb,
+            vec![("Shimmer/Shimmer", 1.0), ("Shimmer/Shimmer Amount", 80.0)],
+        ),
+        (
             Utility,
             vec![
                 ("Stereo/Bass Mono", 1.0),

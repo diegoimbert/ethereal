@@ -116,9 +116,9 @@ fn param(id: ParamId, value: f64) -> EventKind {
 fn new_builtins_are_real_devices() {
     for (ty, count) in [
         // The effects pass appended EQ `Channel`, 4 reverb and 7 utility params; the
-        // Ableton reverb level match appended the reverb `Output`.
+        // Ableton reverb level match appended the reverb `Output`, the shimmer 4 more.
         (BuiltinDeviceType::Eq, eq::BANDS * 5 + 2),
-        (BuiltinDeviceType::Reverb, 11),
+        (BuiltinDeviceType::Reverb, 15),
         (BuiltinDeviceType::Limiter, 3),
         (BuiltinDeviceType::Utility, 13),
     ] {
