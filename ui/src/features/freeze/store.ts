@@ -12,7 +12,7 @@ import { useProjectStore } from "@/state";
 import { cmd, commandErrorText, isCommandFailed, newId, type EngineTransport } from "@/transport";
 import { descendantsOf, frozenAncestor } from "./inert";
 
-export type RenderKind = "Freeze" | "Bounce" | "Consolidate";
+export type RenderKind = "Freeze" | "Bounce" | "Consolidate" | "Sample";
 
 export interface RenderJob {
   job: string;

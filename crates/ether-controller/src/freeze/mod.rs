@@ -35,10 +35,12 @@
 mod edit;
 mod editable;
 mod job;
+mod sample;
 
 use std::collections::BTreeSet;
 
 use ether_core::freeze::FrozenDesc;
+use ether_core::protocol::devices::DeviceCategory;
 use ether_core::protocol::freeze::{BounceTarget, FreezeCommand, FreezeEvent};
 use ether_core::protocol::model::*;
 use ether_core::protocol::{Event, NotificationLevel, ReplyValue};
@@ -86,6 +88,13 @@ pub enum Finish {
         seed_clips: ClipId,
         seed_notes: ClipId,
         seed_media: MediaId,
+    },
+    /// `ConvertToSampler`: replace `device` with a multisampler playing `zones` (whose media
+    /// are the renders, inserted with them).
+    ConvertToSampler {
+        device: DeviceId,
+        new_device: DeviceId,
+        zones: Vec<SampleZone>,
     },
 }
 
@@ -313,6 +322,120 @@ where
     ) -> CmdResult<ReplyValue> {
         let rate = self.config.engine_sample_rate;
         match command {
+            FreezeCommand::ConvertToSampler {
+                job,
+                device,
+                new_device,
+                seed_media,
+                first_key,
+                last_key,
+                key_step,
+                velocity_steps,
+                note_seconds,
+                tail_seconds,
+            } => {
+                let p = &self.doc.as_ref().ok_or_else(no_project)?.project;
+                self.check_can_start(job)?;
+                let d = p
+                    .devices
+                    .get(device)
+                    .ok_or_else(|| not_found(format!("device {device}")))?;
+                if d.pad.is_some() || d.chain.is_some() {
+                    return Err(invalid(
+                        "only an instrument on a track's own chain can be converted",
+                    ));
+                }
+                let t = p
+                    .tracks
+                    .get(&d.track)
+                    .ok_or_else(|| not_found(format!("track {}", d.track)))?;
+                if t.kind != TrackKind::Midi {
+                    return Err(invalid("only instruments on MIDI tracks can be converted"));
+                }
+                not_inert(p, t)?;
+                if t.freeze.is_some() {
+                    return Err(invalid_state(format!(
+                        "track \"{}\" is frozen: unfreeze it first",
+                        t.name
+                    )));
+                }
+                let descriptor = self.engine.descriptor(d);
+                if descriptor.map(|d| d.category) != Some(DeviceCategory::Instrument) {
+                    return Err(invalid(format!("\"{}\" is not an instrument", d.name)));
+                }
+                if !p.devices_of(t.id).iter().any(|x| x.id == *device) {
+                    return Err(invalid(format!(
+                        "device {device} is not on the track's chain"
+                    )));
+                }
+                if p.devices.contains_key(new_device) {
+                    return Err(invalid(format!("device {new_device} already exists")));
+                }
+                if !(note_seconds.0.is_finite() && note_seconds.0 > 0.0) {
+                    return Err(invalid("the note length must be finite and above 0"));
+                }
+                if !(tail_seconds.0.is_finite() && tail_seconds.0 >= 0.0) {
+                    return Err(invalid("the tail must be finite and >= 0"));
+                }
+                let plan = sample::plan(
+                    *first_key,
+                    *last_key,
+                    *key_step,
+                    *velocity_steps,
+                    *seed_media,
+                )?;
+                for point in &plan.points {
+                    new_media(p, point.media)?;
+                }
+                let duration = p.tempo_map().seconds_to_beats(*note_seconds);
+                let frames = RenderJob::frames_of(p, Beats::ZERO, duration, rate);
+                if frames == 0 {
+                    return Err(invalid("the note length is too short to render"));
+                }
+                let specs = plan
+                    .points
+                    .iter()
+                    .map(|point| {
+                        let clip: ClipId = ether_model::derive_id(point.media, 0);
+                        let note: NoteId = ether_model::derive_id(point.media, 1);
+                        PassSpec {
+                            track: d.track,
+                            start: Beats::ZERO,
+                            frames,
+                            tail: true,
+                            cut: None,
+                            chain: true,
+                            up_to: Some(*device),
+                            sample: Some(job::SampleNote {
+                                key: point.key,
+                                velocity: f32::from(point.velocity) / 127.0,
+                                duration,
+                                clip,
+                                note,
+                            }),
+                            max_tail_seconds: Some(tail_seconds.0),
+                            media: point.media,
+                            name: format!(
+                                "{} {} v{}",
+                                d.name,
+                                crate::drum_rack::note_name(point.key),
+                                point.velocity
+                            ),
+                        }
+                    })
+                    .collect();
+                self.start_job(
+                    command,
+                    job,
+                    specs,
+                    Finish::ConvertToSampler {
+                        device: *device,
+                        new_device: *new_device,
+                        zones: plan.zones,
+                    },
+                    out,
+                )
+            }
             FreezeCommand::Cancel { job } => {
                 let state = &mut self.export.render;
                 if state
@@ -400,6 +523,8 @@ where
                     cut: None,
                     chain: true,
                     up_to,
+                    sample: None,
+                    max_tail_seconds: None,
                     media: *media,
                     name: format!("{} Freeze", t.name),
                 };
@@ -469,6 +594,8 @@ where
                     cut: Some(*end),
                     chain: *include_chain,
                     up_to: None,
+                    sample: None,
+                    max_tail_seconds: None,
                     media: *media,
                     name: format!("{} Bounce", t.name),
                 };
@@ -539,6 +666,8 @@ where
                         cut: Some(*end),
                         chain: true,
                         up_to: None,
+                        sample: None,
+                        max_tail_seconds: None,
                         media,
                         name: format!("{} Bounce", t.name),
                     });
@@ -600,6 +729,8 @@ where
                             cut: None,
                             chain: false,
                             up_to: None,
+                            sample: None,
+                            max_tail_seconds: None,
                             media,
                             name: format!("{} Consolidated", t.name),
                         });
@@ -880,6 +1011,20 @@ where
                         }
                         Ok(())
                     },
+                ),
+            ),
+            Finish::ConvertToSampler {
+                device,
+                new_device,
+                zones,
+            } => (
+                "Convert to sampler",
+                self.edit_with(
+                    crate::doc::undo("undo.freeze.convert_sampler"),
+                    None,
+                    now,
+                    out,
+                    |ctx| edit::finish_convert_to_sampler(ctx, *device, *new_device, zones, &media),
                 ),
             ),
             f @ Finish::Consolidate { .. } => (

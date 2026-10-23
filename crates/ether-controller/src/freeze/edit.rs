@@ -3,7 +3,7 @@
 
 use ether_core::protocol::Command;
 use ether_core::protocol::clips::ClipCommand;
-use ether_core::protocol::devices::DeviceCommand;
+use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::freeze::BounceTarget;
 use ether_core::protocol::mixer::MixerCommand;
 use ether_core::protocol::model::*;
@@ -244,6 +244,72 @@ fn move_live_tail(ctx: &mut DocCtx, from: TrackId, to: TrackId) -> CmdResult<()>
             }),
         )?;
     }
+    Ok(())
+}
+
+/// `ConvertToSampler` done: insert the rendered media, then replace `device` with a
+/// multisampler (`new_device`) at the same place in the chain, playing `zones` (one undo
+/// step).
+pub fn finish_convert_to_sampler(
+    ctx: &mut DocCtx,
+    device: DeviceId,
+    new_device: DeviceId,
+    zones: &[SampleZone],
+    media: &[MediaRef],
+) -> CmdResult<()> {
+    let d = ctx.device(device)?.clone();
+    let track_name = ctx
+        .p()
+        .tracks
+        .get(&d.track)
+        .map(|t| t.name.clone())
+        .unwrap_or_else(|| d.name.clone());
+    for m in media {
+        ctx.tx.insert(Entity::Media(m.clone()))?;
+    }
+    let layered = zones
+        .iter()
+        .map(|z| (z.velocities.lo, z.velocities.hi))
+        .collect::<std::collections::BTreeSet<_>>()
+        .len()
+        > 1;
+    doc::apply(
+        ctx,
+        &Command::Device(DeviceCommand::Insert {
+            id: new_device,
+            track: d.track,
+            device: DeviceSpec::Builtin {
+                device: BuiltinDevice::MultiSampler {
+                    zones: zones.to_vec(),
+                },
+            },
+            before: Some(device),
+        }),
+    )?;
+    for (param, value) in [
+        (ether_devices::multisampler::multi_sampler::VOLUME, 0.0),
+        (
+            ether_devices::multisampler::multi_sampler::VELOCITY,
+            if layered { 0.0 } else { 100.0 },
+        ),
+    ] {
+        doc::apply(
+            ctx,
+            &Command::Device(DeviceCommand::SetParam {
+                device: new_device,
+                param,
+                value,
+            }),
+        )?;
+    }
+    doc::apply(
+        ctx,
+        &Command::Device(DeviceCommand::Rename {
+            id: new_device,
+            name: format!("{track_name} Sampler"),
+        }),
+    )?;
+    doc::apply(ctx, &Command::Device(DeviceCommand::Remove { id: device }))?;
     Ok(())
 }
 

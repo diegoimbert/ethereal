@@ -8,7 +8,22 @@
  * here. `Unfreeze`, `Flatten` and MIDI-only `Consolidate` are instantaneous.
  */
 
-import type { Beats, BounceTarget, Clip, ClipId, Command, DeviceId, FreezeCommand, MediaId, MediaRef, Project, ReplyValue, Track, TrackId } from "@/generated";
+import type {
+  Beats,
+  BounceTarget,
+  Clip,
+  ClipId,
+  Command,
+  DeviceId,
+  FreezeCommand,
+  MediaId,
+  MediaRef,
+  Project,
+  ReplyValue,
+  SampleZone,
+  Track,
+  TrackId,
+} from "@/generated";
 import { cmd } from "../../cmd";
 import { fail } from "../documentReducer";
 import { beatsToSeconds } from "../tempo";
@@ -32,12 +47,19 @@ export interface FreezeHost extends MockHost {
 
 type Finish =
   | { type: "Freeze"; track: TrackId; upTo?: DeviceId }
+  | { type: "ConvertToSampler"; device: DeviceId; newDevice: DeviceId; zones: SampleZone[] }
   | { type: "Bounce"; track: TrackId; start: Beats; target: BounceTarget }
   | { type: "Consolidate"; tracks: TrackId[]; start: Beats; end: Beats }
   | { type: "BounceRange"; start: Beats; bounces: { track: TrackId; newTrack: TrackId; clip: ClipId; media: MediaId }[] };
 
 /** Undo labels of finished renders (the engine's). */
-const FINISH_LABEL: Record<Finish["type"], string> = { Freeze: "freeze track", Bounce: "bounce", Consolidate: "consolidate", BounceRange: "bounce" };
+const FINISH_LABEL: Record<Finish["type"], string> = {
+  Freeze: "freeze track",
+  ConvertToSampler: "convert to sampler",
+  Bounce: "bounce",
+  Consolidate: "consolidate",
+  BounceRange: "bounce",
+};
 
 interface Job {
   job: string;
@@ -220,6 +242,48 @@ export class MockFreeze {
         if (!bounces.length) fail("InvalidArgument", "nothing to bounce: no clips in the selection");
         return this.start(c.job, media, { type: "BounceRange", start: c.start, bounces });
       }
+      case "ConvertToSampler": {
+        this.checkCanStart(c.job);
+        const d = p.devices[c.device] ?? fail("NotFound", `device ${c.device} not found`);
+        if (d.pad != null || d.chain != null) fail("InvalidArgument", "only an instrument on a track's own chain can be converted");
+        const t = p.tracks[d.track] ?? fail("NotFound", `track ${d.track} not found`);
+        if (t.kind !== "Midi") fail("InvalidArgument", "only instruments on MIDI tracks can be converted");
+        if (t.freeze) fail("InvalidState", `track "${t.name}" is frozen: unfreeze it first`);
+        if (p.devices[c.new_device]) fail("InvalidArgument", `device ${c.new_device} already exists`);
+        if (!(c.note_seconds > 0)) fail("InvalidArgument", "the note length must be above 0");
+        const keys = sampledKeys(c.first_key, c.last_key, c.key_step);
+        const bands = velocityBands(c.velocity_steps);
+        const count = keys.length * bands.length;
+        if (!keys.length || !bands.length) fail("InvalidArgument", "invalid sampling range");
+        if (count > 512) fail("InvalidArgument", "too many samples (at most 512 zones)");
+        const zones: SampleZone[] = [];
+        const media: MediaRef[] = [];
+        keys.forEach((key, ki) => {
+          const lo = ki === 0 ? 0 : Math.floor((keys[ki - 1]! + key) / 2) + 1;
+          const hi = ki + 1 === keys.length ? 127 : Math.floor((key + keys[ki + 1]!) / 2);
+          for (const [vlo, vhi, velocity] of bands) {
+            const id = this.host.newId();
+            media.push(this.media(id, `${t.name} ${noteName(key)} v${velocity}`, c.note_seconds + c.tail_seconds));
+            zones.push({
+              media: id,
+              root_key: key,
+              tune_cents: 0,
+              keys: { lo, hi },
+              velocities: { lo: vlo, hi: vhi },
+              round_robin: 0,
+              start: 0,
+              end: null,
+              looping: false,
+              loop_start: 0,
+              loop_end: 0,
+              loop_crossfade: 0,
+              gain: 0,
+              pan: 0,
+            });
+          }
+        });
+        return this.start(c.job, media, { type: "ConvertToSampler", device: c.device, newDevice: c.new_device, zones });
+      }
       case "Cancel":
         if (this.job?.job === c.job) {
           this.job = null;
@@ -316,6 +380,24 @@ export class MockFreeze {
           const m = job.media[0]!;
           tx.upsert("Media", m);
           tx.upsert("Track", { ...t, freeze: { media: m.id, start: 0, ...(f.upTo ? { up_to: f.upTo } : {}) } });
+        } else if (f.type === "ConvertToSampler") {
+          const d = p.devices[f.device] ?? fail("InvalidState", "the device was deleted during the render");
+          const t = p.tracks[d.track] ?? fail("InvalidState", "the track was deleted during the render");
+          for (const m of job.media) tx.upsert("Media", m);
+          apply(
+            cmd("Device", {
+              type: "Insert",
+              id: f.newDevice,
+              track: d.track,
+              device: { type: "Builtin", device: { type: "MultiSampler", zones: f.zones } },
+              before: f.device,
+            }),
+          );
+          apply(cmd("Device", { type: "SetParam", device: f.newDevice, param: 0, value: 0 }));
+          const layered = new Set(f.zones.map((z) => `${z.velocities.lo}:${z.velocities.hi}`)).size > 1;
+          apply(cmd("Device", { type: "SetParam", device: f.newDevice, param: 5, value: layered ? 0 : 100 }));
+          apply(cmd("Device", { type: "Rename", id: f.newDevice, name: `${t.name} Sampler` }));
+          apply(cmd("Device", { type: "Remove", id: f.device }));
         } else if (f.type === "Bounce") {
           const t = p.tracks[f.track] ?? fail("InvalidState", "the track was deleted during the render");
           const m = job.media[0]!;
@@ -347,6 +429,31 @@ export class MockFreeze {
     this.host.emit({ type: "Freeze", event: { type: "Progress", job: job.job, progress: 1 } });
     this.host.emit({ type: "Freeze", event: { type: "Done", job: job.job } });
   }
+}
+
+/** Sampled keys of `FreezeCommand::ConvertToSampler` (the last key included). */
+function sampledKeys(first: number, last: number, step: number): number[] {
+  if (last < first || step < 1) return [];
+  const keys: number[] = [];
+  for (let k = first; k <= last; k += step) keys.push(k);
+  if (keys.at(-1) !== last) keys.push(last);
+  return keys;
+}
+
+/** Velocity bands `(lo, hi, rendered velocity)` of `steps` layers over 1..=127. */
+function velocityBands(steps: number): [number, number, number][] {
+  if (!(steps >= 1 && steps <= 16)) return [];
+  if (steps === 1) return [[1, 127, 127]];
+  return Array.from({ length: steps }, (_, i) => {
+    const lo = Math.floor((i * 127) / steps) + 1;
+    const hi = Math.floor(((i + 1) * 127) / steps);
+    return [lo, hi, Math.max(1, Math.floor((lo + hi) / 2))] as [number, number, number];
+  });
+}
+
+function noteName(key: number): string {
+  const names = ["c", "c#", "d", "d#", "e", "f", "f#", "g", "g#", "a", "a#", "b"] as const;
+  return `${names[((key % 12) + 12) % 12]}${Math.floor(key / 12) - 2}`;
 }
 
 /** Tempo at the song start (the mock places renders at a constant tempo). */

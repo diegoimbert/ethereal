@@ -55,6 +55,19 @@ With a time selection, its right-click menu also has **bounce to new track**: it
 
 Bouncing and consolidating are one undo step each.
 
+## converting an instrument to a sampler
+
+You can play a finished instrument without running it: right-click it on a track's device chain (an instrument rack, a synth) and choose **convert to sampler…**. Ethereal records the instrument note by note, then replaces it with a multisampler that plays those recordings. The recording uses far less cpu, but it is a snapshot: edits to the original sound don't reach it, and a held note ends at the end of its sample.
+
+The dialog chooses what to record:
+
+- **first note** and **last note**: the sampled range. Notes between samples play the nearest recording, pitched; notes outside the range use the nearest edge recording.
+- **sample every**: how many semitones apart the recordings are. Every note gives the best quality; every third or fourth note is much faster.
+- **velocity layers**: how many loudness levels are recorded. One layer is fastest; more layers keep the instrument's response to playing soft or hard.
+- **note length** and **release tail**: how long each note is held and how much of its decay is kept.
+
+The dialog shows how many samples the settings produce. Conversion runs like a freeze, one render at a time, and shows its progress in the track header. The result is one undo step.
+
 ## where next
 
 - [tracks](/docs/making-music/tracks): groups and track menus.
