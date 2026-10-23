@@ -67,9 +67,12 @@ test("while a project loads the transport waits, and the project can be explored
   await expect(stopButton(page)).toBeDisabled();
   await expect(page.getByRole("toolbar", { name: "transport" }).getByRole("button", { name: "record" })).toBeDisabled();
   expect((await state(page)).transport?.loading).toBeTruthy();
-  // The position says so too (#260), in place of the time.
-  await expect(page.getByTestId("position-loading")).toBeVisible();
-  await expect(page.getByTestId("position-loading")).toContainText("loading");
+  // One loading indicator (#301): the spinner is on the status; the position keeps its
+  // readout, dimmed, with no second "loading" label.
+  await expect(loading.locator(".eth-tb__loading-spin")).toBeVisible();
+  await expect(page.locator(".eth-tb__loading-spin")).toHaveCount(1);
+  await expect(page.locator(".eth-tb__position[data-loading]")).toBeVisible();
+  await expect(page.getByTestId("position-loading")).toHaveCount(0);
   // The tracks whose audio files load look unavailable, their controls inactive, the bar shown.
   const first = page.getByRole("group", { name: "1 audio track" });
   await expect(first).toHaveAttribute("data-loading", "true");
@@ -102,7 +105,7 @@ test("while a project loads the transport waits, and the project can be explored
   // The tracks are back to normal, and so is the time.
   await expect(page.locator(".eth-arr-header--loading")).toHaveCount(0);
   await expect(page.getByRole("group", { name: "renamed track" }).getByRole("button", { name: /^mute / })).toBeEnabled();
-  await expect(page.getByTestId("position-loading")).toHaveCount(0);
+  await expect(page.locator(".eth-tb__position[data-loading]")).toHaveCount(0);
   // (A compact top bar shows the time alone.)
   await expect(page.getByTestId("position-time")).toBeVisible();
   await expect(playButton(page)).toBeEnabled();

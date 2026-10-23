@@ -30,6 +30,18 @@ pub const MAX_TAIL_SECONDS: f64 = 30.0;
 /// engine's anti-click ramp at clip edges (64 samples) then never touches the audio.
 pub const TAIL_PAD_FRAMES: usize = 256;
 
+/// One note rendered by a sampling pass (`ConvertToSampler`): the pass replaces its track's
+/// clips with this single note, so each sample is rendered from a fresh engine.
+#[derive(Clone, Debug)]
+pub struct SampleNote {
+    pub key: u8,
+    /// 0..=1.
+    pub velocity: f32,
+    pub duration: Beats,
+    pub clip: ClipId,
+    pub note: NoteId,
+}
+
 /// What one pass renders.
 #[derive(Clone, Debug)]
 pub struct PassSpec {
@@ -48,6 +60,10 @@ pub struct PassSpec {
     /// Partial freeze: render `track`'s chain only up to and including this device (the
     /// devices after it are not instantiated, so they are left out of the render).
     pub up_to: Option<DeviceId>,
+    /// Sampling (`ConvertToSampler`): render only this note of the track.
+    pub sample: Option<SampleNote>,
+    /// Longest tail after the range (default [`MAX_TAIL_SECONDS`]).
+    pub max_tail_seconds: Option<f64>,
     /// Media id and display name of the result.
     pub media: MediaId,
     pub name: String,
@@ -425,7 +441,9 @@ impl RenderJob {
                 }
                 let spec = &self.passes[self.pass];
                 let chunk = (TAIL_CHUNK_SECONDS * self.engine_rate as f64).round() as usize;
-                let max_tail = (MAX_TAIL_SECONDS * self.engine_rate as f64).round() as usize;
+                let max_tail = (spec.max_tail_seconds.unwrap_or(MAX_TAIL_SECONDS).max(0.0)
+                    * self.engine_rate as f64)
+                    .round() as usize;
                 if spec.tail {
                     let rendered = r.captured();
                     let last = rendered.saturating_sub(chunk).max(spec.frames);
@@ -526,7 +544,59 @@ impl RenderJob {
         }
     }
 
-    fn new_setup(&self) -> Result<Stage, String> {
+    /// Replace the pass's track content with its one note (sampling). All of the track's
+    /// clips (take lanes included) and their notes are dropped: a sample is the instrument
+    /// alone, from beat 0.
+    fn prepare_sample(&mut self) {
+        let Some(sample) = self.spec().sample.clone() else {
+            return;
+        };
+        let track = self.spec().track;
+        let p = &mut self.project;
+        let removed: BTreeSet<ClipId> = p
+            .clips
+            .values()
+            .filter(|c| c.track == track)
+            .map(|c| c.id)
+            .collect();
+        p.clips.retain(|id, _| !removed.contains(id));
+        p.notes.retain(|_, n| !removed.contains(&n.clip));
+        // The previous pass's synthetic clip is not in `removed`: drop its notes too.
+        let live: BTreeSet<ClipId> = p.clips.keys().copied().collect();
+        p.notes.retain(|_, n| live.contains(&n.clip));
+        p.clips.insert(
+            sample.clip,
+            Clip {
+                id: sample.clip,
+                track,
+                start: Beats::ZERO,
+                name: "Sample".into(),
+                color: None,
+                muted: false,
+                length: sample.duration,
+                offset: Beats::ZERO,
+                looping: ClipLoop::default(),
+                content: ClipContent::Midi,
+                lane: None,
+            },
+        );
+        p.notes.insert(
+            sample.note,
+            Note {
+                id: sample.note,
+                clip: sample.clip,
+                pitch: sample.key,
+                velocity: sample.velocity,
+                release_velocity: 0.0,
+                start: Beats::ZERO,
+                duration: sample.duration,
+                muted: false,
+            },
+        );
+    }
+
+    fn new_setup(&mut self) -> Result<Stage, String> {
+        self.prepare_sample();
         let p = &*self.project;
         let spec = self.spec();
         let needed = needed_tracks(p, spec.track, spec.chain);

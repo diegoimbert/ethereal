@@ -598,6 +598,12 @@ export interface MessageArgs {
   "resolver.used_times": { count: string | number };
   "resolver.where": { names: string | number };
   "resolver.where_more": { count: number; names: string | number };
+  "sampler.convert.key_step_n": { count: number };
+  "sampler.convert.replaces": { name: string | number };
+  "sampler.convert.summary": { count: number; keys: number; velocities: number };
+  "sampler.convert.title": { name: string | number };
+  "sampler.convert.too_many": { max: string | number };
+  "sampler.convert.velocity_step_n": { count: number };
   "scale.name": { root: string | number; scale: string | number };
   "scale.select.root": { label: string | number };
   "scale.select.type": { label: string | number };
