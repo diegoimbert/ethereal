@@ -17,6 +17,7 @@
 import { lazy, memo, Suspense, useContext, useEffect, useRef } from "react";
 import { useT } from "@/i18n";
 import { ConfirmDialog, ContextMenuHost, ReadOnlySurface, TitleTooltipHost, ToastStack } from "@/kit";
+import { ConvertToSamplerDialog } from "@/features/sampler-convert";
 import { dismissOnRelease, useEditorStore, useProjectStore, useReadOnly } from "@/state";
 import { size } from "@/theme";
 import { ArrangementView, useKeepTrackHeights } from "@/features/arrangement";
@@ -465,6 +466,7 @@ function EditorShell() {
       <ExtensionRoots shell="editor" slot="overlay" />
       {/* Destructive actions (freeze, comping, expression, project delete) confirm here. */}
       <ConfirmDialog />
+      <ConvertToSamplerDialog />
       <ContextMenuHost />
       <TitleTooltipHost />
       <ValueEditHost />

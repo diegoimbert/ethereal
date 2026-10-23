@@ -12,7 +12,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::model::{Beats, ClipId, DeviceId, MediaId, TrackId};
+use crate::model::{Beats, ClipId, DeviceId, MediaId, Seconds, TrackId};
 
 /// Client-chosen job id (ULID string, like export jobs).
 pub type RenderJobId = String;
@@ -101,6 +101,41 @@ pub enum FreezeCommand {
         seed_clips: ClipId,
         seed_notes: ClipId,
         seed_media: MediaId,
+    },
+    /// Convert an instrument device on a track's chain (an instrument rack, a synth, ...)
+    /// into a multisampler of rendered notes: for each sampled key and velocity, render the
+    /// chain up to and including `device` with that one note held for `note_seconds`, plus
+    /// its release tail (`tail_seconds`, trailing silence trimmed), and replace the device
+    /// with a `MultiSampler` whose zones play those samples.
+    ///
+    /// Sampled keys are `first_key`, `first_key + key_step`, ... up to `last_key` (the last
+    /// key is included when the step does not land on it); notes between them use the nearest
+    /// sample pitched (`root_key` = the sampled key). `velocity_steps` partitions 1..=127
+    /// into that many velocity layers, each rendered at the centre of its range; `1` renders
+    /// one layer at full velocity with the multisampler's velocity sensitivity on, so playing
+    /// soft stays soft. Zones cover 0..=127: notes outside `[first_key, last_key]` use the
+    /// nearest edge sample, pitched.
+    ///
+    /// `device` must be a track-chain device of category `Instrument` on a MIDI track (not
+    /// a device inside a rack or drum pad, not on a frozen track). `new_device` and the
+    /// media (`derive_id(seed_media, i)`) must not exist. At most `MAX_ZONES` samples are
+    /// allowed (`InvalidArgument` otherwise). Replies `RenderStarted`; at `Done` the media
+    /// and the replaced device are one undo step.
+    ConvertToSampler {
+        job: RenderJobId,
+        device: DeviceId,
+        new_device: DeviceId,
+        seed_media: MediaId,
+        first_key: u8,
+        last_key: u8,
+        /// Semitones between sampled keys (1 = every note).
+        key_step: u8,
+        /// Velocity layers (1..=16).
+        velocity_steps: u8,
+        /// How long each note is held before note-off.
+        note_seconds: Seconds,
+        /// Longest release tail kept after note-off (silence beyond is trimmed).
+        tail_seconds: Seconds,
     },
     /// Cancel a running render (`Cancelled` follows). No-op if finished.
     Cancel { job: RenderJobId },

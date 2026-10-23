@@ -182,3 +182,42 @@ describe("MockTransport Freeze (freeze-bounce)", () => {
     expect(notesAfter).toBeLessThanOrEqual(notesBefore);
   });
 });
+
+describe("MockTransport ConvertToSampler", () => {
+  it("renders the samples and replaces the instrument, one undo step", () => {
+    const h = harness();
+    const device = Object.values(h.project.devices).find((d) => !d.pad && !d.chain && h.project.tracks[d.track]?.kind === "Midi")!;
+    const t = h.project.tracks[device.track]!;
+    const next = newId();
+    const mediaBefore = Object.keys(h.project.media).length;
+    expect(
+      h.send({
+        type: "ConvertToSampler",
+        job: "s",
+        device: device.id,
+        new_device: next,
+        seed_media: newId(),
+        first_key: 60,
+        last_key: 64,
+        key_step: 2,
+        velocity_steps: 2,
+        note_seconds: 1,
+        tail_seconds: 1,
+      }),
+    ).toEqual({ type: "RenderStarted", job: "s" });
+    h.freeze.step();
+    h.freeze.step();
+    expect(h.project.devices[device.id]).toBeUndefined();
+    const sampler = h.project.devices[next]!;
+    expect(sampler.name).toBe(`${t.name} Sampler`);
+    expect(sampler.params[0]).toBe(0);
+    expect(sampler.params[5]).toBe(0);
+    if (sampler.kind.type !== "Builtin" || sampler.kind.device.type !== "MultiSampler") throw new Error("not a multisampler");
+    expect(sampler.kind.device.zones).toHaveLength(6);
+    expect(Object.keys(h.project.media)).toHaveLength(mediaBefore + 6);
+    expect(h.events.at(-1)).toEqual({ type: "Freeze", event: { type: "Done", job: "s" } });
+    h.undo.pop()!();
+    expect(h.project.devices[device.id]).toEqual(device);
+    expect(h.project.devices[next]).toBeUndefined();
+  });
+});

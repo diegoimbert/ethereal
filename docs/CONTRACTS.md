@@ -928,6 +928,19 @@ half-open ranges). `arrangement_clips_of` lists main-lane clips only.
   the render and stay editable (inserting or moving devices into the tail too). Clips stay
   locked; the track counts as frozen everywhere else. `Flatten` keeps the live tail (on the
   audio track, or moved to the new audio track).
+- **Convert to sampler** (`ConvertToSampler { device, new_device, seed_media, first_key,
+  last_key, key_step, velocity_steps, note_seconds, tail_seconds }`, additive): render a
+  track-chain instrument (an instrument rack, synth, ...) once per sampled key and velocity
+  layer and replace it with a `MultiSampler` (`new_device`, same place in the chain) whose
+  zones play the renders. Sampled keys are `first`, `first + key_step`, ... and `last`;
+  each owns the range up to the midpoint with its neighbours (edges cover 0..=127), so a
+  note between samples plays the nearest one pitched (`root_key`). `velocity_steps` equal
+  bands of 1..=127, rendered at their centres; one layer renders at 127 with the
+  multisampler's velocity sensitivity on, several layers switch it off. Each sample is the
+  instrument held for `note_seconds`, then its release tail (silence trimmed, at most
+  `tail_seconds`). Media ids are `derive_id(seed_media, i)` in key-major order; at most
+  `MAX_ZONES` samples. One job at a time like any render; at `Done` the media and the
+  replaced device are one undo step.
 - Engine: `TrackDesc::frozen: Option<FrozenDesc>` (+ empty clips/chain, or the live tail in
   `chain`), rendered by `ether_core::freeze::render_frozen` where clips render (pre-wired).
 - Render jobs (`Freeze`, `Bounce`, audio `Consolidate`) reply `RenderStarted { job }` and run
