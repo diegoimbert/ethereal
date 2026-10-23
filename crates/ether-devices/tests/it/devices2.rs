@@ -106,7 +106,11 @@ fn noise(amp: f32, frames: usize, seed: u32) -> Vec<f32> {
 }
 
 fn param(id: ParamId, value: f64) -> EventKind {
-    EventKind::Param { param: id, value }
+    EventKind::Param {
+        param: id,
+        value,
+        step: false,
+    }
 }
 
 // ---------------------------------------------------------------------------------------

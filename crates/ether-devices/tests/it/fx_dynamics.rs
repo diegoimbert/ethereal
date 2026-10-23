@@ -128,7 +128,11 @@ fn set<D: Device>(mut d: D, params: &[(ParamId, f64)]) -> D {
 }
 
 fn param(id: ParamId, value: f64) -> EventKind {
-    EventKind::Param { param: id, value }
+    EventKind::Param {
+        param: id,
+        value,
+        step: false,
+    }
 }
 
 // ─── all devices ───────────────────────────────────────────────────────────────────────

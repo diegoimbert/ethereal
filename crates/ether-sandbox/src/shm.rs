@@ -167,7 +167,7 @@ impl WireEvent {
                 key,
             } => ev(E_CHOKE, note_id, ck(channel, key), 0.0),
             EventKind::AllNotesOff => ev(E_ALL_OFF, 0, 0, 0.0),
-            EventKind::Param { param, value } => ev(E_PARAM, param.0, 0, value),
+            EventKind::Param { param, value, .. } => ev(E_PARAM, param.0, 0, value),
             EventKind::Midi { data } => ev(
                 E_MIDI,
                 u32::from_le_bytes([data[0], data[1], data[2], 0]),
@@ -221,6 +221,7 @@ impl WireEvent {
             E_PARAM => EventKind::Param {
                 param: ParamId(self.a),
                 value: self.value,
+                step: false,
             },
             E_MIDI => {
                 let [d0, d1, d2, _] = self.a.to_le_bytes();
@@ -553,6 +554,7 @@ mod tests {
             EventKind::Param {
                 param: ParamId(42),
                 value: -1.5,
+                step: false,
             },
             EventKind::Midi {
                 data: [0xB0, 7, 127],

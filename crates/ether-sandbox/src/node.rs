@@ -312,7 +312,7 @@ impl SandboxedNode {
         for e in &self.region.out_events()[..n] {
             if let Some(mut ev) = e.decode() {
                 ev.offset = ev.offset.min(last);
-                if let EventKind::Param { param, value } = ev.kind {
+                if let EventKind::Param { param, value, .. } = ev.kind {
                     set_value(&mut self.values, param.0, value);
                 } else {
                     ctx.out_events.push(ev);
@@ -326,7 +326,7 @@ impl SandboxedNode {
     fn carry_over(&mut self, events: &[ProcessEvent]) {
         for e in events {
             match e.kind {
-                EventKind::Param { param, value } => self.queue_param(param.0, value),
+                EventKind::Param { param, value, .. } => self.queue_param(param.0, value),
                 _ => {
                     if self.carry.len() < self.carry.capacity() {
                         self.carry.push(*e);
@@ -397,6 +397,7 @@ impl SandboxedNode {
                 kind: EventKind::Param {
                     param: ParamId(id),
                     value,
+                    step: false,
                 },
             });
             n += 1;
@@ -414,7 +415,7 @@ impl SandboxedNode {
         }
         self.carry.clear();
         for e in ctx.events {
-            if let EventKind::Param { param, value } = e.kind {
+            if let EventKind::Param { param, value, .. } = e.kind {
                 set_value(&mut self.values, param.0, value);
             }
             if n < events.len() && (e.offset as usize) < frames {
@@ -720,6 +721,7 @@ mod tests {
         let param = |value| EventKind::Param {
             param: ParamId(3),
             value,
+            step: false,
         };
         let events = [
             ProcessEvent {

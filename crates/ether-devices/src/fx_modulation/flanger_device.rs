@@ -213,7 +213,7 @@ impl Node for Flanger {
             self,
             |s| &mut s.late,
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
+                if let EventKind::Param { param, value, .. } = *kind {
                     s.apply(param, value, false);
                 }
             },
@@ -254,8 +254,8 @@ impl Node for Flanger {
             },
             |s, a, b| s.render(c, audio, a, b),
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
-                    s.apply(param, value, true);
+                if let EventKind::Param { param, value, step } = *kind {
+                    s.apply(param, value, !step);
                     // A fresh control chunk from the event on. Only events (at fixed
                     // song frames) restart the chunk grid, never block boundaries, so
                     // renders stay block-size independent (CONTRACTS §12.7).

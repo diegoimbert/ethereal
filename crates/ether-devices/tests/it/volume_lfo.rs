@@ -341,7 +341,13 @@ fn edits_never_click() {
     let flat_low = LfoCurve {
         points: vec![LfoPoint::linear(0.0, 0.0)],
     };
-    let ev = |id: ParamId, value: f64| Act::Event(EventKind::Param { param: id, value });
+    let ev = |id: ParamId, value: f64| {
+        Act::Event(EventKind::Param {
+            param: id,
+            value,
+            step: false,
+        })
+    };
     let acts = vec![
         (4_000, ev(p::PHASE, 270.0)),
         (9_001, Act::Curve(flat_low)),
@@ -374,7 +380,13 @@ fn edits_never_click() {
 fn renders_do_not_depend_on_the_block_size() {
     let sr = 48_000.0;
     let x = noise(20_000, 3);
-    let ev = |id: ParamId, value: f64| Act::Event(EventKind::Param { param: id, value });
+    let ev = |id: ParamId, value: f64| {
+        Act::Event(EventKind::Param {
+            param: id,
+            value,
+            step: false,
+        })
+    };
     let acts = vec![
         (1_234, ev(p::DEPTH, 60.0)),
         (5_000, ev(p::PHASE, 33.0)),

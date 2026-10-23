@@ -160,6 +160,7 @@ fn placeholders_follow_their_category_without_allocating() {
                     kind: EventKind::Param {
                         param: desc.params[0].id,
                         value: desc.params[0].max,
+                        step: false,
                     },
                 },
                 ProcessEvent {

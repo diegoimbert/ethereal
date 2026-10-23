@@ -9,7 +9,8 @@
 //!   envelope point, clip start/end/loop point), each evaluated at the exact beat of its
 //!   sample (`sched::Timing::beat_at`, exact on tempo ramps), and only when the value
 //!   changed. A breakpoint lands on the first sample whose beat is at or after it, so a
-//!   `Step` point switches exactly there. After a timeline jump (play, locate, loop wrap) or
+//!   `Step` point switches exactly there; where the curve jumps, the event is a `step`
+//!   (applied with no device smoothing, issue #302). After a timeline jump (play, locate, loop wrap) or
 //!   a live change of an automated param, the current value is re-sent at offset 0;
 //! - **mixer targets** (volume, pan, send levels, VCA gain) are ramped linearly per sample
 //!   between knots on the grid and at every breakpoint ([`chunks`]): every sample gets the
@@ -40,6 +41,9 @@ use crate::sched::{self, Timing};
 
 /// The frozen v0.2 automation grid (samples of the absolute engine clock).
 pub const PARAM_GRID: u64 = 32;
+/// Smallest jump (normalized) at a breakpoint that is sent as a step (`EventKind::Param`
+/// `step`): applied whole on its sample, no device smoothing.
+const STEP_MIN: f64 = 1e-4;
 /// Knots (event offsets) per target and sub-block beyond which breakpoints are dropped (the
 /// grid still covers them): `max_block_size / PARAM_GRID` grid points plus breakpoints.
 pub(crate) const MAX_KNOTS: usize = 256;
@@ -271,6 +275,22 @@ impl<'a> Sources<'a> {
             }
         }
         out.or_else(|| lane.and_then(|l| evaluate(&l.points, t).map(|v| (v, &l.mapping))))
+    }
+
+    /// Whether the curve of `target` jumps at breakpoint beat `t`: its value just before `t`
+    /// differs from its value at `t` (two points at one time, a hold segment ending, an
+    /// envelope taking over). A ramp too steep to tell apart from a jump counts as one.
+    fn jumps_at(&self, target: ResolvedTarget, lane: Option<&'a AutomationDesc>, t: f64) -> bool {
+        let before = t - 1e-12 * t.abs().max(1.0);
+        match (
+            self.value(target, lane, before),
+            self.value(target, lane, t),
+        ) {
+            (Some((b, _)), Some((a, _))) => (a - b).abs() > STEP_MIN,
+            // A clip envelope starts driving it here (no lane): its clip's edge.
+            (None, Some(_)) => true,
+            (_, None) => false,
+        }
     }
 
     /// Knots of every breakpoint of `target` whose sample is before `until` (the sub-block
@@ -556,14 +576,19 @@ impl NodeParams<'_, '_, '_> {
                     continue;
                 }
                 *last = plain;
+                // A breakpoint where the curve jumps: the device applies it whole on its
+                // sample (issue #302). Grid points and re-sends are smoothed as usual.
+                let step =
+                    v.playing && min_beat.is_finite() && src.jumps_at(target, lane, min_beat);
                 let o = v.at as u32 + o;
                 // Modulated params: automation sets the base (`crate::modulation`).
-                if !modulation.intercept_at(node, param, plain, o) {
+                if !modulation.intercept_at(node, param, plain, o, step) {
                     events.push(ProcessEvent {
                         offset: o,
                         kind: EventKind::Param {
                             param,
                             value: plain,
+                            step,
                         },
                     });
                 }

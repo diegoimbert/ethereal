@@ -42,7 +42,7 @@ impl Node for Level {
             }
         };
         for e in ctx.events {
-            if let EventKind::Param { param, value } = e.kind
+            if let EventKind::Param { param, value, .. } = e.kind
                 && param == ParamId(0)
             {
                 let o = (e.offset as usize).min(ctx.frames);
@@ -386,7 +386,8 @@ fn step_lands_on_the_exact_sample() {
                 "block {block}: late change ({} at {expected})",
                 l[expected]
             );
-            // The node sees exactly two events: the start value and the step, on its sample.
+            // The node sees exactly two events: the start value and the step, on its sample
+            // and flagged as a step (no smoothing, issue #302).
             let params: Vec<_> = events(&drain(&mut rx))
                 .into_iter()
                 .filter(|(_, k)| {
@@ -399,13 +400,14 @@ fn step_lands_on_the_exact_sample() {
                     )
                 })
                 .collect();
-            let step = |value| EventKind::Param {
+            let step = |value, step| EventKind::Param {
                 param: ParamId(5),
                 value,
+                step,
             };
             assert_eq!(
                 params,
-                vec![(0, step(0.25)), (expected as u64, step(0.75))],
+                vec![(0, step(0.25, false)), (expected as u64, step(0.75, true))],
                 "block {block}"
             );
         }
@@ -470,6 +472,7 @@ fn ten_minute_tempo_ramp_matches_the_closed_form() {
                         EventKind::Param {
                             param: ParamId(1),
                             value,
+                            ..
                         },
                     ) => {
                         let err = (value - ramp_beat(bpm0, bpm1, len, at as f64 / sr)).abs();

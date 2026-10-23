@@ -147,6 +147,7 @@ fn extremes_are_finite_without_allocating() {
                 EventKind::Param {
                     param: p.id,
                     value: v,
+                    step: false,
                 },
             ));
             at += 1009;
@@ -158,6 +159,7 @@ fn extremes_are_finite_without_allocating() {
             EventKind::Param {
                 param: p.id,
                 value: p.max,
+                step: false,
             },
         ));
     }
@@ -267,6 +269,7 @@ fn renders_are_block_size_independent() {
             EventKind::Param {
                 param: gd::PITCH,
                 value: 7.0,
+                step: false,
             },
         ),
         (
@@ -274,6 +277,7 @@ fn renders_are_block_size_independent() {
             EventKind::Param {
                 param: gd::FEEDBACK,
                 value: 60.0,
+                step: false,
             },
         ),
         (
@@ -281,6 +285,7 @@ fn renders_are_block_size_independent() {
             EventKind::Param {
                 param: gd::RANDOM_PITCH,
                 value: 40.0,
+                step: false,
             },
         ),
         (
@@ -288,6 +293,7 @@ fn renders_are_block_size_independent() {
             EventKind::Param {
                 param: gd::FREQUENCY,
                 value: 120.0,
+                step: false,
             },
         ),
     ];

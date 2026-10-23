@@ -238,8 +238,8 @@ impl Node for VolumeLfo {
             c.frames,
             |s, a, b| s.render(c, audio, a, b),
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
-                    s.apply(param, value, true);
+                if let EventKind::Param { param, value, step } = *kind {
+                    s.apply(param, value, !step);
                 }
             },
         );

@@ -89,6 +89,7 @@ fn latency_param_is_the_node_latency() {
             kind: EventKind::Param {
                 param: id,
                 value: 1.0,
+                step: false,
             },
         }];
         let input = vec![vec![0.0; BLOCK]; 2];

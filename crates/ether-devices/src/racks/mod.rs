@@ -205,7 +205,7 @@ impl Node for RackNode {
         let midi = self.midi();
         for e in ctx.events {
             match e.kind {
-                EventKind::Param { param, value } => self.set(param, value),
+                EventKind::Param { param, value, .. } => self.set(param, value),
                 _ if midi => {
                     ctx.out_events.push(*e);
                 }

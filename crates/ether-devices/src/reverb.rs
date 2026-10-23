@@ -756,8 +756,8 @@ impl Node for Reverb {
             ctx.frames,
             |s, a, b| s.render(audio, a, b),
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
-                    s.apply_param(param, value, true);
+                if let EventKind::Param { param, value, step } = *kind {
+                    s.apply_param(param, value, !step);
                 }
             },
         );
@@ -849,7 +849,11 @@ mod tests {
             let before = r.gains;
             let ev = ether_core::ProcessEvent {
                 offset: 3,
-                kind: EventKind::Param { param: id, value },
+                kind: EventKind::Param {
+                    param: id,
+                    value,
+                    step: false,
+                },
             };
             // Up to and including the event's sample.
             run(&mut r, 4, &[ev]);

@@ -729,7 +729,7 @@ impl AuNode {
         self.pending.clear();
         for e in ctx.events {
             match &e.kind {
-                EventKind::Param { param, value } => self.schedule(e.offset, param.0, *value),
+                EventKind::Param { param, value, .. } => self.schedule(e.offset, param.0, *value),
                 EventKind::AllNotesOff => {
                     for ch in 0..16u8 {
                         self.send_midi(e.offset, &[0xB0 | ch, 123, 0], 3);

@@ -39,6 +39,7 @@ mod midi_fx_bypass;
 mod multisampler;
 mod note_blocker;
 mod param_latency;
+mod param_steps;
 mod perf_devices;
 mod poly_synth;
 mod racks;

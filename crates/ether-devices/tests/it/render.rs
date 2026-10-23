@@ -117,7 +117,11 @@ fn note_off(id: u32, key: u8) -> EventKind {
 }
 
 fn param(id: ParamId, value: f64) -> EventKind {
-    EventKind::Param { param: id, value }
+    EventKind::Param {
+        param: id,
+        value,
+        step: false,
+    }
 }
 
 /// Estimated frequency from rising zero crossings.

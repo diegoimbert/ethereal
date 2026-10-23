@@ -35,6 +35,7 @@ fn rack_nodes_pass_through_and_keep_macro_values() {
                 kind: EventKind::Param {
                     param: ParamId(3),
                     value: 2.0,
+                    step: false,
                 },
             },
             ProcessEvent {
@@ -42,6 +43,7 @@ fn rack_nodes_pass_through_and_keep_macro_values() {
                 kind: EventKind::Param {
                     param: ParamId(8),
                     value: 41.6,
+                    step: false,
                 },
             },
             ProcessEvent {

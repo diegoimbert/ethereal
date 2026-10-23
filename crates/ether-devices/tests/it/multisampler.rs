@@ -438,6 +438,7 @@ fn extreme_params_stay_finite_and_voices_are_bounded() {
                     EventKind::Param {
                         param: p::CUTOFF,
                         value: if i % 2 == 0 { 20.0 } else { 20_000.0 },
+                        step: false,
                     },
                 )
             })

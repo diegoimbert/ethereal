@@ -917,7 +917,11 @@ impl Engine {
                 ParamTarget::Node { node, param } => {
                     let event = ProcessEvent {
                         offset: 0,
-                        kind: EventKind::Param { param, value: v },
+                        kind: EventKind::Param {
+                            param,
+                            value: v,
+                            step: false,
+                        },
                     };
                     // Modulated params and macros: the change sets the base
                     // (`crate::modulation`).

@@ -68,7 +68,11 @@ fn off(key: u8, note_id: u32) -> EventKind {
 }
 
 fn set(param: ParamId, value: f64) -> EventKind {
-    EventKind::Param { param, value }
+    EventKind::Param {
+        param,
+        value,
+        step: false,
+    }
 }
 
 struct Rig {

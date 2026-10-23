@@ -470,7 +470,7 @@ fn node_param_automation_and_live_params() {
     let params: Vec<_> = ev
         .iter()
         .filter_map(|(t, k)| match k {
-            EventKind::Param { param, value } if *param == ParamId(7) => Some((*t, *value)),
+            EventKind::Param { param, value, .. } if *param == ParamId(7) => Some((*t, *value)),
             _ => None,
         })
         .collect();
@@ -502,7 +502,8 @@ fn node_param_automation_and_live_params() {
         24_000,
         EventKind::Param {
             param: ParamId(3),
-            value: 0.25
+            value: 0.25,
+            step: false
         }
     )));
 }
@@ -831,6 +832,7 @@ fn enabled_lane_overrides_manual_moves() {
             EventKind::Param {
                 param: ParamId(4),
                 value,
+                ..
             } => Some((t, value)),
             _ => None,
         })
@@ -924,6 +926,7 @@ fn clip_envelope_takes_node_param_from_lane_then_hands_back() {
             EventKind::Param {
                 param: ParamId(5),
                 value,
+                ..
             } => Some((t, value)),
             _ => None,
         })

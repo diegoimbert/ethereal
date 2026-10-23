@@ -678,8 +678,8 @@ impl AutoFilter {
             },
             |s, a, b| s.render(transport, audio, sidechain, a, b),
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
-                    s.set(param, value, true);
+                if let EventKind::Param { param, value, step } = *kind {
+                    s.set(param, value, !step);
                     // A fresh control chunk from the event on. Only events (at fixed
                     // song frames) restart the chunk grid, never block boundaries, so
                     // renders stay block-size independent (CONTRACTS §12.7).
@@ -733,7 +733,7 @@ impl Node for AutoFilter {
             self,
             |s| &mut s.late,
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
+                if let EventKind::Param { param, value, .. } = *kind {
                     s.set(param, value, false);
                 }
             },
