@@ -60,7 +60,7 @@ Une réverbe algorithmique : le son d’une pièce ou d’une salle.
 - **amortissement** assombrit la queue, **diffusion** la rend plus douce, **largeur** règle sa taille stéréo.
 - **coupe-bas** et **coupe-haut** filtrent ce qui entre dans la réverbe.
 - **geler** maintient la queue indéfiniment.
-- **shimmer** transpose la queue à l’intérieur de la réverbe, si bien que chaque écho monte encore : **quantité** règle la part transposée, **hauteur** l’intervalle en demi-tons (+12 une octave, +7 une quinte, -12 descend), **timbre** assombrit le son transposé. Préréglages : *shimmer hall*, *octave cloud*.
+- **shimmer** transpose la queue à l’intérieur de la réverbe, si bien que chaque écho monte encore : **quantité** règle la part transposée, **hauteur** l’intervalle en demi-tons (+12 une octave, +7 une quinte, -12 descend), **timbre** assombrit le son transposé. Préréglages : *shimmer hall*, *octave cloud*.
 - **mix** et **sortie**. La sortie règle le niveau de la réverbe elle-même, pas du son sec.
 
 ### delay {#delay}
