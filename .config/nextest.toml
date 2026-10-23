@@ -21,3 +21,10 @@ final-status-level = "slow"
 [[profile.ci.overrides]]
 filter = 'binary_id(ether-native::it) & test(/^project_load_xruns::/)'
 threads-required = 'num-test-threads'
+
+# The IR-swap timing tests compare one quantum's CPU time with a whole IR build: they take the
+# per-quantum minimum over several runs (`ir_swap.rs`), and running alone keeps neighbours'
+# cache and memory traffic out of the numbers (about a second each).
+[[profile.ci.overrides]]
+filter = 'binary_id(ether-wasm::it) & test(/^ir_swap::switching_/)'
+threads-required = 'num-test-threads'
