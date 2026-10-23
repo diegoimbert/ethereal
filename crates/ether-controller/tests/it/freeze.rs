@@ -6,7 +6,7 @@
 
 use crate::common;
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 
 use common::*;
@@ -24,6 +24,7 @@ use ether_core::protocol::mixer::MixerCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::notes::{NoteCommand, NoteSpec};
 use ether_core::protocol::project::{EditCommand, ProjectCommand};
+use ether_core::protocol::racks::RackCommand;
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::transport::TransportCommand;
 use ether_core::protocol::*;
@@ -2177,4 +2178,163 @@ fn a_switched_off_midi_effect_in_a_rack_chain_plays_live_and_frozen() {
     d.freeze(t);
     let diff = max_diff(&d.play(FRAMES), &absent);
     assert!(diff < 1e-4, "frozen playback differs by {diff}");
+}
+
+// ─── Convert to sampler ─────────────────────────────────────────────────────────────────
+
+fn instrument_rack(d: &mut Drive, track: TrackId) -> (DeviceId, DeviceId) {
+    let rack = d.device(track, BuiltinDevice::new(BuiltinDeviceType::InstrumentRack));
+    let chain: RackChainId = d.id();
+    d.ok(Command::Rack(RackCommand::AddChain {
+        id: chain,
+        rack,
+        name: None,
+        before: None,
+    }));
+    let synth: DeviceId = d.id();
+    d.ok(Command::Rack(RackCommand::InsertDevice {
+        id: synth,
+        chain,
+        device: DeviceSpec::Builtin {
+            device: BuiltinDevice::new(BuiltinDeviceType::Synth),
+        },
+        before: None,
+    }));
+    (rack, synth)
+}
+
+#[test]
+fn converts_an_instrument_rack_to_a_multisampler() {
+    let mut d = Drive::new();
+    let t = d.track(TrackKind::Midi, "Rack");
+    let (rack, _synth) = instrument_rack(&mut d, t);
+    // A clip the converted track keeps: its note 61 is between two sampled keys, so it plays
+    // the nearest sample pitched.
+    d.midi_clip(t, 0.0, &[61]);
+    d.settle();
+    let new_device: DeviceId = d.id();
+    let seed: MediaId = d.id();
+    let job = format!("sample{}", d.next);
+    assert_eq!(
+        d.ok(Command::Freeze(FreezeCommand::ConvertToSampler {
+            job: job.clone(),
+            device: rack,
+            new_device,
+            seed_media: seed,
+            first_key: 60,
+            last_key: 64,
+            key_step: 2,
+            velocity_steps: 2,
+            note_seconds: Seconds(0.2),
+            tail_seconds: Seconds(0.1),
+        })),
+        ReplyValue::RenderStarted { job: job.clone() }
+    );
+    let (end, progress) = d.finish(&job);
+    assert_eq!(end, FreezeEvent::Done { job });
+    assert_eq!(progress.last(), Some(&1.0));
+    assert!(progress.windows(2).all(|w| w[0] <= w[1]), "{progress:?}");
+    d.settle();
+
+    let files = {
+        let p = d.p();
+        assert!(!p.devices.contains_key(&rack), "the rack is replaced");
+        assert_eq!(
+            p.devices_of(t).iter().map(|d| d.id).collect::<Vec<_>>(),
+            vec![new_device],
+            "in the rack's place"
+        );
+        let dev = &p.devices[&new_device];
+        assert_eq!(dev.name, "Rack Sampler");
+        assert_eq!(dev.params[&ParamId(0)], 0.0, "volume at unity");
+        assert_eq!(dev.params[&ParamId(5)], 0.0, "no double velocity scaling");
+        let DeviceKind::Builtin {
+            device: BuiltinDevice::MultiSampler { zones },
+        } = &dev.kind
+        else {
+            panic!("not a multisampler: {:?}", dev.kind);
+        };
+        assert_eq!(zones.len(), 6, "3 keys × 2 velocity layers");
+        let roots: Vec<u8> = zones.iter().map(|z| z.root_key).collect();
+        assert_eq!(roots, vec![60, 60, 62, 62, 64, 64]);
+        assert_eq!(
+            zones
+                .iter()
+                .map(|z| (z.velocities.lo, z.velocities.hi))
+                .collect::<BTreeSet<_>>(),
+            BTreeSet::from([(1, 63), (64, 127)])
+        );
+        // Every key plays the nearest sample (one zone per velocity layer); the edges cover
+        // the keyboard.
+        for key in 0..=127u8 {
+            assert_eq!(zones.iter().filter(|z| z.keys.contains(key)).count(), 2);
+        }
+        assert_eq!(zones[0].keys, Zone { lo: 0, hi: 61 });
+        assert_eq!(zones[4].keys, Zone { lo: 64, hi: 127 });
+        assert_eq!(p.media.len(), 6);
+        zones
+            .iter()
+            .map(|z| {
+                let m = p.media.get(&z.media.expect("zone media")).expect("media");
+                assert!(m.file.starts_with("media/"));
+                assert!(m.frames > 0);
+                m.file.clone()
+            })
+            .collect::<Vec<_>>()
+    };
+    for file in files {
+        assert!(d.ctl.store.read(d.pid, &file).is_ok());
+    }
+    let heard = d.play(SR as usize / 3);
+    assert!(peak(&heard) > 0.001, "the converted track plays");
+
+    d.ok(Command::Edit(EditCommand::Undo));
+    d.settle();
+    let p = d.p();
+    assert!(p.devices.contains_key(&rack), "the rack comes back");
+    assert!(!p.devices.contains_key(&new_device));
+    assert!(p.media.is_empty(), "the renders go with the undo step");
+}
+
+#[test]
+fn convert_to_sampler_validates_the_target_and_the_count() {
+    let mut d = Drive::new();
+    let t = d.track(TrackKind::Midi, "Keys");
+    let synth = d.device(t, BuiltinDevice::new(BuiltinDeviceType::Synth));
+    let delay = d.device(t, BuiltinDevice::new(BuiltinDeviceType::Delay));
+    let cmd = |device: DeviceId, first: u8, last: u8, step: u8, velocities: u8| {
+        Command::Freeze(FreezeCommand::ConvertToSampler {
+            job: "x".into(),
+            device,
+            new_device: DeviceId::NIL,
+            seed_media: MediaId::NIL,
+            first_key: first,
+            last_key: last,
+            key_step: step,
+            velocity_steps: velocities,
+            note_seconds: Seconds(0.2),
+            tail_seconds: Seconds(0.1),
+        })
+    };
+    // A delay is not an instrument.
+    assert_eq!(
+        err(&d.send(cmd(delay, 60, 64, 1, 1))).code,
+        ErrorCode::InvalidArgument
+    );
+    // 128 keys × 5 layers is more than MAX_ZONES.
+    let out = d.send(cmd(synth, 0, 127, 1, 5));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    // Bad ranges.
+    assert_eq!(
+        err(&d.send(cmd(synth, 64, 60, 1, 1))).code,
+        ErrorCode::InvalidArgument
+    );
+    assert_eq!(
+        err(&d.send(cmd(synth, 60, 64, 0, 1))).code,
+        ErrorCode::InvalidArgument
+    );
+    assert_eq!(
+        err(&d.send(cmd(synth, 60, 64, 1, 0))).code,
+        ErrorCode::InvalidArgument
+    );
 }

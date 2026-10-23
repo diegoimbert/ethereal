@@ -55,6 +55,19 @@ Avec une sélection temporelle, son menu du clic droit propose aussi **rendre su
 
 Le rendu et la consolidation comptent chacun pour une étape d’annulation.
 
+## convertir un instrument en échantillonneur {#converting-an-instrument-to-a-sampler}
+
+Vous pouvez jouer un instrument terminé sans le faire tourner : faites un clic droit sur lui dans la chaîne d’appareils d’une piste (un rack d’instruments, un synthé) et choisissez **convertir en échantillonneur…**. Ethereal enregistre l’instrument note par note, puis le remplace par un multi-échantillonneur qui joue ces enregistrements. L’enregistrement consomme beaucoup moins de processeur, mais c’est un instantané : les modifications du son d’origine ne l’atteignent pas, et une note tenue s’arrête à la fin de son échantillon.
+
+La boîte de dialogue choisit ce qui est enregistré :
+
+- **première note** et **dernière note** : la plage échantillonnée. Les notes entre deux échantillons jouent l’enregistrement le plus proche, transposé ; les notes hors de la plage utilisent l’enregistrement le plus proche du bord.
+- **échantillonner toutes les** : l’écart en demi-tons entre les enregistrements. Chaque note donne la meilleure qualité ; toutes les trois ou quatre notes va beaucoup plus vite.
+- **couches de vélocité** : le nombre de niveaux de force enregistrés. Une couche est plus rapide ; plus de couches conservent la réponse de l’instrument quand vous jouez doucement ou fort.
+- **durée de la note** et **queue de relâchement** : combien de temps chaque note est tenue et quelle part de sa décroissance est gardée.
+
+La boîte de dialogue indique combien d’échantillons ces réglages produisent. La conversion se fait comme un gel, un rendu à la fois, et affiche sa progression dans l’en-tête de la piste. Le résultat compte pour une seule étape d’annulation.
+
 ## et ensuite {#where-next}
 
 - [les pistes](/docs/making-music/tracks) : les groupes et les menus des pistes.

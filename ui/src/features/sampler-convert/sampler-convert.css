@@ -1,0 +1,67 @@
+.eth-sampler-convert {
+  --dialog-width: calc(var(--eth-size-dialog-width) * 1.35);
+}
+.eth-sampler-convert .eth-dialog__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-md);
+  font-size: var(--eth-fs-sm);
+}
+.eth-sampler-convert__note {
+  margin: 0;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+.eth-sampler-convert__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--eth-space-sm) var(--eth-space-md);
+}
+.eth-sampler-convert__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+}
+.eth-sampler-convert__field > span:first-child {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-sampler-convert__key {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+}
+.eth-sampler-convert__key .eth-input {
+  flex: 1;
+  min-width: 0;
+}
+.eth-sampler-convert__key em {
+  color: var(--eth-color-text-dim);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+.eth-sampler-convert__summary {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  margin: 0;
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  border: var(--eth-border-width) solid var(--eth-color-border);
+  font-variant-numeric: tabular-nums;
+}
+.eth-sampler-convert__summary[data-too-many] {
+  border-color: var(--eth-color-danger);
+}
+.eth-sampler-convert__summary svg {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+  color: var(--eth-color-accent);
+}
+.eth-sampler-convert__error {
+  margin: 0;
+  color: var(--eth-color-danger);
+  font-size: var(--eth-fs-sm);
+}

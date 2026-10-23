@@ -9,6 +9,7 @@ import { SidechainSelector } from "@/features/sidechain";
 import { AddModulatorButton, addModulatorEntries, ModulatorsPanel, SwitchModulation, switchMenuEntries, useModulatorKinds } from "@/features/modulation";
 import { groupEntries, isChainRack, RackPanel } from "@/features/racks";
 import { freezeDeviceEntries, useDeviceFrozen } from "@/features/freeze";
+import { convertToSamplerEntries } from "@/features/sampler-convert";
 import { ChevronLeft, ChevronRight, Power, SlidersHorizontal, Snowflake, X } from "lucide-react";
 import { IconButton, openContextMenu, type ContextMenuEntry } from "@/kit";
 import { useProjectStore } from "@/state";
@@ -180,6 +181,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
                   onGrouped: (rack) => useDeviceClipboard.setState({ selected: [rack], anchor: rack }),
                 }),
                 freezeDeviceEntries(transport, device, categoryOf),
+                convertToSamplerEntries(device, categoryOf),
                 device.pad === null && device.chain == null ? addModulatorEntries(modulatorKinds, device, send) : [],
                 pluginMenuEntries(device, transport),
                 [{ label: t("devices.device.delete"), danger: true, onSelect: remove }],
