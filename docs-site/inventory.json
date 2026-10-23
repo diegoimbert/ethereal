@@ -1753,7 +1753,7 @@
         {
           "id": "devices/reverb",
           "title": "reverb",
-          "what": "algorithmic reverb: pre-delay, size, decay (0.2–20 s), damping, width, mix, low / high cut on the input, diffusion, freeze (infinite tail), output (wet level only).",
+          "what": "algorithmic reverb: pre-delay, size, decay (0.2–20 s), damping, width, mix, low / high cut on the input, diffusion, freeze (infinite tail), output (wet level only), shimmer (pitch-shifted feedback: amount, pitch, tone).",
           "priority": "nice",
           "audience": "everyone",
           "platform": "all"

@@ -66,6 +66,8 @@ const REVERB: &[FactoryPreset] = &[
     preset!("reverb", "tight-ambience"),
     preset!("reverb", "vocal-hall"),
     preset!("reverb", "cathedral"),
+    preset!("reverb", "shimmer-hall"),
+    preset!("reverb", "octave-cloud"),
 ];
 
 const LIMITER: &[FactoryPreset] = &[

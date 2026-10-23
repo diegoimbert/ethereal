@@ -43,7 +43,7 @@ fn missing() -> MissingDevice {
             },
             MissingParam {
                 id: ParamId(1),
-                name: "Shimmer".into(),
+                name: "Vintage".into(),
                 min: 0.0,
                 max: 1.0,
             },
@@ -52,7 +52,7 @@ fn missing() -> MissingDevice {
 }
 
 /// An audio track with a missing device, a lane on its "DryWet" (0 → 0.5), one on its
-/// "Shimmer" and one on its on/off switch; stored and opened like any project.
+/// "Vintage" and one on its on/off switch; stored and opened like any project.
 fn setup(bridge: FakeBridge) -> Setup {
     let mut h = Harness::with(
         bridge,
@@ -228,10 +228,10 @@ fn replacing_with_a_builtin_carries_values_and_automation_by_name() {
         }],
     }));
     ok(&out);
-    // "Shimmer" has no Reverb parameter: reported.
+    // "Vintage" has no Reverb parameter: reported.
     let warned = events(&out).iter().any(|e| {
         matches!(e, Event::Notification { level: NotificationLevel::Warning, message, .. }
-            if message.contains("Shimmer"))
+            if message.contains("Vintage"))
     });
     assert!(warned, "{out:?}");
     let mix = ether_devices::reverb::params::MIX;
@@ -246,7 +246,7 @@ fn replacing_with_a_builtin_carries_values_and_automation_by_name() {
     assert_eq!(d.name, "reverb", "named after its replacement");
     // DryWet 0.25 (0..1) → Mix 25 % (0..100).
     assert_eq!(d.params, BTreeMap::from([(mix, 25.0)]));
-    // The DryWet lane follows to Mix with its points; the Shimmer lane goes; the switch
+    // The DryWet lane follows to Mix with its points; the Vintage lane goes; the switch
     // lane stays.
     assert_eq!(
         lanes_of(s.h.project(), s.device),
@@ -329,7 +329,7 @@ fn a_plugin_can_replace_a_missing_device() {
     };
     assert_eq!(report.matched, ParamMatch::ByName);
     assert_eq!(report.lanes_removed, 1);
-    assert!(report.lost.iter().any(|l| l == "Shimmer"), "{report:?}");
+    assert!(report.lost.iter().any(|l| l == "Vintage"), "{report:?}");
     let d = &s.h.project().devices[&s.device];
     let DeviceKind::Plugin { plugin } = &d.kind else {
         panic!("{:?}", d.kind)
