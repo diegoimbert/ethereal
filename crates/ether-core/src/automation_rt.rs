@@ -13,8 +13,8 @@
 //!   a live change of an automated param, the current value is re-sent at offset 0;
 //! - **mixer targets** (volume, pan, send levels, VCA gain) are ramped linearly per sample
 //!   between knots on the grid and at every breakpoint ([`chunks`]): every sample gets the
-//!   curve's value at its own beat, and a step starts moving on its own sample (never
-//!   before), reaching the new value by the next grid point;
+//!   curve's value at its own beat, and a step lands whole on its own sample (never
+//!   before, no ramp after it: the lane's points are the ramp);
 //! - **delay compensation** (issue #270): a target whose signal is late relative to the
 //!   timeline (a device after latent ones, a bus fed by latent tracks, the fader after a
 //!   latent chain) reads its automation that many samples late, where the timeline was
@@ -42,7 +42,7 @@ use crate::sched::{self, Timing};
 pub const PARAM_GRID: u64 = 32;
 /// Knots (event offsets) per target and sub-block beyond which breakpoints are dropped (the
 /// grid still covers them): `max_block_size / PARAM_GRID` grid points plus breakpoints.
-const MAX_KNOTS: usize = 256;
+pub(crate) const MAX_KNOTS: usize = 256;
 
 /// Offsets of the grid points inside the sub-block (modulation uses the same grid).
 pub(crate) fn grid(timing: &Timing<'_>) -> std::iter::StepBy<std::ops::Range<usize>> {
@@ -627,9 +627,9 @@ pub(crate) fn lookahead(timing: &Timing<'_>) -> usize {
 /// samples (possibly past the view: the next one re-targets from where this one stopped) to
 /// the value at `beat`, the beat of sample `knot - 1`, so every sample gets the curve's
 /// value at its own beat (linear in between). A breakpoint ends a chunk at the value just
-/// before it, so a step starts moving on its own sample and never before; the next chunk
-/// then ramps to the new value by the next grid point (at most [`PARAM_GRID`] samples).
-/// Stopped views are one chunk at the position.
+/// before it and is a one-sample chunk of its own at the value at its beat (or later), so
+/// a step lands whole on its own sample: never before, and with no ramp after it (issue
+/// #302). Stopped views are one chunk at the position.
 pub(crate) fn chunks<'a>(
     timing: &'a Timing<'a>,
     playing: bool,
@@ -647,11 +647,20 @@ pub(crate) fn chunks<'a>(
             c = n;
             return Some((0, n, n, timing.b0));
         }
-        let phase = ((timing.sample_time + c as u64) % PARAM_GRID) as usize;
-        let mut next = c + (g - phase);
-        while bi < breaks.len() && breaks[bi].0 as usize <= c {
+        while bi < breaks.len() && (breaks[bi].0 as usize) < c {
             bi += 1;
         }
+        if let Some(&(b, min_beat)) = breaks.get(bi)
+            && b as usize == c
+        {
+            // A breakpoint's own sample has the curve's value there, with no ramp: a step
+            // lands whole on its sample (issue #302).
+            bi += 1;
+            c += 1;
+            return Some((c - 1, c, c, timing.beat_at((c - 1) as f64).max(min_beat)));
+        }
+        let phase = ((timing.sample_time + c as u64) % PARAM_GRID) as usize;
+        let mut next = c + (g - phase);
         if let Some(&(b, _)) = breaks.get(bi) {
             next = next.min(b as usize);
         }
