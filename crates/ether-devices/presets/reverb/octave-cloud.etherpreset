@@ -1,0 +1,38 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.7.0",
+  "preset": {
+    "name": "octave cloud",
+    "device": {
+      "type": "Builtin",
+      "device": "Reverb"
+    },
+    "meta": {
+      "tags": [
+        "shimmer",
+        "huge",
+        "ambient"
+      ],
+      "author": "ethereal",
+      "description": "a vast cloud climbing octave after octave: drones and swells."
+    },
+    "params": {
+      "0": 40.0,
+      "1": 100.0,
+      "2": 14.0,
+      "3": 25.0,
+      "4": 100.0,
+      "5": 50.0,
+      "6": 200.0,
+      "7": 20000.0,
+      "8": 100.0,
+      "9": 0.0,
+      "10": 0.0,
+      "11": 1.0,
+      "12": 75.0,
+      "13": 12.0,
+      "14": 10000.0
+    }
+  }
+}

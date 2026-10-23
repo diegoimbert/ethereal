@@ -7,6 +7,7 @@ pub(crate) mod blep;
 pub(crate) mod cut_filter;
 pub(crate) mod delay_line;
 pub(crate) mod halfband_iir;
+pub(crate) mod pitch_taps;
 pub(crate) mod resample;
 pub(crate) mod sliding_min;
 pub(crate) mod svf;

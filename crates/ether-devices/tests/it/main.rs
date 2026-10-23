@@ -43,6 +43,7 @@ mod perf_devices;
 mod poly_synth;
 mod racks;
 mod render;
+mod reverb_shimmer;
 mod shifter;
 mod sidechain;
 mod silence_skipping;
