@@ -1424,6 +1424,10 @@ mod tests {
         assert_eq!(antic.target, vec![false, false, true]);
         assert_eq!(rt.tracks[0].sidechain.midi_delay(key(0)), Some(0));
         let rank_of = |ti: usize| (0..rt.jobs.len()).find(|&r| rt.jobs.id(r) == ti).unwrap();
-        assert!(rt.jobs.successors(rank_of(1)).contains(&(rank_of(0) as u32)));
+        assert!(
+            rt.jobs
+                .successors(rank_of(1))
+                .contains(&(rank_of(0) as u32))
+        );
     }
 }

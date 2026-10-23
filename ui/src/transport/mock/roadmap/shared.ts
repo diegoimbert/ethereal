@@ -181,6 +181,12 @@ export function onSendDeleted(ctx: ReducerContext, send: string): void {
 export function onTrackDeleted(ctx: ReducerContext, track: TrackId): void {
   deleteMappingsWhere(ctx, (m) => mappingRefsTrack(m, track));
   cutSidechainsWhere(ctx, (d) => d.sidechain === track);
+  for (const d of ctx.tx.all("Device")) {
+    if (d.midi_sidechain?.track !== track || d.track === track) continue;
+    const next: Device = { ...d };
+    delete next.midi_sidechain;
+    ctx.tx.upsert("Device", next);
+  }
 }
 
 /** Clears the sidechain (source and tap) of every device matching `pred`. */

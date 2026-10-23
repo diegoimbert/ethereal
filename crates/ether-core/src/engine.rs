@@ -42,12 +42,12 @@ use crate::graph::{
 };
 use crate::media::AudioSource;
 use crate::meter::EngineOutputs;
+use crate::midi_sidechain::MidiPoint;
 use crate::mixer::{BusInput, TrackRt, apply_fader, apply_gate, scale};
 use crate::node::{Node, NodeKey, ProcessContext, ProcessStatus};
 use crate::parallel::{Fork, SerialFork};
 use crate::param::{ParamChange, ParamTarget};
 use crate::sched::{self, NoteSink, Timing};
-use crate::midi_sidechain::MidiPoint;
 use crate::sidechain::{ScIo, ScPoint};
 use crate::transport::{PlayheadState, TransportControl, TransportInfo};
 
@@ -2199,7 +2199,9 @@ impl JobCtx<'_> {
         }
         // The notes entering the chain, for MIDI sidechains (`crate::midi_sidechain`).
         *overflow |= match chain.first() {
-            Some(first) => sc_points.midi.write(MidiPoint::Input, first.events.as_slice()),
+            Some(first) => sc_points
+                .midi
+                .write(MidiPoint::Input, first.events.as_slice()),
             None => sc_points.midi.write_head(),
         };
         // Frozen track (`crate::freeze`, v0.2): the render replaces clips and chain (the
@@ -2308,7 +2310,8 @@ impl JobCtx<'_> {
             let runs = entry.runs();
             // MIDI sidechain: its source's notes replace the chain's (every sub-block, so
             // the delay stays in time while the device is off).
-            *overflow |= rt_sidechain.feed_midi(key, sc_points, n, runs.then_some(&mut entry.events));
+            *overflow |=
+                rt_sidechain.feed_midi(key, sc_points, n, runs.then_some(&mut entry.events));
             // Drum rack: pad chains feed the rack node's input (`crate::drum_rack`).
             if runs && !racks.is_empty() && racks.is_rack(key) {
                 *overflow |= racks.run_pads(

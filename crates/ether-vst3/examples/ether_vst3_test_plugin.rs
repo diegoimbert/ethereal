@@ -26,6 +26,8 @@
 //!   plugin sidechains, CONTRACTS §12.14): added to the output after the gain, when the
 //!   host activated it and passes it. Hosts feed it silence without a sidechain source, so
 //!   the output is unchanged then.
+//! - An event input bus `Notes` (an effect with a note input, e.g. fed by a MIDI
+//!   sidechain): 0.25 DC is added to the output while any note is held, sample-accurately.
 //!
 //! **Instrument** (`E7E1E4A1000000000000000000000002`, `Instrument|Synth`): a single
 //! component (processor and controller in one object). No audio input, stereo output, one
@@ -304,6 +306,8 @@ struct EffectProcessor {
     latency_step: AtomicU32,
     /// The host activated the `Sidechain` aux bus (`activateBus`).
     aux_active: AtomicBool,
+    /// Notes held on the `Notes` event bus.
+    held: AtomicU32,
     peer: Mutex<Option<ComPtr<IConnectionPoint>>>,
 }
 
@@ -319,6 +323,7 @@ impl EffectProcessor {
             mode: AtomicU32::new(0),
             latency_step: AtomicU32::new(1),
             aux_active: AtomicBool::new(false),
+            held: AtomicU32::new(0),
             peer: Mutex::new(None),
         }
     }
@@ -345,6 +350,7 @@ impl IComponentTrait for EffectProcessor {
         match (media == kAudio as MediaType, dir == kInput as BusDirection) {
             (true, true) => 2,
             (true, false) => 1,
+            (false, true) if media == kEvent as MediaType => 1,
             _ => 0,
         }
     }
@@ -359,6 +365,16 @@ impl IComponentTrait for EffectProcessor {
             stereo_bus(bus, dir, "Sidechain");
             (*bus).busType = kAux as BusType;
             (*bus).flags = 0;
+            return kResultOk;
+        }
+        if media == kEvent as MediaType && dir == kInput as BusDirection && index == 0 {
+            let bus = &mut *bus;
+            bus.mediaType = kEvent as MediaType;
+            bus.direction = dir;
+            bus.channelCount = 16;
+            copy_wstring("Notes", &mut bus.name);
+            bus.busType = kMain as BusType;
+            bus.flags = kDefaultActive as u32;
             return kResultOk;
         }
         if media != kAudio as MediaType || index != 0 {
@@ -510,7 +526,25 @@ impl IAudioProcessorTrait for EffectProcessor {
         let mut gain = start_gain;
         let mut mode = start_mode;
         let (mut gi, mut mi) = (0, 0);
+        let events = ComRef::from_raw(data.inputEvents);
+        let count = events.map_or(0, |e| e.getEventCount());
+        let mut held = self.held.load(Ordering::Relaxed);
+        let mut next = 0;
         for i in 0..frames {
+            while next < count {
+                let mut e: Event = std::mem::zeroed();
+                if events.is_some_and(|l| l.getEvent(next, &mut e) == kResultOk) {
+                    if e.sampleOffset as usize > i {
+                        break;
+                    }
+                    if u32::from(e.r#type) == kNoteOnEvent as u32 {
+                        held += 1;
+                    } else if u32::from(e.r#type) == kNoteOffEvent as u32 {
+                        held = held.saturating_sub(1);
+                    }
+                }
+                next += 1;
+            }
             while let Some(&(o, v)) = gain_points.points().get(gi) {
                 if o as usize > i {
                     break;
@@ -531,13 +565,15 @@ impl IAudioProcessorTrait for EffectProcessor {
                     1 => -1.0,
                     _ => 0.0,
                 };
-            out_l[i] = in_l[i] * g;
-            out_r[i] = in_r[i] * g;
+            let dc = if held > 0 { 0.25 } else { 0.0 };
+            out_l[i] = in_l[i] * g + dc;
+            out_r[i] = in_r[i] * g + dc;
             if let Some((sc_l, sc_r)) = &aux {
                 out_l[i] += sc_l[i];
                 out_r[i] += sc_r[i];
             }
         }
+        self.held.store(held, Ordering::Relaxed);
         kResultOk
     }
     unsafe fn getTailSamples(&self) -> u32 {

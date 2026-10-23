@@ -143,7 +143,6 @@ impl MidiPoints {
         }
     }
 
-
     fn find(&self, point: MidiPoint) -> Option<usize> {
         self.bufs.binary_search_by(|e| e.0.cmp(&point)).ok()
     }

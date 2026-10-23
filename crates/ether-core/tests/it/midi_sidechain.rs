@@ -196,7 +196,11 @@ fn an_effect_after_an_instrument_hears_its_own_tracks_notes_delayed_by_the_instr
     let (rec, mut rx) = Recorder::new();
     let rec = p.handle.add_node(Box::new(rec)).unwrap();
     let inst = p.handle.add_node(Box::new(Delay::new(100))).unwrap();
-    play(&mut p, vec![master(), source(&[inst, rec])], 2 * BEAT as usize);
+    play(
+        &mut p,
+        vec![master(), source(&[inst, rec])],
+        2 * BEAT as usize,
+    );
     assert!(notes(&drain(&mut rx)).is_empty());
 }
 

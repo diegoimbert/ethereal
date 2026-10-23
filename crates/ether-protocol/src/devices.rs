@@ -4,9 +4,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::model::{
-    BuiltinDevice, BuiltinDeviceType, DeviceId, IrSource, LfoCurve, MediaId, MidiSidechain, ParamId,
-    PluginFormat,
-    SampleZone, Seconds, SidechainTap, TrackId,
+    BuiltinDevice, BuiltinDeviceType, DeviceId, IrSource, LfoCurve, MediaId, MidiSidechain,
+    ParamId, PluginFormat, SampleZone, Seconds, SidechainTap, TrackId,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

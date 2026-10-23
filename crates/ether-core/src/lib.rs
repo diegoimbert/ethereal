@@ -53,6 +53,7 @@ pub mod offline;
 pub mod parallel;
 pub mod param;
 // Native only: wall-clock deadlines (`std::time::Instant` is unavailable on wasm32).
+pub mod midi_sidechain;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod period;
 pub mod plugin;
@@ -61,7 +62,6 @@ pub mod rack_chains;
 pub mod recording;
 pub mod render_preview;
 mod sched;
-pub mod midi_sidechain;
 mod sidechain;
 pub mod stream_tap;
 pub mod tempo;
@@ -80,10 +80,10 @@ pub use event::{EventBuffer, EventKind, ProcessEvent};
 pub use graph::{CompileError, NodeInfo, RenderGraphDesc, RenderSnapshot};
 pub use media::AudioSource;
 pub use meter::{EngineOutputs, MeterReading};
+pub use midi_sidechain::{MidiPoint, MidiSidechainDesc};
 pub use node::{Device, Node, NodeKey, ProcessContext, ProcessStatus};
 pub use param::{ParamChange, ParamTarget, Smoother};
 pub use plugin::{PluginController, PluginNode};
-pub use midi_sidechain::{MidiPoint, MidiSidechainDesc};
 pub use sidechain::{ScPoint, SidechainTapDesc};
 pub use transport::{PlayheadState, TransportControl, TransportInfo};
 

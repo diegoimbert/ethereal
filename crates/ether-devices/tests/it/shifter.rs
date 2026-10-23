@@ -323,7 +323,10 @@ fn midi_pitch_follows_the_last_held_note_relative_to_the_root() {
         (81_600, 96_000, st(7.0)),
     ] {
         let (f, over) = strongest(&out[0][from..to], &freqs);
-        assert!(f == want && over > 15.0, "{from}..{to}: {f} Hz (+{over} dB), want {want}");
+        assert!(
+            f == want && over > 15.0,
+            "{from}..{to}: {f} Hz (+{over} dB), want {want}"
+        );
     }
 }
 

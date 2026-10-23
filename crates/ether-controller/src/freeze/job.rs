@@ -149,7 +149,11 @@ pub fn needed_tracks(p: &Project, target: TrackId, chain: bool) -> BTreeSet<Trac
             p.devices
                 .values()
                 .filter(|d| d.track == t && !p.device_frozen(d.id))
-                .flat_map(|d| d.sidechain.into_iter().chain(d.midi_sidechain.map(|m| m.track))),
+                .flat_map(|d| {
+                    d.sidechain
+                        .into_iter()
+                        .chain(d.midi_sidechain.map(|m| m.track))
+                }),
         );
         for f in feeds {
             if p.tracks.contains_key(&f) && set.insert(f) {

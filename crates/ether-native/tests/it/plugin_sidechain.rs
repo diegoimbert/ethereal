@@ -422,6 +422,81 @@ fn vst3_plugin_sidechain() {
     run(find(PluginFormat::Vst3, ether_vst3::testing::EFFECT_ID));
 }
 
+/// MIDI sidechain into a plugin effect's note input (CLAP note port, VST3 event bus): both
+/// fixtures add 0.25 DC while a note is held. A "Keys" MIDI track (no devices, routed
+/// nowhere) holds a note over the first half beat.
+fn run_midi(plugin: PluginDescriptor) {
+    let format = plugin.format;
+    let mut rig = Rig::new();
+    let p = setup(&mut rig, &plugin);
+    assert_eq!(rig.device(&p.device)["kind"]["type"], "Plugin");
+    let keys = rig.id();
+    rig.ok(
+        "Track",
+        json!({"type": "Create", "id": keys, "kind": "Midi", "name": "Keys", "color": null,
+               "parent": null, "before": null}),
+    );
+    rig.ok(
+        "Mixer",
+        json!({"type": "SetOutput", "track": keys, "output": {"type": "None"}}),
+    );
+    let clip = rig.id();
+    rig.ok(
+        "Clip",
+        json!({"type": "CreateMidi", "id": clip, "track": keys, "start": 0.0, "length": 4.0,
+               "name": null}),
+    );
+    let note = rig.id();
+    rig.ok(
+        "Note",
+        json!({"type": "Add", "clip": clip, "notes": [
+            {"id": note, "pitch": 60, "velocity": 100, "start": 0.0, "duration": 0.5}]}),
+    );
+    rig.render(4 * BLOCK);
+    let dry = rig.peak();
+    assert!(dry < 1e-6, "{format}: no notes {dry}");
+    for sandboxed in [false, true] {
+        if sandboxed {
+            rig.ok(
+                "Plugin",
+                json!({"type": "SetSandboxed", "device": p.device, "sandboxed": true}),
+            );
+            rig.settle();
+        }
+        rig.ok(
+            "Device",
+            json!({"type": "SetMidiSidechain", "device": p.device,
+                   "source": {"track": keys, "tap": "PreFx"}}),
+        );
+        rig.render(4 * BLOCK);
+        let wet = rig.peak();
+        assert!(
+            (wet - 0.25).abs() < 1e-3,
+            "{format} (sandboxed: {sandboxed}): notes heard {wet}"
+        );
+        rig.ok(
+            "Device",
+            json!({"type": "SetMidiSidechain", "device": p.device, "source": null}),
+        );
+        rig.render(4 * BLOCK);
+        let off = rig.peak();
+        assert!(
+            off < 1e-6,
+            "{format} (sandboxed: {sandboxed}): cleared {off}"
+        );
+    }
+}
+
+#[test]
+fn clap_plugin_midi_sidechain() {
+    run_midi(find(PluginFormat::Clap, CLAP_ID));
+}
+
+#[test]
+fn vst3_plugin_midi_sidechain() {
+    run_midi(find(PluginFormat::Vst3, ether_vst3::testing::EFFECT_ID));
+}
+
 #[test]
 fn plugins_without_an_aux_bus_refuse_a_sidechain() {
     let instrument = find(PluginFormat::Vst3, ether_vst3::testing::INSTRUMENT_ID);

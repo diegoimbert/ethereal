@@ -456,13 +456,7 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                 (300.0, TONE_OFF_HZ, TONE_OFF_HZ),
                 ParamScale::Log,
             ),
-            choice(
-                34,
-                "Pitch Mode",
-                "MIDI",
-                &PITCH_MODES,
-                pitch_mode::INTERNAL,
-            ),
+            choice(34, "Pitch Mode", "MIDI", &PITCH_MODES, pitch_mode::INTERNAL),
             {
                 let labels = note_labels();
                 let refs: Vec<&str> = labels.iter().map(String::as_str).collect();

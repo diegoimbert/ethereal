@@ -68,7 +68,7 @@ import {
   trackChainOf,
   validSignature,
 } from "./roadmap/shared";
-import { setSidechain } from "./roadmap/sidechain";
+import { setMidiSidechain, setSidechain } from "./roadmap/sidechain";
 import { copyClipExpression, copyNoteExpressions, deleteClipExpression, deleteNoteExpressions } from "./roadmap/expression";
 import { reverseNotes } from "./roadmap/reverse";
 import { bpmAt, tempoPointAt, signaturePointAt } from "./tempo";
@@ -686,6 +686,9 @@ function deviceCommandInner(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
     }
     case "SetSidechain":
       setSidechain(ctx, c.device, c.source, c.tap ?? null);
+      break;
+    case "SetMidiSidechain":
+      setMidiSidechain(ctx, c.device, c.source);
       break;
     case "SetZones":
       // v0.2 (`multisampler`, `roadmap/multisampler.ts`).

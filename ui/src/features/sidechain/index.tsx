@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { Check, ChevronDown, ChevronRight } from "lucide-react";
-import type { Device, Project, SidechainTap, TrackId } from "@/generated";
+import type { Device, MidiSidechain, MidiTap, Project, SidechainTap, TrackId } from "@/generated";
 import { useDescriptor } from "@/features/devices/descriptors";
 import { useSend } from "@/features/devices/gesture";
 import { foldForSearch, useT } from "@/i18n";
@@ -12,7 +12,20 @@ import { disabledProps, menuItems, menuKeyDown, Popover, SearchField } from "@/k
 import { clampToViewport } from "@/kit/placement";
 import { useProject } from "@/state";
 import { cmd } from "@/transport";
-import { defaultTap, sidechainSources, TAP_ERROR_TEXT, tapError, tapKey, tapOf, tapPoints, type TapOption } from "./routing";
+import {
+  defaultTap,
+  hasNoteInput,
+  MIDI_TAPS,
+  midiSidechainSources,
+  POINT_LABEL,
+  sidechainSources,
+  TAP_ERROR_TEXT,
+  tapError,
+  tapKey,
+  tapOf,
+  tapPoints,
+  type TapOption,
+} from "./routing";
 
 export interface SidechainSelectorProps {
   device: Device;
@@ -216,7 +229,10 @@ function SidechainMenu({ project, device, onPick }: { project: Project; device: 
           label={subRow.label}
           taps={subRow.taps}
           current={device.sidechain === subRow.track ? tapKey(current) : null}
-          onPick={(tap) => onPick(subRow.track, tap)}
+          onPick={(key) => {
+            const o = subRow.taps.find((x) => x.key === key);
+            if (o) onPick(subRow.track, o.tap);
+          }}
           onBack={() => {
             sub.item.focus();
             setSub(null);
@@ -228,6 +244,148 @@ function SidechainMenu({ project, device, onPick }: { project: Project; device: 
 }
 
 const subId = (track: TrackId) => `eth-sidechain-taps-${track}`;
+
+/** A choice of a submenu ([`TapSubmenu`]). */
+interface SubOption {
+  key: string;
+  label: string;
+  refused: string | null;
+}
+
+/**
+ * MIDI input picker (`Device::SetMidiSidechain`, one undo step per change), Live's "MIDI From"
+ * on an effect: the MIDI track whose notes the device's note input follows (e.g. Shifter's
+ * MIDI pitch mode), pre or post its MIDI effects. Renders nothing for devices that aren't
+ * audio effects with a note input (`DeviceDescriptor.midi_input`). One dropdown: "no midi
+ * input", then the MIDI tracks (its own included), each with its points in a submenu; a click
+ * on a track takes post fx. Tracks that would close a routing loop are disabled.
+ */
+export function MidiSidechainSelector({ device }: SidechainSelectorProps) {
+  const t = useT();
+  const { descriptor } = useDescriptor(device);
+  const project = useProject();
+  const send = useSend();
+  const [open, setOpen] = useState(false);
+  if (!descriptor || !hasNoteInput(descriptor) || !project) return null;
+  const set = (source: MidiSidechain | null) => void send(cmd("Device", { type: "SetMidiSidechain", device: device.id, source }));
+  const source = device.midi_sidechain ?? null;
+  const sourceTrack = source === null ? null : project.tracks[source.track];
+  const label =
+    source === null
+      ? t("midi_sidechain.none")
+      : `${source.track === device.track ? t("sidechain.source_own", { name: sourceTrack?.name ?? "" }) : (sourceTrack?.name ?? "")} · ${t(POINT_LABEL[source.tap])}`;
+  return (
+    <Popover
+      open={open}
+      onOpenChange={setOpen}
+      placement="bottom-start"
+      className="eth-popover--menu eth-sidechain-picker"
+      aria-label={t("midi_sidechain.source_label", { name: device.name })}
+      trigger={(p) => (
+        <button
+          type="button"
+          className={clsx("eth-select", "eth-select--sm", "eth-sidechain", open && "eth-select--open")}
+          aria-label={t("midi_sidechain.source_label", { name: device.name })}
+          title={t("midi_sidechain.source_title")}
+          {...p}
+        >
+          <span className={clsx("eth-select__value", source !== null && source.track !== device.track && "eth-user-text")}>{label}</span>
+          <ChevronDown className="eth-select__chevron" aria-hidden />
+        </button>
+      )}
+    >
+      {(close) => (
+        <MidiSidechainMenu
+          project={project}
+          device={device}
+          onPick={(s) => {
+            close();
+            set(s);
+          }}
+        />
+      )}
+    </Popover>
+  );
+}
+
+function MidiSidechainMenu({ project, device, onPick }: { project: Project; device: Device; onPick(source: MidiSidechain | null): void }) {
+  const t = useT();
+  const [sub, setSub] = useState<{ track: TrackId; item: HTMLElement } | null>(null);
+  const list = useRef<HTMLDivElement>(null);
+  const current = device.midi_sidechain ?? null;
+  const rows = midiSidechainSources(project, device).map(({ track, cycle }) => ({
+    track: track.id,
+    own: track.id === device.track,
+    cycle,
+    label: cycle ? t("sidechain.source_loop", { name: track.name }) : track.id === device.track ? t("sidechain.source_own", { name: track.name }) : track.name,
+  }));
+  const options: SubOption[] = MIDI_TAPS.map((tap) => ({ key: tap, label: t(POINT_LABEL[tap]), refused: null }));
+  const openSub = (row: (typeof rows)[number], item: HTMLElement, focus: boolean) => {
+    setSub(row.cycle ? null : { track: row.track, item });
+    if (focus && !row.cycle) requestAnimationFrame(() => menuItems(document.getElementById(midiSubId(row.track)))[0]?.focus());
+  };
+  const subRow = rows.find((r) => r.track === sub?.track) ?? null;
+  return (
+    <div className="eth-sidechain-picker__body">
+      {/* eslint-disable-next-line jsx-a11y/interactive-supports-focus -- a menu: focus is on its items (roving, menuKeyDown) */}
+      <div
+        ref={list}
+        className="eth-menu eth-sidechain-picker__list"
+        role="menu"
+        aria-label={t("midi_sidechain.sources")}
+        onKeyDown={(e) => menuKeyDown(e, list.current)}
+      >
+        <button type="button" role="menuitem" className="eth-menu__item" onMouseEnter={() => setSub(null)} onClick={() => onPick(null)}>
+          <span className="eth-select-list__check" aria-hidden>
+            {current === null && <Check />}
+          </span>
+          <span className="eth-menu__label">{t("midi_sidechain.none")}</span>
+        </button>
+        {rows.map((row) => (
+          <button
+            key={row.track}
+            type="button"
+            role="menuitem"
+            aria-haspopup={row.cycle ? undefined : "menu"}
+            aria-expanded={row.cycle ? undefined : sub?.track === row.track}
+            className={clsx("eth-menu__item", sub?.track === row.track && "eth-menu__item--open")}
+            {...disabledProps(row.cycle, row.label)}
+            onMouseEnter={(e) => openSub(row, e.currentTarget, false)}
+            onClick={() => !row.cycle && onPick({ track: row.track, tap: current?.track === row.track ? current.tap : "PostFx" })}
+            onKeyDown={(e) => {
+              if (e.key !== "ArrowRight") return;
+              e.preventDefault();
+              openSub(row, e.currentTarget, true);
+            }}
+          >
+            <span className="eth-select-list__check" aria-hidden>
+              {current?.track === row.track && <Check />}
+            </span>
+            <span className={clsx("eth-menu__label", !row.cycle && !row.own && "eth-user-text")}>{row.label}</span>
+            {!row.cycle && <ChevronRight className="eth-sidechain-picker__chevron" aria-hidden />}
+          </button>
+        ))}
+        {rows.length === 0 && <span className="eth-sidechain-picker__empty">{t("midi_sidechain.no_tracks")}</span>}
+      </div>
+      {subRow && sub && (
+        <TapSubmenu
+          id={midiSubId(subRow.track)}
+          anchor={sub.item}
+          label={subRow.label}
+          taps={options}
+          current={current?.track === subRow.track ? current.tap : null}
+          onPick={(key) => onPick({ track: subRow.track, tap: key as MidiTap })}
+          onBack={() => {
+            sub.item.focus();
+            setSub(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+const midiSubId = (track: TrackId) => `eth-midi-sidechain-taps-${track}`;
 
 /** A source track's tap points, at the side of its item (in its own portal: the list scrolls). */
 function TapSubmenu({
@@ -242,9 +400,9 @@ function TapSubmenu({
   id: string;
   anchor: HTMLElement;
   label: string;
-  taps: SourceRow["taps"];
+  taps: SubOption[];
   current: string | null;
-  onPick(tap: SidechainTap): void;
+  onPick(key: string): void;
   onBack(): void;
 }) {
   const t = useT();
@@ -286,7 +444,7 @@ function TapSubmenu({
             aria-current={o.key === current || undefined}
             className="eth-menu__item"
             {...disabledProps(o.refused !== null, o.refused ?? undefined)}
-            onClick={() => o.refused === null && onPick(o.tap)}
+            onClick={() => o.refused === null && onPick(o.key)}
           >
             <span className="eth-select-list__check" aria-hidden>
               {o.key === current && <Check />}

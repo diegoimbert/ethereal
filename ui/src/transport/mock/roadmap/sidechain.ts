@@ -9,8 +9,8 @@
  * chains) take one. Clearing is always allowed; setting the current value is a no-op.
  */
 
-import type { Device, SidechainTap, TrackId } from "@/generated";
-import { POST_FADER, tapError, tapKey } from "@/features/sidechain/routing";
+import type { Device, MidiSidechain, SidechainTap, TrackId } from "@/generated";
+import { closesCycle, hasNoteInput, POST_FADER, tapError, tapKey } from "@/features/sidechain/routing";
 import { builtinDescriptor } from "../builtinDevices";
 import { fail, type ReducerContext } from "../documentReducer";
 
@@ -43,5 +43,33 @@ export function setSidechain(ctx: ReducerContext, deviceId: string, source: Trac
   const out: Device = { ...d, sidechain: source };
   if (next === null) delete out.sidechain_tap;
   else out.sidechain_tap = next;
+  ctx.tx.upsert("Device", out);
+}
+
+/**
+ * Mock of `Device::SetMidiSidechain` (`crates/ether-controller/src/midi_sidechain.rs`): the
+ * source must be a MIDI track, the device an audio effect with a note input (built-in
+ * descriptors; mock plugins have none), and the edge must not close a routing cycle.
+ */
+export function setMidiSidechain(ctx: ReducerContext, deviceId: string, source: MidiSidechain | null): void {
+  const d = ctx.tx.get("Device", deviceId) ?? fail("NotFound", `device ${deviceId}`);
+  const old = d.midi_sidechain ?? null;
+  if (old?.track === source?.track && old?.tap === source?.tap) return;
+  if (source !== null) {
+    const src = ctx.tx.get("Track", source.track) ?? fail("NotFound", `track ${source.track}`);
+    if (src.kind !== "Midi") fail("InvalidArgument", "a MIDI sidechain source must be a MIDI track");
+    if (d.kind.type !== "Builtin" || !hasNoteInput(builtinDescriptor(d.kind.device))) fail("InvalidArgument", `device ${d.id} has no note input`);
+    const p = {
+      tracks: Object.fromEntries(ctx.tx.all("Track").map((t) => [t.id, t])),
+      devices: Object.fromEntries(ctx.tx.all("Device").map((x) => [x.id, x])),
+      sends: Object.fromEntries(ctx.tx.all("Send").map((x) => [x.id, x])),
+      rack_chains: Object.fromEntries(ctx.tx.all("RackChain").map((x) => [x.id, x])),
+      drum_pads: Object.fromEntries(ctx.tx.all("DrumPad").map((x) => [x.id, x])),
+    };
+    if (closesCycle(p, d, source.track)) fail("InvalidArgument", "routing cycle");
+  }
+  const out: Device = { ...d };
+  if (source === null) delete out.midi_sidechain;
+  else out.midi_sidechain = source;
   ctx.tx.upsert("Device", out);
 }

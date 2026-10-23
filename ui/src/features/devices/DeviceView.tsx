@@ -5,7 +5,7 @@ import type { Device, DeviceId } from "@/generated";
 import { PluginDeviceControls, pluginMenuEntries } from "@/features/plugins";
 import { MissingDeviceControls, ReplacePopover, replaceDeviceEntries, resolvePluginEntries } from "@/features/import-resolver";
 import { PresetMenu } from "@/features/presets";
-import { SidechainSelector } from "@/features/sidechain";
+import { MidiSidechainSelector, SidechainSelector } from "@/features/sidechain";
 import { AddModulatorButton, addModulatorEntries, ModulatorsPanel, SwitchModulation, switchMenuEntries, useModulatorKinds } from "@/features/modulation";
 import { groupEntries, isChainRack, RackPanel } from "@/features/racks";
 import { freezeDeviceEntries, useDeviceFrozen } from "@/features/freeze";
@@ -268,6 +268,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
           <PluginDeviceControls device={device} />
           <MissingDeviceControls device={device} />
           <SidechainSelector device={device} />
+          <MidiSidechainSelector device={device} />
           <span className="eth-device__actions">
             {/* Stacked (inspector): reorder by dragging the header; side by side: left / right. */}
             {!stack && (

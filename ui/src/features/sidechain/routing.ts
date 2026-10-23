@@ -7,7 +7,7 @@
  * of one of its rack chains or drum pads (any depth), like Live's "Audio From" choosers.
  */
 
-import type { Device, DeviceId, InputTap, Project, SidechainChain, SidechainTap, Track, TrackId } from "@/generated";
+import type { Device, DeviceId, InputTap, MidiTap, Project, SidechainChain, SidechainTap, Track, TrackId } from "@/generated";
 import { t, type MessageKey } from "@/i18n";
 import { compareOrderKeys, tracksOrdered } from "@/state";
 
@@ -62,8 +62,37 @@ function edges(project: P): Map<TrackId, TrackId[]> {
     }
   }
   for (const s of Object.values(project.sends)) add(s.from, s.to);
-  for (const d of Object.values(project.devices)) if (d.sidechain !== null && d.sidechain !== d.track) add(d.sidechain, d.track);
+  for (const d of Object.values(project.devices)) {
+    if (d.sidechain !== null && d.sidechain !== d.track) add(d.sidechain, d.track);
+    // MIDI sidechains are routing edges too (the own track is fine).
+    const m = d.midi_sidechain;
+    if (m && m.track !== d.track) add(m.track, d.track);
+  }
   return out;
+}
+
+/** Whether `device` takes a MIDI sidechain: an audio effect with a note input (mirrors
+ * `ether_controller::midi_sidechain::has_note_input`). */
+export function hasNoteInput(descriptor: { category: string; midi_input: boolean }): boolean {
+  return descriptor.category === "AudioEffect" && descriptor.midi_input;
+}
+
+/** The MIDI sidechain points, Live's "Pre FX" / "Post FX" (`ether_model::MidiTap`). */
+export const MIDI_TAPS: MidiTap[] = ["PreFx", "PostFx"];
+
+/**
+ * The MIDI tracks that can feed `device`'s note input (`Device::SetMidiSidechain`): every
+ * MIDI track, its own included; `cycle` when the edge would close a routing loop.
+ */
+export function midiSidechainSources(project: P & Project, device: Device): SourceOption[] {
+  const graph = edges(project);
+  const current = device.midi_sidechain?.track ?? null;
+  return tracksOrdered(project)
+    .filter((t) => t.kind === "Midi")
+    .map((track) => ({
+      track,
+      cycle: track.id !== current && track.id !== device.track && reaches(graph, device.track, track.id),
+    }));
 }
 
 function reaches(graph: Map<TrackId, TrackId[]>, from: TrackId, to: TrackId): boolean {
