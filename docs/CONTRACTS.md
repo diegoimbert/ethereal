@@ -749,6 +749,27 @@ ordinary edits at tick rate (one gesture per control) and still reach monitored 
   order; the mix is a sum), the model rejects loops, and a chain of the rack holding the
   device is tapped before the rack's alignment (`ScPoint::ChainRaw` for post-FX; pre-FX
   is its input; no post-fader: the aligned and mixed outputs come after every chain).
+- **MIDI sidechain** (`Device::midi_sidechain: Option<MidiSidechain { track, tap: PreFx |
+  PostFx }>`, `DeviceCommand::SetMidiSidechain`, `TrackDesc::midi_sidechains`,
+  `ether_core::midi_sidechain`): an audio effect's note input hears a MIDI track's notes
+  (Live's "MIDI From" on effects: Shifter's MIDI pitch mode, plugin effects with a CLAP note
+  port / VST3 event bus, i.e. `DeviceDescriptor::midi_input` on an `AudioEffect`).
+  - Source: any MIDI track, the device's own included; a routing edge `source → consumer`
+    for the model's cycle check and the job graph (no cycles). Points: `PreFx` = the notes
+    entering the chain (clips, monitored and preview input; a track without devices still
+    schedules them); `PostFx` = the notes reaching its first device that isn't a MIDI effect
+    (`MidiPoint::Before(node)`), or leaving a chain of MIDI effects only (`End`). A frozen
+    source plays no notes.
+  - The consumer hears **only** the sidechain's notes: the notes reaching it through its own
+    chain are replaced (its params and all-notes-offs stay). Any depth (track chain, drum
+    pads, rack chains). Sample-accurate (offsets kept); a bypassed consumer drops them.
+  - PDC: a point's latency is the audio's there (pre-FX latency, the entry's input latency,
+    post-FX). At the consumer the main signal or the notes are delayed by the difference,
+    like an audio sidechain; with both, the main signal waits for the later one and each
+    side is delayed by the rest. The note delay is a fixed ring (`EventDelay`), kept over
+    snapshot swaps when its delay is unchanged.
+  - Anticipation: held output carries no notes, so a MIDI sidechain source of a real-time
+    track renders in real time too (and everything downstream of it).
 
 ### 11.11 Groove
 `NoteCommand::Quantize::swing` (0..=1, destructive: odd grid positions are delayed by

@@ -835,6 +835,11 @@ fn run_chain(
         // Sidechain PDC: delay the main signal before this entry if planned.
         if let Some(x) = nest.as_mut() {
             x.sc.taps.align_main(entry.key, &mut chain.a, n);
+            // MIDI sidechain (`crate::midi_sidechain`): its notes replace the chain's.
+            let runs = entry.runs();
+            overflow |=
+                x.sc.taps
+                    .feed_midi(entry.key, x.sc.points, n, runs.then_some(&mut entry.events));
         }
         chain.out_events.clear();
         let runs = entry.runs();

@@ -86,6 +86,9 @@ pub fn collect_tracks(p: &Project, tracks: &[TrackId]) -> CmdResult<Vec<Entity>>
         if d.sidechain.is_some_and(|s| !set.contains(&s)) {
             d.sidechain = None;
         }
+        if d.midi_sidechain.is_some_and(|m| !set.contains(&m.track)) {
+            d.midi_sidechain = None;
+        }
         d
     };
     for d in p

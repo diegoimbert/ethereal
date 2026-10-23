@@ -231,6 +231,7 @@ impl Gen<'_> {
                 Op::Insert {
                     entity: Entity::Device(Device {
                         sidechain_tap: None,
+                        midi_sidechain: None,
                         chain: None,
                         id: self.id(),
                         track,
@@ -767,6 +768,7 @@ proptest! {
             })},
             Op::Insert { entity: Entity::Device(Device {
                 sidechain_tap: None,
+                midi_sidechain: None,
                 chain: None,
                 id: device, track, order: OrderKey::between(None, None), name: "d".into(),
                 enabled: true, kind: DeviceKind::Builtin { device: BuiltinDevice::Synth },

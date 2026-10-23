@@ -431,15 +431,16 @@ impl RecordingRt {
                 live,
                 chain,
                 expression,
+                sc_points,
                 ..
             } = track;
-            let Some(first) = chain.first_mut() else {
+            let Some(queue) = crate::mixer::note_queue(chain, sc_points) else {
                 live.release(|_| {});
                 continue;
             };
             live.release(|data| {
                 if let Some(kind) = midi_event(data) {
-                    expression.live_input(&desc.expression, 0, kind, &mut first.pending);
+                    expression.live_input(&desc.expression, 0, kind, queue);
                 }
             });
         }
@@ -477,15 +478,14 @@ impl RecordingRt {
                 } else if !track.live.ends(ev.data, &kind) {
                     continue;
                 }
-                if let Some(first) = track.chain.first_mut() {
+                if let Some(queue) =
+                    crate::mixer::note_queue(&mut track.chain, &mut track.sc_points)
+                {
                     // v0.3 (`mpe`): read as MPE on tracks with MPE settings; unchanged
                     // otherwise (`ExpressionRt::live_input`).
-                    track.expression.live_input(
-                        &desc.expression,
-                        offset as u32,
-                        kind,
-                        &mut first.pending,
-                    );
+                    track
+                        .expression
+                        .live_input(&desc.expression, offset as u32, kind, queue);
                 }
             }
         }
@@ -502,10 +502,10 @@ impl RecordingRt {
                 continue;
             };
             let track = &mut tracks[i];
-            if let Some(first) = track.chain.first_mut() {
+            if let Some(queue) = crate::mixer::note_queue(&mut track.chain, &mut track.sc_points) {
                 track
                     .expression
-                    .live_input(&descs[i].expression, 0, kind, &mut first.pending);
+                    .live_input(&descs[i].expression, 0, kind, queue);
             }
         }
 
@@ -762,6 +762,7 @@ mod tests {
             expression: Default::default(),
             hw_io: Vec::new(),
             sidechain_taps: Vec::new(),
+            midi_sidechains: Vec::new(),
         }
     }
 

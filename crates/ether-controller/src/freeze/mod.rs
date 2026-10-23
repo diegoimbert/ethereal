@@ -214,7 +214,10 @@ fn check_group_freezable(p: &Project, group: &Track, out: &mut dyn MessageSink) 
         .devices
         .values()
         .filter(|d| !subtree.contains(&d.track))
-        .filter(|d| d.sidechain.is_some_and(|s| subtree.contains(&s)))
+        .filter(|d| {
+            d.sidechain.is_some_and(|s| subtree.contains(&s))
+                || d.midi_sidechain.is_some_and(|m| subtree.contains(&m.track))
+        })
         .count();
     if sends + sidechains > 0 {
         notify(
@@ -1153,6 +1156,7 @@ pub fn apply_inert(p: &Project, tracks: &mut [ether_core::graph::TrackDesc]) {
         td.expression = Default::default();
         td.hw_io.clear();
         td.sidechain_taps.clear();
+        td.midi_sidechains.clear();
         td.frozen = None;
     }
 }

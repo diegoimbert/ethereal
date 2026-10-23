@@ -62,6 +62,7 @@ fn graph(version: u64, synth: NodeKey, enabled: bool) -> RenderGraphDesc {
         expression: Default::default(),
         hw_io: Vec::new(),
         sidechain_taps: Vec::new(),
+        midi_sidechains: Vec::new(),
     };
     let mut master_desc = midi.clone();
     master_desc.id = master;

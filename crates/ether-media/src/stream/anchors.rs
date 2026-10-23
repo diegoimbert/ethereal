@@ -224,6 +224,7 @@ mod tests {
             expression: Default::default(),
             hw_io: vec![],
             sidechain_taps: Vec::new(),
+            midi_sidechains: Vec::new(),
         };
         RenderGraphDesc {
             tempo: vec![TempoPointDesc {

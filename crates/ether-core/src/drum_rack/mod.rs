@@ -662,6 +662,10 @@ impl RacksRt {
                 entry.push_dry(&pad.a, n);
                 sc.taps.align_main(entry.key, &mut pad.a, n);
                 let runs = entry.runs();
+                // MIDI sidechain (`crate::midi_sidechain`): its notes replace the pad's.
+                overflow |=
+                    sc.taps
+                        .feed_midi(entry.key, sc.points, n, runs.then_some(&mut entry.events));
                 // A chain rack on the pad (v0.2): its chains feed its node's input first,
                 // like at a track-chain entry (`crate::rack_chains`).
                 let nested = runs && !chain_racks.is_empty() && chain_racks.is_rack(entry.key);

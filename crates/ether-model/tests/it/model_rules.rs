@@ -387,6 +387,7 @@ fn params_roundtrip_through_json_and_param_reset() {
     let t = f.add_track(TrackKind::Midi, None);
     let d = Device {
         sidechain_tap: None,
+        midi_sidechain: None,
         chain: None,
         id: f.id(),
         track: t,
@@ -459,6 +460,7 @@ fn param_only_device_edits_patch_device_params() {
     let state = Base64Bytes(vec![7; 64 * 1024]);
     let d = Device {
         sidechain_tap: None,
+        midi_sidechain: None,
         chain: None,
         id: f.id(),
         track: t,
@@ -578,6 +580,7 @@ fn a_long_param_gesture_coalesces_and_undoes_to_the_start() {
     let t = f.add_track(TrackKind::Midi, None);
     let d = Device {
         sidechain_tap: None,
+        midi_sidechain: None,
         chain: None,
         id: f.id(),
         track: t,

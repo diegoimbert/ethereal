@@ -85,6 +85,8 @@ pub struct PluginEdit {
     params: Option<BTreeMap<ParamId, f64>>,
     /// The new device has no sidechain input: its sidechain source goes.
     clear_sidechain: bool,
+    /// The new device has no note input: its MIDI sidechain goes.
+    clear_midi_sidechain: bool,
 }
 
 /// A media resolution with its bytes checked (and copied when needed).
@@ -550,6 +552,7 @@ where
                 map,
                 params: None,
                 clear_sidechain: false,
+                clear_midi_sidechain: false,
             });
         }
         Ok(())
@@ -836,6 +839,9 @@ fn replace_plugin_device(ctx: &mut crate::doc::DocCtx<'_, '_>, e: PluginEdit) ->
     if e.clear_sidechain {
         d.sidechain = None;
         d.sidechain_tap = None;
+    }
+    if e.clear_midi_sidechain {
+        d.midi_sidechain = None;
     }
     if let Some(name) = &e.rename {
         d.name = name.clone();

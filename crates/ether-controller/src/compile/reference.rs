@@ -241,6 +241,11 @@ pub(super) fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGra
                 } else {
                     crate::sidechain::taps_desc(p, t.id, ctx)
                 },
+                midi_sidechains: if frozen.is_some() {
+                    Vec::new()
+                } else {
+                    crate::midi_sidechain::desc(p, t.id, ctx)
+                },
                 frozen,
             }
         })

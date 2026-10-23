@@ -29,7 +29,7 @@
 //!   holds no more than this buffer; otherwise they wait a buffer, unless the graph forces
 //!   them (then the queue is dropped: a jump of up to one buffer on the anticipated tracks).
 
-use ether_protocol::model::SendId;
+use ether_protocol::model::{SendId, TrackId};
 
 use crate::bus_tap::TapBuffers;
 use crate::engine::SubPlan;
@@ -76,9 +76,33 @@ pub(crate) fn classify(
     for (r, &hw) in realtime.iter_mut().zip(to_hardware) {
         *r |= hw;
     }
+    // Held output carries no notes: the MIDI sidechain sources of a real-time track are
+    // real-time too (`crate::midi_sidechain`), and so is everything downstream of them.
+    let mut index: Vec<(TrackId, usize)> = desc
+        .tracks
+        .iter()
+        .enumerate()
+        .map(|(i, t)| (t.id, i))
+        .collect();
+    index.sort();
+    let midi_sources: Vec<Vec<usize>> = desc
+        .tracks
+        .iter()
+        .map(|t| {
+            t.midi_sidechains
+                .iter()
+                .filter_map(|m| {
+                    index
+                        .binary_search_by(|e| e.0.cmp(&m.source))
+                        .ok()
+                        .map(|k| index[k].1)
+                })
+                .collect()
+        })
+        .collect();
     let mut stack: Vec<usize> = (0..n).filter(|&i| realtime[i]).collect();
     while let Some(i) = stack.pop() {
-        for &d in &succ[i] {
+        for &d in succ[i].iter().chain(&midi_sources[i]) {
             if !realtime[d] {
                 realtime[d] = true;
                 stack.push(d);

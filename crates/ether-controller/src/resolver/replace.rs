@@ -60,6 +60,7 @@ const LOST_SHOWN: usize = 8;
 const LOST_PLUGIN_STATE: &str = "plugin state (presets, loaded samples)";
 const LOST_CONTENT: &str = "device content (samples, impulse response, routing)";
 const LOST_SIDECHAIN: &str = "sidechain input";
+const LOST_MIDI_SIDECHAIN: &str = "midi sidechain";
 
 /// One side of a replacement.
 pub struct Side<'a> {
@@ -560,6 +561,21 @@ where
                 }
                 (None, _) => false,
             };
+        // The MIDI sidechain likewise, when the new device has no note input.
+        let clear_midi_sidechain = d.midi_sidechain.is_some()
+            && plan.matched != ParamMatch::SameIds
+            && match (&new_desc, &kind) {
+                (Some(desc), _) => !crate::midi_sidechain::has_note_input(desc),
+                (None, DeviceKind::Plugin { plugin }) => {
+                    let probe = PluginInstance {
+                        state: None,
+                        ..plugin.clone()
+                    };
+                    self.target_descriptor(&probe)
+                        .is_some_and(|desc| !crate::midi_sidechain::has_note_input(&desc))
+                }
+                (None, _) => false,
+            };
 
         // The report.
         let mapped = |param: &ParamId| match &plan.map {
@@ -611,6 +627,9 @@ where
         if clear_sidechain {
             lost.push(LOST_SIDECHAIN.into());
         }
+        if clear_midi_sidechain {
+            lost.push(LOST_MIDI_SIDECHAIN.into());
+        }
         let report = ReplaceReport {
             matched: plan.matched,
             state_kept,
@@ -626,6 +645,7 @@ where
             map: plan.map,
             params,
             clear_sidechain,
+            clear_midi_sidechain,
         };
         Ok(Prepared {
             report,

@@ -825,6 +825,7 @@ mod tests {
             params: BTreeMap::new(),
             sidechain: None,
             sidechain_tap: None,
+            midi_sidechain: None,
             pad: None,
             chain: None,
         };

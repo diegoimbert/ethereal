@@ -114,6 +114,7 @@ fn track(chain: Vec<ChainEntry>) -> TrackDesc {
         expression: Default::default(),
         hw_io: Vec::new(),
         sidechain_taps: Vec::new(),
+        midi_sidechains: Vec::new(),
     }
 }
 

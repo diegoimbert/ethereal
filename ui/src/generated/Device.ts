@@ -2,6 +2,7 @@
 import type { DeviceId } from "./DeviceId";
 import type { DeviceKind } from "./DeviceKind";
 import type { DrumPadId } from "./DrumPadId";
+import type { MidiSidechain } from "./MidiSidechain";
 import type { OrderKey } from "./OrderKey";
 import type { ParamId } from "./ParamId";
 import type { RackChainId } from "./RackChainId";
@@ -48,4 +49,9 @@ pad: DrumPadId | null,
  * not in a rack. Mutually exclusive with `pad`; `track` = the rack's track. Omitted from
  * JSON when `None`.
  */
-chain?: RackChainId, };
+chain?: RackChainId, 
+/**
+ * MIDI sidechain: the device's note input hears this MIDI track's notes
+ * ([`MidiSidechain`]) instead of the chain's. `None` = off. Omitted from JSON when `None`.
+ */
+midi_sidechain?: MidiSidechain, };

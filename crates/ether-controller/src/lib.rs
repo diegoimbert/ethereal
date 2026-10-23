@@ -116,10 +116,11 @@ pub mod rendering;
 #[doc(hidden)]
 pub mod resolver;
 // The default sample pack (docs/SAMPLES.md).
+#[doc(hidden)]
+pub mod midi_sidechain;
 pub mod sample_pack;
 #[doc(hidden)]
 pub mod saving;
-#[doc(hidden)]
 pub mod sidechain;
 pub mod store;
 #[doc(hidden)]

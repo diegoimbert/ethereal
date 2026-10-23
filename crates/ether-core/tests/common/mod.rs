@@ -63,6 +63,7 @@ pub fn track(id: TrackId, kind: TrackKind, output: Option<TrackId>) -> TrackDesc
         expression: Default::default(),
         hw_io: Vec::new(),
         sidechain_taps: Vec::new(),
+        midi_sidechains: Vec::new(),
     }
 }
 

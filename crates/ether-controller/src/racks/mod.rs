@@ -495,6 +495,7 @@ pub fn rack_command(ctx: &mut DocCtx, command: &RackCommand) -> CmdResult<()> {
             };
             ctx.tx.insert(Entity::Device(Device {
                 sidechain_tap: None,
+                midi_sidechain: None,
                 id: *id,
                 track: r.track,
                 order,
@@ -602,6 +603,7 @@ pub fn append_chain_device(
     };
     let d = Device {
         sidechain_tap: None,
+        midi_sidechain: None,
         id,
         track: r.track,
         order,
@@ -691,6 +693,7 @@ fn group(
     let first_order = devices[0].order.clone();
     ctx.tx.insert(Entity::Device(Device {
         sidechain_tap: None,
+        midi_sidechain: None,
         id: rack_id,
         track,
         order: first_order,

@@ -9,7 +9,7 @@ use ether_core::{
     AudioBuffers, Device, EventBuffer, EventKind, PrepareConfig, ProcessContext, ProcessEvent,
     TransportInfo,
 };
-use ether_devices::shifter::{mode, params as sh, waveform};
+use ether_devices::shifter::{mode, params as sh, pitch_mode, waveform};
 
 const SR: f32 = 48_000.0;
 
@@ -262,6 +262,134 @@ fn pitch_mode_transposes_and_keeps_the_level() {
         let g = db(rms(y)) - db(rms(&x[12_000..]));
         assert!(g.abs() < 3.0, "{semis}: level {g} dB");
     }
+}
+
+fn note_on(id: u32, key: u8) -> EventKind {
+    EventKind::NoteOn {
+        note_id: id,
+        channel: 0,
+        key,
+        velocity: 1.0,
+    }
+}
+
+fn note_off(id: u32, key: u8) -> EventKind {
+    EventKind::NoteOff {
+        note_id: id,
+        channel: 0,
+        key,
+        velocity: 0.0,
+    }
+}
+
+/// MIDI pitch mode, root C3 (60), dry signal off.
+fn midi_pitch(extra: &[(ParamId, f64)]) -> Box<dyn Device> {
+    let mut p = vec![
+        (sh::PITCH_MODE, pitch_mode::MIDI as f64),
+        (sh::MIX, 100.0),
+        // `Pitch` doesn't apply in MIDI pitch mode.
+        (sh::PITCH, 5.0),
+    ];
+    p.extend_from_slice(extra);
+    device(&p)
+}
+
+/// The strongest of `freqs` in `y` (and its level over the others, dB).
+fn strongest(y: &[f32], freqs: &[f32]) -> (f32, f32) {
+    let mut levels: Vec<(f32, f32)> = freqs.iter().map(|&f| (f, db(tone(y, f)))).collect();
+    levels.sort_by(|a, b| b.1.total_cmp(&a.1));
+    (levels[0].0, levels[0].1 - levels[1].1)
+}
+
+#[test]
+fn the_shifter_takes_notes() {
+    let d = ether_devices::descriptor(BuiltinDeviceType::Shifter);
+    assert!(d.midi_input, "a note input for its MIDI pitch mode");
+}
+
+#[test]
+fn midi_pitch_follows_the_last_held_note_relative_to_the_root() {
+    let x = sine(440.0, 0.5, 96_000);
+    let st = |s: f32| 440.0 * (s / 12.0).exp2();
+    let freqs = [440.0, st(7.0), st(-5.0), st(5.0), st(12.0)];
+    // G3 (67: +7) at 0; G2 (55: -5) held on top at 1 s and released at 1.5 s: back to G3
+    // (still held).
+    let events = vec![
+        (0, note_on(1, 67)),
+        (48_000, note_on(2, 55)),
+        (72_000, note_off(2, 55)),
+    ];
+    let mut d = midi_pitch(&[]);
+    let out = run(d.as_mut(), &stereo(x), &events, 256);
+    for (from, to, want) in [
+        (12_000, 48_000, st(7.0)),
+        (57_600, 72_000, st(-5.0)),
+        (81_600, 96_000, st(7.0)),
+    ] {
+        let (f, over) = strongest(&out[0][from..to], &freqs);
+        assert!(
+            f == want && over > 15.0,
+            "{from}..{to}: {f} Hz (+{over} dB), want {want}"
+        );
+    }
+}
+
+#[test]
+fn midi_pitch_stays_after_the_last_release_and_ignores_the_pitch_knob() {
+    let x = sine(440.0, 0.5, 96_000);
+    let st = |s: f32| 440.0 * (s / 12.0).exp2();
+    let freqs = [440.0, st(5.0), st(12.0)];
+    let events = vec![(0, note_on(1, 72)), (24_000, note_off(1, 72))];
+    let mut d = midi_pitch(&[]);
+    let out = run(d.as_mut(), &stereo(x.clone()), &events, 256);
+    // (Goertzel windows of 12 000 samples, like the other checks.)
+    let (f, over) = strongest(&out[0][72_000..84_000], &freqs);
+    assert!(f == st(12.0) && over > 15.0, "{f} Hz (+{over} dB)");
+    // No note yet: the root, whatever `Pitch` says.
+    let mut d = midi_pitch(&[]);
+    let out = run(d.as_mut(), &stereo(x), &[], 256);
+    let (f, over) = strongest(&out[0][12_000..24_000], &freqs);
+    assert!(f == 440.0 && over > 15.0, "{f} Hz (+{over} dB)");
+}
+
+#[test]
+fn midi_pitch_bends_and_glides() {
+    let x = sine(440.0, 0.5, 96_000);
+    let st = |s: f32| 440.0 * (s / 12.0).exp2();
+    // Full bend up with a range of 2: +2 semitones on the root.
+    let bend = EventKind::Midi {
+        data: [0xE0, 0x7F, 0x7F],
+    };
+    let mut d = midi_pitch(&[(sh::BEND_RANGE, 2.0)]);
+    let out = run(
+        d.as_mut(),
+        &stereo(x.clone()),
+        &[(0, note_on(1, 60)), (0, bend)],
+        256,
+    );
+    let (f, over) = strongest(&out[0][24_000..], &[440.0, st(1.0), st(2.0), st(3.0)]);
+    assert!(f == st(2.0) && over > 10.0, "{f} Hz (+{over} dB)");
+    // A 400 ms glide from the root to an octave up: still on its way after 100 ms, there
+    // after a second.
+    let mut d = midi_pitch(&[(sh::GLIDE, 400.0)]);
+    let events = vec![(0, note_on(1, 60)), (24_000, note_on(2, 72))];
+    let out = run(d.as_mut(), &stereo(x), &events, 256);
+    let early = &out[0][24_000 + 2_400..24_000 + 7_200];
+    assert!(
+        db(tone(early, st(12.0))) < db(tone(&out[0][72_000..], st(12.0))) - 6.0,
+        "not there yet"
+    );
+    let (f, over) = strongest(&out[0][72_000..], &[440.0, st(6.0), st(12.0)]);
+    assert!(f == st(12.0) && over > 15.0, "{f} Hz (+{over} dB)");
+}
+
+#[test]
+fn internal_pitch_mode_ignores_notes() {
+    let x = sine(440.0, 0.5, 48_000);
+    let mut d = device(&[(sh::PITCH, 12.0), (sh::MIX, 100.0)]);
+    let out = run(d.as_mut(), &stereo(x), &[(0, note_on(1, 48))], 256);
+    let (f, over) = strongest(&out[0][12_000..], &[440.0, 880.0, 220.0]);
+    assert!(f == 880.0 && over > 15.0, "{f} Hz (+{over} dB)");
 }
 
 #[test]

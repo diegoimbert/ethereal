@@ -38,6 +38,13 @@
 //!   cascades; `Feedback` up to 150 % saturates). With the delay on, the wet signal is the
 //!   delay's output; the switch fades over 10 ms, and a time change glides (tape-like).
 //!
+//! - **MIDI pitch** (`Pitch Mode` = MIDI, Live's Shifter "MIDI" mode): the pitch follows
+//!   the last held note of the device's note input — usually a MIDI sidechain
+//!   (`ether_model::MidiSidechain`) — relative to `Root` (a note on the root = no shift),
+//!   plus the sidechain's pitch bend (± `Bend Range`), gliding over `Glide`. Releasing a note
+//!   goes back to the previous one still held; with none held the pitch stays where it was.
+//!   `Pitch` doesn't apply (`Detune`, the LFO and the envelope still do).
+//!
 //! The delay lines are allocated in `prepare`; `process` allocates nothing.
 //!
 //! # Params (`BuiltinDeviceType::Shifter`, stable and append-only)
@@ -78,6 +85,10 @@
 //! | 31 | Delay | `Delay Rate` | sync rate, default 1/8 |
 //! | 32 | Delay | `Feedback` | 0 ..= 150 Percent, default 0 |
 //! | 33 | Delay | `Tone` | 300 ..= 22000 Hertz (log; 22000 = off), default off |
+//! | 34 | MIDI | `Pitch Mode` | Internal / MIDI, default Internal |
+//! | 35 | MIDI | `Root` | C-2 ..= G8 (MIDI notes 0 ..= 127), default C3 (60) |
+//! | 36 | MIDI | `Glide` | 0 ..= 2000 Milliseconds (cubic), default 0 |
+//! | 37 | MIDI | `Bend Range` | 0 ..= 24 Semitones, default 2 |
 
 use std::f64::consts::{PI, TAU};
 
@@ -141,8 +152,37 @@ pub mod params {
     pub const DELAY_RATE: ParamId = ParamId(31);
     pub const FEEDBACK: ParamId = ParamId(32);
     pub const TONE: ParamId = ParamId(33);
+    pub const PITCH_MODE: ParamId = ParamId(34);
+    pub const ROOT: ParamId = ParamId(35);
+    pub const GLIDE: ParamId = ParamId(36);
+    pub const BEND_RANGE: ParamId = ParamId(37);
     /// Number of params.
-    pub const COUNT: usize = 34;
+    pub const COUNT: usize = 38;
+}
+
+/// `Pitch Mode` values.
+pub mod pitch_mode {
+    pub const INTERNAL: usize = 0;
+    pub const MIDI: usize = 1;
+}
+
+/// `Pitch Mode` labels.
+pub const PITCH_MODES: [&str; 2] = ["Internal", "MIDI"];
+/// Default `Root`: C3 (Live's name for MIDI note 60).
+pub const DEFAULT_ROOT: u8 = 60;
+/// Longest `Glide` (ms).
+pub const MAX_GLIDE_MS: f64 = 2000.0;
+/// Notes the MIDI pitch remembers (the last held one wins; older ones come back on release).
+const HELD_NOTES: usize = 16;
+
+/// `Root` labels: the 128 MIDI notes, C3 = 60 (Live's octave numbering).
+fn note_labels() -> Vec<String> {
+    const NAMES: [&str; 12] = [
+        "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+    ];
+    (0..128)
+        .map(|n: i32| format!("{}{}", NAMES[(n % 12) as usize], n / 12 - 2))
+        .collect()
 }
 
 /// `LFO Waveform` values (Live's Shifter order).
@@ -413,10 +453,36 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                 (300.0, TONE_OFF_HZ, TONE_OFF_HZ),
                 ParamScale::Log,
             ),
+            choice(34, "Pitch Mode", "MIDI", &PITCH_MODES, pitch_mode::INTERNAL),
+            {
+                let labels = note_labels();
+                let refs: Vec<&str> = labels.iter().map(String::as_str).collect();
+                choice(35, "Root", "MIDI", &refs, usize::from(DEFAULT_ROOT))
+            },
+            param(
+                36,
+                "Glide",
+                "MIDI",
+                ParamUnit::Milliseconds,
+                (0.0, MAX_GLIDE_MS, 0.0),
+                ParamScale::Power { exponent: 3.0 },
+            ),
+            ParamInfo {
+                step: Some(1.0),
+                ..param(
+                    37,
+                    "Bend Range",
+                    "MIDI",
+                    ParamUnit::Semitones,
+                    (0.0, 24.0, 2.0),
+                    ParamScale::Linear,
+                )
+            },
         ],
         2,
         2,
-        false,
+        // A note input (MIDI pitch mode, fed by a MIDI sidechain).
+        true,
         0,
     );
     d.layout = Some(device_layout());
@@ -464,6 +530,23 @@ fn device_layout() -> DeviceLayout {
                 knob(ids::CARRIER, Large),
                 item(Widget::Toggle { param: ids::DRIVE }, Small),
                 knob(ids::DRIVE_AMOUNT, Medium),
+            ],
+        ),
+        section(
+            "midi",
+            Some("MIDI"),
+            1,
+            4,
+            vec![
+                item(
+                    Widget::Choice {
+                        param: ids::PITCH_MODE,
+                    },
+                    Small,
+                ),
+                item(Widget::Choice { param: ids::ROOT }, Small),
+                knob(ids::GLIDE, Medium),
+                knob(ids::BEND_RANGE, Small),
             ],
         ),
         section("output", Some("Output"), 1, 1, vec![knob(ids::MIX, Large)]),
@@ -950,6 +1033,71 @@ impl Echo {
     }
 }
 
+/// The MIDI pitch (`Pitch Mode` = MIDI): the held notes, newest last, and the pitch bend.
+#[derive(Clone, Copy)]
+struct MidiPitch {
+    /// `(note id, key)` of the held notes, oldest first.
+    held: [(u32, u8); HELD_NOTES],
+    len: usize,
+    /// The key the pitch follows (the last one held; kept when every note is released).
+    key: Option<u8>,
+    /// Pitch bend, -1..=1.
+    bend: f64,
+}
+
+impl MidiPitch {
+    fn new() -> Self {
+        Self {
+            held: [(0, 0); HELD_NOTES],
+            len: 0,
+            key: None,
+            bend: 0.0,
+        }
+    }
+
+    fn release(&mut self, note_id: u32) {
+        if let Some(i) = self.held[..self.len].iter().position(|h| h.0 == note_id) {
+            self.held.copy_within(i + 1..self.len, i);
+            self.len -= 1;
+            if let Some(&(_, key)) = self.held[..self.len].last() {
+                self.key = Some(key);
+            }
+        }
+    }
+
+    /// Applies a note-input event; returns whether the pitch target may have changed.
+    fn event(&mut self, kind: &EventKind) -> bool {
+        match *kind {
+            EventKind::NoteOn { note_id, key, .. } => {
+                self.release(note_id);
+                if self.len == HELD_NOTES {
+                    self.held.copy_within(1.., 0);
+                    self.len -= 1;
+                }
+                self.held[self.len] = (note_id, key);
+                self.len += 1;
+                self.key = Some(key);
+                true
+            }
+            EventKind::NoteOff { note_id, .. } | EventKind::NoteChoke { note_id, .. } => {
+                self.release(note_id);
+                true
+            }
+            EventKind::AllNotesOff => {
+                self.len = 0;
+                false
+            }
+            // Pitch bend, any channel.
+            EventKind::Midi { data } if data[0] & 0xF0 == 0xE0 => {
+                let v = (u16::from(data[2] & 0x7F) << 7) | u16::from(data[1] & 0x7F);
+                self.bend = ((f64::from(v) - 8192.0) / 8192.0).clamp(-1.0, 1.0);
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
 /// The shifter device.
 pub struct Shifter {
     values: Values,
@@ -974,6 +1122,7 @@ pub struct Shifter {
     mix: Smoother,
     echo: Echo,
     tail: util::Tail,
+    midi: MidiPitch,
 }
 
 impl Default for Shifter {
@@ -1005,9 +1154,35 @@ impl Shifter {
             mix: Smoother::new(1.0, 0.0, 48_000.0),
             echo: Echo::new(),
             tail: util::Tail::default(),
+            midi: MidiPitch::new(),
         };
         s.configure();
         s
+    }
+
+    /// `Pitch Mode` is MIDI.
+    fn midi_pitch(&self) -> bool {
+        self.values.f(ids::PITCH_MODE) >= 0.5
+    }
+
+    /// The semitones the pitch mode shifts by (before `Detune` and the modulation): `Pitch`,
+    /// or in MIDI pitch mode the followed key relative to `Root` plus the bend.
+    fn pitch_target(&self) -> f64 {
+        if !self.midi_pitch() {
+            return self.values.f(ids::PITCH);
+        }
+        let root = self.values.f(ids::ROOT).round();
+        let note = self.midi.key.map_or(0.0, |k| f64::from(k) - root);
+        note + self.midi.bend * self.values.f(ids::BEND_RANGE)
+    }
+
+    /// The pitch glide: `Glide` in MIDI pitch mode, else the usual param smoothing.
+    fn pitch_glide_ms(&self) -> f64 {
+        if self.midi_pitch() {
+            self.values.f(ids::GLIDE).max(GLIDE_MS)
+        } else {
+            GLIDE_MS
+        }
     }
 
     fn configure(&mut self) {
@@ -1062,7 +1237,12 @@ impl Shifter {
                     self.mode = m;
                 }
             }
-            ids::PITCH => glide(&mut self.semitones, v),
+            ids::PITCH | ids::PITCH_MODE | ids::ROOT | ids::BEND_RANGE | ids::GLIDE => {
+                let ms = self.pitch_glide_ms();
+                self.semitones.set_time(ms, self.sample_rate);
+                let target = self.pitch_target();
+                glide(&mut self.semitones, target);
+            }
             ids::DETUNE => glide(&mut self.detune, v * 0.01),
             ids::WINDOW => self.window = v * 0.001 * self.sample_rate,
             ids::SHIFT | ids::FINE | ids::CARRIER => {
@@ -1354,6 +1534,7 @@ impl Node for Shifter {
         self.modulation.reset();
         self.echo.reset();
         self.fade = 0;
+        self.midi.len = 0;
     }
 
     fn process(
@@ -1380,6 +1561,9 @@ impl Node for Shifter {
             |s, kind| {
                 if let EventKind::Param { param, value, step } = *kind {
                     s.set(param, value, !step);
+                } else if s.midi.event(kind) && s.midi_pitch() {
+                    // The note input moves the pitch (MIDI pitch mode), gliding.
+                    s.semitones.target = s.pitch_target();
                 }
             },
         );

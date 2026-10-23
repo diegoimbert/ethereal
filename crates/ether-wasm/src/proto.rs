@@ -999,6 +999,7 @@ mod tests {
                 expression: Default::default(),
                 hw_io: Vec::new(),
                 sidechain_taps: Vec::new(),
+                midi_sidechains: Vec::new(),
             }],
             ..Default::default()
         };

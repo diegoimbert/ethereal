@@ -190,6 +190,7 @@ mod tests {
     fn plugin_device(id: DeviceId) -> Device {
         Device {
             sidechain_tap: None,
+            midi_sidechain: None,
             chain: None,
             id,
             track: TrackId(Ulid(1)),

@@ -390,6 +390,7 @@ export interface MessageArgs {
   "midi_learn.target.solo": { name: string | number };
   "midi_learn.target.transport": { action: string | number };
   "midi_learn.target.volume": { name: string | number };
+  "midi_sidechain.source_label": { name: string | number };
   "mobile.clip_actions.done": { count: string | number };
   "mobile.clip_actions.label": { count: number };
   "mobile.clip_sheet.edge_earlier": { edge: string | number };

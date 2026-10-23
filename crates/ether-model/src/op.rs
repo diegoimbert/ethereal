@@ -16,7 +16,7 @@ use ts_rs::TS;
 
 use crate::automation::CurveShape;
 use crate::clip::{ClipLoop, FadeCurve};
-use crate::device::{DeviceKind, PluginInstance, SidechainTap};
+use crate::device::{DeviceKind, MidiSidechain, PluginInstance, SidechainTap};
 use crate::entity::{Entity, EntityKey};
 use crate::ids::*;
 use crate::media::MediaLocation;
@@ -246,6 +246,8 @@ pub enum DeviceChange {
     Chain(Option<RackChainId>),
     /// v0.4: where the sidechain taps its source (`None` = post-fader).
     SidechainTap(Option<SidechainTap>),
+    /// The MIDI sidechain (`None` = off).
+    MidiSidechain(Option<MidiSidechain>),
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

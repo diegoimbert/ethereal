@@ -273,6 +273,7 @@ pub fn large_project() -> RenderGraphDesc {
             expression: Default::default(),
             hw_io: Vec::new(),
             sidechain_taps: Vec::new(),
+            midi_sidechains: Vec::new(),
         });
     }
     assert_eq!(clips_left, 0);
@@ -556,6 +557,7 @@ pub fn all_variants() -> RenderGraphDesc {
             expression: Default::default(),
             hw_io: Vec::new(),
             sidechain_taps: Vec::new(),
+            midi_sidechains: Vec::new(),
         })
         .collect();
     RenderGraphDesc {

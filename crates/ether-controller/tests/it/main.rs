@@ -44,6 +44,7 @@ mod midi_file;
 mod midi_fx;
 mod midi_learn;
 mod midi_reverse;
+mod midi_sidechain;
 mod missing_devices;
 mod mock_contract;
 mod modulation;

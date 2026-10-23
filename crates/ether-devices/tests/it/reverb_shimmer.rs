@@ -51,7 +51,11 @@ fn render(
         evs.extend(events.iter().filter(|e| e.0 >= pos && e.0 < pos + n).map(
             |&(at, param, value)| ProcessEvent {
                 offset: (at - pos) as u32,
-                kind: EventKind::Param { param, value },
+                kind: EventKind::Param {
+                    param,
+                    value,
+                    step: false,
+                },
             },
         ));
         let inputs: [&[f32]; 2] = [&x[pos..pos + n], &x[pos..pos + n]];

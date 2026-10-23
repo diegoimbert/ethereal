@@ -288,6 +288,7 @@ fn reverb_graph(synth: NodeKey, reverb: NodeKey) -> RenderGraphDesc {
         expression: Default::default(),
         hw_io: Vec::new(),
         sidechain_taps: Vec::new(),
+        midi_sidechains: Vec::new(),
     };
     let notes = (0..256)
         .map(|i| NoteDesc {

@@ -71,6 +71,7 @@ impl Builder {
         let desc = ether_devices::descriptor(ty);
         self.entities.push(Entity::Device(Device {
             sidechain_tap: None,
+            midi_sidechain: None,
             id,
             track,
             order,

@@ -48,6 +48,7 @@ impl Fx {
     fn device(&mut self, track: TrackId, device: BuiltinDevice, pad: Option<DrumPadId>) -> Device {
         Device {
             sidechain_tap: None,
+            midi_sidechain: None,
             chain: None,
             id: self.id(),
             track,

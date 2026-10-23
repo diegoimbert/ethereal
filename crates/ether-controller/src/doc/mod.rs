@@ -394,6 +394,16 @@ impl DocCtx<'_, '_> {
         for d in listeners {
             crate::sidechain::cut(self, &d)?;
         }
+        let midi_listeners: Vec<Device> = self
+            .p()
+            .devices
+            .values()
+            .filter(|d| d.midi_sidechain.is_some_and(|m| m.track == id) && d.track != id)
+            .cloned()
+            .collect();
+        for d in midi_listeners {
+            crate::midi_sidechain::cut(self, &d)?;
+        }
         // Track-chain devices (a rack's delete takes its pads and pad devices along).
         let devices: Vec<DeviceId> = self.p().devices_of(id).iter().map(|d| d.id).collect();
         for d in devices {

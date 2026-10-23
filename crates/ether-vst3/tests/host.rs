@@ -151,9 +151,10 @@ fn effect_descriptor_and_params() {
     );
     assert_eq!(d.name, "Ether VST3 Gain");
     assert_eq!(d.category, DeviceCategory::AudioEffect);
+    // An effect with a note input (its `Notes` event bus).
     assert_eq!(
         (d.audio_inputs, d.audio_outputs, d.midi_input),
-        (2, 2, false)
+        (2, 2, true)
     );
     assert_eq!(params.len(), 4);
 

@@ -919,6 +919,7 @@ mod analysis_tests {
             expression: Default::default(),
             hw_io: Vec::new(),
             sidechain_taps: Vec::new(),
+            midi_sidechains: Vec::new(),
         }
     }
 
@@ -1116,6 +1117,7 @@ mod live_midi_tests {
             expression: Default::default(),
             hw_io: Vec::new(),
             sidechain_taps: Vec::new(),
+            midi_sidechains: Vec::new(),
         }
     }
 

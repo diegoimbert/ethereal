@@ -355,6 +355,7 @@ pub fn rack_command(ctx: &mut DocCtx, c: &DrumRackCommand) -> CmdResult<()> {
             };
             ctx.tx.insert(Entity::Device(Device {
                 sidechain_tap: None,
+                midi_sidechain: None,
                 chain: None,
                 id: *device,
                 track: r.track,
@@ -414,6 +415,7 @@ pub fn insert_pad_device(
     };
     let d = Device {
         sidechain_tap: None,
+        midi_sidechain: None,
         chain: None,
         id,
         track: r.track,
@@ -695,6 +697,7 @@ fn add_slice_pads(
         p.insert(sampler::params::END, percent(end));
         ctx.tx.insert(Entity::Device(Device {
             sidechain_tap: None,
+            midi_sidechain: None,
             chain: None,
             id: pid.device,
             track,
@@ -745,6 +748,7 @@ fn to_drum_rack(
     let rack_kind = BuiltinDevice::DrumRack { macros: None };
     ctx.tx.insert(Entity::Device(Device {
         sidechain_tap: None,
+        midi_sidechain: None,
         // In the sampler's place: on the track chain or a rack chain.
         chain: d.chain,
         id: rack_id,
