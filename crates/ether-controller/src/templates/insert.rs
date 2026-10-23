@@ -217,6 +217,9 @@ pub fn insert(
                 if d.sidechain.is_some_and(|s| !tracks.contains(&s)) {
                     d.sidechain = None;
                 }
+                if d.midi_sidechain.is_some_and(|m| !tracks.contains(&m.track)) {
+                    d.midi_sidechain = None;
+                }
                 if let DeviceKind::Builtin { device } = &mut d.kind {
                     clear_missing_media(device, &ctx.p().media);
                 }

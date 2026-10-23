@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::model::{
-    BuiltinDevice, BuiltinDeviceType, DeviceId, IrSource, LfoCurve, MediaId, ParamId, PluginFormat,
+    BuiltinDevice, BuiltinDeviceType, DeviceId, IrSource, LfoCurve, MediaId, MidiSidechain, ParamId,
+    PluginFormat,
     SampleZone, Seconds, SidechainTap, TrackId,
 };
 
@@ -80,6 +81,15 @@ pub enum DeviceCommand {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         tap: Option<SidechainTap>,
+    },
+    /// MIDI sidechain (`ether_model::MidiSidechain`): feed a MIDI track's notes (pre or post
+    /// its MIDI effects) into an audio effect's note input, instead of its chain's (`None` =
+    /// off). `InvalidArgument` if the device isn't an audio effect with a note input
+    /// (`DeviceDescriptor::midi_input`), the source isn't a MIDI track, or it would create a
+    /// routing cycle. Undoable (one step).
+    SetMidiSidechain {
+        device: DeviceId,
+        source: Option<MidiSidechain>,
     },
     /// v0.2 (`multisampler`): replace a multisampler's zones (`ether_model::multisampler`;
     /// referenced media must exist). Undoable; live nodes update in place

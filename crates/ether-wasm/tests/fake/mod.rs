@@ -128,6 +128,7 @@ impl<B: EngineBridge, H: HostServices, S: ProjectStore> FakeController<B, H, S> 
                     expression: Default::default(),
                     hw_io: Vec::new(),
                     sidechain_taps: Vec::new(),
+                    midi_sidechains: Vec::new(),
                 })
                 .collect(),
         }

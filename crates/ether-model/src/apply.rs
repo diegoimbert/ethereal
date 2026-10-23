@@ -435,6 +435,7 @@ fn update_device(d: &mut Device, c: DeviceChange) -> Result<DeviceChange, ModelE
         C::Pad(v) => swap!(C::Pad, d.pad, v),
         C::Chain(v) => swap!(C::Chain, d.chain, v),
         C::SidechainTap(v) => swap!(C::SidechainTap, d.sidechain_tap, v),
+        C::MidiSidechain(v) => swap!(C::MidiSidechain, d.midi_sidechain, v),
     })
 }
 
@@ -1010,6 +1011,9 @@ impl Project {
                 if !matches!(key, EntityKey::Send(_) | EntityKey::Modulator(_)) {
                     self.check_sidechains()?;
                 }
+                if matches!(key, EntityKey::Track(_)) {
+                    self.check_midi_sidechains()?;
+                }
                 Ok(())
             }
             // A sidechain may tap a chain: moving or removing chains re-checks them.
@@ -1120,6 +1124,7 @@ impl Project {
                     }
                 }
                 self.check_sidechain(d)?;
+                self.check_midi_sidechain(d)?;
                 // A rack's pad devices must stay on the rack's track (checked from the rack
                 // too, so moving or re-kinding a rack can't strand its pad chains).
                 if is_drum_rack(&d.kind)
@@ -1869,6 +1874,37 @@ impl Project {
         self.check_routing()
     }
 
+    /// Whether device `id`'s MIDI sidechain may stay as it is ([`MidiSidechain`]'s rules and
+    /// an acyclic routing graph). For importers that build a project table by table.
+    pub fn check_midi_sidechain_of(&self, id: DeviceId) -> Result<(), ModelError> {
+        let d = self
+            .devices
+            .get(&id)
+            .ok_or_else(|| invariant(format!("no device {id}")))?;
+        self.check_midi_sidechain(d)?;
+        self.check_routing()
+    }
+
+    /// Every device's MIDI sidechain (a track going away, [`Self::check_midi_sidechain`]).
+    fn check_midi_sidechains(&self) -> Result<(), ModelError> {
+        for d in self.devices.values().filter(|d| d.midi_sidechain.is_some()) {
+            self.check_midi_sidechain(d)?;
+        }
+        Ok(())
+    }
+
+    /// A device's MIDI sidechain source: a MIDI track ([`MidiSidechain`]). Cycles are
+    /// [`Self::check_routing`]'s.
+    fn check_midi_sidechain(&self, d: &Device) -> Result<(), ModelError> {
+        let Some(m) = d.midi_sidechain else {
+            return Ok(());
+        };
+        if self.require_track(EntityKey::Device(d.id), m.track)?.kind != TrackKind::Midi {
+            return Err(invariant("a MIDI sidechain source must be a MIDI track"));
+        }
+        Ok(())
+    }
+
     /// Every device sidechain ([`Self::check_sidechain`]): chains, racks and devices moving
     /// can break the same-track order rules of other devices.
     fn check_sidechains(&self) -> Result<(), ModelError> {
@@ -1996,6 +2032,14 @@ impl Project {
                 && src != d.track
             {
                 edges.entry(src).or_default().push(d.track);
+            }
+        }
+        // MIDI sidechains too (the device's own track is fine: its notes come first).
+        for d in self.devices.values() {
+            if let Some(m) = d.midi_sidechain
+                && m.track != d.track
+            {
+                edges.entry(m.track).or_default().push(d.track);
             }
         }
         // v0.2: envelope-follower sidechains too.

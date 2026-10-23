@@ -127,12 +127,13 @@ pub fn needed_tracks(p: &Project, target: TrackId, chain: bool) -> BTreeSet<Trac
         if let TrackInput::Track { track, .. } = track.input {
             feeds.push(track);
         }
-        // Live devices (a partially frozen track's tail too) hear their sidechains.
+        // Live devices (a partially frozen track's tail too) hear their sidechains, audio
+        // and MIDI.
         feeds.extend(
             p.devices
                 .values()
-                .filter(|d| d.track == t && d.sidechain.is_some() && !p.device_frozen(d.id))
-                .filter_map(|d| d.sidechain),
+                .filter(|d| d.track == t && !p.device_frozen(d.id))
+                .flat_map(|d| d.sidechain.into_iter().chain(d.midi_sidechain.map(|m| m.track))),
         );
         for f in feeds {
             if p.tracks.contains_key(&f) && set.insert(f) {

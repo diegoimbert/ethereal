@@ -198,5 +198,6 @@ fn audio_track(id: u128, clips: Vec<ClipDesc>, chain: Vec<ChainEntry>) -> TrackD
         expression: Default::default(),
         hw_io: Vec::new(),
         sidechain_taps: Vec::new(),
+        midi_sidechains: Vec::new(),
     }
 }

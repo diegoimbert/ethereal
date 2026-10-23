@@ -110,6 +110,7 @@ fn patch_and_entities_roundtrip() {
     };
     let device = Device {
         sidechain_tap: None,
+        midi_sidechain: None,
         chain: None,
         id: id(13),
         track: track.id,

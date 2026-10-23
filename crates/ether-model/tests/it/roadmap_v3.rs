@@ -49,6 +49,7 @@ impl Fx {
     fn device(&mut self, track: TrackId, device: BuiltinDevice) -> Device {
         Device {
             sidechain_tap: None,
+            midi_sidechain: None,
             id: self.id(),
             track,
             order: OrderKey::between(None, None),

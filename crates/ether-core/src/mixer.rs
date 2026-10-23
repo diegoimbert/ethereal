@@ -620,8 +620,22 @@ impl TrackRt {
         self.chain_racks.inherit(&mut old.chain_racks);
         self.modulation.inherit(&mut old.modulation);
         self.input_tap.inherit(&mut old.input_tap);
+        self.sidechain.inherit(&mut old.sidechain);
         self.vca.inherit(&mut old.vca);
         self.expression.inherit(&mut old.expression);
+    }
+}
+
+/// RT. Where a track's live and preview notes are queued for its next sub-block: its first
+/// chain entry, or, on a track without devices whose notes a MIDI sidechain taps, its
+/// head (`crate::midi_sidechain`).
+pub(crate) fn note_queue<'a>(
+    chain: &'a mut [ChainRt],
+    points: &'a mut crate::sidechain::Points,
+) -> Option<&'a mut EventBuffer> {
+    match chain.first_mut() {
+        Some(first) => Some(&mut first.pending),
+        None => points.midi.head().map(|h| &mut h.pending),
     }
 }
 

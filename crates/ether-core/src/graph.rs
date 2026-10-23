@@ -120,6 +120,10 @@ pub struct TrackDesc {
     /// not listed taps its source's post-fader output.
     #[serde(default)]
     pub sidechain_taps: Vec<crate::sidechain::SidechainTapDesc>,
+    /// MIDI sidechains of this track's entries (any depth, `crate::midi_sidechain`): each
+    /// listed node hears its source track's notes instead of the chain's. Empty = none.
+    #[serde(default)]
+    pub midi_sidechains: Vec<crate::midi_sidechain::MidiSidechainDesc>,
 }
 
 /// Click settings (roadmap v2, `tempo-metronome`). The click is rendered by
@@ -623,8 +627,20 @@ pub fn compile_with(
         .enumerate()
         .map(|(i, t)| crate::sidechain::consumers(i, t, &track_of))
         .collect();
-    for (i, cs) in sc_consumers.iter().enumerate() {
-        let mut sources: Vec<usize> = cs.iter().map(|c| c.source).filter(|&s| s != i).collect();
+    // MIDI sidechains (`crate::midi_sidechain`): the same ordering edges.
+    let midi_consumers: Vec<Vec<crate::midi_sidechain::MidiConsumer>> = desc
+        .tracks
+        .iter()
+        .enumerate()
+        .map(|(i, t)| crate::midi_sidechain::consumers(i, t, &track_of))
+        .collect();
+    for (i, (cs, ms)) in sc_consumers.iter().zip(&midi_consumers).enumerate() {
+        let mut sources: Vec<usize> = cs
+            .iter()
+            .map(|c| c.source)
+            .chain(ms.iter().map(|m| m.source))
+            .filter(|&s| s != i)
+            .collect();
         sources.sort_unstable();
         sources.dedup();
         for s in sources {
@@ -854,9 +870,13 @@ pub fn compile_with(
                 i,
                 &desc.tracks[i],
                 node_info,
-                &sc_consumers[i],
+                crate::sidechain::Consumers {
+                    audio: &sc_consumers[i],
+                    midi: &midi_consumers[i],
+                },
                 in_lat[i],
                 &|s, point| planned[s].point_latency(point),
+                &|s, point| planned[s].midi_point_latency(point),
             )
         };
         // Rack entries carry their chains' latency, with the delays planned inside them.
@@ -937,10 +957,17 @@ pub fn compile_with(
 
     // --- sidechains: each consumer gets its own taps (jobs never share them) ---
     let mut sc_points: Vec<Vec<crate::sidechain::ScPoint>> = vec![Vec::new(); n];
+    let mut midi_points: Vec<Vec<crate::midi_sidechain::MidiPoint>> = vec![Vec::new(); n];
     for p in sc_plans.iter().flat_map(|p| &p.entries) {
         check(p.main_delay)?;
-        check(p.sc_delay)?;
-        sc_points[p.source].push(p.point);
+        if let Some(a) = p.audio {
+            check(a.sc_delay)?;
+            sc_points[a.source].push(a.point);
+        }
+        if let Some(m) = p.midi {
+            check(m.delay)?;
+            midi_points[m.source].push(m.point);
+        }
     }
     // Envelope followers tap the post-fader output (`TrackRt::tap`).
     let mut tapped = vec![false; n];
@@ -1049,7 +1076,12 @@ pub fn compile_with(
             ),
             inputs: std::mem::take(&mut bus_inputs[i]),
             sidechain,
-            sc_points: crate::sidechain::Points::compile(&sc_points[i], config),
+            sc_points: crate::sidechain::Points::compile(
+                &sc_points[i],
+                &midi_points[i],
+                t.chain.is_empty(),
+                config,
+            ),
             tap: tapped[i].then(|| stereo(frames)),
             next_note_id: 0,
             src_scratch: if t.kind == TrackKind::Audio {
@@ -1175,6 +1207,7 @@ mod tests {
             expression: Default::default(),
             hw_io: Vec::new(),
             sidechain_taps: Vec::new(),
+            midi_sidechains: Vec::new(),
         }
     }
 
@@ -1354,5 +1387,43 @@ mod tests {
             .err()
             .unwrap();
         assert!(matches!(err, CompileError::Capacity(_)), "{err:?}");
+    }
+
+    /// A MIDI sidechain is a job edge, its source stays real-time with a real-time consumer
+    /// (held output has no notes), and its delay follows PDC.
+    #[test]
+    fn midi_sidechain_sources_stay_real_time_with_their_consumers() {
+        use crate::midi_sidechain::{MidiPoint, MidiSidechainDesc};
+        // A device on master hears S (11); T (12) is nobody's source.
+        let mut master = t(1, TrackKind::Master, None);
+        master.chain.push(ChainEntry {
+            node: key(0),
+            enabled: true,
+            sidechain: None,
+        });
+        master.midi_sidechains.push(MidiSidechainDesc {
+            node: key(0),
+            source: TrackId(Ulid(11)),
+            point: MidiPoint::Input,
+        });
+        let desc = RenderGraphDesc {
+            tracks: vec![
+                master,
+                t(11, TrackKind::Midi, Some(1)),
+                t(12, TrackKind::Midi, Some(1)),
+            ],
+            ..Default::default()
+        };
+        let config = EngineConfig {
+            anticipative: true,
+            ..Default::default()
+        };
+        let snap = compile(desc, &config).unwrap();
+        let rt = &snap.rt;
+        let antic = rt.antic.as_ref().unwrap();
+        assert_eq!(antic.target, vec![false, false, true]);
+        assert_eq!(rt.tracks[0].sidechain.midi_delay(key(0)), Some(0));
+        let rank_of = |ti: usize| (0..rt.jobs.len()).find(|&r| rt.jobs.id(r) == ti).unwrap();
+        assert!(rt.jobs.successors(rank_of(1)).contains(&(rank_of(0) as u32)));
     }
 }

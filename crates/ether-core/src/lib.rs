@@ -61,6 +61,7 @@ pub mod rack_chains;
 pub mod recording;
 pub mod render_preview;
 mod sched;
+pub mod midi_sidechain;
 mod sidechain;
 pub mod stream_tap;
 pub mod tempo;
@@ -82,6 +83,7 @@ pub use meter::{EngineOutputs, MeterReading};
 pub use node::{Device, Node, NodeKey, ProcessContext, ProcessStatus};
 pub use param::{ParamChange, ParamTarget, Smoother};
 pub use plugin::{PluginController, PluginNode};
+pub use midi_sidechain::{MidiPoint, MidiSidechainDesc};
 pub use sidechain::{ScPoint, SidechainTapDesc};
 pub use transport::{PlayheadState, TransportControl, TransportInfo};
 

@@ -35,6 +35,7 @@ mod metronome;
 mod metronome_no_alloc;
 mod midi_fx_bypass;
 mod midi_fx_engine;
+mod midi_sidechain;
 mod modulation;
 mod modulation_no_alloc;
 mod mpe;

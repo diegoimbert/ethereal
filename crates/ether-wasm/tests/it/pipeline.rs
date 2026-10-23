@@ -214,6 +214,7 @@ fn media_streams_through_small_ring_and_plays() {
         expression: Default::default(),
         hw_io: Vec::new(),
         sidechain_taps: Vec::new(),
+        midi_sidechains: Vec::new(),
     };
     let clip = ClipDesc {
         id: ClipId(Ulid(3)),
@@ -355,6 +356,7 @@ fn builtin_synth_under_virtual_key_plays_notes() {
         expression: Default::default(),
         hw_io: Vec::new(),
         sidechain_taps: Vec::new(),
+        midi_sidechains: Vec::new(),
     };
     let mut master_desc = midi.clone();
     master_desc.id = master;
@@ -442,6 +444,7 @@ fn backlog_is_applied_in_bounded_steps_without_queue_overflow() {
             expression: Default::default(),
             hw_io: Vec::new(),
             sidechain_taps: Vec::new(),
+            midi_sidechains: Vec::new(),
         }],
         ..Default::default()
     };
@@ -607,6 +610,7 @@ fn nodes_in_drum_pads_and_rack_chains_are_mapped_to_real_keys() {
         expression: Default::default(),
         hw_io: Vec::new(),
         sidechain_taps: Vec::new(),
+        midi_sidechains: Vec::new(),
     };
     let midi = |id: u128, chain: Vec<ChainEntry>, mute: bool| TrackDesc {
         id: TrackId(Ulid(id)),
@@ -784,6 +788,7 @@ fn pad_audition_plays_through_the_pad_chain_while_stopped() {
         expression: Default::default(),
         hw_io: Vec::new(),
         sidechain_taps: Vec::new(),
+        midi_sidechains: Vec::new(),
     };
     let drum_id = TrackId(Ulid(11));
     let drum_track = TrackDesc {

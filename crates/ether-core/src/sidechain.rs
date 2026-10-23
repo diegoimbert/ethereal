@@ -37,7 +37,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::EngineConfig;
 use crate::delay::DelayLine;
+use crate::event::{EventBuffer, ProcessEvent};
 use crate::graph::{NodeInfo, TrackDesc};
+use crate::midi_sidechain::{MidiConsumer, MidiPoint, MidiPoints, MidiTapRt};
 use crate::mixer::{Stereo, stereo};
 use crate::node::NodeKey;
 
@@ -130,16 +132,33 @@ pub(crate) fn consumers(
     out
 }
 
-/// One planned sidechained entry.
+/// One planned sidechained entry: an audio sidechain, a MIDI sidechain
+/// (`crate::midi_sidechain`) or both.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct EntryPlan {
     pub node: NodeKey,
-    pub source: usize,
-    pub point: ScPoint,
     /// Delay of the main signal just before the entry (counted as latency).
     pub main_delay: u32,
+    pub audio: Option<AudioPlan>,
+    pub midi: Option<MidiPlan>,
+}
+
+/// The audio sidechain of a planned entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct AudioPlan {
+    pub source: usize,
+    pub point: ScPoint,
     /// Delay of the tapped sidechain signal.
     pub sc_delay: u32,
+}
+
+/// The MIDI sidechain of a planned entry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct MidiPlan {
+    pub source: usize,
+    pub point: MidiPoint,
+    /// Delay of the source's notes.
+    pub delay: u32,
 }
 
 /// [`plan`] of one track.
@@ -171,6 +190,16 @@ impl TrackPlan {
         self.points.iter().find(|(p, _)| *p == point).map(|e| e.1)
     }
 
+    /// Latency of MIDI `point` of this track (the audio's there, `crate::midi_sidechain`):
+    /// the pre-FX latency, a top-level entry's input latency, the post-FX latency.
+    pub(crate) fn midi_point_latency(&self, point: MidiPoint) -> Option<u32> {
+        match point {
+            MidiPoint::Input => self.point_latency(ScPoint::Track(InputTap::PreFx)),
+            MidiPoint::Before(node) => self.inputs.iter().find(|e| e.0 == node).map(|e| e.1),
+            MidiPoint::End => self.point_latency(ScPoint::Track(InputTap::PostFx)),
+        }
+    }
+
     /// The main-signal delay planned before entry `node` (0 if none).
     pub(crate) fn main_delay(&self, node: NodeKey) -> u32 {
         self.entries
@@ -191,7 +220,9 @@ struct Walk<'a> {
     desc: &'a TrackDesc,
     node_info: &'a dyn Fn(NodeKey) -> Option<NodeInfo>,
     consumers: &'a [Consumer],
+    midi: &'a [MidiConsumer],
     other: &'a dyn Fn(usize, ScPoint) -> Option<u32>,
+    other_midi: &'a dyn Fn(usize, MidiPoint) -> Option<u32>,
     plan: TrackPlan,
 }
 
@@ -201,32 +232,60 @@ impl Walk<'_> {
     }
 
     /// Plans entry `node` (if sidechained) with the main signal at latency `lat`; returns
-    /// the main-signal delay.
+    /// the main-signal delay. With both an audio and a MIDI sidechain, the main signal waits
+    /// for the later of the two and each is delayed by the rest.
     fn consume(&mut self, node: NodeKey, lat: u32) -> u32 {
-        let Ok(i) = self.consumers.binary_search_by_key(&node, |c| c.node) else {
-            return 0;
-        };
-        let c = self.consumers[i];
-        let l_sc = if c.source == self.track {
-            self.plan.point_latency(c.point)
-        } else {
-            (self.other)(c.source, c.point)
-        };
         // A point not produced (yet): no sidechain (the model rejects these).
-        let Some(l_sc) = l_sc else {
+        let audio = self
+            .consumers
+            .binary_search_by_key(&node, |c| c.node)
+            .ok()
+            .and_then(|i| {
+                let c = self.consumers[i];
+                let l = if c.source == self.track {
+                    self.plan.point_latency(c.point)
+                } else {
+                    (self.other)(c.source, c.point)
+                };
+                Some((c, l?))
+            });
+        let midi = self
+            .midi
+            .binary_search_by_key(&node, |c| c.node)
+            .ok()
+            .and_then(|i| {
+                let c = self.midi[i];
+                let l = if c.source == self.track {
+                    match c.point {
+                        // The entry's own input: the main signal's latency here.
+                        MidiPoint::Before(k) if k == node => Some(lat),
+                        p => self.plan.midi_point_latency(p),
+                    }
+                } else {
+                    (self.other_midi)(c.source, c.point)
+                };
+                Some((c, l?))
+            });
+        if audio.is_none() && midi.is_none() {
             return 0;
-        };
-        let (main_delay, sc_delay) = if l_sc > lat {
-            (l_sc - lat, 0)
-        } else {
-            (0, lat - l_sc)
-        };
+        }
+        let main_delay = audio
+            .map_or(0, |a| a.1.saturating_sub(lat))
+            .max(midi.map_or(0, |m| m.1.saturating_sub(lat)));
+        let at = lat.saturating_add(main_delay);
         self.plan.entries.push(EntryPlan {
             node,
-            source: c.source,
-            point: c.point,
             main_delay,
-            sc_delay,
+            audio: audio.map(|(c, l)| AudioPlan {
+                source: c.source,
+                point: c.point,
+                sc_delay: at - l,
+            }),
+            midi: midi.map(|(c, l)| MidiPlan {
+                source: c.source,
+                point: c.point,
+                delay: at - l,
+            }),
         });
         main_delay
     }
@@ -294,23 +353,33 @@ impl Walk<'_> {
     }
 }
 
+/// The sidechained entries of a track, for [`plan`]: audio ([`consumers`]) and MIDI
+/// (`crate::midi_sidechain::consumers`).
+pub(crate) struct Consumers<'a> {
+    pub audio: &'a [Consumer],
+    pub midi: &'a [MidiConsumer],
+}
+
 /// Non-RT. PDC plan of track `track` (see the module docs). `in_lat` is its final input
-/// latency; `consumers` its sidechained entries ([`consumers`]); `other(s, point)` the
-/// latency of a point of an earlier-processed track (final by processing order).
+/// latency; `consumers` its sidechained entries; `other(s, point)` / `other_midi(s, point)`
+/// the latency of a point of an earlier-processed track (final by processing order).
 pub(crate) fn plan(
     track: usize,
     desc: &TrackDesc,
     node_info: &dyn Fn(NodeKey) -> Option<NodeInfo>,
-    consumers: &[Consumer],
+    consumers: Consumers<'_>,
     in_lat: u32,
     other: &dyn Fn(usize, ScPoint) -> Option<u32>,
+    other_midi: &dyn Fn(usize, MidiPoint) -> Option<u32>,
 ) -> TrackPlan {
     let mut w = Walk {
         track,
         desc,
         node_info,
-        consumers,
+        consumers: consumers.audio,
+        midi: consumers.midi,
         other,
+        other_midi,
         plan: TrackPlan::default(),
     };
     let mut lat = in_lat;
@@ -344,11 +413,18 @@ pub(crate) fn plan(
 #[derive(Debug, Default)]
 pub(crate) struct Points {
     bufs: Vec<(ScPoint, Stereo)>,
+    /// The tapped MIDI points (`crate::midi_sidechain`).
+    pub midi: MidiPoints,
 }
 
 impl Points {
-    /// Non-RT.
-    pub(crate) fn compile(points: &[ScPoint], config: &EngineConfig) -> Self {
+    /// Non-RT. `midi`: the tapped MIDI points; `no_chain`: the track has no chain entry.
+    pub(crate) fn compile(
+        points: &[ScPoint],
+        midi: &[MidiPoint],
+        no_chain: bool,
+        config: &EngineConfig,
+    ) -> Self {
         let mut points = points.to_vec();
         points.sort();
         points.dedup();
@@ -357,6 +433,7 @@ impl Points {
                 .into_iter()
                 .map(|p| (p, stereo(config.max_block_size)))
                 .collect(),
+            midi: MidiPoints::compile(midi, no_chain, config.max_events_per_block),
         }
     }
 
@@ -396,7 +473,8 @@ impl Points {
         self.find(point).map(|i| &self.bufs[i].1)
     }
 
-    /// Non-RT. The same points with `frames`-long silent buffers (`crate::anticipation`).
+    /// Non-RT. The same points with `frames`-long silent buffers (`crate::anticipation`;
+    /// no MIDI: held output carries no notes).
     pub(crate) fn like(&self, frames: usize) -> Self {
         Self {
             bufs: self
@@ -404,6 +482,7 @@ impl Points {
                 .iter()
                 .map(|(p, _)| (*p, stereo(frames)))
                 .collect(),
+            midi: MidiPoints::default(),
         }
     }
 
@@ -420,11 +499,17 @@ impl Points {
 #[derive(Debug)]
 struct EntryRt {
     node: NodeKey,
+    main: DelayLine,
+    audio: Option<AudioRt>,
+    midi: Option<MidiTapRt>,
+}
+
+#[derive(Debug)]
+struct AudioRt {
     source: usize,
     point: ScPoint,
     /// The source is this track (read at the entry, not gathered).
     own: bool,
-    main: DelayLine,
     sc: DelayLine,
     /// The (then delayed) sidechain for the current sub-block.
     buf: Stereo,
@@ -447,14 +532,35 @@ impl Taps {
                 .iter()
                 .map(|e| EntryRt {
                     node: e.node,
-                    source: e.source,
-                    point: e.point,
-                    own: e.source == track,
                     main: DelayLine::new(e.main_delay as usize),
-                    sc: DelayLine::new(e.sc_delay as usize),
-                    buf: stereo(frames),
+                    audio: e.audio.map(|a| AudioRt {
+                        source: a.source,
+                        point: a.point,
+                        own: a.source == track,
+                        sc: DelayLine::new(a.sc_delay as usize),
+                        buf: stereo(frames),
+                    }),
+                    midi: e.midi.map(|m| {
+                        MidiTapRt::new(
+                            track,
+                            m.source,
+                            m.point,
+                            m.delay,
+                            config.max_events_per_block,
+                        )
+                    }),
                 })
                 .collect(),
+        }
+    }
+
+    /// RT (snapshot swap): MIDI sidechains keep the notes in flight in their delays.
+    pub(crate) fn inherit(&mut self, old: &mut Taps) {
+        for e in &mut self.entries {
+            let Some(m) = &mut e.midi else { continue };
+            if let Some(Some(o)) = old.find(e.node).map(|o| o.midi.as_mut()) {
+                m.delay.inherit(&mut o.delay);
+            }
         }
     }
 
@@ -465,10 +571,21 @@ impl Taps {
     /// The source tracks of the entries (sorted, deduplicated).
     #[cfg(test)]
     pub(crate) fn sources(&self) -> Vec<usize> {
-        let mut v: Vec<usize> = self.entries.iter().map(|e| e.source).collect();
+        let mut v: Vec<usize> = self
+            .entries
+            .iter()
+            .filter_map(|e| e.audio.as_ref().map(|a| a.source))
+            .collect();
         v.sort_unstable();
         v.dedup();
         v
+    }
+
+    /// The delay of entry `node`'s MIDI sidechain, if it has one.
+    #[cfg(test)]
+    pub(crate) fn midi_delay(&self, node: NodeKey) -> Option<u32> {
+        let i = self.entries.binary_search_by(|e| e.node.cmp(&node)).ok()?;
+        self.entries[i].midi.as_ref().map(|m| m.delay.delay())
     }
 
     /// RT. Whether entry `node` reads a sidechain or has a planned alignment.
@@ -484,24 +601,58 @@ impl Taps {
     }
 
     /// RT. Start of the consumer's job: copy the other-track sources' taps (finished before
-    /// this job). `source(s, point)` gives track `s`'s tapped buffer.
+    /// this job). `source(s, point)` gives track `s`'s tapped buffer, `midi(s, point)` its
+    /// tapped notes. Returns `true` if an event list was full.
     pub(crate) fn gather<'s>(
         &mut self,
         n: usize,
         source: impl Fn(usize, ScPoint) -> Option<&'s Stereo>,
-    ) {
-        for e in self.entries.iter_mut().filter(|e| !e.own) {
-            match source(e.source, e.point) {
-                Some(src) => {
-                    e.buf[0][..n].copy_from_slice(&src[0][..n]);
-                    e.buf[1][..n].copy_from_slice(&src[1][..n]);
-                }
-                None => {
-                    e.buf[0][..n].fill(0.0);
-                    e.buf[1][..n].fill(0.0);
+        midi: impl Fn(usize, MidiPoint) -> Option<&'s [ProcessEvent]>,
+    ) -> bool {
+        let mut overflow = false;
+        for e in self.entries.iter_mut() {
+            if let Some(a) = e.audio.as_mut().filter(|a| !a.own) {
+                match source(a.source, a.point) {
+                    Some(src) => {
+                        a.buf[0][..n].copy_from_slice(&src[0][..n]);
+                        a.buf[1][..n].copy_from_slice(&src[1][..n]);
+                    }
+                    None => {
+                        a.buf[0][..n].fill(0.0);
+                        a.buf[1][..n].fill(0.0);
+                    }
                 }
             }
+            if let Some(m) = e.midi.as_mut().filter(|m| !m.own) {
+                overflow |= m.load(midi(m.source, m.point));
+            }
         }
+        overflow
+    }
+
+    /// RT. Entry `node`'s MIDI sidechain, every sub-block (bypassed or not, so its delay
+    /// stays in time): its source's (delayed) notes replace the notes in `target` (the
+    /// entry's events, `None` when it doesn't run). `own` are the consumer track's own points
+    /// (for same-track sources, produced earlier in this job). Returns `true` on an overflow.
+    #[inline]
+    pub(crate) fn feed_midi(
+        &mut self,
+        node: NodeKey,
+        own: &Points,
+        n: usize,
+        target: Option<&mut EventBuffer>,
+    ) -> bool {
+        if self.entries.is_empty() {
+            return false;
+        }
+        let Some(m) = self.find(node).and_then(|e| e.midi.as_mut()) else {
+            return false;
+        };
+        let mut overflow = false;
+        if m.own {
+            overflow |= m.load(own.midi.get(m.point));
+        }
+        overflow | m.feed(n, target)
     }
 
     /// RT. Delay the main signal before entry `node` as planned (every entry, bypassed or
@@ -522,7 +673,7 @@ impl Taps {
     /// RT. The aligned sidechain signal of entry `node`. `own` are the consumer track's own
     /// points (for same-track sources, produced earlier in this job).
     pub(crate) fn read(&mut self, node: NodeKey, own: &Points, n: usize) -> Option<[&[f32]; 2]> {
-        let e = self.find(node)?;
+        let e = self.find(node)?.audio.as_mut()?;
         if e.own {
             match own.get(e.point) {
                 Some(src) => {

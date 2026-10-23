@@ -359,6 +359,11 @@ pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
                 "undo.device.set_sidechain",
                 "undo.device.remove_sidechain",
             ),
+            D::SetMidiSidechain { source, .. } => pick(
+                source.is_some(),
+                "undo.device.set_midi_sidechain",
+                "undo.device.remove_midi_sidechain",
+            ),
             D::SetZones { .. } => k("undo.device.set_zones"),
             D::SetLfoCurve { .. } => k("undo.device.set_lfo_curve"),
             D::RenameMacro { .. } => k("undo.device.rename_macro"),

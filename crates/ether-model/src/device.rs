@@ -53,6 +53,41 @@ pub struct Device {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub chain: Option<RackChainId>,
+    /// MIDI sidechain: the device's note input hears this MIDI track's notes
+    /// ([`MidiSidechain`]) instead of the chain's. `None` = off. Omitted from JSON when `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub midi_sidechain: Option<MidiSidechain>,
+}
+
+/// A device's MIDI sidechain (Live's "MIDI From" on an effect: Shifter's MIDI pitch mode,
+/// vocoders, plugin effects with a note input): the notes of a MIDI track feed the device's
+/// note input, and replace the notes reaching it through its own chain.
+///
+/// Rules (model invariants): `track` is a MIDI track (any one, the device's own included:
+/// both points are produced before any device that can hear them runs); a MIDI sidechain
+/// is a routing edge `track → the device's track` (no cycles, with audio routing and
+/// sidechains). Devices declare a note input with `DeviceDescriptor::midi_input` (the
+/// controller refuses the others).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, TS)]
+pub struct MidiSidechain {
+    pub track: TrackId,
+    /// Missing = `PostFx`.
+    #[serde(default)]
+    pub tap: MidiTap,
+}
+
+/// Where a MIDI sidechain taps its source track's notes (Live's "Pre FX" / "Post FX").
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, TS,
+)]
+pub enum MidiTap {
+    /// The notes entering the track's chain: its clips and its monitored input.
+    PreFx,
+    /// The notes after its MIDI effects: what its instrument plays (for a chain of MIDI
+    /// effects only, what leaves it).
+    #[default]
+    PostFx,
 }
 
 /// Where a device's sidechain taps its source track (v0.4): a point of the track or of one

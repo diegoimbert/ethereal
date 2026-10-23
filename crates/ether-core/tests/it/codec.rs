@@ -94,6 +94,33 @@ fn midi_input_filters_roundtrip() {
     roundtrip(&d);
 }
 
+/// MIDI sidechains (in the `TrackExt` blob): every point.
+#[test]
+fn midi_sidechains_roundtrip() {
+    use ether_core::{MidiPoint, MidiSidechainDesc};
+    let mut d = fixture::all_variants();
+    let ids: Vec<TrackId> = d.tracks.iter().map(|t| t.id).collect();
+    let points = [
+        MidiPoint::Input,
+        MidiPoint::Before(NodeKey {
+            index: 7,
+            generation: 3,
+        }),
+        MidiPoint::End,
+    ];
+    for (i, t) in d.tracks.iter_mut().enumerate() {
+        t.midi_sidechains = vec![MidiSidechainDesc {
+            node: NodeKey {
+                index: i as u32,
+                generation: 1,
+            },
+            source: ids[(i + 1) % ids.len()],
+            point: points[i % points.len()],
+        }];
+    }
+    roundtrip(&d);
+}
+
 #[test]
 fn large_project_roundtrips_and_is_smaller_than_json() {
     let d = fixture::large_project();
@@ -538,6 +565,7 @@ fn track(nan: bool) -> impl Strategy<Value = TrackDesc> {
                 expression: Default::default(),
                 hw_io: Vec::new(),
                 sidechain_taps: Vec::new(),
+                midi_sidechains: Vec::new(),
             },
         )
 }

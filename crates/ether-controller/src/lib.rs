@@ -120,6 +120,7 @@ pub mod sample_pack;
 #[doc(hidden)]
 pub mod saving;
 #[doc(hidden)]
+pub mod midi_sidechain;
 pub mod sidechain;
 pub mod store;
 #[doc(hidden)]

@@ -83,6 +83,7 @@ fn setup(bridge: FakeBridge) -> Setup {
             params: BTreeMap::from([(ParamId(0), 0.25), (ParamId(1), 0.5)]),
             sidechain: None,
             sidechain_tap: None,
+            midi_sidechain: None,
             pad: None,
             chain: None,
         },

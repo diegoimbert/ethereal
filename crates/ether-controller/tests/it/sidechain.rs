@@ -282,6 +282,7 @@ fn pad_devices_take_a_sidechain() {
     let mk_dev =
         |ids: &mut IdGen, device: BuiltinDevice, pad: Option<DrumPadId>, order: &str| Device {
             sidechain_tap: None,
+            midi_sidechain: None,
             chain: None,
             id: ids.next(T0),
             track: drums_id,

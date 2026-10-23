@@ -204,6 +204,7 @@ fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
             };
             ctx.tx.insert(Entity::Device(Device {
                 sidechain_tap: None,
+                midi_sidechain: None,
                 chain: None,
                 id: *id,
                 track: t.id,
@@ -440,6 +441,9 @@ fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
             source,
             tap,
         } => crate::sidechain::set_sidechain(ctx, *device, *source, *tap),
+        DeviceCommand::SetMidiSidechain { device, source } => {
+            crate::midi_sidechain::set_midi_sidechain(ctx, *device, *source)
+        }
         // v0.3 (`fx-space`).
         DeviceCommand::SetIr { device, ir } => crate::fx_space::set_ir(ctx, *device, ir.as_ref()),
         DeviceCommand::ListBuiltin

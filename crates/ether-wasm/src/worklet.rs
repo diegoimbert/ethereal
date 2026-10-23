@@ -898,6 +898,13 @@ fn remap_graph(
             };
             real(&mut t.node) && at
         });
+        track.midi_sidechains.retain_mut(|m| {
+            let at = match &mut m.point {
+                ether_core::MidiPoint::Before(node) => real(node),
+                _ => true,
+            };
+            real(&mut m.node) && at
+        });
     }
     (graph, unknown)
 }
@@ -1090,6 +1097,18 @@ mod tests {
                     point: ScPoint::After(gone),
                 },
             ],
+            midi_sidechains: vec![
+                ether_core::MidiSidechainDesc {
+                    node: key(7),
+                    source: TrackId(Ulid(9)),
+                    point: ether_core::MidiPoint::Before(key(8)),
+                },
+                ether_core::MidiSidechainDesc {
+                    node: gone,
+                    source: TrackId(Ulid(9)),
+                    point: ether_core::MidiPoint::Input,
+                },
+            ],
         };
         let (graph, unknown) = remap_graph(
             &keys,
@@ -1124,6 +1143,12 @@ mod tests {
         assert_eq!(t.sidechain_taps.len(), 1);
         assert_eq!(t.sidechain_taps[0].node.index, 106);
         assert_eq!(t.sidechain_taps[0].point, ScPoint::After(key(107)));
+        assert_eq!(t.midi_sidechains.len(), 1);
+        assert_eq!(t.midi_sidechains[0].node.index, 106);
+        assert_eq!(
+            t.midi_sidechains[0].point,
+            ether_core::MidiPoint::Before(key(107))
+        );
     }
 
     #[test]

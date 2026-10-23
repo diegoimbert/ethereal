@@ -65,6 +65,7 @@ fn synthetic(ids: &mut IdGen, notes: usize) -> Project {
         ops.push(Op::Insert {
             entity: Entity::Device(Device {
                 sidechain_tap: None,
+                midi_sidechain: None,
                 chain: None,
                 id: ids.next(now),
                 track: t,

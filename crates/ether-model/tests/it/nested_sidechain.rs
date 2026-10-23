@@ -69,6 +69,7 @@ impl Fx {
             params: Default::default(),
             sidechain: None,
             sidechain_tap: None,
+            midi_sidechain: None,
             pad,
             chain,
         }))

@@ -47,6 +47,7 @@ use crate::node::{Node, NodeKey, ProcessContext, ProcessStatus};
 use crate::parallel::{Fork, SerialFork};
 use crate::param::{ParamChange, ParamTarget};
 use crate::sched::{self, NoteSink, Timing};
+use crate::midi_sidechain::MidiPoint;
 use crate::sidechain::{ScIo, ScPoint};
 use crate::transport::{PlayheadState, TransportControl, TransportInfo};
 
@@ -1951,6 +1952,7 @@ impl JobCtx<'_> {
                 a,
                 inputs,
                 sidechain,
+                overflow,
                 ..
             } = &mut *track;
             a[0][..n].fill(0.0);
@@ -1988,18 +1990,31 @@ impl JobCtx<'_> {
             if !sidechain.is_empty() {
                 let tracks = self.tracks;
                 let n_tracks = self.n_tracks;
-                sidechain.gather(n, |s, point| {
-                    if s == ti || s >= n_tracks {
-                        return None;
-                    }
-                    if let Some(h) = held(s) {
-                        return h.sc_point(point);
-                    }
-                    // SAFETY: as above (sidechain sources are ordered before their consumer,
-                    // `s != ti`).
-                    let src = unsafe { &*tracks.add(s) };
-                    src.sc_points.get(point)
-                });
+                *overflow |= sidechain.gather(
+                    n,
+                    |s, point| {
+                        if s == ti || s >= n_tracks {
+                            return None;
+                        }
+                        if let Some(h) = held(s) {
+                            return h.sc_point(point);
+                        }
+                        // SAFETY: as above (sidechain sources are ordered before their
+                        // consumer, `s != ti`).
+                        let src = unsafe { &*tracks.add(s) };
+                        src.sc_points.get(point)
+                    },
+                    // MIDI sidechains (`crate::midi_sidechain`): held output has no notes
+                    // (their sources stay real-time with their consumers).
+                    |s, point| {
+                        if s == ti || s >= n_tracks || held(s).is_some() {
+                            return None;
+                        }
+                        // SAFETY: as above.
+                        let src = unsafe { &*tracks.add(s) };
+                        src.sc_points.midi.get(point)
+                    },
+                );
             }
         }
         // Envelope-follower sidechains (`crate::modulation`, v0.2): sources finished earlier.
@@ -2118,6 +2133,7 @@ impl JobCtx<'_> {
         // --- events: pending live params ---
         racks.begin_block(flags.all_notes_off);
         chain_racks.begin_block(flags.all_notes_off);
+        sc_points.midi.begin(n, flags.all_notes_off);
         for c in chain.iter_mut() {
             c.events.clear();
             for e in c.pending.as_slice() {
@@ -2140,9 +2156,15 @@ impl JobCtx<'_> {
         // Clips ending at or before this beat do nothing in this sub-block (notes, chased
         // notes, expression, audio): skip them with a binary search.
         let live_from = timing.beat_at(-1.0).min(timing.event_range().0);
-        if let Some(first) = chain.first_mut() {
+        // A track without devices whose notes a MIDI sidechain taps schedules them into its
+        // head (`crate::midi_sidechain`).
+        let note_target = match chain.first_mut() {
+            Some(first) => Some(&mut first.events),
+            None => sc_points.midi.head().map(|h| &mut h.events),
+        };
+        if let Some(events) = note_target {
             let mut sink = NoteSink {
-                events: &mut first.events,
+                events,
                 notes,
                 next_note_id,
             };
@@ -2175,6 +2197,11 @@ impl JobCtx<'_> {
         } else if flags.release_notes {
             notes.clear();
         }
+        // The notes entering the chain, for MIDI sidechains (`crate::midi_sidechain`).
+        *overflow |= match chain.first() {
+            Some(first) => sc_points.midi.write(MidiPoint::Input, first.events.as_slice()),
+            None => sc_points.midi.write_head(),
+        };
         // Frozen track (`crate::freeze`, v0.2): the render replaces clips and chain (the
         // controller compiles neither), or the frozen part of the chain (partial freeze: the
         // live tail compiled into `chain` processes the render below).
@@ -2260,9 +2287,18 @@ impl JobCtx<'_> {
         for k in 0..chain.len() {
             let (head, tail) = chain.split_at_mut(k + 1);
             let entry = &mut head[k];
+            // The notes reaching this entry, for MIDI sidechains (`crate::midi_sidechain`).
+            *overflow |= sc_points
+                .midi
+                .write(MidiPoint::Before(entry.key), entry.events.as_slice());
             // Off = MIDI thru (v0.2 `midi-fx`, `ChainRt::route_midi`): its notes reach the
-            // next device (its own params don't). One still fading out runs without events.
-            *overflow |= entry.route_midi(tail.first_mut().map(|e| &mut e.events));
+            // next device (its own params don't), after the last one the chain's MIDI end
+            // when a MIDI sidechain taps it. One still fading out runs without events.
+            let next = match tail.first_mut() {
+                Some(e) => Some(&mut e.events),
+                None => sc_points.midi.end_mut(),
+            };
+            *overflow |= entry.route_midi(next);
             *overflow |= entry.events.overflowed();
             let key = entry.key;
             // The bypass path keeps the input (`ChainRt::blend`), before anything writes it.
@@ -2270,6 +2306,9 @@ impl JobCtx<'_> {
             // Sidechain PDC: delay the main signal before this entry if planned.
             rt_sidechain.align_main(key, a, n);
             let runs = entry.runs();
+            // MIDI sidechain: its source's notes replace the chain's (every sub-block, so
+            // the delay stays in time while the device is off).
+            *overflow |= rt_sidechain.feed_midi(key, sc_points, n, runs.then_some(&mut entry.events));
             // Drum rack: pad chains feed the rack node's input (`crate::drum_rack`).
             if runs && !racks.is_empty() && racks.is_rack(key) {
                 *overflow |= racks.run_pads(
@@ -2415,13 +2454,19 @@ impl JobCtx<'_> {
                 }
             }
             sc_points.write(ScPoint::After(key), a, n);
-            // Note/MIDI output feeds the next device.
+            // Note/MIDI output feeds the next device (after the last one, the chain's MIDI
+            // end when a MIDI sidechain taps it).
             if let Some(next) = tail.first_mut() {
                 for e in out_events.as_slice() {
                     next.events.push(*e);
                 }
+            } else if let Some(end) = sc_points.midi.end_mut() {
+                for e in out_events.as_slice() {
+                    *overflow |= !end.push(*e);
+                }
             }
         }
+        sc_points.midi.finish_end();
         track.awake = awake;
         taps.write(InputTap::PostFx, a, n);
         sc_points.write(ScPoint::Track(InputTap::PostFx), a, n);

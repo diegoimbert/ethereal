@@ -57,6 +57,7 @@ fn project_with(plugins: &[PluginInstance]) -> Project {
         p.apply(&Op::Insert {
             entity: Entity::Device(Device {
                 sidechain_tap: None,
+                midi_sidechain: None,
                 chain: None,
                 id: ids.next(now),
                 track: track_id,

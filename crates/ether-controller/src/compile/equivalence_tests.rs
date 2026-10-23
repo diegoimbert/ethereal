@@ -123,6 +123,7 @@ impl Gen {
             &mut self.p,
             Entity::Device(Device {
                 sidechain_tap: None,
+                midi_sidechain: None,
                 chain: None,
                 id,
                 track,

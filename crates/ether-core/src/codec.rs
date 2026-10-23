@@ -102,7 +102,7 @@ impl BinaryCodec {
 /// binary layout. A node that needs a hot, compact encoding moves its field into the binary
 /// layout (bumping `VERSION`): groups and buses did (v3), so did racks and modulation (v4).
 ///
-/// v0.4 adds `sidechain_taps` (same rules).
+/// v0.4 adds `sidechain_taps` (same rules), then `midi_sidechains`.
 ///
 /// v0.3 adds `expression` and `hw_io` to the blob (absent = default, so the
 /// binary layout and `VERSION` are unchanged); MIDI expression may move `expression` into
@@ -114,6 +114,8 @@ struct TrackExtRef<'a> {
     hw_io: &'a Vec<crate::hw_io::HwIoDesc>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     sidechain_taps: &'a Vec<crate::sidechain::SidechainTapDesc>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    midi_sidechains: &'a Vec<crate::midi_sidechain::MidiSidechainDesc>,
     #[serde(skip_serializing_if = "crate::recording::MidiInputFilter::is_all")]
     midi_input: &'a crate::recording::MidiInputFilter,
 }
@@ -125,6 +127,7 @@ struct TrackExt {
     expression: crate::expression::TrackExpressionDesc,
     hw_io: Vec<crate::hw_io::HwIoDesc>,
     sidechain_taps: Vec<crate::sidechain::SidechainTapDesc>,
+    midi_sidechains: Vec<crate::midi_sidechain::MidiSidechainDesc>,
     midi_input: crate::recording::MidiInputFilter,
 }
 
@@ -307,6 +310,7 @@ impl Writer<'_> {
             expression,
             hw_io,
             sidechain_taps,
+            midi_sidechains,
         } = t;
         self.ulid(id.0);
         self.u8(match kind {
@@ -385,6 +389,7 @@ impl Writer<'_> {
             && expression.is_empty()
             && hw_io.is_empty()
             && sidechain_taps.is_empty()
+            && midi_sidechains.is_empty()
             && midi_input.is_all()
         {
             self.u8(0);
@@ -395,6 +400,7 @@ impl Writer<'_> {
                 expression,
                 hw_io,
                 sidechain_taps,
+                midi_sidechains,
                 midi_input,
             });
         }
@@ -962,6 +968,7 @@ impl Reader<'_> {
             t.expression = ext.expression;
             t.hw_io = ext.hw_io;
             t.sidechain_taps = ext.sidechain_taps;
+            t.midi_sidechains = ext.midi_sidechains;
             t.midi_input = ext.midi_input;
         }
         Ok(t)
@@ -1105,6 +1112,7 @@ impl Reader<'_> {
             expression: Default::default(),
             hw_io: Vec::new(),
             sidechain_taps: Vec::new(),
+            midi_sidechains: Vec::new(),
         })
     }
 

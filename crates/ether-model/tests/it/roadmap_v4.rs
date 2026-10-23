@@ -87,6 +87,7 @@ impl Fx {
         let id = self.id();
         self.insert(Entity::Device(Device {
             sidechain_tap: None,
+            midi_sidechain: None,
             id,
             track,
             order: OrderKey::between(None, None),
