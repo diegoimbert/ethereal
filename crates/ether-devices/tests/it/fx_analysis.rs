@@ -57,7 +57,11 @@ fn run(
             if at >= start && at < start + BLOCK {
                 block_events.push(ProcessEvent {
                     offset: (at - start) as u32,
-                    kind: EventKind::Param { param, value },
+                    kind: EventKind::Param {
+                        param,
+                        value,
+                        step: false,
+                    },
                 });
             }
         }

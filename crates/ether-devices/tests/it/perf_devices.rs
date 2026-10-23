@@ -179,7 +179,11 @@ fn render(
             if at >= pos && at < pos + n {
                 block_events.push(ProcessEvent {
                     offset: (at - pos) as u32,
-                    kind: EventKind::Param { param, value },
+                    kind: EventKind::Param {
+                        param,
+                        value,
+                        step: false,
+                    },
                 });
             }
         }

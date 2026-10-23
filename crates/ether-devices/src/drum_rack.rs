@@ -232,8 +232,8 @@ impl Node for DrumRack {
                 self.render(audio, pos, off);
                 pos = off;
             }
-            if let EventKind::Param { param, value } = ev.kind {
-                self.apply_param(param, value, true);
+            if let EventKind::Param { param, value, step } = ev.kind {
+                self.apply_param(param, value, !step);
             }
         }
         if pos < ctx.frames {

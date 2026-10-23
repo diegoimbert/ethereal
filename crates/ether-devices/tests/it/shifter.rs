@@ -130,7 +130,11 @@ fn tone(x: &[f32], freq: f32) -> f32 {
 }
 
 fn set(id: ParamId, value: f64) -> EventKind {
-    EventKind::Param { param: id, value }
+    EventKind::Param {
+        param: id,
+        value,
+        step: false,
+    }
 }
 
 fn ring(carrier: f64, mix: f64) -> Vec<(ParamId, f64)> {

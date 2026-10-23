@@ -59,6 +59,7 @@ fn render(node: &mut dyn PluginNode, blocks: usize) -> Vec<f32> {
                 kind: EventKind::Param {
                     param: CUTOFF,
                     value: 500.0,
+                    step: false,
                 },
             }]
         } else {

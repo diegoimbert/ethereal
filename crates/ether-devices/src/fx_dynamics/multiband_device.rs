@@ -377,8 +377,8 @@ impl MultibandCompressor {
             frames,
             |s, a, b| s.render(audio, sidechain, a, b),
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
-                    s.apply_param(param, value, true);
+                if let EventKind::Param { param, value, step } = *kind {
+                    s.apply_param(param, value, !step);
                 }
             },
         );

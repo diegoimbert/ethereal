@@ -31,8 +31,16 @@ pub enum EventKind {
     /// Release every note (transport stop / loop jump / clip stop).
     AllNotesOff,
     /// Set parameter to a *plain* value at this offset (automation, UI, modulation).
-    /// Nodes smooth continuous params themselves (see [`crate::param::Smoother`]).
-    Param { param: ParamId, value: f64 },
+    /// Nodes smooth continuous params themselves (see [`crate::param::Smoother`]), except
+    /// when `step` is set: the change is a vertical step drawn in automation (two points at
+    /// the same time, or a hold segment ending), and applies whole on this sample, with no
+    /// ramp (CONTRACTS.md §12.7, issue #302). Live changes (knobs, MIDI, remote), the grid
+    /// points of a continuous lane and timeline jumps are never steps.
+    Param {
+        param: ParamId,
+        value: f64,
+        step: bool,
+    },
     /// Raw short MIDI message (CC, pitch bend, aftertouch) for instruments/plugins.
     Midi { data: [u8; 3] },
     /// v0.3 (MIDI expression / `mpe`, CONTRACTS.md §13.2): per-note expression of a
@@ -227,6 +235,7 @@ mod tests {
             kind: EventKind::Param {
                 param: ParamId(1),
                 value: 0.5,
+                step: false,
             },
         }
     }

@@ -934,7 +934,7 @@ impl PolySynth {
                 key,
             } => self.choke(note_id, channel, key),
             EventKind::AllNotesOff => self.all_notes_off(),
-            EventKind::Param { param, value } => self.apply_param(param, value, true),
+            EventKind::Param { param, value, step } => self.apply_param(param, value, !step),
             EventKind::Midi { data } => self.midi(data),
             // v0.3 (`mpe`): per-note pitch/pressure/timbre of the voice(s) of `note_id`.
             EventKind::NoteExpression {

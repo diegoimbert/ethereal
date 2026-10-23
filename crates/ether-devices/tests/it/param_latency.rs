@@ -128,7 +128,11 @@ fn first_change(
 }
 
 fn param(id: ParamId, value: f64) -> EventKind {
-    EventKind::Param { param: id, value }
+    EventKind::Param {
+        param: id,
+        value,
+        step: false,
+    }
 }
 
 /// The change reaches the output at `AT + latency + extra` (`extra`: where in the device's

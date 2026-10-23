@@ -36,7 +36,7 @@ impl Node for Gain {
             }
         };
         for e in ctx.events {
-            if let EventKind::Param { param, value } = e.kind
+            if let EventKind::Param { param, value, .. } = e.kind
                 && param == ParamId(0)
             {
                 let o = (e.offset as usize).min(ctx.frames);
@@ -240,7 +240,7 @@ fn volume_without_latency() {
             STEP,
             0.0,
             1.0,
-            32,
+            0,
             &format!("block {block} antic {antic}"),
         );
     }
@@ -259,7 +259,7 @@ fn volume_after_a_latent_device() {
             STEP + L,
             0.0,
             1.0,
-            32,
+            0,
             &format!("block {block} antic {antic}"),
         );
     }
@@ -302,7 +302,7 @@ fn master_volume_after_a_latent_track() {
             STEP + L,
             0.0,
             1.0,
-            32,
+            0,
             &format!("block {block} antic {antic}"),
         );
     }
@@ -324,7 +324,7 @@ fn send_level_after_a_latent_device() {
             STEP + L,
             0.0,
             1.0,
-            32,
+            0,
             &format!("block {block} antic {antic}"),
         );
     }
@@ -474,7 +474,7 @@ fn vca_after_a_latent_device() {
             STEP + L,
             0.0,
             1.0,
-            32,
+            0,
             &format!("block {block} antic {antic}"),
         );
     }
@@ -603,4 +603,244 @@ fn rack_chain_devices_around_a_latent_device() {
             );
         }
     }
+}
+
+// Issue #302: automation steps land whole on their sample, with no declick ramp after it.
+
+/// A clip starting at sample 36 007 (off the grid) under a volume lane that drops 1 → 0 at
+/// the clip's start (two points at one time) and steps back to 1 at sample 40 011.
+const CLIP_AT: usize = 36_007;
+const BACK_AT: usize = 40_011;
+
+fn clip_under_a_step(
+    h: &mut ether_core::EngineHandle,
+    latent: bool,
+    steps: bool,
+) -> RenderGraphDesc {
+    use ether_core::graph::{ClipContentDesc, ClipDesc};
+    use ether_core::protocol::model::{FadeCurve, MediaId, Ulid};
+    let media = MediaId(Ulid(42));
+    h.add_source(media, std::sync::Arc::new(MemSource(vec![0.5; 96_000])))
+        .unwrap();
+    let chain = if latent {
+        vec![h.add_node(Box::new(Delay::new(L))).unwrap()]
+    } else {
+        vec![]
+    };
+    let mut t = with_chain(track(tid(2), TrackKind::Audio, Some(tid(1))), &chain);
+    let beat = |s: usize| s as f64 / 24_000.0;
+    t.clips = vec![ClipDesc {
+        id: cid(1),
+        start: beat(CLIP_AT),
+        length: 1.0,
+        offset: 0.0,
+        looping: None,
+        muted: false,
+        content: ClipContentDesc::Audio {
+            media,
+            gain: 1.0,
+            transpose: 0.0,
+            fade_in: 0.0,
+            fade_out: 0.0,
+            fade_in_curve: FadeCurve::Linear,
+            fade_out_curve: FadeCurve::Linear,
+            reversed: false,
+            warp: None,
+            gain_envelope: None,
+            transpose_envelope: None,
+        },
+        envelopes: vec![],
+    }];
+    if steps {
+        let mut lane = step_lane(ResolvedTarget::TrackVolume);
+        lane.points = vec![
+            (0.0, 1.0, CurveShape::Step),
+            (beat(CLIP_AT), 1.0, CurveShape::Step),
+            (beat(CLIP_AT), 0.0, CurveShape::Step),
+            (beat(BACK_AT), 1.0, CurveShape::Step),
+        ];
+        t.automation = vec![lane];
+    }
+    desc(vec![master(), t])
+}
+
+#[test]
+fn volume_step_at_a_clip_start_is_silent_from_its_sample() {
+    for latent in [false, true] {
+        let d = if latent { L } else { 0 };
+        for (block, antic) in configs() {
+            let what = format!("latent {latent} block {block} antic {antic}");
+            let out = run(block, antic, &|h| clip_under_a_step(h, latent, true));
+            let reference = run(block, antic, &|h| clip_under_a_step(h, latent, false));
+            // (The clip's own 64-sample anti-click fade starts at 0 on its first sample.)
+            assert!(
+                reference[CLIP_AT + d - 1] == 0.0 && reference[CLIP_AT + d + 1] != 0.0,
+                "{what}: the clip does not start on its sample"
+            );
+            if let Some(i) = (0..BACK_AT + d).find(|&i| out[i] != 0.0) {
+                panic!(
+                    "{what}: sample {i} is {} (silent until {})",
+                    out[i],
+                    BACK_AT + d
+                );
+            }
+            for i in BACK_AT + d..BACK_AT + d + 4_000 {
+                assert!(
+                    (out[i] - reference[i]).abs() < 1e-6,
+                    "{what}: sample {i} is {}, want {} (back on at {})",
+                    out[i],
+                    reference[i],
+                    BACK_AT + d
+                );
+            }
+        }
+    }
+}
+
+/// The param events a recorder saw for `param`: `(sample, value, step)`.
+fn recorded(seen: &[Seen], param: ParamId) -> Vec<(u64, f64, bool)> {
+    events(seen)
+        .into_iter()
+        .filter_map(|(t, k)| match k {
+            EventKind::Param {
+                param: p,
+                value,
+                step,
+            } if p == param => Some((t, value, step)),
+            _ => None,
+        })
+        .collect()
+}
+
+fn record(
+    block: usize,
+    build: &dyn Fn(&mut ether_core::EngineHandle, NodeKey) -> RenderGraphDesc,
+) -> Vec<Seen> {
+    let mut p = create(cfg(false));
+    let (rec, mut rx) = Recorder::new();
+    let rec = p.handle.add_node(Box::new(rec)).unwrap();
+    let desc = build(&mut p.handle, rec);
+    p.handle.publish(desc).unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    render(&mut p.engine, 50_000, block);
+    drain(&mut rx)
+}
+
+#[test]
+fn device_param_steps_are_flagged_and_ramps_are_not() {
+    // Hold 0.5 from beat 1, jump to 1 at STEP_BEAT, ramp down to 0 at beat 2: only the
+    // jump is a step (the corners at beats 1 and 2 are continuous).
+    for block in [64, 100, 512] {
+        let seen = record(block, &|_, rec| {
+            let mut t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[rec]);
+            let mut lane = step_lane(gain_of(rec));
+            lane.points = vec![
+                (0.0, 0.0, CurveShape::Linear),
+                (1.0, 0.5, CurveShape::Step),
+                (STEP_BEAT, 1.0, CurveShape::Linear),
+                (2.0, 0.0, CurveShape::Linear),
+            ];
+            t.automation = vec![lane];
+            desc(vec![master(), t])
+        });
+        let ev = recorded(&seen, ParamId(0));
+        let steps: Vec<_> = ev.iter().filter(|e| e.2).map(|e| e.0).collect();
+        assert_eq!(steps, [STEP as u64], "block {block}: {ev:?}");
+        assert!(ev.len() > 100, "block {block}: grid events missing");
+    }
+}
+
+#[test]
+fn macro_and_modulated_steps_are_flagged() {
+    use ether_core::modulation::{
+        MacroDesc, ModMappingDesc, ModSourceDesc, ModulationDesc, ModulatorDesc,
+    };
+    use ether_core::protocol::model::{DeviceId, ModulatorId, ModulatorKind, Ulid};
+    // A macro stepping 0 → 1 at STEP_BEAT drives the recorder's param 3; an LFO-modulated
+    // param 4 has its base stepping 0.2 → 0.8 there.
+    for block in [64, 100, 512] {
+        let seen = record(block, &|h, rec| {
+            let rack = h.add_node(Box::new(Dc(0.0))).unwrap();
+            let mut t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[rack, rec]);
+            let map = |source, param, depth, base| ModMappingDesc {
+                source,
+                node: rec,
+                param,
+                depth,
+                mapping: unit(),
+                base,
+            };
+            t.modulation = ModulationDesc {
+                modulators: vec![ModulatorDesc {
+                    id: ModulatorId(Ulid(7)),
+                    host: rec,
+                    kind: ModulatorKind::Lfo,
+                    params: vec![(ParamId(0), 2.0), (ParamId(1), 3.0), (ParamId(2), 0.0)],
+                    sidechain: None,
+                }],
+                mappings: vec![
+                    map(
+                        ModSourceDesc::Macro { rack, index: 2 },
+                        ParamId(3),
+                        0.5,
+                        0.25,
+                    ),
+                    map(ModSourceDesc::Modulator(0), ParamId(4), 0.1, 0.2),
+                ],
+                macros: vec![MacroDesc {
+                    rack,
+                    values: [0.0; 16],
+                    first: 0,
+                    upper: 9,
+                }],
+            };
+            let lane = |node, param, from, to| AutomationDesc {
+                target: AutomationTarget::DeviceParam {
+                    device: DeviceId(Ulid(9)),
+                    param,
+                },
+                resolved: ResolvedTarget::Node { node, param },
+                points: vec![
+                    (0.0, from, CurveShape::Step),
+                    (STEP_BEAT, to, CurveShape::Step),
+                ],
+                mapping: unit(),
+            };
+            t.automation = vec![
+                lane(rack, ParamId(2), 0.0, 1.0),
+                lane(rec, ParamId(4), 0.2, 0.8),
+            ];
+            desc(vec![master(), t])
+        });
+        for param in [ParamId(3), ParamId(4)] {
+            let ev = recorded(&seen, param);
+            let steps: Vec<_> = ev.iter().filter(|e| e.2).map(|e| e.0).collect();
+            assert_eq!(
+                steps,
+                [STEP as u64],
+                "block {block} param {param:?}: {ev:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn live_fader_moves_are_still_smoothed() {
+    use ether_core::{ParamChange, ParamTarget};
+    let mut p = create(cfg(false));
+    let dc = p.handle.add_node(Box::new(Dc(1.0))).unwrap();
+    let t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[dc]);
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    render(&mut p.engine, 4_096, 512);
+    p.handle
+        .set_param(ParamChange {
+            target: ParamTarget::TrackVolume { track: tid(2) },
+            value: 0.0,
+        })
+        .unwrap();
+    let (l, _) = render(&mut p.engine, 4_096, 512);
+    assert!(l[0] > 0.9 && l[0] < 1.0, "the fader jumped: {}", l[0]);
+    assert!(l[64] > 0.0, "the fader ramp is shorter than 64 samples");
+    assert_eq!(l[4_095], 0.0);
 }

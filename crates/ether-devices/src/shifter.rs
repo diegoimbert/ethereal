@@ -1378,8 +1378,8 @@ impl Node for Shifter {
             ctx.frames,
             |s, a, b| s.render(audio, &transport, a, b),
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
-                    s.set(param, value, true);
+                if let EventKind::Param { param, value, step } = *kind {
+                    s.set(param, value, !step);
                 }
             },
         );

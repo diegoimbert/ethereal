@@ -265,7 +265,7 @@ impl Node for SpectrumAnalyzer {
     ) -> ProcessStatus {
         // Only analysis settings: no audio effect, so they apply at the next frame.
         for e in ctx.events {
-            if let EventKind::Param { param, value } = e.kind {
+            if let EventKind::Param { param, value, .. } = e.kind {
                 self.set(param, value);
             }
         }

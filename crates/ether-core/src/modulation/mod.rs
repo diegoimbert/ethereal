@@ -563,7 +563,8 @@ struct Target {
     mapping: ParamMapping,
     /// Normalized base.
     base: f64,
-    changes: [(u32, f64); MAX_CHANGES],
+    /// `(offset, normalized base, step)`: `step` = an automation step (issue #302).
+    changes: [(u32, f64, bool); MAX_CHANGES],
     n_changes: usize,
     links: Vec<Link>,
     /// Last plain value sent (NaN = send again).
@@ -586,7 +587,8 @@ struct MacroRt {
     first: u32,
     upper: u32,
     values: [f64; MACROS],
-    changes: [(u32, u8, f64); MAX_CHANGES],
+    /// `(offset, macro, value, step)`.
+    changes: [(u32, u8, f64, bool); MAX_CHANGES],
     n_changes: usize,
 }
 
@@ -718,7 +720,7 @@ impl ModulationRt {
                 first: m.first,
                 upper: m.upper,
                 values: m.values.map(|v| v.clamp(0.0, 1.0)),
-                changes: [(0, 0, 0.0); MAX_CHANGES],
+                changes: [(0, 0, 0.0, false); MAX_CHANGES],
                 n_changes: 0,
             })
             .collect();
@@ -750,7 +752,7 @@ impl ModulationRt {
                     param: m.param,
                     mapping: m.mapping,
                     base: m.base.clamp(0.0, 1.0),
-                    changes: [(0, 0.0); MAX_CHANGES],
+                    changes: [(0, 0.0, false); MAX_CHANGES],
                     n_changes: 0,
                     links: vec![link],
                     last: f64::NAN,
@@ -863,16 +865,18 @@ impl ModulationRt {
 
     /// RT. A base value (plain) for `node`/`param`; `true` = consumed (see the module docs).
     pub(crate) fn intercept(&mut self, node: NodeKey, param: ParamId, plain: f64) -> bool {
-        self.intercept_at(node, param, plain, 0)
+        self.intercept_at(node, param, plain, 0, false)
     }
 
     /// RT. [`Self::intercept`] at sample `offset` of the coming sub-block (automation).
+    /// `step`: an automation step; the targets it moves get it as a step on that sample.
     pub(crate) fn intercept_at(
         &mut self,
         node: NodeKey,
         param: ParamId,
         plain: f64,
         offset: u32,
+        step: bool,
     ) -> bool {
         if let Some((m, index)) = self
             .macros
@@ -885,7 +889,7 @@ impl ModulationRt {
             } else {
                 0.0
             };
-            push_change(&mut m.changes, &mut m.n_changes, (offset, index, v));
+            push_change(&mut m.changes, &mut m.n_changes, (offset, index, v, step));
             return true;
         }
         let Ok(i) = self
@@ -901,7 +905,7 @@ impl ModulationRt {
         } else {
             t.base
         };
-        push_change(&mut t.changes, &mut t.n_changes, (offset, n));
+        push_change(&mut t.changes, &mut t.n_changes, (offset, n, step));
         true
     }
 
@@ -930,7 +934,11 @@ impl ModulationRt {
         for &(node, param, value) in &self.restore {
             let event = ProcessEvent {
                 offset: 0,
-                kind: EventKind::Param { param, value },
+                kind: EventKind::Param {
+                    param,
+                    value,
+                    step: false,
+                },
             };
             if let Some(buf) = target_events(node, chain, racks, chain_racks) {
                 buf.push(event);
@@ -1018,12 +1026,12 @@ impl ModulationRt {
             add(&mut self.knots, g as u32);
         }
         for t in &self.targets {
-            for &(o, _) in &t.changes[..t.n_changes] {
+            for &(o, _, _) in &t.changes[..t.n_changes] {
                 add(&mut self.knots, o.min(n.saturating_sub(1) as u32));
             }
         }
         for m in &self.macros {
-            for &(o, _, _) in &m.changes[..m.n_changes] {
+            for &(o, _, _, _) in &m.changes[..m.n_changes] {
                 add(&mut self.knots, o.min(n.saturating_sub(1) as u32));
             }
         }
@@ -1068,7 +1076,7 @@ impl ModulationRt {
             pos = of;
             // Base and macro changes up to this knot.
             for m in self.macros.iter_mut() {
-                for &(co, idx, v) in &m.changes[..m.n_changes] {
+                for &(co, idx, v, _) in &m.changes[..m.n_changes] {
                     if co <= o {
                         m.values[idx as usize] = v;
                     }
@@ -1084,17 +1092,29 @@ impl ModulationRt {
                         0.0
                     };
                 } else {
-                    for &(co, v) in &t.changes[..t.n_changes] {
+                    for &(co, v, _) in &t.changes[..t.n_changes] {
                         if co <= o {
                             t.base = v;
                         }
                     }
                 }
+                // An automation step of the base or of a linked macro on this knot: the
+                // target steps too (issue #302).
+                let last = n.saturating_sub(1) as u32;
+                let mut step = t.changes[..t.n_changes]
+                    .iter()
+                    .any(|&(co, _, s)| s && co.min(last) == o);
                 let mut sum = t.base;
                 for l in &t.links {
                     let m = match l.src {
                         Src::Mod(i) => self.sources[i as usize].st.value,
-                        Src::Macro(r, idx) => self.macros[r as usize].values[idx as usize],
+                        Src::Macro(r, idx) => {
+                            let m = &self.macros[r as usize];
+                            step |= m.changes[..m.n_changes]
+                                .iter()
+                                .any(|&(co, i, _, s)| s && i == idx && co.min(last) == o);
+                            m.values[idx as usize]
+                        }
                     };
                     sum += l.depth * m;
                 }
@@ -1127,6 +1147,7 @@ impl ModulationRt {
                     kind: EventKind::Param {
                         param,
                         value: plain,
+                        step,
                     },
                 };
                 if let Some(buf) = target_events(node, chain, racks, chain_racks) {

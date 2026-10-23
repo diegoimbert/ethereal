@@ -559,7 +559,7 @@ impl Vst3Node {
                 key,
             } => self.note(t, false, note_id, channel, key, 0.0),
             EventKind::AllNotesOff => self.release_held(t),
-            EventKind::Param { param, value } => self.param_event(param.0, t, value),
+            EventKind::Param { param, value, .. } => self.param_event(param.0, t, value),
             EventKind::Midi { data } => {
                 let (status, ch) = (data[0] & 0xF0, data[0] & 0x0F);
                 let (key, vel) = (data[1] & 0x7F, data[2] & 0x7F);

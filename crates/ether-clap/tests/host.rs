@@ -190,6 +190,7 @@ fn process_params_notes_transport() {
         kind: EventKind::Param {
             param: GAIN,
             value: 0.5,
+            step: false,
         },
     }];
     assert_no_alloc(|| h.run(node.as_mut(), &ev));

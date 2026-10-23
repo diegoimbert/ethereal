@@ -103,7 +103,11 @@ fn sine(freq: f64, sr: f32, secs: f64) -> Vec<f32> {
 }
 
 fn param(id: ParamId, value: f64) -> EventKind {
-    EventKind::Param { param: id, value }
+    EventKind::Param {
+        param: id,
+        value,
+        step: false,
+    }
 }
 
 /// Instantaneous frequency (Hz) between consecutive rising zero crossings, at their midpoint

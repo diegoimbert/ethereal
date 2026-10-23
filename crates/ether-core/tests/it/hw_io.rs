@@ -136,6 +136,7 @@ fn instrument_events_become_midi_on_its_channel() {
             EventKind::Param {
                 param: ParamId(0),
                 value: 1.0,
+                step: false,
             },
         ),
         ev(

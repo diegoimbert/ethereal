@@ -145,7 +145,11 @@ fn max_curvature(x: &[f32]) -> f32 {
 }
 
 fn param(id: ParamId, value: f64) -> EventKind {
-    EventKind::Param { param: id, value }
+    EventKind::Param {
+        param: id,
+        value,
+        step: false,
+    }
 }
 
 fn secs(s: f32) -> usize {

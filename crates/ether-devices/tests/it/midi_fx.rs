@@ -380,6 +380,7 @@ fn arpeggiator_hold_latches_until_a_new_chord() {
         EventKind::Param {
             param: arp::HOLD,
             value: 0.0,
+            step: false,
         },
     )];
     let tail = render(&mut *d, 4 * SIXTEENTH, &events);
@@ -590,6 +591,7 @@ fn scale_quantize_custom_scale_and_note_off_keys() {
             EventKind::Param {
                 param: sq::TRANSPOSE,
                 value: 5.0,
+                step: false,
             },
         ),
         (20, off(1, 70)),
@@ -862,6 +864,7 @@ fn pitch_note_offs_and_expressions_follow_their_note_on() {
             EventKind::Param {
                 param: pitch::PITCH,
                 value: -3.0,
+                step: false,
             },
         ),
         (15, expr(1, 60)),
@@ -892,6 +895,7 @@ fn pitch_note_offs_and_expressions_follow_their_note_on() {
             EventKind::Param {
                 param: pitch::LOWEST,
                 value: 0.0,
+                step: false,
             },
         ),
         (8, expr(1, 60)),
@@ -1011,6 +1015,7 @@ fn note_blocker_block_everything_drops_all_midi_but_releases() {
             EventKind::Param {
                 param: nb::BLOCK_EVERYTHING,
                 value: 0.0,
+                step: false,
             },
         ),
         (6, on(3, 60, 0.5)),
@@ -1176,6 +1181,7 @@ fn every_midi_effect_passes_other_midi_and_drops_params() {
                 EventKind::Param {
                     param: ParamId(0),
                     value: 0.0,
+                    step: false,
                 },
             ),
             (

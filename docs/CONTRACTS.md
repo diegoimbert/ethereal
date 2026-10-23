@@ -255,8 +255,10 @@ v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with sl
     is inside its clip.
   - **Timing.** Sample-accurate (§12.7): device params get `Param` events on the 32-sample
     grid and at every breakpoint; mixer targets (volume, pan, send level, VCA) ramp per
-    sample. A step lands on its own sample and never before (a mixer step reaches its new
-    value by the next grid point; a device may smooth it, starting there). Automation is
+    sample. A step (two points at one time, a hold segment ending, a clip envelope
+    starting) lands whole on its own sample: never before, and with no ramp after it, for
+    mixer targets and built-in devices (`Param` events with `step`, issue #302). Live moves
+    (knobs, faders, MIDI, remote) stay smoothed. Automation is
     delay-compensated: it reaches each target when the audio of its timeline position does
     (§12.7, issue #270).
 - **Continuous controls.** Volume, pan, send level and device params are undoable
@@ -1244,8 +1246,18 @@ extracted verbatim from `engine.rs` by the v0.2 contracts):
 - tempo ramps integrated exactly per sample for scheduling and automation (`Timing`);
 - mixer targets (volume, pan, sends, VCA gain) ramped per sample between knots on the grid
   and at every breakpoint: sample `s` gets the curve's value at its own beat (no
-  look-ahead), a breakpoint ends a ramp at the value just before it, so a step starts on
-  its own sample and reaches the new value by the next grid point (≤ 32 samples);
+  look-ahead), a breakpoint ends a ramp at the value just before it and its own sample
+  gets the value at the breakpoint, so a step lands whole on its sample with no declick
+  ramp (issue #302; the lane's points are the ramp);
+- **steps on node params** (issue #302): the event at a breakpoint where the curve jumps
+  (its value just before differs from its value there by more than 1e-4 normalized, or a
+  clip envelope starts driving the param) carries `EventKind::Param { step: true }`; grid
+  points, re-sends after a jump or locate, live changes and modulator motion carry
+  `false`. Built-in devices apply a step with no smoothing (their `smooth = false` path);
+  a modulated param or macro whose base steps emits its modulated value as a step on the
+  same sample. Plugin hosts forward the value at its offset as before (CLAP/VST3/AU are
+  sample-accurate; a plugin's own smoothing is its business), and the sandbox does not
+  carry the flag;
 - **delay compensation of automation** (issue #270): a target whose signal is `d` samples
   late relative to the timeline gets the automation the timeline had `d` samples earlier
   (`automation_rt::views` over `crate::history`, the engine's recent sub-block plans, so

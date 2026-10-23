@@ -439,22 +439,22 @@ impl Saturator {
 
     /// A param event as [`LateEvents`] delivers it (see [`Self::route`]).
     fn on_event(&mut self, kind: &EventKind) {
-        let EventKind::Param { param, value } = *kind else {
+        let EventKind::Param { param, value, step } = *kind else {
             return;
         };
         match untag(param) {
             // The output stage's copy of a drive, bias or curve change.
             (id, true) => {
                 if self.out_values.set(id, value) {
-                    self.apply_auto_gain(true);
+                    self.apply_auto_gain(!step);
                 }
             }
             (id @ (ids::CURVE | ids::DRIVE | ids::BIAS), false) => {
                 if self.values.set(id, value) {
-                    self.apply_shaper(id, true);
+                    self.apply_shaper(id, !step);
                 }
             }
-            (id, false) => self.set(id, value, true),
+            (id, false) => self.set(id, value, !step),
         }
     }
 
@@ -569,7 +569,7 @@ impl Node for Saturator {
             self,
             |s| &mut s.late,
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
+                if let EventKind::Param { param, value, .. } = *kind {
                     let (id, out) = untag(param);
                     if out {
                         s.out_values.set(id, value);

@@ -698,7 +698,7 @@ impl Synth {
                     v.env.release();
                 }
             }
-            EventKind::Param { param, value } => self.apply_param(param, value, true),
+            EventKind::Param { param, value, step } => self.apply_param(param, value, !step),
             EventKind::Midi { .. } | EventKind::NoteExpression { .. } => {}
         }
     }

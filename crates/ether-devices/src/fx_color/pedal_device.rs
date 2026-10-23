@@ -546,21 +546,21 @@ impl Pedal {
 
     /// A param event as [`LateEvents`] delivers it (see [`Self::route`]).
     fn on_event(&mut self, kind: &EventKind) {
-        let EventKind::Param { param, value } = *kind else {
+        let EventKind::Param { param, value, step } = *kind else {
             return;
         };
         match untag(param) {
             (id, true) => {
                 if self.out_values.set(id, value) {
-                    self.apply_trim(true);
+                    self.apply_trim(!step);
                 }
             }
             (ids::GAIN, false) => {
                 if self.values.set(ids::GAIN, value) {
-                    self.apply_drive(true);
+                    self.apply_drive(!step);
                 }
             }
-            (id, false) => self.set(id, value, true),
+            (id, false) => self.set(id, value, !step),
         }
     }
 
@@ -711,7 +711,7 @@ impl Node for Pedal {
             self,
             |s| &mut s.late,
             |s, kind| {
-                if let EventKind::Param { param, value } = *kind {
+                if let EventKind::Param { param, value, .. } = *kind {
                     let (id, out) = untag(param);
                     if out {
                         s.out_values.set(id, value);

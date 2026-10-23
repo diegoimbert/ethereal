@@ -125,7 +125,11 @@ fn render(
             if at >= i && at < i + m {
                 evs.push(ProcessEvent {
                     offset: (at - i) as u32,
-                    kind: EventKind::Param { param, value },
+                    kind: EventKind::Param {
+                        param,
+                        value,
+                        step: false,
+                    },
                 });
             }
         }
