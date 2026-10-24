@@ -688,6 +688,7 @@ function LaneLayer({ origin, children }: { origin: Beats; children: ReactNode })
 const TrackLane = memo(function TrackLane({ track }: { track: Track }) {
   const ctx = useArrangement();
   const dropHint = useArrangementUi((s) => (s.dropHint?.track === track.id ? s.dropHint.at : null));
+  const relinkDrop = useArrangementUi((s) => (s.relinkDrop?.track === track.id ? s.relinkDrop : null));
   const imports = useArrangementUi((s) => s.imports);
   const tempo = useTempoMap();
   const t = useT();
@@ -733,6 +734,15 @@ const TrackLane = memo(function TrackLane({ track }: { track: Track }) {
           />
         )}
         {dropHint !== null && <div className="eth-arr-lane__drop-hint" style={{ left: beatsCss(dropHint - vp.scrollBeats) }} />}
+        {relinkDrop && (
+          <div
+            className="eth-arr-lane__relink-hint"
+            data-testid="relink-drop-hint"
+            style={{ left: beatsCss(relinkDrop.start - vp.scrollBeats), width: widthCss(relinkDrop.length) }}
+          >
+            <span className="eth-arr-lane__relink-label">{t("arrangement.lane.drop_relink")}</span>
+          </div>
+        )}
         {imports.map((i) => (i.track === track.id ? <ImportPlaceholder key={i.id} item={i} style={{ left: beatsCss(i.at - vp.scrollBeats) }} /> : null))}
         {(track.kind === "Audio" || track.kind === "Midi") && (
           <>

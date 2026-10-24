@@ -1195,6 +1195,32 @@
   pointer-events: none;
 }
 
+/* A sample hovering a clip whose sample is missing: dropping it relinks the clip's sample. */
+.eth-arr-lane__relink-hint {
+  position: absolute;
+  top: var(--eth-space-xs);
+  bottom: var(--eth-space-xs);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: var(--eth-border-width-strong) dashed var(--eth-color-accent);
+  border-radius: var(--eth-radius-md);
+  background: color-mix(in srgb, var(--eth-color-accent) 18%, transparent);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.eth-arr-lane__relink-label {
+  padding: 0 var(--eth-space-xs);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
 /* Lane content, slid to the scroll position by LaneLayer (so scrolling doesn't re-render). */
 .eth-arr-lane__layer {
   position: absolute;
