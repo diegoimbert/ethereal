@@ -44,7 +44,7 @@ import {
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import type { AutomationLane, AutomationOwner, AutomationPoint, AutomationPointId, AutomationTarget, CurveShape, ParamInfo } from "@/generated";
+import type { AutomationLane, AutomationOwner, AutomationPoint, AutomationPointId, AutomationTarget, CurveShape, ParamInfo, PointEdit } from "@/generated";
 import { dragEnd, openContextMenu, useDragScope, type ContextMenuEntry } from "@/kit";
 import { firstMatch, shortcutLabel } from "@/features/keymap";
 import { paramToNormalized, paramToPlain } from "@/domain/paramScale";
@@ -75,15 +75,20 @@ import { cmd, newId, useTransport } from "@/transport";
 import { pasteTarget as editCursorTarget, placeInsertMarker, setPlayStart } from "@/features/time-edits/marker";
 import { isTimeTrack } from "@/features/time-edits/commands";
 import { isMarker, MARKER_EPS, rangeOf, useTimeSelection, type TimeRangeSelection } from "@/features/time-edits/store";
-import { selectTrackEntity } from "@/features/arrangement/actions";
+import { runClipAction, selectTrackEntity, type ClipAction } from "@/features/arrangement/actions";
+import { clipsFollowing, hasMixedClipboard, isMixedSelection, MOVE_SELECTION, type ClipsFollowing } from "@/features/arrangement/mixedSelection";
 import { usePointsOfLane, useProjectStore } from "@/state";
 import {
+  copyLanes,
   copyPoints,
   copyRange,
   duplicateAt,
   hasPointClipboard,
+  multiLaneClipboard,
+  pasteLanes,
   pastePoints,
   pointClipboard,
+  snapshotLanes,
   rangeEditCommand,
   snapshotPoints,
   snapshotRange,
@@ -95,6 +100,8 @@ import { LANE_PAD, lanePath, pointRect, POINT_RADIUS, segmentAt, timeToX, valueT
 import { LaneGesture, sendEdit } from "./gesture";
 import { evaluatePoints, splitPointAt } from "./curve";
 import { sectionMovePlan } from "./range";
+import { flattenCommands, laneOf, registerLane, selectedByLane, type DragMods, type RegisteredLane } from "./laneRegistry";
+import { startLaneMarquee } from "./laneMarquee";
 import { emptyLaneBaseline, useTargetValue } from "./baseline";
 import { formatNormalized, targetKey as keyOfTarget } from "./params";
 import { PointValuePopover, type PointValueEdit } from "./PointValuePopover";
@@ -102,7 +109,7 @@ import { dragHint, FULL_RANGE, incrementNudge, nudgeSize, paramStep, snapValue, 
 import { automationPointAt, publishAutomationLane } from "@/features/arrangement/gl/layers/automationLanes";
 import { LaneRangeOverlay } from "@/features/time-edits/LaneRangeOverlay";
 import { useT } from "@/i18n";
-import { keyedStep, type StepLabel } from "@/features/arrangement/editMath";
+import { batchStep, keyedStep, type StepLabel } from "@/features/arrangement/editMath";
 import "./automation.css";
 import "@/features/time-edits/time-edits.css";
 
@@ -128,6 +135,16 @@ const AUTOMATION_ACTIONS = [
 ] as const;
 
 /** Nudge actions -> [time steps, value steps, fine (⇧), precise (⌥: a tenth of a step)]. */
+/** Edit keys that act on clips and points together when both are selected (keymap id → clip action). */
+const MIXED_ACTIONS: Record<string, ClipAction> = {
+  "edit.delete": "delete",
+  "edit.deleteModified": "delete",
+  "edit.copy": "copy",
+  "edit.cut": "cut",
+  "edit.paste": "paste",
+  "edit.duplicate": "duplicate",
+};
+
 const AUTOMATION_NUDGES: Partial<Record<string, readonly [number, number, boolean, boolean?]>> = {
   "nudge.up": [0, 1, false],
   "nudge.down": [0, -1, false],
@@ -324,6 +341,87 @@ export function AutomationLaneView({
     return { lane: l.lane, owner: l.owner, target: l.target, info: l.info, targetKey: l.tKey };
   };
 
+  // ---- Across lanes (track lanes: `laneRegistry.ts`) -------------------------------------
+
+  /** Edits moving some of this lane's points by `dt` beats and `dyPx` px (`RegisteredLane.dragEdits`). */
+  const laneDragEdits = (originals: ReadonlyArray<AutomationPoint>, anchor: AutomationPoint, dt: number, dyPx: number, mods: DragMods): PointEdit[] => {
+    const g = geomNow();
+    const inf = live.current.info;
+    const usable = Math.max(1, g.height - 2 * LANE_PAD);
+    const span = (g.range ?? FULL_RANGE).hi - (g.range ?? FULL_RANGE).lo;
+    // Stepped params: whole steps at a fixed px-per-step; others follow the pointer.
+    const dv = stepDragDelta(inf, -dyPx) ?? (-dyPx / usable) * span;
+    const moving = new Set(originals.map((p) => p.id));
+    return moveEdits(originals, anchor, dt, dv, null, {
+      lockTime: mods.lockTime,
+      lockValue: mods.lockValue,
+      others: live.current.points.filter((p) => !moving.has(p.id)),
+      snapValue: (v) => snapValue(inf, v, mods.increments),
+    });
+  };
+  /** Edits nudging some of this lane's points by `dt` beats and `dvSteps` value steps. */
+  const laneNudgeEdits = (pts: ReadonlyArray<AutomationPoint>, dt: number, dvSteps: number, fine: boolean, precise: boolean): PointEdit[] => {
+    if (pts.length === 0) return [];
+    const inf = live.current.info;
+    const anchor = pts[0]!;
+    const stepped = paramStep(inf) !== null;
+    // ⇧↑/⇧↓ on a continuous param: to the next whole increment (1 dB, 1 %...), on round values.
+    const increments = fine && dvSteps !== 0 && !stepped;
+    // ⌥↑/⌥↓: a tenth of a step (stepped params can't go finer than one step).
+    const dv = increments
+      ? incrementNudge(inf, anchor.value, dvSteps) - anchor.value
+      : dvSteps * nudgeSize(inf, fine) * (precise && !stepped ? PRECISION_RATIO : 1);
+    const moving = new Set(pts.map((p) => p.id));
+    return moveEdits(pts, anchor, dt, dv, null, {
+      others: live.current.points.filter((p) => !moving.has(p.id)),
+      lockTime: dt === 0,
+      lockValue: dvSteps === 0,
+      snapValue: stepped || increments ? (v) => snapValue(inf, v, increments) : undefined,
+    });
+  };
+  const impl = useRef({ dragEdits: laneDragEdits, nudgeEdits: laneNudgeEdits });
+  useLayoutEffect(() => {
+    impl.current = { dragEdits: laneDragEdits, nudgeEdits: laneNudgeEdits };
+  });
+  const trackOwner = owner.type === "Track" ? owner.track : null;
+  /** This lane as the registry sees it (registered for track lanes only). */
+  const selfLane = useMemo<RegisteredLane>(
+    () => ({
+      view,
+      track: trackOwner ?? "",
+      key: tKey,
+      el: () => rootRef.current,
+      points: () => live.current.points,
+      geom: geomNow,
+      pasteTarget: () => {
+        const l = live.current;
+        return { lane: l.lane, owner: l.owner, target: l.target, info: l.info, targetKey: l.tKey };
+      },
+      dragEdits: (...a) => impl.current.dragEdits(...a),
+      nudgeEdits: (...a) => impl.current.nudgeEdits(...a),
+    }),
+    [view, trackOwner, tKey, geomNow],
+  );
+  useEffect(() => (trackOwner ? registerLane(selfLane) : undefined), [selfLane, trackOwner]);
+
+  /**
+   * The selected points of each lane: this lane's first, then (track lanes) those of the
+   * other lanes on this timeline, so one gesture moves / deletes / copies all of them.
+   */
+  const selectedGroups = (): Array<{ lane: RegisteredLane; points: AutomationPoint[] }> => {
+    const own = { lane: selfLane, points: selectedHere() };
+    const others = trackOwner ? selectedByLane(view, selection.getState().selected.automationPoint).filter((g) => g.lane !== selfLane) : [];
+    return own.points.length ? [own, ...others] : others;
+  };
+  /** The destination of a multi-lane paste: the lane of `track` / `key` shown on this timeline. */
+  const laneDest = (track: string, key: string) => laneOf(view, track, key)?.pasteTarget() ?? null;
+  /** A snapshot of the selected points of several lanes (null for one lane). */
+  const multiSnapshot = () => {
+    const groups = selectedGroups();
+    if (groups.length < 2) return null;
+    return snapshotLanes(groups.map((g) => ({ track: g.lane.track, key: g.lane.key, info: g.lane.pasteTarget().info, points: g.points })));
+  };
+
   // ---- Time range (track lanes: the lane's own time selection) ---------------------------
 
   /** This lane's time range (a time selection drawn in it), or null. */
@@ -361,15 +459,23 @@ export function AutomationLaneView({
   const copy = (): number => {
     const r = laneRange();
     if (r) return rangeEdits.copy(r) ? 1 : 0;
+    const groups = selectedGroups();
+    if (groups.length > 1) {
+      return copyLanes(groups.map((g) => ({ track: g.lane.track, key: g.lane.key, info: g.lane.pasteTarget().info, points: g.points })));
+    }
     return copyPoints(selectedHere(), live.current.info, live.current.tKey);
   };
   const cut = () => {
     const r = laneRange();
     if (r) return rangeEdits.cut(r);
-    const pts = selectedHere();
-    if (copy() > 0) void sendEdit(transport, removePointsCommand(pts.map((p) => p.id)));
+    const ids = selectedGroups().flatMap((g) => g.points.map((p) => p.id));
+    if (copy() > 0) void sendEdit(transport, removePointsCommand(ids));
   };
-  const pasteAt = async (at: number, keepAt = false, clip = pointClipboard()) => {
+  const pasteAt = async (at: number, keepAt = false, given?: PointClipboard) => {
+    // The clipboard's: a copy of several lanes puts each lane's points back into their own lane.
+    const multi = given ? null : multiLaneClipboard();
+    if (multi) return trackOwner ? pasteLanes(transport, multi, laneDest, at, selection, keepAt) : [];
+    const clip = given ?? pointClipboard();
     // Clip envelopes: the edit cursor is on the song axis, not the lane's: it stays.
     const created = await pastePoints(transport, clip, pasteTarget(), at, selection, keepAt || live.current.cursorToLane !== undefined);
     // A pasted range becomes the lane's selection (so the next paste lands right after it).
@@ -384,18 +490,24 @@ export function AutomationLaneView({
   const duplicate = () => {
     const r = laneRange();
     if (r) return rangeEdits.duplicate(r);
+    const step = gridStep();
+    const len = step ? stepLength(step, live.current.tempo.signatureAt(0)) : 1;
+    const multi = multiSnapshot();
+    if (multi) {
+      const all = selectedGroups().flatMap((g) => g.points);
+      void pasteLanes(transport, multi, laneDest, duplicateAt(all, len), selection, true);
+      return;
+    }
     const pts = selectedHere();
     const clip = snapshotPoints(pts, live.current.info, live.current.tKey);
     if (!clip) return;
-    const step = gridStep();
-    const len = step ? stepLength(step, live.current.tempo.signatureAt(0)) : 1;
     void pasteAt(duplicateAt(pts, len), true, { ...clip }).then(() => undefined);
   };
   /** Delete: the lane's range, else the selected points. */
   const deleteSelection = () => {
     const r = laneRange();
     if (r) return void rangeEdits.delete(r);
-    const ids = selectedHere().map((p) => p.id);
+    const ids = selectedGroups().flatMap((g) => g.points.map((p) => p.id));
     if (ids.length) void sendEdit(transport, removePointsCommand(ids));
   };
 
@@ -471,13 +583,21 @@ export function AutomationLaneView({
     } else if (mode === "add" || !wasSelected) {
       selection.getState().select("automationPoint", [point.id], mode);
     }
-    const originals = selectedHere();
-    if (!originals.some((p) => p.id === point.id)) return;
+    const groups = selectedGroups();
+    if (!groups[0]?.points.some((p) => p.id === point.id)) return;
     const start = local(e);
     const gesture = new LaneGesture(transport);
+    // Clips selected with the points (a box across both) move along, in time.
+    const follow = owner.type === "Track" ? clipsFollowing() : null;
+    const drag = { dt: 0, edits: [] as PointEdit[] };
     trackDrag(
-      pointMover(originals, point, live.current.points, gesture, start),
+      pointMover(groups, point, gesture, start, follow ? { follow, drag } : undefined),
       (moved) => {
+        if (follow && moved) {
+          const command = follow.command(drag.dt);
+          if (command) gesture.update(batchStep(MOVE_SELECTION, flattenCommands([editPointsCommand(drag.edits), command])), follow.done);
+          else follow.done();
+        }
         gesture.end();
         setTip(null);
         // A plain click on a point of a multi-selection selects just that point.
@@ -488,24 +608,23 @@ export function AutomationLaneView({
   };
 
   /**
-   * Drag `originals` (the selection when the drag started, `point` the grabbed one) from
-   * lane-local `from`. One implementation for grabbed points and points just created by a
-   * double-click, so both follow the same rules (grid, steps, clamping, axis lock, and a
-   * point landing on a neighbour's exact time keeps its side instead of swapping values).
-   * Returns the pointermove handler; `gesture` carries the edits.
+   * Drag `groups` (the selected points of each lane when the drag started; this lane's
+   * first, holding `point`, the grabbed one) from lane-local `from`. One implementation for
+   * grabbed points and points just created by a double-click, so both follow the same rules
+   * (grid, steps, clamping, axis lock, and a point landing on a neighbour's exact time keeps
+   * its side instead of swapping values). The time moves every lane alike (the grabbed point
+   * on the grid, the group kept at time >= 0); each lane turns the vertical motion into its
+   * own values (`dragEdits`). Returns the pointermove handler; `gesture` carries the edits.
    */
   const pointMover = (
-    originals: ReadonlyArray<AutomationPoint>,
+    groups: ReadonlyArray<{ lane: RegisteredLane; points: ReadonlyArray<AutomationPoint> }>,
     point: AutomationPoint,
-    lanePoints: ReadonlyArray<AutomationPoint>,
     gesture: LaneGesture,
     from: { x: number; y: number },
+    along?: { follow: ClipsFollowing; drag: { dt: number; edits: PointEdit[] } },
   ) => {
-    // The lane's other points (a moved point landing on one's exact time keeps its side).
-    const moving = new Set(originals.map((p) => p.id));
-    const unmoved = lanePoints.filter((p) => !moving.has(p.id));
-    const usable = Math.max(1, geomNow().height - 2 * LANE_PAD);
     const offset = precisionDrag(from);
+    const minT = Math.min(...groups.flatMap((g) => g.points.map((p) => p.time)), along?.follow.minStart ?? Infinity);
     return (ev: PointerEvent) => {
       // ⌥: precision, 1/10 of the pointer's motion (and off the grid); ⇧'s increments win
       // for the value, so with ⇧ + ⌥ only the time is fine.
@@ -515,22 +634,22 @@ export function AutomationLaneView({
       const lockTime = lock && Math.abs(dy) > Math.abs(dx);
       const lockValue = lock && !lockTime;
       const g = geomNow();
-      const span = (g.range ?? FULL_RANGE).hi - (g.range ?? FULL_RANGE).lo;
-      const dt = dx / g.vp.pxPerBeat;
-      // Stepped params: whole steps at a fixed px-per-step; others follow the pointer.
-      const dv = stepDragDelta(live.current.info, -dy) ?? (-dy / usable) * span;
-      const inf = live.current.info;
-      const edits = moveEdits(originals, point, dt, dv, snapFn(ev.altKey), {
-        lockTime,
-        lockValue,
-        others: unmoved,
-        // ⇧ held mid-drag: whole increments.
-        snapValue: (v) => snapValue(inf, v, ev.shiftKey),
-      });
+      let dt = lockTime ? 0 : dx / g.vp.pxPerBeat;
+      const snap = snapFn(ev.altKey);
+      if (!lockTime && snap) dt = snap(point.time + dt) - point.time;
+      dt = Math.max(dt, -minT);
+      const mods: DragMods = { increments: ev.shiftKey, lockTime, lockValue };
+      const edits = groups.flatMap((gr, i) => gr.lane.dragEdits(gr.points, i === 0 && gr.points.includes(point) ? point : gr.points[0]!, dt, dy, mods));
       gesture.update(editPointsCommand(edits));
+      if (along) {
+        along.drag.dt = dt;
+        along.drag.edits = edits;
+        along.follow.preview(dt);
+      }
       const mine = edits.find((x) => x.id === point.id);
       const t = mine?.time ?? point.time;
       const v = mine?.value ?? point.value;
+      const inf = live.current.info;
       setTip({ x: timeToX(t, g), y: valueToY(v, g.height, g.range), value: formatNormalized(inf, v), hint: dragHint(inf) });
     };
   };
@@ -586,7 +705,7 @@ export function AutomationLaneView({
     // Like a grabbed point: moved by the pointer's motion since the press (never to the
     // pointer's y), once past the threshold.
     trackDrag(
-      pointMover([created], created, l.points, gesture, press),
+      pointMover([{ lane: selfLane, points: [created] }], created, gesture, press),
       () => {
         gesture.end();
         setTip(null);
@@ -757,6 +876,12 @@ export function AutomationLaneView({
       return;
     }
     if (owner.type === "Track" && !(e.metaKey || e.ctrlKey)) selectTrackEntity(owner.track, "replace");
+    // Track lanes: the box goes on across the other lanes and tracks (`laneMarquee.ts`).
+    if (owner.type === "Track" && rootRef.current) {
+      e.preventDefault();
+      startLaneMarquee(e, { view, lane: rootRef.current, store: selection, onClick: (p, ev) => placeCursor(p.x, ev.altKey) });
+      return;
+    }
     marquee.onPointerDown(e);
   };
 
@@ -772,28 +897,16 @@ export function AutomationLaneView({
 
   // ---- Keyboard -------------------------------------------------------------------------
 
+  /** Nudge the selected points of every lane holding some (one undo step). */
   const nudge = (dtSteps: number, dvSteps: number, fine: boolean, precise = false) => {
-    const pts = selectedHere();
-    if (pts.length === 0) return;
-    const inf = live.current.info;
+    const groups = selectedGroups();
+    if (groups.length === 0) return;
     const step = gridStep();
     const beat = step ? stepLength(step, live.current.tempo.signatureAt(0)) : 1;
-    const dt = dtSteps * (fine ? beat / 4 : beat);
-    const anchor = pts[0]!;
-    const stepped = paramStep(inf) !== null;
-    // ⇧↑/⇧↓ on a continuous param: to the next whole increment (1 dB, 1 %...), on round values.
-    const increments = fine && dvSteps !== 0 && !stepped;
-    // ⌥↑/⌥↓: a tenth of a step (stepped params can't go finer than one step).
-    const dv = increments
-      ? incrementNudge(inf, anchor.value, dvSteps) - anchor.value
-      : dvSteps * nudgeSize(inf, fine) * (precise && !stepped ? PRECISION_RATIO : 1);
-    const moving = new Set(pts.map((p) => p.id));
-    const edits = moveEdits(pts, anchor, dt, dv, null, {
-      others: live.current.points.filter((p) => !moving.has(p.id)),
-      lockTime: dtSteps === 0,
-      lockValue: dvSteps === 0,
-      snapValue: stepped || increments ? (v) => snapValue(inf, v, increments) : undefined,
-    });
+    let dt = dtSteps * (fine ? beat / 4 : beat);
+    // The group keeps its shape: no point goes before time 0.
+    dt = Math.max(dt, -Math.min(...groups.flatMap((g) => g.points.map((p) => p.time))));
+    const edits = groups.flatMap((g) => g.lane.nudgeEdits(g.points, dt, dvSteps, fine, precise));
     void sendEdit(transport, editPointsCommand(edits));
   };
 
@@ -804,6 +917,14 @@ export function AutomationLaneView({
       e.preventDefault();
       e.stopPropagation();
     };
+    // Clips selected with the points (a box across clip and automation lanes), or a copy of
+    // both: the arrangement's edit acts on both (`mixedSelection.ts`).
+    const mixed = MIXED_ACTIONS[action ?? ""];
+    if (mixed && owner.type === "Track" && (isMixedSelection() || (mixed === "paste" && hasMixedClipboard()))) {
+      handled();
+      void runClipAction(transport, mixed);
+      return;
+    }
     if (action === "edit.delete" || action === "edit.deleteModified") {
       // Always keep Delete in the focused lane, even with nothing to delete: bubbling up,
       // it would delete the arrangement's selected clips.
@@ -824,7 +945,7 @@ export function AutomationLaneView({
       else if (action === "edit.paste") void pasteAt(cursorAt());
       else duplicate();
     } else if (action && AUTOMATION_NUDGES[action]) {
-      if (selectedHere().length === 0) return;
+      if (selectedGroups().length === 0) return;
       handled();
       const [dt, dv, fine, precise] = AUTOMATION_NUDGES[action];
       nudge(dt, dv, fine, precise);
@@ -845,7 +966,7 @@ export function AutomationLaneView({
 
   const pointMenu = (e: MouseEvent, p: AutomationPoint) => {
     if (!selection.getState().isSelected("automationPoint", p.id)) selection.getState().select("automationPoint", [p.id], "replace");
-    const ids = selectedHere().map((x) => x.id);
+    const ids = selectedGroups().flatMap((g) => g.points.map((x) => x.id));
     const items: ContextMenuEntry[] = [
       { label: t("arrangement.menu.cut"), shortcut: shortcutLabel("edit.cut"), onSelect: cut },
       { label: t("arrangement.menu.copy"), shortcut: shortcutLabel("edit.copy"), onSelect: () => void copy() },
@@ -908,7 +1029,7 @@ export function AutomationLaneView({
       ]);
       return;
     }
-    const ids = selectedHere().map((x) => x.id);
+    const ids = selectedGroups().flatMap((g) => g.points.map((x) => x.id));
     openContextMenu(e, [
       { label: t("automation.menu.paste_here"), disabled: !hasPointClipboard(), onSelect: () => void pasteAt(at) },
       {

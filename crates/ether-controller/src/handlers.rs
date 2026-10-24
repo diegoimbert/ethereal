@@ -362,7 +362,8 @@ where
             host: &mut host,
             warnings: Vec::new(),
         };
-        let result = f(&mut ctx);
+        // No edit leaves a clip shorter than a tick behind.
+        let result = f(&mut ctx).and_then(|()| doc::drop_slivers(&mut ctx));
         let warnings = std::mem::take(&mut ctx.warnings);
         let ops = match result {
             Ok(()) => ctx.tx.finish(),
@@ -1096,6 +1097,7 @@ where
             | MediaCommand::CancelUpload { .. } => self.upload_command(c, out),
             MediaCommand::ReadMidiFile { source } => self.read_midi_file(source),
             MediaCommand::WriteMidiFile { request } => self.write_midi_file(request),
+            MediaCommand::Reveal { target } => self.reveal(target),
         }
     }
 

@@ -1353,12 +1353,24 @@ impl Drop for NativeBridge {
     }
 }
 
-/// Native [`HostServices`]: wall clock, OS entropy and (feature `net`) the sample pack's
-/// downloads (`samples_http`).
+/// Native [`HostServices`]: wall clock, OS entropy, (feature `net`) the sample pack's
+/// downloads (`samples_http`) and, in the desktop app, the OS file manager (`reveal`).
 #[derive(Debug, Default, Clone)]
 pub struct NativeServices {
     #[cfg(feature = "net")]
     http: crate::samples_http::Http,
+    /// `Media::Reveal` opens the file manager (the UI is on this machine: the desktop app,
+    /// not a headless server).
+    file_manager: bool,
+}
+
+impl NativeServices {
+    /// Services that show files in the OS file manager when `on` (see
+    /// [`crate::HostOptions::file_manager`]).
+    pub fn with_file_manager(mut self, on: bool) -> Self {
+        self.file_manager = on;
+        self
+    }
 }
 
 impl HostServices for NativeServices {
@@ -1384,6 +1396,23 @@ impl HostServices for NativeServices {
     #[cfg(feature = "net")]
     fn poll_http(&mut self, out: &mut Vec<ether_controller::HttpEvent>) {
         self.http.poll(out);
+    }
+
+    fn reveals_files(&self) -> bool {
+        self.file_manager
+    }
+
+    fn reveal(
+        &mut self,
+        path: &str,
+        open: bool,
+    ) -> Result<(), ether_controller::store::StoreError> {
+        if !self.file_manager {
+            return Err(ether_controller::store::StoreError::Unsupported(
+                "showing files is not available on this host".into(),
+            ));
+        }
+        crate::reveal::reveal(path, open)
     }
 }
 

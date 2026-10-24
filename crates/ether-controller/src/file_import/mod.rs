@@ -40,6 +40,14 @@ fn is_absolute(path: &str) -> bool {
             && matches!(b[2], b'/' | b'\\'))
 }
 
+/// `invalid` unless `path` is an absolute engine-machine path (no NUL).
+pub fn check_absolute(path: &str) -> CmdResult<()> {
+    if path.contains('\0') || !is_absolute(path) {
+        return Err(invalid(format!("not an absolute path: {path}")));
+    }
+    Ok(())
+}
+
 /// The file name of a path (either separator).
 fn file_name(path: &str) -> &str {
     path.rsplit(['/', '\\']).next().unwrap_or(path)

@@ -2686,10 +2686,10 @@
         "id": 0,
         "labels": null,
         "max": 36.0,
-        "min": -36.0,
+        "min": -144.0,
         "name": "Gain",
         "scale": {
-          "type": "Linear"
+          "type": "Gain"
         },
         "unit": "Decibels"
       },

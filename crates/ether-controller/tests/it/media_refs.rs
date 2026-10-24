@@ -14,7 +14,7 @@ use ether_controller::store::{Library, ProjectStore, StoreError, check_relative_
 use ether_controller::{Controller, ControllerConfig, EtherController};
 use ether_core::protocol::media::{
     BrowseLocation, BrowseRoot, DirectoryEntry, DirectoryListing, FileKind, MediaCommand,
-    MediaEvent, MediaSource,
+    MediaEvent, MediaSource, RevealTarget,
 };
 use ether_core::protocol::media_refs::{MediaRefCommand, MediaRefEvent};
 use ether_core::protocol::model::*;
@@ -673,4 +673,107 @@ fn bundles_pack_external_media_as_project_copies_unless_media_is_left_out() {
     assert_eq!(bare.keys().collect::<Vec<_>>(), ["project.ether"]);
     let doc = String::from_utf8(bare["project.ether"].clone()).unwrap();
     assert!(doc.contains(DESKTOP), "still a reference: {doc}");
+}
+
+// ─── `Media::Reveal` ──────────────────────────────────────────────────────────
+
+fn reveal(h: &mut H, target: RevealTarget) -> Vec<ServerMessage> {
+    h.send(Command::Media(MediaCommand::Reveal { target }))
+}
+
+#[test]
+fn reveal_is_unsupported_on_hosts_without_a_file_manager() {
+    let mut h = H::new(&[(DESKTOP, kick())]);
+    let out = reveal(&mut h, RevealTarget::Projects);
+    assert_eq!(err(&out).code, ErrorCode::Unsupported);
+    let out = reveal(
+        &mut h,
+        RevealTarget::Media {
+            source: MediaSource::Path {
+                path: DESKTOP.into(),
+            },
+        },
+    );
+    assert_eq!(err(&out).code, ErrorCode::Unsupported);
+}
+
+#[test]
+fn reveal_shows_a_clips_referenced_file_and_library_files_where_they_are() {
+    let mut h = H::new(&[(DESKTOP, kick()), ("/Lib/Drums/snare.wav", snare())]);
+    h.ctl.host.reveals = Some(Vec::new());
+    let k = h.import(MediaSource::Path {
+        path: DESKTOP.into(),
+    });
+    h.settle();
+    ok(&reveal(
+        &mut h,
+        RevealTarget::Media {
+            source: MediaSource::Project { media: k.id },
+        },
+    ));
+    ok(&reveal(
+        &mut h,
+        RevealTarget::Media {
+            source: MediaSource::Location {
+                location: BrowseLocation::Library { id: "lib".into() },
+                path: "Drums/snare.wav".into(),
+            },
+        },
+    ));
+    assert_eq!(
+        h.ctl.host.reveals.as_deref().unwrap(),
+        [
+            (DESKTOP.to_string(), false),
+            ("/Lib/Drums/snare.wav".to_string(), false)
+        ]
+    );
+    // Escaping a location, a relative "path" and uploads are refused; unknown media is
+    // not found.
+    let unknown: MediaId = h.ids.next(T0);
+    for (source, code) in [
+        (
+            MediaSource::Location {
+                location: BrowseLocation::Library { id: "lib".into() },
+                path: "../etc/passwd".into(),
+            },
+            ErrorCode::InvalidArgument,
+        ),
+        (
+            MediaSource::Path {
+                path: "Desktop/Kick.wav".into(),
+            },
+            ErrorCode::InvalidArgument,
+        ),
+        (
+            MediaSource::Upload { upload: "u".into() },
+            ErrorCode::InvalidArgument,
+        ),
+        (MediaSource::Project { media: unknown }, ErrorCode::NotFound),
+    ] {
+        let out = reveal(&mut h, RevealTarget::Media { source });
+        assert_eq!(err(&out).code, code);
+    }
+    assert_eq!(h.ctl.host.reveals.as_ref().unwrap().len(), 2);
+}
+
+#[test]
+fn reveal_falls_back_to_the_project_copy_of_a_missing_reference() {
+    let mut h = H::new(&[(DESKTOP, kick())]);
+    h.ctl.host.reveals = Some(Vec::new());
+    let k = h.import(MediaSource::Path {
+        path: DESKTOP.into(),
+    });
+    h.settle();
+    h.fs().remove(DESKTOP);
+    h.reopen();
+    assert_eq!(h.missing(), [k.id]);
+    // The memory store has no OS folders: the project copy can't be shown either.
+    let out = reveal(
+        &mut h,
+        RevealTarget::Media {
+            source: MediaSource::Project { media: k.id },
+        },
+    );
+    assert_eq!(err(&out).code, ErrorCode::Unsupported);
+    assert!(h.ctl.host.reveals.as_ref().unwrap().is_empty());
 }

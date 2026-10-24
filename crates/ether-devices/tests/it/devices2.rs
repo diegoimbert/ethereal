@@ -637,6 +637,30 @@ fn utility_math() {
     assert!(close(utility_frame(&mut u, 0.5, -0.5), (0.0, 0.0)));
 }
 
+/// `Gain` reaches -inf: far below the old -36 dB floor, and exact silence at the bottom of
+/// the knob; the centre stays unity and the top +36 dB.
+#[test]
+fn utility_gain_reaches_minus_inf() {
+    let info = &utility::param_infos()[0];
+    assert_eq!(info.to_plain(0.0), utility::GAIN_SILENCE_DB);
+    assert!(info.to_plain(0.5).abs() < 1e-9);
+    assert!((info.to_plain(1.0) - 36.0).abs() < 1e-9);
+    // Monotonic, no plateau above silence.
+    let mut last = f64::NEG_INFINITY;
+    for i in 1..=100 {
+        let db = info.to_plain(i as f64 / 100.0);
+        assert!(db > last, "{i}: {db} <= {last}");
+        last = db;
+    }
+    for (db, want) in [(-60.0, 1e-3), (-100.0, 1e-5)] {
+        let mut u = utility_with(|u| u.set_param(utility::params::GAIN, db));
+        let (l, _) = utility_frame(&mut u, 1.0, 1.0);
+        assert!((l - want).abs() < want * 1e-3, "{db} dB: {l}");
+    }
+    let mut u = utility_with(|u| u.set_param(utility::params::GAIN, utility::GAIN_SILENCE_DB));
+    assert_eq!(utility_frame(&mut u, 1.0, -1.0), (0.0, 0.0));
+}
+
 #[test]
 fn utility_toggles_are_smoothed() {
     let mut u = utility_with(|_| {});

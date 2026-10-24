@@ -92,11 +92,21 @@ export interface ItemSelectionState {
   selected: SelectionSets;
   /** Last clicked item per kind (anchor for shift-range selection by the view). */
   anchor: { readonly [K in SelectableKind]: SelectableIds[K] | null };
+  /**
+   * The kinds the last change selected together (`selectKinds`: a box over clips and
+   * automation points); empty after any other change.
+   */
+  together: ReadonlyArray<SelectableKind>;
   /** Time-range selection (arrangement "select time"), or `null`. */
   timeRange: BeatRange | null;
 
   /** Select `ids` of `kind` combined with the current selection by `mode` (default replace). */
   select<K extends SelectableKind>(kind: K, ids: Iterable<SelectableIds[K]>, mode?: SelectMode): void;
+  /**
+   * Replace the selection of several kinds AT ONCE (one change notification): a box that
+   * selects clips and automation points together. Kinds left out keep their selection.
+   */
+  selectKinds(sets: { readonly [K in SelectableKind]?: Iterable<SelectableIds[K]> }): void;
   /** Clear one kind, or everything (items and time range) when `kind` is omitted. */
   clear(kind?: SelectableKind): void;
   isSelected<K extends SelectableKind>(kind: K, id: SelectableIds[K]): boolean;
@@ -114,6 +124,7 @@ export function createItemSelectionStore(): ItemSelectionStore {
   return createStore<ItemSelectionState>()((set, get) => ({
     selected: EMPTY_SETS,
     anchor: EMPTY_ANCHORS,
+    together: [],
     timeRange: null,
 
     select(kind, ids, mode = "replace") {
@@ -124,18 +135,34 @@ export function createItemSelectionStore(): ItemSelectionStore {
       const last = list[list.length - 1];
       const anchor = mode !== "remove" && last !== undefined ? last : s.anchor[kind];
       if (next === current && anchor === s.anchor[kind]) return;
-      set({ selected: { ...s.selected, [kind]: next }, anchor: { ...s.anchor, [kind]: anchor } });
+      set({ selected: { ...s.selected, [kind]: next }, anchor: { ...s.anchor, [kind]: anchor }, together: [] });
+    },
+
+    selectKinds(sets) {
+      const s = get();
+      const selected = { ...s.selected } as Record<SelectableKind, ReadonlySet<string>>;
+      let changed = false;
+      for (const kind of SELECTABLE_KINDS) {
+        const ids = sets[kind] as Iterable<string> | undefined;
+        if (!ids) continue;
+        const next = combineSelection(s.selected[kind] as ReadonlySet<string>, ids, "replace");
+        if (next !== s.selected[kind]) {
+          selected[kind] = next;
+          changed = true;
+        }
+      }
+      if (changed) set({ selected: selected as SelectionSets, together: Object.keys(sets) as SelectableKind[] });
     },
 
     clear(kind) {
       const s = get();
       if (kind === undefined) {
         if (SELECTABLE_KINDS.every((k) => s.selected[k].size === 0) && s.timeRange === null) return;
-        set({ selected: EMPTY_SETS, anchor: EMPTY_ANCHORS, timeRange: null });
+        set({ selected: EMPTY_SETS, anchor: EMPTY_ANCHORS, timeRange: null, together: [] });
         return;
       }
       if (s.selected[kind].size === 0 && s.anchor[kind] === null) return;
-      set({ selected: { ...s.selected, [kind]: new Set() }, anchor: { ...s.anchor, [kind]: null } });
+      set({ selected: { ...s.selected, [kind]: new Set() }, anchor: { ...s.anchor, [kind]: null }, together: [] });
     },
 
     isSelected(kind, id) {

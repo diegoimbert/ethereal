@@ -610,6 +610,7 @@ pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
             Me::CancelUpload { .. } => k("undo.media.cancel_upload"),
             Me::ReadMidiFile { .. } => k("undo.media.read_midi"),
             Me::WriteMidiFile { .. } => k("undo.media.export_midi"),
+            Me::Reveal { .. } => k("undo.media.reveal"),
         },
         Command::Freeze(c) => match c {
             F::Freeze { .. } => k("undo.freeze.freeze"),

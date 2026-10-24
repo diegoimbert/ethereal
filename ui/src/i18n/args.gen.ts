@@ -598,6 +598,7 @@ export interface MessageArgs {
   "resolver.used_times": { count: string | number };
   "resolver.where": { names: string | number };
   "resolver.where_more": { count: number; names: string | number };
+  "reveal.failed": { error: string | number };
   "sampler.convert.key_step_n": { count: number };
   "sampler.convert.replaces": { name: string | number };
   "sampler.convert.summary": { count: number; keys: number; velocities: number };
