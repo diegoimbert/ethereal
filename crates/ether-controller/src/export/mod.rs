@@ -131,6 +131,21 @@ pub struct ExportState {
 
 pub use job::UnitStats as ExportUnitStats;
 
+/// The longest offline render (export, freeze, bounce, consolidate, convert): a render
+/// holds up to its whole signal in memory and suspends the live engine while it runs.
+pub const MAX_RENDER_SECONDS: f64 = 6.0 * 3600.0;
+
+/// An error if `frames` at `rate` is longer than [`MAX_RENDER_SECONDS`].
+pub(crate) fn check_render_frames(frames: usize, rate: u32) -> CmdResult<()> {
+    if frames as f64 > MAX_RENDER_SECONDS * f64::from(rate.max(1)) {
+        return Err(invalid(format!(
+            "renders are limited to {} hours",
+            MAX_RENDER_SECONDS / 3600.0
+        )));
+    }
+    Ok(())
+}
+
 impl ExportState {
     /// Keep `bytes` engine-side as a download for `Export::ReadChunk` (project bundles).
     /// Dropped with the others when `project` is no longer open.
@@ -241,6 +256,11 @@ where
                 let p = &doc.project;
                 let stems = validate(p, request)?;
                 let (start, end) = job::range_of(p, &request.range).map_err(invalid)?;
+                let rate = self.config.engine_sample_rate;
+                check_render_frames(
+                    crate::freeze::render_frames(p, start, end, rate),
+                    rate,
+                )?;
                 // Names already in `exports/` or the chosen folder (an export never
                 // overwrites a file).
                 let folder = request
