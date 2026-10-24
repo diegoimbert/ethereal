@@ -295,6 +295,14 @@ pub enum Widget {
         key: ParamId,
         scale: ParamId,
     },
+    // --- adaptive-eq ---
+    /// An adaptive EQ's curve: the response its band filters make now over the band
+    /// levels relative to the balanced reference (`AnalysisData::Levels` of an
+    /// `AdaptiveEq`, layout in `ether_devices::adaptive_eq::Frame`). Binds recover and tame.
+    AdaptiveEq {
+        recover: ParamId,
+        tame: ParamId,
+    },
 }
 
 /// Operator routing of one algorithm of a [`Widget::FmAlgorithm`]. Operators are numbered

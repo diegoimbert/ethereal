@@ -401,6 +401,9 @@ pub enum BuiltinDevice {
     /// Monophonic pitch correction: detected pitch snapped to a scale or the note input,
     /// formant-preserving shift (`pitch-correction`).
     PitchCorrection,
+    /// An EQ that keeps rebalancing the sound: cuts what sticks out, lifts what is buried
+    /// (`adaptive-eq`).
+    AdaptiveEq,
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -456,11 +459,12 @@ pub enum BuiltinDeviceType {
     Maximizer,
     Shaper,
     PitchCorrection,
+    AdaptiveEq,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 48] = [
+    pub const ALL: [BuiltinDeviceType; 49] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -509,6 +513,7 @@ impl BuiltinDeviceType {
         Self::Maximizer,
         Self::Shaper,
         Self::PitchCorrection,
+        Self::AdaptiveEq,
     ];
 
     /// Rack types ([`crate::rack`]).
@@ -589,6 +594,7 @@ impl BuiltinDevice {
             Self::Maximizer => BuiltinDeviceType::Maximizer,
             Self::Shaper { .. } => BuiltinDeviceType::Shaper,
             Self::PitchCorrection => BuiltinDeviceType::PitchCorrection,
+            Self::AdaptiveEq => BuiltinDeviceType::AdaptiveEq,
         }
     }
 
@@ -684,6 +690,7 @@ impl BuiltinDevice {
                 curves: ShaperCurves::default(),
             },
             BuiltinDeviceType::PitchCorrection => Self::PitchCorrection,
+            BuiltinDeviceType::AdaptiveEq => Self::AdaptiveEq,
         }
     }
 

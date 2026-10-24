@@ -71,6 +71,11 @@ const KEYWORDS: &[(&[&str], T, &str)] = &[
     ),
     (&["limiter"], T::Limiter, "limiter"),
     (
+        &["adaptive", "resonance", "resonances", "autoeq"],
+        T::AdaptiveEq,
+        "adaptive eq",
+    ),
+    (
         &["correction", "corrector", "retune", "tune"],
         T::PitchCorrection,
         "pitch correction",

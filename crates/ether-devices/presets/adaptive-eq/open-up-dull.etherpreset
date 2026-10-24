@@ -1,0 +1,36 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "open up dull",
+    "device": {
+      "type": "Builtin",
+      "device": "AdaptiveEq"
+    },
+    "meta": {
+      "tags": [
+        "dull",
+        "bright"
+      ],
+      "author": "ethereal",
+      "description": "boosts only, brighter reference: for dull, muffled recordings."
+    },
+    "params": {
+      "0": 80.0,
+      "1": 0.0,
+      "2": 30.0,
+      "3": 8.0,
+      "4": 600.0,
+      "5": 60.0,
+      "6": 18000.0,
+      "7": 1.0,
+      "8": 0.0,
+      "9": 0.0,
+      "10": 100.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

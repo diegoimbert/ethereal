@@ -1,0 +1,36 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "vocal smoother",
+    "device": {
+      "type": "Builtin",
+      "device": "AdaptiveEq"
+    },
+    "meta": {
+      "tags": [
+        "vocal",
+        "resonance"
+      ],
+      "author": "ethereal",
+      "description": "fast taming over the voice range, blended in at 70 %."
+    },
+    "params": {
+      "0": 20.0,
+      "1": 70.0,
+      "2": 0.0,
+      "3": 6.0,
+      "4": 80.0,
+      "5": 150.0,
+      "6": 12000.0,
+      "7": 1.0,
+      "8": 0.0,
+      "9": 0.0,
+      "10": 70.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

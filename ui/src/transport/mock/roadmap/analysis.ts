@@ -12,7 +12,9 @@
  * - `Maximizer`: drum-like peaks driven by the `Threshold` into the `Ceiling`, the gain
  *   reduction they cost and 4 s of history (50 points per second), in the engine's layout;
  * - `PitchCorrection`: a sung phrase (a few notes with vibrato and slides, breaths between)
- *   snapped to the nearest semitone, with its history, in the engine's layout.
+ *   snapped to the nearest semitone, with its history, in the engine's layout;
+ * - `AdaptiveEq`: a mix with a boomy low end, a harsh 3 kHz and dull highs, and the curve
+ *   that answers it (scaled by `Recover` / `Tame`), in the engine's layout.
  *
  * Deterministic (own PRNG, frame counter), so tests can assert on it.
  */
@@ -76,6 +78,8 @@ export class MockAnalysis {
         return [this.tuner(device.params[0] ?? 440)];
       case "Loudness":
         return [this.loudness(device.params[1] ?? 1)];
+      case "AdaptiveEq":
+        return [this.adaptiveEq(device.params[0] ?? 50, device.params[1] ?? 50)];
       case "PitchCorrection":
         return [this.pitchCorrection()];
       case "Maximizer":
@@ -154,6 +158,27 @@ export class MockAnalysis {
         ...short,
       ],
     };
+  }
+
+  private adaptiveEq(recover: number, tame: number): AnalysisData {
+    const t = this.frame / 30;
+    const bands = 32;
+    const lo = 40;
+    const ratio = Math.pow(16000 / lo, 1 / (bands - 1));
+    const freqs = Array.from({ length: bands }, (_, k) => lo * Math.pow(ratio, k));
+    const oct = (f: number) => Math.log2(f / 1000);
+    const bump = (f: number, at: number, db: number, width: number) => db * Math.exp(-0.5 * Math.pow(Math.log2(f / at) / width, 2));
+    const levels = freqs.map((f) => bump(f, 120, 6, 0.7) + bump(f, 3000, 5, 0.25) + Math.min(0, -2.5 * (oct(f) - 2)) + 0.6 * Math.sin(t * 1.3 + f / 900));
+    const gains = levels.map((l) => Math.max(-6, Math.min(6, l > 0 ? (-l * tame) / 100 : (-l * recover) / 100)));
+    const n = 64;
+    const pts = Array.from({ length: n }, (_, i) => 20 * Math.pow(1000, i / (n - 1)));
+    const response = pts.map((f) => {
+      let k = 0;
+      while (k + 1 < bands && freqs[k + 1]! < f) k++;
+      return f < freqs[0]! ? gains[0]! * Math.max(0, 1 - Math.log2(freqs[0]! / f)) : (gains[k] ?? 0);
+    });
+    const auto = -gains.reduce((a, g) => a + g, 0) / bands / 2;
+    return { type: "Levels", values: [n, auto, ...pts, ...response, ...freqs, ...levels, ...gains] };
   }
 
   /** Detected pitch (MIDI note) of the simulated singer at `t` seconds, -1 in a breath. */

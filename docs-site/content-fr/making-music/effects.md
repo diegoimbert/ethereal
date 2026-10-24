@@ -15,6 +15,7 @@ covers:
   - devices/maximizer #maximizer
   - devices/shaper #shaper
   - devices/pitch-correction #pitch-correction
+  - devices/adaptive-eq #adaptive-eq
   - devices/utility #utility
   - devices/color-effects-saturator-bitcrusher-auto-filter #color-saturator-bitcrusher-auto-filter
   - devices/modulation-effects-chorus-phaser-flanger-tremolo #modulation-chorus-phaser-flanger-tremolo
@@ -122,6 +123,18 @@ Accorde une voix seule ou un instrument soliste : il entend la note chantée ou
 - **détecteur** choisit la méthode : **pyin** (par défaut) est plus stable sur les prises soufflées ou bruitées, **yin** est un peu plus léger. Montez la **sensibilité** si les notes douces ne sont pas corrigées, baissez-la si les respirations et les bruits sont accordés.
 - Le graphe montre les 4 dernières secondes : la hauteur entendue (en pâle) et celle jouée, sur les notes de la gamme.
 - Il retarde le son d’environ 34 ms, compensés à la lecture ; si vous vous écoutez en direct à travers lui, vous entendrez ce retard.
+
+### eq adaptatif {#adaptive-eq}
+
+Un eq qui écoute et rééquilibre le son en continu : il coupe ce qui dépasse (résonances, un bas qui bourdonne, un médium agressif) et fait ressortir ce qui est enfoui, vers une courbe tonale équilibrée. Idéal sur un bus de mix, le master ou un groupe chargé.
+
+- **dompter** règle combien il coupe ce qui dépasse, **révéler** combien il fait ressortir ce qui est enfoui. Les deux à 0 laissent le son intact.
+- **éclaircir** incline la courbe visée : vers le haut pour un résultat plus brillant, vers le bas pour plus sombre.
+- **plage** limite le mouvement de chaque bande (6 dB par défaut). **vitesse** règle la rapidité avec laquelle il suit la musique : lent, c’est doux et transparent ; rapide, il suit chaque note (et peut pomper).
+- **graves** et **aigus** fixent la plage de fréquences traitée (de 40 Hz à 16 kHz par défaut).
+- **gain auto** garde la même sonie, pour entendre l’équilibre et non un son simplement plus fort. **geler** fige la courbe actuelle. **mix** mélange le son sec.
+- Le graphe montre ce qu’il fait : la courbe appliquée au-dessus de barres qui situent chaque bande par rapport à la courbe équilibrée (vers le haut : elle dépasse, vers le bas : elle est enfouie).
+- Il n’ajoute aucune latence.
 
 ### utilitaire {#utility}
 

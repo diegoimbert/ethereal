@@ -2,7 +2,7 @@
 //! compressor, delay, EQ, reverb, limiter, utility and drum rack; [`poly_synth`],
 //! [`fm_synth`] (four-operator FM), [`multisampler`]; the effect groups [`fx_color`],
 //! [`fx_modulation`], [`fx_dynamics`], [`fx_analysis`], [`fx_space`] (convolution reverb),
-//! [`grain_delay`], [`shifter`], [`maximizer`], [`shaper`], [`pitch_correction`] and [`midi_fx`]; [`racks`] and [`modulators`]; [`external`] (external instruments and
+//! [`grain_delay`], [`shifter`], [`maximizer`], [`shaper`], [`pitch_correction`], [`adaptive_eq`] and [`midi_fx`]; [`racks`] and [`modulators`]; [`external`] (external instruments and
 //! effects). Shared scaffolding is in [`contract`]; factory presets come from
 //! [`factory_presets`] ([`factory`] holds the older types).
 //!
@@ -15,6 +15,7 @@ use ether_core::protocol::devices::DeviceDescriptor;
 use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType};
 use ether_core::{AudioSource, Device};
 
+pub mod adaptive_eq;
 pub mod compressor;
 pub mod contract;
 pub mod delay;
@@ -131,6 +132,7 @@ fn type_descriptor(device: BuiltinDeviceType) -> DeviceDescriptor {
         BuiltinDeviceType::Maximizer => maximizer::descriptor(device),
         BuiltinDeviceType::Shaper => shaper::descriptor(device),
         BuiltinDeviceType::PitchCorrection => pitch_correction::descriptor(device),
+        BuiltinDeviceType::AdaptiveEq => adaptive_eq::descriptor(device),
     }
 }
 
@@ -187,6 +189,7 @@ pub fn factory_presets(device: BuiltinDeviceType) -> &'static [contract::Factory
         BuiltinDeviceType::Maximizer => maximizer::factory_presets(device),
         BuiltinDeviceType::Shaper => shaper::factory_presets(device),
         BuiltinDeviceType::PitchCorrection => pitch_correction::factory_presets(device),
+        BuiltinDeviceType::AdaptiveEq => adaptive_eq::factory_presets(device),
     }
 }
 
@@ -271,6 +274,7 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         BuiltinDevice::Maximizer => maximizer::create(device),
         BuiltinDevice::Shaper { .. } => shaper::create(device),
         BuiltinDevice::PitchCorrection => pitch_correction::create(device),
+        BuiltinDevice::AdaptiveEq => adaptive_eq::create(device),
     }
 }
 
