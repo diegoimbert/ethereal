@@ -1174,6 +1174,15 @@ impl PluginCatalog {
         self.failed.lock().map(|v| v.clone()).unwrap_or_default()
     }
 
+    /// Whether `(path, format)` is a target the last scan (or the scan cache) recorded as
+    /// failed: the only targets `Plugin::RetryScan` may scan.
+    pub fn is_failure(&self, path: &str, format: PluginFormat) -> bool {
+        self.failed.lock().is_ok_and(|v| {
+            v.iter()
+                .any(|f| f.path == path && f.format.is_none_or(|x| x == format))
+        })
+    }
+
     pub fn set_failures(&self, failed: Vec<ScanFailure>) {
         if let Ok(mut v) = self.failed.lock() {
             *v = failed;
@@ -1903,6 +1912,28 @@ mod tests {
         host.destroy(b);
         drop(node_b);
         assert_eq!(host.live_count(), 0);
+    }
+
+    #[test]
+    fn only_recorded_failures_can_be_retried() {
+        let cat = PluginCatalog::default();
+        cat.set_failures(vec![
+            ScanFailure {
+                path: "/p/bad.clap".into(),
+                message: "crashed".into(),
+                format: Some(PluginFormat::Clap),
+            },
+            ScanFailure {
+                path: "/p/old.vst3".into(),
+                message: "timed out".into(),
+                format: None,
+            },
+        ]);
+        assert!(cat.is_failure("/p/bad.clap", PluginFormat::Clap));
+        assert!(!cat.is_failure("/p/bad.clap", PluginFormat::Vst3));
+        assert!(cat.is_failure("/p/old.vst3", PluginFormat::Vst3));
+        assert!(!cat.is_failure("/elsewhere/x.so", PluginFormat::Clap));
+        assert!(!cat.is_failure("/p/bad.clap/../x.so", PluginFormat::Clap));
     }
 
     #[test]

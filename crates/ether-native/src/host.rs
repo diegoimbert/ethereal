@@ -1339,6 +1339,16 @@ impl ControllerThread {
                 format,
                 timeout_ms,
             }) => {
+                // Only a target a scan found and failed on: a client can't name a file to
+                // load as a plugin.
+                if !self.catalog.is_failure(path, *format) {
+                    self.router.send(reply_err(
+                        id,
+                        ErrorCode::NotFound,
+                        "not a failed scan target (see ListScanFailures)",
+                    ));
+                    return;
+                }
                 let target = ether_plugin_host::ScanTarget {
                     format: *format,
                     path: PathBuf::from(path),
