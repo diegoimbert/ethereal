@@ -937,7 +937,11 @@ mod tests {
             sample_rate,
             buffer_size,
         };
-        for bad in [with(Some(0), None), with(Some(7_999), None), with(Some(u32::MAX), None)] {
+        for bad in [
+            with(Some(0), None),
+            with(Some(7_999), None),
+            with(Some(u32::MAX), None),
+        ] {
             assert!(s.merged(&bad).is_err(), "{bad:?}");
         }
         for bad in [with(None, Some(0)), with(None, Some(8193))] {
@@ -954,7 +958,10 @@ mod tests {
         let fixed = saved.sanitized();
         assert_eq!(fixed.sample_rate, None);
         assert_eq!(fixed.buffer_size, None);
-        assert_eq!(fixed.max_block_size, AudioSettings::default().max_block_size);
+        assert_eq!(
+            fixed.max_block_size,
+            AudioSettings::default().max_block_size
+        );
         assert_eq!(ok.clone().sanitized(), ok);
     }
 
