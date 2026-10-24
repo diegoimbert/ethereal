@@ -271,6 +271,11 @@ fn freeze_point(
     Ok((i + 1 < chain.len()).then_some(up_to))
 }
 
+/// Frames of `[start, end)` at `engine_rate` (song time), as a render counts them.
+pub(crate) fn render_frames(p: &Project, start: Beats, end: Beats, engine_rate: u32) -> usize {
+    RenderJob::frames_of(p, start, end, engine_rate)
+}
+
 fn check_range(start: Beats, end: Beats) -> CmdResult<()> {
     if !(start.0.is_finite() && end.0.is_finite() && start.0 >= 0.0) {
         return Err(invalid("invalid range"));
@@ -794,6 +799,9 @@ where
         out: &mut dyn MessageSink,
     ) -> CmdResult<ReplyValue> {
         self.check_can_start(job)?;
+        for pass in &passes {
+            crate::export::check_render_frames(pass.frames, self.config.engine_sample_rate)?;
+        }
         let requester = self.export.render.serving;
         if requester.is_none()
             && let Some(reply) =
