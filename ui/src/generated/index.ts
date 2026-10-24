@@ -127,6 +127,7 @@ export type * from "./FileFilterList";
 export type * from "./FileFilterRuleError";
 export type * from "./FileKind";
 export type * from "./FmRouting";
+export type * from "./ForkOrigin";
 export type * from "./FreezeCommand";
 export type * from "./FreezeEvent";
 export type * from "./GestureId";

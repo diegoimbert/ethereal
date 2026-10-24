@@ -308,12 +308,18 @@ where
                 file::save(&project, &version)
                     .map_err(|e| StoreError::Io(format!("project file: {e}")))
             });
+            let forked_from = self
+                .doc
+                .as_ref()
+                .and_then(|d| d.project.settings.forked_from.clone());
             match sidecar {
                 Some(sidecar) => self
                     .store
                     .save_in_background_with(id, &name, render, sidecar),
                 None => self.store.save_in_background(id, &name, render),
             }
+            // Not read back from the file: from the document.
+            .map(|s| ProjectSummary { forked_from, ..s })
         } else {
             let json = file::save(&project, &self.config.app_version).map_err(file_err)?;
             let saved = self.store.save(id, &json);
@@ -545,6 +551,8 @@ where
         let mut project = doc.project.clone();
         // A copy is a private project: the extensions drop their files from it.
         self.ext_each(|e, ctl| e.project_copied(ctl, new_id));
+        let now = self.host.now_ms();
+        project.settings.forked_from = Some(fork_origin(old, &project.settings.name, now));
         project.id = new_id;
         project.settings.name = name;
         // The copy still holds the old document until this lands: remove it on failure.
@@ -630,6 +638,8 @@ where
                 }
             },
         };
+        let now = self.host.now_ms();
+        project.settings.forked_from = Some(fork_origin(id, &project.settings.name, now));
         project.id = new_id;
         project.settings.name = name;
         let summary = self.save_copy(new_id, &project)?;
@@ -816,6 +826,8 @@ where
         safe: bool,
         out: &mut dyn MessageSink,
     ) {
+        let mut project = project;
+        crate::device_upgrade::upgrade_project(&mut project);
         let previous = self.doc.as_ref().map(|d| d.project.id);
         // Replaced without `autosave_before_switch` (an extension's adopt): deleted all the same.
         if self.discarded.is_some_and(|d| d != project.id) {
@@ -908,5 +920,15 @@ pub fn bundle_file_name(name: &str) -> String {
         "Project".into()
     } else {
         cleaned.into()
+    }
+}
+
+/// What a fork of project `original`, titled `name`, records
+/// (`ProjectSettings::forked_from`).
+fn fork_origin(original: ProjectId, name: &str, now_ms: u64) -> ForkOrigin {
+    ForkOrigin {
+        project: original,
+        name: name.to_string(),
+        created_ms: now_ms as f64,
     }
 }

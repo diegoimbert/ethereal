@@ -64,7 +64,12 @@ const KEYWORDS: &[(&[&str], T, &str)] = &[
         "compressor",
     ),
     (&["gate"], T::Gate, "gate"),
-    (&["limiter", "maximizer"], T::Limiter, "limiter"),
+    (
+        &["maximizer", "maximiser", "brickwall"],
+        T::Maximizer,
+        "maximizer",
+    ),
+    (&["limiter"], T::Limiter, "limiter"),
     (&["eq", "equalizer"], T::Eq, "EQ"),
     (&["utility", "gain", "width"], T::Utility, "utility"),
     (&["transient"], T::TransientShaper, "transient shaper"),

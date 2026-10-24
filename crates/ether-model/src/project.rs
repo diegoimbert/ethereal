@@ -116,6 +116,23 @@ pub struct ProjectSettings {
     /// without it load as chromatic.
     #[serde(default)]
     pub scale: MusicalScale,
+    /// The project this one was forked from (`Project::Duplicate` / `SaveAs`): its id and
+    /// title when the copy was made. Only set when the copy is made (no op changes it).
+    /// Older files and originals have none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub forked_from: Option<ForkOrigin>,
+}
+
+/// Where a forked project came from ([`ProjectSettings::forked_from`]).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct ForkOrigin {
+    /// The original project (it may since have been deleted).
+    pub project: ProjectId,
+    /// Its title when the fork was made.
+    pub name: String,
+    /// When the fork was made, Unix epoch milliseconds.
+    pub created_ms: f64,
 }
 
 /// Metronome click sound (`tempo-metronome`; the engine synthesizes these, no samples).
@@ -147,6 +164,7 @@ impl Default for ProjectSettings {
             swing: 0.0,
             swing_grid: Beats(0.25),
             scale: MusicalScale::default(),
+            forked_from: None,
         }
     }
 }

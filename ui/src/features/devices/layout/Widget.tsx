@@ -10,6 +10,7 @@ import { EqCurveWidget } from "./eq";
 import { IrWidget } from "./ir";
 import { LfoCurveWidget } from "./lfoCurve";
 import { LoudnessWidget } from "./loudness";
+import { MaximizerWidget } from "./maximizer";
 import { MacrosWidget, MeterWidget, RackChainsWidget, SampleWaveformWidget, SpectrumWidget, TunerWidget } from "./widgets/data";
 import { ZoneMapWidget } from "./zones";
 import { DelayTapsWidget, DynamicsCurveWidget, ReverbDecayWidget, VelocityCurveWidget } from "./widgets/effects";
@@ -122,5 +123,8 @@ export function WidgetView({ widget, size, label }: WidgetViewProps) {
     // fx-analysis.
     case "Loudness":
       return <LoudnessWidget widget={widget} size={size} label={label} />;
+    // maximizer.
+    case "Maximizer":
+      return <MaximizerWidget widget={widget} size={size} label={label} />;
   }
 }

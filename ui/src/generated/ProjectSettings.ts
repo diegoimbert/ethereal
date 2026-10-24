@@ -2,6 +2,7 @@
 import type { BeatRange } from "./BeatRange";
 import type { Beats } from "./Beats";
 import type { Decibels } from "./Decibels";
+import type { ForkOrigin } from "./ForkOrigin";
 import type { MetronomeSound } from "./MetronomeSound";
 import type { MusicalScale } from "./MusicalScale";
 
@@ -36,4 +37,10 @@ swing_grid: Beats,
  * Project musical scale (piano-roll guide only; never restricts notes). Older files
  * without it load as chromatic.
  */
-scale: MusicalScale, };
+scale: MusicalScale, 
+/**
+ * The project this one was forked from (`Project::Duplicate` / `SaveAs`): its id and
+ * title when the copy was made. Only set when the copy is made (no op changes it).
+ * Older files and originals have none.
+ */
+forked_from?: ForkOrigin, };

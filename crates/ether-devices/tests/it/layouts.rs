@@ -41,10 +41,18 @@ fn bound(w: &Widget) -> Vec<ParamId> {
             mode,
             drive,
             gain,
-        } => [Some(*cutoff), Some(*resonance), *mode, *drive, *gain]
-            .into_iter()
-            .flatten()
-            .collect(),
+            slope,
+        } => [
+            Some(*cutoff),
+            Some(*resonance),
+            *mode,
+            *drive,
+            *gain,
+            *slope,
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
         W::TransferCurve { drive, curve, bias } => [Some(*drive), *curve, *bias]
             .into_iter()
             .flatten()
@@ -72,6 +80,7 @@ fn bound(w: &Widget) -> Vec<ParamId> {
             depth,
         } => vec![*sync, *sync_rate, *rate, *phase, *depth],
         W::Loudness { target } => vec![*target],
+        W::Maximizer { threshold, ceiling } => vec![*threshold, *ceiling],
         W::Crossover { frequencies } => frequencies.clone(),
         W::SampleWaveform { start, end } => [*start, *end].into_iter().flatten().collect(),
         W::EqCurve {

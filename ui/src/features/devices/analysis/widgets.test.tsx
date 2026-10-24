@@ -125,4 +125,35 @@ describe("analysis widgets", () => {
     expect(value("range")).toBe("5.0");
     expect(panel().querySelector('[data-readout="true peak"]')?.className).toContain("danger");
   });
+
+  it("the maximizer panel shows the history, the ceiling and the readouts", async () => {
+    const id = await mount("Maximizer");
+    const panel = () => screen.getByTestId("widget-maximizer");
+    const value = (name: string) => panel().querySelector(`[data-readout="${name}"] .eth-maximizer__value`)?.textContent;
+    expect(panel().textContent).toContain("no signal");
+    await act(() => mock!.send(cmd("Device", { type: "SetParam", device: id, param: 0, value: -8 })));
+    await tick(2000);
+    expect(value("boost")).toBe("8.0");
+    for (const t of ["maximizer-input", "maximizer-output", "maximizer-reduction"]) {
+      expect(panel().querySelector(`[data-testid="${t}"]`)?.getAttribute("points")?.split(" ").length, t).toBeGreaterThan(20);
+    }
+    expect(Number(value("deepest"))).toBeGreaterThan(1);
+    // The default -1 dB ceiling sits a sixth of the way to the -6 dB grid line.
+    const y = (sel: string) =>
+      Number(
+        panel()
+          .querySelector(sel)
+          ?.getAttribute(sel.includes("ceiling") ? "y1" : "y"),
+      );
+    expect(y('[data-testid="maximizer-ceiling"]') * 6).toBeCloseTo(y('[data-axis="db"]'), 3);
+    // An output over the ceiling is flagged.
+    act(() =>
+      analysisStore(mock!).handle({
+        type: "Analysis",
+        event: { type: "Frame", device: id, data: { type: "Levels", values: [-3, -4, -0.5, -0.5, -6, 0.02, 0] } },
+      }),
+    );
+    expect(value("reduction")).toBe("3.0");
+    expect(panel().querySelector('[data-readout="true peak"]')?.className).toContain("danger");
+  });
 });

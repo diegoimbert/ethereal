@@ -468,6 +468,33 @@ impl History {
         Some((self.redo.len() - j) as i64)
     }
 
+    /// A copy of `project` (the current document) as it is with `step` the last applied
+    /// step (see [`History::distance_to`]), the history left as it is: undone steps'
+    /// inverses or redone steps' ops applied to the copy. `None`: no such step.
+    pub fn project_at(
+        &self,
+        project: &Project,
+        step: Option<u32>,
+    ) -> Option<Result<Project, ModelError>> {
+        let distance = self.distance_to(step)?;
+        let mut copy = project.clone();
+        let n = distance.unsigned_abs() as usize;
+        let applied = if distance < 0 {
+            self.undo
+                .iter()
+                .rev()
+                .take(n)
+                .try_for_each(|s| copy.apply_all(&s.inverse).map(drop))
+        } else {
+            self.redo
+                .iter()
+                .rev()
+                .take(n)
+                .try_for_each(|s| copy.apply_all(&s.forward).map(drop))
+        };
+        Some(applied.map(|()| copy))
+    }
+
     pub fn state(&self) -> HistoryState {
         HistoryState {
             can_undo: !self.undo.is_empty(),
@@ -495,6 +522,30 @@ mod tests {
                 change: SettingsChange::Name(name.into()),
             }],
         }
+    }
+
+    #[test]
+    fn project_at_a_step_leaves_the_document_and_history_alone() {
+        let mut ids = crate::IdGen::new(1);
+        let mut p = Project::new(&mut ids, 1);
+        let mut h = History::new(0);
+        for n in ["a", "b", "c"] {
+            h.commit(&mut p, set_name(n), None).unwrap();
+        }
+        h.undo(&mut p).unwrap();
+        let ids: Vec<u32> = h.steps().map(|s| s.id).collect();
+        let name = |s: Option<u32>| h.project_at(&p, s).unwrap().unwrap().settings.name;
+        assert_eq!(name(Some(ids[0])), "a");
+        assert_eq!(name(Some(ids[1])), "b");
+        assert_eq!(
+            name(Some(ids[2])),
+            "c",
+            "an undone step is redone on the copy"
+        );
+        assert_ne!(name(None), "a");
+        assert!(h.project_at(&p, Some(999)).is_none());
+        assert_eq!(p.settings.name, "b");
+        assert_eq!(h.current_step(), Some(ids[1]));
     }
 
     #[test]

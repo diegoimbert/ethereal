@@ -100,6 +100,11 @@ pub enum Widget {
         mode: Option<ParamId>,
         drive: Option<ParamId>,
         gain: Option<ParamId>,
+        /// Slope choice ("12 dB/oct" / "24 dB/oct" / "48 dB/oct"): the curve's steepness when the mode's
+        /// label doesn't carry it. Appended.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        slope: Option<ParamId>,
     },
     /// Waveshaper transfer curve (saturator/bitcrusher).
     TransferCurve {
@@ -261,6 +266,14 @@ pub enum Widget {
     /// (dB, read as LUFS) draws the reference line.
     Loudness {
         target: ParamId,
+    },
+    // --- maximizer ---
+    /// A maximizer's history: input level, output level and gain reduction over the last
+    /// seconds, with the `threshold` and `ceiling` lines and the readouts
+    /// (`AnalysisData::Levels` of a `Maximizer`, layout in `ether_devices::maximizer::Frame`).
+    Maximizer {
+        threshold: ParamId,
+        ceiling: ParamId,
     },
 }
 

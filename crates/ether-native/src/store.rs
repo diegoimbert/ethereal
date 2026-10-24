@@ -257,68 +257,6 @@ fn modified_ms(path: &Path) -> f64 {
         .map_or(0.0, |d| d.as_millis() as f64)
 }
 
-/// Display name stored in a `.ether` file (`project.settings.name`), read leniently so it
-/// works across format versions.
-///
-/// Streams the file and stops at the name: the app writes `project.settings.name` within
-/// the first few hundred bytes (the field order of `EtherFile`, `Project` and
-/// `ProjectSettings`), so listing a library reads a few KB per project however big its
-/// documents are (plugin states make them tens of MB). Other key orders still work: what
-/// comes before the name is skipped without being kept (`IgnoredAny`).
-fn name_from_ether(reader: impl std::io::Read) -> Option<String> {
-    let mut name = None;
-    let mut de = serde_json::Deserializer::from_reader(reader);
-    // Finding the name aborts the parse with an error, on purpose.
-    let _ = serde::de::DeserializeSeed::deserialize(
-        KeyPath {
-            path: &["project", "settings", "name"],
-            out: &mut name,
-        },
-        &mut de,
-    );
-    name
-}
-
-/// [`name_from_ether`]: the string at `path` (object keys from the top) into `out`, then
-/// an error to stop reading.
-struct KeyPath<'a> {
-    path: &'a [&'a str],
-    out: &'a mut Option<String>,
-}
-
-impl<'de> serde::de::DeserializeSeed<'de> for KeyPath<'_> {
-    type Value = ();
-
-    fn deserialize<D: serde::Deserializer<'de>>(self, de: D) -> Result<(), D::Error> {
-        if self.path.is_empty() {
-            *self.out = Some(serde::Deserialize::deserialize(de)?);
-            return Err(serde::de::Error::custom("found"));
-        }
-        de.deserialize_map(self)
-    }
-}
-
-impl<'de> serde::de::Visitor<'de> for KeyPath<'_> {
-    type Value = ();
-
-    fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        f.write_str("an object")
-    }
-
-    fn visit_map<A: serde::de::MapAccess<'de>>(self, mut map: A) -> Result<(), A::Error> {
-        while let Some(key) = map.next_key::<String>()? {
-            if key == self.path[0] {
-                return map.next_value_seed(KeyPath {
-                    path: &self.path[1..],
-                    out: self.out,
-                });
-            }
-            map.next_value::<serde::de::IgnoredAny>()?;
-        }
-        Ok(())
-    }
-}
-
 /// List `dir`; entry paths are `rel` + name. Hidden files are skipped; folders first, then
 /// by name (case-insensitive).
 fn list_folder(
@@ -506,17 +444,23 @@ impl DiskStore {
             std::io::ErrorKind::NotFound => StoreError::NotFound(id.to_string()),
             _ => io_err(e),
         })?;
-        let name = name_from_ether(std::io::BufReader::new(reader));
-        Ok(Self::summary_at(id, &dir, name))
+        let head = crate::project_dirs::read_head(std::io::BufReader::new(reader));
+        Ok(Self::summary_at(id, &dir, head.name, head.forked_from))
     }
 
-    /// The summary of project `id` in `dir`, its title already read.
-    fn summary_at(id: ProjectId, dir: &Path, name: Option<String>) -> ProjectSummary {
+    /// The summary of project `id` in `dir`, its head already read.
+    fn summary_at(
+        id: ProjectId,
+        dir: &Path,
+        name: Option<String>,
+        forked_from: Option<ether_core::protocol::model::ForkOrigin>,
+    ) -> ProjectSummary {
         ProjectSummary {
             id,
             name: name.unwrap_or_else(|| "Untitled".to_string()),
             modified_ms: modified_ms(&dir.join(PROJECT_FILE)),
             ext: Self::summary_ext_at(dir),
+            forked_from,
         }
     }
 
@@ -560,6 +504,8 @@ impl DiskStore {
             name: name.to_string(),
             modified_ms,
             ext: self.summary_ext(id),
+            // The controller fills it in from the document it saved.
+            forked_from: None,
         })
     }
 
@@ -582,7 +528,12 @@ impl ProjectStore for DiskStore {
         let mut out = Vec::new();
         for folder in crate::project_dirs::scan(&self.projects_root) {
             if folder.dir.join(PROJECT_FILE).is_file() {
-                out.push(Self::summary_at(folder.id, &folder.dir, folder.name));
+                out.push(Self::summary_at(
+                    folder.id,
+                    &folder.dir,
+                    folder.name,
+                    folder.forked_from,
+                ));
             }
         }
         out.sort_by(|a, b| b.modified_ms.total_cmp(&a.modified_ms));
@@ -1527,7 +1478,10 @@ mod tests {
         serde_json::from_str::<serde_json::Value>(&json).expect("valid JSON");
         let read = std::cell::Cell::new(0);
         let reader = std::io::BufReader::new(Counting(json.as_bytes(), &read));
-        assert_eq!(name_from_ether(reader).as_deref(), Some(name));
+        assert_eq!(
+            crate::project_dirs::read_head(reader).name.as_deref(),
+            Some(name)
+        );
         assert!(
             read.get() <= 16 << 10,
             "read {} of {} bytes",
@@ -1541,7 +1495,12 @@ mod tests {
             "project": { "a": ["x".repeat(100_000), { "name": "no" }], "settings": { "name": "late" } }
         })
         .to_string();
-        assert_eq!(name_from_ether(late.as_bytes()).as_deref(), Some("late"));
+        assert_eq!(
+            crate::project_dirs::read_head(late.as_bytes())
+                .name
+                .as_deref(),
+            Some("late")
+        );
         for bad in [
             "",
             "not json",
@@ -1551,7 +1510,11 @@ mod tests {
             r#"{"project": {"settings": {}}, "name": "x"}"#,
             r#"{"project": {"settings": {"name": "trunc"#,
         ] {
-            assert_eq!(name_from_ether(bad.as_bytes()), None, "{bad}");
+            assert_eq!(
+                crate::project_dirs::read_head(bad.as_bytes()).name,
+                None,
+                "{bad}"
+            );
         }
     }
 

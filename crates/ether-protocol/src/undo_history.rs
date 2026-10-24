@@ -5,8 +5,8 @@
 //! redo stack): steps are labelled like the Undo menu. In a collab session it lists **this
 //! site's own steps only** (per-site undo): jumping undoes/redoes own steps,
 //! peers' later edits stay. Runtime only: never saved (a new history starts on open), not
-//! undoable; checkpoint names are kept for the session (project versions can snapshot one
-//! as a named version).
+//! undoable. A named checkpoint is also kept as a named project version of the document at
+//! that step (`versions`), renamed and deleted with it, so it outlives the session.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -28,7 +28,10 @@ pub enum HistoryCommand {
     /// step: undo everything). The patches arrive as one batch of undo/redo patches; replies
     /// `History`. `NotFound` for unknown or dropped steps.
     JumpTo { step: Option<HistoryStepId> },
-    /// Name a step (a checkpoint) or clear its name (`None`).
+    /// Name a step (a checkpoint) or clear its name (`None`). Naming writes a named
+    /// version of the document at that step (a `Manual` version, `VersionEvent` follows);
+    /// renaming renames it, clearing deletes it. A failed version write only warns (the
+    /// checkpoint stays named for the session).
     SetCheckpoint {
         step: HistoryStepId,
         name: Option<String>,

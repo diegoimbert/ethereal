@@ -117,16 +117,20 @@ describe("curves", () => {
     expect(xToFreq(freqToX(1000))).toBeCloseTo(1000, 6);
   });
 
-  it("filter shapes: -3 dB at cutoff for a Butterworth low-pass, steep = doubled", () => {
+  it("filter shapes: -3 dB at cutoff for a Butterworth low-pass, 24 dB = doubled", () => {
     const lp = filterShapeOf("Low-pass 12");
-    expect(lp).toEqual({ kind: "lowpass", steep: false });
+    expect(lp).toEqual({ kind: "lowpass", stages: 1 });
     expect(filterMagnitudeDb(lp, 1000, 1000, Math.SQRT1_2)).toBeCloseTo(-3.0103, 3);
     expect(filterMagnitudeDb(lp, 10, 1000, Math.SQRT1_2)).toBeCloseTo(0, 3);
-    expect(filterMagnitudeDb({ kind: "lowpass", steep: true }, 1000, 1000, Math.SQRT1_2)).toBeCloseTo(-6.0206, 3);
-    expect(filterShapeOf("High-pass 24")).toEqual({ kind: "highpass", steep: true });
+    expect(filterMagnitudeDb({ kind: "lowpass", stages: 2 }, 1000, 1000, Math.SQRT1_2)).toBeCloseTo(-6.0206, 3);
+    expect(filterShapeOf("High-pass 24")).toEqual({ kind: "highpass", stages: 2 });
+    // A separate slope choice steepens the low- and high-pass only.
+    expect(filterShapeOf("Low-pass", "48 dB/oct")).toEqual({ kind: "lowpass", stages: 4 });
+    expect(filterShapeOf("High-pass", "24 dB/oct")).toEqual({ kind: "highpass", stages: 2 });
+    expect(filterShapeOf("Peak", "48 dB/oct")).toEqual({ kind: "peak", stages: 1 });
     expect(filterShapeOf("Notch").kind).toBe("notch");
     expect(filterShapeOf("Band-pass").kind).toBe("bandpass");
-    expect(filterMagnitudeDb({ kind: "peak", steep: false }, 1000, 1000, 1, 6)).toBeCloseTo(6, 6);
+    expect(filterMagnitudeDb({ kind: "peak", stages: 1 }, 1000, 1000, 1, 6)).toBeCloseTo(6, 6);
   });
 
   it("transfer curves pass through the origin and stay in -1..1", () => {

@@ -1783,6 +1783,14 @@
           "platform": "all"
         },
         {
+          "id": "devices/maximizer",
+          "title": "maximizer",
+          "what": "mastering limiter: threshold (the boost), true-peak ceiling, attack inside a 5 ms lookahead, release with auto release, stereo link, a soft clipper, match level to compare at equal loudness; a 4 s history of input, output and gain reduction with readouts.",
+          "priority": "should",
+          "audience": "everyone",
+          "platform": "all"
+        },
+        {
           "id": "devices/utility",
           "title": "utility",
           "what": "gain (±36 db), balance pan, width (0–200 %) or mid/side balance, invert l / r, mono, bass mono below a frequency, channel stereo / left / right / swap, dc filter, mute, with output meters.",
