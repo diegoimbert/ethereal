@@ -306,6 +306,7 @@ export const BUILTIN_ACTIONS: ReadonlyArray<KeymapAction> = [
     handled: true,
   },
   // Automation lane
+  { id: "automation.drawMode", labelKey: "shell.action.automation_draw_mode", group: "Automation", scopes: ["automation"], chords: ["B"], handled: true },
   {
     id: "automation.fineUp",
     labelKey: "shell.action.automation_fine_up",

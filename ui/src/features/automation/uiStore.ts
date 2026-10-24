@@ -45,6 +45,11 @@ export interface AutomationUiState {
   laneHeights: Readonly<Record<string, number>>;
   /** Visible value window by `laneUiKey` (absent: the param's default window). */
   ranges: Readonly<Record<string, ValueRange>>;
+  /**
+   * Draw mode (`B` in a focused lane, or the bar's pencil): a drag on any lane draws the
+   * automation (one step per grid cell; `⌥` or no grid: freehand), like Ableton's draw mode.
+   */
+  drawMode: boolean;
 
   /** Open/close a track's lanes. `initial` seeds the shown list the first time. */
   setOpen(track: TrackId, open: boolean, initial?: ReadonlyArray<string>): void;
@@ -58,9 +63,10 @@ export interface AutomationUiState {
   setLaneHeight(track: TrackId, key: string, height: number | null): void;
   /** Set a lane's visible value window (`null`: the default). */
   setRange(track: TrackId, key: string, range: ValueRange | null): void;
+  setDrawMode(on: boolean): void;
 }
 
-const INITIAL = { open: new Set<TrackId>() as ReadonlySet<TrackId>, shown: {}, laneHeights: {}, ranges: {} };
+const INITIAL = { open: new Set<TrackId>() as ReadonlySet<TrackId>, shown: {}, laneHeights: {}, ranges: {}, drawMode: false };
 
 function without<T>(rec: Readonly<Record<string, T>>, key: string): Record<string, T> {
   const next = { ...rec };
@@ -112,11 +118,12 @@ export const useAutomationUi = create<AutomationUiState>()((set) => ({
       if (range === null) return k in s.ranges ? { ranges: without(s.ranges, k) } : s;
       return { ranges: { ...s.ranges, [k]: range } };
     }),
+  setDrawMode: (drawMode) => set({ drawMode }),
 }));
 
 /** Reset (tests). */
 export function resetAutomationUi(): void {
-  useAutomationUi.setState({ open: new Set(), shown: {}, laneHeights: {}, ranges: {} });
+  useAutomationUi.setState({ open: new Set(), shown: {}, laneHeights: {}, ranges: {}, drawMode: false });
 }
 
 /** Keys of the lanes shown for `track` (empty when closed). */

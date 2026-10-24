@@ -13,7 +13,7 @@
 import clsx from "clsx";
 import { memo, useMemo } from "react";
 import type { AutomationLane, AutomationOwner, AutomationPoint, CurveShape, TrackId } from "@/generated";
-import { Select, type SelectOption } from "@/kit";
+import { Button, Select, type SelectOption } from "@/kit";
 import { useProjectStore } from "@/state";
 import { DEFAULT_GRID, itemSelection, useSelectedItems, type GridSetting, type ItemSelectionStore, type TimelineViewStore } from "@/timeline";
 import { cmd, useTransport } from "@/transport";
@@ -130,6 +130,7 @@ function OpenTrackAutomationLanes({
                 onChange={onShow}
               />
             )}
+            <DrawModeToggle />
           </div>
         </div>
       )}
@@ -362,5 +363,23 @@ function TempoLaneRow({ className, trackId, view, headerWidth }: { className?: s
         <TempoAutomationLane view={view} height={height} />
       </div>
     </div>
+  );
+}
+
+/** The bar's draw mode switch (`AutomationUiState.drawMode`, shared by every lane). */
+function DrawModeToggle() {
+  const t = useT();
+  const on = useAutomationUi((s) => s.drawMode);
+  return (
+    <Button
+      size="sm"
+      active={on}
+      aria-pressed={on}
+      data-testid="automation-draw-mode"
+      title={t("automation.bar.draw_title")}
+      onClick={() => useAutomationUi.getState().setDrawMode(!on)}
+    >
+      {t("automation.bar.draw")}
+    </Button>
   );
 }
