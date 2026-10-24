@@ -272,6 +272,7 @@ pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
             C::SetLoop { .. } => k("undo.clip.set_loop"),
             C::SetGain { .. } => k("undo.clip.set_gain"),
             C::SetTranspose { .. } => k("undo.clip.transpose"),
+            C::Stretch { .. } => k("undo.clip.stretch"),
             C::SetFades { .. } => k("undo.clip.set_fades"),
             C::SetFadeCurves { .. } => k("undo.clip.set_fade_curves"),
             C::SetReversed { reversed, .. } => {

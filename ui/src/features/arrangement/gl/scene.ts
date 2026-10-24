@@ -595,7 +595,10 @@ export class LaneScene {
     const shaped = { ...clip, length: bounds.length, offset: bounds.offset, looping };
     if (clip.content.type === "Midi" && notes.length && !this.compact) {
       const noteBox = { b0: box.b0, b1: box.b1, minW: CLIP_DRAW_MIN_PX };
-      const rects = noteRects(shaped, bounds.start, notes, bounds.start, bounds.start + bounds.length);
+      // A stretch drag: the notes scale with the clip (`ClipBounds.stretch`).
+      const k = bounds.stretch;
+      const drawn = k ? notes.map((n) => ({ ...n, start: n.start * k, duration: n.duration * k })) : notes;
+      const rects = noteRects(shaped, bounds.start, drawn, bounds.start, bounds.start + bounds.length);
       if (playsDrumRack(input.project, clip.track)) {
         // Drums: a row per used pitch over the whole body, taller hits (negative rows: drum
         // mode in the note pipelines).
@@ -756,7 +759,10 @@ export class LaneScene {
     const media: MediaRef | undefined = input.project.media[clip.content.media];
     if (!media || media.frames <= 0) return;
     const markers: ReadonlyArray<WarpMarker> = warpMarkersOfClip(input.project, clip.id);
-    const toSeconds = clipSourceMapper(clip.content, markers, input.tempo.bpmAt(bounds.start), bounds.offset, input.transportKind);
+    // A stretch drag: content beat `c` plays what `c / k` played (`ClipBounds.stretch`).
+    const k = bounds.stretch ?? 1;
+    const mapped = clipSourceMapper(clip.content, markers, input.tempo.bpmAt(bounds.start), bounds.offset / k, input.transportKind);
+    const toSeconds = k === 1 ? mapped : (c: number) => mapped(c / k);
     const bpp = 1 / (win.ppb * win.dpr);
     const level = peakLevel(Math.abs(toSeconds(bpp) - toSeconds(0)) * media.sample_rate);
     const colors = clipColors(input.palette, clip.color ?? this.track.color);
@@ -768,7 +774,7 @@ export class LaneScene {
     const reversed = clip.content.reversed;
     const frames = media.frames;
     const sr = media.sample_rate;
-    const cuts = markers.map((m) => m.beat).sort((a, b) => a - b);
+    const cuts = markers.map((m) => m.beat * k).sort((a, b) => a - b);
     const tileFrames = TILE_PEAKS * level;
     const emit = (t0: number, t1: number, f0: number, f1: number) => {
       // [t0, t1] ↔ frames [f0, f1] linearly (f1 < f0 when reversed); per peak tile.

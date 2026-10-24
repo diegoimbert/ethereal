@@ -25,6 +25,12 @@ export interface ClipBounds {
   offset: Beats;
   /** The loop region, when a drag moves it (slip edits of looped clips, slip.ts). */
   looping?: ClipLoop;
+  /**
+   * A stretch drag's time-scale factor of the content (new length / old length): the
+   * preview draws the notes and the audio `stretch` times as long. `offset` and `looping`
+   * are already scaled.
+   */
+  stretch?: number;
 }
 
 export function boundsOf(clip: Clip): ClipBounds {
@@ -90,6 +96,51 @@ export function dragPreview(input: DragInput, mode: DragMode, deltaBeats: Beats,
     out.set(c.id, { track: c.track, start: s, length: end - s, offset: shiftedOffset(c, s - s0) });
   }
   return out;
+}
+
+/** The modifiers that turn an edge drag into a stretch: Ctrl+Shift, or Cmd+Shift (macOS). */
+export function isStretchModifier(e: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }): boolean {
+  return e.shiftKey && (e.ctrlKey || e.metaKey);
+}
+
+/** Most a stretch drag speeds up or slows down a clip (the engine's `MAX_STRETCH`). */
+const MAX_STRETCH = 1024;
+
+/**
+ * New bounds of every dragged clip for a stretch drag of an edge (`isStretchModifier`):
+ * like a resize, the other edge stays put, but the content scales with the length (no
+ * media limit: the audio plays slower instead) and the bounds carry the factor.
+ */
+export function stretchPreview(input: DragInput, mode: Exclude<DragMode, "move">, deltaBeats: Beats): Map<ClipId, ClipBounds> {
+  const { clips, snap } = input;
+  const anchor = clips.find((c) => c.id === input.anchor) ?? clips[0];
+  const out = new Map<ClipId, ClipBounds>();
+  if (!anchor) return out;
+  const atEnd = mode === "resize-end";
+  const a = atEnd ? endOf(anchor) : startOf(anchor);
+  const d = snap(a + deltaBeats) - a;
+  for (const c of clips) {
+    const s0 = startOf(c);
+    const lo = Math.max(MIN_CLIP_LENGTH, c.length / MAX_STRETCH);
+    const hi = c.length * MAX_STRETCH;
+    const length = atEnd ? Math.min(hi, Math.max(lo, c.length + d)) : Math.min(hi, Math.max(lo, c.length - Math.max(d, -s0)));
+    const start = atEnd ? s0 : s0 + c.length - length;
+    const k = length / c.length;
+    const { looping } = c;
+    out.set(c.id, { track: c.track, start, length, offset: c.offset * k, looping: { ...looping, start: looping.start * k, end: looping.end * k }, stretch: k });
+  }
+  return out;
+}
+
+/** Commit a stretch drag (`ClipCommand::Stretch`, one undo step). */
+export function stretchCommand(clips: ReadonlyArray<Clip>, preview: ReadonlyMap<ClipId, ClipBounds>): Command | null {
+  const commands: Command[] = [];
+  for (const c of clips) {
+    const p = preview.get(c.id);
+    if (!p || !changed(boundsOf(c), p)) continue;
+    commands.push(cmd("Clip", { type: "Stretch", id: c.id, start: p.start, length: p.length }));
+  }
+  return asCountedStep(countedStep("undo.clips.stretch", commands.length, "stretch clip", "stretch clips"), commands);
 }
 
 /**
