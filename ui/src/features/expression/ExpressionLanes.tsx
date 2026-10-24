@@ -9,7 +9,7 @@ import { useState, type ReactNode, type Ref } from "react";
 import type { Clip, ExpressionKind, Note } from "@/generated";
 import { Button, NumberField, Select, type SelectOption } from "@/kit";
 import type { TempoMap, TimelineViewport, TimelineViewStore } from "@/timeline";
-import { ClipEnvelopeButtons, ClipEnvelopeLane, envelopeKeyOf, targetNameIsUserText, useClipEnvelopes } from "@/features/automation";
+import { ClipEnvelopeButtons, ClipEnvelopeLane, envelopeKeyOf, NotesBackdrop, targetNameIsUserText, useClipEnvelopes } from "@/features/automation";
 import { cmd, useTransport } from "@/transport";
 import { confirmRemoveLane } from "./confirm";
 import { ExpressionLaneView } from "./ExpressionLaneView";
@@ -172,6 +172,7 @@ export function ExpressionLanes(props: ExpressionLanesProps) {
               height={height}
               grid={{ type: "Fixed", step: { kind: "beats", beats: stepBeats }, triplet: false }}
               tempo={tempo}
+              backdrop={<NotesBackdrop notes={notes} vp={vp} width={widthPx} height={height} />}
             />
           )}
         </div>
