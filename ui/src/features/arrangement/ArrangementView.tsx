@@ -54,7 +54,7 @@ import {
 import { firstMatch, shortcutLabel } from "@/features/keymap";
 import { groupTracks, ungroupSelected, UngroupConfirmDialog } from "@/features/groups";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
-import { actionForKey, bindSingleSelection, newTrackMenu, runClipAction, selectAtLaneClick, selectTrackEntity } from "./actions";
+import { actionForKey, bindEditedClipToSelection, bindSingleSelection, newTrackMenu, runClipAction, selectAtLaneClick, selectTrackEntity } from "./actions";
 import { dropBrowserMedia, hasBrowserDrag, hasBrowserMidiDrag, readBrowserDrag } from "./browserDrop";
 import { acceptsDevices, dropDevicesOnTrack, isDeviceDrag } from "@/features/devices/trackDrop";
 import { importMidiFile, isMidiName } from "@/features/midi-file/importMidi";
@@ -191,6 +191,7 @@ function ConnectedArrangementView() {
   useMiddleButtonPan(scrollRef, view);
   useSmoothFollow(view);
   useEffect(() => bindSingleSelection(), []);
+  useEffect(() => bindEditedClipToSelection(), []);
   // The insert marker placed while playing becomes the play start on the next stop.
   useEffect(() => bindPlayFrom(transport), [transport]);
 
