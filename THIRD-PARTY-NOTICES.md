@@ -16,7 +16,7 @@ Components: 597 (Rust crates, npm packages and vendored source).
 | `@babel/runtime` | 7.29.7 | MIT | https://babel.dev/docs/en/next/babel-runtime |
 | `@fontsource-variable/inter` | 5.3.0 | OFL-1.1 | https://fontsource.org/fonts/inter |
 | `@formatjs/fast-memoize` | 3.1.7 | MIT | https://github.com/formatjs/formatjs#readme |
-| `@formatjs/icu-messageformat-parser` | 3.5.21 | MIT | https://github.com/formatjs/formatjs#readme |
+| `@formatjs/icu-messageformat-parser` | 3.5.22 | MIT | https://github.com/formatjs/formatjs#readme |
 | `@formatjs/icu-skeleton-parser` | 2.1.12 | MIT | https://github.com/formatjs/formatjs#readme |
 | `@opentelemetry/api` | 1.9.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js/tree/main/api |
 | `@stablelib/base64` | 1.0.1 | MIT | https://github.com/StableLib/stablelib/tree/master/packages/base64 |
@@ -214,11 +214,11 @@ Components: 597 (Rust crates, npm packages and vendored source).
 | `ident_case` | 1.0.1 | MIT/Apache-2.0 | https://github.com/TedDriggs/ident_case |
 | `idna` | 1.1.0 | MIT OR Apache-2.0 | https://github.com/servo/rust-url/ |
 | `idna_adapter` | 1.2.2 | Apache-2.0 OR MIT | https://github.com/hsivonen/idna_adapter |
-| `immer` | 11.1.21 | MIT | https://github.com/immerjs/immer#readme |
+| `immer` | 11.2.7 | MIT | https://github.com/immerjs/immer#readme |
 | `indexmap` | 1.9.3 | Apache-2.0 OR MIT | https://github.com/bluss/indexmap |
 | `indexmap` | 2.14.2 | Apache-2.0 OR MIT | https://github.com/indexmap-rs/indexmap |
 | `infer` | 0.22.0 | MIT | https://github.com/bojand/infer |
-| `intl-messageformat` | 12.1.3 | BSD-3-Clause | https://github.com/formatjs/formatjs |
+| `intl-messageformat` | 12.1.4 | BSD-3-Clause | https://github.com/formatjs/formatjs |
 | `ipnet` | 2.12.2 | MIT OR Apache-2.0 | https://github.com/krisprice/ipnet |
 | `itoa` | 1.0.18 | MIT OR Apache-2.0 | https://github.com/dtolnay/itoa |
 | `java-locator` | 0.1.9 | MIT/Apache-2.0 | https://github.com/astonbitecode/java-locator |
@@ -252,7 +252,7 @@ Components: 597 (Rust crates, npm packages and vendored source).
 | `lock_api` | 0.4.14 | MIT OR Apache-2.0 | https://github.com/Amanieu/parking_lot |
 | `log` | 0.4.34 | MIT OR Apache-2.0 | https://github.com/rust-lang/log |
 | `lru-slab` | 0.1.3 | MIT OR Apache-2.0 OR Zlib | https://github.com/Ralith/lru-slab |
-| `lucide-react` | 1.59.0 | ISC | https://lucide.dev |
+| `lucide-react` | 1.61.0 | ISC | https://lucide.dev |
 | `mach2` | 0.5.0 | BSD-2-Clause OR MIT OR Apache-2.0 | https://github.com/JohnTitor/mach2 |
 | `markup5ever` | 0.39.0 | MIT OR Apache-2.0 | https://github.com/servo/html5ever |
 | `matchers` | 0.2.0 | MIT | https://github.com/hawkw/matchers |
