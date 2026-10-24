@@ -257,3 +257,69 @@ fn direct_table_edits_never_trust_a_stale_index() {
     .unwrap();
     assert!(p.index_is_consistent());
 }
+
+/// `notes_revision` changes exactly when a note of the clip changes (insert, edit in place,
+/// removal), through apply and undo, and never matches across index builds.
+#[test]
+fn notes_revision_follows_note_changes_only() {
+    let Doc {
+        mut p,
+        mut ids,
+        track,
+        clip,
+        note,
+    } = doc();
+    let other: ClipId = ids.next(NOW);
+    let r0 = p.notes_revision(clip).unwrap();
+    let o0 = p.notes_revision(other).unwrap();
+    // Not a note: same revision.
+    p.apply(&Op::Update {
+        update: EntityUpdate::Track {
+            id: track,
+            change: TrackChange::Name("x".into()),
+        },
+    })
+    .unwrap();
+    assert_eq!(p.notes_revision(clip), Some(r0));
+    // Edited in place.
+    let inv = p
+        .apply(&Op::Update {
+            update: EntityUpdate::Note {
+                id: note,
+                change: NoteChange::Pitch(61),
+            },
+        })
+        .unwrap();
+    let r1 = p.notes_revision(clip).unwrap();
+    assert_ne!(r1, r0);
+    // A clone keeps the revisions until it changes on its own.
+    let mut copy = p.clone();
+    assert_eq!(copy.notes_revision(clip), Some(r1));
+    // Undo is a change too (back to the old notes, a new revision).
+    p.apply(&inv).unwrap();
+    let r2 = p.notes_revision(clip).unwrap();
+    assert!(r2 != r1 && r2 != r0);
+    copy.apply(&Op::Insert {
+        entity: Entity::Note(Note {
+            id: ids.next(NOW),
+            clip,
+            pitch: 64,
+            velocity: 0.8,
+            release_velocity: 0.5,
+            start: Beats(2.0),
+            duration: Beats(0.5),
+            muted: false,
+        }),
+    })
+    .unwrap();
+    assert!(copy.notes_revision(clip) != Some(r1) && copy.notes_revision(clip) != Some(r2));
+    // Other clips untouched.
+    assert_eq!(p.notes_revision(other), Some(o0));
+    // Rows changed behind the model's back: no revision until the index is rebuilt, then
+    // none of the old ones.
+    p.notes.clear();
+    assert_eq!(p.notes_revision(clip), None);
+    p.ensure_index();
+    let r3 = p.notes_revision(clip).unwrap();
+    assert!(r3 != r0 && r3 != r1 && r3 != r2);
+}

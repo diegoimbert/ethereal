@@ -29,6 +29,7 @@ use ether_core::tempo::{TempoPointDesc, TimeSignatureDesc};
 use ether_core::{NodeKey, RenderGraphDesc};
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::doc::clip_start;
 use crate::{MAX_SEND_DB, MAX_VOLUME_DB, SILENCE_DB};
@@ -306,8 +307,11 @@ pub fn clip_param_envelopes<'a>(
 /// device per track: O(clips × notes). These are built once per compile (O(n log n)) and
 /// give each parent its children in the order the scans produced.
 pub struct Groups<'a> {
-    /// Unmuted notes of each clip, sorted like [`Project::notes_of`].
+    /// Unmuted notes of each clip, sorted like [`Project::notes_of`] (built only when
+    /// [`Self::compiled`] doesn't cover the clips).
     notes: IdMap<ClipId, Vec<&'a Note>>,
+    /// Compiled notes (before swing) of MIDI clips, from a [`NoteCache`] or compiled now.
+    compiled: IdMap<ClipId, Arc<[NoteDesc]>>,
     /// Envelopes of each clip (all lanes owned by the clip), in id order.
     clip_lanes: IdMap<ClipId, Vec<&'a AutomationLane>>,
     /// Points of each lane, sorted like [`Project::points_of`].
@@ -393,13 +397,123 @@ fn sort_notes<'a>(v: &mut [&'a Note], keyed: &mut Vec<(i64, u8, NoteId, &'a Note
     }
 }
 
+/// A clip's compiled notes (before swing), for the next compile.
+#[derive(Clone)]
+struct CachedNotes {
+    /// [`Project::notes_revision`] they were compiled at.
+    revision: (u64, u64),
+    notes: Arc<[NoteDesc]>,
+}
+
+/// Compiled notes of each MIDI clip, kept between compiles of the same document
+/// ([`compile_graph_cached`]): an edit recompiles only the clips whose notes changed
+/// ([`Project::notes_revision`]), instead of grouping and sorting every note of the project.
+#[derive(Clone, Default)]
+pub struct NoteCache {
+    clips: IdMap<ClipId, CachedNotes>,
+}
+
+impl std::fmt::Debug for NoteCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "NoteCache({} clips)", self.clips.len())
+    }
+}
+
+impl NoteCache {
+    pub fn clear(&mut self) {
+        self.clips.clear();
+    }
+
+    /// Clips cached (diagnostics, tests).
+    pub fn len(&self) -> usize {
+        self.clips.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.clips.is_empty()
+    }
+}
+
+fn note_descs(notes: &[&Note]) -> Arc<[NoteDesc]> {
+    notes
+        .iter()
+        .map(|n| NoteDesc {
+            start: n.start.0,
+            duration: n.duration.0,
+            key: n.pitch,
+            velocity: n.velocity,
+            release_velocity: n.release_velocity,
+        })
+        .collect()
+}
+
+fn group_notes(p: &Project) -> IdMap<ClipId, Vec<&Note>> {
+    let mut notes = group(p.notes.values().filter(|n| !n.muted).map(|n| (n.clip, n)));
+    let mut keyed = Vec::new();
+    for v in notes.values_mut() {
+        sort_notes(v, &mut keyed);
+    }
+    notes
+}
+
+/// Compile the MIDI clips' notes through `cache`: unchanged clips are reused, the others
+/// compiled (one clip from the index, or every note grouped at once when many changed,
+/// e.g. the first compile). `cache` keeps exactly the current clips.
+fn cached_notes(p: &Project, cache: &mut NoteCache) -> Option<IdMap<ClipId, Arc<[NoteDesc]>>> {
+    let midi: Vec<(ClipId, (u64, u64))> = p
+        .clips
+        .values()
+        .filter(|c| matches!(c.content, ClipContent::Midi))
+        .map(|c| p.notes_revision(c.id).map(|r| (c.id, r)))
+        .collect::<Option<_>>()?;
+    let hit = |id: &ClipId, r: (u64, u64)| {
+        cache
+            .clips
+            .get(id)
+            .filter(|c| c.revision == r)
+            .map(|c| c.notes.clone())
+    };
+    let misses = midi.iter().filter(|(id, r)| hit(id, *r).is_none()).count();
+    // Many to compile: one pass over the note table beats a lookup per note.
+    let all = (misses * 8 > midi.len()).then(|| group_notes(p));
+    let mut keyed = Vec::new();
+    let mut out = IdMap::default();
+    let mut next = NoteCache::default();
+    for (id, r) in midi {
+        let notes = hit(&id, r).unwrap_or_else(|| match &all {
+            Some(g) => note_descs(children(g, &id)),
+            None => {
+                let mut v: Vec<&Note> = p.notes_of(id).into_iter().filter(|n| !n.muted).collect();
+                sort_notes(&mut v, &mut keyed);
+                note_descs(&v)
+            }
+        });
+        next.clips.insert(
+            id,
+            CachedNotes {
+                revision: r,
+                notes: notes.clone(),
+            },
+        );
+        out.insert(id, notes);
+    }
+    *cache = next;
+    Some(out)
+}
+
 impl<'a> Groups<'a> {
     pub fn new(p: &'a Project) -> Self {
-        let mut notes = group(p.notes.values().filter(|n| !n.muted).map(|n| (n.clip, n)));
-        let mut keyed = Vec::new();
-        for v in notes.values_mut() {
-            sort_notes(v, &mut keyed);
-        }
+        Self::with_cache(p, None)
+    }
+
+    /// [`Self::new`], the MIDI clips' notes through `cache` when given.
+    pub fn with_cache(p: &'a Project, cache: Option<&mut NoteCache>) -> Self {
+        let compiled = cache.and_then(|c| cached_notes(p, c));
+        let notes = if compiled.is_some() {
+            IdMap::default()
+        } else {
+            group_notes(p)
+        };
         let mut points = group(p.automation_points.values().map(|pt| (pt.lane, pt)));
         for v in points.values_mut() {
             v.sort_unstable_by(|a, b| a.time.0.total_cmp(&b.time.0).then(a.id.cmp(&b.id)));
@@ -415,6 +529,7 @@ impl<'a> Groups<'a> {
         }
         Groups {
             notes,
+            compiled: compiled.unwrap_or_default(),
             clip_lanes: group(p.automation_lanes.values().filter_map(|l| match l.owner {
                 AutomationOwner::Clip { clip } => Some((clip, l)),
                 AutomationOwner::Track { .. } => None,
@@ -448,16 +563,10 @@ pub fn clip_desc(
 ) -> ClipDesc {
     let content = match &clip.content {
         ClipContent::Midi => {
-            let mut notes: Vec<NoteDesc> = children(&g.notes, &clip.id)
-                .iter()
-                .map(|n| NoteDesc {
-                    start: n.start.0,
-                    duration: n.duration.0,
-                    key: n.pitch,
-                    velocity: n.velocity,
-                    release_velocity: n.release_velocity,
-                })
-                .collect();
+            let mut notes: Vec<NoteDesc> = match g.compiled.get(&clip.id) {
+                Some(n) => n.to_vec(),
+                None => note_descs(children(&g.notes, &clip.id)).to_vec(),
+            };
             crate::groove::swing_notes(&p.settings, start.0, clip.offset.0, &mut notes);
             ClipContentDesc::Midi { notes }
         }
@@ -561,6 +670,20 @@ fn graph_neutral_table(key: EntityKey) -> bool {
 
 /// Compile the document (see the module docs).
 pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc {
+    compile(p, ctx, None)
+}
+
+/// [`compile_graph_with`] reusing the compiled notes of clips that didn't change since the
+/// last compile with `cache` (the same document: [`NoteCache`]). Same graph.
+pub fn compile_graph_cached(
+    p: &Project,
+    ctx: &CompileContext,
+    cache: &mut NoteCache,
+) -> RenderGraphDesc {
+    compile(p, ctx, Some(cache))
+}
+
+fn compile(p: &Project, ctx: &CompileContext, cache: Option<&mut NoteCache>) -> RenderGraphDesc {
     // v0.2: frozen devices (a frozen track's chain, or the part up to the
     // freeze point of a partial freeze) compile as if they had no node: they are left out of
     // chains, racks, modulation, automation and taps; a partial freeze's live tail stays.
@@ -580,7 +703,7 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
     };
     let ctx = &live_ctx;
     let tempo_map = p.tempo_map();
-    let g = Groups::new(p);
+    let g = Groups::with_cache(p, cache);
     let mut tracks: Vec<TrackDesc> = tracks_in_order(p)
         .into_iter()
         // v0.2: VCA tracks carry no audio (`RenderGraphDesc::vcas`, `crate::groups`).

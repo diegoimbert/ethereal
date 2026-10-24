@@ -335,3 +335,66 @@ fn renames_and_colours_do_not_republish() {
     h.tick();
     assert_eq!(h.ctl.bridge.publishes(), before + 1);
 }
+
+/// The published graph (compiled through the controller's per-clip note cache) equals a
+/// fresh compile after every kind of note change: move, mute, remove, a whole clip's
+/// removal, undo and redo.
+#[test]
+fn cached_note_compile_matches_a_fresh_one() {
+    let mut h = Harness::with_project();
+    let mut ids = IdGen::new(13);
+    let p = synthetic(&mut ids, 4);
+    open(&mut h, &p);
+    h.advance(1000);
+    h.tick();
+    let note = |h: &Harness, k: usize| *h.project().notes.keys().nth(k).unwrap();
+    let clip = *p.clips.keys().nth(3).unwrap();
+    let check = |h: &mut Harness, what: &str| {
+        h.advance(1000);
+        h.tick();
+        let mut published = h.ctl.bridge.last_graph().clone();
+        let mut now = compile_graph(h.project(), &|_| None, 0);
+        for t in published.tracks.iter_mut().chain(now.tracks.iter_mut()) {
+            t.chain.clear();
+        }
+        assert_eq!(published.tracks.len(), now.tracks.len(), "{what}");
+        for (a, b) in published.tracks.iter().zip(&now.tracks) {
+            assert_eq!(a.clips, b.clips, "{what}");
+        }
+    };
+    let n = note(&h, 5);
+    h.ok(Command::Note(NoteCommand::Edit {
+        edits: vec![NoteEdit {
+            id: n,
+            pitch: Some(70),
+            velocity: None,
+            start: Some(Beats(0.75)),
+            duration: None,
+            muted: None,
+        }],
+    }));
+    check(&mut h, "move");
+    let n = note(&h, 9);
+    h.ok(Command::Note(NoteCommand::Edit {
+        edits: vec![NoteEdit {
+            id: n,
+            pitch: None,
+            velocity: None,
+            start: None,
+            duration: None,
+            muted: Some(true),
+        }],
+    }));
+    check(&mut h, "mute");
+    let n = note(&h, 20);
+    h.ok(Command::Note(NoteCommand::Remove { ids: vec![n] }));
+    check(&mut h, "remove");
+    h.ok(Command::Clip(ClipCommand::Delete { ids: vec![clip] }));
+    check(&mut h, "clip delete");
+    h.ok(Command::Edit(EditCommand::Undo));
+    check(&mut h, "undo");
+    h.ok(Command::Edit(EditCommand::Undo));
+    check(&mut h, "undo 2");
+    h.ok(Command::Edit(EditCommand::Redo));
+    check(&mut h, "redo");
+}
