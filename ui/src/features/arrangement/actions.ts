@@ -16,7 +16,7 @@ import { arrangementTracks } from "./layout";
 import { selectedClips, sendEdit } from "./context";
 import { useArrangementUi } from "./uiStore";
 import { reverseClipsCommand } from "@/features/clip-editing/clipEditing";
-import { consolidateIfAllowed } from "@/features/freeze";
+import { bounceIfAllowed, consolidateIfAllowed } from "@/features/freeze";
 import { exportMidiClips, midiClipsOfTracks } from "@/features/midi-file/exportMidi";
 import { asOneStep, deleteCommand, duplicateCommand, splitCommand, toggleLoopCommand } from "./editMath";
 import { getTrackClipboard } from "./clipboard";
@@ -238,7 +238,8 @@ itemSelection.subscribe((s, prev) => {
   if (s.selected.clip !== prev.selected.clip && s.selected.clip.size > 0) clipSelectedAt = ++selectionSeq;
 });
 
-export type ClipAction = "split" | "duplicate" | "delete" | "loop" | "select-all" | "deselect" | "copy" | "cut" | "paste" | "reverse" | "consolidate";
+export type ClipAction =
+  "split" | "duplicate" | "delete" | "loop" | "select-all" | "deselect" | "copy" | "cut" | "paste" | "reverse" | "consolidate" | "bounce" | "mute";
 
 export function runClipAction(transport: EngineTransport, action: ClipAction): Promise<void> {
   const clips = selectedClips();
@@ -275,9 +276,17 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
       // notes, lanes and envelopes are mirrored in time.
       return sendEdit(transport, reverseClipsCommand(clips));
     }
+    case "mute":
+      // 0: the selected tracks (or clips, when they are the edit target) are muted, unless
+      // all already are (then unmuted).
+      return sendEdit(transport, onTracks || clips.length === 0 ? toggleTrackMuteCommand() : toggleClipMuteCommand(clips));
     case "consolidate":
       // Mod+J, like the clip menu's "consolidate" (frozen / rendering tracks: nothing).
       consolidateIfAllowed(transport, clips);
+      return Promise.resolve();
+    case "bounce":
+      // Mod+B, like the clip menu's "bounce to new track".
+      bounceIfAllowed(transport, clips);
       return Promise.resolve();
     case "select-all": {
       // A track selected from its header: every track; else (clips, or a track selected by a
@@ -336,7 +345,30 @@ const CLIP_KEY_ACTIONS: Record<string, ClipAction> = {
   "clip.toggleLoop": "loop",
   "clip.reverse": "reverse",
   "clip.consolidate": "consolidate",
+  "clip.bounce": "bounce",
+  "track.toggleMute": "mute",
 };
+
+/** The selected tracks (else the focused one): muted, unless all are (then unmuted); one undo step. */
+export function toggleTrackMuteCommand(): Command | null {
+  const project = useProjectStore.getState().project;
+  if (!project) return null;
+  const ui = useArrangementUi.getState();
+  const focus = useSelectionStore.getState().selectedTrack;
+  const ids = (ui.selectedTracks.size > 0 ? [...ui.selectedTracks] : focus ? [focus] : []).filter((id) => project.tracks[id]);
+  if (ids.length === 0) return null;
+  const mute = !ids.every((id) => project.tracks[id]!.mixer.mute);
+  const commands = ids.filter((id) => project.tracks[id]!.mixer.mute !== mute).map((track) => cmd("Mixer", { type: "SetMute", track, mute }));
+  if (commands.length === 1) return commands[0]!;
+  const key = mute ? "undo.mixer.mute" : "undo.mixer.unmute";
+  return cmd("Edit", { type: "Batch", label: t(key), key: { id: key, args: {} }, commands });
+}
+
+/** The clips: muted, unless all are (then unmuted). */
+function toggleClipMuteCommand(clips: ReadonlyArray<Clip>): Command | null {
+  if (clips.length === 0) return null;
+  return cmd("Clip", { type: "SetMuted", ids: clips.map((c) => c.id), muted: !clips.every((c) => c.muted) });
+}
 
 /**
  * Right-click menu of a clip. Right-clicking an unselected clip selects just it (and its

@@ -14,7 +14,10 @@ export {
   useFrozenAncestor,
 } from "./inert";
 export {
+  bounceIfAllowed,
+  bounceRangeIfAllowed,
   consolidateIfAllowed,
+  consolidateRangeIfAllowed,
   freezeClipEntries,
   freezeDeviceEntries,
   freezeRangeEntries,
@@ -27,6 +30,7 @@ export {
   bounceRange,
   cancelRenderJob,
   consolidateClips,
+  consolidateRange,
   flattenTracks,
   freezeTracks,
   freezeUpTo,

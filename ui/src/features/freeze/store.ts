@@ -287,7 +287,14 @@ export function bounceRange(transport: EngineTransport, start: Beats, end: Beats
 /** Join the selected clips' span into one clip per track (MIDI instantly, audio rendered). */
 export function consolidateClips(transport: EngineTransport, clips: ReadonlyArray<Clip>): Promise<void> {
   const { start, end } = spanOf(clips);
-  const tracks = [...byTrack(clips).keys()];
+  return consolidateRange(transport, start, end, [...byTrack(clips).keys()]);
+}
+
+/**
+ * Consolidate `[start, end)` of each of `tracks` into one clip per track spanning the range
+ * (a time selection: the parts of the clips outside it stay as they are), one undo step.
+ */
+export function consolidateRange(transport: EngineTransport, start: Beats, end: Beats, tracks: TrackId[]): Promise<void> {
   return runRenderJob(transport, "Consolidate", tracks, (job) =>
     freeze({
       type: "Consolidate",
