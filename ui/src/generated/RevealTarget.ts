@@ -5,4 +5,4 @@ import type { ProjectId } from "./ProjectId";
 /**
  * What `Media::Reveal` shows.
  */
-export type RevealTarget = { "type": "Projects" } | { "type": "Project", id: ProjectId, } | { "type": "Media", source: MediaSource, };
+export type RevealTarget = { "type": "Projects" } | { "type": "Project", id: ProjectId, } | { "type": "Media", source: MediaSource, } | { "type": "ProjectFile", path: string, };

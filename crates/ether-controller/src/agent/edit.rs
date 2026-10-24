@@ -1352,6 +1352,7 @@ where
             name: a.str("name").map(str::to_string),
             in_memory: None,
             extra_formats: None,
+            folder: None,
         };
         self.agent_dispatch(
             Command::Export(ExportCommand::Render {

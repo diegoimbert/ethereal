@@ -12,7 +12,7 @@ import { type MockTransport } from "@/transport/mock";
 import { pickOption } from "@/kit/testing";
 import { Inspector } from "./Inspector";
 import { useInspectorTarget, type InspectorTarget } from "./inspectorTarget";
-import { resetShell } from "@/state/shell";
+import { closeInspector, resetShell } from "@/state/shell";
 
 let mock: MockTransport | undefined;
 beforeAll(stubPointerCapture);
@@ -382,12 +382,31 @@ describe("Inspector: track", () => {
 });
 
 describe("useInspectorTarget", () => {
-  it("selected clips, else the focused track, else nothing", () => {
+  it("follows the selection (selected clips, else the focused track) and stays on the last one until closed", async () => {
+    mock = await renderWithMock(<div />);
+    const keys = trackByName("Keys").id;
+    const chords = clipByName("Chords").id;
     const { result } = renderHook(() => useInspectorTarget());
     expect(result.current).toBeNull();
-    act(() => useArrangementUi.getState().setTrackFocus("t1"));
-    expect(result.current).toEqual({ kind: "track", id: "t1" });
-    act(() => itemSelection.getState().select("clip", ["c1"], "replace"));
-    expect(result.current).toEqual({ kind: "clips", ids: ["c1"] });
+    act(() => useArrangementUi.getState().setTrackFocus(keys));
+    expect(result.current).toEqual({ kind: "track", id: keys });
+    act(() => itemSelection.getState().select("clip", [chords], "replace"));
+    expect(result.current).toEqual({ kind: "clips", ids: [chords] });
+    // The selection empties (a click elsewhere): it stays on the clip.
+    act(() => {
+      useArrangementUi.getState().setTrackFocus(null);
+      itemSelection.getState().clear("clip");
+    });
+    expect(result.current).toEqual({ kind: "clips", ids: [chords] });
+    // Closed explicitly: nothing until the next selection.
+    act(() => closeInspector());
+    expect(result.current).toBeNull();
+    act(() => useArrangementUi.getState().setTrackFocus(keys));
+    expect(result.current).toEqual({ kind: "track", id: keys });
+    // Its subject removed: closed.
+    act(() => useArrangementUi.getState().setTrackFocus(null));
+    await act(async () => void (await mock!.send(cmd("Track", { type: "Delete", id: keys }))));
+    await flush();
+    expect(result.current).toBeNull();
   });
 });

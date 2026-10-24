@@ -12,7 +12,7 @@ import { tracksOrdered, useProjectStore, useSelectionStore } from "@/state";
 import { resetShell, useShellStore } from "@/state/shell";
 import { itemSelection } from "@/timeline";
 import { QuickSearch } from "./QuickSearch";
-import { goTo, libraryResults, searchProject, useQuickSearch } from "./quickSearch";
+import { goTo, libraryResults, searchProject, useQuickSearch } from "./quickSearchIndex";
 
 afterEach(() => {
   resetI18nForTests();

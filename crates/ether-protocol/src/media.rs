@@ -97,6 +97,9 @@ pub enum RevealTarget {
     /// the referenced file, else the project copy), or a desktop path (`Path`). Not
     /// `Upload`.
     Media { source: MediaSource },
+    /// A file of the open project's folder, by project-relative path (an export's
+    /// `exports/<file>`, `ExportResult::Files`).
+    ProjectFile { path: String },
 }
 
 /// The contents of a Standard MIDI File (`Media::ReadMidiFile`). Times are in beats

@@ -178,38 +178,7 @@ describe("App shell: connected", () => {
     mock.dispose();
   });
 
-  it("a click on the lanes' empty space collapses the drawer and the inspector to their bars (not on the inspected track's)", async () => {
-    const { mock } = await renderWithMock(<App />);
-    act(() => arrangementView.getState().setViewport({ pxPerBeat: 10, scrollBeats: 0 }));
-    await act(async () => {
-      fireEvent.doubleClick(lanes(), clipTitle("Chords"));
-    });
-    fireEvent.click(screen.getByRole("group", { name: "Keys track" }));
-    expect(useShellStore.getState().right).toMatchObject({ open: true, collapsed: false });
-    act(() => useShellStore.getState().setCollapsed("bottom", false));
-    // Far right of the first row (Keys, the track the inspector shows): no clip there. The
-    // drawer collapses; the inspector stays, showing that track.
-    const x = useArrangementUi.getState().headerWidth + 5000;
-    const empty = { button: 0, clientX: x, clientY: 5 };
-    await act(async () => {
-      fireEvent.pointerDown(lanes(), empty);
-      fireEvent.pointerUp(window, empty);
-    });
-    await waitFor(() => expect(useShellStore.getState().bottom).toMatchObject({ open: true, collapsed: true }));
-    expect(useShellStore.getState().right.collapsed).toBe(false);
-    const keys = Object.values(useProjectStore.getState().project!.tracks).find((t) => t.name === "Keys")!;
-    expect(useArrangementUi.getState().trackFocus).toBe(keys.id);
-    // Another track's empty space: the inspector collapses too.
-    const other = { button: 0, clientX: x, clientY: useArrangementUi.getState().defaultHeight + 5 };
-    await act(async () => {
-      fireEvent.pointerDown(lanes(), other);
-      fireEvent.pointerUp(window, other);
-    });
-    expect(useShellStore.getState().right.collapsed).toBe(true);
-    mock.dispose();
-  });
-
-  it("a click on the empty space of the inspected clip's track keeps the inspector open, now on that track; another track's collapses it", async () => {
+  it("a click on the lanes' empty space collapses the drawer; the inspector stays open and follows the selection", async () => {
     const { mock } = await renderWithMock(<App />);
     act(() => arrangementView.getState().setViewport({ pxPerBeat: 10, scrollBeats: 0 }));
     const project = useProjectStore.getState().project!;
@@ -223,23 +192,30 @@ describe("App shell: connected", () => {
       });
     };
     // Keys (the first row) is at y 0 (jsdom lays nothing out). The inspector shows the clip.
-    const onClip = { clientX: hw + (startOf(chords) + 0.5) * 10, clientY: 5 };
-    const showClip = async () => {
-      await press(onClip);
-      expect(itemSelection.getState().selected.clip.has(chords.id)).toBe(true);
-      act(() => useShellStore.getState().setCollapsed("right", false));
-    };
-    await showClip();
-    // Empty space of the clip's track: the inspector stays open; the click selects the track
-    // (the clip selection clears), so it shows the track.
+    await press({ clientX: hw + (startOf(chords) + 0.5) * 10, clientY: 5 });
+    expect(itemSelection.getState().selected.clip.has(chords.id)).toBe(true);
+    act(() => useShellStore.getState().setCollapsed("right", false));
+    act(() => useShellStore.getState().setCollapsed("bottom", false));
+    // Empty space of the clip's track: the drawer collapses; the inspector stays, now on
+    // that track (the click selects it).
     await press({ clientX: hw + 5000, clientY: 5 });
+    await waitFor(() => expect(useShellStore.getState().bottom).toMatchObject({ open: true, collapsed: true }));
     expect(useShellStore.getState().right).toMatchObject({ open: true, collapsed: false });
     expect(itemSelection.getState().selected.clip.size).toBe(0);
     expect(useArrangementUi.getState().trackFocus).toBe(keys.id);
-    // Another track's empty space, with the clip shown: the inspector collapses.
-    await showClip();
+    // Another track's empty space: still open, on that track.
     await press({ clientX: hw + 5000, clientY: useArrangementUi.getState().defaultHeight + 5 });
-    expect(useShellStore.getState().right.collapsed).toBe(true);
+    expect(useShellStore.getState().right).toMatchObject({ open: true, collapsed: false });
+    expect(screen.getByRole("textbox", { name: "track name" })).not.toHaveValue("Keys");
+    // The selection cleared some other way: it stays on the last subject.
+    act(() => useArrangementUi.getState().setTrackFocus(null));
+    expect(useShellStore.getState().right).toMatchObject({ open: true, collapsed: false });
+    expect(screen.getByTestId("inspector")).toBeInTheDocument();
+    // Esc anywhere nothing else uses it closes it.
+    act(() => {
+      fireEvent.keyDown(document.body, { key: "Escape" });
+    });
+    await waitFor(() => expect(pane("right")).toBeNull());
     mock.dispose();
   });
 

@@ -165,6 +165,15 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), StoreError> {
 
 /// A streamed export (`ProjectStore::create_export`): written to a hidden temp file next
 /// to its target, fsynced and renamed over it on commit, removed when dropped unfinished.
+/// An export folder the user picked (`ExportRequest::folder`): absolute, no NUL.
+fn export_folder(folder: &str) -> Result<PathBuf, StoreError> {
+    let p = Path::new(folder);
+    if folder.contains('\0') || !p.is_absolute() {
+        return Err(StoreError::InvalidPath(folder.to_string()));
+    }
+    Ok(p.to_path_buf())
+}
+
 struct PartFile {
     file: Option<BufWriter<fs::File>>,
     tmp: PathBuf,
@@ -729,6 +738,33 @@ impl ProjectStore for DiskStore {
         let rel = ether_controller::store::export_path(file_name)?;
         let dir = self.existing_project_dir(id)?;
         Ok(Box::new(PartFile::create(resolve_in(&dir, &rel)?)?))
+    }
+
+    fn export_folder_names(&mut self, folder: &str) -> Result<Vec<String>, StoreError> {
+        let dir = export_folder(folder)?;
+        match fs::read_dir(&dir) {
+            Ok(rd) => Ok(rd
+                .flatten()
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .collect()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+            Err(e) => Err(io_err(e)),
+        }
+    }
+
+    fn create_export_in(
+        &mut self,
+        folder: &str,
+        file_name: &str,
+    ) -> Result<(Box<dyn ExportFile>, String), StoreError> {
+        // A single visible segment, like `exports/<file_name>`.
+        ether_controller::store::export_path(file_name)?;
+        let path = export_folder(folder)?.join(file_name);
+        let shown = path
+            .to_str()
+            .ok_or_else(|| StoreError::InvalidPath(path.display().to_string()))?
+            .to_string();
+        Ok((Box::new(PartFile::create(path)?), shown))
     }
 
     // Upload staging lives in `crate::uploads` (owned by the remote-engine node).
@@ -1342,6 +1378,32 @@ mod tests {
             sanitize_rel("media//a.wav").unwrap(),
             PathBuf::from("media/a.wav")
         );
+    }
+
+    /// `ExportRequest::folder`: files go into the chosen folder (created when missing),
+    /// listed by absolute path; relative folders and unsafe names are refused.
+    #[test]
+    fn exports_into_a_chosen_folder() {
+        let tmp = TempDir::new("store-export-folder");
+        let mut s = store(&tmp);
+        let folder = tmp.path().join("bounces");
+        let f = folder.to_str().unwrap();
+        assert!(
+            s.export_folder_names(f).unwrap().is_empty(),
+            "missing = empty"
+        );
+        let (mut file, path) = s.create_export_in(f, "Song.wav").unwrap();
+        assert_eq!(Path::new(&path), folder.join("Song.wav"));
+        file.write_all(b"RIFF").unwrap();
+        file.commit().unwrap();
+        assert_eq!(fs::read(folder.join("Song.wav")).unwrap(), b"RIFF");
+        assert_eq!(
+            s.export_folder_names(f).unwrap(),
+            vec!["Song.wav".to_string()]
+        );
+        assert!(s.create_export_in("bounces", "Song.wav").is_err());
+        assert!(s.create_export_in(f, "../Song.wav").is_err());
+        assert!(s.create_export_in(f, ".hidden").is_err());
     }
 
     /// A streamed export is written under a hidden temp name, seekable (headers are

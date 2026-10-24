@@ -8,6 +8,7 @@ import { TransportProvider, type SendOptions } from "@/transport";
 import { createEmptyProject, MockTransport } from "@/transport/mock";
 import { useTransportSwitch } from "@/transport/createDefaultTransport";
 import { ExportDialog, useExportAudio } from "./index";
+import { exportedFileTarget, FOLDER_KEY, isAbsolutePath } from "./folder";
 import { buildRequest, DEFAULT_FORM, defaultStemTracks, estimateBytes, formProblem, LARGE_EXPORT_BYTES } from "./request";
 
 class SpyMock extends MockTransport {
@@ -21,8 +22,13 @@ class SpyMock extends MockTransport {
   }
 }
 
-async function setup() {
+async function setup(desktop?: { folder: string | null }) {
   const mock = new SpyMock({ timers: "manual", seed: 5 });
+  if (desktop) {
+    // The desktop transport: its own engine, and the OS folder dialog.
+    Object.defineProperty(mock, "kind", { value: "tauri" });
+    Object.assign(mock, { pickFolder: async () => desktop.folder });
+  }
   render(
     <TransportProvider transport={mock}>
       <ExportDialog />
@@ -51,6 +57,36 @@ describe("ExportDialog", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     useExportAudio.getState().hide();
+  });
+
+  it("desktop: exports into a chosen folder, remembered, until reset", async () => {
+    localStorage.removeItem(FOLDER_KEY);
+    const { mock, dialog } = await setup({ folder: "/Music/Bounces" });
+    expect(within(dialog).getByText("the project’s exports folder")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "choose…" }));
+    });
+    expect(within(dialog).getByText("/Music/Bounces")).toBeInTheDocument();
+    expect(localStorage.getItem(FOLDER_KEY)).toBe("/Music/Bounces");
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "export" }));
+    });
+    expect(mock.renders()[0]?.folder).toBe("/Music/Bounces");
+    fireEvent.click(within(dialog).getByRole("button", { name: "cancel export" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "use the project folder" }));
+    expect(localStorage.getItem(FOLDER_KEY)).toBeNull();
+    expect(within(dialog).getByText("the project’s exports folder")).toBeInTheDocument();
+  });
+
+  it("web: no folder choice, and no folder sent", async () => {
+    localStorage.setItem(FOLDER_KEY, "/Music/Bounces");
+    const { mock, dialog } = await setup();
+    expect(within(dialog).queryByRole("button", { name: "choose…" })).toBeNull();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", { name: "export" }));
+    });
+    expect(mock.renders()[0]?.folder).toBeUndefined();
+    localStorage.removeItem(FOLDER_KEY);
   });
 
   it("opens on ctrl/cmd+shift+e (not from a text field)", async () => {
@@ -283,5 +319,15 @@ describe("export size estimate", () => {
     expect(estimateBytes({ ...form, container: "Flac", bitDepth: "Int16" }, project, { start: 0, end: 4 })).toBeLessThan(LARGE_EXPORT_BYTES);
     // MP3: 320 kbps whatever the rate and depth.
     expect(estimateBytes({ ...form, container: "Mp3" }, project, { start: 0, end: 2400 })).toBeCloseTo((1200 * 320_000) / 8);
+  });
+});
+
+describe("exported files in the file manager", () => {
+  it("shows project files by project path and chosen-folder files by absolute path", () => {
+    expect(exportedFileTarget("exports/Song.wav")).toEqual({ type: "ProjectFile", path: "exports/Song.wav" });
+    expect(exportedFileTarget("/Music/Song.wav")).toEqual({ type: "Media", source: { type: "Path", path: "/Music/Song.wav" } });
+    expect(isAbsolutePath("C:\\Music\\Song.wav")).toBe(true);
+    expect(isAbsolutePath("\\\\nas\\Song.wav")).toBe(true);
+    expect(isAbsolutePath("exports/Song.wav")).toBe(false);
   });
 });

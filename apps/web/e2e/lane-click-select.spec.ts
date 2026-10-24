@@ -28,7 +28,7 @@ async function lanePoint(page: Page, track: string, fx: number): Promise<{ x: nu
   return { x: box.x + box.width * fx, y: box.y + box.height / 2 };
 }
 
-test("a click on a lane's empty space selects the track (the inspector folds to its bar and shows it when expanded)", async ({ page }) => {
+test("a click on a lane's empty space selects the track (the open inspector follows it)", async ({ page }) => {
   test.setTimeout(120_000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -46,34 +46,24 @@ test("a click on a lane's empty space selects the track (the inspector folds to 
   await page.locator(`[data-lane="${a.id}"]`).dblclick({ position: { x: 5, y: 30 } });
   await expect.poll(() => clipsOn(a.id)).toBe(1);
 
-  // --- Click on B's empty space: B is selected; the inspector folds to its bar (a click on the
-  // lanes' empty space collapses it) and shows B when expanded --------------------------------------
+  // --- Click on B's empty space: B is selected and the inspector (open since the tracks were
+  // created: it stays open until closed) shows B --------------------------------------------------
   const inspectorBar = page.getByRole("button", { name: "expand the inspector panel" });
   let p = await lanePoint(page, b.id, 0.6);
   await page.mouse.click(p.x, p.y);
   await expect(header(b.name)).toHaveClass(/eth-arr-header--selected/);
   await expect(header(a.name)).not.toHaveClass(/eth-arr-header--selected/);
-  await expect(inspectorBar).toBeVisible();
-  await showInspector(page);
   await expect(trackName).toHaveValue(b.name);
+  await expect(inspectorBar).toBeHidden();
   await shot(page, "lane-click-selects-track");
 
-  // --- And on A's empty space (right of its clip): A ------------------------------------------------
-  p = await lanePoint(page, a.id, 0.6);
-  await page.mouse.click(p.x, p.y);
-  await expect(header(a.name)).toHaveClass(/eth-arr-header--selected/);
-  await expect(inspectorBar).toBeVisible();
-  await showInspector(page);
-  await expect(trackName).toHaveValue(a.name);
-  await expect(header(b.name)).not.toHaveClass(/eth-arr-header--selected/);
-
-  // --- Again on A's empty space, with the inspector expanded on A: it stays expanded (#221) ---------
+  // --- And on A's empty space (right of its clip): A, in the inspector that stays expanded (#221) ---
   p = await lanePoint(page, a.id, 0.45); // (left of the expanded inspector, which floats over the lanes)
   await page.mouse.click(p.x, p.y);
-  await page.waitForTimeout(500); // past the collapse animation: asserts it stayed, not that it has not folded yet
-  await expect(trackName).toBeVisible();
+  await expect(header(a.name)).toHaveClass(/eth-arr-header--selected/);
   await expect(trackName).toHaveValue(a.name);
   await expect(inspectorBar).toBeHidden();
+  await expect(header(b.name)).not.toHaveClass(/eth-arr-header--selected/);
 
   // --- Cmd/Ctrl-click adds B, like on the header -----------------------------------------------------
   p = await lanePoint(page, b.id, 0.6);
@@ -121,13 +111,14 @@ test("a click on a lane's empty space selects the track (the inspector folds to 
   await expect(trackName).toHaveValue(a.name);
   await expect(header(a.name)).toHaveClass(/eth-arr-header--selected/);
 
-  // --- With the clip shown, another track's empty space still collapses it -------------------------
+  // --- With the clip shown, another track's empty space: still expanded, now on that track ----------
   await page.mouse.click(clipBox!.x + clipBox!.width / 2, clipBox!.y + clipBox!.height * 0.75);
   await showInspector(page);
   await expect(inspector.getByRole("textbox", { name: "clip name" })).toBeVisible();
   p = await lanePoint(page, b.id, 0.45);
   await page.mouse.click(p.x, p.y);
-  await expect(inspectorBar).toBeVisible();
+  await expect(trackName).toHaveValue(b.name);
+  await expect(inspectorBar).toBeHidden();
 
   // --- Double-click on B's empty space still creates a MIDI clip there -------------------------------
   p = await lanePoint(page, b.id, 0.3);
