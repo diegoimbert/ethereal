@@ -2341,3 +2341,230 @@ fn convert_to_sampler_validates_the_target_and_the_count() {
         ErrorCode::InvalidArgument
     );
 }
+
+/// Interleaved 32-bit float WAV (the renders) → channels.
+fn float_wav(bytes: &[u8]) -> Vec<Vec<f32>> {
+    let n_ch = u16::from_le_bytes([bytes[22], bytes[23]]) as usize;
+    // Walk the chunks to `data` (a float WAV also has `fact`).
+    let mut at = 12;
+    let data = loop {
+        let len = u32::from_le_bytes(bytes[at + 4..at + 8].try_into().unwrap()) as usize;
+        if &bytes[at..at + 4] == b"data" {
+            break &bytes[at + 8..at + 8 + len];
+        }
+        at += 8 + len + (len & 1);
+    };
+    let frames = data.len() / 4 / n_ch;
+    (0..n_ch)
+        .map(|c| {
+            (0..frames)
+                .map(|i| {
+                    let o = (i * n_ch + c) * 4;
+                    f32::from_le_bytes([data[o], data[o + 1], data[o + 2], data[o + 3]])
+                })
+                .collect()
+        })
+        .collect()
+}
+
+fn onset(x: &[f32]) -> Option<usize> {
+    x.iter().position(|s| s.abs() > 1e-4)
+}
+
+/// A percussive synth (no attack, 40 ms decay to silence) on a MIDI track (inside an
+/// instrument rack after a 4x-oversampled saturator, which adds latency, when `latent`),
+/// playing `key` at full velocity at beat 0. Returns the track and the device to convert.
+fn percussive(d: &mut Drive, waveform: f64, latent: bool) -> (TrackId, DeviceId) {
+    use ether_devices::synth::params as sp;
+    let t = d.track(TrackKind::Midi, "Perc");
+    let (target, synth) = if latent {
+        let (rack, synth) = instrument_rack(d, t);
+        let chain = d.p().devices[&synth].chain.expect("in the rack");
+        let sat: DeviceId = d.id();
+        d.ok(Command::Rack(RackCommand::InsertDevice {
+            id: sat,
+            chain,
+            device: DeviceSpec::Builtin {
+                device: BuiltinDevice::new(BuiltinDeviceType::Saturator),
+            },
+            before: None,
+        }));
+        (rack, synth)
+    } else {
+        let synth = d.device(t, BuiltinDevice::new(BuiltinDeviceType::Synth));
+        (synth, synth)
+    };
+    for (param, value) in [
+        (sp::WAVEFORM, waveform),
+        (sp::ATTACK, 0.0),
+        (sp::DECAY, 40.0),
+        (sp::SUSTAIN, 0.0),
+        (sp::RELEASE, 20.0),
+        (sp::CUTOFF, 20_000.0),
+    ] {
+        d.ok(Command::Device(DeviceCommand::SetParam {
+            device: synth,
+            param,
+            value,
+        }));
+    }
+    d.settle();
+    (t, target)
+}
+
+/// One note at beat 0 on `track`, full velocity (a new clip; the previous ones removed).
+fn one_note(d: &mut Drive, track: TrackId, key: u8) {
+    let old: Vec<ClipId> = d
+        .p()
+        .clips
+        .values()
+        .filter(|c| c.track == track)
+        .map(|c| c.id)
+        .collect();
+    for id in old {
+        d.ok(Command::Clip(ClipCommand::Delete { ids: vec![id] }));
+    }
+    let clip = d.id();
+    d.ok(Command::Clip(ClipCommand::CreateMidi {
+        id: clip,
+        track,
+        start: Beats(0.0),
+        length: Beats(4.0),
+        name: None,
+    }));
+    let note = d.id();
+    d.ok(Command::Note(NoteCommand::Add {
+        clip,
+        notes: vec![NoteSpec {
+            id: note,
+            pitch: key,
+            velocity: 1.0,
+            start: Beats(0.0),
+            duration: Beats(0.25),
+        }],
+    }));
+    d.settle();
+}
+
+/// Convert `device` sampling key 60 only (one velocity layer); returns the render.
+fn sample_key_60(d: &mut Drive, device: DeviceId) -> Vec<Vec<f32>> {
+    let new_device: DeviceId = d.id();
+    let seed: MediaId = d.id();
+    let job = format!("sample{}", d.next);
+    d.ok(Command::Freeze(FreezeCommand::ConvertToSampler {
+        job: job.clone(),
+        device,
+        new_device,
+        seed_media: seed,
+        first_key: 60,
+        last_key: 60,
+        key_step: 1,
+        velocity_steps: 1,
+        note_seconds: Seconds(0.2),
+        tail_seconds: Seconds(0.2),
+    }));
+    assert_eq!(d.finish(&job).0, FreezeEvent::Done { job });
+    d.settle();
+    let file = d
+        .p()
+        .media
+        .values()
+        .next()
+        .expect("one render")
+        .file
+        .clone();
+    float_wav(&d.ctl.store.read(d.pid, &file).unwrap())
+}
+
+/// Converting a percussive synth keeps its attack: the render starts on the note's first
+/// frame and equals the live instrument sample for sample, and the multisampler adds no
+/// fade-in (its default 1 ms amp attack used to take 4.8 dB off the first millisecond), so
+/// the converted track plays the note bit-exact.
+#[test]
+fn convert_to_sampler_keeps_the_attack() {
+    let mut d = Drive::new();
+    let (t, synth) = percussive(&mut d, 1.0, false);
+    one_note(&mut d, t, 60);
+    let n = SR as usize / 10;
+    let live = d.play(n);
+    let sample = sample_key_60(&mut d, synth);
+    let after = d.play(n);
+    let dev = d.p().devices_of(t)[0].clone();
+    assert_eq!(
+        dev.params[&ether_devices::multisampler::multi_sampler::AMP_ATTACK],
+        0.0,
+        "no fade-in"
+    );
+    for c in 0..2 {
+        assert_eq!(onset(&live[c]), Some(1), "the saw's first frame is 0");
+        assert_eq!(onset(&sample[c]), onset(&live[c]), "not trimmed, not late");
+        assert_eq!(&sample[c][..n], &live[c][..], "the render is the live note");
+        assert_eq!(after[c], live[c], "the sampler plays it back bit-exact");
+    }
+}
+
+/// An instrument with latency (a rack with an oversampled saturator after the synth): the
+/// render drops it, so the sample starts on the note's frame like an unlatent one.
+#[test]
+fn convert_to_sampler_compensates_the_latency() {
+    let latency = ether_devices::fx_color::saturator_device::LATENCY;
+    let mut d = Drive::new();
+    let (t, rack) = percussive(&mut d, 1.0, true);
+    one_note(&mut d, t, 60);
+    let n = SR as usize / 10;
+    let live = d.play(n + latency);
+    let sample = sample_key_60(&mut d, rack);
+    for c in 0..2 {
+        let at = onset(&sample[c]).expect("a sound");
+        assert!(at <= 1, "the sample starts on the note (frame {at})");
+        // The live engine delays the track by the latency; the render is that signal
+        // without the delay (the saturator's linear-phase filters ring a little ahead).
+        let diff = live[c][latency..]
+            .iter()
+            .zip(&sample[c])
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0f32, f32::max);
+        assert!(diff < 1e-6, "ch{c}: {diff}");
+    }
+}
+
+/// Keys between samples repitch the nearest one (plain resampling, never pitch
+/// preservation): an octave up plays twice as fast, so the decay is twice as short and the
+/// pitch an octave higher.
+#[test]
+fn convert_to_sampler_repitches_without_preserving_time() {
+    let mut d = Drive::new();
+    let (t, synth) = percussive(&mut d, 0.0, false);
+    // A longer decay: enough cycles to count.
+    d.ok(Command::Device(DeviceCommand::SetParam {
+        device: synth,
+        param: ether_devices::synth::params::DECAY,
+        value: 150.0,
+    }));
+    one_note(&mut d, t, 60);
+    let _ = sample_key_60(&mut d, synth);
+    let n = SR as usize / 2;
+    let play = |d: &mut Drive, key: u8| {
+        one_note(d, t, key);
+        d.play(n)[0].clone()
+    };
+    let root = play(&mut d, 60);
+    let up = play(&mut d, 72);
+    // Time to fall 40 dB below the peak, and positive-going zero crossings (pitch).
+    let fall = |x: &[f32]| {
+        let peak = x.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+        let last = x.iter().rposition(|s| s.abs() > peak * 0.01).unwrap();
+        last as f64
+    };
+    let crossings = |x: &[f32], frames: usize| {
+        x[..frames]
+            .windows(2)
+            .filter(|w| w[0] <= 0.0 && w[1] > 0.0)
+            .count() as f64
+    };
+    let ratio = fall(&root) / fall(&up);
+    assert!((ratio - 2.0).abs() < 0.1, "decay ratio {ratio}");
+    let rate = |x: &[f32]| crossings(x, fall(x) as usize) / fall(x);
+    let pitch = rate(&up) / rate(&root);
+    assert!((pitch - 2.0).abs() < 0.15, "pitch ratio {pitch}");
+}
