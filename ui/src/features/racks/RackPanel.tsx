@@ -22,6 +22,7 @@ import { setDeviceWindow, useDeviceWindow } from "@/features/devices/window/useD
 import { waitForDevice } from "@/features/devices/userInsert";
 import { deviceCategory } from "@/features/devices/chainUtils";
 import { usePluginStore } from "@/features/plugins/pluginStore";
+import { movedDevices } from "@/features/devices/trackDrop";
 import { VolumeFader } from "@/features/arrangement/VolumeFader";
 import { deviceSpec, type LibraryDevicePayload } from "@/features/devices/library";
 import { recordDeviceUse } from "@/features/devices/libraryStats";
@@ -237,7 +238,21 @@ function ChainItem({
     const name = value.trim() || (project ? defaultChainName(project, c) : "");
     if (name && name !== c.name) void send(cmd("Rack", { type: "RenameChain", id: c.id, name }));
   };
-  const moveInto = (id: DeviceId, before: DeviceId | null) => void send(cmd("Rack", { type: "MoveDevice", id, chain: c.id, before }));
+  const types = useBuiltinTypes();
+  const plugins = usePluginStore((s) => s.plugins);
+  /** A device card dropped on the row: it (or the multi-selection it is part of) goes to the chain's end. */
+  const moveInto = (id: DeviceId) => {
+    const project = useProjectStore.getState().project;
+    if (!project) return;
+    const commands = movedDevices(project, id, (d) => deviceCategory(d, types, plugins)).map((d) =>
+      cmd("Rack", { type: "MoveDevice", id: d, chain: c.id, before: null }),
+    );
+    void send(
+      commands.length === 1
+        ? commands[0]!
+        : cmd("Edit", { type: "Batch", label: "move devices", key: { id: "undo.device.move_selected", args: {} }, commands }), // i18n-ignore
+    );
+  };
   const stop = (e: { stopPropagation(): void }) => e.stopPropagation();
   const { mounted, shown } = useFold(expanded);
   // The chain's instrument (an effect rack's chain: its first effect): its window opens from the
@@ -324,7 +339,7 @@ function ChainItem({
           const id = e.dataTransfer.getData(DEVICE_DRAG_TYPE);
           if (!id) return;
           e.preventDefault();
-          moveInto(id, null);
+          moveInto(id);
         }}
         onContextMenu={(e) =>
           openContextMenu(e, [
@@ -653,7 +668,7 @@ function ChainDevices({ chain, rackType, nestRacks }: { chain: RackChain; rackTy
             }),
           );
         }}
-        onMove={(id, before) => void send(cmd("Rack", { type: "MoveDevice", id, chain: chain.id, before }))}
+        moveCommand={(id, before) => cmd("Rack", { type: "MoveDevice", id, chain: chain.id, before })}
         pasteChain={{ type: "Chain", chain: chain.id }}
       />
     </div>
