@@ -670,6 +670,19 @@ pub(crate) fn read_frames(
 /// is mirrored, so a reversed clip is sample-for-sample the forward rendering of a
 /// reversed file.
 #[allow(clippy::too_many_arguments)]
+/// Distance (source frames) under which a playback position counts as on a frame.
+const FRAME_SNAP: f64 = 1e-6;
+
+/// A source position within [`FRAME_SNAP`] of a frame is that frame: positions computed
+/// along different mappings that agree up to float error (a warped clip played at its
+/// source's own speed and the same clip unwarped) read the very same samples, and a clip on
+/// the sample grid plays its source bit for bit instead of interpolating at a 1e-10 fraction.
+#[inline]
+fn snap_frame(f: f64) -> f64 {
+    let r = f.round();
+    if (f - r).abs() < FRAME_SNAP { r } else { f }
+}
+
 pub(crate) fn render_audio(
     clip: &ClipDesc,
     source: &dyn AudioSource,
@@ -720,6 +733,7 @@ pub(crate) fn render_audio(
                     .rate
                     .seconds(warp.as_ref(), *transpose, &te.env, ref_bpm, anchor, c),
             } * sr;
+            let f = snap_frame(f);
             if reversed { last - f } else { f }
         };
         let mut o = o_a;

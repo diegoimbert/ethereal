@@ -58,3 +58,4 @@ mod suspend;
 mod tap_recording;
 mod tempo_vectors;
 mod touching_notes;
+mod warp_passthrough;
