@@ -23,7 +23,10 @@ import { isArrangementClip, mediaLengthInBeats, startOf } from "./clipTime";
 import { placeInsertMarker } from "@/features/time-edits/marker";
 import { sendEdit, type ArrangementContextValue } from "./context";
 import { holdClipDrag } from "./dragGuard";
-import { boundsCommand, dragPreview, moveCommand, type DragMode } from "./editMath";
+import { batchStep, boundsCommand, dragPreview, moveCommand, type DragMode } from "./editMath";
+import { MOVE_SELECTION, pointsFollowing } from "./mixedSelection";
+import { LaneGesture } from "@/features/automation/gesture";
+import { flattenCommands } from "@/features/automation/laneRegistry";
 import { rowIndexAt } from "./layout";
 import { inNewTrackZone, newTrackDropCommand, newTrackLanes, onNewLanes, type NewLane } from "./newTrackDrag";
 import { arrangementView, useArrangementUi } from "./uiStore";
@@ -110,6 +113,16 @@ export function onClipPointerDown(
   // The tracks a drop below the last track would create (ids fixed for the whole drag).
   let lanes: NewLane[] | null = null;
   let below = false;
+  // Track automation points selected with the clips (a box across both) move along, in
+  // time (one gesture: live in their lanes, one undo step with the clips' move).
+  const points = mode === "move" ? pointsFollowing() : null;
+  const pointsGesture = points ? new LaneGesture(ctx.transport) : null;
+  /** The points' shift for the preview `last` (none while copying or creating tracks). */
+  const pointsDt = () => {
+    const b = last?.get(clip.id);
+    if (!points || !b || copy || below) return 0;
+    return Math.max(b.start - startOf(clip), -points.minTime);
+  };
   /** Pointer in the empty canvas below the last track (not over the pinned master). */
   const belowLastTrack = (clientY: number) => {
     const scroller = ctx.contentRef.current?.parentElement;
@@ -160,6 +173,7 @@ export function onClipPointerDown(
       last = onNewLanes(last, clips, lanes);
     }
     useArrangementUi.getState().setPreview(below && lanes ? { bounds: last, copy, newTracks: lanes } : { bounds: last, copy });
+    if (points) pointsGesture!.update(points.command(pointsDt()));
   };
 
   const move = (ev: PointerEvent) => {
@@ -186,6 +200,7 @@ export function onClipPointerDown(
     done();
     if (!active || !last) {
       useArrangementUi.getState().setPreview(null);
+      pointsGesture?.end();
       if (wasSelected && !opts.keepSelection) {
         if (selectMode === "replace") itemSelection.getState().select("clip", [clip.id], "replace");
         else if (selectMode === "toggle") itemSelection.getState().select("clip", [clip.id], "toggle");
@@ -200,12 +215,27 @@ export function onClipPointerDown(
         : below && lanes
           ? newTrackDropCommand(lanes, clips, last, copy, newId, all)
           : moveCommand(clips, last, copy, newId, all);
+    if (points && pointsGesture) {
+      // The points' last edit and the clips' move, in the points' gesture: one undo step.
+      const dt = pointsDt();
+      const both = flattenCommands([points.command(dt), command]);
+      const clear = () => useArrangementUi.getState().setPreview(null);
+      if (both.length) pointsGesture.update(batchStep(MOVE_SELECTION, both), clear);
+      else clear();
+      pointsGesture.end();
+      return;
+    }
     void sendEdit(ctx.transport, command).finally(() => useArrangementUi.getState().setPreview(null));
   };
 
   const cancel = () => {
     done();
     useArrangementUi.getState().setPreview(null);
+    // The points go back where they were.
+    if (points && pointsGesture) {
+      pointsGesture.update(points.command(0));
+      pointsGesture.end();
+    }
   };
 
   // The view moving under a still pointer (paging while playing) moves the preview too.
