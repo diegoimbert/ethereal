@@ -1544,6 +1544,7 @@
   "shell.transport.loading_plugins": "chargement des plugins {done}/{total}",
   "shell.transport.loading_media": "chargement des fichiers audio {done}/{total}",
   "shell.transport.loading_starting": "démarrage de l’audio…",
+  "shell.transport.loading_percent": "{pct} %",
   "shell.transport.rendering": "rendu {percent} %",
   "shell.transport.rendering_title": "le moteur est en pause pendant le rendu : la lecture fait entendre ce qui est déjà rendu ; les modifications s’entendront une fois le rendu terminé",
   "shell.transport.rendering_no_preview_title": "le moteur est en pause pendant le rendu : rien ne joue avant la fin ; les modifications s’entendront une fois le rendu terminé",
