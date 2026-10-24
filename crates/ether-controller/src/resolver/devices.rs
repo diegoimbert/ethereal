@@ -68,6 +68,7 @@ const KEYWORDS: &[(&[&str], T, &str)] = &[
     (&["eq", "equalizer"], T::Eq, "EQ"),
     (&["utility", "gain", "width"], T::Utility, "utility"),
     (&["transient"], T::TransientShaper, "transient shaper"),
+    (&["loudness", "lufs"], T::Loudness, "loudness meter"),
     (&["spectrum", "analyzer"], T::SpectrumAnalyzer, "analyzer"),
     (&["tuner"], T::Tuner, "tuner"),
     (&["arpeggiator", "arp"], T::Arpeggiator, "arpeggiator"),

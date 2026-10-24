@@ -13,6 +13,10 @@
  * Tracks: clips go back to their own tracks; when they all come from one track and
  * `track` is given (the right-clicked lane, or the selected track), they go there instead
  * if it takes that kind of clip.
+ *
+ * Clips copied together with track automation points (a selection across clip and
+ * automation lanes, `mixedSelection.ts`) carry those points: a paste puts both back, each
+ * point into its own lane, in step with the clips, as one undo step.
  */
 
 import type { Beats, Clip, ClipId, Command, Note, ProjectId, TrackId, WarpMarker } from "@/generated";
@@ -25,8 +29,11 @@ import { cmd, newId, type EngineTransport } from "@/transport";
 import { t } from "@/i18n";
 import { startOf } from "./clipTime";
 import { selectedClips, sendEdit } from "./context";
-import { asCountedStep, countedStep, deleteCommand, parkingSpots } from "./editMath";
+import { asCountedStep, countedStep, deleteCommand, keyedStep, parkingSpots } from "./editMath";
 import { acceptsClip } from "./layout";
+import { arrangementView } from "./uiStore";
+import { multiLaneClipboard, pasteLanesCommand, type MultiLaneClipboard } from "@/features/automation/clipboard";
+import { flattenCommands, laneOf } from "@/features/automation/laneRegistry";
 
 interface Entry {
   clip: Clip;
@@ -36,7 +43,22 @@ interface Entry {
 
 /** `project`: where the clips were copied; they paste only there (another project
  * has none of their tracks or media). */
-let clipboard: { project: ProjectId; entries: Entry[]; start: Beats; end: Beats } | null = null;
+let clipboard: { project: ProjectId; entries: Entry[]; start: Beats; end: Beats; points?: CopiedPoints } | null = null;
+
+/** Automation points copied with the clips: the multi-lane copy and its earliest point's time. */
+export interface CopiedPoints {
+  clip: MultiLaneClipboard;
+  start: Beats;
+}
+
+/**
+ * The points copied with the clips, while they are still the latest automation copy (a copy
+ * in a lane alone since then replaces them).
+ */
+export function clipboardPoints(): CopiedPoints | null {
+  const points = clipboard?.points;
+  return points && multiLaneClipboard() === points.clip ? points : null;
+}
 
 /**
  * The track clipboard: copied or cut tracks, top-most first in display order
@@ -76,8 +98,11 @@ export function hasClipboard(): boolean {
   return clipboard !== null && clipboard.entries.length > 0 && clipboard.project === useProjectStore.getState().project?.id;
 }
 
-/** Copy the selected clips. Returns how many were copied. */
-export function copyClips(): number {
+/**
+ * Copy the selected clips (with `points`: the track automation points copied with them,
+ * `mixedSelection.ts`). Returns how many clips were copied.
+ */
+export function copyClips(points?: CopiedPoints): number {
   const project = useProjectStore.getState().project;
   const clips = selectedClips();
   if (!project || clips.length === 0) return 0;
@@ -86,6 +111,7 @@ export function copyClips(): number {
     entries: clips.map((clip) => ({ clip, notes: notesOfClip(project, clip.id), markers: warpMarkersOfClip(project, clip.id) })),
     start: Math.min(...clips.map(startOf)),
     end: Math.max(...clips.map((c) => startOf(c) + c.length)),
+    ...(points ? { points } : {}),
   };
   trackClipboard = null;
   useTimeSelection.getState().setClipboard(null);
@@ -98,7 +124,10 @@ export async function cutClips(transport: EngineTransport): Promise<void> {
   await sendEdit(transport, deleteCommand(clipboard!.entries.map((e) => e.clip.id)));
 }
 
-/** Paste the clipboard with its earliest clip at `at` (see the module doc). */
+/**
+ * Paste the clipboard with its earliest item at `at` (see the module doc). Points copied
+ * with the clips keep their own tracks (the clips do then too).
+ */
 export async function pasteClips(transport: EngineTransport, at: Beats, track: TrackId | null = null): Promise<ClipId[]> {
   const project = useProjectStore.getState().project;
   if (!project || !clipboard) return [];
@@ -107,8 +136,11 @@ export async function pasteClips(transport: EngineTransport, at: Beats, track: T
     return [];
   }
   const { entries, start, end } = clipboard;
+  const points = clipboardPoints();
+  // The earliest copied item lands at `at`: a clip, or a point copied with the clips.
+  const origin = points ? Math.min(start, points.start) : start;
   const sources = new Set(entries.map((e) => e.clip.track));
-  const into = track !== null ? project.tracks[track] : undefined;
+  const into = track !== null && !points ? project.tracks[track] : undefined;
   const retarget = into && sources.size === 1 && entries.every((e) => acceptsClip(into, e.clip.content.type)) ? into.id : null;
 
   const park = parkingSpots(Object.values(project.clips));
@@ -118,17 +150,28 @@ export async function pasteClips(transport: EngineTransport, at: Beats, track: T
     const target = retarget ?? e.clip.track;
     if (!project.tracks[target]) continue; // its track was deleted
     const id = newId();
-    const clipStart = at + (startOf(e.clip) - start);
+    const clipStart = at + (startOf(e.clip) - origin);
     commands.push(...(project.clips[e.clip.id] ? duplicate(e.clip, id, target, clipStart, park) : rebuild(e, id, target, clipStart)));
     pasted.push(id);
   }
-  await sendEdit(transport, asCountedStep(countedStep("undo.clips.paste", pasted.length, "paste clip", "paste clips"), commands));
+  // Each copied lane's points into that lane, when it is shown.
+  const lanePaste = points
+    ? pasteLanesCommand(points.clip, (tr, key) => laneOf(arrangementView, tr, key)?.pasteTarget() ?? null, at + (points.start - origin))
+    : { command: null, ids: [] };
+  commands.push(...flattenCommands([lanePaste.command]));
+  const label = points
+    ? keyedStep("undo.arrangement.paste_selection", "paste selection")
+    : countedStep("undo.clips.paste", pasted.length, "paste clip", "paste clips");
+  await sendEdit(transport, asCountedStep(label, commands));
   const now = useProjectStore.getState().project;
   const created = pasted.filter((id) => now?.clips[id]);
-  if (created.length) itemSelection.getState().select("clip", created, "replace");
+  const createdPoints = lanePaste.ids.filter((id) => now?.automation_points[id]);
+  if (createdPoints.length) itemSelection.getState().selectKinds({ clip: created, automationPoint: createdPoints });
+  else if (created.length) itemSelection.getState().select("clip", created, "replace");
   // The insert marker moves to the end (after the selection change, which clears it).
   const tracks = [...new Set(created.map((id) => now!.clips[id]!.track))];
-  if (tracks.length) placeInsertMarker(null, at + (end - start), tracks.slice(0, 1));
+  const last = points ? Math.max(end, points.start + points.clip.span) : end;
+  if (tracks.length) placeInsertMarker(null, at + (last - origin), tracks.slice(0, 1));
   return created;
 }
 

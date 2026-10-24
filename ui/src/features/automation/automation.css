@@ -226,6 +226,16 @@
   stroke: var(--eth-color-text);
 }
 
+/* The box of a drag started on a track lane: a fixed overlay, it crosses lanes and tracks. */
+.eth-auto-marquee {
+  position: fixed;
+  z-index: calc(var(--eth-z-window) - 1);
+  border: var(--eth-border-width) solid var(--eth-color-selection);
+  background: color-mix(in srgb, var(--eth-color-selection) 15%, transparent);
+  pointer-events: none;
+  border-radius: var(--eth-radius-sm);
+}
+
 .eth-auto-lane__marquee {
   fill: var(--eth-color-selection);
   fill-opacity: 0.2;
@@ -384,16 +394,11 @@
   animation: eth-auto-out var(--automation-lane-duration) var(--automation-lane-ease) both;
   pointer-events: none;
 }
-/* A hidden lane collapses in place (the lanes below move up with it). In the arrangement,
-   its height and opacity follow the slot's tween instead (set each frame by
-   laneAnimation.ts), so the lanes under it move exactly with the rows below. */
+/* A hidden lane collapses in place (the lanes below move up with it). */
 .eth-auto-row--leaving {
   overflow: hidden;
   animation: eth-auto-collapse var(--automation-lane-duration) var(--automation-lane-ease) both;
   pointer-events: none;
-}
-.eth-arr-row__automation .eth-auto-row--leaving {
-  animation: none;
 }
 @keyframes eth-auto-in {
   from {

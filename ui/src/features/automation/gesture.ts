@@ -12,7 +12,7 @@ const warn = (e: unknown) => console.warn("[ethereal] automation edit failed:", 
 export class LaneGesture {
   private readonly gesture = nextGestureId();
   private inFlight = false;
-  private pending: { command: Command; after?: () => void } | null = null;
+  private pending: { command: Command | (() => Command | null); after?: () => void } | null = null;
   private sent = false;
   private ended = false;
   private closed = false;
@@ -29,13 +29,29 @@ export class LaneGesture {
     else this.dispatch(command, after);
   }
 
+  /**
+   * Like `update`, but the command is built when it is sent (`build` runs once per send, never
+   * for a superseded call): for edits that depend on what the previous send did (draw mode
+   * replaces the points its last send added).
+   */
+  updateWith(build: () => Command | null, after?: () => void): void {
+    if (this.ended) return;
+    if (this.inFlight) this.pending = { command: build, after };
+    else this.dispatch(build, after);
+  }
+
   /** Close the gesture once the last command is through. */
   end(): void {
     this.ended = true;
     if (!this.inFlight) this.close();
   }
 
-  private dispatch(command: Command, after?: () => void): void {
+  private dispatch(next: Command | (() => Command | null), after?: () => void): void {
+    const command = typeof next === "function" ? next() : next;
+    if (!command) {
+      if (this.ended) this.close();
+      return;
+    }
     this.inFlight = true;
     this.sent = true;
     this.transport

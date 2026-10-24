@@ -25,6 +25,7 @@ export {
   useAutomationSlotHeight,
   useLaneMotion,
 } from "./laneMotion";
+export { pointsInRect, registerClipHitTester } from "./laneRegistry";
 export { TrackAutomationLanes, type TrackAutomationLanesProps } from "./TrackAutomationLanes";
 export { useAutomationToggle } from "./toggle";
 export { openValueMenu, ValueEditHost, valueMenuEntries, type ValueMenuTarget } from "./valueMenu";

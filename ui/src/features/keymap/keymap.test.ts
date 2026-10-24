@@ -131,6 +131,7 @@ describe("registry and presets", () => {
       "pianoRoll.nudgeDownAlt": ["Alt+ArrowDown"],
       "pianoRoll.nudgeRightShift": ["Shift+ArrowRight"],
       "automation.fineUp": ["Shift+ArrowUp", "Alt+Shift+ArrowUp"],
+      "automation.drawMode": ["B"],
       "automation.fineDown": ["Shift+ArrowDown", "Alt+Shift+ArrowDown"],
       "automation.fineLeft": ["Shift+ArrowLeft", "Alt+Shift+ArrowLeft"],
       "automation.fineRight": ["Shift+ArrowRight", "Alt+Shift+ArrowRight"],

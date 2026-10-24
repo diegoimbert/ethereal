@@ -698,3 +698,19 @@
 .eth-device--cut {
   opacity: var(--eth-opacity-muted);
 }
+
+/* A plugin window asked to open and not open yet (loading, or the plugin still on it). */
+.eth-device__window-toggle--opening .eth-icon-button__icon {
+  color: var(--eth-color-accent);
+  animation: eth-device-window-opening 0.9s var(--eth-ease-standard) infinite alternate;
+}
+@keyframes eth-device-window-opening {
+  to {
+    opacity: 0.35;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .eth-device__window-toggle--opening .eth-icon-button__icon {
+    animation: none;
+  }
+}

@@ -146,6 +146,7 @@ Ceux-ci ne changent pas le son : l’audio passe sans être modifié. Ouvrez le
 
 - **spectre** : un analyseur de fréquences, avec taille de bloc, moyennage, canal (mid et side compris), plage d’affichage, pente et maintien des crêtes.
 - **accordeur** : affiche la hauteur de ce que vous jouez. La **référence** va de 415 à 466 Hz (440 par défaut). **couper la sortie** rend la piste muette pendant que vous vous accordez.
+- **sonie** : un sonomètre (la mesure ebu r 128 qu’utilisent les plateformes de streaming et la diffusion). Il affiche la sonie **instantanée** (les 0,4 dernières secondes), **court terme** (les 3 dernières secondes) et **intégrée** (toute la lecture, en lufs, sans les passages silencieux), la **plage** (combien la sonie varie, en lu) et la **crête vraie** (le point le plus haut de la forme d’onde, entre les échantillons aussi, en dbtp ; en rouge au-dessus de -1). Le graphe montre l’historique ; la ligne pointillée est votre **cible** (-14 par défaut). Avec **réinitialiser à la lecture**, chaque lecture commence une nouvelle mesure. Placez-le en dernier sur le master pour vérifier un mix.
 
 ## effets midi {#midi-effects}
 

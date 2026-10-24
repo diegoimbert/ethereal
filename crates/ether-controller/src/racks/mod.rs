@@ -619,7 +619,8 @@ pub fn append_chain_device(
     Ok(d)
 }
 
-/// `Rack::Group`: consecutive track-chain devices into a new rack with one chain. The
+/// `Rack::Group`: consecutive devices of a track chain or of a rack chain into a new rack
+/// with one chain, in their place. The
 /// devices' modulators move to the rack (new ids derived from the rack id, in the order
 /// modulators then mappings, each sorted by id) so their mappings keep working.
 fn group(
@@ -646,14 +647,45 @@ fn group(
         .map(|id| ctx.device(*id))
         .collect::<CmdResult<_>>()?;
     let track = devices[0].track;
+    // One track chain, or one rack chain (the new rack takes their place there).
+    let host_chain = devices[0].chain;
     if devices
         .iter()
-        .any(|d| d.track != track || d.pad.is_some() || d.chain.is_some())
+        .any(|d| d.track != track || d.pad.is_some() || d.chain != host_chain)
     {
-        return Err(invalid("grouped devices must be on one track chain"));
+        return Err(invalid(
+            "grouped devices must be on one track chain or one rack chain",
+        ));
     }
+    let host = host_chain.map(|c| chain(ctx, c)).transpose()?;
+    // The new rack's level (1: on the track chain), its devices go one below.
+    let level = match &host {
+        None => 1,
+        Some(c) => {
+            let r = rack(ctx, c.rack)?;
+            check_nestable(
+                ctx,
+                &DeviceKind::Builtin {
+                    device: BuiltinDevice::new(rack_type),
+                },
+                None,
+                r.id,
+            )?;
+            check_chain_fit(
+                self::rack_type(&r).expect("a rack"),
+                Some(builtin_descriptor(&BuiltinDevice::new(rack_type)).category),
+            )?;
+            ctx.p()
+                .device_path(r.id)
+                .map_or(MAX_RACK_DEPTH, |p| p.len())
+                + 1
+        }
+    };
     // Consecutive on the chain.
-    let chain_order: Vec<DeviceId> = ctx.p().devices_of(track).iter().map(|d| d.id).collect();
+    let chain_order: Vec<DeviceId> = match host_chain {
+        None => ctx.p().devices_of(track).iter().map(|d| d.id).collect(),
+        Some(c) => ctx.p().chain_devices_of(c).iter().map(|d| d.id).collect(),
+    };
     let mut idx: Vec<usize> = devices
         .iter()
         .map(|d| {
@@ -673,12 +705,12 @@ fn group(
         .map(|&i| ctx.device(chain_order[i]))
         .collect::<CmdResult<_>>()?;
     for d in &devices {
-        // The new rack is level 1: grouped racks go one level down with what they hold. A
-        // drum rack groups into an instrument rack only.
+        // Grouped racks go one level below the new rack with what they hold. A drum rack
+        // groups into an instrument rack only.
         if d.kind.is_drum_rack() && rack_type != BuiltinDeviceType::InstrumentRack {
             return Err(invalid("drum racks only go on instrument rack chains"));
         }
-        if d.kind.is_any_rack() && 2 + ctx.p().nested_rack_height(d.id) > MAX_RACK_DEPTH {
+        if d.kind.is_any_rack() && level + 1 + ctx.p().nested_rack_height(d.id) > MAX_RACK_DEPTH {
             return Err(invalid(format!("racks nest at most {MAX_RACK_DEPTH} deep")));
         }
         let category = ctx.host.descriptor(d.id, &d.kind).map(|x| x.category);
@@ -705,7 +737,7 @@ fn group(
         params: default_params(&kind),
         sidechain: None,
         pad: None,
-        chain: None,
+        chain: host_chain,
     }))?;
     ctx.tx.insert(Entity::RackChain(RackChain {
         id: chain_id,

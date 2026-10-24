@@ -4,7 +4,9 @@ import { usePluginStore } from "@/features/plugins/pluginStore";
 import { flush } from "@/features/devices/testUtils";
 import type { EngineTransport } from "@/transport";
 import { resetDeviceWindows, useDeviceWindows } from "./store";
-import { showDeviceWindow } from "./useDeviceWindow";
+import { setDeviceWindow, showDeviceWindow } from "./useDeviceWindow";
+import { useNotices } from "@/features/notifications";
+import { CommandFailedError } from "@/transport";
 
 /** A transport that records what it is sent (plugin commands succeed). */
 function recorder(): EngineTransport & { sent: Command[] } {
@@ -16,8 +18,12 @@ const device = (id: string, plugin: boolean) =>
 
 afterEach(() => {
   resetDeviceWindows();
-  usePluginStore.setState({ editors: {}, crashed: {} });
+  usePluginStore.setState({ editors: {}, crashed: {}, opening: {}, loading: [] });
+  useNotices.getState().clear();
 });
+
+const types = (t: { sent: Command[] }) => t.sent.map((c) => (c as { command: { type: string } }).command.type);
+const notices = () => useNotices.getState().notices.map((n) => `${n.level}: ${n.message}`);
 
 describe("showDeviceWindow (a click on a device card)", () => {
   it("never opens a chain rack's window (its macros and chains are on its card)", () => {
@@ -48,10 +54,54 @@ describe("showDeviceWindow (a click on a device card)", () => {
     expect(usePluginStore.getState().editors["p1"]).toBeTruthy();
   });
 
-  it("leaves a crashed plugin alone", () => {
+  it("doesn't ask a crashed plugin, and says why", () => {
     const t = recorder();
     usePluginStore.setState({ crashed: { p2: "boom" } });
-    showDeviceWindow(t, device("p2", true));
+    showDeviceWindow(t, { ...device("p2", true), name: "Verb" });
     expect(t.sent).toEqual([]);
+    expect(notices()).toEqual(["Warning: Verb crashed: reload it to open its window"]);
+  });
+});
+
+describe("setDeviceWindow (the window button) on a plugin", () => {
+  it("shows the opening state until the engine answers, and ignores clicks meanwhile", async () => {
+    let answer: (v: unknown) => void = () => {};
+    const sent: Command[] = [];
+    const t = { send: (c: Command) => (sent.push(c), new Promise((r) => (answer = r))) } as unknown as EngineTransport;
+    const d = device("p3", true);
+    setDeviceWindow(t, d, true);
+    await flush();
+    expect(usePluginStore.getState().opening["p3"]).toBe(true);
+    setDeviceWindow(t, d, true);
+    await flush();
+    expect(sent).toHaveLength(1);
+    answer({ type: "Unit" });
+    await flush();
+    expect(usePluginStore.getState().opening["p3"]).toBeUndefined();
+    expect(usePluginStore.getState().editors["p3"]).toBe(true);
+  });
+
+  it("waits for a plugin still loading before asking for its editor", async () => {
+    const t = recorder();
+    usePluginStore.setState({ loading: ["p4"] });
+    setDeviceWindow(t, device("p4", true), true);
+    await flush();
+    expect(t.sent).toEqual([]);
+    expect(usePluginStore.getState().opening["p4"]).toBe(true);
+    usePluginStore.setState({ loading: [] });
+    await flush();
+    expect(types(t)).toEqual(["OpenEditor"]);
+    expect(usePluginStore.getState().editors["p4"]).toBe(true);
+  });
+
+  it("says why it couldn't open, in a toast", async () => {
+    const t = {
+      send: (c: Command) => Promise.reject(new CommandFailedError({ code: "Plugin", message: "the plugin has no editor" }, c)),
+    } as unknown as EngineTransport;
+    setDeviceWindow(t, { ...device("p5", true), name: "Synth" }, true);
+    await flush();
+    expect(usePluginStore.getState().opening["p5"]).toBeUndefined();
+    expect(usePluginStore.getState().editors["p5"]).toBeUndefined();
+    expect(notices()).toEqual(["Error: couldn't open the Synth window: the plugin has no editor"]);
   });
 });

@@ -385,6 +385,9 @@ pub enum BuiltinDevice {
     GrainDelay,
     /// Pitch shifter, frequency shifter and ring modulator (`shifter`).
     Shifter,
+    /// Loudness meter: momentary / short-term / integrated LUFS, loudness range and true
+    /// peak with a history (`fx-analysis`).
+    Loudness,
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -436,11 +439,12 @@ pub enum BuiltinDeviceType {
     Pedal,
     GrainDelay,
     Shifter,
+    Loudness,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 44] = [
+    pub const ALL: [BuiltinDeviceType; 45] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -485,6 +489,7 @@ impl BuiltinDeviceType {
         Self::Pedal,
         Self::GrainDelay,
         Self::Shifter,
+        Self::Loudness,
     ];
 
     /// Rack types ([`crate::rack`]).
@@ -561,6 +566,7 @@ impl BuiltinDevice {
             Self::Pedal => BuiltinDeviceType::Pedal,
             Self::GrainDelay => BuiltinDeviceType::GrainDelay,
             Self::Shifter => BuiltinDeviceType::Shifter,
+            Self::Loudness => BuiltinDeviceType::Loudness,
         }
     }
 
@@ -650,6 +656,7 @@ impl BuiltinDevice {
             BuiltinDeviceType::Pedal => Self::Pedal,
             BuiltinDeviceType::GrainDelay => Self::GrainDelay,
             BuiltinDeviceType::Shifter => Self::Shifter,
+            BuiltinDeviceType::Loudness => Self::Loudness,
         }
     }
 

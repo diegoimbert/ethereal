@@ -15,6 +15,7 @@ import { isArrangementClip } from "./clipTime";
 import { arrangementTracks } from "./layout";
 import { selectedClips, sendEdit } from "./context";
 import { useArrangementUi } from "./uiStore";
+import { copyMixed, cutMixed, deleteMixedCommand, duplicateMixed, isMixedSelection } from "./mixedSelection";
 import { reverseClipsCommand } from "@/features/clip-editing/clipEditing";
 import { bounceIfAllowed, consolidateIfAllowed } from "@/features/freeze";
 import { exportMidiClips, midiClipsOfTracks } from "@/features/midi-file/exportMidi";
@@ -140,16 +141,19 @@ export function selectAtLaneClick(track: TrackId | null, clip: Clip["id"] | null
 
 /**
  * Keep a single kind of selected entity in the arrangement: selecting clips clears the
- * automation points and the track focus, and the other way around. Returns the unsubscribe.
+ * automation points and the track focus, and the other way around. Kinds a box selects
+ * together (`selectKinds`: across clip and automation lanes) stay selected together.
+ * Returns the unsubscribe.
  */
 export function bindSingleSelection(): () => void {
   return itemSelection.subscribe((s, prev) => {
     const kinds = (["clip", "automationPoint", "tempoPoint"] as const).filter((k) => s.selected[k] !== prev.selected[k] && s.selected[k].size > 0);
-    const chosen = kinds[0];
-    if (!chosen) return;
+    if (kinds.length === 0) return;
     useArrangementUi.getState().setTrackFocus(null);
-    // One kind at a time in the arrangement: clips, automation points or tempo points.
-    for (const k of ["clip", "automationPoint", "tempoPoint"] as const) if (k !== chosen) itemSelection.getState().clear(k);
+    // One kind at a time in the arrangement: clips, automation points or tempo points; a box
+    // keeps what it selected together.
+    const kept = new Set<string>(s.together.length ? s.together : [kinds[0]!]);
+    for (const k of ["clip", "automationPoint", "tempoPoint"] as const) if (!kept.has(k)) itemSelection.getState().clear(k);
   });
 }
 
@@ -253,6 +257,7 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
       return sendEdit(transport, splitCommand(clips, insertPoint().at, newId));
     case "duplicate": {
       if (onTracks) return duplicateSelectedTracks(transport).then(() => {});
+      if (isMixedSelection()) return duplicateMixed(transport);
       // Select the copies, so repeated duplicates keep extending the pattern.
       const ids: string[] = [];
       const command = duplicateCommand(clips, () => {
@@ -269,7 +274,8 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
     case "delete":
       // The selected entity: a track (header clicked) or the selected clips.
       if (onTracks) return deleteSelectedTracks(transport);
-      return sendEdit(transport, deleteCommand(clips.map((c) => c.id)));
+      // Clips and track automation points selected together (a box across both): both go.
+      return sendEdit(transport, isMixedSelection() ? deleteMixedCommand() : deleteCommand(clips.map((c) => c.id)));
     case "loop":
       return sendEdit(transport, toggleLoopCommand(clips));
     case "reverse": {
@@ -307,10 +313,12 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
     }
     case "copy":
       if (onTracks) copySelectedTracks();
+      else if (isMixedSelection()) copyMixed();
       else copyClips();
       return Promise.resolve();
     case "cut":
-      return onTracks ? cutSelectedTracks(transport) : cutClips(transport);
+      if (onTracks) return cutSelectedTracks(transport);
+      return isMixedSelection() ? cutMixed(transport) : cutClips(transport);
     case "paste":
       if (getTrackClipboard()) return pasteTracks(transport).then(() => {});
       // At the insert marker (after a range selection; the playhead only without either),

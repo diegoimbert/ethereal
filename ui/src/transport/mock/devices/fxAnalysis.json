@@ -1,4 +1,130 @@
 {
+  "Loudness": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Loudness",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "loudness",
+          "items": [
+            {
+              "colspan": 4,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "target": 0,
+                "type": "Loudness"
+              }
+            }
+          ],
+          "span": 4,
+          "title": null
+        },
+        {
+          "columns": 1,
+          "id": "settings",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 1,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 2,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Meter"
+        }
+      ]
+    },
+    "midi_input": false,
+    "name": "Loudness",
+    "params": [
+      {
+        "automatable": true,
+        "default": -14.0,
+        "group": "Display",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 0.0,
+        "min": -36.0,
+        "name": "Target",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Display",
+        "hidden": false,
+        "id": 1,
+        "labels": [
+          "10 s",
+          "30 s",
+          "1 min",
+          "5 min",
+          "15 min"
+        ],
+        "max": 4.0,
+        "min": 0.0,
+        "name": "History",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Meter",
+        "hidden": false,
+        "id": 2,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Reset On Play",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      }
+    ],
+    "sidechain_inputs": 0
+  },
   "SpectrumAnalyzer": {
     "audio_inputs": 2,
     "audio_outputs": 2,
