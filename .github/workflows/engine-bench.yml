@@ -33,6 +33,9 @@ on:
       workers:
         description: ETHER_BENCH_WORKERS (comma list; empty = 0,1,3,7 below the physical cores)
         default: ""
+      burn:
+        description: ETHER_BENCH_BURN (chain = dependent multiply-adds, simd = vectorized independent ones)
+        default: "chain"
       state_kb:
         description: ETHER_BENCH_STATE_KB (state each device streams through per block)
         default: "0"
@@ -63,6 +66,7 @@ jobs:
       ETHER_BENCH_ANTICIP: ${{ inputs.anticip }}
       ETHER_BENCH_WORKERS: ${{ inputs.workers }}
       ETHER_BENCH_STATE_KB: ${{ inputs.state_kb }}
+      ETHER_BENCH_BURN: ${{ inputs.burn }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
