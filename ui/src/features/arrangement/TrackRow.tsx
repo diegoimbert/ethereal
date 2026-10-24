@@ -38,6 +38,7 @@ import { InstrumentPick } from "./InstrumentPick";
 import { HeaderVolume } from "./HeaderVolume";
 import { sameTrackExceptVolume } from "./trackEquality";
 import { useTrackDisplayName } from "./trackDisplayName";
+import { useGroupRailColors } from "./groupRails";
 import { onTrackHeaderPointerDown } from "./trackDrag";
 import { HEADER_INDENT_PX, mainHeight, NARROW_HEADER_WIDTH, TRACK_HEIGHT_STEP, type Row } from "./layout";
 import { arrangementView, useArrangementUi, type PendingImport } from "./uiStore";
@@ -74,6 +75,9 @@ function RealTrackRow({ row }: { row: Row }) {
   const gl = row.track.kind !== "Master";
   // The lane part doesn't depend on the automation height (animated per frame).
   const { track, depth, laneHeight, takesHeight = 0 } = row;
+  // Inside groups: a rail per enclosing group along the header column, the innermost one's
+  // also along the lane's left edge (arrangement.css), so membership reads at a glance.
+  const groupColors = useGroupRailColors(track);
   const mainRow = useMemo(() => row, [track, depth, laneHeight, takesHeight]); // eslint-disable-line react-hooks/exhaustive-deps
   const main = useMemo(
     () => (
@@ -106,6 +110,14 @@ function RealTrackRow({ row }: { row: Row }) {
       style={{ height: row.height, ["--eth-track-depth" as string]: depth, ["--eth-track-color" as string]: colorCss(track.color) }}
       data-track={row.track.id}
     >
+      {groupColors.length > 0 && (
+        <div className="eth-arr-row__groups" aria-hidden data-testid="group-rails">
+          {groupColors.map((color, level) => (
+            <span key={level} className="eth-arr-row__group-rail" style={{ ["--eth-group-level" as string]: level, ["--eth-group-color" as string]: color }} />
+          ))}
+          <span className="eth-arr-row__group-edge" style={{ ["--eth-group-color" as string]: groupColors[groupColors.length - 1] }} />
+        </div>
+      )}
       {main}
       {/* Automation slot: its height is fed to `layoutRows` via `useAutomationHeight`. */}
       <div className="eth-arr-row__automation" data-slot="automation" data-track={row.track.id}>
