@@ -1,0 +1,33 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "punchy drums",
+    "device": {
+      "type": "Builtin",
+      "device": "Maximizer"
+    },
+    "meta": {
+      "tags": [
+        "drums",
+        "bus"
+      ],
+      "author": "ethereal",
+      "description": "fast attack and release with a little clipping for a drum bus; less stereo link keeps the image moving."
+    },
+    "params": {
+      "0": -6.0,
+      "1": -1.0,
+      "2": 20.0,
+      "3": 0.0,
+      "4": 0.5,
+      "5": 80.0,
+      "6": 30.0,
+      "7": 0.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

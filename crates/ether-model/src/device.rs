@@ -388,6 +388,9 @@ pub enum BuiltinDevice {
     /// Loudness meter: momentary / short-term / integrated LUFS, loudness range and true
     /// peak with a history (`fx-analysis`).
     Loudness,
+    /// Mastering maximizer: a threshold-driven lookahead true-peak brickwall limiter
+    /// (`maximizer`).
+    Maximizer,
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -440,11 +443,12 @@ pub enum BuiltinDeviceType {
     GrainDelay,
     Shifter,
     Loudness,
+    Maximizer,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 45] = [
+    pub const ALL: [BuiltinDeviceType; 46] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -490,6 +494,7 @@ impl BuiltinDeviceType {
         Self::GrainDelay,
         Self::Shifter,
         Self::Loudness,
+        Self::Maximizer,
     ];
 
     /// Rack types ([`crate::rack`]).
@@ -567,6 +572,7 @@ impl BuiltinDevice {
             Self::GrainDelay => BuiltinDeviceType::GrainDelay,
             Self::Shifter => BuiltinDeviceType::Shifter,
             Self::Loudness => BuiltinDeviceType::Loudness,
+            Self::Maximizer => BuiltinDeviceType::Maximizer,
         }
     }
 
@@ -657,6 +663,7 @@ impl BuiltinDevice {
             BuiltinDeviceType::GrainDelay => Self::GrainDelay,
             BuiltinDeviceType::Shifter => Self::Shifter,
             BuiltinDeviceType::Loudness => Self::Loudness,
+            BuiltinDeviceType::Maximizer => Self::Maximizer,
         }
     }
 

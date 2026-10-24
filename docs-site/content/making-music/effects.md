@@ -12,6 +12,7 @@ covers:
   - devices/reverb #reverb
   - devices/convolution-reverb #convolution-reverb
   - devices/limiter #limiter
+  - devices/maximizer #maximizer
   - devices/utility #utility
   - devices/color-effects-saturator-bitcrusher-auto-filter #color-saturator-bitcrusher-auto-filter
   - devices/modulation-effects-chorus-phaser-flanger-tremolo #modulation-chorus-phaser-flanger-tremolo
@@ -89,6 +90,15 @@ A brickwall limiter, usually last on the master track: nothing goes above the **
 
 - **gain** drives the input into it, to make the sound louder. **release** sets how fast it recovers.
 - It always looks 5 ms ahead (that latency is compensated). It catches true peaks too (the peaks between samples that a converter or a streaming encoder rebuilds), so the ceiling holds after export.
+
+### maximizer
+
+A mastering limiter for loudness: lower the **threshold** and the sound gets that much louder, while nothing goes above the **ceiling** (true peaks included, -1 dB by default).
+
+- **attack** sets how early the gain starts dropping before a peak (within 5 ms of lookahead, compensated). **release** sets how fast it recovers; with **auto release** on it recovers quickly after a lone peak and slowly after a loud passage, which pumps less.
+- **stereo link** at 100 % ducks both sides together; lower, a peak on one side ducks the other less, which keeps a wide mix wide. **clip** rounds off the fastest peaks before the limiter, for a denser, louder sound.
+- **match level** turns the output down by the threshold's boost, so you can hear what the limiting does without the loudness fooling you. Turn it off before you export.
+- The graph shows the last 4 seconds: the input level, the output and the gain reduction hanging from the top, with the ceiling line. Its readouts show the reduction now, the deepest one and the output's true peak since you pressed play.
 
 ### utility
 

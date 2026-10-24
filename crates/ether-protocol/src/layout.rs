@@ -267,6 +267,14 @@ pub enum Widget {
     Loudness {
         target: ParamId,
     },
+    // --- maximizer ---
+    /// A maximizer's history: input level, output level and gain reduction over the last
+    /// seconds, with the `threshold` and `ceiling` lines and the readouts
+    /// (`AnalysisData::Levels` of a `Maximizer`, layout in `ether_devices::maximizer::Frame`).
+    Maximizer {
+        threshold: ParamId,
+        ceiling: ParamId,
+    },
 }
 
 /// Operator routing of one algorithm of a [`Widget::FmAlgorithm`]. Operators are numbered

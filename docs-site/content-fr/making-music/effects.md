@@ -12,6 +12,7 @@ covers:
   - devices/reverb #reverb
   - devices/convolution-reverb #convolution-reverb
   - devices/limiter #limiter
+  - devices/maximizer #maximizer
   - devices/utility #utility
   - devices/color-effects-saturator-bitcrusher-auto-filter #color-saturator-bitcrusher-auto-filter
   - devices/modulation-effects-chorus-phaser-flanger-tremolo #modulation-chorus-phaser-flanger-tremolo
@@ -89,6 +90,15 @@ Un limiteur brickwall, en général en dernier sur la piste master : rien ne d�
 
 - **gain** pousse l’entrée dedans, pour rendre le son plus fort. **relâchement** règle la vitesse à laquelle il revient.
 - Il anticipe toujours de 5 ms (cette latence est compensée). Il attrape aussi les crêtes réelles (true peak, les crêtes entre les échantillons qu’un convertisseur ou un encodeur de streaming reconstruit), donc le plafond tient après l’export.
+
+### maximiseur {#maximizer}
+
+Un limiteur de mastering pour la sonie : baissez le **seuil** et le son devient d’autant plus fort, sans que rien ne dépasse le **plafond** (crêtes réelles comprises, -1 dB par défaut).
+
+- **attaque** règle combien de temps avant une crête le gain commence à baisser (dans les 5 ms d’anticipation, compensées). **relâchement** règle la vitesse à laquelle il revient ; avec **relâchement auto**, il revient vite après une crête isolée et lentement après un passage fort, ce qui pompe moins.
+- **liaison stéréo** à 100 % baisse les deux côtés ensemble ; plus bas, une crête d’un côté baisse moins l’autre, ce qui garde un mix large. **écrêtage** arrondit les crêtes les plus rapides avant le limiteur, pour un son plus dense et plus fort.
+- **niveau égalisé** baisse la sortie du gain apporté par le seuil, pour entendre ce que fait la limitation sans que la sonie vous trompe. Désactivez-le avant d’exporter.
+- Le graphe montre les 4 dernières secondes : le niveau d’entrée, la sortie et la réduction de gain qui descend du haut, avec la ligne du plafond. Ses valeurs affichent la réduction actuelle, la plus forte et la crête réelle de la sortie depuis la lecture.
 
 ### utilitaire {#utility}
 
