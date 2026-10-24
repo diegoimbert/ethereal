@@ -249,7 +249,6 @@ export interface MessageArgs {
   "drum_rack.pad.label": { name: string | number };
   "drum_rack.pad.load_failed": { error: string | number };
   "drum_rack.pad.mute_label": { name: string | number };
-  "drum_rack.pad.preview_label": { name: string | number };
   "drum_rack.pad.solo_label": { name: string | number };
   "drum_rack.slice.failed": { error: string | number; name: string | number };
   "drum_rack.slices.at_tempo": { bpm: string | number };

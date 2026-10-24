@@ -14,7 +14,6 @@ import {
   openDeviceTab,
   openDeviceWindow,
   openLibrary,
-  padButton,
   pickOption,
   playButton,
   setNumberField,
@@ -225,8 +224,9 @@ test("drum rack window: a pad's tune, preview and its Sampler's own panel", asyn
   await tune.focus();
   await page.keyboard.press("ArrowUp");
   await expect.poll(async () => (await project(page)).devices[sampler]?.params[2] ?? 0).toBe(1);
-  // Preview, on the pad (shown on hover, with its mute and solo).
-  await (await padButton(grid, "preview Kick")).click();
+  // Pressing the pad plays it: no separate play button next to its mute and solo.
+  await grid.getByRole("gridcell", { name: /^C1 / }).click();
+  await expect(grid.getByRole("button", { name: "preview Kick" })).toHaveCount(0);
   // Nothing in the window overflows sideways.
   expect(await overflow(win)).toEqual([]);
   const panel = await openDeviceWindow(page, sampler);
