@@ -1783,6 +1783,9 @@ impl Project {
             TrackInput::Audio { count, .. } if *count == 0 => {
                 return Err(invalid("audio input needs at least one channel"));
             }
+            TrackInput::Audio { first, count } if first.checked_add(*count).is_none() => {
+                return Err(invalid("audio input channels out of range"));
+            }
             TrackInput::Midi {
                 channel: Some(ch), ..
             } if *ch > 15 => return Err(invalid("MIDI channel must be 0..=15")),

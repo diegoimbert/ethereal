@@ -554,6 +554,11 @@ pub fn slice_command(ctx: &mut DocCtx, c: &SliceCommand) -> CmdResult<()> {
             if positions.iter().any(|p| !p.0.is_finite() || p.0 < 0.0) {
                 return Err(invalid("slice positions must be finite and >= 0"));
             }
+            // Past this they would be dropped anyway (`normalize`); checked before the
+            // pairwise spacing test below.
+            if positions.len() > MAX_SLICES {
+                return Err(invalid(format!("at most {MAX_SLICES} slices")));
+            }
             let mut m = markers();
             // New markers never displace existing ones closer than 1 ms.
             for p in positions {
