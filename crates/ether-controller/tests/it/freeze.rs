@@ -922,6 +922,8 @@ fn bounce_a_time_selection_to_new_tracks() {
         range(vec![empty], 1.0, 3.0),
         range(vec![m, a], 20.0, 24.0),
         range(vec![m], 2.0, 2.0),
+        // Longer than a render may be (`MAX_RENDER_SECONDS`).
+        range(vec![m, a], 0.0, 1e12),
     ] {
         assert_eq!(d.err(c).code, ErrorCode::InvalidArgument);
     }
