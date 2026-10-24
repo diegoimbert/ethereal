@@ -45,6 +45,8 @@ pub mod compile;
 #[doc(hidden)]
 pub mod comping;
 #[doc(hidden)]
+pub mod device_upgrade;
+#[doc(hidden)]
 pub mod doc;
 #[doc(hidden)]
 pub mod drum_rack;

@@ -21,6 +21,7 @@ mod compile_perf;
 mod comping;
 mod contract_vectors;
 mod crossfades;
+mod device_upgrade;
 mod discard;
 mod drum_rack;
 mod drum_rack_macros;

@@ -45,7 +45,7 @@
 //!
 //! | id | group | name | range |
 //! |----|-------|------|-------|
-//! | 0 | Filter | `Type` | Low-pass 12 / Low-pass 24 / High-pass 12 / High-pass 24 / Band-pass / Notch / Peak (default Low-pass 12) |
+//! | 0 | Filter | `Type (legacy)` | Low-pass 12 / Low-pass 24 / High-pass 12 / High-pass 24 / Band-pass / Notch / Peak (default Low-pass 12), hidden: see 15, 16 |
 //! | 1 | Filter | `Cutoff` | 20 ..= 20000 Hertz (log), default 1000 |
 //! | 2 | Filter | `Resonance` | 0 ..= 100 Percent, default 20 |
 //! | 3 | Filter | `Drive` | 0 ..= 24 Decibels, default 0 |
@@ -60,6 +60,13 @@
 //! | 12 | LFO | `Stereo Phase` | 0 ..= 180 None, default 0 |
 //! | 13 | Output | `Mix` | 0 ..= 100 Percent, default 100 |
 //! | 14 | Output | `Output` | -24 ..= 24 Decibels, default 0 |
+//! | 15 | Filter | `Type` | Low-pass / High-pass / Band-pass / Notch / Peak (default Low-pass) |
+//! | 16 | Filter | `Slope` | 12 dB/oct / 24 dB/oct / 48 dB/oct (default 12 dB/oct; low- and high-pass only) |
+//!
+//! `Type (legacy)` is the type list from before `Slope` existed, kept so old documents and
+//! their automation still load: while `Type` and `Slope` are both at their defaults, a
+//! legacy type other than `Low-pass 12` still decides the filter (`Low-pass 24` is `Low-pass`
+//! at 24 dB, `Band-pass` is `Band-pass`, ...). New documents only use 15/16.
 //!
 //! # Erosion (`BuiltinDeviceType::Erosion`)
 //!
@@ -160,8 +167,12 @@ pub mod auto_filter {
     pub const LFO_PHASE: ParamId = ParamId(12);
     pub const MIX: ParamId = ParamId(13);
     pub const OUTPUT: ParamId = ParamId(14);
+    /// Filter type (Low-pass / High-pass / Band-pass / Notch / Peak).
+    pub const MODE: ParamId = ParamId(15);
+    /// Low- and high-pass slope (12 / 24 / 48 dB per octave).
+    pub const SLOPE: ParamId = ParamId(16);
     /// Number of params.
-    pub const COUNT: usize = 15;
+    pub const COUNT: usize = 17;
 }
 
 /// Param ids of `Erosion` (stable, append-only).
@@ -191,6 +202,14 @@ pub mod pedal {
     pub const MIX: ParamId = ParamId(8);
     /// Number of params.
     pub const COUNT: usize = 9;
+}
+
+/// A param kept for old documents but not shown (UI, generic list, AI tools).
+fn hidden(
+    mut p: ether_core::protocol::devices::ParamInfo,
+) -> ether_core::protocol::devices::ParamInfo {
+    p.hidden = true;
+    p
 }
 
 /// Descriptor of a type of this group.
@@ -322,9 +341,9 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
             "Auto Filter",
             DeviceCategory::AudioEffect,
             vec![
-                choice(
+                hidden(choice(
                     0,
-                    "Type",
+                    "Type (legacy)",
                     "Filter",
                     &[
                         "Low-pass 12",
@@ -336,7 +355,7 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                         "Peak",
                     ],
                     0,
-                ),
+                )),
                 param(
                     1,
                     "Cutoff",
@@ -440,6 +459,20 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                     ParamUnit::Decibels,
                     (-24.0, 24.0, 0.0),
                     ParamScale::Linear,
+                ),
+                choice(
+                    15,
+                    "Type",
+                    "Filter",
+                    &["Low-pass", "High-pass", "Band-pass", "Notch", "Peak"],
+                    0,
+                ),
+                choice(
+                    16,
+                    "Slope",
+                    "Filter",
+                    &["12 dB/oct", "24 dB/oct", "48 dB/oct"],
+                    0,
                 ),
             ],
             2,
@@ -658,9 +691,10 @@ fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
                         Widget::FilterCurve {
                             cutoff: p::CUTOFF,
                             resonance: p::RESONANCE,
-                            mode: Some(p::TYPE),
+                            mode: Some(p::MODE),
                             drive: Some(p::DRIVE),
                             gain: None,
+                            slope: Some(p::SLOPE),
                         },
                         Large,
                         2,
