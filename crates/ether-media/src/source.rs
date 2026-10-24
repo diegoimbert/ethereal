@@ -102,6 +102,9 @@ pub fn open(source: Box<dyn MediaSource>, extension: Option<&str>) -> Result<Ope
         .map_err(map_err)?;
     let track_id = track.id;
     let (sample_rate, channels, n_frames) = track_info(track);
+    if sample_rate != 0 {
+        crate::check_rate(sample_rate)?;
+    }
     Ok(Opened {
         format,
         decoder,

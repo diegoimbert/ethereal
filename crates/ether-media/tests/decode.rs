@@ -1,7 +1,7 @@
 mod common;
 
 use common::*;
-use ether_media::{MediaError, decode};
+use ether_media::{DecodedAudio, MediaError, decode};
 
 const RATE: u32 = 48_000;
 
@@ -182,5 +182,28 @@ fn m4a_and_aac_decode() {
                 assert!(peak > 0.05, "{ext}: peak {peak}");
             }
         }
+    }
+}
+
+/// A header's sample rate outside `SAMPLE_RATES` is refused when the file is opened, before it
+/// can size any buffer (and the resamplers refuse it too).
+#[test]
+fn sample_rate_out_of_range_is_refused() {
+    let tone = vec![vec![0.25f32; 64]];
+    for rate in [1, 999, 768_001, 4_000_000] {
+        let wav = common::wav_pcm16(&tone, rate);
+        assert!(
+            matches!(decode(&wav, Some("wav")), Err(MediaError::Decode(_))),
+            "{rate} Hz"
+        );
+        let audio = DecodedAudio {
+            sample_rate: rate,
+            channels: tone.clone(),
+        };
+        assert!(ether_media::resample(&audio, 48_000).is_err(), "{rate} Hz");
+    }
+    for rate in [8_000, 768_000] {
+        let wav = common::wav_pcm16(&tone, rate);
+        assert_eq!(decode(&wav, Some("wav")).unwrap().sample_rate, rate);
     }
 }

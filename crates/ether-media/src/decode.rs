@@ -62,7 +62,7 @@ pub fn decode_owned(bytes: Vec<u8>, extension: Option<&str>) -> Result<DecodedAu
             )));
         }
         if sample_rate == 0 {
-            sample_rate = decoded.spec().rate();
+            sample_rate = crate::check_rate(decoded.spec().rate())?;
         }
         source::append_planar(&decoded, &mut channels);
     }
