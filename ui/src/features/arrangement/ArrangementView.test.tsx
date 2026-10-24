@@ -1857,6 +1857,21 @@ describe("ArrangementView: track multi-selection (base-151)", () => {
     await waitFor(() => expect(headerOf("Keys")).not.toHaveAttribute("data-group-hover"));
   });
 
+  it("a grouped track's row shows a rail per enclosing group (none at the top level)", async () => {
+    const [keys, bass] = [trackByName("Keys"), trackByName("Bass")];
+    const [inner, outer] = [newId(), newId()];
+    await act(async () => {
+      await mock.send(cmd("Track", { type: "GroupSelected", ids: [keys.id], group: inner, name: "Inner" }));
+      await mock.send(cmd("Track", { type: "GroupSelected", ids: [inner, bass.id], group: outer, name: "Outer" }));
+    });
+    await flush();
+    const railsOf = (id: string) => document.querySelectorAll(`.eth-arr-row[data-track="${id}"] .eth-arr-row__group-rail`).length;
+    await waitFor(() => expect(railsOf(keys.id)).toBe(2));
+    expect(railsOf(bass.id)).toBe(1);
+    expect(railsOf(inner)).toBe(1);
+    expect(railsOf(outer)).toBe(0);
+  });
+
   it("allSelectableTracks: the shown rows in display order, children of folded groups and the master left out", async () => {
     const { allSelectableTracks } = await import("./actions");
     const [keys, bass] = [trackByName("Keys"), trackByName("Bass")];
