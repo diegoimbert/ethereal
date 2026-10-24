@@ -147,8 +147,6 @@
   "drum_rack.pad.mute_label": "mute {name}",
   "drum_rack.pad.solo_label": "solo {name}",
   "drum_rack.pad.solo_title": "solo (click: only this pad; ctrl/cmd-click: add to or remove from the soloed pads)",
-  "drum_rack.pad.preview_label": "preview {name}",
-  "drum_rack.pad.preview_title": "play the pad through its chain (hold)",
   "drum_rack.pad.load_failed": "load failed: {error}",
   "drum_rack.pad.drop_hint": "drop a sample to create a pad on {note}",
   "drum_rack.pad.rename_hint": "double-click to rename",

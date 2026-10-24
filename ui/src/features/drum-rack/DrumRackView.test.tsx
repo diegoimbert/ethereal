@@ -201,8 +201,10 @@ describe("DrumRackView", () => {
       [0x80, 36, 0],
     ]);
 
-    // The pad's play button and the keyboard (Space) do the same; a right click doesn't.
-    fireEvent.pointerDown(screen.getByRole("button", { name: "preview Kick" }), { button: 0 });
+    // No separate play button (pressing the pad plays it); the keyboard (Space) does the
+    // same; a right click doesn't.
+    expect(screen.queryByRole("button", { name: /preview/ })).toBeNull();
+    fireEvent.pointerDown(cell(36), { button: 0 });
     fireEvent.pointerUp(window);
     fireEvent.keyDown(cell(36), { key: " " });
     fireEvent.keyUp(cell(36), { key: " " });

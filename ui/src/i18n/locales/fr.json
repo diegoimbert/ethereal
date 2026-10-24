@@ -147,8 +147,6 @@
   "drum_rack.pad.mute_label": "rendre {name} muet",
   "drum_rack.pad.solo_label": "mettre {name} en solo",
   "drum_rack.pad.solo_title": "solo (clic : seulement ce pad ; ctrl/cmd-clic : l’ajouter aux pads en solo ou l’en retirer)",
-  "drum_rack.pad.preview_label": "écouter {name}",
-  "drum_rack.pad.preview_title": "jouer le pad à travers sa chaîne (maintenir)",
   "drum_rack.pad.load_failed": "échec du chargement : {error}",
   "drum_rack.pad.drop_hint": "déposez un échantillon pour créer un pad sur {note}",
   "drum_rack.pad.rename_hint": "double-cliquez pour renommer",

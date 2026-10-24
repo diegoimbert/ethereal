@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import { Headphones, Play, Volume2, VolumeX } from "lucide-react";
+import { Headphones, Volume2, VolumeX } from "lucide-react";
 import { additiveClick, muteOverriddenBySolo } from "@/domain/soloPlan";
 import { useState, type DragEvent, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
 import type { Device, DrumPad } from "@/generated";
@@ -289,17 +289,6 @@ function PadCell({ rack, note, pad, active, selected, onSelect }: PadCellProps) 
         onClick={(e) => soloPad(transport, pad, additiveClick(e))}
       >
         <Headphones />
-      </button>
-      <button
-        type="button"
-        className="eth-arr-header__toggle eth-drum-rack__toggle"
-        aria-label={t("drum_rack.pad.preview_label", { name: pad.name })}
-        title={t("drum_rack.pad.preview_title")}
-        onPointerDown={onPointerDown}
-        onKeyDown={onKeyDown}
-        onKeyUp={onKeyUp}
-      >
-        <Play />
       </button>
     </span>
   );
