@@ -38,6 +38,20 @@ impl DecodedAudio {
     }
 }
 
+/// Sample rates a file or a resampler may have (Hz). Real files are 8 kHz..=768 kHz; the
+/// bound keeps a header's claim from sizing buffers (a 1 Hz file resampled to 48 kHz would be
+/// 48,000 times its length).
+pub const SAMPLE_RATES: std::ops::RangeInclusive<u32> = 1_000..=768_000;
+
+/// `rate` if it is in [`SAMPLE_RATES`], else a decode error.
+pub fn check_rate(rate: u32) -> Result<u32, MediaError> {
+    if SAMPLE_RATES.contains(&rate) {
+        Ok(rate)
+    } else {
+        Err(MediaError::Decode(format!("unsupported sample rate {rate} Hz")))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum MediaError {
     #[error("unsupported format: {0}")]

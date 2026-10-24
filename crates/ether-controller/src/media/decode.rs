@@ -147,7 +147,7 @@ impl IncrementalDecoder {
                 )));
             }
             if self.sample_rate == 0 {
-                self.sample_rate = decoded.spec().rate();
+                self.sample_rate = ether_media::check_rate(decoded.spec().rate())?;
             }
             if let Some(p) = &mut self.peaks {
                 self.scratch.resize_with(n_ch, Vec::new);

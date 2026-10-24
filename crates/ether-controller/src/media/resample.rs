@@ -69,9 +69,8 @@ pub struct IncrementalResampler {
 
 impl IncrementalResampler {
     pub fn new(source: Arc<DecodedAudio>, target_rate: u32) -> Result<Self, MediaError> {
-        if target_rate == 0 || source.sample_rate == 0 {
-            return Err(MediaError::Resample("sample rate must be > 0".into()));
-        }
+        ether_media::check_rate(target_rate)?;
+        ether_media::check_rate(source.sample_rate)?;
         let frames = source.frames();
         let n_ch = source.channels.len();
         let expected = resampled_len(frames, source.sample_rate, target_rate);
@@ -189,9 +188,8 @@ impl StreamResampler {
         channels: usize,
         frames: usize,
     ) -> Result<Self, MediaError> {
-        if target_rate == 0 || source_rate == 0 {
-            return Err(MediaError::Resample("sample rate must be > 0".into()));
-        }
+        ether_media::check_rate(target_rate)?;
+        ether_media::check_rate(source_rate)?;
         let running = if frames == 0 || channels == 0 {
             None
         } else {
