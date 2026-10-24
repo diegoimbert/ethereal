@@ -10,6 +10,8 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+# Seeded fast hashing of entity ids (compile group-bys); already in the tree via hashbrown.
+foldhash.workspace = true
 ether-core.workspace = true
 ether-model.workspace = true
 ether-protocol.workspace = true

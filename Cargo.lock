@@ -1292,6 +1292,7 @@ dependencies = [
  "ether-model",
  "ether-protocol",
  "flacenc",
+ "foldhash",
  "hound",
  "regex",
  "rubato",

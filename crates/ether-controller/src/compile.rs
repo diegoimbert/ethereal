@@ -320,34 +320,11 @@ pub struct Groups<'a> {
     devices: IdMap<TrackId, Vec<&'a Device>>,
 }
 
-/// A map keyed by entity ids (random 128-bit ULIDs, no attacker-chosen keys): hashed with
-/// one multiply per word instead of SipHash, the group-bys hash every note and point of the
-/// project on each compile.
-type IdMap<K, V> = HashMap<K, V, std::hash::BuildHasherDefault<IdHasher>>;
-
-#[derive(Default)]
-struct IdHasher(u64);
-
-impl std::hash::Hasher for IdHasher {
-    fn finish(&self) -> u64 {
-        self.0
-    }
-    fn write(&mut self, bytes: &[u8]) {
-        for b in bytes {
-            self.write_u64(u64::from(*b));
-        }
-    }
-    fn write_u64(&mut self, x: u64) {
-        self.0 = (self.0.rotate_left(5) ^ x).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95);
-    }
-    fn write_u128(&mut self, x: u128) {
-        self.write_u64(x as u64);
-        self.write_u64((x >> 64) as u64);
-    }
-    fn write_usize(&mut self, x: usize) {
-        self.write_u64(x as u64);
-    }
-}
+/// A map keyed by entity ids: hashed with foldhash (a few multiplies per key instead of
+/// SipHash; the group-bys hash every note and point of the project on each compile), seeded per
+/// process. The ids come from project files and collaborators, so an unseeded hash would let
+/// crafted ids share their bucket bits and make every rebuild quadratic.
+type IdMap<K, V> = HashMap<K, V, foldhash::fast::RandomState>;
 
 /// Group `items` by key, keeping their order within each group. Runs of one key (a clip's
 /// notes, created together, are mostly adjacent in id order) cost one map lookup.
@@ -771,6 +748,22 @@ mod reference;
 #[cfg(test)]
 mod group_tests {
     use super::*;
+
+    /// Ids come from project files and collaborators: ones crafted to share the low bits of
+    /// an unseeded multiplicative hash (its bucket index) must not make a group-by quadratic.
+    #[test]
+    fn crafted_ids_do_not_collide() {
+        let n = 200_000u128;
+        let keys: Vec<ClipId> = (0..n)
+            .map(|i| ClipId(ether_core::protocol::model::Ulid((i << 100) | 0x1234_5678)))
+            .collect();
+        let items: Vec<u32> = (0..n as u32).collect();
+        let t0 = std::time::Instant::now();
+        let m = group(keys.iter().copied().zip(items.iter()));
+        let took = t0.elapsed();
+        assert_eq!(m.len(), n as usize);
+        assert!(took < std::time::Duration::from_secs(2), "{took:?}");
+    }
 
     /// The keyed sort orders notes exactly like the comparator it replaces (`total_cmp` on
     /// the start, then pitch, then id), signed zeros and ties included.
