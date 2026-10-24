@@ -4,6 +4,7 @@
 // plays.
 //
 // No sleeps: every step waits on UI or engine state.
+import { mkdirSync, writeFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 import type { Project, TransportState } from "@/generated";
 import { arrangerApi } from "./clips";
@@ -16,7 +17,9 @@ interface Handle {
 const state = (page: Page) => page.evaluate(() => (window as unknown as { __ether: Handle }).__ether.state());
 
 const FILES = 6;
-const SECONDS = 28;
+// Long enough that the reload decodes for a few seconds, so the checks below run while it does
+// (written to files: `setFiles` takes at most 50 MB of buffers).
+const SECONDS = 120;
 
 /** A stereo 16-bit 44.1 kHz WAV (decoded, then resampled to the engine's rate on load). */
 function wav(hz: number): Buffer {
@@ -44,14 +47,20 @@ function wav(hz: number): Buffer {
   return b;
 }
 
-test("while a project loads the transport waits, and the project can be explored", async ({ page }) => {
+test("while a project loads the transport waits, and the project can be explored", async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await launch(page, "Loading");
   const chooser = page.waitForEvent("filechooser");
   await page.keyboard.press("ControlOrMeta+i");
-  await (await chooser).setFiles(Array.from({ length: FILES }, (_, i) => ({ name: `tone ${i}.wav`, mimeType: "audio/wav", buffer: wav(110 * (i + 1)) })));
+  mkdirSync(testInfo.outputDir, { recursive: true });
+  const files = Array.from({ length: FILES }, (_, i) => {
+    const path = testInfo.outputPath(`tone ${i}.wav`);
+    writeFileSync(path, wav(110 * (i + 1)));
+    return path;
+  });
+  await (await chooser).setFiles(files);
   await expect.poll(async () => Object.keys((await state(page)).project?.clips ?? {}).length, { timeout: 90_000 }).toBe(FILES);
   await page.keyboard.press("ControlOrMeta+s");
   await expect(page.getByRole("status", { name: "unsaved changes" })).toHaveCount(0, { timeout: 20_000 });
@@ -88,10 +97,7 @@ test("while a project loads the transport waits, and the project can be explored
   await page.keyboard.press("Space");
   expect((await state(page)).transport?.playing).toBe(false);
 
-  // Explorable meanwhile: the tracks and their clips are there.
-  await expect(page.getByRole("group", { name: /^\d audio track$/ })).toHaveCount(FILES, { timeout: 10_000 });
-  await expect.poll(async () => (await arrangerApi(page, "visibleClipIds")).length, { timeout: 10_000 }).toBe(FILES);
-  // And editable: a rename lands at once.
+  // Editable meanwhile (checked first, while the load surely still runs): a rename lands at once.
   const header = page.getByRole("group", { name: "1 audio track" });
   await header.getByText("1 audio", { exact: true }).dblclick();
   await page.keyboard.press("ControlOrMeta+a");
@@ -99,6 +105,9 @@ test("while a project loads the transport waits, and the project can be explored
   await page.keyboard.press("Enter");
   await expect(page.getByRole("group", { name: "renamed track" })).toBeVisible();
   expect((await state(page)).transport?.loading).toBeTruthy();
+  // Explorable too: the tracks and their clips are there.
+  await expect(page.getByRole("group", { name: /^(\d audio|renamed) track$/ })).toHaveCount(FILES, { timeout: 10_000 });
+  await expect.poll(async () => (await arrangerApi(page, "visibleClipIds")).length, { timeout: 10_000 }).toBe(FILES);
 
   // Loaded: the transport is back and plays.
   await expect(loading).toHaveCount(0, { timeout: 120_000 });
