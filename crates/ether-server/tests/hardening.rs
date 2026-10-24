@@ -300,3 +300,43 @@ fn no_auth_server_only_accepts_loopback_host_and_origin() {
         assert!(matches!(hello(&mut ws, None), ServerHello::Welcome { .. }));
     }
 }
+
+/// `allowed_origins`: with the list set, only those browser pages may connect (token or
+/// not); clients without an `Origin` (the desktop app, scripts) are unaffected.
+#[test]
+fn allowed_origins_limit_browser_pages() {
+    let tmp = TempDir::new("server-allowed-origins");
+    let server = start(
+        &tmp,
+        ServerConfig {
+            token: Some(TOKEN.into()),
+            allowed_origins: vec!["https://app.ethereal.ws".into()],
+            ..ServerConfig::default()
+        },
+    );
+    let addr = server.local_addr();
+    let attempt = |origin: Option<&'static str>| {
+        let mut req = format!("ws://{addr}/").into_client_request().unwrap();
+        if let Some(o) = origin {
+            req.headers_mut()
+                .insert("Origin", tungstenite::http::HeaderValue::from_static(o));
+        }
+        tungstenite::connect(req)
+            .map(|(ws, _)| ws)
+            .map_err(Box::new)
+    };
+    match attempt(Some("https://evil.example")) {
+        Err(e) => match *e {
+            tungstenite::Error::Http(r) => assert_eq!(r.status(), 403),
+            e => panic!("{e}"),
+        },
+        Ok(_) => panic!("another page was accepted"),
+    }
+    for ok in [Some("https://app.ethereal.ws"), None] {
+        let mut ws = attempt(ok).unwrap_or_else(|e| panic!("{ok:?}: {e}"));
+        assert!(matches!(
+            hello(&mut ws, Some(TOKEN)),
+            ServerHello::Welcome { .. }
+        ));
+    }
+}
