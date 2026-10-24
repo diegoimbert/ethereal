@@ -1062,6 +1062,7 @@ pub fn compile_with(
             auto_delays: sc_plans[i].inputs.clone(),
             mixer_delay: sc_plans[i].post_fx,
             clip_ends: crate::automation_rt::clip_ends(&t.clips),
+            clip_joins: t.clips.iter().map(crate::sched::LoopJoins::of).collect(),
             awake: true,
             job_ns: 0.0,
             auto_dirty: false,

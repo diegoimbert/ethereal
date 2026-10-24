@@ -533,6 +533,8 @@ pub(crate) struct TrackRt {
     /// Running maximum of the clips' ends (`automation_rt::clip_ends`): the first clip
     /// that can still play is a binary search away.
     pub clip_ends: Vec<f64>,
+    /// Per clip (as `clip_ends`): its loop joins, precomputed (`sched::LoopJoins`).
+    pub clip_joins: Vec<Option<Box<crate::sched::LoopJoins>>>,
     /// The track's job did real work in the last sub-block (processed a node, monitored
     /// input, ran racks or a frozen render). While stopped, the engine dispatches jobs to
     /// the workers only when some track was awake.

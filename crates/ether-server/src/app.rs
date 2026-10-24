@@ -126,6 +126,7 @@ fn run(hooks: &Hooks) -> Result<(), String> {
             allow_multiple_clients: !args.single_client,
             instance,
             projects_root: Some(projects_root),
+            allowed_origins: args.allow_origins.clone(),
             ..ServerConfig::default()
         },
         host,
@@ -134,6 +135,13 @@ fn run(hooks: &Hooks) -> Result<(), String> {
 
     // Machine-readable first line (scripts and e2e wait for it).
     println!("ether-server listening on ws://{}/", server.local_addr());
+    if !server.local_addr().ip().is_loopback() {
+        // stderr: the first stdout line stays machine-readable.
+        eprintln!(
+            "warning: plain WebSocket on a network address: the token and the session travel unencrypted. \
+             Put the server behind a TLS proxy (wss://) unless the network is trusted."
+        );
+    }
     match (&token, args.print_token) {
         (None, _) => println!("auth: disabled (loopback only)"),
         (Some(t), true) => println!("token: {t}"),
