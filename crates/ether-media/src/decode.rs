@@ -10,6 +10,40 @@ use crate::{DecodedAudio, MediaError};
 /// `0xFFFFFFFF`, ffmpeg's placeholder when writing to a pipe, claims ~1e9 frames): the
 /// reservation is at most one frame per byte per channel (exact for 8-bit PCM, generous
 /// for wider PCM; compressed files grow past it as they decode) and at most 2^28 frames.
+/// Decoded samples (frames × channels) kept per input byte at most: low-bitrate lossy files
+/// decode to ~10-30 samples per byte; past this a file is refused rather than expanded.
+pub const MAX_SAMPLES_PER_BYTE: usize = 64;
+/// Whatever the file size, a whole-file decode keeps at least this many samples (small
+/// files) and at most [`MAX_DECODED_SAMPLES`].
+pub const MIN_DECODED_SAMPLES: usize = 1 << 24;
+/// The most samples a whole-file decode keeps (4 GiB of `f32`).
+pub const MAX_DECODED_SAMPLES: usize = 1 << 30;
+
+/// How many samples (frames × channels) a whole-file decode of `file_bytes` bytes may keep.
+pub fn max_decoded_samples(file_bytes: usize) -> usize {
+    file_bytes
+        .saturating_mul(MAX_SAMPLES_PER_BYTE)
+        .clamp(MIN_DECODED_SAMPLES, MAX_DECODED_SAMPLES)
+}
+
+/// An error once `frames` more frames of `channels` channels would pass `max` samples.
+pub fn check_decoded_size(
+    have_frames: usize,
+    frames: usize,
+    channels: usize,
+    max: usize,
+) -> Result<(), MediaError> {
+    let total = have_frames
+        .saturating_add(frames)
+        .saturating_mul(channels.max(1));
+    if total > max {
+        return Err(MediaError::Decode(format!(
+            "decoded audio would exceed {max} samples"
+        )));
+    }
+    Ok(())
+}
+
 pub fn reserve_frames(n_frames: Option<u64>, file_bytes: usize, channels: usize) -> usize {
     n_frames.map_or(0, |n| {
         (n.min(1 << 28) as usize).min(file_bytes / channels.max(1))
@@ -29,6 +63,7 @@ pub fn decode(bytes: &[u8], extension: Option<&str>) -> Result<DecodedAudio, Med
 /// Like [`decode`], but takes ownership of the bytes (avoids one copy of the file).
 pub fn decode_owned(bytes: Vec<u8>, extension: Option<&str>) -> Result<DecodedAudio, MediaError> {
     let file_bytes = bytes.len();
+    let max_samples = max_decoded_samples(file_bytes);
     let source::Opened {
         mut format,
         mut decoder,
@@ -64,6 +99,8 @@ pub fn decode_owned(bytes: Vec<u8>, extension: Option<&str>) -> Result<DecodedAu
         if sample_rate == 0 {
             sample_rate = crate::check_rate(decoded.spec().rate())?;
         }
+        let have = channels.first().map_or(0, Vec::len);
+        check_decoded_size(have, decoded.frames(), n_ch, max_samples)?;
         source::append_planar(&decoded, &mut channels);
     }
 

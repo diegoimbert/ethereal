@@ -207,3 +207,75 @@ fn sample_rate_out_of_range_is_refused() {
         assert_eq!(decode(&wav, Some("wav")).unwrap().sample_rate, rate);
     }
 }
+
+/// A FLAC of `frames` frames of `block` samples on 2 channels, every subframe CONSTANT
+/// (3 bytes per channel per frame, whatever the block size).
+fn flac_constant(frames: u32, block: u16) -> Vec<u8> {
+    fn crc8(data: &[u8]) -> u8 {
+        let mut c = 0u8;
+        for &b in data {
+            c ^= b;
+            for _ in 0..8 {
+                c = if c & 0x80 != 0 { (c << 1) ^ 0x07 } else { c << 1 };
+            }
+        }
+        c
+    }
+    fn crc16(data: &[u8]) -> u16 {
+        let mut c = 0u16;
+        for &b in data {
+            c ^= u16::from(b) << 8;
+            for _ in 0..8 {
+                c = if c & 0x8000 != 0 { (c << 1) ^ 0x8005 } else { c << 1 };
+            }
+        }
+        c
+    }
+    let mut out = b"fLaC".to_vec();
+    out.extend_from_slice(&[0x80, 0, 0, 34]);
+    out.extend_from_slice(&block.to_be_bytes());
+    out.extend_from_slice(&block.to_be_bytes());
+    out.extend_from_slice(&[0; 6]);
+    // 48 kHz (20 bits), 2 channels (3 bits: 1), 16 bits (5 bits: 15), 0 total samples (36 bits).
+    let packed: u64 = (48_000u64 << 44) | (1 << 41) | (15 << 36);
+    out.extend_from_slice(&packed.to_be_bytes());
+    out.extend_from_slice(&[0; 16]);
+    for n in 0..frames {
+        let mut f = vec![0xFF, 0xF8, 0x70, 0x10];
+        assert!(n < 2048);
+        if n < 0x80 {
+            f.push(n as u8);
+        } else {
+            f.push(0xC0 | (n >> 6) as u8);
+            f.push(0x80 | (n & 0x3F) as u8);
+        }
+        f.extend_from_slice(&(block - 1).to_be_bytes());
+        f.push(crc8(&f));
+        for _ in 0..2 {
+            f.extend_from_slice(&[0x00, 0x10, 0x00]);
+        }
+        let crc = crc16(&f);
+        f.extend_from_slice(&crc.to_be_bytes());
+        out.extend_from_slice(&f);
+    }
+    out
+}
+
+/// A small file that would decode to far more samples than its size allows is refused
+/// (and a normal one of the same kind decodes).
+#[test]
+fn decoding_is_bounded_by_the_file_size() {
+    let small = flac_constant(4, 4096);
+    let audio = decode(&small, Some("flac")).unwrap();
+    assert_eq!(audio.frames(), 4 * 4096);
+    let bomb = flac_constant(300, 65_535);
+    assert!(bomb.len() < 8 * 1024);
+    assert!(
+        300 * 65_535 * 2 > ether_media::max_decoded_samples(bomb.len()),
+        "the fixture must pass the bound"
+    );
+    match decode(&bomb, Some("flac")) {
+        Err(MediaError::Decode(e)) => assert!(e.contains("exceed"), "{e}"),
+        other => panic!("{:?}", other.map(|a| a.frames())),
+    }
+}

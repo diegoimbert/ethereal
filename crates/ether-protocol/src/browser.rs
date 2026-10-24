@@ -38,7 +38,9 @@ pub enum BrowserCommand {
     SetFavourite { item: String, favourite: bool },
     /// Replace an item's user tags (lowercase, deduplicated).
     SetTags { item: String, tags: Vec<String> },
-    /// Add a user folder (absolute engine-side path; native only). Replies `BrowserRoots`.
+    /// Add a user folder (absolute engine-side path from the desktop's OS dialog). Replies
+    /// `BrowserRoots`. Hosts whose UI is not on the engine machine (web, remote) reply
+    /// `Unsupported` (`ImportFolder` instead).
     AddFolder { path: String },
     /// Remove a user folder from the index (files untouched; an imported folder's copy is
     /// deleted).

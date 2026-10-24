@@ -231,6 +231,14 @@ pub struct HostOptions {
     /// `Media::Reveal` opens this machine's file manager: only where the UI runs on this
     /// machine (the desktop app). Off: `Unsupported` (servers, headless hosts).
     pub file_manager: bool,
+    /// Commands taking a raw engine-machine path are honoured: only where the UI runs on
+    /// this machine (the desktop app, whose OS dialogs and drops pick them). They are
+    /// `MediaSource::Path`, `BundleSource::Path`, the `path` of `Project::ExportBundle` /
+    /// `ExportTo` and `Media::WriteMidiFile`, `ExportRequest::folder`, the `folder` of the
+    /// media searches, `Browser::AddFolder` and `Plugin::AddFolder`
+    /// ([`DiskStore::with_os_paths`]). Off: they reply `Unsupported` (servers, headless
+    /// hosts), as the protocol documents for hosts whose UI is not on the engine machine.
+    pub os_paths: bool,
 }
 
 impl Default for HostOptions {
@@ -242,6 +250,7 @@ impl Default for HostOptions {
             controller: ether_controller_with(patch_compat.clone()),
             patch_compat,
             file_manager: false,
+            os_paths: false,
         }
     }
 }
@@ -342,8 +351,9 @@ fn settings_file(data_dir: &std::path::Path) -> PathBuf {
 pub fn load_audio_settings(data_dir: &std::path::Path) -> AudioSettings {
     std::fs::read_to_string(settings_file(data_dir))
         .ok()
-        .and_then(|j| serde_json::from_str(&j).ok())
+        .and_then(|j| serde_json::from_str::<AudioSettings>(&j).ok())
         .unwrap_or_default()
+        .sanitized()
 }
 
 /// The backend forced by `ETHER_AUDIO`, if set.
@@ -572,7 +582,8 @@ impl NativeHost {
         let plugin_folders = PluginFolderSettings::open(&plugin_db);
         let sandbox_defaults = SandboxDefaults::open(&plugin_db);
         let store = DiskStore::new(config.projects_root.clone(), config.library_roots.clone())
-            .with_sample_cache(Some(config.data_dir.join("samples")));
+            .with_sample_cache(Some(config.data_dir.join("samples")))
+            .with_os_paths(options.os_paths);
         // Nothing is open yet: project folders follow their titles (and bare-UUID folders of
         // older versions get readable names, `project_dirs`).
         let renamed = store.settle_all();
@@ -628,6 +639,7 @@ impl NativeHost {
             rescan_pending: Arc::new(AtomicU8::new(RESCAN_NONE)),
             scan_db: Arc::new(Mutex::new(())),
             plugin_folders,
+            os_paths: options.os_paths,
             sandbox_defaults,
             plugin_db,
             startup_warnings: warning
@@ -1152,6 +1164,8 @@ struct ControllerThread {
     /// or applying one retried target), so a retry ending mid-scan isn't lost.
     scan_db: Arc<Mutex<()>>,
     plugin_folders: PluginFolderSettings,
+    /// `Plugin::AddFolder` takes engine-machine paths ([`HostOptions::os_paths`]).
+    os_paths: bool,
     /// Settings: plugins inserted sandboxed by default (shared with the bridge).
     sandbox_defaults: SandboxDefaults,
     /// Plugin list, folder settings and scan cache live here.
@@ -1479,6 +1493,11 @@ impl ControllerThread {
                 },
             ),
             PluginCommand::ListFolders => self.folders_reply(id),
+            PluginCommand::AddFolder { .. } if !self.os_paths => reply_err(
+                id,
+                ErrorCode::Unsupported,
+                "plugin folders are not available on this host",
+            ),
             PluginCommand::AddFolder { path, format } => {
                 match self.plugin_folders.add(&path, format) {
                     Ok(()) => {

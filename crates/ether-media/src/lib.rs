@@ -18,7 +18,10 @@ pub mod source;
 pub mod stream;
 pub mod to_midi;
 
-pub use decode::{decode, decode_owned, reserve_frames};
+pub use decode::{
+    MAX_DECODED_SAMPLES, check_decoded_size, decode, decode_owned, max_decoded_samples,
+    reserve_frames,
+};
 pub use peaks::{BASE_SAMPLES_PER_PEAK, MAX_PAD_FRAMES, PeakMipmap};
 pub use resample::{
     alignment, process_chunk, resample, resampled_len, resampler_buffers, sinc_resampler,
