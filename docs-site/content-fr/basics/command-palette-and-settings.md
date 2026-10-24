@@ -27,6 +27,12 @@ La palette ne s’ouvre pas pendant que vous tapez dans un champ de texte : le 
 
 La palette liste des commandes pour les pistes, le transport, l’édition, le projet, les panneaux, les modèles, les appareils (**ajouter …** insère un appareil sur la piste sélectionnée), l’apparence et l’aide.
 
+## recherche rapide {#quick-search}
+
+Appuyez sur [[action:search.open]] pour trouver n’importe quoi dans votre morceau par son nom : pistes, clips, appareils et marqueurs, ainsi que les échantillons, fichiers midi, presets et projets de votre bibliothèque. Elle marche même pendant que vous tapez dans un champ de texte et, sur le web, elle remplace la barre de recherche du navigateur.
+
+Tapez une partie d’un nom, déplacez-vous avec [[key:ArrowUp]] et [[key:ArrowDown]], puis appuyez sur [[key:Enter]] pour y aller : une piste ou un clip est sélectionné et affiché, un appareil est sélectionné sur sa piste, un marqueur y amène le curseur, et un élément de la bibliothèque s’ouvre dans le navigateur. [[key:Escape]] ferme la recherche.
+
 ## commandes propres à la palette {#commands-only-in-the-palette}
 
 Ces commandes n’ont de bouton ni d’entrée de menu nulle part ailleurs :

@@ -6,6 +6,7 @@ import { TransportProvider } from "@/transport";
 import { MockTransport } from "@/transport/mock";
 import type { ReactNode } from "react";
 import { expect } from "vitest";
+import { useDeviceClipboard } from "./deviceClipboard";
 
 export const store = () => useProjectStore.getState();
 
@@ -27,6 +28,8 @@ export function resetStores(mock: MockTransport | undefined): void {
   mock?.dispose();
   store().reset();
   useSelectionStore.getState().selectTrack(null);
+  // Ids repeat between tests (the mock's seeded project): no selection or copy carries over.
+  useDeviceClipboard.setState({ selected: [], anchor: null, copied: [], cut: false });
 }
 
 /** jsdom lacks pointer capture; the kit's drag hook calls it. */

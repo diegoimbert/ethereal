@@ -337,6 +337,16 @@ export const BUILTIN_ACTIONS: ReadonlyArray<KeymapAction> = [
   },
   // App
   { id: "palette.open", labelKey: "shell.action.palette_open", group: "App", scopes: G, chords: ["Mod+K"], handled: true, keywords: "search commands" },
+  // Answered from text fields too (app/shell/QuickSearch.tsx); the web browser's find bar never opens.
+  {
+    id: "search.open",
+    labelKey: "shell.action.search_open",
+    group: "App",
+    scopes: G,
+    chords: ["Mod+F"],
+    handled: true,
+    keywords: "find search jump go to track clip device marker sample",
+  },
   { id: "keymap.open", labelKey: "shell.action.keymap_open", group: "App", scopes: G, chords: [], palette: "keymap:open", keywords: "keymap bindings hotkeys" },
   { id: "project.save", labelKey: "shell.action.project_save", group: "App", scopes: G, chords: ["Mod+S"], handled: true },
   {
@@ -348,6 +358,16 @@ export const BUILTIN_ACTIONS: ReadonlyArray<KeymapAction> = [
     palette: "project:snapshot",
     handled: true,
     keywords: "named version backup checkpoint",
+  },
+  {
+    id: "project.exportAudio",
+    labelKey: "shell.action.project_export_audio",
+    group: "App",
+    scopes: G,
+    chords: ["Mod+Shift+E"],
+    palette: "project:export-audio",
+    handled: true,
+    keywords: "render bounce mixdown wav flac stems",
   },
   { id: "file.import", labelKey: "shell.action.file_import", group: "App", scopes: G, chords: ["Mod+I"], palette: "import:audio", handled: true },
   {

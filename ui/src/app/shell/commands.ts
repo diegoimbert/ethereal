@@ -36,6 +36,7 @@ import { canInsert } from "@/features/devices/chainUtils";
 import { deviceTargetTrack, insertDeviceCommand } from "./deviceInsert";
 import { drawerCanFullscreen, useShellStore, type PaneSide } from "@/state/shell";
 import { railTabs } from "./tabs";
+import { useQuickSearch } from "./quickSearchStore";
 import { contributions } from "@/ext";
 
 /** One command palette entry. */
@@ -380,6 +381,14 @@ export function buildCommands(transport: EngineTransport | null, devices: Readon
       label: tr("shell.action.keymap_open"),
       keywords: "keymap hotkeys keys bindings shortcuts rebind preset ableton",
       run: () => openKeymapEditor(),
+    },
+    {
+      id: "search:open",
+      group: "Go to",
+      label: tr("shell.action.search_open"),
+      action: "search.open",
+      keywords: "find search jump track clip device marker sample library",
+      run: () => useQuickSearch.getState().setOpen(true),
     },
     {
       id: "keymap:print",

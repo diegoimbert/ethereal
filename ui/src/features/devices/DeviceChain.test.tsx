@@ -13,6 +13,7 @@ import { DeviceChain } from "./index";
 import { collapseAll, resetCollapsed } from "./collapsed";
 import { DeviceWindowsRoot, resetDeviceWindows } from "./window";
 import { pickOption } from "@/kit/testing";
+import { useContextMenuStore, type ContextMenuItem } from "@/kit/contextMenuStore";
 import { pickDevice } from "@/features/devices/testing";
 import { BROWSER_DRAG_MIME, type BrowserDragPayload } from "@/features/browser/dragPayload";
 
@@ -300,6 +301,40 @@ describe("DeviceChain", () => {
   });
 });
 
+describe("dragging a multi-selection", () => {
+  it("moves every selected card of the grabbed one's kind to the drop place, one undo step", async () => {
+    await renderChain();
+    const keys = trackByName("Keys").id;
+    for (const type of ["Delay", "Reverb"] as const)
+      await act(() => mock!.send(cmd("Device", { type: "Insert", id: newId(), track: keys, device: { type: "Builtin", device: { type } }, before: null })));
+    await flush();
+    const names = chainNames("Keys");
+    expect(names.length).toBe(4);
+    const [synth, compressor, delay, reverb] = names as [string, string, string, string];
+    const header = (name: string) => deviceEl(name).querySelector("header")!;
+    fireEvent.pointerDown(header(synth), { button: 0 });
+    fireEvent.pointerDown(header(compressor), { button: 0, shiftKey: true });
+    fireEvent.pointerDown(header(delay), { button: 0, metaKey: true });
+    // A press on a selected card keeps the selection (the drag takes all of it).
+    fireEvent.pointerDown(header(compressor), { button: 0 });
+    expect(useDeviceClipboard.getState().selected.length).toBe(3);
+    const data = new Map<string, string>();
+    const dataTransfer = { types: [] as string[], getData: (k: string) => data.get(k) ?? "", setData: (k: string, v: string) => void data.set(k, v) };
+    fireEvent.dragStart(header(compressor), { dataTransfer });
+    dataTransfer.types = [...data.keys()];
+    const end = document.querySelector(".eth-devices__end")!;
+    fireEvent.dragOver(end, { dataTransfer });
+    fireEvent.drop(end, { dataTransfer });
+    fireEvent.dragEnd(header(compressor));
+    await flush();
+    // The instrument stays in its section; the two audio effects land at the end, in order.
+    expect(chainNames("Keys")).toEqual([synth, reverb, compressor, delay]);
+    await act(() => mock!.send(cmd("Edit", { type: "Undo" })));
+    await flush();
+    expect(chainNames("Keys")).toEqual(names);
+  });
+});
+
 describe("DeviceChain: stacked layout (inspector)", () => {
   /** The Keys track's chain, stacked, once the project has loaded. */
   function KeysStack() {
@@ -466,6 +501,40 @@ describe("DeviceChain: stacked layout (inspector)", () => {
     expect(useDeviceClipboard.getState().selected).toEqual([rack.id]);
     await act(() => mock!.send(cmd("Edit", { type: "Undo" })));
     expect(chainNames("Keys")).toEqual(["Synth", "Compressor"]);
+  });
+
+  it("on/off and delete on a card of a multi-selection act on all of it; a plain click on the card then selects it alone", async () => {
+    await renderStack();
+    const press = (el: Element, mods: { shiftKey?: boolean } = {}) => {
+      fireEvent.pointerDown(el, { button: 0, ...mods });
+      fireEvent.pointerUp(el, { button: 0, ...mods });
+      fireEvent.click(el, mods);
+    };
+    press(deviceEl("Synth").querySelector("header")!);
+    press(deviceEl("Compressor").querySelector("header")!, { shiftKey: true });
+    const both = [deviceOf("Keys", "Synth").id, deviceOf("Keys", "Compressor").id];
+    expect(useDeviceClipboard.getState().selected).toEqual(both);
+    // The power button of one of them: both off, still both selected.
+    press(deviceEl("Compressor").querySelector(".eth-device__power")!);
+    await flush();
+    expect([deviceOf("Keys", "Synth").enabled, deviceOf("Keys", "Compressor").enabled]).toEqual([false, false]);
+    expect(useDeviceClipboard.getState().selected).toEqual(both);
+    press(deviceEl("Synth").querySelector(".eth-device__power")!);
+    await flush();
+    expect([deviceOf("Keys", "Synth").enabled, deviceOf("Keys", "Compressor").enabled]).toEqual([true, true]);
+    // The header's menu: delete takes both.
+    fireEvent.contextMenu(deviceEl("Synth").querySelector("header")!);
+    const del = (useContextMenuStore.getState().menu?.items ?? []).find((e): e is ContextMenuItem => e !== "separator" && e.label === "delete device");
+    await act(async () => del!.onSelect());
+    await flush();
+    expect(chainNames("Keys")).toEqual([]);
+    await act(() => mock!.send(cmd("Edit", { type: "Undo" })));
+    await flush();
+    expect(chainNames("Keys")).toEqual(["Synth", "Compressor"]);
+    // A plain click on the header's own space: that card alone.
+    act(() => useDeviceClipboard.setState({ selected: both }));
+    press(deviceEl("Synth").querySelector(".eth-device__name")!);
+    expect(useDeviceClipboard.getState().selected).toEqual([deviceOf("Keys", "Synth").id]);
   });
 
   it("⌘X dims the cards until pasted; Delete removes the selected cards", async () => {

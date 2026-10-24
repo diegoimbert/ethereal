@@ -403,6 +403,34 @@
   content-visibility: visible;
 }
 
+/* Group membership (TrackRow): a rail per enclosing group in the header column, in the gap
+   each nesting level indents the cards by (outermost leftmost), and the innermost group's
+   along the lane's left edge. Rows stack, so a group's children draw one continuous rail. */
+.eth-arr-row__groups {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+.eth-arr-row__group-rail,
+.eth-arr-row__group-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--eth-border-width-strong);
+  background: color-mix(in srgb, var(--eth-group-color) 70%, transparent);
+}
+.eth-arr-row__group-rail {
+  left: calc(
+    var(--eth-size-track-card-inset-left) + var(--eth-group-level) * var(--eth-size-track-indent) +
+      (var(--eth-size-track-indent) - var(--eth-border-width-strong)) / 2
+  );
+}
+.eth-arr-row__group-edge {
+  left: var(--eth-arr-header-width);
+  background: color-mix(in srgb, var(--eth-group-color) 55%, transparent);
+}
+
 .eth-arr-row__main {
   /* Positions the header's glow, meter and resize grip, sized by it (not by inline heights:
      a vertical zoom step re-renders none of them). */
@@ -1149,12 +1177,19 @@
   box-sizing: border-box;
   border-top: var(--eth-size-track-card-inset-y) solid transparent;
   border-bottom: var(--eth-size-track-card-inset-y) solid transparent;
-  background-clip: padding-box;
   width: var(--eth-size-track-meter-width);
+  /* Left and right channels side by side, each its own thin bar. */
+  display: flex;
+  gap: var(--eth-size-track-meter-gap);
+  pointer-events: none;
+}
+
+.eth-arr-header__meter-channel {
+  position: relative;
+  flex: 1;
   border-radius: var(--eth-radius-pill);
   background: color-mix(in srgb, var(--eth-color-text) 6%, transparent);
   overflow: hidden;
-  pointer-events: none;
 }
 
 .eth-arr-header__meter-fill {
@@ -1193,6 +1228,32 @@
   width: var(--eth-border-width-strong);
   background: var(--eth-color-accent);
   pointer-events: none;
+}
+
+/* A sample hovering a clip whose sample is missing: dropping it relinks the clip's sample. */
+.eth-arr-lane__relink-hint {
+  position: absolute;
+  top: var(--eth-space-xs);
+  bottom: var(--eth-space-xs);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: var(--eth-border-width-strong) dashed var(--eth-color-accent);
+  border-radius: var(--eth-radius-md);
+  background: color-mix(in srgb, var(--eth-color-accent) 18%, transparent);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.eth-arr-lane__relink-label {
+  padding: 0 var(--eth-space-xs);
+  font-size: var(--eth-fs-xs);
+  color: var(--eth-color-text);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
 }
 
 /* Lane content, slid to the scroll position by LaneLayer (so scrolling doesn't re-render). */

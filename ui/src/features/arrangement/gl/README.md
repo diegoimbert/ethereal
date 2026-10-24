@@ -86,7 +86,7 @@ background); `alpha` multiplies (ghosts 0.45, dragged 0.85).
 
 1. layers at `z: "under-clips"`;
 2. the lane's clips in start order (culled to the view): box + title band, waveforms, notes,
-   seams / rim / hovered handle, text;
+   loop lines / joined-edge separator / rim / hovered handle, text;
 3. raised clips (selected, dragged) the same way, above;
 4. the layers' extra clip lanes (`ExtraLane`: take lanes, the comp), each the same way;
 5. layers at `z: "over-clips"`, then `z: "top"`;

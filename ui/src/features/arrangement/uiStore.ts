@@ -11,6 +11,7 @@ import { useProjectStore } from "@/state/projectStore";
 import { createTimelineViewStore, DEFAULT_GRID, type GridSetting, type TimelineViewStore } from "@/timeline";
 import type { ClipBounds } from "./editMath";
 import type { NewLane } from "./newTrackDrag";
+import type { RelinkTarget } from "./missingDrop";
 import { clampHeaderWidth, clampTrackHeight, HEADER_INDENT_PX, HEADER_WIDTH, MIN_HEADER_WIDTH, PHONE_HEADER_WIDTH, TRACK_HEIGHT } from "./layout";
 
 export interface DragPreview {
@@ -65,6 +66,8 @@ export interface ArrangementUiState {
   preview: DragPreview | null;
   /** Timeline position of a pending browser drop (indicator), with its track. */
   dropHint: { track: TrackId | null; at: Beats } | null;
+  /** The clip whose missing sample a hovering sample would relink (`missingDrop.ts`). */
+  relinkDrop: RelinkTarget | null;
   /** The track device cards are dragged over (it takes them on drop: `@/features/devices/trackDrop`). */
   deviceDrop: TrackId | null;
   imports: ReadonlyArray<PendingImport>;
@@ -100,6 +103,7 @@ export interface ArrangementUiState {
   setGrid(grid: GridSetting): void;
   setPreview(preview: DragPreview | null): void;
   setDropHint(hint: ArrangementUiState["dropHint"]): void;
+  setRelinkDrop(target: RelinkTarget | null): void;
   setDeviceDrop(track: TrackId | null): void;
   /** Add or update (by id) a pending import. */
   putImport(item: PendingImport): void;
@@ -129,6 +133,7 @@ const INITIAL = {
   grid: DEFAULT_GRID,
   preview: null,
   dropHint: null,
+  relinkDrop: null,
   deviceDrop: null,
   imports: [] as ReadonlyArray<PendingImport>,
 };
@@ -188,6 +193,7 @@ export const useArrangementUi = create<ArrangementUiState>()((set) => ({
   setGrid: (grid) => set({ grid }),
   setPreview: (preview) => set({ preview }),
   setDropHint: (dropHint) => set({ dropHint }),
+  setRelinkDrop: (relinkDrop) => set((s) => (s.relinkDrop?.clip === relinkDrop?.clip ? s : { relinkDrop })),
   setDeviceDrop: (deviceDrop) => set((s) => (s.deviceDrop === deviceDrop ? s : { deviceDrop })),
   putImport: (item) =>
     set((s) => ({

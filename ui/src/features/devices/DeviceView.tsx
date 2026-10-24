@@ -1,6 +1,6 @@
 import clsx from "clsx";
 import { useContributions } from "@/ext";
-import { useId, useState, type DragEvent } from "react";
+import { useId, useRef, useState, type DragEvent, type SyntheticEvent } from "react";
 import type { Device, DeviceId } from "@/generated";
 import { PluginDeviceControls, pluginMenuEntries } from "@/features/plugins";
 import { MissingDeviceControls, ReplacePopover, replaceDeviceEntries, resolvePluginEntries } from "@/features/import-resolver";
@@ -19,7 +19,7 @@ import { switchMenu, switchTarget } from "./layout/automation";
 import { cmd, useTransport } from "@/transport";
 import { useT } from "@/i18n";
 import { DEVICE_DRAG_TYPE, currentChainDrag, deviceCategory, droppedChainDrag, isChainDrag, setDraggingDevice, type ChainDrag } from "./chainUtils";
-import { copyFrom, pasteDevice, selectModeOf, setDevicesEnabled, useDeviceClipboard, useDeviceClipboardKeys } from "./deviceClipboard";
+import { copyFrom, deleteDevices, pasteDevice, selectModeOf, setDevicesEnabled, useDeviceClipboard, useDeviceClipboardKeys } from "./deviceClipboard";
 import { usePluginStore } from "@/features/plugins/pluginStore";
 import { shortcutLabel } from "@/features/keymap";
 import { useBuiltinTypes, useDescriptor } from "./descriptors";
@@ -64,6 +64,11 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
   const deviceWindow = useDeviceWindow(device);
   const paramsId = useId();
   const send = useSend();
+  /** The card is part of a selection of several (batch actions act on all of them). */
+  const inSelection = () => {
+    const ids = useDeviceClipboard.getState().selected;
+    return ids.length > 1 && ids.includes(device.id);
+  };
   const remove = () => (onRemove ? onRemove() : void send(cmd("Device", { type: "Remove", id: device.id })));
   const { on, automated, modulated } = useDeviceOn(device);
   // Freeze (#25): a frozen device (its track plays a render through it) is locked; with a
@@ -85,6 +90,8 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
   const { descriptor, error } = useDescriptor(device);
   const held = useProjectStore((s) => s.safeMode.includes(device.id));
   const [dropTarget, setDropTarget] = useState(false);
+  /** A plain press on a card of a multi-selection: a click (no drag) selects it alone. */
+  const collapseOnClick = useRef(false);
   const [renaming, setRenaming] = useState(false);
   /** A name for this instance; empty brings back the device's own name (its type's or plugin's). */
   const rename = (name: string) => {
@@ -131,13 +138,24 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
         aria-label={device.name}
         // A click selects the card (the innermost one: a device in a rack chain, not its rack)
         // and focuses it, so ⌘C / ⌘V copy / paste it (deviceClipboard.ts); ⌘ / Ctrl-click adds
-        // or removes it, Shift-click selects the cards between.
+        // or removes it, Shift-click selects the cards between. A press on a card of a
+        // multi-selection keeps it (its on/off, menu and drag act on all of them); released
+        // with no drag, not on a control, it then selects that card alone.
         tabIndex={-1}
         onPointerDown={(e) => {
+          collapseOnClick.current = false;
           // A rack chain's own space inside this card is that chain's (DeviceChain.tsx).
-          if (e.button !== 0 || (e.target as HTMLElement).closest(".eth-device, [data-paste-chain]") !== e.currentTarget) return;
-          useDeviceClipboard.getState().select(device.id, selectModeOf(e));
+          if (e.button !== 0 || !ownTarget(e)) return;
+          const mode = selectModeOf(e);
+          const { selected: ids, select } = useDeviceClipboard.getState();
+          if (mode === "replace" && ids.length > 1 && ids.includes(device.id)) collapseOnClick.current = true;
+          else select(device.id, mode);
           if (!(e.target as HTMLElement).closest("input, textarea, select, [contenteditable='true']")) e.currentTarget.focus({ preventScroll: true });
+        }}
+        onPointerUp={(e) => {
+          if (!collapseOnClick.current || !ownTarget(e)) return;
+          collapseOnClick.current = false;
+          if (!(e.target as HTMLElement).closest(CONTROLS)) useDeviceClipboard.getState().select(device.id);
         }}
         onDragOver={onDragOver}
         onDragLeave={() => setDropTarget(false)}
@@ -184,12 +202,20 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
                 convertToSamplerEntries(device, categoryOf),
                 device.pad === null && device.chain == null ? addModulatorEntries(modulatorKinds, device, send) : [],
                 pluginMenuEntries(device, transport),
-                [{ label: t("devices.device.delete"), danger: true, onSelect: remove }],
+                // On a card of a multi-selection: all of them (one undo step).
+                [
+                  {
+                    label: t("devices.device.delete"),
+                    danger: true,
+                    onSelect: () => (inSelection() ? void deleteDevices(transport, useDeviceClipboard.getState().selected) : remove()),
+                  },
+                ],
               ]),
             )
           }
           draggable={!renaming}
           onDragStart={(e) => {
+            collapseOnClick.current = false;
             e.dataTransfer.setData(DEVICE_DRAG_TYPE, device.id);
             // Moved in its chain or onto a track in the arranger (⌘ / Ctrl there copies).
             e.dataTransfer.effectAllowed = "copyMove";
@@ -330,6 +356,12 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
     </>
   );
 }
+
+/** The controls of a card: a click on one keeps a multi-selection. */
+const CONTROLS = "button, input, select, textarea, a, [role='button'], [role='menuitem'], [role='slider'], [contenteditable='true']";
+
+/** The event is this card's own (not a nested card's, nor a rack chain's space inside it). */
+const ownTarget = (e: SyntheticEvent<HTMLElement>) => (e.target as HTMLElement).closest(".eth-device, [data-paste-chain]") === e.currentTarget;
 
 /** Menu groups joined by separators (empty groups dropped). */
 function menuGroups(groups: ReadonlyArray<ReadonlyArray<ContextMenuEntry>>): ContextMenuEntry[] {
