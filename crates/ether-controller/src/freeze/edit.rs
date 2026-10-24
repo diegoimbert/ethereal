@@ -286,7 +286,11 @@ pub fn finish_convert_to_sampler(
             before: Some(device),
         }),
     )?;
+    // The samples carry the instrument's own attack from their first frame (the render is
+    // latency-compensated and never trimmed at the start): no amp attack on top, which
+    // would soften every onset (the default 1 ms ramp audibly dulled percussive sounds).
     for (param, value) in [
+        (ether_devices::multisampler::multi_sampler::AMP_ATTACK, 0.0),
         (ether_devices::multisampler::multi_sampler::VOLUME, 0.0),
         (
             ether_devices::multisampler::multi_sampler::VELOCITY,

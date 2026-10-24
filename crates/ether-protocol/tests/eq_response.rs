@@ -32,9 +32,13 @@ fn vectors_are_current() {
             (100.0, 6.0, 0.707),
             (1000.0, -12.0, 2.0),
             (8000.0, 3.0, 0.5),
+            (16_000.0, 9.0, 2.0),
+            (19_000.0, -6.0, 0.3),
         ] {
             for sr in [44_100.0, 48_000.0] {
-                for at in [20.0, 60.0, 250.0, 1000.0, 3000.0, 10_000.0, 20_000.0] {
+                for at in [
+                    20.0, 60.0, 250.0, 1000.0, 3000.0, 10_000.0, 15_000.0, 20_000.0,
+                ] {
                     let db = magnitude_db(shape, freq, gain, q, at, sr);
                     vectors.push(serde_json::json!({
                         "shape": shape, "freq": freq, "gain_db": gain, "q": q,

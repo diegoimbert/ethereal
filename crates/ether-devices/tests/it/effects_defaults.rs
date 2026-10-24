@@ -170,11 +170,12 @@ fn cases() -> Vec<Case> {
             vec![(5, 1.0)],
             0x0e78_7192_c58b_f211,
         ),
+        // Re-recorded for the decramped (matched) band design.
         (
             "eq",
             B::Eq,
             vec![(13, 6.0), (23, -4.0)],
-            0x2f04_ae61_9984_2e88,
+            0xdec7_9f3a_77d5_2ad9,
         ),
         ("chorus", B::Chorus, vec![], 0x5f33_bef1_cf98_eec6),
         (
