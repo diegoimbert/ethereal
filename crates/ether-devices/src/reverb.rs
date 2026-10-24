@@ -477,6 +477,8 @@ pub struct Reverb {
     lp: [f32; LINES],
     /// Per-line loop gain (updated every `CONTROL_INTERVAL` samples).
     gains: [f32; LINES],
+    /// The (decay, scale × size, sample rate) [`Self::gains`] were computed for.
+    gains_for: Option<(f32, f32, f32)>,
     control_countdown: usize,
     glide_coef: f32,
     /// Current (gliding) size factor and pre-delay in samples.
@@ -542,6 +544,7 @@ impl Reverb {
             lines: Default::default(),
             lp: [0.0; LINES],
             gains: [0.0; LINES],
+            gains_for: None,
             control_countdown: 0,
             glide_coef: 0.0,
             size: 1.0,
@@ -768,6 +771,14 @@ impl Reverb {
     fn update_gains(&mut self) {
         let rt60 = self.decay.current().max(0.01);
         let scale = self.scale() * self.size;
+        // Settled decay and size (the usual case): the same gains as last time.
+        let key = Some((rt60, scale, self.sample_rate));
+        #[cfg(test)]
+        let key = key.filter(|_| !tests::UNCACHED.with(std::cell::Cell::get));
+        if key.is_some() && self.gains_for == key {
+            return;
+        }
+        self.gains_for = key;
         for (g, base) in self.gains.iter_mut().zip(BASE_LENGTHS) {
             let seconds = base * scale / self.sample_rate;
             *g = 10f32.powf(-3.0 * seconds / rt60);
@@ -831,6 +842,10 @@ impl Reverb {
                 .map_or(0.0, |ch| ch[i])
         };
         let scale = self.scale();
+        // A settled angle (the usual case): its rotation once, not a `sin_cos` per sample.
+        let angle = (!self.angle.is_smoothing()).then(|| self.angle.current().sin_cos());
+        #[cfg(test)]
+        let angle = angle.filter(|_| !tests::UNCACHED.with(std::cell::Cell::get));
         for i in start..end {
             self.size = size_t + (self.size - size_t) * self.glide_coef;
             self.pre = pre_t + (self.pre - pre_t) * self.glide_coef;
@@ -842,7 +857,8 @@ impl Reverb {
             self.control_countdown -= 1;
             let damp = self.damping.tick();
             let diffusion = self.diffusion.tick();
-            let (sin, cos) = self.angle.tick().sin_cos();
+            let a = self.angle.tick();
+            let (sin, cos) = angle.unwrap_or_else(|| a.sin_cos());
             let freeze = self.freeze.tick();
             let filtered = !self.filter.is_bypass();
             if filtered {
@@ -1042,6 +1058,72 @@ impl Device for Reverb {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    thread_local! {
+        /// Recompute the rotation and loop gains every time (the code before the caches).
+        pub(super) static UNCACHED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+
+    /// The settled-angle and loop-gain caches are bit-identical to recomputing, through
+    /// diffusion, decay and size changes (smoothed) and the shimmer.
+    #[test]
+    fn caches_are_bit_identical() {
+        let render = |uncached: bool| -> Vec<f32> {
+            UNCACHED.with(|c| c.set(uncached));
+            let mut r = Reverb::new();
+            r.prepare(&PrepareConfig {
+                sample_rate: 48_000.0,
+                max_block_size: 512,
+                max_events_per_block: 16,
+            });
+            let mut all = Vec::new();
+            let transport = ether_core::TransportInfo::STOPPED;
+            let mut out_events = ether_core::EventBuffer::with_capacity(4);
+            for b in 0..200usize {
+                let ev: Vec<ether_core::ProcessEvent> = match b {
+                    20 => vec![(params::DIFFUSION, 30.0)],
+                    60 => vec![(params::DECAY, 9.0), (params::SIZE, 80.0)],
+                    100 => vec![(params::SHIMMER, 1.0), (params::SHIMMER_AMOUNT, 50.0)],
+                    _ => vec![],
+                }
+                .into_iter()
+                .map(|(param, value)| ether_core::ProcessEvent {
+                    offset: 17,
+                    kind: EventKind::Param {
+                        param,
+                        value,
+                        step: false,
+                    },
+                })
+                .collect();
+                let x: Vec<f32> = (0..128)
+                    .map(|i| (((b * 128 + i) as f32) * 0.037).sin() * 0.5)
+                    .collect();
+                let (mut l, mut rr) = (vec![0.0; 128], vec![0.0; 128]);
+                let inputs: [&[f32]; 2] = [&x, &x];
+                let mut outputs: [&mut [f32]; 2] = [&mut l, &mut rr];
+                let mut ctx = ProcessContext {
+                    sample_rate: 48_000.0,
+                    frames: 128,
+                    transport: &transport,
+                    events: &ev,
+                    out_events: &mut out_events,
+                };
+                let mut audio = AudioBuffers {
+                    inputs: &inputs,
+                    outputs: &mut outputs,
+                };
+                r.process(&mut ctx, &mut audio);
+                all.extend(l);
+                all.extend(rr);
+            }
+            UNCACHED.with(|c| c.set(false));
+            all
+        };
+        let (a, b) = (render(false), render(true));
+        assert!(a.iter().zip(&b).all(|(x, y)| x.to_bits() == y.to_bits()));
+        assert!(a.iter().any(|&x| x != 0.0));
+    }
 
     /// Process `frames` of a tone with `events`.
     fn run(r: &mut Reverb, frames: usize, events: &[ether_core::ProcessEvent]) {
