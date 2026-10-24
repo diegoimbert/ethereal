@@ -453,7 +453,9 @@ export const size = {
   trackHeaderIconNarrow: "13px",
   /** Narrow and compact (a short lane in a narrow column): smaller, so they leave the name room. */
   trackHeaderButtonSmall: "16px",
-  trackMeterWidth: "3px",
+  /** Two channel bars of 2px and the gap between them. */
+  trackMeterWidth: "5px",
+  trackMeterGap: "1px",
   trackFaderWidth: "44px",
   trackFaderThumb: "8px",
   /** Blur of the glow around a selected track header. */
