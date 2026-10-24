@@ -95,4 +95,34 @@ describe("analysis widgets", () => {
     expect(tuner.querySelector(".eth-tuner__note")?.textContent).toBe("A2");
     expect(tuner.querySelector(".eth-tuner__readout")?.textContent).toMatch(/ct · 11\d\.\d hz/);
   });
+
+  it("the loudness panel shows the readouts, the history and the target line", async () => {
+    const id = await mount("Loudness");
+    const panel = () => screen.getByTestId("widget-loudness");
+    const value = (name: string) => panel().querySelector(`[data-readout="${name}"] .eth-loudness__value`)?.textContent;
+    expect(value("integrated")).toBe("–");
+    expect(panel().textContent).toContain("no signal");
+    await tick(5000);
+    expect(Number(value("integrated"))).toBeCloseTo(-15.2, 1);
+    expect(value("true peak")).toBe("-1.4");
+    // -1.4 dBTP is under the -1 ceiling: not flagged.
+    expect(panel().querySelector('[data-readout="true peak"]')?.className).not.toContain("danger");
+    const points = panel().querySelector('[data-testid="loudness-short-term"]')?.getAttribute("points")?.split(" ").length ?? 0;
+    expect(points).toBeGreaterThan(10);
+    // The graph follows the target (the line stays put, the axis moves): -14 by default.
+    const axis = () => [...panel().querySelectorAll('[data-axis="lufs"]')].map((e) => e.textContent);
+    expect(axis()).toEqual(["-14", "-23", "-32"]);
+    await act(() => mock!.send(cmd("Device", { type: "SetParam", device: id, param: 0, value: -9 })));
+    expect(axis()).toEqual(["-9", "-18", "-27"]);
+    // A frame in the engine's layout with a hot true peak.
+    act(() =>
+      analysisStore(mock!).handle({
+        type: "Analysis",
+        event: { type: "Frame", device: id, data: { type: "Levels", values: [-10, -11, -12, 5, 0.3, -2, 30, 0.1, 2, -10, -10, -11, -11] } },
+      }),
+    );
+    expect(value("integrated")).toBe("-12.0");
+    expect(value("range")).toBe("5.0");
+    expect(panel().querySelector('[data-readout="true peak"]')?.className).toContain("danger");
+  });
 });

@@ -360,6 +360,104 @@ fn group_wraps_devices_and_rehosts_their_modulators() {
 }
 
 #[test]
+fn group_inside_a_rack_chain_nests_a_rack_in_place() {
+    let mut h = Harness::with_project();
+    let t = track(&mut h, TrackKind::Midi);
+    let outer = insert(&mut h, t, BuiltinDeviceType::InstrumentRack);
+    let c = add_chain(&mut h, outer);
+    let synth = chain_insert(&mut h, c, BuiltinDeviceType::Synth);
+    let eq = chain_insert(&mut h, c, BuiltinDeviceType::Eq);
+    let delay = chain_insert(&mut h, c, BuiltinDeviceType::Delay);
+    // A macro of the outer rack mapped onto a grouped device stays in scope (still inside it).
+    let map: ModMappingId = h.id();
+    h.ok(Command::Modulation(ModulationCommand::Map {
+        id: map,
+        source: ModSource::Macro {
+            rack: outer,
+            index: 0,
+        },
+        device: delay,
+        param: ParamId(0),
+        depth: 1.0,
+    }));
+    let before = h.project().clone();
+    let rack: DeviceId = h.id();
+    let chain: RackChainId = h.id();
+    // A device of the chain with one of the track chain: not one chain.
+    let other = insert(&mut h, t, BuiltinDeviceType::Utility);
+    let out = h.send(Command::Rack(RackCommand::Group {
+        rack,
+        rack_type: BuiltinDeviceType::AudioEffectRack,
+        chain,
+        devices: vec![delay, other],
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    h.ok(Command::Device(DeviceCommand::Remove { id: other }));
+    rack_cmd(
+        &mut h,
+        RackCommand::Group {
+            rack,
+            rack_type: BuiltinDeviceType::AudioEffectRack,
+            chain,
+            devices: vec![delay, eq],
+        },
+    );
+    let p = h.project();
+    assert_eq!(
+        p.chain_devices_of(c)
+            .iter()
+            .map(|d| d.id)
+            .collect::<Vec<_>>(),
+        vec![synth, rack]
+    );
+    assert_eq!(
+        p.chain_devices_of(chain)
+            .iter()
+            .map(|d| d.id)
+            .collect::<Vec<_>>(),
+        vec![eq, delay]
+    );
+    assert_eq!(p.device_path(delay), Some(vec![outer, rack, delay]));
+    assert!(p.mod_mappings.contains_key(&map));
+    // The nested rack compiles into the outer rack's chain.
+    let g = graph_track(&mut h, t);
+    assert!(!g.chain_racks.is_empty());
+    // One undo step.
+    undo(&mut h); // the group
+    undo(&mut h); // the removal
+    undo(&mut h); // the insert
+    assert_eq!(h.project(), &before);
+}
+
+#[test]
+fn group_inside_an_audio_effect_rack_chain_takes_an_audio_effect_rack_only() {
+    let mut h = Harness::with_project();
+    let t = track(&mut h, TrackKind::Midi);
+    let outer = insert(&mut h, t, BuiltinDeviceType::AudioEffectRack);
+    let c = h.project().chains_of(outer)[0].id;
+    let eq = chain_insert(&mut h, c, BuiltinDeviceType::Eq);
+    let rack: DeviceId = h.id();
+    let chain: RackChainId = h.id();
+    let out = h.send(Command::Rack(RackCommand::Group {
+        rack,
+        rack_type: BuiltinDeviceType::InstrumentRack,
+        chain,
+        devices: vec![eq],
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    rack_cmd(
+        &mut h,
+        RackCommand::Group {
+            rack,
+            rack_type: BuiltinDeviceType::AudioEffectRack,
+            chain,
+            devices: vec![eq],
+        },
+    );
+    assert_eq!(h.project().devices[&rack].chain, Some(c));
+}
+
+#[test]
 fn removing_a_rack_or_chain_cascades_and_undoes() {
     let mut h = Harness::with_project();
     let t = track(&mut h, TrackKind::Midi);
