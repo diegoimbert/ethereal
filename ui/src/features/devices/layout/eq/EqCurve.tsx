@@ -37,6 +37,7 @@ import {
   qAfter,
   resolveBand,
   spectrumY,
+  tiltedDb,
   usesGain,
   xOf,
   yOf,
@@ -407,14 +408,14 @@ function curvePoints(box: PlotBox, db: ReadonlyArray<number>): string {
   return s;
 }
 
-/** SVG points of a spectrum frame (log-spaced bins from `min_hz` to `max_hz`). */
+/** SVG points of a spectrum frame (log-spaced bins from `min_hz` to `max_hz`), tilted. */
 function spectrumPoints(box: PlotBox, f: { min_hz: number; max_hz: number; bins_db: ReadonlyArray<number> }): string {
   const n = f.bins_db.length;
   if (n < 2 || !(f.min_hz > 0) || !(f.max_hz > f.min_hz)) return "";
   let s = "";
   for (let i = 0; i < n; i++) {
     const hz = f.min_hz * Math.pow(f.max_hz / f.min_hz, (i + 0.5) / n);
-    s += `${xOf(box, hz).toFixed(1)},${spectrumY(box, f.bins_db[i]!).toFixed(1)} `;
+    s += `${xOf(box, hz).toFixed(1)},${spectrumY(box, tiltedDb(f.bins_db[i]!, hz)).toFixed(1)} `;
   }
   return s;
 }

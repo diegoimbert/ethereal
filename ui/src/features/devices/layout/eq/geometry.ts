@@ -21,6 +21,17 @@ export const FREQ_LABELS = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
 /** Spectrum overlay scale (dBFS at the bottom / top of the plot). */
 export const SPECTRUM_FLOOR_DB = -90;
 export const SPECTRUM_TOP_DB = 6;
+/**
+ * Display tilt of the spectrum (dB per octave around 1 kHz): music falls about this much per
+ * octave, so a balanced mix reads roughly flat and its highs stay above the floor (as in
+ * most EQ analyzers).
+ */
+export const SPECTRUM_TILT_DB_PER_OCT = 4.5;
+
+/** A spectrum level at `hz`, tilted for display. */
+export function tiltedDb(db: number, hz: number): number {
+  return db + SPECTRUM_TILT_DB_PER_OCT * Math.log2(hz / 1000);
+}
 /** Inset (px) keeping handles at the gain extremes fully visible. */
 export const PAD = 10;
 /** Handle hit radius (px). */

@@ -144,3 +144,52 @@ fn stops_computing_when_no_longer_watched() {
     assert!(bin_db(&frames[1], 440.0) < -60.0);
     assert!(bin_db(&frames[1], 5000.0) > -12.0);
 }
+
+/// Analyzer ballistics: a tone shows within two frames (≈ 67 ms) to 1 dB; once it stops the
+/// curve falls at [`spectrum::FALL_DB_PER_S`] instead of dropping to the floor in a few
+/// frames (the old symmetric average fell 3 dB per frame, ~90 dB/s, and flickered).
+#[test]
+fn analyzer_rises_fast_and_falls_smoothly() {
+    let sr = 48_000.0f32;
+    let mut a = spectrum::Analyzer::new();
+    let bin = |a: &spectrum::Analyzer| {
+        let b = a.bins();
+        let (lo, hi) = (spectrum::MIN_HZ, spectrum::max_hz(sr));
+        let t = (1000f32 / lo).ln() / (hi / lo).ln() * b.len() as f32 - 0.5;
+        b[t.round() as usize]
+    };
+    let mut phase = 0usize;
+    let mut feed = |a: &mut spectrum::Analyzer, amp: f32| {
+        for _ in 0..spectrum::FFT_SIZE {
+            a.push(amp * (std::f32::consts::TAU * 1000.0 * phase as f32 / sr).sin());
+            phase += 1;
+        }
+    };
+    // Settle on silence, then a tone at -6 dBFS.
+    feed(&mut a, 0.0);
+    a.compute(sr);
+    feed(&mut a, 0.5);
+    a.compute(sr);
+    let first = bin(&a);
+    a.compute(sr);
+    let second = bin(&a);
+    for _ in 0..10 {
+        a.compute(sr);
+    }
+    let level = bin(&a);
+    assert!((level + 6.02).abs() < 1.5, "tone at {level} dB");
+    assert!(level - second < 1.0, "two frames: {second} vs {level}");
+    assert!(level - first < 6.0, "one frame: {first}");
+    // The tone stops: half a second later (15 frames) the curve is about 12 dB down.
+    feed(&mut a, 0.0);
+    let frames = ether_core::analysis::ANALYSIS_HZ as usize / 2;
+    for _ in 0..frames {
+        a.compute(sr);
+    }
+    let fallen = level - bin(&a);
+    let want = spectrum::FALL_DB_PER_S * frames as f32 / ether_core::analysis::ANALYSIS_HZ as f32;
+    assert!(
+        (fallen - want).abs() < 1.0,
+        "fell {fallen} dB in 0.5 s (want {want})"
+    );
+}
