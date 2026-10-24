@@ -22,13 +22,20 @@ export function DeviceWindowButton({ device, control, className }: DeviceWindowB
     <IconButton
       size="sm"
       tone="ghost"
-      className={clsx("eth-device__window-toggle", className)}
+      className={clsx("eth-device__window-toggle", control.opening && "eth-device__window-toggle--opening", className)}
       active={control.open}
+      aria-busy={control.opening || undefined}
       data-viewer-allow
       disabled={!control.available && !control.softDisabled}
       aria-disabled={control.softDisabled && !control.open ? true : undefined}
       label={t("devices.window.open", { name: device.name })}
-      title={control.open ? t("devices.window.close_hint") : (control.title ?? (plugin ? t("devices.window.open_plugin") : t("devices.window.open_device")))}
+      title={
+        control.opening
+          ? t("devices.window.opening")
+          : control.open
+            ? t("devices.window.close_hint")
+            : (control.title ?? (plugin ? t("devices.window.open_plugin") : t("devices.window.open_device")))
+      }
       {...Object.fromEntries(Object.entries(control.data ?? {}).map(([k, v]) => [`data-${k}`, v]))}
       icon={<AppWindow />}
       onClick={control.toggle}

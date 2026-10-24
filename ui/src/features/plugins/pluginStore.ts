@@ -58,6 +58,8 @@ export interface PluginRuntimeState {
   crashed: Record<DeviceId, string>;
   /** Devices whose editor window is open. */
   editors: Record<DeviceId, true>;
+  /** Devices whose editor window was asked to open and hasn't yet (the button shows it). */
+  opening: Record<DeviceId, true>;
   /** Plugin devices still to load (instantiated a few per engine tick when a project opens). */
   loading: DeviceId[];
   /** Plugin devices whose plugin was missing from the list and a later list has it: the
@@ -77,6 +79,7 @@ export interface PluginRuntimeState {
   /** A retry ended: drop the row (`failure` null: it loaded) or show its new reason. */
   retried(target: ScanFailure, failure: ScanFailure | null): void;
   setEditorOpen(device: DeviceId, open: boolean): void;
+  setOpening(device: DeviceId, opening: boolean): void;
   clearCrash(device: DeviceId): void;
   /** The device was reloaded (or is gone): no longer `found`. */
   clearFound(device: DeviceId): void;
@@ -96,6 +99,7 @@ const initial = {
   retrying: {},
   crashed: {},
   editors: {},
+  opening: {},
   found: {},
   loading: [],
 } satisfies Partial<PluginRuntimeState>;
@@ -143,6 +147,7 @@ export const usePluginStore = create<PluginRuntimeState>((set) => ({
       };
     }),
   setEditorOpen: (device, open) => set((s) => ({ editors: open ? { ...s.editors, [device]: true } : without(s.editors, device) })),
+  setOpening: (device, opening) => set((s) => ({ opening: opening ? { ...s.opening, [device]: true } : without(s.opening, device) })),
   clearCrash: (device) => set((s) => ({ crashed: without(s.crashed, device) })),
   clearFound: (device) => set((s) => ({ found: without(s.found, device) })),
   apply: (e) =>
@@ -222,7 +227,7 @@ function onEvent(e: Event, transport: EngineTransport) {
     refreshPluginList(transport);
   }
   // A new project has other devices: forget per-device runtime state.
-  if (e.type === "ProjectLoaded") usePluginStore.setState({ crashed: {}, editors: {}, found: {}, descriptorEpochs: {}, loading: [] });
+  if (e.type === "ProjectLoaded") usePluginStore.setState({ crashed: {}, editors: {}, opening: {}, found: {}, descriptorEpochs: {}, loading: [] });
 }
 
 /**
