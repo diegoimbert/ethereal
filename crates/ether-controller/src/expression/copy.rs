@@ -150,7 +150,9 @@ pub fn join_note_expressions(
         );
     }
     let mut w = join.at;
-    while w < len - 1e-9 && join.period > 0.0 {
+    let mut wraps = 0;
+    while w < len - 1e-9 && join.period > 0.0 && wraps < 100_000 {
+        wraps += 1;
         let span = join.period.min(len - w);
         for e in &partner {
             place(

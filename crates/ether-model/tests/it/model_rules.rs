@@ -638,3 +638,31 @@ fn a_long_param_gesture_coalesces_and_undoes_to_the_start() {
     assert!(h.redo(&mut f.p).unwrap().is_some());
     assert_eq!(f.p, end);
 }
+
+/// Beat values are bounded by `MAX_BEAT` (in either direction), so time arithmetic and loop
+/// unrolling stay bounded.
+#[test]
+fn beat_values_are_bounded() {
+    let mut f = Fx::new();
+    let midi = f.add_track(TrackKind::Midi, None);
+    let insert = |c: Clip| Op::Insert {
+        entity: Entity::Clip(c),
+    };
+    let ok = f.midi_clip(midi, Beats(MAX_BEAT - 4.0));
+    let mut long = f.midi_clip(midi, Beats(0.0));
+    long.length = Beats(MAX_BEAT * 2.0);
+    let far = f.midi_clip(midi, Beats(-MAX_BEAT * 2.0));
+    let mut offset = f.midi_clip(midi, Beats(0.0));
+    offset.offset = Beats(1e300);
+    let mut looped = f.midi_clip(midi, Beats(0.0));
+    looped.looping.end = Beats(1e300);
+    let before = f.p.clone();
+    for bad in [long, far, offset, looped] {
+        assert!(
+            matches!(f.p.apply(&insert(bad)), Err(ModelError::InvalidValue(_))),
+            "accepted"
+        );
+    }
+    assert_eq!(f.p, before);
+    f.p.apply(&insert(ok)).unwrap();
+}

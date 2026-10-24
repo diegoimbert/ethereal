@@ -75,10 +75,21 @@ jobs:
           ref: ${{ inputs.ref || github.ref }}
       - name: Commit and ee pointer
         id: ref
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           ee="$(git ls-tree HEAD ee | awk '$2 == "commit" { print $3 }')"
           [ -n "$ee" ] || { echo "::error::no ee pointer at this ref"; exit 1; }
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          sha="$(git rev-parse HEAD)"
+          # The signed path only signs commits that are on main (`inputs.ref` may name any).
+          if [ "$SIGNED" = "true" ]; then
+            status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$sha...main" --jq .status)"
+            case "$status" in
+              ahead | identical) ;;
+              *) echo "::error::$sha is not on main ($status): signed releases are built from main"; exit 1 ;;
+            esac
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "ee_sha=$ee" >> "$GITHUB_OUTPUT"
       - name: Case clashes (macOS/Windows file systems ignore case)
         run: node scripts/check-case-clashes.mjs

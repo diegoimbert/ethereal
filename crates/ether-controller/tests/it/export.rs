@@ -997,6 +997,14 @@ fn invalid_requests_and_plugin_failures() {
         ),
         ErrorCode::InvalidArgument
     );
+    // Longer than a render may be (`MAX_RENDER_SECONDS`; 1e9 beats at 120 bpm ~ 15 years).
+    assert_eq!(
+        bad(
+            &mut d,
+            request(custom(0.0, 1e9), AudioContainer::Wav, BitDepth::Int16)
+        ),
+        ErrorCode::InvalidArgument
+    );
     let mut r = base.clone();
     r.tail_seconds = -1.0;
     assert_eq!(bad(&mut d, r), ErrorCode::InvalidArgument);

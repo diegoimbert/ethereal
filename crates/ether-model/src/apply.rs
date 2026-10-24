@@ -73,13 +73,18 @@ fn check_order(k: &OrderKey) -> Result<(), ModelError> {
 }
 
 fn check_beats_nonneg(what: &str, b: Beats) -> Result<(), ModelError> {
-    if !finite(b.0) || b.0 < 0.0 {
+    if !finite(b.0) || b.0 < 0.0 || b.0 > MAX_BEAT {
         return Err(invalid(format!(
-            "{what} must be a finite beat >= 0, got {}",
+            "{what} must be a beat in 0..={MAX_BEAT}, got {}",
             b.0
         )));
     }
     Ok(())
+}
+
+/// A finite beat within ±[`MAX_BEAT`].
+fn beat(x: f64) -> bool {
+    finite(x) && x.abs() <= MAX_BEAT
 }
 
 fn check_text(what: &str, text: &str, max_chars: usize) -> Result<(), ModelError> {
@@ -150,7 +155,7 @@ pub(crate) fn check_settings(s: &ProjectSettings) -> Result<(), ModelError> {
     }
     let r = s.loop_region;
     check_beats_nonneg("loop start", r.start)?;
-    if !(finite(r.end.0) && r.end.0 > r.start.0) {
+    if !(beat(r.end.0) && r.end.0 > r.start.0) {
         return Err(invalid("loop region end must be after its start"));
     }
     check_db("metronome volume", s.metronome_volume)?;
@@ -1086,10 +1091,10 @@ impl Project {
                 check_unit("velocity", f64::from(n.velocity))?;
                 check_unit("release velocity", f64::from(n.release_velocity))?;
                 // Negative: in a left-extended clip's leading gap (`crate::clip`).
-                if !finite(n.start.0) {
+                if !beat(n.start.0) {
                     return Err(invalid("note start must be finite"));
                 }
-                if !(finite(n.duration.0) && n.duration.0 > 0.0) {
+                if !(beat(n.duration.0) && n.duration.0 > 0.0) {
                     return Err(invalid("note duration must be > 0"));
                 }
                 Ok(())
@@ -1230,7 +1235,7 @@ impl Project {
                 if !matches!(clip.content, ClipContent::Audio(_)) {
                     return Err(invariant("warp markers can only live in audio clips"));
                 }
-                if !(finite(m.beat.0) && finite(m.source.0) && m.source.0 >= 0.0) {
+                if !(beat(m.beat.0) && finite(m.source.0) && m.source.0 >= 0.0) {
                     return Err(invalid("warp marker times must be finite (source >= 0)"));
                 }
                 Ok(())
@@ -1481,7 +1486,7 @@ impl Project {
             return Err(invariant("a comp region's lane must belong to its track"));
         }
         check_beats_nonneg("comp region start", r.start)?;
-        if !(finite(r.end.0) && r.end.0 > r.start.0 + Beats::EPSILON) {
+        if !(beat(r.end.0) && r.end.0 > r.start.0 + Beats::EPSILON) {
             return Err(invalid("comp region end must be after its start"));
         }
         if !(finite(r.crossfade.0) && (0.0..=MAX_COMP_CROSSFADE).contains(&r.crossfade.0)) {
@@ -1827,22 +1832,22 @@ impl Project {
                 return Err(invariant("a take clip must be on its lane's track"));
             }
         }
-        if !finite(c.start.0) {
+        if !beat(c.start.0) {
             return Err(invalid("clip start must be finite"));
         }
         if let Some(col) = c.color {
             check_color(col)?;
         }
-        if !(finite(c.length.0) && c.length.0 > 0.0) {
+        if !(beat(c.length.0) && c.length.0 > 0.0) {
             return Err(invalid("clip length must be > 0"));
         }
         // A negative offset is a leading gap: the clip starts before its
         // content, which plays from clip-relative `-offset`.
-        if !finite(c.offset.0) {
+        if !beat(c.offset.0) {
             return Err(invalid("clip offset must be finite"));
         }
         check_beats_nonneg("loop start", c.looping.start)?;
-        if !(finite(c.looping.end.0) && c.looping.end.0 > c.looping.start.0) {
+        if !(beat(c.looping.end.0) && c.looping.end.0 > c.looping.start.0) {
             return Err(invalid("clip loop end must be after its start"));
         }
         Ok(())

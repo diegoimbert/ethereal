@@ -51,7 +51,9 @@ pub fn check_rate(rate: u32) -> Result<u32, MediaError> {
     if SAMPLE_RATES.contains(&rate) {
         Ok(rate)
     } else {
-        Err(MediaError::Decode(format!("unsupported sample rate {rate} Hz")))
+        Err(MediaError::Decode(format!(
+            "unsupported sample rate {rate} Hz"
+        )))
     }
 }
 

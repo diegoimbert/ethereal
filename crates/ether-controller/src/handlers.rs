@@ -659,7 +659,9 @@ where
                 }
             }
             TransportCommand::Locate { position } => {
-                if !(position.0.is_finite() && position.0 >= 0.0) {
+                if !(position.0.is_finite()
+                    && (0.0..=ether_core::protocol::model::MAX_BEAT).contains(&position.0))
+                {
                     return Err(invalid("position must be >= 0"));
                 }
                 // While a render runs, only its rendered part plays.
