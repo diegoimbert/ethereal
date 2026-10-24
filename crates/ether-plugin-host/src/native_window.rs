@@ -39,6 +39,9 @@ struct Candidate {
     id: u64,
     /// Owned by this process (`_NET_WM_PID`; always true where the listing is per process).
     ours: bool,
+    /// Known to belong to another process (`_NET_WM_PID` names one): never the plugin's,
+    /// whatever its title (another app's window opening meanwhile).
+    foreign: bool,
     /// Looks like an application window: X11 `WM_CLASS`/name, a Win32 caption.
     titled: bool,
     visible: bool,
@@ -46,12 +49,12 @@ struct Candidate {
 
 /// The most plausible plugin window among new ones: ours, then titled, then visible; the
 /// first listed on ties. A window that is neither ours nor titled is never picked (window
-/// manager frames, toolkit helper windows).
+/// manager frames, toolkit helper windows), nor one known to be another process's.
 fn pick(candidates: &[Candidate]) -> Option<u64> {
     let score = |c: &Candidate| u8::from(c.ours) * 4 + u8::from(c.titled) * 2 + u8::from(c.visible);
     candidates
         .iter()
-        .filter(|c| c.ours || c.titled)
+        .filter(|c| !c.foreign && (c.ours || c.titled))
         .fold(None::<&Candidate>, |best, c| match best {
             Some(b) if score(b) >= score(c) => Some(b),
             _ => Some(c),
@@ -179,9 +182,11 @@ mod sys {
                             continue;
                         }
                         if attrs.width > 1 && attrs.height > 1 {
+                            let owner = owner_pid(w);
                             out.push(Candidate {
                                 id: w,
-                                ours: owner_pid(w) == Some(pid),
+                                ours: owner == Some(pid),
+                                foreign: owner.is_some_and(|o| o != pid),
                                 titled: titled(w),
                                 visible: attrs.map_state == xlib::IsViewable,
                             });
@@ -233,6 +238,7 @@ mod sys {
             out.push(Candidate {
                 id: hwnd as usize as u64,
                 ours: true,
+                foreign: false,
                 titled: style & WS_CAPTION == WS_CAPTION,
                 visible: IsWindowVisible(hwnd) != 0,
             });
@@ -275,6 +281,7 @@ mod sys {
             .map(|w| Candidate {
                 id: w.windowNumber() as u64,
                 ours: true,
+                foreign: false,
                 titled: true,
                 visible: w.isVisible(),
             })
@@ -304,9 +311,20 @@ mod tests {
         Candidate {
             id,
             ours,
+            foreign: false,
             titled,
             visible,
         }
+    }
+
+    #[test]
+    fn another_process_window_is_never_picked() {
+        let other = Candidate {
+            foreign: true,
+            ..c(1, false, true, true)
+        };
+        assert_eq!(pick(&[other]), None);
+        assert_eq!(pick(&[other, c(2, false, true, false)]), Some(2));
     }
 
     #[test]
