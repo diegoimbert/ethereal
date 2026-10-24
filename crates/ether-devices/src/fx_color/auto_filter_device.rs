@@ -131,7 +131,11 @@ impl FilterType {
 
     /// The filter of a param map (plain values; a missing param is at its default).
     pub fn of_params(params: &std::collections::BTreeMap<ParamId, f64>) -> Self {
-        let idx = |id| params.get(&id).map_or(0, |v: &f64| v.round().max(0.0) as usize);
+        let idx = |id| {
+            params
+                .get(&id)
+                .map_or(0, |v: &f64| v.round().max(0.0) as usize)
+        };
         Self::resolve(idx(ids::MODE), idx(ids::SLOPE), idx(ids::TYPE))
     }
 
@@ -139,7 +143,9 @@ impl FilterType {
     /// panel shows what plays. `None` when there is nothing to rewrite; else the `Type` index
     /// it set (for retargeting automation of the legacy param).
     pub fn upgrade_params(params: &mut std::collections::BTreeMap<ParamId, f64>) -> Option<usize> {
-        let legacy = params.get(&ids::TYPE).map_or(0, |v| v.round().max(0.0) as usize);
+        let legacy = params
+            .get(&ids::TYPE)
+            .map_or(0, |v| v.round().max(0.0) as usize);
         if legacy == 0 {
             return None;
         }

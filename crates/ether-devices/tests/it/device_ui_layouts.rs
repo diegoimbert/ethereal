@@ -121,11 +121,18 @@ fn bound(w: &Widget) -> Vec<u32> {
             drive,
             gain,
             slope,
-        } => [Some(*cutoff), Some(*resonance), *mode, *drive, *gain, *slope]
-            .into_iter()
-            .flatten()
-            .map(|p| p.0)
-            .collect(),
+        } => [
+            Some(*cutoff),
+            Some(*resonance),
+            *mode,
+            *drive,
+            *gain,
+            *slope,
+        ]
+        .into_iter()
+        .flatten()
+        .map(|p| p.0)
+        .collect(),
         W::Oscillator { shape, position } => [Some(*shape), *position]
             .into_iter()
             .flatten()

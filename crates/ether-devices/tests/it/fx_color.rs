@@ -561,7 +561,11 @@ fn auto_filter_slopes() {
         let mut a = sloped(f64::from(mode), 0.0, 1000.0, 30.0);
         let mut b = sloped(f64::from(mode), 2.0, 1000.0, 30.0);
         let x = stereo(noise(4800, 0.5));
-        assert_eq!(render(&mut a, &x, &[]), render(&mut b, &x, &[]), "mode {mode}");
+        assert_eq!(
+            render(&mut a, &x, &[]),
+            render(&mut b, &x, &[]),
+            "mode {mode}"
+        );
     }
 }
 
@@ -580,7 +584,11 @@ fn auto_filter_legacy_type_still_loads() {
     ] {
         let mut old = filter(legacy, 800.0, 40.0);
         let mut new = sloped(mode, slope, 800.0, 40.0);
-        assert_eq!(render(&mut old, &x, &[]), render(&mut new, &x, &[]), "legacy {legacy}");
+        assert_eq!(
+            render(&mut old, &x, &[]),
+            render(&mut new, &x, &[]),
+            "legacy {legacy}"
+        );
     }
     // Once `Type` or `Slope` is set, they decide.
     let mut d = filter(3.0, 800.0, 40.0);
@@ -601,7 +609,11 @@ fn auto_filter_extremes_are_finite_without_allocating() {
             let mut d = AutoFilter::new();
             set(&mut d, af::MODE, f64::from(mode));
             set(&mut d, af::SLOPE, f64::from(slope));
-            extremes(&mut d, 64.0, &format!("auto filter mode {mode} slope {slope}"));
+            extremes(
+                &mut d,
+                64.0,
+                &format!("auto filter mode {mode} slope {slope}"),
+            );
         }
     }
     // Self-oscillating 48 dB cascade with full drive stays bounded.

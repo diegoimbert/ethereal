@@ -42,10 +42,17 @@ fn bound(w: &Widget) -> Vec<ParamId> {
             drive,
             gain,
             slope,
-        } => [Some(*cutoff), Some(*resonance), *mode, *drive, *gain, *slope]
-            .into_iter()
-            .flatten()
-            .collect(),
+        } => [
+            Some(*cutoff),
+            Some(*resonance),
+            *mode,
+            *drive,
+            *gain,
+            *slope,
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
         W::TransferCurve { drive, curve, bias } => [Some(*drive), *curve, *bias]
             .into_iter()
             .flatten()
