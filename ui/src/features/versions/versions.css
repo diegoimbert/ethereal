@@ -169,10 +169,26 @@
   color: var(--eth-color-text-dim);
 }
 
-/* Recovery dialog. */
-.eth-recovery__list {
+/* Recovery dialog: one fixed height, so dismissing projects one after another moves nothing
+   (the next project's buttons land where the last one's were); the list scrolls inside it.
+   The intro keeps room for its longest wording (it changes with the count and the kind). */
+.eth-dialog.eth-recovery {
+  height: min(var(--eth-size-recovery-dialog-height), calc(100vh - 2 * var(--eth-space-xl)));
+}
+.eth-recovery .eth-dialog__body {
   display: flex;
   flex-direction: column;
+}
+.eth-recovery__intro {
+  flex: none;
+  min-height: var(--eth-size-recovery-intro-min-height);
+}
+.eth-recovery__list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  max-height: none;
   padding: var(--eth-space-xs) 0;
   border-radius: var(--eth-radius-md);
   background: var(--eth-color-bg-inset);
