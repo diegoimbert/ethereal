@@ -18,7 +18,8 @@
 import { create } from "zustand";
 import { immer } from "zustand/middleware/immer";
 import type { HistoryState, Patch, DeviceId, Project, ProjectSummary, TrackId, TransportState } from "@/generated";
-import { applyPatchChanges } from "./entities";
+import { withPatchChanges } from "./entities";
+import { carryGroups } from "./groups";
 
 export const EMPTY_HISTORY: HistoryState = { can_undo: false, can_redo: false, undo_label: null, redo_label: null, undo_id: null, redo_id: null };
 
@@ -115,12 +116,12 @@ export const useProjectStore = create<ProjectStoreState>()(
       if (!project) return "no-project";
       if (revision !== null && patch.revision <= revision) return "stale";
       if (revision !== null && patch.revision > revision + 1) return "gap";
-      set((s) => {
-        // `s.project` is non-null: checked above, and zustand updates are synchronous.
-        applyPatchChanges(s.project!, patch.changes);
-        s.revision = patch.revision;
-        s.history = patch.history;
-      });
+      // Copy-on-write without immer: a big table's immer draft costs its copy plus a scan
+      // of every entry (a one-note edit in a 262k-note project: ~150 ms).
+      set({ project: withPatchChanges(project, patch.changes), revision: patch.revision, history: patch.history });
+      // The group-bys (notes by clip, ...) follow without regrouping every entity.
+      const next = get().project;
+      if (next) carryGroups(project, next, patch.changes);
       return "applied";
     },
 

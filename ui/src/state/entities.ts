@@ -107,3 +107,66 @@ export function applyPatchChanges(project: Project, changes: ReadonlyArray<Patch
     }
   }
 }
+
+function deepFreeze<T>(v: T): T {
+  if (v !== null && typeof v === "object" && !Object.isFrozen(v)) {
+    Object.freeze(v);
+    for (const x of Object.values(v as object)) deepFreeze(x);
+  }
+  return v;
+}
+
+/**
+ * `changes` applied to an immutable (frozen) `project` without immer: the root and each
+ * table the patch touches are copied once (immer's draft of a big table costs its copy plus
+ * a scan of every entry when finalizing), untouched tables and entities keep their identity,
+ * and everything new is frozen like immer would. The result equals
+ * `applyPatchChanges` on a copy.
+ */
+export function withPatchChanges(project: Project, changes: ReadonlyArray<PatchChange>): Project {
+  const next = { ...project } as Project;
+  const copied = new Set<keyof Project>();
+  const table = (type: EntityType): Record<string, unknown> => {
+    const name = TABLE_OF[type];
+    if (!copied.has(name)) {
+      copied.add(name);
+      (next as unknown as Record<string, unknown>)[name] = { ...(next[name] as object) };
+    }
+    return next[name] as unknown as Record<string, unknown>;
+  };
+  const devices = new Set<string>();
+  for (const change of changes) {
+    switch (change.type) {
+      case "Upsert": {
+        const { type, value } = change.entity;
+        table(type)[value.id] = deepFreeze(value);
+        if (type === "Device") devices.delete(value.id);
+        break;
+      }
+      case "Remove":
+        delete table(change.key.type)[change.key.id];
+        break;
+      case "Settings":
+        next.settings = deepFreeze(change.settings);
+        break;
+      case "DeviceParam": {
+        const t = table("Device") as Project["devices"];
+        const device = t[change.id];
+        if (!device) break;
+        // One copy of the device (and its params) per patch, however many params change.
+        const d = devices.has(change.id) ? device : { ...device, params: { ...device.params } };
+        devices.add(change.id);
+        if (change.value === null || change.value === undefined) delete d.params[change.param];
+        else d.params[change.param] = change.value;
+        t[change.id] = d;
+        break;
+      }
+    }
+  }
+  for (const id of devices) {
+    const d = next.devices[id];
+    if (d) deepFreeze(d);
+  }
+  for (const name of copied) Object.freeze(next[name]);
+  return Object.freeze(next);
+}
