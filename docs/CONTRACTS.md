@@ -685,10 +685,14 @@ of each block.
   (master), and everything downstream of those. Every other track is *anticipated*; every
   source of an anticipated track is anticipated too.
 - *Timeline*: anticipated tracks render up to the next host block ahead
-  (`Engine::process_with_hint` tells its length; `process` assumes the same as this one).
+  (`Engine::process_with_hint` tells its length; `process` assumes the same as this one; the
+  native host hints the longest of its last 16 device buffers, so with irregular buffers the
+  queue holds at least the next one and the rest of a longer one stays queued).
   The transport is decided where they render, and the real-time side renders the same planned
   sub-blocks one block later, so both play the same timeline and the output is
-  **bit-identical** to the engine without anticipation for the same host block lengths. It
+  **bit-identical** to the engine without anticipation for the same host block lengths when
+  the hints are right (wrong hints split sub-blocks where the engine without anticipation
+  doesn't: rounding-level differences). It
   reads what anticipated tracks feed it (output, sends, sidechain points, input taps,
   envelope-follower taps) from copies the tracks' jobs make (`Held`), never from their live
   buffers.

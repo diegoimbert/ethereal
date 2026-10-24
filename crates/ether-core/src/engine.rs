@@ -1037,7 +1037,7 @@ impl Engine {
         }
         // --- what each track does in this block ---
         let mut q = self.queue.frames;
-        let both = {
+        let (both, pending) = {
             let an = self.snapshot.rt.antic.as_mut().expect("checked above");
             let decide = |an: &mut crate::anticipation::AnticRt, free: bool| {
                 for i in 0..an.eff.len() {
@@ -1058,24 +1058,51 @@ impl Engine {
                 decide(an, true);
             }
             let an = self.snapshot.rt.antic.as_ref().expect("checked above");
-            (0..an.eff.len()).any(|i| an.eff[i] && !an.ahead[i])
+            (
+                (0..an.eff.len()).any(|i| an.eff[i] && !an.ahead[i]),
+                // A change waits for the queue to hold no more than a block: don't top it
+                // up meanwhile, so it drains.
+                (0..an.eff.len()).any(|i| an.eff[i] != (want && an.target[i])),
+            )
         };
         let tempo_sr = self.config.sample_rate as f64;
         let mut off = 0;
-        if want && q == frames && !both {
-            // Steady state: the queued block (real-time side) and the next one (ahead) at
-            // the same time.
-            let mut left = hint;
+        if want && q >= frames && !both {
+            // Steady state: the queued frames (real-time side) and the next ones (ahead) at
+            // the same time. Ahead tops the queue up to `hint` frames past this block; with
+            // irregular device buffers the queue holds more than this one, and the rest
+            // stays queued for the next.
+            let mut left = if pending {
+                0
+            } else {
+                hint.saturating_sub(q - frames)
+            };
+            let with_ahead = self.queue.longest_within(frames);
+            let mut pass_at = 0;
             while off < frames {
-                let Some(now) = self.queue.pop() else { break };
-                let ahead = (left > 0 && !self.queue.is_full()).then(|| self.plan(left));
-                self.run_pass(
-                    Some((&now, off)),
-                    ahead.as_ref(),
-                    Pass::Overlap,
-                    inputs,
-                    outputs,
-                );
+                let Some(&head) = self.queue.front() else {
+                    break;
+                };
+                let now = if head.n > frames - off {
+                    let (first, rest) = split(&head, frames - off, &self.snapshot.tempo, tempo_sr);
+                    self.queue.replace_front(rest);
+                    first
+                } else {
+                    self.queue.pop();
+                    head
+                };
+                // The ahead side renders with the longest real-time sub-block (and those
+                // after it), so the master chain overlaps the most: with irregular device
+                // buffers the head is a short leftover of the last block.
+                let take = if pass_at >= with_ahead { left } else { 0 };
+                pass_at += 1;
+                let ahead = (take > 0 && !self.queue.is_full()).then(|| self.plan(take));
+                let pass = if ahead.is_some() {
+                    Pass::Overlap
+                } else {
+                    Pass::Front
+                };
+                self.run_pass(Some((&now, off)), ahead.as_ref(), pass, inputs, outputs);
                 self.consume_front(now.n);
                 if let Some(a) = ahead {
                     left -= a.n;
@@ -1121,7 +1148,7 @@ impl Engine {
                 .antic
                 .as_ref()
                 .is_some_and(|a| a.eff.iter().any(|&e| e));
-            if any {
+            if any && !pending {
                 let mut left = hint.saturating_sub(self.queue.frames);
                 while left > 0 && !self.queue.is_full() {
                     let a = self.plan(left);

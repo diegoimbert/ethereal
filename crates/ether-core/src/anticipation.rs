@@ -420,6 +420,24 @@ impl PlanQueue {
     pub(crate) fn clear(&mut self) {
         while self.pop().is_some() {}
     }
+
+    /// Of the plans covering the first `frames` queued frames, the position of the one
+    /// covering the most of them (the first such one).
+    pub(crate) fn longest_within(&self, frames: usize) -> usize {
+        let (mut best, mut best_n, mut at) = (0, 0, 0);
+        for k in 0..self.len {
+            if at >= frames {
+                break;
+            }
+            let n = self.plans[(self.head + k) % MAX_PLANS].map_or(0, |p| p.n);
+            let covered = n.min(frames - at);
+            if covered > best_n {
+                (best, best_n) = (k, covered);
+            }
+            at += n;
+        }
+        best
+    }
 }
 
 /// RT. The first `m` frames of `plan` and the rest (`0 < m < plan.n`), for a host block

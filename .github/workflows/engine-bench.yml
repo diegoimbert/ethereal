@@ -36,6 +36,9 @@ on:
       burn:
         description: ETHER_BENCH_BURN (chain = dependent multiply-adds, simd = vectorized independent ones)
         default: "chain"
+      jitter:
+        description: ETHER_BENCH_JITTER (buffers alternate block - jitter and block + jitter frames)
+        default: "0"
       state_kb:
         description: ETHER_BENCH_STATE_KB (state each device streams through per block)
         default: "0"
@@ -67,6 +70,7 @@ jobs:
       ETHER_BENCH_WORKERS: ${{ inputs.workers }}
       ETHER_BENCH_STATE_KB: ${{ inputs.state_kb }}
       ETHER_BENCH_BURN: ${{ inputs.burn }}
+      ETHER_BENCH_JITTER: ${{ inputs.jitter }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
