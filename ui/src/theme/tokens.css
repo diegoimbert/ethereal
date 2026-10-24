@@ -170,7 +170,8 @@
   --eth-size-track-header-button-narrow: 18px;
   --eth-size-track-header-icon-narrow: 13px;
   --eth-size-track-header-button-small: 16px;
-  --eth-size-track-meter-width: 3px;
+  --eth-size-track-meter-width: 5px;
+  --eth-size-track-meter-gap: 1px;
   --eth-size-track-fader-width: 44px;
   --eth-size-track-fader-thumb: 8px;
   --eth-size-track-selected-glow: 10px;
