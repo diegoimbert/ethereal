@@ -41,6 +41,8 @@ pub struct Paths {
     pub data_dir: PathBuf,
     pub projects_root: PathBuf,
     pub library: Option<PathBuf>,
+    /// `HostOptions::os_paths` (default `true`: the desktop app's host).
+    pub os_paths: bool,
 }
 
 impl Paths {
@@ -49,6 +51,7 @@ impl Paths {
             data_dir: root.to_path_buf(),
             projects_root: root.join("projects"),
             library: None,
+            os_paths: true,
         }
     }
 }
@@ -85,6 +88,7 @@ impl Client {
             },
             HostOptions {
                 main_thread: Arc::new(DedicatedThread::new()),
+                os_paths: paths.os_paths,
                 ..HostOptions::default()
             },
         )
