@@ -226,6 +226,16 @@
   stroke: var(--eth-color-text);
 }
 
+/* The box of a drag started on a track lane: a fixed overlay, it crosses lanes and tracks. */
+.eth-auto-marquee {
+  position: fixed;
+  z-index: calc(var(--eth-z-window) - 1);
+  border: var(--eth-border-width) solid var(--eth-color-selection);
+  background: color-mix(in srgb, var(--eth-color-selection) 15%, transparent);
+  pointer-events: none;
+  border-radius: var(--eth-radius-sm);
+}
+
 .eth-auto-lane__marquee {
   fill: var(--eth-color-selection);
   fill-opacity: 0.2;

@@ -12,6 +12,7 @@ import {
   combineSelection,
   itemSelection,
   selectModeFromEvent,
+  type ItemSelectionState,
   type ItemSelectionStore,
   type SelectableIds,
   type SelectableKind,
@@ -60,6 +61,11 @@ export interface MarqueeOptions<K extends SelectableKind> {
   onClick?: (point: Point, e: PointerEvent) => void;
   /** Called when a drag ends. */
   onEnd?: (rect: Rect) => void;
+  /**
+   * Other kinds the box selects too, by the same rules (the arrangement's box also takes the
+   * automation points of the lanes it crosses). A click doesn't clear them.
+   */
+  also?: ReadonlyArray<{ kind: SelectableKind; hitTest: (rect: Rect) => Iterable<string> }>;
   /**
    * The element shows a horizontal timeline (`view`), its lanes from `originPx()` px to the
    * element's right edge: the drag's start stays on its beat while the view scrolls, and the
@@ -136,6 +142,7 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
     const mode: SelectMode = sectionable ? selectModeFromEvent({ ...e, shiftKey: false }) : selectModeFromEvent(e);
     const { kind, store = itemSelection } = optsRef.current;
     const base = store.getState().selected[kind] as ReadonlySet<SelectableIds[K]>;
+    const alsoBase = (optsRef.current.also ?? []).map((a) => ({ kind: a.kind, base: store.getState().selected[a.kind] as ReadonlySet<string> }));
     let active = false;
     let last = start;
     let shift = e.shiftKey;
@@ -148,7 +155,11 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
       const r = rectFromPoints(anchor(), p);
       if (inSection()) {
         // Leaving item mode: the items the drag had selected go back to the press's selection.
-        if (itemsShown) store.getState().select(kind, base, "replace");
+        if (itemsShown) {
+          const sets: Partial<Record<SelectableKind, Iterable<string>>> = { [kind]: base };
+          for (const a of alsoBase) sets[a.kind] = a.base;
+          store.getState().selectKinds(sets as Parameters<ItemSelectionState["selectKinds"]>[0]);
+        }
         itemsShown = false;
         setShown(null);
         optsRef.current.section!.onPreview(r);
@@ -158,7 +169,14 @@ export function useMarquee<K extends SelectableKind>(opts: MarqueeOptions<K>): M
       itemsShown = true;
       setShown(clipTo(r, el));
       const hits = optsRef.current.hitTest(r);
-      store.getState().select(kind, combineSelection(base, hits, mode), "replace");
+      const also = optsRef.current.also ?? [];
+      if (also.length === 0) store.getState().select(kind, combineSelection(base, hits, mode), "replace");
+      else {
+        // Every kind in one change: the box selected them together.
+        const sets: Partial<Record<SelectableKind, Iterable<string>>> = { [kind]: combineSelection(base, hits, mode) };
+        for (const [i, a] of also.entries()) sets[a.kind] = combineSelection(alsoBase[i]?.base ?? new Set<string>(), a.hitTest(r), mode);
+        store.getState().selectKinds(sets as Parameters<ItemSelectionState["selectKinds"]>[0]);
+      }
     };
     const move = (ev: PointerEvent) => {
       pointer = { clientX: ev.clientX, clientY: ev.clientY };
@@ -260,7 +278,7 @@ const EDGE_MAX_FRAME_S = 0.25;
  * While `overshoot()` (px past an edge, signed) isn't 0, `scroll(dx)` each frame at a speed
  * growing with it. `check()` starts it after a pointer move; it stops by itself back inside.
  */
-function edgeScroller(overshoot: () => number, scroll: (dx: number) => void): { check(): void; stop(): void } {
+export function edgeScroller(overshoot: () => number, scroll: (dx: number) => void): { check(): void; stop(): void } {
   let raf = 0;
   let last = 0;
   const frame = (t: number) => {
