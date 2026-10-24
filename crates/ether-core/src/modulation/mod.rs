@@ -1118,7 +1118,13 @@ impl ModulationRt {
                     };
                     sum += l.depth * m;
                 }
-                let eff = sum.clamp(0.0, 1.0);
+                // NaN passes `clamp` (a degenerate source, e.g. an extreme LFO rate): the
+                // target keeps its base instead of handing a plugin NaN.
+                let eff = if sum.is_nan() {
+                    t.base
+                } else {
+                    sum.clamp(0.0, 1.0)
+                };
                 if t.switch {
                     // On while the sum is >= 0.5; the first crossing in the sub-block flips.
                     let on = eff >= 0.5;
