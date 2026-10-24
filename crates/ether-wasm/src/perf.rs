@@ -603,3 +603,170 @@ pub fn measure_stretch(seconds: f64, runs: usize, now: impl Fn() -> f64) -> Stre
         quantum_budget_ms: Q as f64 / 48.0,
     }
 }
+
+/// Mean and worst Worklet quantum (ms) of a playing project, per scenario
+/// ([`measure_render`]).
+#[derive(Clone, Debug, Serialize)]
+pub struct RenderCost {
+    pub scenario: String,
+    pub tracks: usize,
+    pub devices: usize,
+    pub mean_ms: f64,
+    pub worst_ms: f64,
+}
+
+/// Per-quantum render costs of the Worklet engine, fastest of `runs`.
+#[derive(Clone, Debug, Serialize)]
+pub struct RenderCosts {
+    pub scenarios: Vec<RenderCost>,
+    pub quantum_budget_ms: f64,
+}
+
+/// Render scenarios: name, tracks, each track's chain after its Synth (None = no
+/// devices at all: the engine's per-track cost), the master's chain.
+type RenderScenario = (
+    &'static str,
+    usize,
+    Option<&'static [BuiltinDevice]>,
+    &'static [BuiltinDevice],
+);
+
+const RENDER_SCENARIOS: &[RenderScenario] = &[
+    // Tracks with a clip and no devices: the engine alone.
+    ("empty32", 32, None, &[]),
+    // A synth per track (the base of the two next).
+    ("synth16", 16, Some(&[]), &[]),
+    // A synth and four near-free devices per track: per-device overhead.
+    (
+        "utility16x4",
+        16,
+        Some(&[
+            BuiltinDevice::Utility,
+            BuiltinDevice::Utility,
+            BuiltinDevice::Utility,
+            BuiltinDevice::Utility,
+        ]),
+        &[],
+    ),
+    // A small mix: synth, EQ, compressor, utility per track; limiter on master.
+    (
+        "mix8",
+        8,
+        Some(&[
+            BuiltinDevice::Eq,
+            BuiltinDevice::Compressor,
+            BuiltinDevice::Utility,
+        ]),
+        &[BuiltinDevice::Limiter],
+    ),
+];
+
+/// Play each scenario for `seconds` through the Worklet host, `runs` times; `now`
+/// returns milliseconds.
+pub fn measure_render(seconds: f64, runs: usize, now: impl Fn() -> f64) -> RenderCosts {
+    use ether_controller::EngineBridge;
+    use ether_core::EngineOutputs;
+    use ether_core::protocol::model::{DeviceId, Ulid};
+
+    let quanta = ((seconds * 48_000.0) as usize / RENDER_QUANTUM).max(1);
+    let mut scenarios = Vec::new();
+    for &(name, n_tracks, chain, master_chain) in RENDER_SCENARIOS {
+        let (mut mean_ms, mut worst_ms, mut devices) = (f64::INFINITY, f64::INFINITY, 0);
+        for _ in 0..runs.max(1) {
+            let control = HeapMemory::new(1 << 20);
+            let reports = HeapMemory::new(1 << 16);
+            let shared = bridge::shared(control.clone(), reports.clone());
+            let mut p = Pipeline {
+                bridge: WebBridge::new(shared.clone()),
+                engine: EngineHost::new(48_000, control, reports),
+                shared,
+            };
+            let mut next_id = 100u128;
+            let mut create = |p: &mut Pipeline, d: &BuiltinDevice| {
+                next_id += 1;
+                p.bridge
+                    .create_builtin(DeviceId(Ulid(next_id)), d, &[])
+                    .expect("built-in device")
+            };
+            let chains: Vec<Vec<NodeKey>> = (0..n_tracks)
+                .map(|_| match chain {
+                    None => Vec::new(),
+                    Some(c) => std::iter::once(create(&mut p, &BuiltinDevice::Synth))
+                        .chain(c.iter().map(|d| create(&mut p, d)))
+                        .collect(),
+                })
+                .collect();
+            let master: Vec<NodeKey> = master_chain.iter().map(|d| create(&mut p, d)).collect();
+            devices = chains.iter().map(Vec::len).sum::<usize>() + master.len();
+            p.bridge
+                .publish(render_graph(&chains, &master))
+                .expect("publish");
+            p.bridge
+                .transport(ether_core::TransportControl::Play)
+                .expect("play");
+            p.drain(&now);
+            let mut out = EngineOutputs::default();
+            let (mut total, mut worst) = (0.0, 0.0f64);
+            for q in 0..quanta {
+                let t = now();
+                p.engine.render(RENDER_QUANTUM);
+                let dt = now() - t;
+                total += dt;
+                worst = worst.max(dt);
+                if q % 64 == 0 {
+                    p.bridge.poll(&mut out);
+                }
+            }
+            let errors = std::mem::take(&mut p.shared.borrow_mut().errors);
+            assert!(errors.is_empty(), "{name}: {errors:?}");
+            mean_ms = mean_ms.min(total / quanta as f64);
+            worst_ms = worst_ms.min(worst);
+        }
+        scenarios.push(RenderCost {
+            scenario: name.into(),
+            tracks: n_tracks,
+            devices,
+            mean_ms,
+            worst_ms,
+        });
+    }
+    RenderCosts {
+        scenarios,
+        quantum_budget_ms: RENDER_QUANTUM as f64 / 48.0,
+    }
+}
+
+/// MIDI tracks with `chains` (each with a clip of notes) into a master with `master`.
+fn render_graph(chains: &[Vec<NodeKey>], master: &[NodeKey]) -> RenderGraphDesc {
+    use ether_core::graph::ChainEntry;
+    use ether_core::protocol::model::{ClipId, TrackId, TrackKind, Ulid};
+    // The reverb graph's master and synth track, with other chains.
+    let none = NodeKey {
+        index: 0,
+        generation: 0,
+    };
+    let template = reverb_graph(none, none);
+    let entry = |node: &NodeKey| ChainEntry {
+        node: *node,
+        enabled: true,
+        sidechain: None,
+    };
+    let mut master_track = template.tracks[0].clone();
+    master_track.chain = master.iter().map(entry).collect();
+    let mut tracks = vec![master_track];
+    for (i, c) in chains.iter().enumerate() {
+        let mut t = template.tracks[1].clone();
+        t.id = TrackId(Ulid(1000 + i as u128));
+        t.chain = c.iter().map(entry).collect();
+        for clip in &mut t.clips {
+            clip.id = ClipId(Ulid(5000 + i as u128));
+        }
+        t.kind = TrackKind::Midi;
+        tracks.push(t);
+    }
+    RenderGraphDesc {
+        version: 1,
+        tracks,
+        ..Default::default()
+    }
+}

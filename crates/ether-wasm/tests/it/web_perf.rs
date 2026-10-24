@@ -91,3 +91,21 @@ fn report_snapshot_costs() {
     );
     assert!(c.binary_decode_ms < c.json_decode_ms);
 }
+
+/// Render costs of a few playing projects through the Worklet host (native numbers; the
+/// same code runs in V8 via `bench_render`). `--nocapture` prints them.
+#[test]
+fn render_costs() {
+    let c = perf::measure_render(1.0, 1, now_ms);
+    for s in &c.scenarios {
+        println!(
+            "render {}: {} tracks, {} devices: mean {:.1} µs, worst {:.1} µs per quantum",
+            s.scenario,
+            s.tracks,
+            s.devices,
+            s.mean_ms * 1e3,
+            s.worst_ms * 1e3
+        );
+        assert!(s.mean_ms < c.quantum_budget_ms, "{}", s.scenario);
+    }
+}

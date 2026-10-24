@@ -580,6 +580,16 @@ pub fn bench_media_ir_swap(runs: u32) -> String {
     serde_json::to_string(&costs).expect("costs serialize")
 }
 
+/// Render costs per Worklet quantum of a few playing projects (engine overhead, built-in
+/// devices), in wasm: JSON of [`crate::perf::RenderCosts`], fastest of `runs`. Diagnostics
+/// only (feature `bench`).
+#[cfg(feature = "bench")]
+#[wasm_bindgen]
+pub fn bench_render(runs: u32) -> String {
+    let costs = crate::perf::measure_render(4.0, runs as usize, performance_now);
+    serde_json::to_string(&costs).expect("costs serialize")
+}
+
 /// Stretcher costs per Worklet quantum (Complex, Complex+), in wasm: JSON of
 /// [`crate::perf::StretchCosts`], fastest of `runs`. Diagnostics only (feature `bench`).
 #[cfg(all(feature = "bench", feature = "warp-complex"))]
