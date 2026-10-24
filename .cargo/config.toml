@@ -10,3 +10,9 @@ CMAKE_POLICY_VERSION_MINIMUM = "3.5"
 # (it checks for the `SCStream` class first). Overridden by a `RUSTFLAGS` environment variable.
 [target.'cfg(target_os = "macos")']
 rustflags = ["-C", "link-arg=-Wl,-weak_framework,ScreenCaptureKit"]
+
+# WebAssembly SIMD (128-bit) for the browser engine: LLVM vectorizes the DSP loops (mixing,
+# gains, filters, meters). Every browser the web host supports has it (Chrome 91, Firefox 89,
+# Safari 16.4); the host already needs SharedArrayBuffer and AudioWorklet.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "target-feature=+simd128"]
