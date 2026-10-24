@@ -12,6 +12,13 @@ Jumps (play, locate, loop wraps, edits) `seek` with pre-roll so output is immedi
 | Complex | Signalsmith Stretch 1.3 (MIT): the vendored C++ natively, its pure-Rust port on the web | `ether-stretch` `signalsmith`, `rust` |
 | Complex+ | multi-resolution phase-gradient vocoder with transient handling and formant preservation, written for ethereal | `ether-stretch` `plus` |
 
+Wherever a Complex or Complex+ clip plays its source at its own speed (ratio 1) untransposed
+(and without a formant shift), the engine bypasses the stretcher and reads the source
+straight: the clip renders bit for bit what the same clip unwarped renders (gain and fades
+included). Where a playing clip goes in or out of ratio 1 (a 1:1 stretch between warp
+markers, tempo automation) the two paths crossfade over 5 ms, the stretcher seeking
+(pre-rolled, latency compensated) to come back in.
+
 ## Complex+
 
 Written from published research only (no proprietary code, nothing reverse-engineered,
