@@ -5,5 +5,6 @@ import type { MediaId } from "./MediaId";
 import type { MediaSource } from "./MediaSource";
 import type { MidiExportRequest } from "./MidiExportRequest";
 import type { PeakRequest } from "./PeakRequest";
+import type { RevealTarget } from "./RevealTarget";
 
-export type MediaCommand = { "type": "Import", id: MediaId, source: MediaSource, } | { "type": "GetPeaks", request: PeakRequest, } | { "type": "ListLocations" } | { "type": "ListDirectory", location: BrowseLocation, path: string, } | { "type": "Preview", source: MediaSource, } | { "type": "StopPreview" } | { "type": "BeginUpload", upload: string, name: string, size: number, } | { "type": "UploadChunk", upload: string, offset: number, data: Base64Bytes, } | { "type": "CancelUpload", upload: string, } | { "type": "ReadMidiFile", source: MediaSource, } | { "type": "WriteMidiFile", request: MidiExportRequest, };
+export type MediaCommand = { "type": "Import", id: MediaId, source: MediaSource, } | { "type": "GetPeaks", request: PeakRequest, } | { "type": "ListLocations" } | { "type": "ListDirectory", location: BrowseLocation, path: string, } | { "type": "Preview", source: MediaSource, } | { "type": "StopPreview" } | { "type": "BeginUpload", upload: string, name: string, size: number, } | { "type": "UploadChunk", upload: string, offset: number, data: Base64Bytes, } | { "type": "CancelUpload", upload: string, } | { "type": "ReadMidiFile", source: MediaSource, } | { "type": "WriteMidiFile", request: MidiExportRequest, } | { "type": "Reveal", target: RevealTarget, };

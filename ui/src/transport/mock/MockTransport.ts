@@ -1285,6 +1285,8 @@ export class MockTransport implements EngineTransport {
       }
       case "WriteMidiFile":
         return { type: "MidiFileWritten", result: writeMockMidiFile(this.project, c.request) };
+      case "Reveal":
+        return fail("Unsupported", "showing files is not available in the mock engine");
     }
   }
 
