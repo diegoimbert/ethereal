@@ -21,6 +21,7 @@ mod effects_defaults;
 mod effects_features;
 mod engine_text;
 mod eq_analysis;
+mod every_device_no_alloc;
 mod external;
 mod external_engine;
 mod fm_synth;
