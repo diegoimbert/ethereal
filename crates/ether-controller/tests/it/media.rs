@@ -4,6 +4,7 @@
 use crate::common;
 
 use common::*;
+use ether_controller::ControllerConfig;
 use ether_controller::content_hash;
 use ether_controller::memory::MemoryLibrary;
 use ether_core::graph::ClipContentDesc;
@@ -30,7 +31,15 @@ fn library() -> (MemoryLibrary, Vec<u8>) {
 
 fn harness() -> (Harness, Vec<u8>) {
     let (lib, bytes) = library();
-    let mut h = Harness::with(FakeBridge::default(), lib, Default::default());
+    let mut h = Harness::with(
+        FakeBridge::default(),
+        lib,
+        ControllerConfig {
+            // One media step per tick: the test follows the work across ticks.
+            media_steps_per_tick: 1,
+            ..Default::default()
+        },
+    );
     h.create_project("Media");
     (h, bytes)
 }
