@@ -52,7 +52,7 @@ use tungstenite::{Message, WebSocket};
 pub use ether_protocol::remote::{PROTOCOL_VERSION, ServerCapabilities, ServerInfo};
 
 use crate::frames::{DecodeError, Frame, decode_client_binary, decode_client_text};
-use crate::router::{CLIENT_QUEUE, ClientId, Router};
+use crate::router::{ClientId, QueueRx, Router, client_queue};
 
 /// Close codes after a `Rejected` hello (`ether_protocol::remote`).
 pub const CLOSE_AUTH: u16 = 4001;
@@ -685,7 +685,7 @@ fn serve_connection(
             return Err(e);
         }
     };
-    let (tx, rx) = crossbeam_channel::bounded::<Frame>(CLIENT_QUEUE);
+    let (tx, rx) = client_queue();
     let (max, multiple) = (
         shared.config.max_clients,
         shared.config.allow_multiple_clients,
@@ -745,7 +745,7 @@ fn serve_connection(
 
 fn pump(
     ws: &mut WebSocket<TcpStream>,
-    rx: &crossbeam_channel::Receiver<Frame>,
+    rx: &QueueRx,
     client: ClientId,
     shared: &Shared,
 ) -> Result<(), String> {
