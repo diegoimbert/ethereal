@@ -502,7 +502,10 @@ impl Node for WebclapNode {
         ctx: &mut ProcessContext<'_>,
         audio: &mut AudioBuffers<'_, '_>,
     ) -> ProcessStatus {
-        self.run(ctx, audio, &[])
+        let status = self.run(ctx, audio, &[]);
+        // Third-party code wrote these: one NaN would spread through the whole mix.
+        audio.flush_non_finite_outputs();
+        status
     }
 
     fn process_sidechain(
@@ -511,7 +514,9 @@ impl Node for WebclapNode {
         audio: &mut AudioBuffers<'_, '_>,
         sidechain: &[&[f32]],
     ) -> ProcessStatus {
-        self.run(ctx, audio, sidechain)
+        let status = self.run(ctx, audio, sidechain);
+        audio.flush_non_finite_outputs();
+        status
     }
 
     fn sidechain_inputs(&self) -> u16 {

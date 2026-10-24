@@ -1068,7 +1068,9 @@ impl Node for HostedPluginNode {
             self.bypass.process(delay, audio);
             return ProcessStatus::Continue;
         }
-        self.inner_mut().process(ctx, audio)
+        let status = self.inner_mut().process(ctx, audio);
+        audio.flush_non_finite_outputs();
+        status
     }
     fn sidechain_inputs(&self) -> u16 {
         self.inner().sidechain_inputs()
@@ -1084,7 +1086,9 @@ impl Node for HostedPluginNode {
             self.bypass.process(delay, audio);
             return ProcessStatus::Continue;
         }
-        self.inner_mut().process_sidechain(ctx, audio, sidechain)
+        let status = self.inner_mut().process_sidechain(ctx, audio, sidechain);
+        audio.flush_non_finite_outputs();
+        status
     }
     /// Clamped to the PDC limit (RT-safe: the engine also reads it on the audio thread).
     fn latency(&self) -> u32 {
@@ -2301,14 +2305,24 @@ mod tests {
 
     struct ProbeNode(u32);
 
+    /// A probe latency that makes the probe write NaN, ±inf and a real sample (tests of the
+    /// output guard).
+    const POISON: u32 = 123;
+
     impl Node for ProbeNode {
         fn prepare(&mut self, _: &PrepareConfig) {}
         fn reset(&mut self) {}
         fn process(
             &mut self,
             _: &mut ProcessContext<'_>,
-            _: &mut AudioBuffers<'_, '_>,
+            audio: &mut AudioBuffers<'_, '_>,
         ) -> ProcessStatus {
+            if self.0 == POISON {
+                for ch in audio.outputs.iter_mut() {
+                    ch.copy_from_slice(&[f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 0.5]);
+                }
+                return ProcessStatus::Continue;
+            }
             ProcessStatus::Silent
         }
         fn latency(&self) -> u32 {
@@ -2445,6 +2459,34 @@ mod tests {
 
     /// Issue a plugin reporting `u32::MAX` latency is clamped to the PDC limit (10 s)
     /// instead of sizing a multi-GB bypass delay line.
+    #[test]
+    fn non_finite_plugin_output_is_silenced() {
+        let host = PluginHost::new(Arc::new(DedicatedThread::new()));
+        let (make, _) = probe_plugins(Duration::ZERO, Duration::ZERO, POISON);
+        let (mut node, _) = host
+            .instantiate(make, device(44), src("p"), None, PREPARE)
+            .unwrap();
+        let (mut l, mut r) = ([0.0f32; 4], [0.0f32; 4]);
+        let inputs: [&[f32]; 2] = [&[0.0; 4], &[0.0; 4]];
+        let mut outputs: [&mut [f32]; 2] = [&mut l, &mut r];
+        let mut audio = AudioBuffers {
+            inputs: &inputs,
+            outputs: &mut outputs,
+        };
+        let transport = ether_core::TransportInfo::STOPPED;
+        let mut out_events = ether_core::EventBuffer::with_capacity(4);
+        let mut ctx = ProcessContext {
+            sample_rate: 48_000.0,
+            frames: 4,
+            transport: &transport,
+            events: &[],
+            out_events: &mut out_events,
+        };
+        node.process(&mut ctx, &mut audio);
+        assert_eq!(l, [0.0, 0.0, 0.0, 0.5]);
+        assert_eq!(r, [0.0, 0.0, 0.0, 0.5]);
+    }
+
     #[test]
     fn absurd_plugin_latency_is_clamped() {
         let host = PluginHost::new(Arc::new(DedicatedThread::new()));
