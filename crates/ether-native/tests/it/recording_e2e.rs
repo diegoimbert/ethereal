@@ -158,10 +158,7 @@ fn record_a_loopback_click_with_latency_compensation() {
     );
     let m = p["media"][take["content"]["media"].as_str().unwrap()].clone();
     assert_eq!(m["sample_rate"], 48_000);
-    let file = tmp
-        .path()
-        .join("projects")
-        .join(&pid)
+    let file = ether_native::project_dirs::dir(&tmp.path().join("projects"), pid.parse().unwrap())
         .join(m["file"].as_str().unwrap());
     let bytes = std::fs::read(&file).expect("take written to the project's media folder");
     let samples: Vec<f32> = bytes[44..]
