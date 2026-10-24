@@ -1,0 +1,64 @@
+name: Fuzz
+# cargo-fuzz over the parsers that take untrusted bytes (fuzz/, scripts/fuzz.mjs): every target
+# for a few minutes, on pushes to main that touch the engine crates, daily, and on demand.
+# Optional: not a merge gate and not part of `Main status`.
+#
+# The log is public: scripts/fuzz.mjs (FUZZ_QUIET=1) keeps libFuzzer's output in files that are
+# never printed or uploaded, and a failure names only the target, the seed and the crashing
+# input's hash. Reproduce locally (`just fuzz <target>`) and fix it privately first (SECURITY.md).
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/**"
+      - "fuzz/**"
+      - "scripts/fuzz.mjs"
+      - "Cargo.lock"
+      - ".github/workflows/fuzz.yml"
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: Seconds per target
+        default: "180"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fuzz-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: "0"
+  FUZZ_QUIET: "1"
+  # A dated nightly (cargo-fuzz needs nightly; dated so a run is reproducible).
+  FUZZ_TOOLCHAIN: nightly-2026-07-20
+
+jobs:
+  fuzz:
+    name: Fuzz (parsers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: System deps (ALSA)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libasound2-dev pkg-config > /dev/null
+      - name: Nightly toolchain
+        run: rustup toolchain install "$FUZZ_TOOLCHAIN" --profile minimal
+      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+        with:
+          tool: cargo-fuzz@0.13.2
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - name: Fuzz every target
+        env:
+          FUZZ_SECONDS: ${{ inputs.seconds || '180' }}
+        run: node scripts/fuzz.mjs all "$FUZZ_SECONDS"
