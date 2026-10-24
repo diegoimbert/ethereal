@@ -257,10 +257,7 @@ where
                 let stems = validate(p, request)?;
                 let (start, end) = job::range_of(p, &request.range).map_err(invalid)?;
                 let rate = self.config.engine_sample_rate;
-                check_render_frames(
-                    crate::freeze::render_frames(p, start, end, rate),
-                    rate,
-                )?;
+                check_render_frames(crate::freeze::render_frames(p, start, end, rate), rate)?;
                 // Names already in `exports/` or the chosen folder (an export never
                 // overwrites a file).
                 let folder = request

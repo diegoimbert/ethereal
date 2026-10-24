@@ -216,7 +216,11 @@ fn flac_constant(frames: u32, block: u16) -> Vec<u8> {
         for &b in data {
             c ^= b;
             for _ in 0..8 {
-                c = if c & 0x80 != 0 { (c << 1) ^ 0x07 } else { c << 1 };
+                c = if c & 0x80 != 0 {
+                    (c << 1) ^ 0x07
+                } else {
+                    c << 1
+                };
             }
         }
         c
@@ -226,7 +230,11 @@ fn flac_constant(frames: u32, block: u16) -> Vec<u8> {
         for &b in data {
             c ^= u16::from(b) << 8;
             for _ in 0..8 {
-                c = if c & 0x8000 != 0 { (c << 1) ^ 0x8005 } else { c << 1 };
+                c = if c & 0x8000 != 0 {
+                    (c << 1) ^ 0x8005
+                } else {
+                    c << 1
+                };
             }
         }
         c

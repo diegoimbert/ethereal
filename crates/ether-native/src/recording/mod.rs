@@ -296,11 +296,7 @@ impl RecordingShared {
 pub(crate) fn parse_loopback(name: &str) -> Option<usize> {
     let rest = name.strip_prefix(LOOPBACK)?;
     match rest.strip_prefix(':') {
-        Some(n) => n
-            .trim()
-            .parse::<usize>()
-            .ok()
-            .map(|n| n.min(MAX_LOOPBACK)),
+        Some(n) => n.trim().parse::<usize>().ok().map(|n| n.min(MAX_LOOPBACK)),
         None if rest.is_empty() => Some(DEFAULT_LOOPBACK),
         None => None,
     }
