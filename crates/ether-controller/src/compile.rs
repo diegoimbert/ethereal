@@ -307,47 +307,98 @@ pub fn clip_param_envelopes<'a>(
 /// give each parent its children in the order the scans produced.
 pub struct Groups<'a> {
     /// Unmuted notes of each clip, sorted like [`Project::notes_of`].
-    notes: HashMap<ClipId, Vec<&'a Note>>,
+    notes: IdMap<ClipId, Vec<&'a Note>>,
     /// Envelopes of each clip (all lanes owned by the clip), in id order.
-    clip_lanes: HashMap<ClipId, Vec<&'a AutomationLane>>,
+    clip_lanes: IdMap<ClipId, Vec<&'a AutomationLane>>,
     /// Points of each lane, sorted like [`Project::points_of`].
-    points: HashMap<AutomationLaneId, Vec<&'a AutomationPoint>>,
+    points: IdMap<AutomationLaneId, Vec<&'a AutomationPoint>>,
     /// Main-lane clips of each track, in id order.
-    clips: HashMap<TrackId, Vec<&'a Clip>>,
+    clips: IdMap<TrackId, Vec<&'a Clip>>,
     /// Sends by source track, in id order.
-    sends: HashMap<TrackId, Vec<&'a TrackSend>>,
+    sends: IdMap<TrackId, Vec<&'a TrackSend>>,
     /// Track-chain devices of each track, sorted like [`Project::devices_of`].
-    devices: HashMap<TrackId, Vec<&'a Device>>,
+    devices: IdMap<TrackId, Vec<&'a Device>>,
 }
 
-fn group<'a, K: std::hash::Hash + Eq, V: 'a>(
+/// A map keyed by entity ids (random 128-bit ULIDs, no attacker-chosen keys): hashed with
+/// one multiply per word instead of SipHash, the group-bys hash every note and point of the
+/// project on each compile.
+type IdMap<K, V> = HashMap<K, V, std::hash::BuildHasherDefault<IdHasher>>;
+
+#[derive(Default)]
+struct IdHasher(u64);
+
+impl std::hash::Hasher for IdHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+    fn write(&mut self, bytes: &[u8]) {
+        for b in bytes {
+            self.write_u64(u64::from(*b));
+        }
+    }
+    fn write_u64(&mut self, x: u64) {
+        self.0 = (self.0.rotate_left(5) ^ x).wrapping_mul(0x51_7c_c1_b7_27_22_0a_95);
+    }
+    fn write_u128(&mut self, x: u128) {
+        self.write_u64(x as u64);
+        self.write_u64((x >> 64) as u64);
+    }
+    fn write_usize(&mut self, x: usize) {
+        self.write_u64(x as u64);
+    }
+}
+
+/// Group `items` by key, keeping their order within each group. Runs of one key (a clip's
+/// notes, created together, are mostly adjacent in id order) cost one map lookup.
+fn group<'a, K: std::hash::Hash + Eq + Copy, V: 'a>(
     items: impl Iterator<Item = (K, &'a V)>,
-) -> HashMap<K, Vec<&'a V>> {
-    let mut m: HashMap<K, Vec<&'a V>> = HashMap::new();
+) -> IdMap<K, Vec<&'a V>> {
+    let mut m: IdMap<K, Vec<&'a V>> = IdMap::default();
+    let mut run: Option<(K, Vec<&'a V>)> = None;
     for (k, v) in items {
-        m.entry(k).or_default().push(v);
+        match &mut run {
+            Some((rk, vs)) if *rk == k => vs.push(v),
+            _ => {
+                if let Some((rk, vs)) = run.take() {
+                    m.entry(rk).or_default().extend(vs);
+                }
+                run = Some((k, vec![v]));
+            }
+        }
+    }
+    if let Some((rk, vs)) = run {
+        m.entry(rk).or_default().extend(vs);
     }
     m
 }
 
-fn children<'s, 'a, K: std::hash::Hash + Eq, V>(
-    m: &'s HashMap<K, Vec<&'a V>>,
-    k: &K,
-) -> &'s [&'a V] {
+fn children<'s, 'a, K: std::hash::Hash + Eq, V>(m: &'s IdMap<K, Vec<&'a V>>, k: &K) -> &'s [&'a V] {
     m.get(k).map_or(&[], Vec::as_slice)
+}
+
+/// Sort a clip's notes by (start, pitch, id) like [`Project::notes_of`]: on keys copied out
+/// next to each reference (`keyed` is scratch), so comparisons don't chase the pointers into
+/// the project's note table. `total_cmp` order of `f64` is the order of these integer keys.
+fn sort_notes<'a>(v: &mut [&'a Note], keyed: &mut Vec<(i64, u8, NoteId, &'a Note)>) {
+    let total = |x: f64| {
+        let b = x.to_bits() as i64;
+        b ^ ((((b >> 63) as u64) >> 1) as i64)
+    };
+    keyed.clear();
+    keyed.extend(v.iter().map(|n| (total(n.start.0), n.pitch, n.id, *n)));
+    keyed.sort_unstable_by_key(|k| (k.0, k.1, k.2));
+    for (slot, k) in v.iter_mut().zip(keyed.iter()) {
+        *slot = k.3;
+    }
 }
 
 impl<'a> Groups<'a> {
     pub fn new(p: &'a Project) -> Self {
         let mut notes = group(p.notes.values().filter(|n| !n.muted).map(|n| (n.clip, n)));
+        let mut keyed = Vec::new();
         for v in notes.values_mut() {
-            v.sort_unstable_by(|a, b| {
-                a.start
-                    .0
-                    .total_cmp(&b.start.0)
-                    .then(a.pitch.cmp(&b.pitch))
-                    .then(a.id.cmp(&b.id))
-            });
+            sort_notes(v, &mut keyed);
         }
         let mut points = group(p.automation_points.values().map(|pt| (pt.lane, pt)));
         for v in points.values_mut() {
@@ -716,3 +767,63 @@ pub fn compile_graph_with(p: &Project, ctx: &CompileContext) -> RenderGraphDesc 
 mod equivalence_tests;
 #[cfg(test)]
 mod reference;
+
+#[cfg(test)]
+mod group_tests {
+    use super::*;
+
+    /// The keyed sort orders notes exactly like the comparator it replaces (`total_cmp` on
+    /// the start, then pitch, then id), signed zeros and ties included.
+    #[test]
+    fn keyed_note_sort_matches_the_comparator() {
+        let mut ids = IdGen::new(3);
+        let clip: ClipId = ids.next(1);
+        let mut x = 0x2545_F491_4F6C_DD1Du64;
+        let mut rnd = move || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        let starts = [0.0, -0.0, 0.5, -1.25, 3.0, 1e-300, -1e-300, 7.75];
+        let notes: Vec<Note> = (0..2_000)
+            .map(|_| Note {
+                id: ids.next(1),
+                clip,
+                pitch: (rnd() % 4) as u8,
+                velocity: 0.5,
+                release_velocity: 0.5,
+                start: Beats(if rnd() % 3 == 0 {
+                    starts[(rnd() % 8) as usize]
+                } else {
+                    (rnd() % 1000) as f64 * 0.125 - 40.0
+                }),
+                duration: Beats(1.0),
+                muted: false,
+            })
+            .collect();
+        let mut expect: Vec<&Note> = notes.iter().collect();
+        expect.sort_unstable_by(|a, b| {
+            a.start
+                .0
+                .total_cmp(&b.start.0)
+                .then(a.pitch.cmp(&b.pitch))
+                .then(a.id.cmp(&b.id))
+        });
+        let mut got: Vec<&Note> = notes.iter().rev().collect();
+        sort_notes(&mut got, &mut Vec::new());
+        assert!(got.iter().zip(&expect).all(|(a, b)| a.id == b.id));
+    }
+
+    /// Grouping keeps each group's items in input order, adjacent or not.
+    #[test]
+    fn group_keeps_order_within_runs_and_across_them() {
+        let vals: Vec<u32> = (0..12).collect();
+        let keys = [1u8, 1, 2, 2, 1, 3, 3, 3, 1, 2, 1, 1];
+        let m = group(keys.iter().copied().zip(vals.iter()));
+        let get = |k: u8| m[&k].iter().map(|v| **v).collect::<Vec<_>>();
+        assert_eq!(get(1), [0, 1, 4, 8, 10, 11]);
+        assert_eq!(get(2), [2, 3, 9]);
+        assert_eq!(get(3), [5, 6, 7]);
+    }
+}
