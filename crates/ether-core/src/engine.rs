@@ -1089,7 +1089,16 @@ impl Engine {
                     self.queue.pop();
                     head
                 };
-                let ahead = (left > 0 && !self.queue.is_full()).then(|| self.plan(left));
+                // With more queued than this block, the head is a leftover of the last one:
+                // pair each real-time sub-block with as many frames ahead (the last one takes
+                // the rest), so every pass overlaps both sides. Otherwise the plans as
+                // before (the ahead side splits where the real-time engine does).
+                let take = if q == frames || off + now.n >= frames {
+                    left
+                } else {
+                    left.min(now.n)
+                };
+                let ahead = (take > 0 && !self.queue.is_full()).then(|| self.plan(take));
                 let pass = if ahead.is_some() {
                     Pass::Overlap
                 } else {
