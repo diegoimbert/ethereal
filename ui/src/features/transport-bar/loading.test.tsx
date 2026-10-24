@@ -6,6 +6,7 @@ import { useProjectStore } from "@/state";
 import { useNotices } from "@/features/notifications";
 import { loadFraction, loadingText, refuseWhileLoading } from "./loading";
 import { renderWithMock, resetStores } from "./testUtils";
+import { LoadingStatus } from "./LoadingStatus";
 import { TransportBar } from "./index";
 
 const store = () => useProjectStore.getState();
@@ -84,6 +85,15 @@ describe("project loading", () => {
     setLoading(null);
     expect(screen.queryByTestId("project-loading")).toBeNull();
     expect(screen.getByTestId("position-bars").parentElement).not.toHaveAttribute("data-loading");
+  });
+
+  it("compact: the whole load in percent, what it is doing in the tooltip", async () => {
+    await renderWithMock(<LoadingStatus progress={progress({ plugins_loaded: 2, plugins_total: 5, media_loaded: 1, media_total: 5 })} compact />);
+    const status = screen.getByTestId("project-loading");
+    expect(status).toHaveTextContent("30%");
+    expect(status).not.toHaveTextContent("loading plugins");
+    expect(status.getAttribute("title")).toContain("loading plugins 2/5");
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "30");
   });
 
   it("the palette's transport entries say the project is loading instead of playing", async () => {
