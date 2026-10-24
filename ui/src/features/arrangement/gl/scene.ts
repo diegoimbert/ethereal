@@ -192,10 +192,11 @@ const SMALL_NAME_INSET = 3;
 const BOX_Y: YSpec = { a0: CLIP_INSET, a1: -CLIP_INSET, f1: 1 };
 const TITLE_Y: YSpec = { a0: CLIP_INSET, a1: CLIP_INSET + CLIP_TITLE };
 const BODY_Y: YSpec = { a0: CLIP_INSET + CLIP_TITLE, a1: -CLIP_INSET, f1: 1 };
-/** Opacity of the clip's color for its loop lines on the body. */
-const LOOP_LINE_ALPHA = 0.7;
 
 const NO_NOTES: ReadonlyArray<Note> = [];
+
+/** Opacity of the clip's color for its loop lines on the body. */
+const LOOP_LINE_ALPHA = 0.7;
 
 /** Instances of one pipeline in two draw groups. */
 class Groups {
