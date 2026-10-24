@@ -27,6 +27,8 @@
 //! - `ETHER_BENCH_PACED=0`: back to back; `ETHER_BENCH_RT=1`: real-time priority for the
 //!   workers and the render thread (as the host gives its device callback);
 //! - `ETHER_BENCH_SCALE`: multiply every device cost (default 1);
+//! - `ETHER_BENCH_BURN=simd`: devices burn with independent vectorized multiply-adds (FP
+//!   throughput, like real DSP) instead of one dependent chain (latency, which SMT hides);
 //! - `ETHER_BENCH_STATE_KB`: every device also streams through that much state per block
 //!   (default 0), so where its job runs matters to the caches;
 //! - `ETHER_BENCH_HOGS`: that many normal-priority threads keep the CPU busy during the runs
@@ -70,6 +72,18 @@ struct Burn {
     /// state (delay lines, FFT frames, voices), whose cache misses depend on where the
     /// device ran last.
     mem: Vec<f32>,
+    /// `ETHER_BENCH_BURN=simd`: each iteration is [`LANES`] independent multiply-adds
+    /// (vectorized, bound by the FP units' throughput like real DSP) instead of one
+    /// dependent chain (bound by latency, which a second hardware thread on the same core
+    /// hides almost for free).
+    simd: Option<[f32; LANES]>,
+}
+
+/// Independent accumulators of the `simd` burn.
+const LANES: usize = 32;
+
+fn simd_burn() -> bool {
+    std::env::var("ETHER_BENCH_BURN").is_ok_and(|v| v.trim() == "simd")
 }
 
 impl Burn {
@@ -81,6 +95,7 @@ impl Burn {
             phase: 0,
             sidechain,
             mem: vec![0.5; kb * 1024 / 4],
+            simd: simd_burn().then_some([0.0; LANES]),
         }
     }
 
@@ -96,6 +111,23 @@ impl Burn {
 
     #[inline(never)]
     fn burn(&mut self, input: &[f32], left: &mut [f32], key: Option<&[f32]>) {
+        if let Some(mut acc) = self.simd {
+            for (i, (o, &x)) in left.iter_mut().zip(input).enumerate() {
+                let mut v = x + ((self.phase % 97) as f32 - 48.0) * 1e-4;
+                if let Some(k) = key {
+                    v += k[i] * 1e-3;
+                }
+                self.phase = self.phase.wrapping_add(1);
+                for _ in 0..self.iters {
+                    for a in &mut acc {
+                        *a = *a * 0.999_9 + v * 1e-4;
+                    }
+                }
+                *o = v + acc[i % LANES];
+            }
+            self.simd = Some(acc);
+            return;
+        }
         let mut s = self.state;
         for (i, (o, &x)) in left.iter_mut().zip(input).enumerate() {
             let mut v = x + ((self.phase % 97) as f32 - 48.0) * 1e-4;
@@ -856,12 +888,13 @@ fn realtime_buffers() {
     let load = std::fs::read_to_string("/proc/loadavg").unwrap_or_default();
     println!(
         "engine_bench: {} frames ({budget:.0} µs budget), {} s per run, {}, {} physical cores, \
-         burn {ns_per_iter:.3} ns/iter, scale {}, state {} KB/device, {} worker priority, \
+         burn {ns_per_iter:.3} ns/iter ({}), scale {}, state {} KB/device, {} worker priority, \
          {hogs} hog threads, loadavg {}",
         opts.block,
         opts.seconds,
         if opts.paced { "paced" } else { "back to back" },
         cores,
+        if simd_burn() { "simd" } else { "chain" },
         opts.scale,
         env_num("ETHER_BENCH_STATE_KB", 0.0),
         if opts.realtime { "real-time" } else { "normal" },
