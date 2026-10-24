@@ -18,10 +18,10 @@
 //! own id.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
-use crossbeam_channel::{Sender, TrySendError};
+use crossbeam_channel::{Receiver, Sender, TryRecvError, TrySendError};
 use ether_protocol::analysis::AnalysisCommand;
 use ether_protocol::media::{MediaCommand, MediaEvent, MediaSource};
 use ether_protocol::model::{DeviceId, GestureId};
@@ -96,6 +96,73 @@ fn namespace_uploads(command: &mut Command, prefix: &str) {
 /// queue is closed and the connection ends once it has written what is queued (its UI
 /// would be out of sync anyway).
 pub const CLIENT_QUEUE: usize = 4096;
+/// Bytes a client's outgoing queue may hold (frames can be large: export chunks, peaks).
+pub const CLIENT_QUEUE_BYTES: usize = 64 << 20;
+/// Gestures and analysis watches one client may hold open at once.
+pub const MAX_OPEN_PER_CLIENT: usize = 1024;
+
+fn frame_len(f: &Frame) -> usize {
+    match f {
+        Frame::Text(t) => t.len(),
+        Frame::Binary(b) => b.len(),
+    }
+}
+
+/// The sending side of a client's outgoing queue: bounded in frames and in bytes.
+#[derive(Clone)]
+pub struct QueueTx {
+    tx: Sender<Frame>,
+    bytes: Arc<AtomicUsize>,
+}
+
+/// The receiving side ([`client_queue`]): the connection's writer.
+pub struct QueueRx {
+    rx: Receiver<Frame>,
+    bytes: Arc<AtomicUsize>,
+}
+
+/// A client's outgoing queue: [`CLIENT_QUEUE`] frames, [`CLIENT_QUEUE_BYTES`] bytes.
+pub fn client_queue() -> (QueueTx, QueueRx) {
+    let (tx, rx) = crossbeam_channel::bounded(CLIENT_QUEUE);
+    let bytes = Arc::new(AtomicUsize::new(0));
+    (
+        QueueTx {
+            tx,
+            bytes: bytes.clone(),
+        },
+        QueueRx { rx, bytes },
+    )
+}
+
+impl From<Sender<Frame>> for QueueTx {
+    fn from(tx: Sender<Frame>) -> Self {
+        Self {
+            tx,
+            bytes: Arc::default(),
+        }
+    }
+}
+
+impl QueueTx {
+    fn try_send(&self, frame: Frame) -> Result<(), TrySendError<Frame>> {
+        let n = frame_len(&frame);
+        if self.bytes.load(Ordering::Relaxed).saturating_add(n) > CLIENT_QUEUE_BYTES {
+            return Err(TrySendError::Full(frame));
+        }
+        self.bytes.fetch_add(n, Ordering::Relaxed);
+        self.tx.try_send(frame).inspect_err(|_| {
+            self.bytes.fetch_sub(n, Ordering::Relaxed);
+        })
+    }
+}
+
+impl QueueRx {
+    pub fn try_recv(&self) -> Result<Frame, TryRecvError> {
+        let f = self.rx.try_recv()?;
+        self.bytes.fetch_sub(frame_len(&f), Ordering::Relaxed);
+        Ok(f)
+    }
+}
 
 pub type ClientId = u64;
 
@@ -111,7 +178,7 @@ pub struct Full;
 
 struct Client {
     /// `None` once the queue overflowed (dropping the sender ends the connection).
-    tx: Option<Sender<Frame>>,
+    tx: Option<QueueTx>,
     /// Client gesture → global gesture.
     gestures: HashMap<u32, u32>,
     /// Uploads started and not finished (imported or cancelled).
@@ -170,7 +237,7 @@ impl Router {
     }
 
     /// Register a client (after its hello was accepted).
-    pub fn add(&self, tx: Sender<Frame>) -> ClientId {
+    pub fn add(&self, tx: impl Into<QueueTx>) -> ClientId {
         self.add_if(tx, |_| true).expect("unconditional")
     }
 
@@ -178,7 +245,7 @@ impl Router {
     /// atomic, so two hellos racing for the last slot can't both get in.
     pub fn add_if(
         &self,
-        tx: Sender<Frame>,
+        tx: impl Into<QueueTx>,
         allow: impl FnOnce(usize) -> bool,
     ) -> Result<ClientId, Full> {
         let mut s = self.lock();
@@ -189,7 +256,7 @@ impl Router {
         s.clients.insert(
             id,
             Client {
-                tx: Some(tx),
+                tx: Some(tx.into()),
                 gestures: HashMap::new(),
                 uploads: HashSet::new(),
                 watches: HashMap::new(),
@@ -276,6 +343,27 @@ impl Router {
                         code: ErrorCode::InvalidState,
                         message: format!(
                             "too many uploads in progress (max {MAX_UPLOADS_PER_CLIENT} per client)"
+                        ),
+                        key: None,
+                    },
+                },
+            })));
+        }
+        // Open gestures and watches are released for the client when it leaves, one command
+        // each: bounded per client.
+        let new_gesture = m.gesture.is_some_and(|g| !c.gestures.contains_key(&g.0));
+        let new_watch = matches!(m.command, Command::Analysis(AnalysisCommand::Watch { .. }));
+        let watches: usize = c.watches.values().map(|&n| n as usize).sum();
+        if (new_gesture && c.gestures.len() >= MAX_OPEN_PER_CLIENT)
+            || (new_watch && watches >= MAX_OPEN_PER_CLIENT)
+        {
+            return Err(Box::new(ServerMessage::Reply(Reply {
+                id: m.id,
+                result: ReplyResult::Err {
+                    error: CommandError {
+                        code: ErrorCode::InvalidState,
+                        message: format!(
+                            "too many open gestures or watches (max {MAX_OPEN_PER_CLIENT} per client)"
                         ),
                         key: None,
                     },
@@ -406,7 +494,7 @@ impl Router {
 
 /// Queue a frame that must not be dropped. On overflow the queue is closed (the
 /// connection ends after writing what it has).
-fn reliable(tx: &mut Option<Sender<Frame>>, frame: Frame) {
+fn reliable(tx: &mut Option<QueueTx>, frame: Frame) {
     if let Some(t) = tx
         && let Err(TrySendError::Full(_)) = t.try_send(frame)
     {
@@ -745,5 +833,47 @@ mod tests {
             rx.try_recv(),
             Err(crossbeam_channel::TryRecvError::Disconnected)
         ));
+    }
+
+    #[test]
+    fn open_gestures_and_watches_are_bounded_per_client() {
+        let r = Router::default();
+        let (t, _rx) = crossbeam_channel::bounded(16);
+        let c = r.add(t);
+        let stop = || Command::Transport(TransportCommand::Stop);
+        for g in 0..MAX_OPEN_PER_CLIENT as u32 {
+            r.inbound_ok(c, msg(g, Some(g), stop()));
+        }
+        assert!(
+            r.inbound(c, msg(1, Some(1), stop())).is_ok(),
+            "a known gesture"
+        );
+        assert!(
+            r.inbound(c, msg(2, Some(99_999), stop())).is_err(),
+            "one more"
+        );
+        let d = DeviceId(ether_protocol::model::Ulid(7));
+        let watch = |id| {
+            msg(
+                id,
+                None,
+                Command::Analysis(AnalysisCommand::Watch { device: d }),
+            )
+        };
+        for i in 0..MAX_OPEN_PER_CLIENT as u32 {
+            r.inbound_ok(c, watch(i));
+        }
+        assert!(r.inbound(c, watch(5)).is_err());
+    }
+
+    #[test]
+    fn the_outgoing_queue_is_bounded_in_bytes() {
+        let (tx, rx) = client_queue();
+        let big = || Frame::Binary(vec![0; CLIENT_QUEUE_BYTES / 2 + 1]);
+        assert!(tx.try_send(big()).is_ok());
+        assert!(matches!(tx.try_send(big()), Err(TrySendError::Full(_))));
+        assert!(tx.try_send(Frame::Text("small".into())).is_ok());
+        rx.try_recv().unwrap();
+        assert!(tx.try_send(big()).is_ok(), "room again once written");
     }
 }
