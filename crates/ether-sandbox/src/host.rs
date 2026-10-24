@@ -130,8 +130,9 @@ impl SandboxedPlugin {
         let stdout = child.stdout.take().expect("piped stdout");
         let shared = Arc::new(Shared::default());
 
-        // Reader thread: frames → channel. EOF/garbage = the helper is gone.
-        let (tx, responses) = mpsc::channel();
+        // Reader thread: frames → channel. EOF/garbage = the helper is gone. Bounded: replies
+        // come one per request, so a helper writing more only blocks itself.
+        let (tx, responses) = mpsc::sync_channel(4);
         let reader_shared = shared.clone();
         let reader = std::thread::Builder::new()
             .name("ether-sandbox-reader".into())
@@ -179,6 +180,7 @@ impl SandboxedPlugin {
                 descriptor,
                 has_editor,
             } => {
+                check_descriptor(&descriptor)?;
                 plugin.descriptor = descriptor;
                 plugin.has_editor = has_editor;
                 Ok(plugin)
@@ -323,6 +325,34 @@ impl SandboxedPlugin {
     }
 }
 
+/// The most audio channels a sandboxed plugin may report on one side (main + sidechain):
+/// the host sizes shared memory and its bypass delay from them.
+pub const MAX_CHANNELS: u16 = 128;
+/// The most parameters a sandboxed plugin may report.
+pub const MAX_PARAMS: usize = 1 << 16;
+
+/// The helper is the plugin's process, so what it reports is checked before the host sizes
+/// anything from it.
+fn check_descriptor(d: &DeviceDescriptor) -> Result<(), PluginError> {
+    if d.params.len() > MAX_PARAMS {
+        return Err(PluginError::Ipc(format!(
+            "plugin reports {} parameters (at most {MAX_PARAMS})",
+            d.params.len()
+        )));
+    }
+    check_channels(d.audio_inputs, d.audio_outputs)?;
+    check_channels(d.sidechain_inputs, 0)
+}
+
+fn check_channels(inputs: u16, outputs: u16) -> Result<(), PluginError> {
+    if inputs > MAX_CHANNELS || outputs > MAX_CHANNELS {
+        return Err(PluginError::Ipc(format!(
+            "plugin reports {inputs} in / {outputs} out channels (at most {MAX_CHANNELS})"
+        )));
+    }
+    Ok(())
+}
+
 fn unexpected(r: Response) -> PluginError {
     PluginError::Ipc(format!("unexpected response: {r:?}"))
 }
@@ -333,7 +363,9 @@ impl PluginController for SandboxedPlugin {
     }
 
     fn params(&mut self) -> Vec<ParamInfo> {
-        if let Ok(Response::Params(p)) = self.request(Request::Params) {
+        if let Ok(Response::Params(p)) = self.request(Request::Params)
+            && p.len() <= MAX_PARAMS
+        {
             self.descriptor.params = p;
         }
         self.descriptor.params.clone()
@@ -356,6 +388,10 @@ impl PluginController for SandboxedPlugin {
             } => (descriptor, latency, (inputs, outputs)),
             other => return Err(unexpected(other)),
         };
+        if let Err(e) = check_descriptor(&descriptor).and(check_channels(channels.0, channels.1)) {
+            let _ = self.request(Request::Deactivate);
+            return Err(e);
+        }
         self.descriptor = descriptor;
         let (region, sem) = match self.attach(config, channels) {
             Ok(v) => v,
@@ -555,6 +591,32 @@ impl Drop for SandboxedPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn helper_reported_sizes_are_bounded() {
+        let mut d = DeviceDescriptor {
+            layout: None,
+            device_type: ether_core::protocol::devices::DeviceTypeRef::Plugin {
+                plugin_id: "p".into(),
+            },
+            name: String::new(),
+            category: ether_core::protocol::devices::DeviceCategory::AudioEffect,
+            params: Vec::new(),
+            audio_inputs: 2,
+            audio_outputs: MAX_CHANNELS,
+            midi_input: false,
+            sidechain_inputs: 2,
+            implemented: true,
+        };
+        assert!(check_descriptor(&d).is_ok());
+        d.audio_outputs = MAX_CHANNELS + 1;
+        assert!(check_descriptor(&d).is_err());
+        d.audio_outputs = 2;
+        d.sidechain_inputs = u16::MAX;
+        assert!(check_descriptor(&d).is_err());
+        assert!(check_channels(2, 2).is_ok());
+        assert!(check_channels(u16::MAX, 2).is_err());
+    }
 
     #[test]
     fn foreign_windows_drop_the_ns_window_pointer() {
