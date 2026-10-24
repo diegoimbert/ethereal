@@ -400,6 +400,10 @@ export const size = {
   windowMinWidth: "240px",
   windowMinHeight: "120px",
   dialogWidth: "420px",
+  /** The crash-recovery dialog's fixed height (dismissing its projects shifts nothing). */
+  recoveryDialogHeight: "30rem",
+  /** Room for the recovery dialog's intro at its longest wording (three lines; follows the font size). */
+  recoveryIntroMinHeight: "4.1em",
   tooltipMaxWidth: "240px",
   /** Grab width of edge handles (clip and note resize). */
   edgeHandle: "6px",

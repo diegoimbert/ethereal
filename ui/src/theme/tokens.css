@@ -136,6 +136,8 @@
   --eth-size-window-min-width: 240px;
   --eth-size-window-min-height: 120px;
   --eth-size-dialog-width: 420px;
+  --eth-size-recovery-dialog-height: 30rem;
+  --eth-size-recovery-intro-min-height: 4.1em;
   --eth-size-tooltip-max-width: 240px;
   --eth-size-edge-handle: 6px;
   --eth-size-editor-title-max-width: 16em;
