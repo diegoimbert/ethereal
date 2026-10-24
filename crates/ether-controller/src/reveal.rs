@@ -42,6 +42,17 @@ pub fn resolve<S: ProjectStore, L: Library>(
             .map(|path| Resolved { path, open: true })
             .ok_or_else(none),
         RevealTarget::Project { id } => store.project_os_path(*id, "").map(select).ok_or_else(none),
+        RevealTarget::ProjectFile { path } => {
+            if path.is_empty() {
+                return Err(invalid("no file named"));
+            }
+            check_relative_path(path).map_err(store_err)?;
+            let pid = doc.ok_or_else(no_project)?.id;
+            store
+                .project_os_path(pid, path)
+                .map(select)
+                .ok_or_else(none)
+        }
         RevealTarget::Media { source } => match source {
             MediaSource::Location { location, path } => {
                 check_relative_path(path).map_err(store_err)?;

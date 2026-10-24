@@ -88,7 +88,13 @@ pub struct MemoryStore {
     uploads: BTreeMap<String, (u64, Vec<u8>)>,
     /// Streamed exports committed by their file, waiting for `commit_export`.
     exports: CommittedExports,
+    /// Test switch: `Some` takes exports into a folder (`ExportRequest::folder`), the
+    /// committed files kept here by absolute path. `None`: `Unsupported`.
+    pub folder_exports: Option<FolderExports>,
 }
+
+/// Files exported into folders (absolute path → bytes), see [`MemoryStore::folder_exports`].
+pub type FolderExports = Arc<Mutex<BTreeMap<String, Vec<u8>>>>;
 
 /// Streamed exports by (project, file name), committed by their file.
 type CommittedExports = Arc<Mutex<BTreeMap<(ProjectId, String), Vec<u8>>>>;
@@ -97,8 +103,12 @@ type CommittedExports = Arc<Mutex<BTreeMap<(ProjectId, String), Vec<u8>>>>;
 /// committed (dropped unfinished, it never reaches the project).
 struct MemExportFile {
     buf: Cursor<Vec<u8>>,
-    key: (ProjectId, String),
-    exports: CommittedExports,
+    dest: MemExportDest,
+}
+
+enum MemExportDest {
+    Project((ProjectId, String), CommittedExports),
+    Folder(String, FolderExports),
 }
 
 impl Write for MemExportFile {
@@ -118,11 +128,23 @@ impl Seek for MemExportFile {
 
 impl ExportFile for MemExportFile {
     fn commit(self: Box<Self>) -> Result<(), StoreError> {
-        let Self { buf, key, exports } = *self;
-        exports
-            .lock()
-            .map_err(|_| StoreError::Io("export lock poisoned".into()))?
-            .insert(key, buf.into_inner());
+        fn poisoned<T>(_: T) -> StoreError {
+            StoreError::Io("export lock poisoned".into())
+        }
+        match self.dest {
+            MemExportDest::Project(key, exports) => {
+                exports
+                    .lock()
+                    .map_err(poisoned)?
+                    .insert(key, self.buf.into_inner());
+            }
+            MemExportDest::Folder(path, files) => {
+                files
+                    .lock()
+                    .map_err(poisoned)?
+                    .insert(path, self.buf.into_inner());
+            }
+        }
         Ok(())
     }
 }
@@ -306,9 +328,43 @@ impl ProjectStore for MemoryStore {
         self.project(id)?;
         Ok(Box::new(MemExportFile {
             buf: Cursor::new(Vec::new()),
-            key: (id, file_name.to_string()),
-            exports: self.exports.clone(),
+            dest: MemExportDest::Project((id, file_name.to_string()), self.exports.clone()),
         }))
+    }
+
+    fn export_folder_names(&mut self, folder: &str) -> Result<Vec<String>, StoreError> {
+        let files = self
+            .folder_exports
+            .as_ref()
+            .ok_or_else(|| StoreError::Unsupported("no folders".into()))?;
+        let prefix = format!("{}/", folder.trim_end_matches('/'));
+        let files = files
+            .lock()
+            .map_err(|_| StoreError::Io("export lock poisoned".into()))?;
+        Ok(files
+            .keys()
+            .filter_map(|p| p.strip_prefix(&prefix))
+            .filter(|n| !n.contains('/'))
+            .map(str::to_string)
+            .collect())
+    }
+
+    fn create_export_in(
+        &mut self,
+        folder: &str,
+        file_name: &str,
+    ) -> Result<(Box<dyn ExportFile>, String), StoreError> {
+        let files = self
+            .folder_exports
+            .clone()
+            .ok_or_else(|| StoreError::Unsupported("no folders".into()))?;
+        crate::store::export_path(file_name)?;
+        let path = format!("{}/{file_name}", folder.trim_end_matches('/'));
+        let file = MemExportFile {
+            buf: Cursor::new(Vec::new()),
+            dest: MemExportDest::Folder(path.clone(), files),
+        };
+        Ok((Box::new(file), path))
     }
 
     fn commit_export(

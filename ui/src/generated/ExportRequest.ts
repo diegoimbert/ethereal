@@ -30,4 +30,12 @@ in_memory?: boolean,
  * lossless downloads next to the lossy listening files. At most
  * [`MAX_EXTRA_FORMATS`]. Omitted = none.
  */
-extra_formats?: Array<ExportFormat>, };
+extra_formats?: Array<ExportFormat>, 
+/**
+ * Write the files into this folder (an absolute engine-machine path) instead of the
+ * project's `exports/`: the desktop app, whose UI is on the engine machine, picks it in
+ * an OS dialog (like `Browser::AddFolder`). `ExportResult::Files` then lists absolute
+ * paths. Hosts that don't write exports to disk reply `Unsupported`; ignored with
+ * `in_memory`. Omitted = `exports/`.
+ */
+folder?: string, };

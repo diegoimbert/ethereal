@@ -9,6 +9,9 @@
 //! Where the files go (**never a UI path**, CONTRACTS.md §2b):
 //! - Native hosts write into the project folder: `<project>/exports/<file>`
 //!   (`ether_model::file::EXPORTS_DIR`); `ExportResult::Files` lists project-relative paths.
+//!   The desktop app may name another folder ([`ExportRequest::folder`], an absolute path
+//!   picked in an OS dialog on the engine machine); the files are then listed by absolute
+//!   path.
 //! - The web host (and remote engines, where the UI may be on another machine) keep the
 //!   result engine-side and return `ExportResult::Download` tokens; the UI pulls the bytes
 //!   with `Export::ReadChunk` (base64 over any transport; the WebSocket transport may carry
@@ -70,6 +73,14 @@ pub struct ExportRequest {
     #[serde(default)]
     #[ts(optional)]
     pub extra_formats: Option<Vec<ExportFormat>>,
+    /// Write the files into this folder (an absolute engine-machine path) instead of the
+    /// project's `exports/`: the desktop app, whose UI is on the engine machine, picks it in
+    /// an OS dialog (like `Browser::AddFolder`). `ExportResult::Files` then lists absolute
+    /// paths. Hosts that don't write exports to disk reply `Unsupported`; ignored with
+    /// `in_memory`. Omitted = `exports/`.
+    #[serde(default)]
+    #[ts(optional)]
+    pub folder: Option<String>,
 }
 
 /// Most entries in [`ExportRequest::extra_formats`].
@@ -162,7 +173,8 @@ pub enum ExportEvent {
 #[serde(tag = "type")]
 pub enum ExportResult {
     /// Native: files written under the project folder (project-relative paths such as
-    /// `exports/My Song.wav`), in request order.
+    /// `exports/My Song.wav`), or absolute paths in [`ExportRequest::folder`], in request
+    /// order.
     Files { files: Vec<String> },
     /// Web/remote: engine-side results to pull with `Export::ReadChunk`.
     Download { downloads: Vec<ExportDownload> },

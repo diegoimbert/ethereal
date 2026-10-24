@@ -452,6 +452,7 @@ fn request(range: ExportRange, container: AudioContainer, depth: BitDepth) -> Ex
         name: None,
         in_memory: None,
         extra_formats: None,
+        folder: None,
     }
 }
 
@@ -1159,6 +1160,71 @@ fn exports_never_overwrite_files() {
         vec!["exports/Song (2).wav".to_string()]
     );
     assert_eq!(d.files(req), vec!["exports/Song (3).wav".to_string()]);
+}
+
+#[test]
+fn exports_go_into_a_chosen_folder_without_overwriting() {
+    let mut store = MemoryStore::new();
+    let folder_files = ether_controller::memory::FolderExports::default();
+    store.folder_exports = Some(folder_files.clone());
+    let mut d = Drive::new(FakeBridge::default(), store, library());
+    let t = d.track(TrackKind::Audio, "Tone", None);
+    import(&mut d, t, 0.0);
+    d.settle_media();
+    let mut req = request(custom(0.0, 1.0), AudioContainer::Wav, BitDepth::Int16);
+    req.folder = Some("/Music/Bounces".into());
+    assert_eq!(
+        d.files(req.clone()),
+        vec!["/Music/Bounces/Song.wav".to_string()]
+    );
+    assert_eq!(
+        d.files(req.clone()),
+        vec!["/Music/Bounces/Song (2).wav".to_string()]
+    );
+    let written = folder_files.lock().unwrap();
+    assert_eq!(written.len(), 2);
+    assert!(written["/Music/Bounces/Song.wav"].starts_with(b"RIFF"));
+    drop(written);
+    assert!(
+        d.ctl
+            .store
+            .list_dir(d.pid, "exports")
+            .map_or(true, |l| l.entries.is_empty()),
+        "nothing was written to the project"
+    );
+    // `in_memory` wins over a folder.
+    let mut mem = req.clone();
+    mem.in_memory = Some(true);
+    let job = d.render(mem);
+    assert!(matches!(
+        d.finish(&job).0,
+        ExportEvent::Done {
+            result: ExportResult::Download { .. },
+            ..
+        }
+    ));
+    // A relative folder is refused before anything renders.
+    req.folder = Some("Bounces".into());
+    let out = d.send(Command::Export(ExportCommand::Render {
+        job: "rel".into(),
+        request: req,
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+}
+
+#[test]
+fn a_store_without_folders_refuses_a_chosen_folder() {
+    let mut d = Drive::new(FakeBridge::default(), MemoryStore::new(), library());
+    let t = d.track(TrackKind::Audio, "Tone", None);
+    import(&mut d, t, 0.0);
+    d.settle_media();
+    let mut req = request(custom(0.0, 1.0), AudioContainer::Wav, BitDepth::Int16);
+    req.folder = Some("/Music".into());
+    let out = d.send(Command::Export(ExportCommand::Render {
+        job: "j".into(),
+        request: req,
+    }));
+    assert_eq!(err(&out).code, ErrorCode::Unsupported);
 }
 
 /// A pass-through "plugin" node for offline renders.

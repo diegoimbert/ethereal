@@ -181,6 +181,31 @@ pub trait ProjectStore {
         Ok(path)
     }
 
+    /// `export` into a folder the user picked (`ExportRequest::folder`, an absolute
+    /// engine-machine path; desktop): the names of the files already in it (lowercase is
+    /// not required), so an export never overwrites one. A missing folder has none.
+    /// `Err(Unsupported)` (the default): this host doesn't write exports outside projects.
+    fn export_folder_names(&mut self, folder: &str) -> Result<Vec<String>, StoreError> {
+        let _ = folder;
+        Err(StoreError::Unsupported(
+            "exporting to a folder is not available on this host".into(),
+        ))
+    }
+
+    /// Start writing `<folder>/<file_name>` (see [`Self::export_folder_names`]; the folder
+    /// is created when missing); [`ExportFile::commit`] gives it its name. Returns the file
+    /// and its absolute path. Default: `Unsupported`.
+    fn create_export_in(
+        &mut self,
+        folder: &str,
+        file_name: &str,
+    ) -> Result<(Box<dyn ExportFile>, String), StoreError> {
+        let _ = (folder, file_name);
+        Err(StoreError::Unsupported(
+            "exporting to a folder is not available on this host".into(),
+        ))
+    }
+
     /// `remote-engine`: start staging an upload (`Media::BeginUpload`) outside any project
     /// (native: `<projects_root>/.uploads/<upload>`), `size` bytes expected. Replaces a
     /// previous upload with the same id.
