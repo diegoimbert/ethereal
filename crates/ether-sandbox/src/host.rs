@@ -477,7 +477,10 @@ impl PluginController for SandboxedPlugin {
         }
         self.sync_key_capture();
         match self.request(Request::OpenEditor)? {
-            Response::EditorOpened { window } => self.editor_window = window.map(foreign),
+            Response::EditorOpened { window } => {
+                let pid = self.child.id();
+                self.editor_window = window.map(|w| foreign(w, pid));
+            }
             Response::Ok => {}
             other => return Err(unexpected(other)),
         }
@@ -507,7 +510,8 @@ impl PluginController for SandboxedPlugin {
                     notifications,
                     editor_window,
                 }) => {
-                    self.editor_window = editor_window.map(foreign);
+                    let pid = self.child.id();
+                    self.editor_window = editor_window.map(|w| foreign(w, pid));
                     Ok(notifications)
                 }
                 Ok(Response::Notifications(list)) => Ok(list),
@@ -551,11 +555,13 @@ impl PluginController for SandboxedPlugin {
 }
 
 /// A window reported by the helper, as seen from this process: the `NSWindow*` is the
-/// helper's (meaningless here), the rest is valid across processes.
-fn foreign(mut window: NativeWindow) -> NativeWindow {
+/// helper's (meaningless here), and its owner is the helper, whatever pid it claims (the
+/// capture side looks for the plugin's popups by it).
+fn foreign(mut window: NativeWindow, helper_pid: u32) -> NativeWindow {
     if let WindowHandle::AppKit { ns_window, .. } = &mut window.handle {
         *ns_window = 0;
     }
+    window.pid = helper_pid;
     window
 }
 
@@ -628,7 +634,7 @@ mod tests {
             },
         };
         assert_eq!(
-            foreign(appkit).handle,
+            foreign(appkit, 9).handle,
             WindowHandle::AppKit {
                 window_number: 3,
                 ns_window: 0
@@ -638,7 +644,9 @@ mod tests {
             pid: 9,
             handle: WindowHandle::X11 { window: 5 },
         };
-        assert_eq!(foreign(x11), x11);
+        assert_eq!(foreign(x11, 9), x11);
+        // Whatever pid the helper claims, the window is the helper's.
+        assert_eq!(foreign(x11, 42).pid, 42);
     }
 
     /// The production budget is unchanged: no explicit budget by default, which means a
