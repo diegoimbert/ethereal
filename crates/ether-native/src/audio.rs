@@ -110,7 +110,25 @@ impl Default for AudioSettings {
     }
 }
 
+/// Requested sample rates a setting may hold (Hz), wider than any device's.
+pub const SAMPLE_RATES: std::ops::RangeInclusive<u32> = 8_000..=384_000;
+/// Requested device buffer sizes a setting may hold (frames).
+pub const BUFFER_SIZES: std::ops::RangeInclusive<u32> = 16..=8192;
+/// Engine max block sizes a setting may hold (frames).
+pub const MAX_BLOCK_SIZES: std::ops::RangeInclusive<usize> = 16..=8192;
+
 impl AudioSettings {
+    /// These settings with out-of-range values (a hand-edited or damaged file) back to
+    /// their defaults.
+    pub fn sanitized(mut self) -> Self {
+        self.sample_rate = self.sample_rate.filter(|r| SAMPLE_RATES.contains(r));
+        self.buffer_size = self.buffer_size.filter(|b| BUFFER_SIZES.contains(b));
+        if !MAX_BLOCK_SIZES.contains(&self.max_block_size) {
+            self.max_block_size = Self::default().max_block_size;
+        }
+        self
+    }
+
     pub fn to_protocol(&self) -> AudioConfig {
         AudioConfig {
             backend: Some(self.backend.name().to_string()),
@@ -150,11 +168,25 @@ impl AudioSettings {
         if c.input_device.is_some() {
             s.input_device = c.input_device.clone().filter(|d| !d.is_empty());
         }
-        if c.sample_rate.is_some() {
-            s.sample_rate = c.sample_rate;
+        if let Some(r) = c.sample_rate {
+            if !SAMPLE_RATES.contains(&r) {
+                return Err(AudioError::Config(format!(
+                    "sample rate {r} Hz is outside {}..={} Hz",
+                    SAMPLE_RATES.start(),
+                    SAMPLE_RATES.end()
+                )));
+            }
+            s.sample_rate = Some(r);
         }
-        if c.buffer_size.is_some() {
-            s.buffer_size = c.buffer_size;
+        if let Some(b) = c.buffer_size {
+            if !BUFFER_SIZES.contains(&b) {
+                return Err(AudioError::Config(format!(
+                    "buffer size {b} is outside {}..={} frames",
+                    BUFFER_SIZES.start(),
+                    BUFFER_SIZES.end()
+                )));
+            }
+            s.buffer_size = Some(b);
         }
         // Another device: its id is recorded when it opens.
         if s.output_device != self.output_device {
@@ -892,6 +924,38 @@ mod tests {
             })
             .is_err()
         );
+    }
+
+    #[test]
+    fn out_of_range_rates_and_buffers_are_refused_or_reset() {
+        let s = AudioSettings::default();
+        let with = |sample_rate, buffer_size| AudioConfig {
+            backend: None,
+            host: None,
+            output_device: None,
+            input_device: None,
+            sample_rate,
+            buffer_size,
+        };
+        for bad in [with(Some(0), None), with(Some(7_999), None), with(Some(u32::MAX), None)] {
+            assert!(s.merged(&bad).is_err(), "{bad:?}");
+        }
+        for bad in [with(None, Some(0)), with(None, Some(8193))] {
+            assert!(s.merged(&bad).is_err(), "{bad:?}");
+        }
+        let ok = s.merged(&with(Some(384_000), Some(16))).unwrap();
+        assert_eq!((ok.sample_rate, ok.buffer_size), (Some(384_000), Some(16)));
+
+        // A saved file with such values loads with the defaults instead.
+        let saved: AudioSettings = serde_json::from_str(
+            r#"{"sample_rate": 0, "buffer_size": 1000000000, "max_block_size": 0}"#,
+        )
+        .unwrap();
+        let fixed = saved.sanitized();
+        assert_eq!(fixed.sample_rate, None);
+        assert_eq!(fixed.buffer_size, None);
+        assert_eq!(fixed.max_block_size, AudioSettings::default().max_block_size);
+        assert_eq!(ok.clone().sanitized(), ok);
     }
 
     #[test]

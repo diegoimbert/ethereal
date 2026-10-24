@@ -85,6 +85,8 @@ const INPUT_RING_BLOCKS: usize = 16;
 pub const LOOPBACK: &str = "loopback";
 /// Default loopback delay (samples).
 const DEFAULT_LOOPBACK: usize = 1024;
+/// The longest test loopback delay (samples; ~5 s at 192 kHz).
+const MAX_LOOPBACK: usize = 1 << 20;
 /// How long `stop` waits for the engine to acknowledge the end of recording.
 const STOP_WAIT: Duration = Duration::from_secs(1);
 
@@ -294,7 +296,11 @@ impl RecordingShared {
 pub(crate) fn parse_loopback(name: &str) -> Option<usize> {
     let rest = name.strip_prefix(LOOPBACK)?;
     match rest.strip_prefix(':') {
-        Some(n) => n.trim().parse().ok(),
+        Some(n) => n
+            .trim()
+            .parse::<usize>()
+            .ok()
+            .map(|n| n.min(MAX_LOOPBACK)),
         None if rest.is_empty() => Some(DEFAULT_LOOPBACK),
         None => None,
     }
