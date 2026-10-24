@@ -27,7 +27,7 @@ import { DebugPanelsRoot } from "@/features/debug";
 import { DeviceWindowsRoot } from "@/features/devices/window";
 import { ExportDialog } from "@/features/export";
 import { ImportRoot } from "@/features/import";
-import { KeymapRoot } from "@/features/keymap";
+import { KeymapRoot, matchesAction } from "@/features/keymap";
 import { EngineLanguage } from "./EngineLanguage";
 import { MediaRefsRoot } from "@/features/media-refs";
 import { MidiLearnRoot } from "@/features/midi-learn";
@@ -56,7 +56,7 @@ import { useClickFocusesPanelSearch, useFocusPanelSearch } from "./shell/useFocu
 import { bindSelectionHistory } from "@/features/time-edits/selectionHistory";
 import { railTabs } from "./shell/tabs";
 import { paneLayout } from "./shell/paneLayout";
-import { useShellStore } from "@/state/shell";
+import { closeInspector, useShellStore } from "@/state/shell";
 import { useMobileUi } from "@/features/mobile/mode";
 import { EngineErrorScreen } from "@/features/startup";
 import { TransportContext } from "@/transport";
@@ -118,9 +118,9 @@ function Workspace() {
   // Undo / redo bring back the sections (time selection, piano-roll section) of their step.
   useEffect(() => bindSelectionHistory(), []);
 
-  // The inspector is there whenever something is selected (the store knows, for layout and
-  // tests); expanded or a bar: a track header click expands it, a click on the lanes' empty
-  // space or a double-click on a clip collapses it (TrackRow, ArrangementView, below).
+  // The inspector opens with a selection and stays until closed (Esc), following the selection
+  // (the store knows, for layout and tests); expanded or a bar: a track header click expands
+  // it, its × or a double-click on a clip collapses it (TrackRow, below).
   useEffect(() => {
     if (shell().right.open !== rightOpen) shell().setOpen("right", rightOpen);
   }, [rightOpen, shell]);
@@ -154,6 +154,19 @@ function Workspace() {
       }),
     [shell],
   );
+
+  // Escape that nothing else used (not in a text field, dialog or menu) closes the inspector
+  // (in the arrangement, its deselect does: features/arrangement/actions.ts).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!matchesAction("edit.deselect", e) || e.defaultPrevented) return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest?.('input, textarea, [contenteditable="true"], [role="dialog"], [role="menu"], [role="listbox"]')) return;
+      closeInspector();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // A press anywhere outside the drawer collapses it, unless pinned. Not the arrangement's
   // tracks (they decide per clip: a clip opens/switches the drawer), nor the drawer itself
@@ -245,7 +258,8 @@ function Workspace() {
         maxSize={sideMax}
         onResize={(v) => shell().setSize("right", v)}
         onPinnedChange={(v) => shell().setPinned("right", v)}
-        // The × collapses it to a bar (remembered); Esc / click-away still deselect, which closes it.
+        // The × collapses it to a bar (remembered); Esc closes it. It follows the selection and
+        // stays on the last one when a click elsewhere clears it (inspectorTarget).
         collapsed={right.collapsed}
         onCollapsedChange={(v) => shell().setCollapsed("right", v)}
       >

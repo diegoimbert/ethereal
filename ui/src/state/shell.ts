@@ -174,3 +174,14 @@ export function openLeftTab(tab: LeftTab): void {
 
 /** Hook: whether the left pane shows `tab`. */
 export const useLeftTabOpen = (tab: LeftTab): boolean => useShellStore((s) => s.left.open && s.left.tab === tab);
+
+/**
+ * Explicit closes of the inspector (Esc in the arrangement or in the inspector). The
+ * inspector otherwise stays open on the last selection (`app/shell/inspectorTarget.ts`).
+ */
+export const useInspectorCloses = create<{ count: number }>()(() => ({ count: 0 }));
+
+/** Close the inspector (it opens again with the next selection). */
+export function closeInspector(): void {
+  useInspectorCloses.setState((s) => ({ count: s.count + 1 }));
+}
