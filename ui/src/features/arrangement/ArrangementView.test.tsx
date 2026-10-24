@@ -20,6 +20,7 @@ import { resetTimeSelection, useTimeSelection } from "@/features/time-edits/stor
 import { AUTOMATION_BAR_HEIGHT, LANE_HEIGHT, resetAutomationUi } from "@/features/automation";
 import { HEADER_WIDTH, MAX_TRACK_HEIGHT, MIN_TRACK_HEIGHT, TRACK_HEIGHT } from "./layout";
 import { glRenderer } from "./gl/active";
+import { resetMediaRefs, useMediaRefs } from "@/features/media-refs";
 import { formatDb } from "@/domain/paramScale";
 import { arrangementView, resetArrangementUi, useArrangementUi } from "./uiStore";
 
@@ -1995,6 +1996,66 @@ describe("ArrangementView: audio and drops", () => {
     // Track + clip are one undo step (media was already in the project).
     await undo();
     expect(Object.keys(project().tracks)).toHaveLength(tracksBefore);
+  });
+
+  describe("a sample dropped on a clip whose sample is missing", () => {
+    const payload = {
+      version: 1,
+      kind: "media",
+      source: { type: "Location", location: { type: "Library", id: "library" }, path: "Drums/Kick.wav" },
+      name: "Kick.wav",
+      file_kind: "Audio",
+    };
+    /** An audio clip, its sample marked missing. */
+    function missingClip(): Clip & { media: string } {
+      const clip = Object.values(project().clips).find((c) => c.content.type === "Audio" && c.lane == null);
+      if (!clip || clip.content.type !== "Audio") throw new Error("no audio clip");
+      const media = clip.content.media;
+      act(() => useMediaRefs.setState({ missing: new Set([media]) }));
+      return { ...clip, media };
+    }
+    const relinks = () => sent.flatMap((c) => (c.domain === "MediaRef" && c.command.type === "Relink" ? [c.command] : []));
+
+    afterEach(() => resetMediaRefs());
+
+    it("highlights the clip and relinks its sample to a browser sample (no new clip)", async () => {
+      const clip = missingClip();
+      const content = screen.getByTestId("arrangement-content");
+      const at = partAt(clip, "body");
+      fireDrag("dragOver", content, payload, at.x, at.y);
+      expect(useArrangementUi.getState().relinkDrop?.clip).toBe(clip.id);
+      expect(useArrangementUi.getState().dropHint).toBeNull();
+      expect(document.querySelector(`[data-lane="${clip.track}"] [data-testid="relink-drop-hint"]`)?.textContent).toBe("drop to relink");
+      const clipsBefore = Object.keys(project().clips).length;
+      fireDrag("drop", content, payload, at.x, at.y);
+      await flush();
+      expect(relinks()).toEqual([{ type: "Relink", media: clip.media, source: payload.source }]);
+      expect(Object.keys(project().clips)).toHaveLength(clipsBefore);
+      expect(useArrangementUi.getState().relinkDrop).toBeNull();
+    });
+
+    it("uploads a dropped file and relinks to the upload", async () => {
+      const clip = missingClip();
+      const content = screen.getByTestId("arrangement-content");
+      const at = partAt(clip, "body");
+      const file = new File([new Uint8Array([1, 2, 3, 4])], "Snare.wav", { type: "audio/wav" });
+      const ev = createEvent.drop(content, { dataTransfer: { types: ["Files"], files: [file], getData: () => "" } });
+      Object.defineProperty(ev, "clientX", { value: at.x });
+      Object.defineProperty(ev, "clientY", { value: at.y });
+      fireEvent(content, ev);
+      await waitFor(() => expect(relinks()).toHaveLength(1));
+      expect(relinks()[0]).toMatchObject({ media: clip.media, source: { type: "Upload" } });
+      expect(sent.some((c) => c.domain === "Media" && c.command.type === "BeginUpload")).toBe(true);
+    });
+
+    it("only for missing samples: elsewhere the drop adds a clip as usual", () => {
+      const clip = missingClip();
+      act(() => resetMediaRefs());
+      const at = partAt(clip, "body");
+      fireDrag("dragOver", screen.getByTestId("arrangement-content"), payload, at.x, at.y);
+      expect(useArrangementUi.getState().relinkDrop).toBeNull();
+      expect(useArrangementUi.getState().dropHint?.track).toBe(clip.track);
+    });
   });
 });
 

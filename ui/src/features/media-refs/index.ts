@@ -5,6 +5,7 @@ import "./mediaRefs.css";
 export { MediaRefsRoot, MissingMediaStatus } from "./MediaRefsRoot";
 export { RelinkDialog } from "./RelinkDialog";
 export { mediaRefClipEntries, mediaRefCommands, withMediaRefClipEntries, type MediaRefPaletteCommand } from "./menus";
+export { isSampleDrag, readSampleDrop, relinkDrop, sampleDropSource, useSampleDrop, type SampleDrop } from "./drop";
 export { hasFolderPicker, locationLabel, pickRelinkSource, sourceLabel, stageUpload, type FolderPickerHost } from "./sources";
 export {
   applyMediaRefEvent,

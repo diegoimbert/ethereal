@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Clip, Command, Event, MediaRef, Project, ReplyValue } from "@/generated";
 import type { ContextMenuItem } from "@/kit";
@@ -9,6 +9,9 @@ import { MissingMediaStatus } from "./MediaRefsRoot";
 import { mediaRefCommands, withMediaRefClipEntries } from "./menus";
 import { RelinkDialog } from "./RelinkDialog";
 import { applyMediaRefEvent, openRelink, refreshMissing, resetMediaRefs, useMediaRefs } from "./store";
+import { BROWSER_DRAG_MIME } from "@/features/browser/dragPayload";
+import { deliverPathDrop, resetHover } from "@/features/import/osDrop";
+import { readSampleDrop, relinkableSource } from "./drop";
 
 /** Records commands; the test pushes events and chooses replies. */
 class FakeTransport {
@@ -171,5 +174,54 @@ describe("Relink dialog", () => {
     fireEvent.click(screen.getByRole("button", { name: /search library/ }));
     await flush();
     expect(screen.getByRole("alert")).toHaveTextContent("boom");
+  });
+});
+
+describe("dropping a sample on a missing one", () => {
+  const sample = { type: "Location" as const, location: { type: "Library" as const, id: "library" }, path: "Drums/Kick 2.wav" };
+  const browserDrag = (source: object = sample) => {
+    const data = JSON.stringify({ version: 1, kind: "media", source, name: "Kick 2.wav", file_kind: "Audio" });
+    return { types: [BROWSER_DRAG_MIME, "text/plain"], getData: (f: string) => (f === BROWSER_DRAG_MIME ? data : ""), dropEffect: "none" };
+  };
+  const relinks = (t: FakeTransport) => t.sent.filter((c) => c.domain === "MediaRef" && c.command.type === "Relink").map((c) => c.command);
+
+  afterEach(() => resetHover());
+
+  it("highlights a missing row under a browser sample and relinks to it", async () => {
+    const t = new FakeTransport();
+    applyMediaRefEvent({ type: "Media", event: { type: "Missing", media: media.id } });
+    openRelink();
+    render(<RelinkDialog transport={t as unknown as EngineTransport} />);
+    const row = screen.getByTestId("relink-row");
+    fireEvent(row, createEvent.dragOver(row, { dataTransfer: browserDrag() }));
+    expect(row.className).toContain("eth-media-refs__row--drop");
+    fireEvent(row, createEvent.drop(row, { dataTransfer: browserDrag() }));
+    await flush();
+    expect(row.className).not.toContain("eth-media-refs__row--drop");
+    expect(relinks(t)).toEqual([{ type: "Relink", media: media.id, source: sample }]);
+  });
+
+  it("relinks to an OS path the desktop shell delivers after the hover", async () => {
+    const t = new DesktopTransport();
+    applyMediaRefEvent({ type: "Media", event: { type: "Missing", media: media.id } });
+    openRelink();
+    render(<RelinkDialog transport={t as unknown as EngineTransport} />);
+    const row = screen.getByTestId("relink-row");
+    fireEvent(row, createEvent.dragOver(row, { dataTransfer: { types: ["Files"], dropEffect: "none" } }));
+    expect(row.className).toContain("eth-media-refs__row--drop");
+    act(() => void deliverPathDrop(["/Users/ana/Archive/notes.txt", "/Users/ana/Archive/Kick.wav"]));
+    await flush();
+    // The first audio file is used.
+    expect(relinks(t)).toEqual([{ type: "Relink", media: media.id, source: { type: "Path", path: "/Users/ana/Archive/Kick.wav" } }]);
+  });
+
+  it("refuses MIDI files and relinks project media to their file", () => {
+    const midi = JSON.stringify({ version: 1, kind: "media", source: sample, name: "a.mid", file_kind: "Midi" });
+    expect(readSampleDrop({ types: [BROWSER_DRAG_MIME], getData: () => midi })).toBeNull();
+    expect(relinkableSource({ type: "Project", media: media.id })).toEqual({ type: "Path", path: "/Users/ana/Samples/Kick.wav" });
+    useProjectStore.setState({
+      project: { ...project, media: { ...project.media, [media.id]: { ...media, location: { type: "Project" }, file: "media/k.wav" } } },
+    });
+    expect(relinkableSource({ type: "Project", media: media.id })).toEqual({ type: "Location", location: { type: "ProjectMedia" }, path: "k.wav" });
   });
 });

@@ -8,6 +8,7 @@ import { useProjectStore } from "@/state";
 import type { EngineTransport } from "@/transport";
 import { closeRelink, collectAll, errorText, relink, search, useMediaRefs } from "./store";
 import { hasFolderPicker, locationLabel, pickRelinkSource, sourceLabel } from "./sources";
+import { sampleDropSource, useSampleDrop } from "./drop";
 import { Trans, useT } from "@/i18n";
 
 function MediaRow({ media, transport, busy, setBusy }: { media: MediaRef; transport: EngineTransport; busy: boolean; setBusy: (b: boolean) => void }) {
@@ -30,11 +31,19 @@ function MediaRow({ media, transport, busy, setBusy }: { media: MediaRef; transp
       const source = await pickRelinkSource(transport);
       if (source) await relink(transport, media.id, source);
     });
+  // A sample dropped on a missing row relinks it.
+  const drop = useSampleDrop((d) =>
+    act(async () => {
+      const { source } = await sampleDropSource(transport, d);
+      await relink(transport, media.id, source);
+    }),
+  );
   return (
     <li
-      className={clsx("eth-media-refs__row", !missing && "eth-media-refs__row--found")}
+      className={clsx("eth-media-refs__row", !missing && "eth-media-refs__row--found", drop.over && "eth-media-refs__row--drop")}
       data-testid="relink-row"
       data-media={media.id}
+      {...(missing && !busy ? { ...drop.props, title: t("media_refs.drop.title") } : {})}
       // "Resolve…" (match by name, size, length; one undo step with the rest).
       onContextMenu={(e) =>
         openContextMenu(
