@@ -27,6 +27,12 @@ The palette doesn't open while you're typing in a text field, so the shortcut ne
 
 The palette lists commands for tracks, the transport, editing, the project, panels, templates, devices (**add …** inserts a device on the selected track), the appearance and help.
 
+## quick search
+
+Press [[action:search.open]] to find anything in your song by name: tracks, clips, devices and markers, plus the samples, MIDI files, presets and projects of your library. It works even while you're typing in a text field, and on the web it replaces the browser's own find bar.
+
+Type part of a name, move with [[key:ArrowUp]] and [[key:ArrowDown]], and press [[key:Enter]] to go there: a track or a clip gets selected and scrolled into view, a device gets selected on its track, a marker moves the cursor to it, and a library item opens in the browser. [[key:Escape]] closes the search.
+
 ## commands only in the palette
 
 These commands have no button or menu entry anywhere else:

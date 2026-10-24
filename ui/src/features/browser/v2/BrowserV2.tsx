@@ -38,6 +38,7 @@ import { EntryRow, ROW_SELECTOR, SEARCH_DEBOUNCE_MS, type BrowserScope } from ".
 import { FolderTree, type TreeNav, type TreeRoot } from "./FolderTree";
 import { FolderImportStatus, droppedItems, importFolder, pickFolder, type PickedFolder } from "../folders";
 import { parentPath } from "../paths";
+import { useBrowserReveal } from "../reveal";
 import { ItemRow } from "./ItemRow";
 import {
   ALL_ROOTS,
@@ -227,6 +228,32 @@ export function BrowserV2({ initialRoots }: BrowserV2Props) {
     else if (kind !== "Audio" && kind !== "Midi") setKind("Audio");
     setReveal((r) => ({ root, path, n: (r?.n ?? 0) + 1 }));
   };
+
+  // Quick search (⌘F) asks to show an item: samples and MIDI files in the tree (the tree
+  // expands down to the file and focuses it), presets and projects by searching their name.
+  useEffect(() => {
+    const take = () => {
+      const r = useBrowserReveal.getState().request;
+      if (!r) return;
+      useBrowserReveal.setState({ request: null });
+      const { item } = r;
+      // `showFolder` with the file's own kind (the tree focuses the file's row).
+      setFavouritesOnly(false);
+      setTags([]);
+      setKind(item.kind);
+      if (item.kind === "Audio" || item.kind === "Midi") {
+        setText("");
+        setReveal((v) => ({ root: item.root, path: item.path, n: (v?.n ?? 0) + 1 }));
+      } else setText(item.name);
+    };
+    // A request made before the browser mounted (the panel was closed), then new ones.
+    const first = setTimeout(take, 0);
+    const unsubscribe = useBrowserReveal.subscribe((s) => s.request && take());
+    return () => {
+      clearTimeout(first);
+      unsubscribe();
+    };
+  }, []);
 
   // `file-import`: OS audio files dropped here are added to the project.
   const importDrop = useImportDrop();
