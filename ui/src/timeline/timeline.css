@@ -91,7 +91,7 @@
     opacity var(--eth-duration-slow) var(--eth-ease-out),
     background-color var(--eth-duration-slow) var(--eth-ease-out);
 }
-/* Playing (dark theme): the accent, with a soft halo (theme tokens: the light theme has neither). The halo is a horizontal gradient strip, not a
+/* Playing (dark theme): the accent, with a soft trail behind it (theme tokens: the light theme has neither). The trail is a horizontal gradient strip, not a
    shadow / blur, so it costs nothing as the line moves (other users' playheads are drawn
    elsewhere and stay plain). */
 .eth-playhead-line[data-playing] {
@@ -103,9 +103,11 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(var(--eth-space-md) * -1);
-  width: calc(var(--eth-space-md) * 2 + var(--eth-border-width));
-  background: linear-gradient(to right, transparent, var(--eth-color-playhead-glow), transparent);
+  /* A trail: only behind the line (the side it comes from while playing), fading in towards
+     it and cut sharp at the line, nothing ahead of it. */
+  right: 100%;
+  width: var(--eth-space-xl);
+  background: linear-gradient(to right, transparent, var(--eth-color-playhead-glow));
   pointer-events: none;
   opacity: 0;
   transition: opacity var(--eth-duration-slow) var(--eth-ease-out);
@@ -114,7 +116,7 @@
   opacity: 1;
 }
 
-/* Settings > Appearance > Glow off: the playhead without its halo. */
+/* Settings > Appearance > Glow off: the playhead without its trail. */
 :root[data-glow="off"] .eth-playhead-line::before {
   display: none;
 }
