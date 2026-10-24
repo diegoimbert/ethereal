@@ -216,7 +216,8 @@ impl RateIntegral {
             let r = semitone_ratio(transpose_at(transpose, Some(env), ce));
             self.cum[i] + (source_seconds(warp, 60.0, c) - source_seconds(warp, 60.0, ce)) * r
         };
-        if x <= 0.0 {
+        // NaN (degenerate clip values) takes the first edge, never an index.
+        if x.is_nan() || x <= 0.0 {
             edge(0)
         } else if x >= last as f64 {
             edge(last)

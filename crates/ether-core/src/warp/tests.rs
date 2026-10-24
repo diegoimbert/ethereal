@@ -910,3 +910,14 @@ fn gain_envelope_scales_the_clip() {
         "-6 dB",
     );
 }
+
+#[test]
+fn rate_integral_survives_degenerate_ranges() {
+    // Overflowing bounds give a one-cell table and NaN positions: an edge value, never a
+    // panic (this runs on the audio thread).
+    let env = steps(&[(0.0, st(5.0))], TRANSPOSE_MAP);
+    let rate = super::RateIntegral::build(None, 2.0, &env, 1e308, -8e307, 1.79e308);
+    for c in [f64::NAN, 0.0, 1.0, 1e308, f64::INFINITY] {
+        let _ = rate.seconds(None, 2.0, &env, 100.0, 1e308, c);
+    }
+}
