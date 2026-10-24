@@ -387,7 +387,7 @@ impl Eq {
     pub(crate) fn band_coefs(&self, b: usize) -> Coefs {
         let v = |o: u32| self.values[params::band(b, o).0 as usize];
         let shape = SHAPES[util::index(v(params::TYPE), SHAPES.len())];
-        let coefs = Coefs::new(
+        let coefs = Coefs::matched(
             shape,
             v(params::FREQ),
             v(params::GAIN),

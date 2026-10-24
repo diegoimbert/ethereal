@@ -84,20 +84,21 @@ impl Coefs {
         self.m0 == 1.0 && self.m1 == 0.0 && self.m2 == 0.0
     }
 
-    /// Coefficients for `shape` at `freq` Hz, `gain_db` (shelves/bell) and `q`: the shared
-    /// definition in `ether_protocol::eq_response::svf_coefs` (v0.2), which the UI's EQ curve
-    /// mirrors, so the drawn response is the device's response.
+    /// Coefficients for `shape` at `freq` Hz, `gain_db` (shelves/bell) and `q`: the plain
+    /// bilinear design (`ether_protocol::eq_response::svf_coefs_bilinear`). Every device but
+    /// the EQ uses it: their filters (the delay's feedback cuts, the reverb's, the pedal's
+    /// tone stack...) are calibrated against reference renders with it.
     pub(crate) fn new(shape: Shape, freq: f64, gain_db: f64, q: f64, sample_rate: f64) -> Self {
-        use ether_core::protocol::eq_response::{EqShape, svf_coefs};
-        let shape = match shape {
-            Shape::LowCut => EqShape::LowCut,
-            Shape::LowShelf => EqShape::LowShelf,
-            Shape::Bell => EqShape::Bell,
-            Shape::Notch => EqShape::Notch,
-            Shape::HighShelf => EqShape::HighShelf,
-            Shape::HighCut => EqShape::HighCut,
-        };
-        let c = svf_coefs(shape, freq, gain_db, q, sample_rate);
+        use ether_core::protocol::eq_response::svf_coefs_bilinear;
+        let c = svf_coefs_bilinear(eq_shape(shape), freq, gain_db, q, sample_rate);
+        Self::from_parts(c.g, c.k, c.m0, c.m1, c.m2)
+    }
+
+    /// The EQ's coefficients: the decramped (matched) design shared with the UI's EQ curve
+    /// (`ether_protocol::eq_response::svf_coefs`), so the drawn response is the device's.
+    pub(crate) fn matched(shape: Shape, freq: f64, gain_db: f64, q: f64, sample_rate: f64) -> Self {
+        use ether_core::protocol::eq_response::svf_coefs;
+        let c = svf_coefs(eq_shape(shape), freq, gain_db, q, sample_rate);
         Self::from_parts(c.g, c.k, c.m0, c.m1, c.m2)
     }
 
@@ -157,6 +158,18 @@ impl Coefs {
     }
 }
 
+fn eq_shape(shape: Shape) -> ether_core::protocol::eq_response::EqShape {
+    use ether_core::protocol::eq_response::EqShape;
+    match shape {
+        Shape::LowCut => EqShape::LowCut,
+        Shape::LowShelf => EqShape::LowShelf,
+        Shape::Bell => EqShape::Bell,
+        Shape::Notch => EqShape::Notch,
+        Shape::HighShelf => EqShape::HighShelf,
+        Shape::HighCut => EqShape::HighCut,
+    }
+}
+
 /// Per-channel SVF state.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct Svf {
@@ -192,6 +205,21 @@ mod tests {
 
     fn db(x: f64) -> f64 {
         20.0 * x.log10()
+    }
+
+    /// Only the EQ is decramped: every other filter keeps the bilinear design it was
+    /// calibrated with (the delay's feedback cuts against Live renders).
+    #[test]
+    fn only_the_eq_is_decramped() {
+        let (bil, mat) = (
+            Coefs::new(Shape::HighCut, 12_000.0, 0.0, 0.707, 44_100.0),
+            Coefs::matched(Shape::HighCut, 12_000.0, 0.0, 0.707, 44_100.0),
+        );
+        assert_eq!(bil.g, (PI * 12_000.0 / 44_100.0).tan());
+        assert_eq!((bil.m0, bil.m1, bil.m2), (0.0, 0.0, 1.0));
+        assert!(
+            db(bil.magnitude(20_000.0, 44_100.0)) < db(mat.magnitude(20_000.0, 44_100.0)) - 10.0
+        );
     }
 
     #[test]
