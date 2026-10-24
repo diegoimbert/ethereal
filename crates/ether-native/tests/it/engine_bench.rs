@@ -27,6 +27,8 @@
 //! - `ETHER_BENCH_PACED=0`: back to back; `ETHER_BENCH_RT=1`: real-time priority for the
 //!   workers and the render thread (as the host gives its device callback);
 //! - `ETHER_BENCH_SCALE`: multiply every device cost (default 1);
+//! - `ETHER_BENCH_STATE_KB`: every device also streams through that much state per block
+//!   (default 0), so where its job runs matters to the caches;
 //! - `ETHER_BENCH_HOGS`: that many normal-priority threads keep the CPU busy during the runs
 //!   (what the UI, plugin editors and other apps do to a real session; default 0), to see
 //!   what thread priorities buy;
@@ -64,16 +66,32 @@ struct Burn {
     state: f32,
     phase: u32,
     sidechain: bool,
+    /// Working memory streamed through once per block (`ETHER_BENCH_STATE_KB`): a plugin's
+    /// state (delay lines, FFT frames, voices), whose cache misses depend on where the
+    /// device ran last.
+    mem: Vec<f32>,
 }
 
 impl Burn {
     fn new(iters: u32, sidechain: bool) -> Self {
+        let kb = env_num("ETHER_BENCH_STATE_KB", 0.0) as usize;
         Self {
             iters,
             state: 0.0,
             phase: 0,
             sidechain,
+            mem: vec![0.5; kb * 1024 / 4],
         }
+    }
+
+    /// Read and write every word of `mem` (bandwidth-bound); returns a value of it so the
+    /// work stays.
+    #[inline(never)]
+    fn touch(&mut self) -> f32 {
+        for m in &mut self.mem {
+            *m = *m * 0.999 + 0.0005;
+        }
+        self.mem.first().copied().unwrap_or(0.0)
     }
 
     #[inline(never)]
@@ -127,6 +145,9 @@ impl Node for Burn {
             return ProcessStatus::Continue;
         };
         self.burn(&ins[0][..n], &mut l[..n], key);
+        if !self.mem.is_empty() {
+            l[0] += self.touch() * 1e-9;
+        }
         for (o, (&x, &y)) in r[..n].iter_mut().zip(ins[1][..n].iter().zip(&l[..n])) {
             *o = x * 0.5 + y * 0.5;
         }
@@ -835,12 +856,14 @@ fn realtime_buffers() {
     let load = std::fs::read_to_string("/proc/loadavg").unwrap_or_default();
     println!(
         "engine_bench: {} frames ({budget:.0} µs budget), {} s per run, {}, {} physical cores, \
-         burn {ns_per_iter:.3} ns/iter, scale {}, {} worker priority, {hogs} hog threads, loadavg {}",
+         burn {ns_per_iter:.3} ns/iter, scale {}, state {} KB/device, {} worker priority, \
+         {hogs} hog threads, loadavg {}",
         opts.block,
         opts.seconds,
         if opts.paced { "paced" } else { "back to back" },
         cores,
         opts.scale,
+        env_num("ETHER_BENCH_STATE_KB", 0.0),
         if opts.realtime { "real-time" } else { "normal" },
         load.split_whitespace()
             .take(3)
