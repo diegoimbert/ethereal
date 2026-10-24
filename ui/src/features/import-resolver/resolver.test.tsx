@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Device, MissingPlugin, PluginDescriptor } from "@/generated";
 import { useContextMenuStore, type ContextMenuItem } from "@/kit";
@@ -6,6 +6,7 @@ import { useEditorStore, useProjectStore, useSelectionStore } from "@/state";
 import { cmd, newId, TransportProvider, type EngineTransport } from "@/transport";
 import { MockTransport } from "@/transport/mock";
 import { libraryPath } from "@/transport/mock/roadmap/mediaReferences";
+import { BROWSER_DRAG_MIME } from "@/features/browser/dragPayload";
 import type { ChatSession, LoopEvent } from "@/features/ai-chat/providers";
 import { reloadAiSettings, useAiSettings } from "@/features/ai-chat/settings";
 import { applyMediaRefEvent, MissingMediaStatus, openRelink, RelinkDialog, resetMediaRefs } from "@/features/media-refs";
@@ -160,6 +161,32 @@ describe("resolver with the mock engine", () => {
     expect(project().media[id]!.location).toEqual({ type: "External", path: libraryPath("Drums/Kick.wav") });
     const d = project().devices[device.id]!;
     expect(d.kind.type === "Plugin" && d.kind.plugin.plugin_id).toBe("dev.ethereal.mock.mega");
+  });
+});
+
+describe("a sample dropped on a missing file's row", () => {
+  it('is chosen like "choose file…" (applied with the rest)', async () => {
+    const { t } = await setup();
+    const id = newId();
+    await act(() =>
+      t.send(cmd("Media", { type: "Import", id, source: { type: "Location", location: { type: "Library", id: "library" }, path: "Drums/Kick.wav" } })),
+    );
+    t.mediaRefs.setOffline(libraryPath("Drums/Kick.wav"));
+    act(() => applyMediaRefEvent({ type: "Media", event: { type: "Missing", media: id } }));
+    await act(() => openResolver({ media: id }, t));
+    const row = await screen.findByTestId("resolver-media");
+    const source = { type: "Location", location: { type: "Library", id: "library" }, path: "Drums/Snare.wav" };
+    const data = JSON.stringify({ version: 1, kind: "media", source, name: "Snare.wav", file_kind: "Audio" });
+    const dataTransfer = { types: [BROWSER_DRAG_MIME], getData: (f: string) => (f === BROWSER_DRAG_MIME ? data : ""), dropEffect: "none" };
+    fireEvent(row, createEvent.dragOver(row, { dataTransfer }));
+    expect(row.className).toContain("eth-resolver__row--drop");
+    expect(row).toHaveTextContent("drop to use this file");
+    fireEvent(row, createEvent.drop(row, { dataTransfer }));
+    await waitFor(() => expect(useResolver.getState().media.find((m) => m.missing.media === id)?.candidates[0]?.source).toEqual(source));
+    const m = useResolver.getState().media.find((x) => x.missing.media === id)!;
+    expect(m).toMatchObject({ choice: 0, apply: true });
+    expect(m.candidates[0]!.display).toBe("library/Drums/Snare.wav");
+    expect(row.className).not.toContain("eth-resolver__row--drop");
   });
 });
 

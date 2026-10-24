@@ -198,8 +198,31 @@ const SMALL_NAME_INSET = 3;
 const BOX_Y: YSpec = { a0: CLIP_INSET, a1: -CLIP_INSET, f1: 1 };
 const TITLE_Y: YSpec = { a0: CLIP_INSET, a1: CLIP_INSET + CLIP_TITLE };
 const BODY_Y: YSpec = { a0: CLIP_INSET + CLIP_TITLE, a1: -CLIP_INSET, f1: 1 };
+/** How close (beats) a clip's start is to another's end for the two to share an edge. */
+const JOIN_EPS = 1e-6;
+
+/** The end beats of a lane's clips (ghosts aside), sorted: which clips another one joins. */
+export function touchingEnds(items: ReadonlyArray<LaneItem>): Float64Array {
+  const ends = new Float64Array(items.filter((it) => !it.ghost).map((it) => it.bounds.start + it.bounds.length));
+  return ends.sort();
+}
+
+/** Whether a clip ends at `start` (`ends` from `touchingEnds`). */
+export function touchesEnd(ends: Float64Array, start: number): boolean {
+  let lo = 0;
+  let hi = ends.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (ends[mid]! < start - JOIN_EPS) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo < ends.length && ends[lo]! <= start + JOIN_EPS;
+}
 
 const NO_NOTES: ReadonlyArray<Note> = [];
+
+/** Opacity of the clip's color for its loop lines on the body. */
+const LOOP_LINE_ALPHA = 0.7;
 
 /** Instances of one pipeline in two draw groups. */
 class Groups {
@@ -282,7 +305,7 @@ export class LaneScene {
   private loadVersion = -1;
   /** The clips' title band height (`titleHeight` of the lane's height: all of a compact lane). */
   titleHeight = CLIP_TITLE;
-  /** A compact lane: its clips are a title band alone (no notes, waveform or loop seams). */
+  /** A compact lane: its clips are a title band alone (no notes or waveform). */
   compact = false;
   /** Bumped at each static rebuild (the view data depends on it). */
   staticVersion = 0;
@@ -499,6 +522,7 @@ export class LaneScene {
     let k = 0;
     let maxEnd = -Infinity;
     this.notesUsed = [];
+    const ends = touchingEnds(this.items);
     this.items.forEach((it, i) => {
       const up = isRaised(it, sel);
       const out = up ? raised : base;
@@ -513,7 +537,7 @@ export class LaneScene {
       }
       const notes = it.clip.content.type === "Midi" ? notesOfClip(project, it.clip.id) : NO_NOTES;
       this.notesUsed[i] = notes;
-      this.clipStatic(it, out, input, notes, light);
+      this.clipStatic(it, out, input, notes, light, !it.ghost && touchesEnd(ends, it.bounds.start));
     });
     ix.under[n] = base.under.count;
     ix.notes[n] = base.notes.count;
@@ -531,13 +555,18 @@ export class LaneScene {
     input: SceneInput,
     notes: ReadonlyArray<Note>,
     light: boolean,
+    /** Another clip ends where this one starts: the two share an edge. */
+    joined: boolean,
   ): void {
     const { clip, bounds } = it;
     const colors = clipColors(input.palette, clip.color ?? this.track.color);
     const selected = !it.ghost && input.selected.has(clip.id);
     const fx = this.fxOf(it);
     const alpha = (it.ghost ? 0.45 : it.dragging ? 0.85 : 1) * this.alphaMul * this.loadAlphaOf(it);
-    const box: XSpec = { b0: bounds.start, b1: bounds.start + bounds.length, minW: CLIP_DRAW_MIN_PX };
+    // A clip joined to the one before it starts a pixel early, over that clip's last column:
+    // the shared edge is one line (its border drawn over the other's, a separator when
+    // neither has one), never two kissing borders.
+    const box: XSpec = { b0: bounds.start, b1: bounds.start + bounds.length, p0: joined ? -1 : 0, minW: CLIP_DRAW_MIN_PX };
     const clipBox = { x: box, y: BOX_Y, radius: CLIP_RADIUS };
     const hover = this.hoverKey && !it.ghost && this.hoverKey.startsWith(clip.id + "|") ? this.hoverKey.slice(clip.id.length + 1) : null;
 
@@ -584,12 +613,26 @@ export class LaneScene {
         }
       }
     }
-    // Loop seams: where a looped clip wraps around to its loop start.
-    if (clip.looping.enabled && !this.compact) {
+    // Loop lines: a thin line where a looped clip wraps around to its loop start, across
+    // the whole clip (in the clip's color on the body, darker on the title band).
+    if (looping.enabled) {
+      const bodyLine = withAlpha(colors.strong, LOOP_LINE_ALPHA);
       for (const seg of contentSegments(shaped, bounds.start)) {
-        if (seg.t0 <= bounds.start || seg.c0 !== looping.start) continue;
-        writeRect(out.over, { x: { b0: seg.t0, b1: seg.t0, p1: 1 }, y: BODY_Y, fill: input.palette.seam, flags: RectFlag.Snap, clip: clipBox, fx, alpha });
+        if (seg.t0 <= bounds.start + 1e-9 || seg.c0 !== looping.start) continue;
+        const x = { b0: seg.t0, b1: seg.t0, p1: 1 };
+        if (this.compact) {
+          writeRect(out.over, { x, y: BOX_Y, fill: bodyLine, flags: RectFlag.Snap, clip: clipBox, fx, alpha });
+        } else {
+          writeRect(out.over, { x, y: TITLE_Y, fill: input.palette.seam, flags: RectFlag.Snap, clip: clipBox, fx, alpha });
+          writeRect(out.over, { x, y: BODY_Y, fill: bodyLine, flags: RectFlag.Snap, clip: clipBox, fx, alpha });
+        }
       }
+    }
+    // The separator on the edge shared with the clip before (bordered clips draw their border
+    // there instead): the arranger's background, one pixel, like a gap between them.
+    const bordered = selected || this.compact;
+    if (joined && !bordered) {
+      writeRect(out.over, { x: { b0: bounds.start, b1: bounds.start, p0: -1 }, y: BOX_Y, fill: input.palette.bg, flags: RectFlag.Snap, fx, alpha });
     }
     // Selection rim (above the content).
     if (selected) {
