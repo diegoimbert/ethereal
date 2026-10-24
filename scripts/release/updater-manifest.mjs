@@ -61,6 +61,27 @@ export function notesForApp(body) {
 }
 
 /**
+ * The `version` a tauri updater signature was made for (its minisign trusted comment, tab
+ * separated `key:value` pairs written by the Tauri CLI), or `null`. `signature`: the `.sig`
+ * file's text (base64 of the minisign signature file).
+ */
+export function signedVersion(signature) {
+  let text;
+  try {
+    text = Buffer.from(signature.trim(), "base64").toString("utf8");
+  } catch {
+    return null;
+  }
+  const trusted = text.split("\n").find((l) => l.startsWith("trusted comment: "));
+  if (!trusted) return null;
+  for (const pair of trusted.slice("trusted comment: ".length).split("\t")) {
+    const [k, ...v] = pair.split(":");
+    if (k === "version") return v.join(":").trim().replace(/^v/, "") || null;
+  }
+  return null;
+}
+
+/**
  * Build the manifest from a list of asset file names (`files`) and their signatures
  * (`readSig(name)` → the `.sig` file's text, or `null` if it is missing).
  * Returns `{ manifest | null, warnings: string[] }`.
@@ -83,6 +104,13 @@ export function buildManifest({ files, readSig, version, tag, repo, notes = "", 
     const signature = sig?.trim();
     if (!signature) {
       warnings.push(`${p.key} (${p.label}): ${file} has no signature (${file}.sig); left out`);
+      continue;
+    }
+    // The app only installs an update signed for the version announced here (updater
+    // `requireSignedVersion`: a manifest can't pair a new version with an older signed build).
+    const signed = signedVersion(signature);
+    if (signed !== version) {
+      warnings.push(`${p.key} (${p.label}): ${file}.sig is signed for version '${signed ?? "none"}', not ${version}; left out`);
       continue;
     }
     platforms[p.key] = {
