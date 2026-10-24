@@ -21,7 +21,7 @@ import { LIBRARY_DEVICE_DRAG_TYPE, setDraggingLibraryDevice } from "./chainUtils
 import { useContributions } from "@/ext";
 import "./deviceLibrary.css";
 import clsx from "clsx";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { AudioWaveform, FolderCog, Music2, Piano, Plug, Star } from "lucide-react";
 import type { DeviceCategory, DeviceDescriptor, PluginDescriptor, PluginFormat } from "@/generated";
 import { openSettings } from "@/features/audio-settings/store";
@@ -32,7 +32,7 @@ import { useOptionalTransport, usePluginEvents, usePluginStore } from "@/feature
 import { Badge, Button, IconButton, SearchField, Select, openContextMenu, type SelectOption } from "@/kit";
 import { notify } from "@/features/notifications";
 import { usePluginVisibility, visiblePlugins, type PluginHideRule, type PluginVisibility } from "@/features/plugins/visibility";
-import { cmd } from "@/transport";
+import { cmd, TransportContext } from "@/transport";
 import { localizeDescriptor, useT, type MessageKey } from "@/i18n";
 import type { LibraryDevicePayload } from "./libraryDevice";
 import { libraryKey, useLibraryStats, type LibrarySort } from "./libraryStats";
@@ -157,6 +157,8 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
   const [active, setActive] = useState<string | null>(null);
   const list = useRef<HTMLUListElement>(null);
 
+  // Asked again once connected: a transport may refuse what is sent while it connects.
+  const connected = useContext(TransportContext)?.connection.status === "connected";
   useEffect(() => {
     if (!transport) return;
     let alive = true;
@@ -167,7 +169,7 @@ export function DeviceLibrary({ category, categories, accept, pluginsOnly = fals
     return () => {
       alive = false;
     };
-  }, [transport]);
+  }, [transport, connected]);
 
   const listPlugins = useCallback(() => {
     if (!transport || (!desktop && !web)) return;

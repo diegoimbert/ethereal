@@ -3,7 +3,7 @@ import type { Track, TrackId } from "@/generated";
 import { duration, ease, motion } from "@/theme";
 import { MOTION } from "@/timeline/motion";
 import { layoutRows, rowIndexAt, TRACK_HEIGHT } from "@/features/arrangement/layout";
-import { animatedRows } from "@/features/arrangement/laneAnimation";
+import { animatedRows, collapseLeaving } from "@/features/arrangement/laneAnimation";
 import {
   changedHeights,
   cubicBezier,
@@ -157,6 +157,65 @@ describe("HeightAnimator", () => {
     expect(shown[3]!.folding).toBeUndefined();
     // Not folding: the rows as laid out.
     expect(animatedRows(laid, () => 0)[3]).toBe(laid[3]);
+  });
+});
+
+describe("hiding a lane of an open track", () => {
+  const tracks = [
+    { id: "A", kind: "Audio", name: "A", color: 0, order: "a", parent: null, mixer: { volume: 0, pan: 0, mute: false, solo: false } },
+    { id: "B", kind: "Audio", name: "B", color: 0, order: "b", parent: null, mixer: { volume: 0, pan: 0, mute: false, solo: false } },
+  ] as unknown as Track[];
+
+  // Lanes [a, b, c] (heights below), one hidden: the first, a middle, the last, the only one;
+  // default and compact (minimum-height) lanes.
+  const cases: Array<{ name: string; lanes: number[]; hide: number }> = [
+    { name: "the first", lanes: [64, 64, 64], hide: 0 },
+    { name: "a middle", lanes: [64, 96, 64], hide: 1 },
+    { name: "the last", lanes: [64, 64, 64], hide: 2 },
+    { name: "the only", lanes: [64], hide: 0 },
+    { name: "a compact middle", lanes: [32, 32, 32], hide: 1 },
+  ];
+
+  for (const c of cases) {
+    it(`${c.name} lane: what follows moves by exactly the layout change, every frame`, () => {
+      const from = AUTOMATION_BAR_HEIGHT + c.lanes.reduce((x, y) => x + y, 0);
+      const removed = c.lanes[c.hide]!;
+      const to = from - removed;
+      const a = make();
+      a.retarget("A", from, to, 0);
+      // Laid out once at the larger height (`useAutomationSlotHeight`).
+      const laid = layoutRows(tracks, new Set(), (id) => (id === "A" ? Math.max(from, to) : 0));
+      const after = layoutRows(tracks, new Set(), (id) => (id === "A" ? to : 0));
+      const delta = after[1]!.y - laid[1]!.y;
+      expect(delta).toBe(-removed);
+      let last = 0;
+      for (let t = 0; t <= D; t += D / 12) {
+        a.tick(t);
+        const slot = a.height("A", to);
+        const shown = animatedRows(laid, (r) => (r.track.id === "A" ? slot : 0));
+        const moved = shown[1]!.y - laid[1]!.y;
+        // The rows below: between where they were and where they end (no overshoot), only up.
+        expect(moved).toBeLessThanOrEqual(0);
+        expect(moved).toBeGreaterThanOrEqual(delta);
+        expect(moved).toBeLessThanOrEqual(last);
+        last = moved;
+        // The lanes under the hidden one move up by its collapse: exactly as much.
+        const [h] = collapseLeaving(slot, to, [removed]);
+        expect(h! - removed).toBeCloseTo(moved, 9);
+        // The slot's content (bar, lanes kept, the hidden one collapsing) fills it exactly.
+        expect(to + h!).toBeCloseTo(slot, 9);
+      }
+      expect(last).toBe(delta);
+    });
+  }
+
+  it("several lanes leaving give up the difference in proportion", () => {
+    expect(collapseLeaving(84 + 48, 84, [64, 32])).toEqual([32, 16]);
+    expect(collapseLeaving(84, 84, [64, 32])).toEqual([0, 0]);
+    // Clamped: never taller than they are, never negative.
+    expect(collapseLeaving(500, 84, [64])).toEqual([64]);
+    expect(collapseLeaving(20, 84, [64])).toEqual([0]);
+    expect(collapseLeaving(100, 84, [])).toEqual([]);
   });
 });
 

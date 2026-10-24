@@ -6,7 +6,8 @@ import { AU_DELAY, DesktopFake, EQ, plugin, SYNTH, VERB, VST2_VERB, VST_VERB } f
 import { platformFormats } from "@/features/plugins/filter";
 import { usePluginVisibility } from "@/features/plugins/visibility";
 import { useProjectStore, useSelectionStore } from "@/state";
-import { TransportProvider, type EngineTransport } from "@/transport";
+import { CommandFailedError, TransportProvider, type EngineTransport, type SendOptions } from "@/transport";
+import type { Command, ReplyValue } from "@/generated";
 import { MockTransport } from "@/transport/mock";
 import { libraryKey, recordDeviceUse, resetLibraryStats, useLibraryStats } from "./libraryStats";
 import { deviceSpec } from "./libraryInsert";
@@ -304,6 +305,28 @@ describe("DeviceLibrary", () => {
 
 // A plugin installed in several formats is listed once, in the preferred format (by default),
 // or once per format; hidden plugins aren't listed.
+describe("DeviceLibrary: the factory list while connecting", () => {
+  it("asks again once connected when the engine refused the list while connecting", async () => {
+    // A transport that refuses commands until connected (the remote engine's does): the
+    // library mounts before the provider connects, and kept an empty factory list.
+    class RefusesWhileConnecting extends MockTransport {
+      up = false;
+      override async connect() {
+        const p = await super.connect();
+        this.up = true;
+        return p;
+      }
+      override send(command: Command, opts?: SendOptions): Promise<ReplyValue> {
+        if (!this.up) return Promise.reject(new CommandFailedError({ code: "InvalidState", message: "not connected" }, command));
+        return super.send(command, opts);
+      }
+    }
+    await renderWith(new RefusesWhileConnecting(), <DeviceLibrary category="AudioEffect" onPick={() => undefined} />);
+    const list = await rows("effects");
+    await waitFor(() => expect(names(list)).toContain("compressor"));
+  });
+});
+
 describe("DeviceLibrary: one format per plugin, hidden plugins", () => {
   it("lists each plugin once by default, CLAP first; the preferred format and hide rules apply", async () => {
     const t = new DesktopFake();

@@ -13,7 +13,7 @@ import { DEFAULT_LFO_CURVE } from "./layout/lfoCurve/lfoCurveMath";
 import { localizeDescriptor, useLocale } from "@/i18n";
 import { useProjectStore } from "@/state";
 import { usePluginStore } from "@/features/plugins/pluginStore";
-import { cmd, useTransport, type EngineTransport } from "@/transport";
+import { cmd, useConnectionStatus, useTransport, type EngineTransport } from "@/transport";
 
 const descriptorCache = new WeakMap<EngineTransport, Map<string, Promise<DeviceDescriptor>>>();
 const builtinListCache = new WeakMap<EngineTransport, Promise<DeviceDescriptor[]>>();
@@ -97,6 +97,8 @@ const NO_TYPES: DeviceDescriptor[] = [];
 /** Descriptors of every built-in device type (empty while loading), in the current language. */
 export function useBuiltinTypes(): DeviceDescriptor[] {
   const transport = useTransport();
+  // Asked again once connected: a transport may refuse what is sent while it connects.
+  const connected = useConnectionStatus().status === "connected";
   const [types, setTypes] = useState<{ transport: EngineTransport; list: DeviceDescriptor[] } | null>(null);
   useEffect(() => {
     let active = true;
@@ -107,7 +109,7 @@ export function useBuiltinTypes(): DeviceDescriptor[] {
     return () => {
       active = false;
     };
-  }, [transport]);
+  }, [transport, connected]);
   const locale = useLocale();
   const list = types?.transport === transport ? types.list : NO_TYPES;
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `locale` only invalidates
