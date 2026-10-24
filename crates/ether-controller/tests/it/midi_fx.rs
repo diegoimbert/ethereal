@@ -359,6 +359,7 @@ impl Drive {
                 name: None,
                 in_memory: None,
                 extra_formats: None,
+                folder: None,
             },
         }));
         for _ in 0..100_000 {

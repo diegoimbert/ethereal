@@ -241,17 +241,33 @@ where
                 let p = &doc.project;
                 let stems = validate(p, request)?;
                 let (start, end) = job::range_of(p, &request.range).map_err(invalid)?;
-                // Names already in `exports/` (an export never overwrites a file).
-                let existing: BTreeSet<String> = self
-                    .store
-                    .list_dir(p.id, ether_core::protocol::model::file::EXPORTS_DIR)
-                    .map(|l| {
-                        l.entries
+                // Names already in `exports/` or the chosen folder (an export never
+                // overwrites a file).
+                let folder = request
+                    .folder
+                    .as_deref()
+                    .filter(|_| request.in_memory != Some(true));
+                let existing: BTreeSet<String> = match folder {
+                    Some(folder) => {
+                        crate::file_import::check_absolute(folder)?;
+                        self.store
+                            .export_folder_names(folder)
+                            .map_err(crate::handlers::store_err)?
                             .into_iter()
-                            .map(|e| e.name.to_lowercase())
+                            .map(|n| n.to_lowercase())
                             .collect()
-                    })
-                    .unwrap_or_default();
+                    }
+                    None => self
+                        .store
+                        .list_dir(p.id, ether_core::protocol::model::file::EXPORTS_DIR)
+                        .map(|l| {
+                            l.entries
+                                .into_iter()
+                                .map(|e| e.name.to_lowercase())
+                                .collect()
+                        })
+                        .unwrap_or_default(),
+                };
                 let passes = job::plan_passes(p, request, &stems, &existing);
                 // A new render drops earlier downloads.
                 self.export.downloads.clear();

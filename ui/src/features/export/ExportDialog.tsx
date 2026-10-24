@@ -9,6 +9,8 @@ import { useSelectedItems } from "@/timeline";
 import { cmd, commandErrorText, isCommandFailed, newId, TransportContext, type EngineTransport } from "@/transport";
 import { fetchDownload, saveFile } from "./download";
 import { useExportAudio } from "./store";
+import { exportedFileTarget, folderPicker, loadExportFolder, saveExportFolder } from "./folder";
+import { canReveal, reveal, revealLabel } from "@/features/reveal";
 import { matchesAction } from "@/features/keymap";
 import { isTextEntry } from "@/features/transport-bar/engine";
 import { formatBytes, useT, type MessageKey } from "@/i18n";
@@ -84,6 +86,20 @@ function ExportPanel({ transport }: { transport: EngineTransport }) {
   const open = useExportAudio((s) => s.open);
   const setOpen = (o: boolean) => (o ? useExportAudio.getState().show() : useExportAudio.getState().hide());
   const [form, setForm] = useState<ExportForm>(DEFAULT_FORM);
+  // Desktop: the chosen output folder (remembered), else the project's `exports/`.
+  const desktop = canReveal(transport);
+  const picker = desktop ? folderPicker(transport) : null;
+  const [folder, setFolder] = useState<string | null>(loadExportFolder);
+  const chooseFolder = async () => {
+    const picked = await picker?.pickFolder(t("export_audio.folder.dialog"));
+    if (!picked) return;
+    setFolder(picked);
+    saveExportFolder(picked);
+  };
+  const resetFolder = () => {
+    setFolder(null);
+    saveExportFolder(null);
+  };
   const [status, setStatus] = useState<Status>({ state: "idle" });
   const [downloaded, setDownloaded] = useState<ReadonlySet<string>>(new Set());
   const jobRef = useRef<string | null>(null);
@@ -207,7 +223,7 @@ function ExportPanel({ transport }: { transport: EngineTransport }) {
         cmd("Export", {
           type: "Render",
           job,
-          request: buildRequest(form, selection),
+          request: { ...buildRequest(form, selection), ...(picker && folder ? { folder } : {}) },
         }),
       );
     } catch (e) {
@@ -399,13 +415,36 @@ function ExportPanel({ transport }: { transport: EngineTransport }) {
               ))}
             </ul>
           )}
+          {picker && (
+            <div className="eth-export__row">
+              <span>{t("export_audio.folder")}</span>
+              <div className="eth-export__folder">
+                <span className={folder ? "eth-export__folder-path eth-user-text" : "eth-export__folder-path"} title={folder ?? undefined}>
+                  {folder ?? t("export_audio.folder.project")}
+                </span>
+                <Button size="sm" tone="ghost" disabled={rendering} onClick={() => void chooseFolder()}>
+                  {t("export_audio.folder.choose")}
+                </Button>
+                {folder && (
+                  <Button size="sm" tone="ghost" disabled={rendering} onClick={resetFolder}>
+                    {t("export_audio.folder.reset")}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
         {estimate > LARGE_EXPORT_BYTES && !rendering && (
           <p className="eth-export__warning" role="note">
             {t("export_audio.large", { size: formatBytes(estimate, { digits: 0 }) })}
           </p>
         )}
-        <ExportStatus status={status} downloaded={downloaded} onDownload={(d) => void download(d)} />
+        <ExportStatus
+          status={status}
+          downloaded={downloaded}
+          onDownload={(d) => void download(d)}
+          onReveal={desktop ? (f) => void reveal(transport, exportedFileTarget(f)) : undefined}
+        />
       </Dialog>
     </div>
   );
@@ -415,9 +454,14 @@ interface ExportStatusProps {
   status: Status;
   downloaded: ReadonlySet<string>;
   onDownload(d: ExportDownload): void;
+  /** Desktop: show an exported file in the OS file manager. */
+  onReveal?(file: string): void;
 }
 
-function ExportStatus({ status, downloaded, onDownload }: ExportStatusProps) {
+/** The last segment of a path (either separator). */
+const baseName = (path: string) => path.split(/[\\/]/).pop() ?? path;
+
+function ExportStatus({ status, downloaded, onDownload, onReveal }: ExportStatusProps) {
   const t = useT();
   switch (status.state) {
     case "idle":
@@ -438,11 +482,17 @@ function ExportStatus({ status, downloaded, onDownload }: ExportStatusProps) {
     case "done":
       return status.result.type === "Files" ? (
         <div className="eth-export__status" role="status" data-testid="export-done">
-          <span>{t("export_audio.saved_in_folder")}</span>
+          <span>{status.result.files.some((f) => !f.startsWith("exports/")) ? t("export_audio.saved") : t("export_audio.saved_in_folder")}</span>
           <ul className="eth-export__files">
             {status.result.files.map((f) => (
-              <li key={f} className="eth-user-text">
-                {f}
+              <li key={f}>
+                {onReveal ? (
+                  <Button size="sm" tone="ghost" className="eth-user-text" title={`${revealLabel()}: ${f}`} onClick={() => onReveal(f)}>
+                    {baseName(f)}
+                  </Button>
+                ) : (
+                  <span className="eth-user-text">{f}</span>
+                )}
               </li>
             ))}
           </ul>

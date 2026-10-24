@@ -10,7 +10,7 @@
 //! [`MAX_CAPTURE_BYTES`] per render); a second render to find the peak would halve that,
 //! but isn't guaranteed to give the same samples (plugins).
 
-use std::collections::{BTreeSet, VecDeque};
+use std::collections::{BTreeSet, HashMap, VecDeque};
 
 use ether_core::RenderGraphDesc;
 use ether_core::protocol::export::{
@@ -264,6 +264,11 @@ pub struct Job {
     /// The store takes streamed files ([`ProjectStore::create_export`]) until it says
     /// `Unsupported`; then files are encoded in memory and written whole.
     streams: bool,
+    /// [`ExportRequest::folder`] (not with downloads): files go there
+    /// ([`ProjectStore::create_export_in`]), always streamed.
+    folder: Option<String>,
+    /// The absolute paths of the files opened in `folder`, by file name.
+    folder_paths: HashMap<String, String>,
     /// User-facing warnings not reported yet.
     pub warnings: Vec<crate::text::Msg>,
     pub stats: UnitStats,
@@ -476,6 +481,11 @@ impl Job {
             media: MediaLoader::new(project.id, used_media(project), engine_rate),
             downloads: request.in_memory == Some(true),
             streams: true,
+            folder: request
+                .folder
+                .clone()
+                .filter(|_| request.in_memory != Some(true)),
+            folder_paths: HashMap::new(),
             formats,
             request,
             engine_rate,
@@ -1008,6 +1018,13 @@ impl Job {
         name: &str,
         capacity: usize,
     ) -> Result<Sink, String> {
+        if let Some(folder) = self.folder.as_deref().filter(|_| !self.downloads) {
+            let (file, path) = store
+                .create_export_in(folder, name)
+                .map_err(|e| format!("could not write \"{name}\": {e}"))?;
+            self.folder_paths.insert(name.to_string(), path);
+            return Ok(Sink::File(file));
+        }
         if !self.downloads && self.streams {
             match store.create_export(self.project_id, name) {
                 Ok(file) => return Ok(Sink::File(file)),
@@ -1028,6 +1045,13 @@ impl Job {
         let key = (format, pass);
         let name = self.passes[pass].file_names[format].clone();
         let bytes = match sink {
+            Sink::File(file) if self.folder_paths.contains_key(&name) => {
+                file.commit()
+                    .map_err(|e| format!("could not write \"{name}\": {e}"))?;
+                let path = self.folder_paths.remove(&name).expect("checked");
+                self.delivered.push((key, Delivered::File(path)));
+                return Ok(());
+            }
             Sink::File(file) => {
                 let path = store
                     .commit_export(self.project_id, &name, file)

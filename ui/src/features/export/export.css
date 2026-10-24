@@ -16,6 +16,22 @@
   font-size: var(--eth-fs-sm);
 }
 .eth-export__tracks,
+.eth-export__folder {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+}
+
+.eth-export__folder-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--eth-color-text);
+}
+
 .eth-export__files {
   display: flex;
   flex-direction: column;

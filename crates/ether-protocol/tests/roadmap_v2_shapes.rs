@@ -45,6 +45,7 @@ fn export_shapes() {
             tail_seconds: 2.0,
             in_memory: None,
             extra_formats: None,
+            folder: None,
             name: None,
         },
     });
