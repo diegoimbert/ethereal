@@ -36,7 +36,9 @@ test("the header meter shows the track's level and nothing covers it", async ({ 
 
   const row = page.locator(`.eth-arr-row[data-track="${track}"] > .eth-arr-row__main`);
   const meter = row.locator(":scope > .eth-arr-header__meter");
-  const fill = meter.locator(".eth-arr-header__meter-fill");
+  // Left and right channels, each its own bar.
+  await expect(meter.locator(".eth-arr-header__meter-fill")).toHaveCount(2);
+  const fill = meter.locator('[data-channel="left"] > .eth-arr-header__meter-fill');
   if (process.env.METER_SHOTS) {
     await page.screenshot({ path: `${process.env.METER_SHOTS}-${test.info().project.name}.png`, clip: { x: 0, y: 40, width: 420, height: 260 } });
   }
