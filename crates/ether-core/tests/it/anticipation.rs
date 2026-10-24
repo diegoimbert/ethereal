@@ -313,6 +313,34 @@ fn live_params_reach_anticipated_tracks_one_block_later() {
 }
 
 #[test]
+fn irregular_blocks_hinted_by_the_longest_keep_the_timeline() {
+    // Device buffers that alternate around a size (shared-mode WASAPI, resampling hosts),
+    // hinted with the longest recent one as the native host does: the queue holds more
+    // than a short buffer, the rest stays queued. Sub-blocks split where the real-time
+    // engine doesn't: rounding-level differences only.
+    for seed in 0..6u64 {
+        let mut sizes = Vec::new();
+        let mut total = 0;
+        let mut k = 0;
+        while total < SR as usize / 2 {
+            let n = if k % 3 == 2 { 112 } else { 128 };
+            sizes.push(n);
+            total += n;
+            k += 1;
+        }
+        let hints = vec![128; sizes.len()];
+        let reference = render(seed, false, 0, &sizes, None, &|_| {}, &no_events);
+        let out = render(seed, true, 2, &sizes, Some(&hints), &|_| {}, &no_events);
+        let worst = reference
+            .iter()
+            .zip(&out)
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0f32, f32::max);
+        assert!(worst < 1e-3, "seed {seed}: worst difference {worst}");
+    }
+}
+
+#[test]
 fn wrong_hints_keep_the_timeline() {
     // The host announces lengths it doesn't keep: more or less than queued. Sub-blocks are
     // split where the real-time engine doesn't split them, so allow rounding-level

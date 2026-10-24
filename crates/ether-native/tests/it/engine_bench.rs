@@ -29,6 +29,8 @@
 //! - `ETHER_BENCH_SCALE`: multiply every device cost (default 1);
 //! - `ETHER_BENCH_BURN=simd`: devices burn with independent vectorized multiply-adds (FP
 //!   throughput, like real DSP) instead of one dependent chain (latency, which SMT hides);
+//! - `ETHER_BENCH_JITTER`: device buffers alternate `block - jitter` and `block + jitter`
+//!   frames (default 0; times are scaled to `block` frames);
 //! - `ETHER_BENCH_STATE_KB`: every device also streams through that much state per block
 //!   (default 0), so where its job runs matters to the caches;
 //! - `ETHER_BENCH_HOGS`: that many normal-priority threads keep the CPU busy during the runs
@@ -223,6 +225,9 @@ struct SimTrack {
     sidechain: Option<u128>,
     /// Post-fader sends to these returns.
     sends: Vec<u128>,
+    /// Monitored (live input): real-time with everything downstream, under anticipative
+    /// processing.
+    monitor: bool,
 }
 
 impl SimTrack {
@@ -235,6 +240,7 @@ impl SimTrack {
             rack: vec![],
             sidechain: None,
             sends: vec![],
+            monitor: false,
         }
     }
 
@@ -359,6 +365,18 @@ const SCENARIOS: &[Scenario] = &[
     ("owner-nosc", "the same without the sidechain", || {
         owner(false)
     }),
+    (
+        "owner-live",
+        "owner with a monitored vocal into the vocal group: the vocal, its group, the mix bus \
+         and master stay real-time under anticipative processing",
+        || {
+            let mut t = owner(true);
+            let mut live = SimTrack::new(499, TrackKind::Audio, Some(6), &[200.0; 4]);
+            live.monitor = true;
+            t.push(live);
+            t
+        },
+    ),
     ("flat64", "64 independent tracks of 400 ns/frame", || {
         flat(64, 400.0)
     }),
@@ -611,6 +629,7 @@ fn build(
         .map(|s| {
             let output = s.output.map(tid);
             let mut t = track_desc(tid(s.id), s.kind, output);
+            t.monitor = s.monitor;
             // Groups nest: a track's group is its destination bus when that is a group.
             t.group = output.filter(|o| {
                 tracks
@@ -713,7 +732,19 @@ fn render(
     ns_per_iter: f64,
     anticipative: bool,
 ) -> Run {
-    let mut parts = create(config(opts.block, anticipative));
+    // Irregular device buffers (`ETHER_BENCH_JITTER`): alternately `jitter` frames shorter
+    // and longer than `block`.
+    let jitter = (env_num("ETHER_BENCH_JITTER", 0.0) as usize).min(opts.block - 1);
+    let size = |b: usize| {
+        if jitter == 0 {
+            opts.block
+        } else if b.is_multiple_of(2) {
+            opts.block - jitter
+        } else {
+            opts.block + jitter
+        }
+    };
+    let mut parts = create(config(opts.block + jitter, anticipative));
     let desc = build(&mut parts.handle, tracks, ns_per_iter, opts.scale);
     parts.handle.publish(desc).expect("graph compiles");
     parts.handle.transport(TransportControl::Play).unwrap();
@@ -725,7 +756,7 @@ fn render(
     let period = Duration::from_secs_f64(block as f64 / SR as f64);
     let blocks = ((opts.seconds * SR as f64) as usize / block).max(1);
     let warmup = (0.25 * SR as f64) as usize / block;
-    let (mut l, mut r) = (vec![0.0f32; block], vec![0.0f32; block]);
+    let (mut l, mut r) = (vec![0.0f32; block + jitter], vec![0.0f32; block + jitter]);
     let mut out = Vec::with_capacity(blocks * block * 2);
     let mut times = Vec::with_capacity(blocks);
     let mut late_starts = 0;
@@ -752,17 +783,21 @@ fn render(
                 std::hint::spin_loop();
             }
         }
+        let n = size(b);
+        // Hinted like the native host (`RtRenderer`): the longest recent buffer.
+        let hint = if jitter == 0 { n } else { opts.block + jitter };
         let t = Instant::now();
         {
-            let mut outs: [&mut [f32]; 2] = [&mut l, &mut r];
-            engine.process(&[], &mut outs, block);
+            let mut outs: [&mut [f32]; 2] = [&mut l[..n], &mut r[..n]];
+            engine.process_with_hint(&[], &mut outs, n, hint);
         }
         let dt = t.elapsed();
         if b >= warmup {
-            times.push(dt.as_secs_f64() * 1e6);
-            out.extend_from_slice(&l);
-            out.extend_from_slice(&r);
-            next += period;
+            // Per `block` frames, so irregular buffers compare with regular ones.
+            times.push(dt.as_secs_f64() * 1e6 * block as f64 / n as f64);
+            out.extend_from_slice(&l[..n]);
+            out.extend_from_slice(&r[..n]);
+            next += period.mul_f64(n as f64 / block as f64);
         }
         // The controller's side, at UI rate like a host (meters, measured job times and
         // their re-ranking, garbage): outside the timed render.
