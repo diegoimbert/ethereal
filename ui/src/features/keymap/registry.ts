@@ -359,6 +359,16 @@ export const BUILTIN_ACTIONS: ReadonlyArray<KeymapAction> = [
     handled: true,
     keywords: "named version backup checkpoint",
   },
+  {
+    id: "project.exportAudio",
+    labelKey: "shell.action.project_export_audio",
+    group: "App",
+    scopes: G,
+    chords: ["Mod+Shift+E"],
+    palette: "project:export-audio",
+    handled: true,
+    keywords: "render bounce mixdown wav flac stems",
+  },
   { id: "file.import", labelKey: "shell.action.file_import", group: "App", scopes: G, chords: ["Mod+I"], palette: "import:audio", handled: true },
   {
     id: "view.editor",

@@ -5,7 +5,7 @@ import type { LaneItem } from "../laneItems";
 import { boxX, cursorFor, EDGE_HANDLE_MIN_PX, EDGE_HANDLE_PX, handleWidth, hitLane, MIN_RESIZE_PX } from "./hitTest";
 import { clipColors, compactNameColor, mix, parseColor, rgbOf, type Palette } from "./palette";
 import { InstanceWriter, RECT_STRIDE, RectFlag, writeRect } from "./pipelines";
-import { cullRange, type CullIndex } from "./scene";
+import { cullRange, touchesEnd, touchingEnds, type CullIndex } from "./scene";
 
 const clip = (id: string, start: number, length: number): Clip =>
   ({
@@ -180,6 +180,19 @@ describe("cullRange", () => {
     expect(cullRange(j, 11, 25)).toEqual([2, 4]);
     expect(cullRange(j, 50, 60)).toEqual([5, 5]);
     expect(cullRange(j, -5, -1)).toEqual([0, 0]);
+  });
+});
+
+describe("joined clips", () => {
+  it("a clip starting where another ends shares its edge; ghosts and gaps don't", () => {
+    const items = [item(clip("a", 0, 4)), item(clip("b", 4, 2)), item(clip("g", 8, 2), { ghost: true }), item(clip("c", 12, 1))];
+    const ends = touchingEnds(items);
+    expect(touchesEnd(ends, 4)).toBe(true);
+    expect(touchesEnd(ends, 6)).toBe(true);
+    expect(touchesEnd(ends, 4 + 1e-9)).toBe(true);
+    expect(touchesEnd(ends, 10)).toBe(false);
+    expect(touchesEnd(ends, 0)).toBe(false);
+    expect(touchesEnd(ends, 6.01)).toBe(false);
   });
 });
 

@@ -53,6 +53,17 @@ describe("ExportDialog", () => {
     useExportAudio.getState().hide();
   });
 
+  it("opens on ctrl/cmd+shift+e (not from a text field)", async () => {
+    await setup();
+    act(() => useExportAudio.getState().hide());
+    const input = document.body.appendChild(document.createElement("input"));
+    fireEvent.keyDown(input, { key: "E", ctrlKey: true, shiftKey: true });
+    expect(useExportAudio.getState().open).toBe(false);
+    input.remove();
+    fireEvent.keyDown(document.body, { key: "E", ctrlKey: true, shiftKey: true });
+    expect(useExportAudio.getState().open).toBe(true);
+  });
+
   it("renders a mix, shows progress and downloads the result", async () => {
     const { mock, dialog } = await setup();
     pickOption(within(dialog).getByRole("combobox", { name: "format" }), { value: "Flac" });

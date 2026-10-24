@@ -138,6 +138,7 @@ describe("registry and presets", () => {
       "project.save": ["Mod+S"],
       "project.snapshot": ["Mod+Alt+S"],
       "search.open": ["Mod+F"],
+      "project.exportAudio": ["Mod+Shift+E"],
       "file.import": ["Mod+I"],
       "view.editor": ["Mod+Alt+L"],
       "ai:ask": ["Mod+Shift+A"],
