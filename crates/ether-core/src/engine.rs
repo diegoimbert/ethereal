@@ -2216,12 +2216,13 @@ impl JobCtx<'_> {
                     expression.reset();
                 }
                 expression.render_lanes(&tdesc.expression, clips, timing, sink.events);
-                for clip in clips {
+                for (clip, joins) in clips.iter().zip(&track.clip_joins[first..end]) {
                     if matches!(clip.content, ClipContentDesc::Midi { .. }) {
+                        let joins = joins.as_deref();
                         if flags.chase_notes {
-                            sched::chase_notes(clip, timing, &mut sink);
+                            sched::chase_notes(clip, joins, timing, &mut sink);
                         }
-                        sched::schedule_notes(clip, timing, &mut sink);
+                        sched::schedule_notes(clip, joins, timing, &mut sink);
                     }
                 }
                 expression.render_notes(&tdesc.expression, clips, timing, sink.notes, sink.events);
