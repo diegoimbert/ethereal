@@ -775,5 +775,13 @@ fn reveal_falls_back_to_the_project_copy_of_a_missing_reference() {
         },
     );
     assert_eq!(err(&out).code, ErrorCode::Unsupported);
+    // A project file (an export) the same; escaping the project folder is refused.
+    let file = |path: &str| RevealTarget::ProjectFile { path: path.into() };
+    let out = reveal(&mut h, file("exports/Song.wav"));
+    assert_eq!(err(&out).code, ErrorCode::Unsupported);
+    for bad in ["../Song.wav", ""] {
+        let out = reveal(&mut h, file(bad));
+        assert_eq!(err(&out).code, ErrorCode::InvalidArgument, "{bad:?}");
+    }
     assert!(h.ctl.host.reveals.as_ref().unwrap().is_empty());
 }
