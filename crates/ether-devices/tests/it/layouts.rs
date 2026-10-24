@@ -80,6 +80,7 @@ fn bound(w: &Widget) -> Vec<ParamId> {
             depth,
         } => vec![*sync, *sync_rate, *rate, *phase, *depth],
         W::Loudness { target } => vec![*target],
+        W::Maximizer { threshold, ceiling } => vec![*threshold, *ceiling],
         W::Crossover { frequencies } => frequencies.clone(),
         W::SampleWaveform { start, end } => [*start, *end].into_iter().flatten().collect(),
         W::EqCurve {
