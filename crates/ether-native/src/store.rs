@@ -395,10 +395,20 @@ impl DiskStore {
     }
 
     /// The folder of root `root` if it is an imported folder.
+    /// Only a real folder directly inside [`Self::imports_dir`] (a plain name, not `..`, not a
+    /// symlink): it is written to and deleted with the root.
     fn imported_dir(&self, root: &str) -> Option<PathBuf> {
         let imports = self.imports_dir()?;
         let r = self.library_roots.iter().find(|r| r.id == root)?;
-        (r.path.parent() == Some(imports.as_path())).then(|| r.path.clone())
+        let mut parts = r.path.components();
+        let named = matches!(parts.next_back(), Some(Component::Normal(_)));
+        let inside = named && parts.as_path() == imports.as_path();
+        let plain = !r
+            .path
+            .components()
+            .any(|c| matches!(c, Component::ParentDir | Component::CurDir));
+        let link = fs::symlink_metadata(&r.path).is_ok_and(|m| m.file_type().is_symlink());
+        (inside && plain && !link).then(|| r.path.clone())
     }
 
     /// A writable root's folder: the user library or an imported folder.
@@ -1022,7 +1032,10 @@ impl Library for DiskStore {
     /// index remembers user folders and re-adds them on start.
     fn add_folder(&mut self, path: &str) -> Result<String, StoreError> {
         let p = Path::new(path);
-        if path.contains('\0') || !p.is_absolute() {
+        let dotted = p
+            .components()
+            .any(|c| matches!(c, Component::ParentDir | Component::CurDir));
+        if path.contains('\0') || !p.is_absolute() || dotted {
             return Err(StoreError::InvalidPath(path.to_string()));
         }
         let meta = fs::metadata(p).map_err(|e| match e.kind() {
@@ -2161,5 +2174,35 @@ mod tests {
         s.remove_folder(&id).unwrap();
         assert_eq!(s.roots().len(), 1);
         assert!(matches!(s.remove_folder(&id), Err(StoreError::NotFound(_))));
+    }
+
+    /// Only a folder directly inside the imports folder is deleted with its root: a `..` path
+    /// or a symlink there is refused or forgotten without touching the disk.
+    #[test]
+    fn removing_a_folder_deletes_only_a_real_imported_folder() {
+        let tmp = TempDir::new("store-imported-dir");
+        let mut s = store(&tmp);
+        let imported = s.create_import_folder("x").unwrap();
+        let id = s.add_folder(&imported).unwrap();
+        let up = Path::new(&imported).join("..");
+        assert!(matches!(
+            s.add_folder(up.to_str().unwrap()),
+            Err(StoreError::InvalidPath(_))
+        ));
+        #[cfg(unix)]
+        {
+            let keep = tmp.path().join("keep");
+            fs::create_dir_all(&keep).unwrap();
+            fs::write(keep.join("a.wav"), b"RIFF").unwrap();
+            let link = s.imports_dir().unwrap().join("link");
+            std::os::unix::fs::symlink(&keep, &link).unwrap();
+            let lid = s.add_folder(link.to_str().unwrap()).unwrap();
+            s.remove_folder(&lid).unwrap();
+            assert!(keep.join("a.wav").exists(), "a symlinked folder's target is kept");
+        }
+        assert!(Path::new(&imported).is_dir());
+        s.remove_folder(&id).unwrap();
+        assert!(!Path::new(&imported).exists(), "an imported folder's copy is deleted");
+        assert!(tmp.path().join("projects").parent().unwrap().is_dir());
     }
 }
