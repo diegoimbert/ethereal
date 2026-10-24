@@ -1087,7 +1087,7 @@ Small/Medium/Large, `colspan`, `label`). Widget catalog (append-only: a new widg
 widgets `Knob`, `Slider`, `Toggle`, `Choice`, `Number`; typed widgets `Envelope`,
 `FilterCurve`, `TransferCurve`, `Oscillator`, `Lfo`, `StepEditor`, `XyPad`, `Crossover`;
 data widgets `SampleWaveform`, `ZoneMap`, `Spectrum`, `Tuner`, `Meter`, `RackChains`,
-`Macros`, and `EqCurve` (§12.15, the EQ only for now). Appended by `DynamicsCurve` (compressor / gate / limiter transfer curve with a live detector-level dot from `Levels`), `DelayTaps` (delay echoes), `ReverbDecay` (reverb decay envelope) and `VelocityCurve` (MIDI velocity mapping). Appended by `fm-synth`: `FmAlgorithm` (an FM synth's algorithm picker: one routing diagram per choice of its `algorithm` param, from `FmRouting` modulator / carrier bit masks). Appended by `fx-modulation`: `LfoCurve` (the Volume LFO's curve editor: the kind's `LfoCurve` on a grid of the cycle's sixteenths, edited with `Device::SetLfoCurve`, with a playhead; binds sync, sync rate, rate, phase and depth). Appended by `fx-analysis`: `Loudness` (a loudness meter's readouts and momentary / short-term history from its `Levels` frame, with the `target` param's reference line). **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
+`Macros`, and `EqCurve` (§12.15, the EQ only for now). Appended by `DynamicsCurve` (compressor / gate / limiter transfer curve with a live detector-level dot from `Levels`), `DelayTaps` (delay echoes), `ReverbDecay` (reverb decay envelope) and `VelocityCurve` (MIDI velocity mapping). Appended by `fm-synth`: `FmAlgorithm` (an FM synth's algorithm picker: one routing diagram per choice of its `algorithm` param, from `FmRouting` modulator / carrier bit masks). Appended by `fx-modulation`: `LfoCurve` (the Volume LFO's curve editor: the kind's `LfoCurve` on a grid of the cycle's sixteenths, edited with `Device::SetLfoCurve`, with a playhead; binds sync, sync rate, rate, phase and depth). Appended by `fx-analysis`: `Loudness` (a loudness meter's readouts and momentary / short-term history from its `Levels` frame, with the `target` param's reference line). Appended by `maximizer`: `Maximizer` (input, output and gain-reduction history and readouts from its `Levels` frame, with the `ceiling` line; binds threshold and ceiling). **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
 tokens only) renders every built-in; devices without a layout (plugins, v0.1 devices until
 they add one) get the generic layout grouped by `ParamInfo::group`. Devices write
 specs and widget data only, never bespoke panels. `ModulatorDescriptor::layout` uses the same
@@ -1537,6 +1537,11 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   range, 4x-oversampled true peak) that passes audio through; `Reset On Play` resets the
   measurement when the transport starts; `AnalysisKind::Levels` frames carry the readouts and
   up to 300 history points per series (`ether_devices::fx_analysis::loudness_device::Frame`).
+  Then `Maximizer` (`ether_devices::maximizer`, no kind data): a threshold-driven lookahead
+  true-peak brickwall limiter (fixed latency: 5 ms plus the 8-sample true-peak detector;
+  `Attack` moves the gain ramp inside it), auto release, stereo link, a soft clipper before
+  it and `Match Level` (output divided by the threshold boost); `Levels` frames carry the
+  meters and 200 history points of 20 ms per series (`ether_devices::maximizer::Frame`).
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.

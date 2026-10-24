@@ -1,0 +1,53 @@
+/* The maximizer's panel (tokens only; the plot, grid, line and fill are the shared `eth-plot` ones). */
+
+.eth-maximizer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+}
+.eth-maximizer__readouts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--eth-space-md);
+}
+.eth-maximizer__readout {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: var(--eth-space-xs);
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+.eth-maximizer__value {
+  font-size: var(--eth-fs-md);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-maximizer__unit,
+.eth-maximizer__name {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-maximizer__name {
+  grid-column: 1 / -1;
+}
+.eth-maximizer__readout--warn .eth-maximizer__value {
+  color: var(--eth-color-warn);
+}
+.eth-maximizer__readout--danger .eth-maximizer__value {
+  color: var(--eth-color-danger);
+}
+.eth-maximizer__history.eth-plot {
+  height: calc(var(--eth-size-row-height-lg) * 4);
+}
+.eth-maximizer__ceiling {
+  stroke: var(--eth-color-danger);
+  stroke-width: var(--eth-border-width);
+  stroke-dasharray: var(--eth-space-xs) var(--eth-space-xs);
+}
+.eth-maximizer__reduction {
+  fill: var(--eth-color-warn);
+  fill-opacity: 0.45;
+  stroke: var(--eth-color-warn);
+  stroke-width: var(--eth-border-width);
+}

@@ -1,0 +1,33 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "wide and free",
+    "device": {
+      "type": "Builtin",
+      "device": "Maximizer"
+    },
+    "meta": {
+      "tags": [
+        "mastering",
+        "stereo"
+      ],
+      "author": "ethereal",
+      "description": "a loose stereo link so a peak on one side doesn't duck the other: keeps wide mixes wide."
+    },
+    "params": {
+      "0": -5.0,
+      "1": -1.0,
+      "2": 60.0,
+      "3": 1.0,
+      "4": 2.0,
+      "5": 40.0,
+      "6": 0.0,
+      "7": 0.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

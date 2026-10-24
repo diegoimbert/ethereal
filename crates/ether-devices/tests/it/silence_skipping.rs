@@ -198,6 +198,7 @@ fn tails_ring_out_and_the_next_note_matches() {
         (BuiltinDeviceType::AutoFilter, 0.0),
         (BuiltinDeviceType::Eq, 0.0),
         (BuiltinDeviceType::Limiter, 0.0),
+        (BuiltinDeviceType::Maximizer, 0.0),
         (BuiltinDeviceType::Gate, 0.0),
         (BuiltinDeviceType::MultibandCompressor, 0.0),
         (BuiltinDeviceType::Saturator, 0.0),
