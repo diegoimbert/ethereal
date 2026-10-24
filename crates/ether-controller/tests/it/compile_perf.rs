@@ -398,3 +398,94 @@ fn cached_note_compile_matches_a_fresh_one() {
     h.ok(Command::Edit(EditCommand::Redo));
     check(&mut h, "redo");
 }
+
+/// Command → patch: the controller's handling of a command (the edit and the patch it
+/// emits) and the JSON of everything it sends back (what the desktop host puts on the wire
+/// to the UI), then the publish tick that follows. Printed, like the timings above.
+#[test]
+fn command_to_patch_timings() {
+    use ether_core::protocol::clips::ClipMove;
+    for per_clip in sizes() {
+        let mut h = Harness::with_project();
+        let mut ids = IdGen::new(17);
+        let p = synthetic(&mut ids, per_clip);
+        let total = p.notes.len();
+        open(&mut h, &p);
+        h.advance(1000);
+        h.tick();
+        let note = *h.project().notes.keys().nth(total / 2).unwrap();
+        let clip = h.project().notes[&note].clip;
+        let track = h.project().clips[&clip].track;
+        let start = h.project().clips[&clip].start;
+        let mut rows = Vec::new();
+        let mut run = |h: &mut Harness, what: &str, c: Command| {
+            let t = Instant::now();
+            let out = h.send(c);
+            let handle = t.elapsed();
+            let t = Instant::now();
+            let json: usize = out
+                .iter()
+                .map(|m| serde_json::to_vec(m).expect("serializes").len())
+                .sum();
+            let encode = t.elapsed();
+            h.advance(16);
+            let t = Instant::now();
+            h.tick();
+            let tick = t.elapsed();
+            rows.push(format!(
+                "{what}: handle {}, JSON {} ({json} B), next tick {}",
+                ms(handle),
+                ms(encode),
+                ms(tick)
+            ));
+        };
+        run(
+            &mut h,
+            "first note edit after open",
+            Command::Note(NoteCommand::Edit {
+                edits: vec![NoteEdit {
+                    id: note,
+                    pitch: None,
+                    velocity: None,
+                    start: Some(Beats(0.5)),
+                    duration: None,
+                    muted: None,
+                }],
+            }),
+        );
+        for k in 0..3 {
+            run(
+                &mut h,
+                "note drag step",
+                Command::Note(NoteCommand::Edit {
+                    edits: vec![NoteEdit {
+                        id: note,
+                        pitch: None,
+                        velocity: None,
+                        start: Some(Beats(0.75 + k as f64 * 0.25)),
+                        duration: None,
+                        muted: None,
+                    }],
+                }),
+            );
+        }
+        run(
+            &mut h,
+            "clip move",
+            Command::Clip(ClipCommand::Move {
+                moves: vec![ClipMove {
+                    id: clip,
+                    track,
+                    start: Beats(start.0 + 1.0),
+                }],
+            }),
+        );
+        run(
+            &mut h,
+            "track delete",
+            Command::Track(TrackCommand::Delete { id: track }),
+        );
+        run(&mut h, "undo", Command::Edit(EditCommand::Undo));
+        println!("{total} notes: {}", rows.join("; "));
+    }
+}
