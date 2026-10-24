@@ -512,6 +512,9 @@ export interface MessageArgs {
   "plugins.visibility.hide_format": { format: string | number };
   "plugins.visibility.rule_format": { name: string | number };
   "plugins.visibility.show_again": { name: string | number };
+  "plugins.window.close_failed": { error: string | number; name: string | number };
+  "plugins.window.crashed": { name: string | number };
+  "plugins.window.open_failed": { error: string | number; name: string | number };
   "presets.dialog.delete_title": { name: string | number };
   "presets.dialog.exists": { name: string | number };
   "presets.dialog.exists_replace": { name: string | number };
@@ -748,6 +751,7 @@ export interface MessageArgs {
   "undo.clips.rename": { count: number };
   "undo.clips.resize": { count: number };
   "undo.clips.split": { count: number };
+  "undo.clips.stretch": { count: number };
   "undo.clips.unloop": { count: number };
   "undo.device.add": { device: string | number };
   "undo.device.bypass": { device: string | number };

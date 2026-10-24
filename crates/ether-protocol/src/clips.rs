@@ -124,6 +124,16 @@ pub enum ClipCommand {
         length: Beats,
         curve: Option<FadeCurve>,
     },
+    /// Move the clip's bounds to `start .. start + length` and time-scale its content by
+    /// `length / old length` so it fills them (it plays faster or slower): notes, expression
+    /// lanes, the loop region, fades, clip envelopes and warp markers (an unwarped audio clip
+    /// gets warped with its mode). Overlaps resolve like `SetBounds`. One undo step
+    /// (`ether_controller::doc::stretch`).
+    Stretch {
+        id: ClipId,
+        start: Beats,
+        length: Beats,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

@@ -91,11 +91,9 @@ interface Pending {
 const noop = () => {};
 
 function notConnected(command: Command, cause: unknown): CommandFailedError {
-  // Users read the key's text.
-  return new CommandFailedError(
-    { code: "InvalidState", message: `not connected: ${String(cause)}`, key: { id: "error.transport.engine_not_connected", args: {} } },
-    command,
-  ); // i18n-ignore: an internal error (logs, agents)
+  // An internal message (logs, agents); users read the key's text.
+  const message = `not connected: ${String(cause)}`; // i18n-ignore
+  return new CommandFailedError({ code: "InvalidState", message, key: { id: "error.transport.engine_not_connected", args: {} } }, command);
 }
 
 export class TauriTransport implements EngineTransport {
