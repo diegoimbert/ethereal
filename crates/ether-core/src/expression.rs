@@ -132,7 +132,8 @@ pub struct NoteExpressionDesc {
 /// start point's [`CurveShape`]. `None` without points.
 pub fn evaluate(points: &[(f64, f32, CurveShape)], t: f64) -> Option<f32> {
     let first = points.first()?;
-    if t <= first.0 {
+    // NaN takes the first value, never an index (as `crate::automation::evaluate`).
+    if t.is_nan() || t <= first.0 {
         return Some(first.1);
     }
     let i = points.partition_point(|p| p.0 <= t);

@@ -21,7 +21,8 @@ pub fn curve_fraction(x: f64, tension: f32) -> f64 {
 /// Normalized value of a lane at `time` (beats). Returns `None` when there are no points.
 pub fn evaluate(points: &[(f64, f64, CurveShape)], time: f64) -> Option<f64> {
     let first = points.first()?;
-    if time <= first.0 {
+    // NaN (degenerate positions) takes the first value, never an index.
+    if time.is_nan() || time <= first.0 {
         return Some(first.1);
     }
     // Index of the first point strictly after `time`.

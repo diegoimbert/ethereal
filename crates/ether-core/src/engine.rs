@@ -1594,13 +1594,17 @@ impl SubPlan {
     }
 }
 
-/// The loop region in effect (`SetLoop` override, else the graph's), `on` only when it is
-/// longer than a hair.
+/// Shortest project loop the engine plays (beats): a shorter one would cut every buffer into
+/// one sub-block per few samples. Shorter loops play through, as if off.
+const MIN_PROJECT_LOOP: f64 = 1.0 / 64.0;
+
+/// The loop region in effect (`SetLoop` override, else the graph's), `on` only when it is at
+/// least [`MIN_PROJECT_LOOP`] long.
 fn loop_region(t: &TransportRt, desc: &RenderGraphDesc) -> (bool, f64, f64) {
     let (on, s, e) = t
         .loop_override
         .unwrap_or((desc.loop_enabled, desc.loop_start, desc.loop_end));
-    (on && e - s > 1e-6, s, e)
+    (on && e - s >= MIN_PROJECT_LOOP, s, e)
 }
 
 /// RT. Decide the next sub-block (at most `max` frames) and advance the transport past it.
@@ -3007,5 +3011,24 @@ impl GarbageCollector {
             n += 1;
         }
         n
+    }
+}
+
+#[cfg(test)]
+mod loop_tests {
+    use super::*;
+
+    #[test]
+    fn a_hairline_project_loop_plays_through() {
+        let desc = |s: f64, e: f64| RenderGraphDesc {
+            loop_enabled: true,
+            loop_start: s,
+            loop_end: e,
+            ..Default::default()
+        };
+        let t = TransportRt::default();
+        assert!(!loop_region(&t, &desc(0.0, 2e-6)).0);
+        assert!(!loop_region(&t, &desc(1.0, 1.0 + MIN_PROJECT_LOOP / 2.0)).0);
+        assert!(loop_region(&t, &desc(1.0, 1.0 + MIN_PROJECT_LOOP)).0);
     }
 }
