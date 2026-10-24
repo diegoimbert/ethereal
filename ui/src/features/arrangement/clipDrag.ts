@@ -6,6 +6,9 @@
  *   last track (the empty canvas above the pinned master) the clips go to new tracks, shown
  *   as ghost lanes meanwhile (see newTrackDrag.ts).
  * - Resize: drag the left/right edge handles (`data-handle="resize-start" | "resize-end"`).
+ * - Stretch: ctrl+shift (cmd+shift on macOS) held on an edge drag scales the content with
+ *   the length (it plays faster or slower; `ClipCommand::Stretch`). Pressing or releasing
+ *   the modifiers mid-drag switches between resize and stretch.
  * - Snapping follows the arrangement grid; hold alt/option to bypass it.
  * - Cmd/ctrl held on release copies instead of moving.
  * - A plain click on an already selected clip selects only it; shift adds; cmd/ctrl toggles.
@@ -23,7 +26,10 @@ import { isArrangementClip, mediaLengthInBeats, startOf } from "./clipTime";
 import { placeInsertMarker } from "@/features/time-edits/marker";
 import { sendEdit, type ArrangementContextValue } from "./context";
 import { holdClipDrag } from "./dragGuard";
-import { boundsCommand, dragPreview, moveCommand, type DragMode } from "./editMath";
+import { batchStep, boundsCommand, dragPreview, isStretchModifier, moveCommand, stretchCommand, stretchPreview, type DragMode } from "./editMath";
+import { MOVE_SELECTION, pointsFollowing } from "./mixedSelection";
+import { LaneGesture } from "@/features/automation/gesture";
+import { flattenCommands } from "@/features/automation/laneRegistry";
 import { rowIndexAt } from "./layout";
 import { inNewTrackZone, newTrackDropCommand, newTrackLanes, onNewLanes, type NewLane } from "./newTrackDrag";
 import { arrangementView, useArrangementUi } from "./uiStore";
@@ -110,6 +116,16 @@ export function onClipPointerDown(
   // The tracks a drop below the last track would create (ids fixed for the whole drag).
   let lanes: NewLane[] | null = null;
   let below = false;
+  // Track automation points selected with the clips (a box across both) move along, in
+  // time (one gesture: live in their lanes, one undo step with the clips' move).
+  const points = mode === "move" ? pointsFollowing() : null;
+  const pointsGesture = points ? new LaneGesture(ctx.transport) : null;
+  /** The points' shift for the preview `last` (none while copying or creating tracks). */
+  const pointsDt = () => {
+    const b = last?.get(clip.id);
+    if (!points || !b || copy || below) return 0;
+    return Math.max(b.start - startOf(clip), -points.minTime);
+  };
   /** Pointer in the empty canvas below the last track (not over the pinned master). */
   const belowLastTrack = (clientY: number) => {
     const scroller = ctx.contentRef.current?.parentElement;
@@ -133,33 +149,35 @@ export function onClipPointerDown(
     return (origin: Beats, delta: Beats) => snapDelta(origin, delta, step, tempo, true);
   };
 
-  type Mods = Pick<PointerEvent, "altKey" | "metaKey" | "ctrlKey">;
+  type Mods = Pick<PointerEvent, "altKey" | "metaKey" | "ctrlKey" | "shiftKey">;
   let pointer = { x: startX, y: startY };
-  let mods: Mods = { altKey: e.altKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey };
-  /** Preview for the pointer position and the held modifiers (cmd/ctrl: copy). */
+  let mods: Mods = { altKey: e.altKey, metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey };
+  let stretch = false;
+  /** Preview for the pointer position and the held modifiers (cmd/ctrl: copy; on an edge, cmd/ctrl+shift: stretch). */
   const update = (ev: Mods) => {
-    mods = { altKey: ev.altKey, metaKey: ev.metaKey, ctrlKey: ev.ctrlKey };
+    mods = { altKey: ev.altKey, metaKey: ev.metaKey, ctrlKey: ev.ctrlKey, shiftKey: ev.shiftKey };
     copy = mode === "move" && (ev.metaKey || ev.ctrlKey);
+    stretch = mode !== "move" && isStretchModifier(ev);
     below = mode === "move" && belowLastTrack(pointer.y);
     setDragCursor(mode === "move" ? (copy ? "copy" : "grabbing") : "ew-resize");
-    last = dragPreview(
-      {
-        clips,
-        anchor: clip.id,
-        rows,
-        snap: snapFor(ev.altKey),
-        snapMove: snapMoveFor(ev.altKey),
-        sourceLength: (c) => clipSourceLength(c, project.media, tempo, ctx.transport.kind),
-      },
-      mode,
-      beatsMoved(laneX(pointer.x)),
-      mode === "move" && !below ? rowAt(pointer.y) - startRow : 0,
-    );
+    const input = {
+      clips,
+      anchor: clip.id,
+      rows,
+      snap: snapFor(ev.altKey),
+      snapMove: snapMoveFor(ev.altKey),
+      sourceLength: (c: Clip) => clipSourceLength(c, project.media, tempo, ctx.transport.kind),
+    };
+    last =
+      mode !== "move" && stretch
+        ? stretchPreview(input, mode, beatsMoved(laneX(pointer.x)))
+        : dragPreview(input, mode, beatsMoved(laneX(pointer.x)), mode === "move" && !below ? rowAt(pointer.y) - startRow : 0);
     if (below) {
       lanes ??= newTrackLanes(clips, rows, newId);
       last = onNewLanes(last, clips, lanes);
     }
     useArrangementUi.getState().setPreview(below && lanes ? { bounds: last, copy, newTracks: lanes } : { bounds: last, copy });
+    if (points) pointsGesture!.update(points.command(pointsDt()));
   };
 
   const move = (ev: PointerEvent) => {
@@ -176,16 +194,17 @@ export function onClipPointerDown(
     update(ev);
   };
 
-  // Pressing or releasing cmd/ctrl (or alt) mid-drag switches copy (or snapping) at once:
-  // the originals stay where they were while copying.
+  // Pressing or releasing cmd/ctrl (or alt, shift) mid-drag switches copy (or snapping,
+  // stretching) at once: the originals stay where they were while copying.
   const key = (ev: KeyboardEvent) => {
-    if (active && ["Meta", "Control", "Alt"].includes(ev.key)) update(ev);
+    if (active && ["Meta", "Control", "Alt", "Shift"].includes(ev.key)) update(ev);
   };
 
   const up = (ev: PointerEvent) => {
     done();
     if (!active || !last) {
       useArrangementUi.getState().setPreview(null);
+      pointsGesture?.end();
       if (wasSelected && !opts.keepSelection) {
         if (selectMode === "replace") itemSelection.getState().select("clip", [clip.id], "replace");
         else if (selectMode === "toggle") itemSelection.getState().select("clip", [clip.id], "toggle");
@@ -196,16 +215,33 @@ export function onClipPointerDown(
     const all = Object.values(project.clips);
     const command =
       mode !== "move"
-        ? boundsCommand(clips, last)
+        ? stretch
+          ? stretchCommand(clips, last)
+          : boundsCommand(clips, last)
         : below && lanes
           ? newTrackDropCommand(lanes, clips, last, copy, newId, all)
           : moveCommand(clips, last, copy, newId, all);
+    if (points && pointsGesture) {
+      // The points' last edit and the clips' move, in the points' gesture: one undo step.
+      const dt = pointsDt();
+      const both = flattenCommands([points.command(dt), command]);
+      const clear = () => useArrangementUi.getState().setPreview(null);
+      if (both.length) pointsGesture.update(batchStep(MOVE_SELECTION, both), clear);
+      else clear();
+      pointsGesture.end();
+      return;
+    }
     void sendEdit(ctx.transport, command).finally(() => useArrangementUi.getState().setPreview(null));
   };
 
   const cancel = () => {
     done();
     useArrangementUi.getState().setPreview(null);
+    // The points go back where they were.
+    if (points && pointsGesture) {
+      pointsGesture.update(points.command(0));
+      pointsGesture.end();
+    }
   };
 
   // The view moving under a still pointer (paging while playing) moves the preview too.

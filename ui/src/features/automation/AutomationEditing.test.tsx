@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AutomationLane, AutomationPoint, Command, Track } from "@/generated";
 import { playheadStore, useProjectStore, useSelectionStore } from "@/state";
-import { createTimelineViewStore, itemSelection, type TimelineViewStore } from "@/timeline";
+import { createTimelineViewStore, DEFAULT_GRID, itemSelection, resolveGrid, stepLength, TempoMap, type TimelineViewStore } from "@/timeline";
 import { cmd, TransportProvider } from "@/transport";
 import { MockTransport } from "@/transport/mock";
 import { paramToPlain } from "@/domain/paramScale";
@@ -11,6 +11,7 @@ import { pickOption } from "@/kit/testing";
 import { AutomationToggleButton } from "./AutomationToggleButton";
 import { clearPointClipboard, pointClipboard } from "./clipboard";
 import { LANE_PAD } from "./geometry";
+import { evaluatePoints } from "./curve";
 import { TrackAutomationLanes } from "./index";
 import { VOLUME_INFO } from "./params";
 import { resetTimeSelection, useTimeSelection } from "@/features/time-edits/store";
@@ -562,5 +563,110 @@ describe("unmount mid-drag (#591)", () => {
     } finally {
       window.removeEventListener("error", onError);
     }
+  });
+});
+
+describe("dragging the line", () => {
+  const svgOf = () => lanes()[0]!.querySelector('[data-testid="automation-lane-svg"]')!;
+  const lineY = (lane: string, t: number) => y(evaluatePoints(lanePoints(lane), t)!);
+
+  it("a plain drag on a segment moves its two points up or down, times kept, as one undo step", async () => {
+    const track = await renderLanes();
+    const lane = laneOf(track, "TrackVolume")!;
+    const [a, b, c] = lanePoints(lane.id);
+    const at: [number, number] = [40, lineY(lane.id, 4)];
+    // Down (up would clamp the pair at the top: 0.9 is near it).
+    await drag(svgOf(), at, [at[0] + 7, at[1] + 10]);
+    const lift = -10 / (LANE_HEIGHT - 2 * LANE_PAD);
+    expect(project().automation_points[a!.id]).toMatchObject({ time: a!.time });
+    expect(project().automation_points[b!.id]).toMatchObject({ time: b!.time });
+    expect(project().automation_points[a!.id]!.value).toBeCloseTo(a!.value + lift, 6);
+    expect(project().automation_points[b!.id]!.value).toBeCloseTo(b!.value + lift, 6);
+    expect(project().automation_points[c!.id]!.value).toBe(c!.value);
+    // The segment's points are the selection.
+    expect([...itemSelection.getState().selected.automationPoint].sort()).toEqual([a!.id, b!.id].sort());
+    await send(cmd("Edit", { type: "Undo" }));
+    expect(project().automation_points[a!.id]!.value).toBe(a!.value);
+    expect(project().automation_points[b!.id]!.value).toBe(b!.value);
+  });
+
+  it("the hold after the last point moves that point; a click on the line changes nothing", async () => {
+    const track = await renderLanes();
+    const lane = laneOf(track, "TrackVolume")!;
+    const before = lanePoints(lane.id);
+    const last = before[before.length - 1]!;
+    await drag(svgOf(), [300, lineY(lane.id, 30)], [300, lineY(lane.id, 30)]);
+    expect(lanePoints(lane.id)).toEqual(before);
+    // Away from the click (two presses in one spot are a double-click: a new point).
+    await drag(svgOf(), [360, lineY(lane.id, 36)], [360, lineY(lane.id, 36) + 8]);
+    expect(project().automation_points[last.id]!.value).toBeLessThan(last.value);
+    expect(lanePoints(lane.id).slice(0, -1)).toEqual(before.slice(0, -1));
+  });
+
+  it("away from the line, a drag is still a selection box", async () => {
+    const track = await renderLanes();
+    const lane = laneOf(track, "TrackVolume")!;
+    const before = lanePoints(lane.id);
+    await drag(svgOf(), [40, LANE_HEIGHT - 2], [100, LANE_HEIGHT - 3]);
+    expect(lanePoints(lane.id)).toEqual(before);
+  });
+});
+
+describe("draw mode", () => {
+  const svgOf = () => lanes()[0]!.querySelector('[data-testid="automation-lane-svg"]')!;
+
+  it("B toggles it; a drag draws one step per grid cell over what was there, as one undo step", async () => {
+    const track = await renderLanes();
+    const lane = laneOf(track, "TrackVolume")!;
+    const before = lanePoints(lane.id);
+    await act(async () => {
+      fireEvent.keyDown(lanes()[0]!, { key: "b", code: "KeyB" });
+    });
+    expect(useAutomationUi.getState().drawMode).toBe(true);
+    expect(screen.getByTestId("automation-draw-mode").getAttribute("aria-pressed")).toBe("true");
+    // A flat stroke at 0.25 over beats 2 .. 6 (10 px per beat).
+    await drag(svgOf(), [21, y(0.25)], [59, y(0.25)]);
+    const pts = lanePoints(lane.id);
+    // The cells the stroke crossed (the adaptive grid at this zoom).
+    const sig = TempoMap.constant().signatureAt(0);
+    const len = stepLength(resolveGrid(DEFAULT_GRID, PX_PER_BEAT, sig)!, sig);
+    const [from, to] = [Math.floor(2.1 / len) * len, (Math.floor(5.9 / len) + 1) * len];
+    // The originals inside them are gone; the ones outside stay.
+    for (const p of before) expect(pts.some((q) => q.id === p.id)).toBe(p.time < from || p.time > to);
+    // Inside: steps at 0.25, the lane's value after the stroke kept (an edge point at its end).
+    const inside = pts.filter((p) => p.time >= from && p.time < to && p.curve.type === "Step");
+    expect(inside.length).toBe(Math.round((to - from) / len));
+    for (const p of inside) expect(p.value).toBeCloseTo(0.25, 1);
+    expect(evaluatePoints(pts, to)).toBeCloseTo(evaluatePoints(before, to)!, 6);
+    await send(cmd("Edit", { type: "Undo" }));
+    expect(lanePoints(lane.id).map((p) => [p.time, p.value])).toEqual(before.map((p) => [p.time, p.value]));
+    // The bar's button turns it off.
+    fireEvent.click(screen.getByTestId("automation-draw-mode"));
+    expect(useAutomationUi.getState().drawMode).toBe(false);
+  });
+
+  it("a stroke going back over itself keeps one value per cell (the last drawn)", async () => {
+    const track = await renderLanes();
+    const lane = laneOf(track, "TrackVolume")!;
+    act(() => useAutomationUi.getState().setDrawMode(true));
+    await act(async () => {
+      fireEvent.pointerDown(svgOf(), { button: 0, clientX: 21, clientY: y(0.25) });
+    });
+    for (const [x, v] of [
+      [59, 0.25],
+      [21, 0.75],
+    ] as const) {
+      await act(async () => {
+        fireEvent.pointerMove(window, { clientX: x, clientY: y(v) });
+      });
+      await flush();
+    }
+    await act(async () => {
+      fireEvent.pointerUp(window, { clientX: 21, clientY: y(0.75) });
+    });
+    await flush();
+    const inside = lanePoints(lane.id).filter((p) => p.time > 2 && p.time < 6);
+    const times = inside.map((p) => p.time);
+    expect(new Set(times).size).toBe(times.length);
   });
 });

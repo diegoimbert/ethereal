@@ -1,0 +1,27 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "long take",
+    "device": {
+      "type": "Builtin",
+      "device": "Loudness"
+    },
+    "meta": {
+      "tags": [
+        "live"
+      ],
+      "author": "ethereal",
+      "description": "keeps measuring across stops (no reset on play); 15 min history, -16 lufs reference."
+    },
+    "params": {
+      "0": -16.0,
+      "1": 4.0,
+      "2": 0.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

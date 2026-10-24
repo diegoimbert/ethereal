@@ -146,6 +146,7 @@ These don't change the sound: the audio passes through untouched. Open their win
 
 - **spectrum**: a frequency analyzer, with block size, averaging, channel (including mid and side), display range, slope and peak hold.
 - **tuner**: shows the pitch of what you play. The **reference** goes from 415 to 466 Hz (440 by default). **mute output** silences the track while you tune.
+- **loudness**: a loudness meter (the ebu r 128 way streaming services and broadcasters measure). It shows the **momentary** (last 0.4 s), **short-term** (last 3 s) and **integrated** loudness (the whole playback, in lufs, quiet parts left out), the **range** (how much the loudness varies, in lu) and the **true peak** (the highest point of the waveform, between the samples too, in dbtp; red above -1). The graph shows the history; the dashed line is your **target** (-14 by default). With **reset on play** on, every playback starts a new measurement. Put it last on the master to check a mix.
 
 ## midi effects
 

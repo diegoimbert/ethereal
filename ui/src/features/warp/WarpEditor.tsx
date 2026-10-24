@@ -319,7 +319,28 @@ function WarpClipEditor({ clip, content }: { clip: Clip; content: AudioContent }
             ))}
         </svg>
       </div>
-      <ClipEnvelopeStrip clip={clip} view={envView} height={ENVELOPE_HEIGHT} tempo={envTempo} />
+      <ClipEnvelopeStrip
+        clip={clip}
+        view={envView}
+        height={ENVELOPE_HEIGHT}
+        tempo={envTempo}
+        backdrop={
+          media && (
+            <Waveform
+              media={media}
+              width={width}
+              span={span}
+              toSeconds={toSeconds}
+              playedFrom={clip.offset}
+              playedTo={contentEnd}
+              gainDb={content.gain}
+              height={ENVELOPE_HEIGHT}
+              top={0}
+              testId="clip-envelope-waveform"
+            />
+          )
+        }
+      />
     </div>
   );
 }
@@ -421,6 +442,9 @@ function Waveform({
   playedFrom,
   playedTo,
   gainDb,
+  height = HEIGHT - RULER,
+  top = RULER,
+  testId = "warp-waveform",
 }: {
   media: MediaRef;
   width: number;
@@ -431,6 +455,10 @@ function Waveform({
   playedTo: Beats;
   /** Clip gain (dB): the cached peaks are scaled by it at draw time, like the arrangement. */
   gainDb: number;
+  /** Size and place (px; default: the warp view's, under its ruler). */
+  height?: number;
+  top?: number;
+  testId?: string;
 }) {
   const t = useT();
   const transport = useTransport();
@@ -447,7 +475,7 @@ function Waveform({
     const ctx = canvas?.getContext?.("2d");
     if (!canvas || !ctx) return;
     const dpr = window.devicePixelRatio || 1;
-    const h = HEIGHT - RULER;
+    const h = height;
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -485,15 +513,15 @@ function Waveform({
     }
     drawClipMarks(ctx, marks, h, over);
     canvas.dataset.clipped = String(marks.length);
-  }, [media, width, span, toSeconds, playedFrom, playedTo, gainDb, peaks, tick, waveColor, waveDim, over]);
+  }, [media, width, span, toSeconds, playedFrom, playedTo, gainDb, height, peaks, tick, waveColor, waveDim, over]);
 
   // A picture of the audio (the warp markers over it are titled and counted in the toolbar).
   return (
     <canvas
       ref={ref}
       className="eth-warp__canvas"
-      style={{ width, height: HEIGHT - RULER, top: RULER }}
-      data-testid="warp-waveform"
+      style={{ width, height, top }}
+      data-testid={testId}
       data-gain={gainDb}
       role="img"
       aria-label={t("warp.waveform")}

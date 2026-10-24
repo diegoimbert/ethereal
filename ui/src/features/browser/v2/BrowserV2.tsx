@@ -25,6 +25,7 @@ import clsx from "clsx";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { Search, Star, X } from "lucide-react";
 import type { BrowseRoot, BrowserQuery, BrowserRoot, LibraryItem } from "@/generated";
+import { canReveal, reveal as revealTarget, revealLabel, revealMedia } from "@/features/reveal";
 import { fileSource, hasOsFiles, importAudio, isPathDropHost, noteHover, useImportDrop, type ImportSource } from "@/features/import";
 import { isAudioName } from "@/features/import/sources";
 import { loadPresetCommand, useCurrentPresets } from "@/features/presets";
@@ -336,6 +337,13 @@ export function BrowserV2({ initialRoots }: BrowserV2Props) {
     );
     if (item.kind === "Audio" || item.kind === "Midi")
       entries.push({ label: t("browser.menu.show_in_folder"), onSelect: () => showFolder(item.root, parentPath(item.path), item.kind) });
+    // Desktop: the file (or the project's folder) in the OS file manager.
+    if (canReveal(transport)) {
+      const source = item.kind === "Audio" || item.kind === "Midi" ? item.source : null;
+      if (source && source.type !== "Upload") entries.push({ label: revealLabel(), onSelect: () => void revealMedia(transport, source) });
+      else if (item.kind === "Project")
+        entries.push({ label: revealLabel(), onSelect: () => void revealTarget(transport, { type: "Project", id: item.path }) });
+    }
     const filterBy = item.tags.filter((tag) => !tags.includes(tag));
     if (filterBy.length > 0)
       entries.push("separator", ...filterBy.map((tag) => ({ label: t("browser.menu.filter_by", { tag }), onSelect: () => addTag(tag) })));
@@ -413,6 +421,10 @@ export function BrowserV2({ initialRoots }: BrowserV2Props) {
     const r = roots.find((x) => x.id === id);
     if (!r) return;
     const entries: ContextMenuEntry[] = [{ label: t("browser.menu.rescan"), onSelect: () => void send(cmd("Browser", { type: "Rescan", root: r.id })) }];
+    // Desktop: the place's folder in the OS file manager.
+    const at = rootLocation(r.id, roots, locations);
+    if (at && canReveal(transport))
+      entries.push({ label: revealLabel(), onSelect: () => void revealMedia(transport, { type: "Location", location: at.location, path: at.base }) });
     if (r.kind === "Folder")
       entries.push({ label: t("browser.menu.rename"), onSelect: () => setRenaming(r) }, "separator", {
         label: t("browser.menu.remove_folder"),

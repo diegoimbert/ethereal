@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import type { Command, Device } from "@/generated";
+import type { Command, Device, DeviceId } from "@/generated";
+import { notify } from "@/features/notifications";
+import { errorMessage } from "@/features/transport-bar/engine";
 import { RotateCw } from "lucide-react";
 import { Badge, Button, IconButton, openContextMenu, type ContextMenuEntry } from "@/kit";
 import { resolvePluginEntries } from "@/features/import-resolver/menus";
@@ -202,13 +204,55 @@ export function pluginMenuEntries(device: Device, transport: EngineTransport): C
   return entries;
 }
 
-/** Open or close a plugin's editor window (the store follows on success). */
+/** How long an editor waits for its plugin to load before asking anyway (the engine says why it can't). */
+const LOADING_WAIT_MS = 30_000;
+
+/** Resolves once `device` is no longer among the plugins still loading (or after `LOADING_WAIT_MS`). */
+function whenLoaded(device: DeviceId): Promise<void> {
+  const loaded = (s: { loading: DeviceId[] }) => !s.loading.includes(device);
+  if (loaded(usePluginStore.getState())) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      off();
+      clearTimeout(timer);
+      resolve();
+    };
+    const off = usePluginStore.subscribe((s) => loaded(s) && done());
+    const timer = setTimeout(done, LOADING_WAIT_MS);
+  });
+}
+
+/**
+ * Open or close a plugin's editor window (the store follows on success). Opening shows in
+ * the store (`opening`, the window button) until the engine answers, waits for a plugin
+ * still loading, and a failure says why in a toast: a click never does nothing.
+ */
 export function setPluginWindow(transport: EngineTransport, device: Device, open: boolean): void {
   if (device.kind.type !== "Plugin") return;
   const store = usePluginStore.getState();
-  if (store.crashed[device.id] !== undefined || !!store.editors[device.id] === open) return;
-  transport
-    .send(cmd("Plugin", { type: open ? "OpenEditor" : "CloseEditor", device: device.id }))
-    .then(() => usePluginStore.getState().setEditorOpen(device.id, open))
-    .catch((e: unknown) => console.warn("plugin window failed", e));
+  const name = device.name;
+  if (store.crashed[device.id] !== undefined) {
+    if (open) notify("Warning", tr("plugins.window.crashed", { name }));
+    return;
+  }
+  if (!!store.editors[device.id] === open || (open && store.opening[device.id])) return;
+  if (open) store.setOpening(device.id, true);
+  void whenLoaded(device.id)
+    .then(() => transport.send(cmd("Plugin", { type: open ? "OpenEditor" : "CloseEditor", device: device.id })))
+    .then(
+      () => usePluginStore.getState().setEditorOpen(device.id, open),
+      (e: unknown) => {
+        console.warn("plugin window failed", e);
+        notify("Error", tr(open ? "plugins.window.open_failed" : "plugins.window.close_failed", { name, error: errorMessage(e) }));
+      },
+    )
+    .finally(() => open && usePluginStore.getState().setOpening(device.id, false));
+}
+
+/** Brings an open editor to the front (`OpenEditor` again raises it on every plugin host). */
+export function raisePluginWindow(transport: EngineTransport, device: Device): void {
+  transport.send(cmd("Plugin", { type: "OpenEditor", device: device.id })).catch((e: unknown) => {
+    console.warn("plugin window failed", e);
+    notify("Error", tr("plugins.window.open_failed", { name: device.name, error: errorMessage(e) }));
+  });
 }

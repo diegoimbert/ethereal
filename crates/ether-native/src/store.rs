@@ -160,6 +160,15 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), StoreError> {
 
 /// A streamed export (`ProjectStore::create_export`): written to a hidden temp file next
 /// to its target, fsynced and renamed over it on commit, removed when dropped unfinished.
+/// An export folder the user picked (`ExportRequest::folder`): absolute, no NUL.
+fn export_folder(folder: &str) -> Result<PathBuf, StoreError> {
+    let p = Path::new(folder);
+    if folder.contains('\0') || !p.is_absolute() {
+        return Err(StoreError::InvalidPath(folder.to_string()));
+    }
+    Ok(p.to_path_buf())
+}
+
 struct PartFile {
     file: Option<BufWriter<fs::File>>,
     tmp: PathBuf,
@@ -707,6 +716,33 @@ impl ProjectStore for DiskStore {
         Ok(Box::new(PartFile::create(resolve_in(&dir, &rel)?)?))
     }
 
+    fn export_folder_names(&mut self, folder: &str) -> Result<Vec<String>, StoreError> {
+        let dir = export_folder(folder)?;
+        match fs::read_dir(&dir) {
+            Ok(rd) => Ok(rd
+                .flatten()
+                .map(|e| e.file_name().to_string_lossy().into_owned())
+                .collect()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+            Err(e) => Err(io_err(e)),
+        }
+    }
+
+    fn create_export_in(
+        &mut self,
+        folder: &str,
+        file_name: &str,
+    ) -> Result<(Box<dyn ExportFile>, String), StoreError> {
+        // A single visible segment, like `exports/<file_name>`.
+        ether_controller::store::export_path(file_name)?;
+        let path = export_folder(folder)?.join(file_name);
+        let shown = path
+            .to_str()
+            .ok_or_else(|| StoreError::InvalidPath(path.display().to_string()))?
+            .to_string();
+        Ok((Box::new(PartFile::create(path)?), shown))
+    }
+
     // Upload staging lives in `crate::uploads` (owned by the remote-engine node).
     fn begin_upload(&mut self, upload: &str, size: u64) -> Result<(), StoreError> {
         crate::uploads::begin(&self.projects_root, upload, size)
@@ -809,6 +845,22 @@ impl ProjectStore for DiskStore {
             return Err(StoreError::Io(format!("{path} is larger than 4 GiB")));
         }
         fs::read(p).map_err(io_err)
+    }
+
+    fn projects_os_path(&self) -> Option<String> {
+        self.projects_root.to_str().map(str::to_string)
+    }
+
+    /// The project's folder as the store resolves it ([`Self::project_dir`]), and a
+    /// sandboxed file inside it.
+    fn project_os_path(&self, id: ProjectId, rel_path: &str) -> Option<String> {
+        let dir = self.existing_project_dir(id).ok()?;
+        let path = if rel_path.is_empty() {
+            dir
+        } else {
+            resolve_in(&dir, rel_path).ok()?
+        };
+        path.to_str().map(str::to_string)
     }
 
     /// v0.3: delete one file (never a folder); missing = `Ok`.
@@ -1304,6 +1356,32 @@ mod tests {
         );
     }
 
+    /// `ExportRequest::folder`: files go into the chosen folder (created when missing),
+    /// listed by absolute path; relative folders and unsafe names are refused.
+    #[test]
+    fn exports_into_a_chosen_folder() {
+        let tmp = TempDir::new("store-export-folder");
+        let mut s = store(&tmp);
+        let folder = tmp.path().join("bounces");
+        let f = folder.to_str().unwrap();
+        assert!(
+            s.export_folder_names(f).unwrap().is_empty(),
+            "missing = empty"
+        );
+        let (mut file, path) = s.create_export_in(f, "Song.wav").unwrap();
+        assert_eq!(Path::new(&path), folder.join("Song.wav"));
+        file.write_all(b"RIFF").unwrap();
+        file.commit().unwrap();
+        assert_eq!(fs::read(folder.join("Song.wav")).unwrap(), b"RIFF");
+        assert_eq!(
+            s.export_folder_names(f).unwrap(),
+            vec!["Song.wav".to_string()]
+        );
+        assert!(s.create_export_in("bounces", "Song.wav").is_err());
+        assert!(s.create_export_in(f, "../Song.wav").is_err());
+        assert!(s.create_export_in(f, ".hidden").is_err());
+    }
+
     /// A streamed export is written under a hidden temp name, seekable (headers are
     /// patched last), renamed on commit; dropped unfinished, it leaves nothing.
     #[test]
@@ -1578,6 +1656,57 @@ mod tests {
             .unwrap();
         drop(s);
         assert_eq!(fs::read_to_string(file).unwrap(), ether("last words"));
+    }
+
+    #[test]
+    fn reveal_paths_come_from_the_stores_own_folders() {
+        use ether_controller::reveal::{Resolved, resolve};
+        use ether_core::protocol::media::{MediaSource, RevealTarget};
+        let tmp = TempDir::new("store-reveal");
+        let s = {
+            let mut s = store(&tmp);
+            s.create(pid(5)).unwrap();
+            s.write(pid(5), "media/kick.wav", b"RIFF").unwrap();
+            s
+        };
+        let dir = s.project_dir(pid(5));
+        let at = |p: &Path| p.to_str().unwrap().to_string();
+        assert_eq!(s.projects_os_path(), Some(at(&s.projects_root)));
+        assert_eq!(s.project_os_path(pid(5), ""), Some(at(&dir)));
+        assert_eq!(
+            s.project_os_path(pid(5), "media/kick.wav"),
+            Some(at(&dir.join("media").join("kick.wav")))
+        );
+        assert_eq!(s.project_os_path(pid(5), "../x"), None);
+        assert_eq!(s.project_os_path(pid(5), "/etc/passwd"), None);
+        assert_eq!(s.project_os_path(pid(6), ""), None, "no such project");
+
+        let r = |t: RevealTarget| resolve(&t, &s, &s, None, |_| false);
+        assert_eq!(
+            r(RevealTarget::Projects).unwrap(),
+            Resolved {
+                path: at(&s.projects_root),
+                open: true
+            }
+        );
+        assert_eq!(
+            r(RevealTarget::Project { id: pid(5) }).unwrap(),
+            Resolved {
+                path: at(&dir),
+                open: false
+            }
+        );
+        assert_eq!(
+            r(RevealTarget::Media {
+                source: MediaSource::Location {
+                    location: BrowseLocation::Library { id: "lib".into() },
+                    path: "drums/kick.wav".into(),
+                },
+            })
+            .unwrap()
+            .path,
+            at(&tmp.path().join("lib").join("drums").join("kick.wav"))
+        );
     }
 
     #[test]

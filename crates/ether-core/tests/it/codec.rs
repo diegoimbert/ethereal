@@ -372,6 +372,7 @@ fn automation(nan: bool) -> impl Strategy<Value = AutomationDesc> {
         Just(ParamScale::Log),
         f64s(nan).prop_map(|exponent| ParamScale::Power { exponent }),
         Just(ParamScale::Fader),
+        Just(ParamScale::Gain),
     ];
     let mapping = (f64s(nan), f64s(nan), scale, option::of(any::<u32>())).prop_map(
         |(min, max, scale, steps)| ParamMapping {
@@ -592,6 +593,7 @@ fn finite_mapping() -> impl Strategy<Value = ParamMapping> {
         Just(ParamScale::Log),
         finite64().prop_map(|exponent| ParamScale::Power { exponent }),
         Just(ParamScale::Fader),
+        Just(ParamScale::Gain),
     ];
     (finite64(), finite64(), scale, option::of(any::<u32>())).prop_map(
         |(min, max, scale, steps)| ParamMapping {

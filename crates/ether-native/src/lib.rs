@@ -34,6 +34,7 @@ pub mod plugin_folders;
 pub mod plugin_mirror;
 pub mod plugins;
 pub mod recording;
+pub mod reveal;
 pub mod rt;
 pub mod sandbox;
 pub mod sandbox_defaults;

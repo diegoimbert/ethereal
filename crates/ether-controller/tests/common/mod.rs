@@ -447,6 +447,8 @@ pub struct FakeHost {
     /// The URLs requested so far.
     pub requested: Vec<String>,
     http_pending: Vec<(u64, String, u64)>,
+    /// `Some`: the host shows files (`Media::Reveal`), recorded here as `(path, open)`.
+    pub reveals: Option<Vec<(String, bool)>>,
 }
 
 impl FakeHost {
@@ -459,6 +461,7 @@ impl FakeHost {
             offline: false,
             requested: Vec::new(),
             http_pending: Vec::new(),
+            reveals: None,
         }
     }
 }
@@ -474,6 +477,20 @@ impl HostServices for FakeHost {
     }
     fn random_seed(&mut self) -> u64 {
         0x5eed
+    }
+    fn reveals_files(&self) -> bool {
+        self.reveals.is_some()
+    }
+    fn reveal(
+        &mut self,
+        path: &str,
+        open: bool,
+    ) -> Result<(), ether_controller::store::StoreError> {
+        let r = self.reveals.as_mut().ok_or_else(|| {
+            ether_controller::store::StoreError::Unsupported("no file manager".into())
+        })?;
+        r.push((path.to_string(), open));
+        Ok(())
     }
     fn http_get(&mut self, id: u64, url: &str, max_bytes: u64) -> Result<(), String> {
         self.requested.push(url.to_string());

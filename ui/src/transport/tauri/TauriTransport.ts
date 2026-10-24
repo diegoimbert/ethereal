@@ -91,11 +91,9 @@ interface Pending {
 const noop = () => {};
 
 function notConnected(command: Command, cause: unknown): CommandFailedError {
-  // Users read the key's text.
-  return new CommandFailedError(
-    { code: "InvalidState", message: `not connected: ${String(cause)}`, key: { id: "error.transport.engine_not_connected", args: {} } },
-    command,
-  ); // i18n-ignore: an internal error (logs, agents)
+  // An internal message (logs, agents); users read the key's text.
+  const message = `not connected: ${String(cause)}`; // i18n-ignore
+  return new CommandFailedError({ code: "InvalidState", message, key: { id: "error.transport.engine_not_connected", args: {} } }, command);
 }
 
 export class TauriTransport implements EngineTransport {
@@ -301,9 +299,9 @@ export class TauriTransport implements EngineTransport {
     return (Array.isArray(picked) ? picked : [picked]).filter((p): p is string => typeof p === "string");
   }
 
-  /** The OS folder dialog (the Relink dialog's folder search): an absolute path, or `null`. */
-  async pickFolder(): Promise<string | null> {
-    const picked = await this.openDialog({ multiple: false, directory: true, title: t("files.dialog.search_folder"), filters: [] });
+  /** The OS folder dialog (the Relink dialog's folder search, `title` by default): an absolute path, or `null`. */
+  async pickFolder(title?: string): Promise<string | null> {
+    const picked = await this.openDialog({ multiple: false, directory: true, title: title ?? t("files.dialog.search_folder"), filters: [] });
     const path = Array.isArray(picked) ? picked[0] : picked;
     return typeof path === "string" ? path : null;
   }

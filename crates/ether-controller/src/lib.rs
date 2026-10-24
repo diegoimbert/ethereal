@@ -117,6 +117,7 @@ pub mod recording;
 pub mod rendering;
 #[doc(hidden)]
 pub mod resolver;
+pub mod reveal;
 // The default sample pack (docs/SAMPLES.md).
 #[doc(hidden)]
 pub mod midi_sidechain;
@@ -629,6 +630,23 @@ pub trait HostServices {
     /// requests are in flight), plus their progress.
     fn poll_http(&mut self, out: &mut Vec<HttpEvent>) {
         let _ = out;
+    }
+
+    /// `Media::Reveal`: whether this host shows engine-machine files in the OS file manager
+    /// of the machine the UI is on (the desktop app; not web or a remote engine). Default:
+    /// no.
+    fn reveals_files(&self) -> bool {
+        false
+    }
+
+    /// Show `path` (an absolute engine-machine path) in the OS file manager: selected in
+    /// its folder, or with `open`, the folder itself opened. `NotFound` when nothing is
+    /// there. Default: unsupported.
+    fn reveal(&mut self, path: &str, open: bool) -> Result<(), store::StoreError> {
+        let _ = (path, open);
+        Err(store::StoreError::Unsupported(
+            "showing files is not available on this host".into(),
+        ))
     }
 }
 

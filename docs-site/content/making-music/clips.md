@@ -13,6 +13,7 @@ covers:
   - clips/moving-onto-other-clips-trims-or-deletes-them #dropping-onto-other-clips
   - clips/moving-clips-between-tracks-and-to-new-tracks #moving-to-another-track
   - clips/trimming-limits-and-leading-gaps #trimming
+  - clips/stretch-edge-cmd-ctrl-shift-drag #stretching
   - clips/slip-edit-cmd-ctrl-shift-drag #slip-editing
   - clips/create-midi-clips-with-double-click #making-a-midi-clip
   - clips/drag-and-drop-audio #adding-audio
@@ -84,6 +85,10 @@ Drag a clip's left or right edge to make it shorter or longer. Trims snap to the
 - An audio clip that isn't looped can't get longer than the rest of its file. With loop on, it repeats as far as you drag.
 - Dragging the start to the left past the beginning of the content leaves empty space (silence, or no notes) before it. Drag back right to remove the gap.
 - The shortest clip is a sixteenth of a beat.
+
+### stretching
+
+Hold [[key:Mod+Shift]] while you drag an edge to stretch the clip instead: its content plays faster or slower so that it fills the new length. A MIDI clip's notes, expression and loop scale with it. An audio clip is warped to play its audio over the new length (an unwarped clip gets warped first), and its fades and envelopes scale too. In repitch mode the pitch follows the speed. With several clips selected, all of them stretch, in one undo step.
 
 ## slip editing
 

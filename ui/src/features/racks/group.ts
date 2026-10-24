@@ -1,7 +1,7 @@
 /**
  * "Group into rack" (`Rack::Group`): a device's context menu, and ⌘G / Ctrl+G on the selected
  * device cards (keymap `device.group`, `features/devices/deviceClipboard.ts`). The devices
- * must be next to each other on one track's chain; the rack is the kind that holds them all
+ * must be next to each other on one track's chain or one rack chain (the rack nests there); the rack is the kind that holds them all
  * (an instrument rack when an instrument is among them, a MIDI or audio effect rack for
  * effects of that kind only). The new rack becomes the selection.
  */
@@ -34,16 +34,17 @@ const GROUP_INTO: Partial<Record<BuiltinDeviceType, MessageKey>> = {
 const byOrder = (a: Device, b: Device) => (a.order < b.order ? -1 : a.order > b.order ? 1 : a.id < b.id ? -1 : 1);
 
 /**
- * `ids` in chain order when they can be grouped (next to each other on one track's chain),
- * else `null`.
+ * `ids` in chain order when they can be grouped (next to each other on one track's chain, or
+ * on one rack chain: the new rack nests there), else `null`.
  */
 export function groupable(project: Project, ids: ReadonlyArray<DeviceId>): Device[] | null {
   const devices = ids.map((id) => project.devices[id]);
-  if (devices.length === 0 || devices.some((d) => !d || d.pad !== null || d.chain != null)) return null;
+  if (devices.length === 0 || devices.some((d) => !d || d.pad !== null)) return null;
   const track = devices[0]!.track;
-  if (devices.some((d) => d!.track !== track)) return null;
+  const host = devices[0]!.chain ?? null;
+  if (devices.some((d) => d!.track !== track || (d!.chain ?? null) !== host)) return null;
   const chain = Object.values(project.devices)
-    .filter((d) => d.track === track && d.pad === null && d.chain == null)
+    .filter((d) => d.track === track && d.pad === null && (d.chain ?? null) === host)
     .sort(byOrder);
   const at = devices.map((d) => chain.indexOf(d!)).sort((a, b) => a - b);
   if (at.some((i, k) => i < 0 || (k > 0 && i !== at[k - 1]! + 1))) return null;
@@ -80,8 +81,8 @@ export async function groupDevices(
 }
 
 /**
- * Menu entries wrapping `device` into a new rack (track-chain devices; racks too, not drum
- * racks), or the selection when `device` is part of it (`selection`, more than one: grouped
+ * Menu entries wrapping `device` into a new rack (track-chain and rack-chain devices; racks
+ * too, not drum racks), or the selection when `device` is part of it (`selection`, more than one: grouped
  * when they're next to each other).
  */
 export function groupEntries(
@@ -96,7 +97,7 @@ export function groupEntries(
     onGrouped?(rack: DeviceId): void;
   },
 ): ContextMenuEntry[] {
-  if (!descriptor || device.pad !== null || device.chain != null) return [];
+  if (!descriptor || device.pad !== null) return [];
   if (device.kind.type === "Builtin" && device.kind.device.type === "DrumRack") return [];
   const several = selection && selection.ids.length > 1 && selection.ids.includes(device.id) ? groupable(selection.project, selection.ids) : null;
   const devices = several ?? [device];

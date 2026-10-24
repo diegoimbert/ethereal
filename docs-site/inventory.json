@@ -727,6 +727,14 @@
           "platform": "all"
         },
         {
+          "id": "clips/stretch-edge-cmd-ctrl-shift-drag",
+          "title": "stretching a clip from its edge",
+          "what": "cmd/ctrl+shift while dragging a clip edge stretches it: the content plays faster or slower to fill the new length (midi notes, expression and loop scale; audio gets warped markers scaled, fades and envelopes scale). every selected clip, one undo step.",
+          "priority": "nice",
+          "audience": "everyone",
+          "platform": "all"
+        },
+        {
           "id": "clips/slip-edit-cmd-ctrl-shift-drag",
           "title": "slip edit: cmd/ctrl+shift-drag",
           "what": "hold ctrl+shift (cmd+shift on mac) and drag a clip's body to move its content inside the clip without moving the clip; snapped (alt: free); escape cancels. it stops at the file's ends, so a clip showing the whole file can't slip.",
@@ -1809,7 +1817,7 @@
         {
           "id": "devices/analysis-spectrum-and-tuner",
           "title": "analysis: spectrum and tuner",
-          "what": "spectrum analyzer (block size, averaging, channel incl. mid / side, range, slope, peak hold) and tuner (reference 415–466 hz, mute output for silent tuning). audio passes through unchanged; they only draw while their window is open.",
+          "what": "spectrum analyzer (block size, averaging, channel incl. mid / side, range, slope, peak hold) and tuner (reference 415–466 hz, mute output for silent tuning). loudness meter: momentary / short-term / integrated lufs, loudness range, true peak, a history graph with a target line, reset on play. audio passes through unchanged; spectrum and tuner only draw while their window is open, the loudness meter measures all the time.",
           "priority": "nice",
           "audience": "everyone",
           "platform": "all"

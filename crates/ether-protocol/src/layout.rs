@@ -259,6 +259,14 @@ pub enum Widget {
         phase: ParamId,
         depth: ParamId,
     },
+    // --- fx-analysis ---
+    /// A loudness meter's readouts and history (`AnalysisData::Levels` of a `Loudness`:
+    /// momentary, short-term, integrated, range, true peak max / now, window and step in
+    /// seconds, `n`, then `n` momentary and `n` short-term points, oldest first). `target`
+    /// (dB, read as LUFS) draws the reference line.
+    Loudness {
+        target: ParamId,
+    },
 }
 
 /// Operator routing of one algorithm of a [`Widget::FmAlgorithm`]. Operators are numbered

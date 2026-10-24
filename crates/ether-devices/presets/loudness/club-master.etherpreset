@@ -1,0 +1,27 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "loud master -9",
+    "device": {
+      "type": "Builtin",
+      "device": "Loudness"
+    },
+    "meta": {
+      "tags": [
+        "master"
+      ],
+      "author": "ethereal",
+      "description": "a loud, dense master around -9 lufs short-term; 1 min history."
+    },
+    "params": {
+      "0": -9.0,
+      "1": 2.0,
+      "2": 1.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

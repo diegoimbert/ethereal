@@ -25,7 +25,6 @@ import { isReadOnly, useEditorStore, useReadOnly, dismissOnRelease, showClipOnCl
 import {
   BeatCanvas,
   gridLines,
-  itemSelection,
   marqueeHits,
   PlayheadLine,
   RenderFrozenLayer,
@@ -39,7 +38,7 @@ import {
   useTimelineWheel,
   type BeatWindow,
 } from "@/timeline";
-import { isGroupFoldAnimating, useAutomationSlotHeight, useLaneMotion } from "@/features/automation";
+import { isGroupFoldAnimating, pointsInRect, registerClipHitTester, useAutomationSlotHeight, useLaneMotion } from "@/features/automation";
 import { handleTakeKey, useTakesHeight } from "@/features/comping";
 import {
   clipboardAction,
@@ -277,6 +276,18 @@ function ConnectedArrangementView() {
   // time-edits: a drag selects clips; a Shift-drag makes the time section (live); shortcuts
   // and the section's menu.
   const timeEdits = useArrangementTimeEdits(transport, rowsRef);
+  // A box started in an automation lane selects the clips it crosses too (client px).
+  useEffect(
+    () =>
+      registerClipHitTester(view, (rect) => {
+        const project = useProjectStore.getState().project;
+        const box = contentRef.current?.getBoundingClientRect();
+        if (!project || !box) return [];
+        const local = { x0: rect.x0 - box.left, y0: rect.y0 - box.top, x1: rect.x1 - box.left, y1: rect.y1 - box.top };
+        return marqueeHits(local, clipRects(rowsRef.current, Object.values(project.clips), view.getState(), useArrangementUi.getState().headerWidth));
+      }),
+    [view],
+  );
   const marquee = useMarquee({
     kind: "clip",
     // The lanes start after the header column; dragging past their edges scrolls the timeline.
@@ -288,6 +299,17 @@ function ConnectedArrangementView() {
       const hw = useArrangementUi.getState().headerWidth;
       return project ? marqueeHits(rect, clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw)) : [];
     },
+    // The automation lanes it crosses: their points too (client px from content px).
+    also: [
+      {
+        kind: "automationPoint",
+        hitTest: (rect) => {
+          const box = contentRef.current?.getBoundingClientRect();
+          if (!box) return [];
+          return pointsInRect(view, { x0: rect.x0 + box.left, y0: rect.y0 + box.top, x1: rect.x1 + box.left, y1: rect.y1 + box.top });
+        },
+      },
+    ],
     onEnd: timeEdits.onMarqueeEnd,
     section: {
       ...timeEdits.section,
@@ -331,9 +353,9 @@ function ConnectedArrangementView() {
   /**
    * Pointer press in the tracks (capture, so clips' own handlers can't hide it). On a clip it
    * shows that clip in the editor drawer and the inspector, each as a bar unless already
-   * expanded (a click never expands a pane: a double-click expands the drawer). Anywhere else it collapses the drawer, and on the lanes'
-   * empty space the inspector too (a track header expands it: TrackRow), unless it shows that
-   * row's track (or a clip on it) already; pinned, each stays.
+   * expanded (a click never expands a pane: a double-click expands the drawer). Anywhere else it
+   * collapses the drawer unless pinned. It never collapses or closes the inspector (only its ×
+   * and Esc do; a track header expands it: TrackRow).
    */
   const onTracksPointerDownCapture = (e: PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -350,16 +372,10 @@ function ConnectedArrangementView() {
     const clip = hit ? project.clips[hit.id] : undefined;
     const shell = useShellStore.getState();
     if (!clip) {
+      // The drawer collapses. On the lanes the click selects that row's track: an inspector
+      // not showing yet appears as its bar; one showing stays as it is, following the selection.
       dismissOnRelease();
-      // Empty space of the track the inspector already shows (expanded), or of the track of a
-      // clip it shows: it stays open. (The click then selects that track: the inspector
-      // switches to it, as the clip selection clears.)
-      const row = rowsRef.current[rowIndexAt(rowsRef.current, y)];
-      const shown = itemSelection.getState().selected.clip;
-      const inspected = (id: TrackId) =>
-        shown.size > 0 ? [...shown].some((c) => project.clips[c]?.track === id) : id === useArrangementUi.getState().trackFocus;
-      const showing = !!row && inspected(row.track.id) && shell.right.open && !shell.right.collapsed;
-      if (inTracks && x >= hw && !shell.right.pinned && !showing) shell.setCollapsed("right", true);
+      if (inTracks && x >= hw && !shell.right.open && !shell.right.pinned) shell.setCollapsed("right", true);
       return;
     }
     // The clip gets selected: an inspector not showing yet appears as its bar (a click never

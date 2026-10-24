@@ -181,6 +181,31 @@ pub trait ProjectStore {
         Ok(path)
     }
 
+    /// `export` into a folder the user picked (`ExportRequest::folder`, an absolute
+    /// engine-machine path; desktop): the names of the files already in it (lowercase is
+    /// not required), so an export never overwrites one. A missing folder has none.
+    /// `Err(Unsupported)` (the default): this host doesn't write exports outside projects.
+    fn export_folder_names(&mut self, folder: &str) -> Result<Vec<String>, StoreError> {
+        let _ = folder;
+        Err(StoreError::Unsupported(
+            "exporting to a folder is not available on this host".into(),
+        ))
+    }
+
+    /// Start writing `<folder>/<file_name>` (see [`Self::export_folder_names`]; the folder
+    /// is created when missing); [`ExportFile::commit`] gives it its name. Returns the file
+    /// and its absolute path. Default: `Unsupported`.
+    fn create_export_in(
+        &mut self,
+        folder: &str,
+        file_name: &str,
+    ) -> Result<(Box<dyn ExportFile>, String), StoreError> {
+        let _ = (folder, file_name);
+        Err(StoreError::Unsupported(
+            "exporting to a folder is not available on this host".into(),
+        ))
+    }
+
     /// `remote-engine`: start staging an upload (`Media::BeginUpload`) outside any project
     /// (native: `<projects_root>/.uploads/<upload>`), `size` bytes expected. Replaces a
     /// previous upload with the same id.
@@ -284,6 +309,22 @@ pub trait ProjectStore {
         Err(StoreError::Unsupported(
             "exports are delivered as downloads on this host".into(),
         ))
+    }
+
+    // --- the OS file manager (`Media::Reveal`), defaulted ---
+
+    /// The engine-machine path of the folder holding the projects. Default: none (the
+    /// projects aren't OS files).
+    fn projects_os_path(&self) -> Option<String> {
+        None
+    }
+
+    /// The engine-machine path of project `id`'s folder (`rel_path` empty) or of a file in
+    /// it (`rel_path` relative, checked). Hosts resolve the folder themselves (never
+    /// `projects_os_path` joined with the id). Default: none.
+    fn project_os_path(&self, id: ProjectId, rel_path: &str) -> Option<String> {
+        let _ = (id, rel_path);
+        None
     }
 }
 
