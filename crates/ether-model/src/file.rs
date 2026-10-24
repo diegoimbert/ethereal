@@ -165,9 +165,25 @@ pub fn load_with(
     let mut doc: Value = serde_json::from_str(json)?;
     migrate(&mut doc, migrations, target_version)?;
     let mut file: EtherFile = serde_json::from_value(doc)?;
+    rename_legacy_master(&mut file.project);
     file.project.ensure_index();
     file.project.validate()?;
     Ok(file.project)
+}
+
+/// The master track's default name ([`Project::new`]).
+pub const MASTER_NAME: &str = "master";
+
+/// A master track still named "main" (any case: Ableton Live 12's default name, which
+/// imports used to keep) gets the default name. Not a schema change: older readers load the
+/// result as is.
+fn rename_legacy_master(project: &mut Project) {
+    for track in project.tracks.values_mut() {
+        if track.kind == crate::track::TrackKind::Master && track.name.eq_ignore_ascii_case("main")
+        {
+            track.name = MASTER_NAME.into();
+        }
+    }
 }
 
 /// Rewrite an `.ether` document (JSON text) at `target` with `migrations` (up or down;
@@ -284,6 +300,24 @@ mod tests {
         assert!(!compact.contains('\n'));
         let parse = |s: &str| serde_json::from_str::<Value>(s).unwrap();
         assert_eq!(parse(&compact), parse(&json));
+    }
+
+    #[test]
+    fn a_master_with_an_older_default_name_loads_as_master() {
+        for (old, loaded) in [
+            ("Main", "master"),
+            ("main", "master"),
+            ("MAIN", "master"),
+            ("Master", "Master"),
+            ("Mains", "Mains"),
+            ("bus", "bus"),
+        ] {
+            let mut p = project();
+            let master = p.master_track().id;
+            p.tracks.get_mut(&master).unwrap().name = old.into();
+            let json = save(&p, "0.1.0").unwrap();
+            assert_eq!(load(&json).unwrap().tracks[&master].name, loaded, "{old}");
+        }
     }
 
     #[test]
