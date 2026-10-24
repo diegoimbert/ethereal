@@ -3,10 +3,14 @@ import type { MediaRef } from "@/generated";
 import { useProjectStore } from "@/state";
 import { isCommandFailed } from "@/transport";
 import { MockTransport } from "@/transport/mock";
+import { hasOsFiles } from "@/features/import/osDrop";
 import { formatSize, parentPath, pathSegments, sameLocation, sourceOf } from "./paths";
 import {
   BROWSER_DRAG_MIME,
+  endBrowserDrag,
   hasBrowserDrag,
+  hasBrowserMidiDrag,
+  inPageBrowserDrag,
   parseBrowserDragPayload,
   readBrowserDrag,
   resolveDroppedMedia,
@@ -35,7 +39,10 @@ function dataTransfer() {
   } as unknown as DataTransfer;
 }
 
-afterEach(() => useProjectStore.getState().reset());
+afterEach(() => {
+  endBrowserDrag();
+  useProjectStore.getState().reset();
+});
 
 describe("drag payload", () => {
   it("round-trips through a DataTransfer", () => {
@@ -57,6 +64,37 @@ describe("drag payload", () => {
     const dt = dataTransfer();
     dt.setData(BROWSER_DRAG_MIME, "{not json");
     expect(readBrowserDrag(dt)).toBeNull();
+  });
+
+  it("falls back to the in-page drag when the DataTransfer hides its custom types (Safari)", () => {
+    writeBrowserDrag(dataTransfer(), { ...kick, file_kind: "Midi", name: "Groove.mid" });
+    // What a drop target sees: only the plain text (and, sometimes, "Files"), no data.
+    const seen = { types: ["text/plain", "Files"], getData: (f: string) => (f === "text/plain" ? "Groove.mid" : ""), files: [] };
+    expect(hasBrowserDrag(seen)).toBe(true);
+    expect(hasBrowserMidiDrag(seen)).toBe(true);
+    expect(readBrowserDrag(seen)?.name).toBe("Groove.mid");
+    expect(hasOsFiles(seen)).toBe(false);
+    expect(inPageBrowserDrag()?.name).toBe("Groove.mid");
+
+    // The drag's end forgets it: an OS file drag is one again.
+    window.dispatchEvent(new Event("dragend"));
+    expect(inPageBrowserDrag()).toBeNull();
+    expect(hasBrowserDrag(seen)).toBe(false);
+    expect(readBrowserDrag(seen)).toBeNull();
+    expect(hasOsFiles(seen)).toBe(true);
+  });
+
+  it("ends the in-page drag after a drop and on the next press", async () => {
+    writeBrowserDrag(dataTransfer(), kick);
+    window.dispatchEvent(new Event("drop"));
+    // The drop's handlers still read it.
+    expect(inPageBrowserDrag()).toEqual(kick);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(inPageBrowserDrag()).toBeNull();
+
+    writeBrowserDrag(dataTransfer(), kick);
+    window.dispatchEvent(new Event("pointerdown"));
+    expect(inPageBrowserDrag()).toBeNull();
   });
 
   it("resolves dropped media: imports library files, reuses project media", async () => {

@@ -28,12 +28,16 @@ describe("scale mapping (mirrors ether_protocol::devices test vectors)", () => {
     expect(close(scaleToPlain({ type: "Power", exponent: 2 }, 0, 100, 0.5), 25)).toBe(true);
     expect(close(scaleToPlain({ type: "Fader" }, -70, 6, 1), 6)).toBe(true);
     expect(close(scaleToPlain({ type: "Fader" }, -70, 6, 0), -70)).toBe(true);
+    expect(close(scaleToPlain({ type: "Gain" }, -144, 36, 0.5), 0)).toBe(true);
+    expect(close(scaleToPlain({ type: "Gain" }, -144, 36, 0.75), 18)).toBe(true);
+    expect(close(scaleToPlain({ type: "Gain" }, -144, 36, 0.25), -24.95329850015803)).toBe(true);
+    expect(close(scaleToPlain({ type: "Gain" }, -144, 36, 0), -144)).toBe(true);
   });
 
   it("round-trips", () => {
-    const scales: ParamScale[] = [{ type: "Linear" }, { type: "Log" }, { type: "Power", exponent: 3 }, { type: "Fader" }];
+    const scales: ParamScale[] = [{ type: "Linear" }, { type: "Log" }, { type: "Power", exponent: 3 }, { type: "Fader" }, { type: "Gain" }];
     for (const scale of scales) {
-      const [min, max] = scale.type === "Fader" ? [-70, 6] : [20, 20000];
+      const [min, max] = scale.type === "Fader" ? [-70, 6] : scale.type === "Gain" ? [-144, 36] : [20, 20000];
       for (let i = 1; i < 10; i++) {
         const n = i / 10;
         const back = scaleToNormalized(scale, min, max, scaleToPlain(scale, min, max, n));

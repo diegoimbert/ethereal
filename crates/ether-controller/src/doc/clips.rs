@@ -70,6 +70,48 @@ fn check_length(length: Beats) -> CmdResult<()> {
     Ok(())
 }
 
+/// Clips shorter than this (in beats, about a tick) are slivers: nothing can be seen,
+/// selected or heard in them.
+pub const MIN_CLIP_SLIVER: f64 = 1e-3;
+
+/// Delete the clips this transaction left as slivers (shorter than [`MIN_CLIP_SLIVER`]):
+/// the leftovers of overlap trims, splits and time edits whose edges missed each other by
+/// a rounding error. Only clips the transaction created or resized, so an existing short
+/// clip stays as it is.
+pub fn drop_slivers(ctx: &mut DocCtx) -> CmdResult<()> {
+    let mut touched: BTreeSet<ClipId> = BTreeSet::new();
+    for op in ctx.tx.ops() {
+        match op {
+            Op::Insert {
+                entity: Entity::Clip(c),
+            } => {
+                touched.insert(c.id);
+            }
+            Op::Update {
+                update:
+                    EntityUpdate::Clip {
+                        id,
+                        change: ClipChange::Length(_),
+                    },
+            } => {
+                touched.insert(*id);
+            }
+            _ => {}
+        }
+    }
+    for id in touched {
+        if ctx
+            .p()
+            .clips
+            .get(&id)
+            .is_some_and(|c| c.length.0 < MIN_CLIP_SLIVER)
+        {
+            ctx.delete_clip(id)?;
+        }
+    }
+    Ok(())
+}
+
 /// Make room for arrangement clip `keep` on its track, Ableton-style: clips it fully covers
 /// are deleted, partially covered clips are trimmed, a clip that contains it is split.
 /// Crossfade overlaps (see `ether_model::clip`) are left alone.
