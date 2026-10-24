@@ -36,6 +36,8 @@ env:
   FUZZ_QUIET: "1"
   # A dated nightly (cargo-fuzz needs nightly; dated so a run is reproducible).
   FUZZ_TOOLCHAIN: nightly-2026-07-20
+  # The prebuilt cargo-fuzz would build for the triple it was built for (musl).
+  FUZZ_TRIPLE: x86_64-unknown-linux-gnu
 
 jobs:
   fuzz:

@@ -22,6 +22,9 @@ const fuzz = join(root, "fuzz");
 const quiet = process.env.FUZZ_QUIET === "1";
 // The nightly toolchain cargo-fuzz runs on (CI pins a dated one).
 const toolchain = `+${process.env.FUZZ_TOOLCHAIN || "nightly"}`;
+// The target triple to build for (a prebuilt cargo-fuzz defaults to the triple it was built for,
+// e.g. musl; CI sets the runner's).
+const triple = process.env.FUZZ_TRIPLE ? ["--target", process.env.FUZZ_TRIPLE] : [];
 
 // Seeds per target: fixture folders (every file) and inline bytes.
 const SEEDS = {
@@ -64,6 +67,7 @@ function run(target, seconds) {
     "fuzz",
     "run",
     "-O",
+    ...triple,
     target,
     corpus,
     "--",
@@ -105,7 +109,8 @@ if (cmd === "list") {
   if (!targets().includes(a)) throw new Error(`no fuzz target ${a} (node scripts/fuzz.mjs list)`);
   process.exit(run(a, Number(b ?? 60)) ? 0 : 1);
 } else if (cmd === "all") {
-  execFileSync("cargo", [toolchain, "fuzz", "build", "-O"], { cwd: fuzz, stdio: quiet ? "ignore" : "inherit" });
+  // The build output is public-safe (no input reached the code yet).
+  execFileSync("cargo", [toolchain, "fuzz", "build", "-O", ...triple], { cwd: fuzz, stdio: "inherit" });
   const failed = targets().filter((t) => !run(t, Number(a ?? 60)));
   process.exit(failed.length ? 1 : 0);
 } else {
