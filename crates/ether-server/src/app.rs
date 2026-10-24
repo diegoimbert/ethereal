@@ -99,6 +99,9 @@ fn run(hooks: &Hooks) -> Result<(), String> {
         },
         HostOptions {
             main_thread: Arc::new(DedicatedThread::new()),
+            // Remote clients name engine-machine files only when asked (`Unsupported`
+            // otherwise, as the protocol documents for hosts whose UI is elsewhere).
+            os_paths: args.allow_os_paths,
             ..HostOptions::default()
         },
     )

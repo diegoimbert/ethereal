@@ -25,6 +25,12 @@
 //! - `list_dir` paths: for projects, `rel_path` and the returned entry paths are relative to
 //!   the project folder (e.g. `media/kick.wav`); for the library they are relative to the
 //!   library root.
+//! - Raw engine-machine paths from the client (`MediaSource::Path`, `BundleSource::Path`,
+//!   the save-dialog paths of exports, `Browser::AddFolder`, the relink folder search) are
+//!   honoured only with [`DiskStore::with_os_paths`] (the desktop app, whose UI is on this
+//!   machine). Without it they reply `Unsupported`, except that a path inside one of the
+//!   store's own folders (library roots, user library, imported folders, projects, sample
+//!   cache) is still read: library files are referenced in place by such paths.
 
 use std::fs;
 use std::io::{BufWriter, Seek, SeekFrom, Write};
@@ -82,6 +88,8 @@ pub struct DiskStore {
     /// The sample pack cache (`Library::sample_cache_*`): `<app data>/samples` in the
     /// hosts; `None` = no cache (the built-in kit only).
     pub sample_cache: Option<PathBuf>,
+    /// Raw engine-machine paths from the client are honoured ([`Self::with_os_paths`]).
+    os_paths: bool,
 }
 
 fn io_err(e: std::io::Error) -> StoreError {
@@ -345,7 +353,64 @@ impl DiskStore {
             user_library,
             writer: Arc::default(),
             sample_cache: None,
+            os_paths: false,
         }
+    }
+
+    /// Honour raw engine-machine paths from the client (`crate::HostOptions::os_paths`):
+    /// only where the UI runs on this machine (the desktop app). Off by default: they reply
+    /// `Unsupported` (see the module docs).
+    pub fn with_os_paths(mut self, on: bool) -> Self {
+        self.os_paths = on;
+        self
+    }
+
+    /// `Unsupported` unless raw engine-machine paths are honoured.
+    fn check_os_paths(&self) -> Result<(), StoreError> {
+        if self.os_paths {
+            Ok(())
+        } else {
+            Err(StoreError::Unsupported(
+                "engine-machine paths are not available on this host".into(),
+            ))
+        }
+    }
+
+    /// [`Self::check_os_paths`], also passing an absolute `path` inside one of the store's own
+    /// folders (library roots, user library, imported folders, projects, sample cache), that
+    /// stays inside it once symlinks are resolved.
+    fn check_os_path(&self, path: &str) -> Result<(), StoreError> {
+        if self.os_paths || self.owns_path(path) {
+            Ok(())
+        } else {
+            self.check_os_paths()
+        }
+    }
+
+    fn owns_path(&self, path: &str) -> bool {
+        let p = Path::new(path);
+        let plain = p
+            .components()
+            .all(|c| !matches!(c, Component::ParentDir | Component::CurDir));
+        if path.contains('\0') || !p.is_absolute() || !plain {
+            return false;
+        }
+        let roots = self
+            .library_roots
+            .iter()
+            .map(|r| r.path.clone())
+            .chain(self.user_library.clone())
+            .chain(self.imports_dir())
+            .chain(self.sample_cache.clone())
+            .chain(Some(self.projects_root.clone()));
+        roots.into_iter().any(|root| {
+            let Ok(rel) = p.strip_prefix(&root) else {
+                return false;
+            };
+            let parts: Option<Vec<&str>> =
+                rel.components().map(|c| c.as_os_str().to_str()).collect();
+            parts.is_some_and(|parts| resolve_in(&root, &parts.join("/")).is_ok())
+        })
     }
 
     /// Keep the sample pack cache in `dir`.
@@ -708,6 +773,7 @@ impl ProjectStore for DiskStore {
     }
 
     fn export_folder_names(&mut self, folder: &str) -> Result<Vec<String>, StoreError> {
+        self.check_os_paths()?;
         let dir = export_folder(folder)?;
         match fs::read_dir(&dir) {
             Ok(rd) => Ok(rd
@@ -724,6 +790,7 @@ impl ProjectStore for DiskStore {
         folder: &str,
         file_name: &str,
     ) -> Result<(Box<dyn ExportFile>, String), StoreError> {
+        self.check_os_paths()?;
         // A single visible segment, like `exports/<file_name>`.
         ether_controller::store::export_path(file_name)?;
         let path = export_folder(folder)?.join(file_name);
@@ -757,11 +824,13 @@ impl ProjectStore for DiskStore {
     }
 
     fn write_bundle_file(&mut self, path: &str, bytes: &[u8]) -> Result<(), StoreError> {
+        self.check_os_paths()?;
         let p = bundle_path(path)?;
         atomic_write(p, bytes)
     }
 
     fn write_midi_file(&mut self, path: &str, bytes: &[u8]) -> Result<(), StoreError> {
+        self.check_os_paths()?;
         let p = Path::new(path);
         let name = p.file_name().and_then(|n| n.to_str()).unwrap_or_default();
         if path.contains('\0') || !p.is_absolute() || file_kind(name) != FileKind::Midi {
@@ -778,6 +847,7 @@ impl ProjectStore for DiskStore {
         project: &[u8],
         files: &[(String, Vec<u8>)],
     ) -> Result<(), StoreError> {
+        self.check_os_paths()?;
         let p = Path::new(path);
         let ok_ext = p.extension().and_then(|e| e.to_str()).is_some_and(|e| {
             ether_controller::store::PROJECT_EXPORT_EXTENSIONS
@@ -803,6 +873,7 @@ impl ProjectStore for DiskStore {
     }
 
     fn read_import_file(&mut self, path: &str) -> Result<Vec<u8>, StoreError> {
+        self.check_os_paths()?;
         let p = Path::new(path);
         if path.contains('\0') || !p.is_absolute() || !ether_controller::store::is_import_file(path)
         {
@@ -824,6 +895,7 @@ impl ProjectStore for DiskStore {
     }
 
     fn read_bundle_file(&mut self, path: &str) -> Result<Vec<u8>, StoreError> {
+        self.check_os_paths()?;
         let p = bundle_path(path)?;
         let meta = fs::metadata(p).map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => StoreError::NotFound(path.to_string()),
@@ -1004,8 +1076,10 @@ impl Library for DiskStore {
 
     /// `file-import` (shared with media references): an OS file chosen by the user (file
     /// dialog or drop) or an external reference. Absolute, an audio file by extension, a
-    /// regular file (symlinks followed) of at most [`MAX_EXTERNAL_BYTES`].
+    /// regular file (symlinks followed) of at most [`MAX_EXTERNAL_BYTES`]. Without
+    /// [`Self::with_os_paths`], only inside the store's own folders.
     fn read_external(&mut self, path: &str) -> Result<Vec<u8>, StoreError> {
+        self.check_os_path(path)?;
         read_external_file(path)
     }
 
@@ -1021,16 +1095,20 @@ impl Library for DiskStore {
         path.to_str().map(str::to_string)
     }
 
-    /// The Relink dialog's folder search.
+    /// The Relink dialog's folder search (`Unsupported` without [`Self::with_os_paths`]).
     fn list_external_dir(&mut self, path: &str) -> Result<Vec<(String, bool)>, StoreError> {
+        self.check_os_paths()?;
         list_external_dir(path)
     }
 
     /// A user folder becomes a library root (listed by `roots()`, browsable,
     /// importable, referenced in place) with the stable id [`user_folder_id`]. The folder
     /// must be an existing absolute directory. Not persisted here: the controller's browser
-    /// index remembers user folders and re-adds them on start.
+    /// index remembers user folders and re-adds them on start. Without
+    /// [`Self::with_os_paths`], only a folder inside the store's own folders (an imported
+    /// folder, `Browser::ImportFolder`).
     fn add_folder(&mut self, path: &str) -> Result<String, StoreError> {
+        self.check_os_path(path)?;
         let p = Path::new(path);
         let dotted = p
             .components()
@@ -1220,6 +1298,65 @@ mod tests {
                 path: lib,
             }],
         )
+        .with_os_paths(true)
+    }
+
+    /// Without `with_os_paths` (a host whose UI is elsewhere) raw engine-machine paths are
+    /// `Unsupported`, but paths inside the store's own folders (library files referenced in
+    /// place, imported folders) still work.
+    #[test]
+    fn engine_machine_paths_need_os_paths() {
+        let tmp = TempDir::new("store-os-paths");
+        let mut s = store(&tmp).with_os_paths(false);
+        let outside = tmp.path().join("Desktop");
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(outside.join("hit.wav"), b"RIFF").unwrap();
+        fs::write(outside.join("song.ether"), b"PK").unwrap();
+        let at = |n: &str| outside.join(n).to_str().unwrap().to_string();
+        let dir = outside.to_str().unwrap();
+        let unsupported = |r: Result<(), StoreError>, what: &str| {
+            assert!(
+                matches!(r, Err(StoreError::Unsupported(_))),
+                "{what}: {r:?}"
+            );
+        };
+        unsupported(s.read_external(&at("hit.wav")).map(drop), "read outside");
+        let lib = tmp.path().join("lib");
+        let escape = lib.join("../Desktop/hit.wav");
+        unsupported(s.read_external(escape.to_str().unwrap()).map(drop), "..");
+        unsupported(s.add_folder(dir).map(drop), "add folder");
+        unsupported(s.list_external_dir(dir).map(drop), "list folder");
+        unsupported(s.list_external_dir("").map(drop), "folder search probe");
+        unsupported(s.write_bundle_file(&at("out.ether"), b"PK"), "write bundle");
+        unsupported(
+            s.read_bundle_file(&at("song.ether")).map(drop),
+            "read bundle",
+        );
+        unsupported(s.write_midi_file(&at("out.mid"), b"MThd"), "write midi");
+        unsupported(s.read_import_file(&at("a.als")).map(drop), "read import");
+        unsupported(
+            s.write_project_export(&at("out.dawproject"), b"x", &[]),
+            "project export",
+        );
+        unsupported(s.export_folder_names(dir).map(drop), "export folder");
+        unsupported(s.create_export_in(dir, "Song.wav").map(drop), "export file");
+        assert!(!outside.join("out.ether").exists());
+        assert!(!outside.join("out.mid").exists());
+
+        // A library file by its in-place path.
+        let kick = s.external_path("lib", "drums/kick.wav").unwrap();
+        assert_eq!(s.read_external(&kick).unwrap(), b"RIFF");
+        // A symlink inside the library pointing out of it is not the library's.
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(outside.join("hit.wav"), lib.join("link.wav")).unwrap();
+            let link = lib.join("link.wav");
+            unsupported(s.read_external(link.to_str().unwrap()).map(drop), "symlink");
+        }
+        // An imported folder (created by the store) is added.
+        let imported = s.create_import_folder("Field Recordings").unwrap();
+        let id = s.add_folder(&imported).unwrap();
+        assert_eq!(id, user_folder_id(&imported));
     }
 
     #[test]
@@ -2198,11 +2335,17 @@ mod tests {
             std::os::unix::fs::symlink(&keep, &link).unwrap();
             let lid = s.add_folder(link.to_str().unwrap()).unwrap();
             s.remove_folder(&lid).unwrap();
-            assert!(keep.join("a.wav").exists(), "a symlinked folder's target is kept");
+            assert!(
+                keep.join("a.wav").exists(),
+                "a symlinked folder's target is kept"
+            );
         }
         assert!(Path::new(&imported).is_dir());
         s.remove_folder(&id).unwrap();
-        assert!(!Path::new(&imported).exists(), "an imported folder's copy is deleted");
+        assert!(
+            !Path::new(&imported).exists(),
+            "an imported folder's copy is deleted"
+        );
         assert!(tmp.path().join("projects").parent().unwrap().is_dir());
     }
 }
