@@ -76,6 +76,8 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 # --- real-time plumbing ---
 rtrb = "0.4"
+# Seeded fast hash for maps keyed by entity ids (ether-controller compile). MIT / Zlib.
+foldhash = "0.2"
 assert_no_alloc = "1.1"
 crossbeam-channel = "0.5"
 
