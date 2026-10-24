@@ -25,6 +25,7 @@ import type {
   DeviceCommand,
   DeviceDescriptor,
   ErrorCode,
+  LfoCurve,
   MixerCommand,
   Note,
   NoteCommand,
@@ -704,18 +705,18 @@ function deviceCommandInner(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
       if (d.kind.type !== "Builtin" || d.kind.device.type !== "VolumeLfo") {
         fail("InvalidArgument", `device ${d.id} is not a volume lfo`);
       }
-      const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
-      const points = c.curve.points
-        .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
-        .map((p) => ({
-          x: clamp01(p.x),
-          y: clamp01(p.y),
-          curve: p.curve.type === "Curve" ? { type: "Curve" as const, tension: Math.min(1, Math.max(-1, p.curve.tension)) } : p.curve,
-        }))
-        .sort((a, b) => a.x - b.x)
-        .slice(0, 64);
-      if (points.length === 0) points.push({ x: 0, y: 1, curve: { type: "Linear" } });
-      tx.upsert("Device", { ...d, kind: { type: "Builtin", device: { type: "VolumeLfo", curve: { points } } } });
+      tx.upsert("Device", { ...d, kind: { type: "Builtin", device: { type: "VolumeLfo", curve: sanitizeLfoCurve(c.curve) } } });
+      break;
+    }
+    case "SetShaperCurve": {
+      // `shaper`: one lane's drawn cycle (Rust `ShaperCurves::with`).
+      const d = device(ctx, c.device);
+      if (d.kind.type !== "Builtin" || d.kind.device.type !== "Shaper") {
+        fail("InvalidArgument", `device ${d.id} is not a shaper`);
+      }
+      const lane = c.lane === "Volume" ? "volume" : c.lane === "Cutoff" ? "cutoff" : "pan";
+      const curves = { ...d.kind.device.curves, [lane]: sanitizeLfoCurve(c.curve) };
+      tx.upsert("Device", { ...d, kind: { type: "Builtin", device: { type: "Shaper", curves } } });
       break;
     }
     case "RenameMacro":
@@ -1392,4 +1393,20 @@ export function labelOf(command: Command): string {
     .split(" ")
     .map((w) => w.toLowerCase())
     .join(" ");
+}
+
+/** A drawn cycle made valid, like Rust `LfoCurve::sanitized`. */
+function sanitizeLfoCurve(curve: LfoCurve): LfoCurve {
+  const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+  const points = curve.points
+    .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+    .map((p) => ({
+      x: clamp01(p.x),
+      y: clamp01(p.y),
+      curve: p.curve.type === "Curve" ? { type: "Curve" as const, tension: Math.min(1, Math.max(-1, p.curve.tension)) } : p.curve,
+    }))
+    .sort((a, b) => a.x - b.x)
+    .slice(0, 64);
+  if (points.length === 0) points.push({ x: 0, y: 1, curve: { type: "Linear" } });
+  return { points };
 }

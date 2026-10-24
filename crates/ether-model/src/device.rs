@@ -8,7 +8,7 @@ use ts_rs::TS;
 use crate::drum_rack::SliceSettings;
 use crate::external::{ExternalRouting, IrSource};
 use crate::ids::{DeviceId, DrumPadId, MediaId, RackChainId, TrackId};
-use crate::lfo_curve::LfoCurve;
+use crate::lfo_curve::{LfoCurve, ShaperCurves};
 use crate::multisampler::SampleZone;
 use crate::value::{Base64Bytes, OrderKey, ParamId};
 
@@ -391,6 +391,13 @@ pub enum BuiltinDevice {
     /// Mastering maximizer: a threshold-driven lookahead true-peak brickwall limiter
     /// (`maximizer`).
     Maximizer,
+    /// Volume, filter cutoff and pan each shaped by a drawn, tempo-synced cycle
+    /// (`shaper`, [`crate::lfo_curve::ShaperCurves`]).
+    Shaper {
+        /// Omitted (an agent's `{"type": "Shaper"}`) = the defaults.
+        #[serde(default)]
+        curves: ShaperCurves,
+    },
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -444,11 +451,12 @@ pub enum BuiltinDeviceType {
     Shifter,
     Loudness,
     Maximizer,
+    Shaper,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 46] = [
+    pub const ALL: [BuiltinDeviceType; 47] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -495,6 +503,7 @@ impl BuiltinDeviceType {
         Self::Shifter,
         Self::Loudness,
         Self::Maximizer,
+        Self::Shaper,
     ];
 
     /// Rack types ([`crate::rack`]).
@@ -573,6 +582,7 @@ impl BuiltinDevice {
             Self::Shifter => BuiltinDeviceType::Shifter,
             Self::Loudness => BuiltinDeviceType::Loudness,
             Self::Maximizer => BuiltinDeviceType::Maximizer,
+            Self::Shaper { .. } => BuiltinDeviceType::Shaper,
         }
     }
 
@@ -664,6 +674,9 @@ impl BuiltinDevice {
             BuiltinDeviceType::Shifter => Self::Shifter,
             BuiltinDeviceType::Loudness => Self::Loudness,
             BuiltinDeviceType::Maximizer => Self::Maximizer,
+            BuiltinDeviceType::Shaper => Self::Shaper {
+                curves: ShaperCurves::default(),
+            },
         }
     }
 

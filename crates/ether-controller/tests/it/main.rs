@@ -76,6 +76,7 @@ mod samples;
 mod sandbox_defaults;
 mod save_failures;
 mod section_edit;
+mod shaper;
 mod sidechain;
 mod solo_mute;
 mod split_loop;

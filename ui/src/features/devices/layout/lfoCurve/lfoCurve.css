@@ -32,3 +32,9 @@
   stroke-width: var(--eth-border-width-strong);
   pointer-events: none;
 }
+/* A lane that is off (the shaper): still editable, drawn dim. */
+.eth-lfo-curve--off .eth-plot__line,
+.eth-lfo-curve--off .eth-plot__fill,
+.eth-lfo-curve--off .eth-lfo-curve__point {
+  opacity: var(--eth-opacity-muted);
+}

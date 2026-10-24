@@ -1791,6 +1791,14 @@
           "platform": "all"
         },
         {
+          "id": "devices/shaper",
+          "title": "shaper",
+          "what": "three drawn, tempo-synced cycles: volume, filter cutoff (low-pass / high-pass / band-pass between a bottom and a top cutoff, resonance) and pan; per-lane rate, depth and on/off; smoothing, mix, output. edited like the volume lfo's curve.",
+          "priority": "should",
+          "audience": "everyone",
+          "platform": "all"
+        },
+        {
           "id": "devices/utility",
           "title": "utility",
           "what": "gain (±36 db), balance pan, width (0–200 %) or mid/side balance, invert l / r, mono, bass mono below a frequency, channel stereo / left / right / swap, dc filter, mute, with output meters.",

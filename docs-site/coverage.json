@@ -1,7 +1,7 @@
 {
-  "total": 381,
+  "total": 382,
   "removed": 1,
-  "covered": 380,
+  "covered": 381,
   "pending": 0,
   "percent": 100,
   "items": {
@@ -655,6 +655,9 @@
     ],
     "devices/maximizer": [
       "making-music/effects#maximizer"
+    ],
+    "devices/shaper": [
+      "making-music/effects#shaper"
     ],
     "devices/utility": [
       "making-music/effects#utility"

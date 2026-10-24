@@ -367,6 +367,7 @@ pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
             ),
             D::SetZones { .. } => k("undo.device.set_zones"),
             D::SetLfoCurve { .. } => k("undo.device.set_lfo_curve"),
+            D::SetShaperCurve { .. } => k("undo.device.set_shaper_curve"),
             D::RenameMacro { .. } => k("undo.device.rename_macro"),
             D::SetMacroCount { .. } => k("undo.device.set_macro_count"),
             D::SetIr { ir, .. } => {

@@ -160,6 +160,7 @@ pub fn node_data(
             ether_devices::fx_space::ir_swap(device, sources, sample_rate as f32)
         }
         BuiltinDevice::VolumeLfo { .. } => ether_devices::fx_modulation::volume_lfo_curve(device),
+        BuiltinDevice::Shaper { .. } => ether_devices::shaper::curve_data(device),
         _ => None,
     }
 }

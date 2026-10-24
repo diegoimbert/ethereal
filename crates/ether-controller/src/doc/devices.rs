@@ -388,6 +388,27 @@ fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
                 }),
             )
         }
+        // `shaper`: one lane's drawn cycle (one `Kind` change, one undo step).
+        DeviceCommand::SetShaperCurve {
+            device,
+            lane,
+            curve,
+        } => {
+            let d = ctx.device(*device)?;
+            let DeviceKind::Builtin {
+                device: BuiltinDevice::Shaper { curves },
+            } = &d.kind
+            else {
+                return Err(invalid(format!("device {} is not a shaper", d.id)));
+            };
+            let curves = curves.with(*lane, curve);
+            ctx.set_device(
+                d.id,
+                DeviceChange::Kind(DeviceKind::Builtin {
+                    device: BuiltinDevice::Shaper { curves },
+                }),
+            )
+        }
         // Racks: macro names and the visible macro count (one `Kind` change, one undo step).
         DeviceCommand::RenameMacro {
             device,

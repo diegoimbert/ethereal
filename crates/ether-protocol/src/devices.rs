@@ -5,7 +5,7 @@ use ts_rs::TS;
 
 use crate::model::{
     BuiltinDevice, BuiltinDeviceType, DeviceId, IrSource, LfoCurve, MediaId, MidiSidechain,
-    ParamId, PluginFormat, SampleZone, Seconds, SidechainTap, TrackId,
+    ParamId, PluginFormat, SampleZone, Seconds, ShaperLane, SidechainTap, TrackId,
 };
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
@@ -111,6 +111,14 @@ pub enum DeviceCommand {
     /// while dragging); the live node swaps it in place (`EngineBridge::update_builtin`).
     SetLfoCurve {
         device: DeviceId,
+        curve: LfoCurve,
+    },
+    /// `shaper`: replace one lane's drawn cycle of a shaper (`ether_model::ShaperCurves`;
+    /// sanitized like [`DeviceCommand::SetLfoCurve`]). One undo step (send with a gesture id
+    /// while dragging); the live node swaps it in place.
+    SetShaperCurve {
+        device: DeviceId,
+        lane: ShaperLane,
         curve: LfoCurve,
     },
     /// Rename macro `index` (`< RACK_MACROS`) of a rack (any rack type, drum racks

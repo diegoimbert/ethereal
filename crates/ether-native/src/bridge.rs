@@ -678,6 +678,22 @@ impl EngineBridge for NativeBridge {
                 .map_err(engine_err)?;
             return Ok(true);
         }
+        // A shaper's drawn curves: fixed-size copies, swapped in.
+        if let BuiltinDevice::Shaper { .. } = kind {
+            let Some(entry) = self.devices.get(&device) else {
+                return Ok(false);
+            };
+            if !matches!(entry.kind, DeviceKind::Builtin(BuiltinDeviceType::Shaper)) {
+                return Ok(false);
+            }
+            let Some(data) = ether_devices::shaper::curve_data(kind) else {
+                return Ok(false);
+            };
+            self.handle
+                .set_node_data(entry.key, data)
+                .map_err(engine_err)?;
+            return Ok(true);
+        }
         // v0.3 (`fx-space`): a new IR, read and partitioned here (off the audio thread);
         // the node crossfades to it.
         if let BuiltinDevice::ConvolutionReverb { .. } = kind {

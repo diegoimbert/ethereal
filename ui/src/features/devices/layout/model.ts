@@ -54,6 +54,8 @@ export function boundParams(w: Widget): ParamId[] {
       return [w.target];
     case "Maximizer":
       return [w.threshold, w.ceiling];
+    case "ShaperCurve":
+      return [w.on, w.rate, w.depth];
     case "Macros":
       return macrosWidgetParams(w);
     case "ZoneMap":

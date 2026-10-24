@@ -568,6 +568,7 @@ impl<M: RingMemory> EngineBridge for WebBridge<M> {
                 | BuiltinDevice::MultiSampler { .. }
                 | BuiltinDevice::ConvolutionReverb { .. }
                 | BuiltinDevice::VolumeLfo { .. }
+                | BuiltinDevice::Shaper { .. }
         );
         if !updatable || ty != kind.device_type() {
             return Ok(false);

@@ -11,6 +11,7 @@ import { IrWidget } from "./ir";
 import { LfoCurveWidget } from "./lfoCurve";
 import { LoudnessWidget } from "./loudness";
 import { MaximizerWidget } from "./maximizer";
+import { ShaperCurveWidget } from "./shaper";
 import { MacrosWidget, MeterWidget, RackChainsWidget, SampleWaveformWidget, SpectrumWidget, TunerWidget } from "./widgets/data";
 import { ZoneMapWidget } from "./zones";
 import { DelayTapsWidget, DynamicsCurveWidget, ReverbDecayWidget, VelocityCurveWidget } from "./widgets/effects";
@@ -126,5 +127,8 @@ export function WidgetView({ widget, size, label }: WidgetViewProps) {
     // maximizer.
     case "Maximizer":
       return <MaximizerWidget widget={widget} size={size} label={label} />;
+    // shaper.
+    case "ShaperCurve":
+      return <ShaperCurveWidget widget={widget} size={size} label={label} />;
   }
 }
