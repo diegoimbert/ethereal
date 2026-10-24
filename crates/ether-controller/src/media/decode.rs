@@ -35,6 +35,8 @@ pub struct IncrementalDecoder {
     peaks: Option<PeaksSink>,
     /// Stop after this many frames (an IR only needs its first seconds).
     limit: Option<usize>,
+    /// The most samples kept (`ether_media::max_decoded_samples` of the file size).
+    max_samples: usize,
 }
 
 struct PeaksSink {
@@ -69,6 +71,7 @@ impl IncrementalDecoder {
             done: false,
             peaks: None,
             limit: None,
+            max_samples: ether_media::max_decoded_samples(bytes_len),
         })
     }
 
@@ -170,6 +173,8 @@ impl IncrementalDecoder {
                     out.reserve(n);
                 }
             }
+            let have = self.out.first().map_or(0, Vec::len);
+            ether_media::check_decoded_size(have, decoded.frames(), n_ch, self.max_samples)?;
             source::append_planar(&decoded, &mut self.out);
         }
         Ok(self.done)
