@@ -555,6 +555,8 @@ pub fn run_with(context: tauri::Context<tauri::Wry>, ext: DesktopExt) {
                 },
                 HostOptions {
                     main_thread: plugin_main_thread(app.handle()),
+                    // The UI is on this machine: "show in file manager".
+                    file_manager: true,
                     ..HostOptions::default()
                 },
             )

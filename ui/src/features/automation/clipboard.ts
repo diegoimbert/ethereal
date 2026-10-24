@@ -22,6 +22,7 @@ import type {
   CurveShape,
   ParamInfo,
   PointSpec,
+  TrackId,
 } from "@/generated";
 import { paramToNormalized, paramToPlain } from "@/domain/paramScale";
 import { pointsOfLane, useProjectStore } from "@/state";
@@ -29,6 +30,7 @@ import { itemSelection, type ItemSelectionStore } from "@/timeline";
 import { cmd, newId, type EngineTransport } from "@/transport";
 import { advanceCursor } from "@/features/time-edits/marker";
 import { sendEdit } from "./gesture";
+import { flattenCommands } from "./laneRegistry";
 import { rangeWriteCommand, sliceRange, writeRange } from "./range";
 import { snapValue } from "./valueAxis";
 import { batchStep, countedStep, keyedStep, type StepLabel } from "@/features/arrangement/editMath";
@@ -58,8 +60,80 @@ export interface PointClipboard {
 
 let clipboard: PointClipboard | null = null;
 
+/**
+ * Points copied from SEVERAL lanes at once (a selection across lanes): each lane's points
+ * with their offset from the earliest one. A paste puts each back into its own lane (same
+ * track, same parameter) at the paste time plus its offset, keeping the lanes in step.
+ */
+export interface MultiLaneClipboard {
+  lanes: Array<{ track: TrackId; key: string; offset: Beats; clip: PointClipboard }>;
+  /** Beats from the earliest to the latest copied point. */
+  span: Beats;
+}
+
+let multiClipboard: MultiLaneClipboard | null = null;
+
 export function hasPointClipboard(): boolean {
-  return clipboard !== null && clipboard.points.length > 0;
+  return (clipboard !== null && clipboard.points.length > 0) || multiClipboard !== null;
+}
+
+/** The multi-lane copy, when the last copy was one. */
+export function multiLaneClipboard(): MultiLaneClipboard | null {
+  return multiClipboard;
+}
+
+/**
+ * Snapshot of points of several lanes (each lane's points, any order), or null when there
+ * are none.
+ */
+export function snapshotLanes(
+  groups: ReadonlyArray<{ track: TrackId; key: string; info: ParamInfo; points: ReadonlyArray<AutomationPoint> }>,
+): MultiLaneClipboard | null {
+  const shots = groups.map((g) => ({ g, clip: snapshotPoints(g.points, g.info, g.key) })).filter((x) => x.clip !== null);
+  if (shots.length === 0) return null;
+  const firsts = groups.flatMap((g) => g.points.map((p) => p.time));
+  const t0 = Math.min(...firsts);
+  const t1 = Math.max(...firsts);
+  return {
+    lanes: shots.map(({ g, clip }) => ({ track: g.track, key: g.key, offset: Math.min(...g.points.map((p) => p.time)) - t0, clip: clip! })),
+    span: t1 - t0,
+  };
+}
+
+/** Copy points of several lanes (see `MultiLaneClipboard`). Returns how many were copied. */
+export function copyLanes(groups: Parameters<typeof snapshotLanes>[0]): number {
+  const snap = snapshotLanes(groups);
+  if (!snap) return 0;
+  multiClipboard = snap;
+  clipboard = null;
+  return snap.lanes.reduce((n, l) => n + l.clip.points.length, 0);
+}
+
+/**
+ * One undo step pasting a multi-lane copy at `at`: each lane's points into `destOf(track,
+ * key)` (lanes not found are skipped) at `at` plus its offset. Returns the command and the
+ * new point ids.
+ */
+export function pasteLanesCommand(
+  clip: MultiLaneClipboard,
+  destOf: (track: TrackId, key: string) => PasteTarget | null,
+  at: Beats,
+  opts: { keepAt?: boolean } = {},
+): { command: Command | null; ids: AutomationPointId[] } {
+  const commands: Command[] = [];
+  const ids: AutomationPointId[] = [];
+  for (const l of clip.lanes) {
+    const dest = destOf(l.track, l.key);
+    if (!dest) continue;
+    const one = pasteCommand(l.clip, dest, at + l.offset, { keepAt: opts.keepAt });
+    ids.push(...one.ids);
+    commands.push(...flattenCommands([one.command]));
+  }
+  const n = ids.length;
+  const label = opts.keepAt
+    ? countedStep("undo.automation.duplicate_points", n, "duplicate automation point", "duplicate automation points")
+    : countedStep("undo.automation.paste_points", n, "paste automation point", "paste automation points");
+  return { command: commands.length ? batchStep(label, commands) : null, ids };
 }
 
 export function pointClipboard(): PointClipboard | null {
@@ -69,6 +143,7 @@ export function pointClipboard(): PointClipboard | null {
 /** Tests: forget the clipboard. */
 export function clearPointClipboard(): void {
   clipboard = null;
+  multiClipboard = null;
 }
 
 /** Snapshot of `points` (any order). */
@@ -87,7 +162,10 @@ export function snapshotPoints(points: ReadonlyArray<AutomationPoint>, info: Par
 /** Copy `points`. Returns how many were copied. */
 export function copyPoints(points: ReadonlyArray<AutomationPoint>, info: ParamInfo, targetKey: string): number {
   const snap = snapshotPoints(points, info, targetKey);
-  if (snap) clipboard = snap;
+  if (snap) {
+    clipboard = snap;
+    multiClipboard = null;
+  }
   return snap?.points.length ?? 0;
 }
 
@@ -104,7 +182,10 @@ export function snapshotRange(points: ReadonlyArray<AutomationPoint>, start: Bea
  */
 export function copyRange(points: ReadonlyArray<AutomationPoint>, start: Beats, end: Beats, info: ParamInfo, targetKey: string): boolean {
   const snap = snapshotRange(points, start, end, info, targetKey);
-  if (snap) clipboard = snap;
+  if (snap) {
+    clipboard = snap;
+    multiClipboard = null;
+  }
   return snap !== null;
 }
 
@@ -238,6 +319,25 @@ export async function pastePoints(
   const created = ids.filter((id) => now?.automation_points[id]);
   if (created.length) selection.getState().select("automationPoint", created, "replace");
   // The selection cursor (not the playhead) moves past the paste, so pastes tile.
+  if (!keepAt) advanceCursor(Math.max(0, at) + clip.span);
+  return created;
+}
+
+/** Paste a multi-lane copy (`pasteLanesCommand`), select the pasted points, move the selection cursor past them. */
+export async function pasteLanes(
+  transport: EngineTransport,
+  clip: MultiLaneClipboard,
+  destOf: (track: TrackId, key: string) => PasteTarget | null,
+  at: number,
+  selection: ItemSelectionStore = itemSelection,
+  keepAt = false,
+): Promise<AutomationPointId[]> {
+  const { command, ids } = pasteLanesCommand(clip, destOf, Math.max(0, at), { keepAt });
+  if (!command) return [];
+  await sendEdit(transport, command);
+  const now = useProjectStore.getState().project;
+  const created = ids.filter((id) => now?.automation_points[id]);
+  if (created.length) selection.getState().select("automationPoint", created, "replace");
   if (!keepAt) advanceCursor(Math.max(0, at) + clip.span);
   return created;
 }

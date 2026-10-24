@@ -226,6 +226,7 @@ export interface MessageArgs {
   "devices.widget.dynamics": { has_ratio: string; mode: string; ratio: string | number; threshold: string | number };
   "devices.widget.filter": { cutoff: string | number };
   "devices.widget.fm_algorithm": { n: string | number; name: string | number };
+  "devices.widget.loudness": { seconds: string | number };
   "devices.widget.oscillator": { shape: string | number };
   "devices.widget.reverb": { decay: string | number; frozen: string; has_pre: string; pre: string | number };
   "devices.widget.spectrum": { hi: string | number; lo: string | number };
@@ -598,6 +599,7 @@ export interface MessageArgs {
   "resolver.used_times": { count: string | number };
   "resolver.where": { names: string | number };
   "resolver.where_more": { count: number; names: string | number };
+  "reveal.failed": { error: string | number };
   "sampler.convert.key_step_n": { count: number };
   "sampler.convert.replaces": { name: string | number };
   "sampler.convert.summary": { count: number; keys: number; velocities: number };

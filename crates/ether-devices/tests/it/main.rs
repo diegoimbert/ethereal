@@ -34,6 +34,7 @@ mod instruments_golden;
 mod instruments_poly_synth;
 mod instruments_synth_sampler;
 mod layouts;
+mod loudness;
 mod midi_fx;
 mod midi_fx_bypass;
 mod multisampler;

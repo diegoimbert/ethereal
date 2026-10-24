@@ -228,6 +228,9 @@ pub struct HostOptions {
     /// The switch `controller` reads to pick patch shapes ([`NativeHost::patch_compat`]).
     /// A custom `controller` should be built with a clone of it.
     pub patch_compat: PatchCompat,
+    /// `Media::Reveal` opens this machine's file manager: only where the UI runs on this
+    /// machine (the desktop app). Off: `Unsupported` (servers, headless hosts).
+    pub file_manager: bool,
 }
 
 impl Default for HostOptions {
@@ -238,6 +241,7 @@ impl Default for HostOptions {
             instantiate: crate::plugins::instantiate_any(),
             controller: ether_controller_with(patch_compat.clone()),
             patch_compat,
+            file_manager: false,
         }
     }
 }
@@ -583,6 +587,7 @@ impl NativeHost {
         // Renders suspend the live engine: they get its worker count.
         bridge.set_offline_workers(engine_config.worker_threads);
         let factory = options.controller;
+        let services = NativeServices::default().with_file_manager(options.file_manager);
         let patch_compat = options.patch_compat;
         let health = plugins.health().clone();
         let ctx = ControllerThread {
@@ -628,7 +633,7 @@ impl NativeHost {
             .name("ether-controller".into())
             .spawn(move || {
                 let controller = match std::panic::catch_unwind(AssertUnwindSafe(|| {
-                    factory(bridge, NativeServices::default(), store.clone(), store)
+                    factory(bridge, services, store.clone(), store)
                 })) {
                     Ok(c) => c,
                     Err(p) => {
