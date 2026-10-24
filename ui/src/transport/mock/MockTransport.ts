@@ -215,7 +215,13 @@ interface StoredProject {
   modified_ms: number;
   /** The document's `settings.forked_from`. */
   forked_from?: ForkOrigin;
+  /** Status (the controller's `project_status`): archived, in the bin since. */
+  archived?: boolean;
+  binned_ms?: number;
 }
+
+/** How long a project stays in the bin (`BIN_RETENTION_MS`). */
+const BIN_RETENTION_MS = 30 * 24 * 3_600_000;
 
 /** JSON round-trip: what a real host's serialization would do to the value. */
 function wire<T>(value: T): T {
@@ -915,21 +921,48 @@ export class MockTransport implements EngineTransport {
   }
 
   private storeProject(project: Project, modified_ms: number): ProjectSummary {
-    const entry = { json: serializeEtherFile(project), name: project.settings.name, modified_ms, forked_from: project.settings.forked_from };
+    // A save keeps the status (a new project, a copy, has none).
+    const { archived, binned_ms } = this.store.get(project.id) ?? {};
+    const entry: StoredProject = {
+      json: serializeEtherFile(project),
+      name: project.settings.name,
+      modified_ms,
+      forked_from: project.settings.forked_from,
+      archived,
+      binned_ms,
+    };
     this.store.set(project.id, entry);
-    return { id: project.id, name: entry.name, modified_ms, ...(entry.forked_from ? { forked_from: entry.forked_from } : {}) };
+    return this.summaryOf(project.id, entry, false);
   }
 
-  private summaries(): ProjectSummary[] {
+  /** `current`: the open project's (possibly unsaved) name is what the user sees. */
+  private summaryOf(id: ProjectId, e: StoredProject, current = true): ProjectSummary {
+    return {
+      id,
+      name: current && id === this.project.id ? this.project.settings.name : e.name,
+      modified_ms: e.modified_ms,
+      ...(e.forked_from ? { forked_from: e.forked_from } : {}),
+      ...(e.archived ? { archived: true } : {}),
+      ...(e.binned_ms !== undefined ? { binned_ms: e.binned_ms } : {}),
+    };
+  }
+
+  /** The live projects (`binned`: the bin), the bin's expired projects deleted first. */
+  private summaries(binned = false): ProjectSummary[] {
+    const now = this.wallNow();
+    for (const [id, e] of this.store) if (e.binned_ms !== undefined && now - e.binned_ms >= BIN_RETENTION_MS) this.store.delete(id);
     return [...this.store.entries()]
-      .map(([id, e]) => ({
-        id,
-        // The current project's (possibly unsaved) name is what the user sees.
-        name: id === this.project.id ? this.project.settings.name : e.name,
-        modified_ms: e.modified_ms,
-        ...(e.forked_from ? { forked_from: e.forked_from } : {}),
-      }))
-      .sort((a, b) => b.modified_ms - a.modified_ms || a.name.localeCompare(b.name));
+      .filter(([, e]) => (e.binned_ms !== undefined) === binned)
+      .map(([id, e]) => this.summaryOf(id, e))
+      .sort(binned ? (a, b) => (b.binned_ms ?? 0) - (a.binned_ms ?? 0) : (a, b) => b.modified_ms - a.modified_ms || a.name.localeCompare(b.name));
+  }
+
+  /** Change a stored project's status (`MoveToBin`, `RestoreFromBin`, `SetArchived`). */
+  private setStatus(id: ProjectId, patch: Partial<Pick<StoredProject, "archived" | "binned_ms">>): ReplyValue {
+    const entry = this.stored(id);
+    this.store.set(id, { ...entry, ...patch });
+    this.emitListChanged();
+    return UNIT;
   }
 
   private emitListChanged(): void {
@@ -980,6 +1013,7 @@ export class MockTransport implements EngineTransport {
       case "Open":
       case "OpenSafe": {
         const entry = this.stored(c.id);
+        if (entry.binned_ms !== undefined) fail("InvalidState", "this project is in the bin: restore it first");
         this.saveBeforeSwitch();
         // Re-read after a possible autosave (opening the current project reloads it).
         this.loadProject(parseEtherFile(this.store.get(c.id)?.json ?? entry.json));
@@ -1064,6 +1098,19 @@ export class MockTransport implements EngineTransport {
         if (c.id === this.project.id) fail("InvalidState", "cannot delete the open project");
         this.stored(c.id);
         this.store.delete(c.id);
+        this.emitListChanged();
+        return UNIT;
+      case "MoveToBin":
+        if (c.id === this.project.id) fail("InvalidState", "cannot move the open project to the bin");
+        return this.setStatus(c.id, { binned_ms: this.wallNow() });
+      case "RestoreFromBin":
+        return this.setStatus(c.id, { binned_ms: undefined });
+      case "SetArchived":
+        return this.setStatus(c.id, { archived: c.archived || undefined });
+      case "ListBin":
+        return { type: "Projects", projects: this.summaries(true) };
+      case "EmptyBin":
+        for (const p of this.summaries(true)) this.store.delete(p.id);
         this.emitListChanged();
         return UNIT;
       case "SetScale":

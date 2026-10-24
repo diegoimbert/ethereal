@@ -105,6 +105,7 @@ pub mod plugins;
 pub mod presets;
 #[doc(hidden)]
 pub mod project;
+pub mod project_status;
 // `Project::ExportTo` without an extension that exports to other DAWs: `Unsupported`
 // (`project_export/disabled.rs`).
 #[path = "project_export/disabled.rs"]
