@@ -13,7 +13,9 @@ import {
   offsetValue,
   setAllFormant,
   setAllTranspose,
+  setAllWarpChoice,
   transposeBases,
+  warpChoiceOf,
   type AudioClip,
 } from "./multiEdit";
 
@@ -174,5 +176,33 @@ describe("complex+ formant builders", () => {
     ]);
     // Clamped to 100 %: only "b" (at 50 %) changes.
     expect(formants(setAllFormant(list(), "amount", 7)).map(([id, f]) => [id, f?.amount])).toEqual([["b", 1]]);
+  });
+});
+
+describe("warp mode list (none = warp off)", () => {
+  const warpOf = (c: Command | null) => {
+    const list = !c ? [] : c.domain === "Edit" && c.command.type === "Batch" ? c.command.commands : [c];
+    return list.map((x) => (x.domain === "Warp" && x.command.type === "SetWarp" ? [x.command.clip, x.command.warp.enabled, x.command.warp.mode] : null));
+  };
+  it("reads an unwarped clip as none, a warped one as its mode", () => {
+    expect(warpChoiceOf({ enabled: false, mode: "ComplexPlus", source_bpm: null })).toBe("None");
+    expect(warpChoiceOf({ enabled: true, mode: "ComplexPlus", source_bpm: null })).toBe("ComplexPlus");
+  });
+  it("sets every clip to the picked mode, leaving out the clips already on it", () => {
+    const clips = audioClips([
+      clip("a", { warp: { enabled: false, mode: "Complex", source_bpm: 100 } }),
+      clip("b", { warp: { enabled: true, mode: "Complex", source_bpm: null } }),
+      clip("c", { warp: { enabled: true, mode: "Repitch", source_bpm: null } }),
+    ]);
+    expect(warpOf(setAllWarpChoice(clips, "Complex"))).toEqual([
+      ["a", true, "Complex"],
+      ["c", true, "Complex"],
+    ]);
+    // None turns warp off and keeps each clip's mode.
+    expect(warpOf(setAllWarpChoice(clips, "None"))).toEqual([
+      ["b", false, "Complex"],
+      ["c", false, "Repitch"],
+    ]);
+    expect(setAllWarpChoice(clips.slice(0, 1), "None")).toBeNull();
   });
 });

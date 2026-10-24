@@ -52,11 +52,12 @@ Le warp fait suivre à un clip audio le tempo du projet : changez le tempo et l
 
 ### warp activé ou désactivé {#warp-on-or-off}
 
-- La case **warp** active ou désactive le warp. Sans warp, le clip joue à sa vitesse d’origine, quel que soit le tempo.
-- **mode** choisit la façon dont l’audio est étiré :
+- **mode** désactive le warp ou choisit la façon dont l’audio est étiré :
+  - **aucun** désactive le warp : le clip joue à sa vitesse d’origine, quel que soit le tempo.
   - **repitch** change la vitesse et la hauteur ensemble, comme un disque joué plus vite ou plus lentement.
   - **complex** garde la hauteur en changeant la vitesse. Utilisez-le pour les voix et les mixages complets.
-- La barre d’outils affiche le tempo du fichier (**source 120.00 bpm**), ou **tempo source inconnu**. Quand vous activez le warp pour la première fois, Ethereal le devine d’après la durée du fichier : le tempo entre 80 et 160 bpm auquel le fichier dure 1, 2, 4, 8… mesures. Il n’écoute pas l’audio, donc ce tempo est juste pour les boucles coupées sur des mesures entières ; pour le reste, réglez le tempo avec des marqueurs de warp.
+- Avec plusieurs clips audio sélectionnés, le mode choisi s’applique à tous. Le **mode de warp** du menu du clip fait de même.
+- La barre d’outils affiche le tempo du fichier (**source 120.00 bpm**), ou **tempo source inconnu**. Quand vous choisissez un mode autre que **aucun** pour la première fois, Ethereal le devine d’après la durée du fichier : le tempo entre 80 et 160 bpm auquel le fichier dure 1, 2, 4, 8… mesures. Il n’écoute pas l’audio, donc ce tempo est juste pour les boucles coupées sur des mesures entières ; pour le reste, réglez le tempo avec des marqueurs de warp.
 - **transposer** change la hauteur du clip en demi-tons.
 
 Si le moteur que vous utilisez ne sait pas étirer le temps, la barre d’outils indique **complex est joué en repitch ici**.
