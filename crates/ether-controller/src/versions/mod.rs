@@ -64,6 +64,10 @@ pub struct VersionsState {
     session: Option<String>,
     /// Projects whose marker from another session was still there when they were loaded.
     stale_on_open: BTreeSet<ProjectId>,
+    /// The version written for each named checkpoint of the open project's history (step
+    /// → version, [`EtherController::checkpoint_version`]); cleared on every load (a new
+    /// history).
+    checkpoints: BTreeMap<u32, String>,
 }
 
 fn kind_tag(kind: VersionKind) -> &'static str {
@@ -326,6 +330,7 @@ where
         }
         self.versions.last_revision = self.revision;
         self.versions.last_version_ms = now;
+        self.versions.checkpoints.clear();
         if self.versions.project == Some(id) {
             return;
         }
@@ -404,14 +409,67 @@ where
     }
 
     /// Snapshot the open document as a new version (unique id, named if `name`).
+    /// A checkpoint (a named history step, `History::SetCheckpoint`) was named, renamed or
+    /// cleared: keep it as a named version of the document at that step, so it outlives
+    /// the session (the undo history itself is never saved). Renaming the checkpoint
+    /// renames its version; clearing it deletes the version written for it.
+    pub(crate) fn checkpoint_version(
+        &mut self,
+        step: u32,
+        name: Option<&str>,
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<()> {
+        let id = self.open_project_id()?;
+        let existing = self.versions.checkpoints.get(&step).cloned();
+        // Its version still there (not deleted from the versions panel meanwhile).
+        let existing =
+            existing.filter(|v| version_path(v).is_ok_and(|p| self.store.read(id, &p).is_ok()));
+        match (existing, name) {
+            (None, None) => return Ok(()),
+            (Some(version), None) => {
+                self.versions.checkpoints.remove(&step);
+                self.version_command(&VersionCommand::Delete { version }, now, out)?;
+            }
+            (Some(version), Some(n)) => {
+                let name = Some(n.to_string());
+                self.version_command(&VersionCommand::Rename { version, name }, now, out)?;
+            }
+            (None, Some(n)) => {
+                let doc = self.doc.as_ref().ok_or_else(no_project)?;
+                let project = doc
+                    .history
+                    .project_at(&doc.project, Some(step))
+                    .ok_or_else(|| crate::tx::not_found(format!("history step {step}")))?
+                    .map_err(|e| cmd_err(ErrorCode::InvalidState, e.to_string()))?;
+                let version =
+                    self.write_version_of(VersionKind::Manual, clean_name(Some(n)), now, project)?;
+                self.versions.checkpoints.insert(step, version.id);
+                self.emit_versions_changed(out);
+            }
+        }
+        Ok(())
+    }
+
     fn write_version(
         &mut self,
         kind: VersionKind,
         name: Option<String>,
         now: u64,
     ) -> CmdResult<VersionInfo> {
-        let doc = self.doc.as_ref().ok_or_else(no_project)?;
-        let (id, project) = (doc.project.id, doc.project.clone());
+        let project = self.doc.as_ref().ok_or_else(no_project)?.project.clone();
+        self.write_version_of(kind, name, now, project)
+    }
+
+    /// Write `project` (the open project, or a state of it) as a version.
+    fn write_version_of(
+        &mut self,
+        kind: VersionKind,
+        name: Option<String>,
+        now: u64,
+        project: ether_core::protocol::model::Project,
+    ) -> CmdResult<VersionInfo> {
+        let id = project.id;
         // The rolling versions are routine autosaves (only changed plugins are read); a
         // named or before-restore version reads every plugin (`crate::saving`).
         let read = match kind {

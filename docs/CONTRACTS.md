@@ -1657,7 +1657,9 @@ drained by the host's MIDI out thread (sample-accurate timestamps).
 (`HistoryStep { id, label, time_ms, undone, checkpoint }`; chronological: applied steps oldest first,
 then undone steps in redo order). `JumpTo { step }` undoes/redoes through the same path as
 `Edit::{Undo, Redo}` (one batch of patches; `None` = before the oldest kept step; `NotFound`
-for dropped steps). `SetCheckpoint { step, name }` names a step for the session.
+for dropped steps). `SetCheckpoint { step, name }` names a step, and keeps it as a named
+`Manual` version of the document at that step (renamed with the checkpoint, deleted when it is
+cleared), so it survives closing the project.
 `HistoryEvent::Changed` at most every 100 ms while a client listed the history. `History::State`
 → `HistoryState { history }` (what `Patch::history` carries; the UI reads it on connect, so
 switching engines keeps undo enabled; it doesn't subscribe to `Changed`). Runtime only:
@@ -1780,7 +1782,7 @@ alt, meta, down, repeat } })`. UI side: `ui/src/features/plugin-keys` (`onPlugin
 3. **Templates, keymaps and versions are engine-side files** (user library / project store),
    never touched by the UI, so a remote engine and the web (OPFS) behave the same.
 4. **Undo history stays runtime** (not saved with the project); named checkpoints become
-   durable only through.
+   durable as named project versions (§13.8).
 5. **`engine.rs` was not pre-wired** (other v0.2 work was changing it): MIDI expression and
    `external-instrument` each add one call site for their (pre-built) RT state.
 

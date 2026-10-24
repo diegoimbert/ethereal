@@ -125,8 +125,19 @@ where
                     Some(n) => Some(n.to_string()),
                 };
                 let doc = self.doc.as_mut().ok_or_else(no_project)?;
-                if !doc.history.set_checkpoint(*step, name) {
+                if !doc.history.set_checkpoint(*step, name.clone()) {
                     return Err(not_found(format!("history step {step}")));
+                }
+                // Kept as a named version (the history is never saved). The checkpoint
+                // stays named for the session if that fails.
+                if let Err(e) = self.checkpoint_version(*step, name.as_deref(), now, out) {
+                    tracing::warn!(step, error = %e.message, "checkpoint not kept as a version");
+                    crate::handlers::notify(
+                        out,
+                        ether_core::protocol::NotificationLevel::Warning,
+                        crate::text::msg("notice.versions.save_failed")
+                            .arg("error", crate::text::error_arg(&e)),
+                    );
                 }
                 // Pushed by the next tick to the listening clients.
                 Ok(ReplyValue::Unit)
