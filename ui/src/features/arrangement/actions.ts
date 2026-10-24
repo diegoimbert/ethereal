@@ -18,6 +18,7 @@ import { useArrangementUi } from "./uiStore";
 import { copyMixed, cutMixed, deleteMixedCommand, duplicateMixed, isMixedSelection } from "./mixedSelection";
 import { reverseClipsCommand } from "@/features/clip-editing/clipEditing";
 import { bounceIfAllowed, consolidateIfAllowed } from "@/features/freeze";
+import { closeInspector } from "@/state/shell";
 import { exportMidiClips, midiClipsOfTracks } from "@/features/midi-file/exportMidi";
 import { canReveal, revealLabel, revealMedia } from "@/features/reveal";
 import { asOneStep, deleteCommand, duplicateCommand, splitCommand, toggleLoopCommand } from "./editMath";
@@ -329,6 +330,8 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
       useArrangementUi.getState().setTrackFocus(null);
       // Escape also closes an unpinned piano roll.
       useEditorStore.getState().dismiss(true);
+      // And the inspector (a click elsewhere never does).
+      closeInspector();
       return Promise.resolve();
   }
 }
