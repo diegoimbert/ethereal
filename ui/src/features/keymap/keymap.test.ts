@@ -104,6 +104,7 @@ describe("registry and presets", () => {
       "edit.split": ["Mod+E"],
       "clip.reverse": ["R"],
       "clip.consolidate": ["Mod+J"],
+      "track.toggleMute": ["0"],
       "clip.toggleLoop": ["Mod+Shift+L"],
       "track.group": ["Mod+G"],
       "track.ungroup": ["Mod+Shift+G"],
