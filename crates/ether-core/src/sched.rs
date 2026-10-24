@@ -363,6 +363,49 @@ fn join_partner(notes: &[NoteDesc], key: u8, ls: f64) -> Option<(usize, f64)> {
     best
 }
 
+/// A looping MIDI clip's loop-join answers, per key, computed when the graph is built (off
+/// the audio thread): looking them up per voice scanned the clip's notes each time, which
+/// is quadratic in a clip's notes at a wrap. `None` for clips without a content loop.
+#[derive(Debug)]
+pub(crate) struct LoopJoins {
+    /// [`join_partner`] per key.
+    partner: [Option<(u32, f64)>; 256],
+    /// Per key: a note of it starting at or after the clip offset (resp. the loop start)
+    /// and before the loop end is held across the loop end ([`joined_into`]).
+    crosses_from_offset: [bool; 256],
+    crosses_from_ls: [bool; 256],
+}
+
+impl LoopJoins {
+    /// For `clip` (built with the graph, never on the audio thread).
+    pub(crate) fn of(clip: &ClipDesc) -> Option<Box<Self>> {
+        let ClipContentDesc::Midi { notes } = &clip.content else {
+            return None;
+        };
+        let (ls, le) = content_loop(clip)?;
+        let mut j = Box::new(Self {
+            partner: [None; 256],
+            crosses_from_offset: [false; 256],
+            crosses_from_ls: [false; 256],
+        });
+        for (i, n) in notes.iter().enumerate() {
+            let k = usize::from(n.key);
+            let end = n.start + n.duration.max(0.0);
+            if n.start < ls - JOIN_EPS
+                && end > ls + JOIN_EPS
+                && j.partner[k].is_none_or(|b| end > b.1)
+            {
+                j.partner[k] = Some((i as u32, end));
+            }
+            if n.start < le && end > le + JOIN_EPS {
+                j.crosses_from_offset[k] |= n.start >= clip.offset;
+                j.crosses_from_ls[k] |= n.start >= ls;
+            }
+        }
+        Some(j)
+    }
+}
+
 /// End (timeline beat) of a voice of `key` that would end at `raw` in piece `p`, and its
 /// loop join. A voice still sounding at a loop wrap is cut there, unless the loop has a
 /// join partner of the same key ([`join_partner`]): then it keeps sounding (no note-off,
@@ -371,6 +414,7 @@ fn join_partner(notes: &[NoteDesc], key: u8, ls: f64) -> Option<(usize, f64)> {
 pub(crate) fn voice_end(
     clip: &ClipDesc,
     notes: &[NoteDesc],
+    joins: Option<&LoopJoins>,
     key: u8,
     raw: f64,
     p: &Piece,
@@ -381,7 +425,11 @@ pub(crate) fn voice_end(
     let Some((ls, le)) = content_loop(clip) else {
         return (p.end, None);
     };
-    let Some((j, j_end)) = join_partner(notes, key, ls) else {
+    let partner = match joins {
+        Some(j) => j.partner[usize::from(key)].map(|(i, e)| (i as usize, e)),
+        None => join_partner(notes, key, ls),
+    };
+    let Some((j, j_end)) = partner else {
         return (p.end, None);
     };
     let clip_end = clip.start + clip.length.max(0.0);
@@ -406,16 +454,28 @@ pub(crate) fn voice_end(
 /// partner and a note of that key is held across the previous pass's end: one starting in
 /// that pass (the intro from the offset for pass 0, the loop otherwise), or, for later
 /// passes, the partner itself when it is longer than the loop and pass 0 joined it.
-fn joined_into(clip: &ClipDesc, notes: &[NoteDesc], i: usize, pass: i64) -> bool {
+fn joined_into(
+    clip: &ClipDesc,
+    notes: &[NoteDesc],
+    joins: Option<&LoopJoins>,
+    i: usize,
+    pass: i64,
+) -> bool {
     let Some((ls, le)) = content_loop(clip).filter(|_| pass >= 0) else {
         return false;
     };
     let n = &notes[i];
     let key = n.key;
+    let k = usize::from(key);
     // Cheap test first (chasing asks for every note before the loop start).
-    if n.start + n.duration.max(0.0) <= ls + JOIN_EPS
-        || join_partner(notes, key, ls).map(|(j, _)| j) != Some(i)
-    {
+    if n.start + n.duration.max(0.0) <= ls + JOIN_EPS {
+        return false;
+    }
+    let partner = match joins {
+        Some(j) => j.partner[k].map(|(j, _)| j as usize),
+        None => join_partner(notes, key, ls).map(|(j, _)| j),
+    };
+    if partner != Some(i) {
         return false;
     }
     let crosses = |from: f64| {
@@ -426,16 +486,25 @@ fn joined_into(clip: &ClipDesc, notes: &[NoteDesc], i: usize, pass: i64) -> bool
                 && m.start + m.duration.max(0.0) > le + JOIN_EPS
         })
     };
+    let (from_offset, from_ls) = match joins {
+        Some(j) => (j.crosses_from_offset[k], j.crosses_from_ls[k]),
+        None => (crosses(clip.offset), crosses(ls)),
+    };
     let partner_crosses = n.start + n.duration.max(0.0) > le + JOIN_EPS;
     if pass == 0 {
-        crosses(clip.offset)
+        from_offset
     } else {
-        crosses(ls) || (partner_crosses && crosses(clip.offset))
+        from_ls || (partner_crosses && from_offset)
     }
 }
 
 /// Schedule note-ons of a MIDI clip for the sub-block.
-pub(crate) fn schedule_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut NoteSink<'_>) {
+pub(crate) fn schedule_notes(
+    clip: &ClipDesc,
+    joins: Option<&LoopJoins>,
+    timing: &Timing<'_>,
+    sink: &mut NoteSink<'_>,
+) {
     let ClipContentDesc::Midi { notes } = &clip.content else {
         return;
     };
@@ -451,7 +520,7 @@ pub(crate) fn schedule_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut No
                 break;
             }
             let t = p.t0 + (n.start - p.c0);
-            let (end, join) = voice_end(clip, notes, n.key, t + n.duration.max(0.0), &p);
+            let (end, join) = voice_end(clip, notes, joins, n.key, t + n.duration.max(0.0), &p);
             if end <= t {
                 continue;
             }
@@ -470,7 +539,12 @@ pub(crate) fn schedule_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut No
 /// middle of them). They end where they would have. Notes starting in the sub-block are
 /// `schedule_notes`'s. Scans the notes before the position: bounded by the clip's notes,
 /// and only on the first sub-block after a jump.
-pub(crate) fn chase_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut NoteSink<'_>) {
+pub(crate) fn chase_notes(
+    clip: &ClipDesc,
+    joins: Option<&LoopJoins>,
+    timing: &Timing<'_>,
+    sink: &mut NoteSink<'_>,
+) {
     let ClipContentDesc::Midi { notes } = &clip.content else {
         return;
     };
@@ -484,10 +558,10 @@ pub(crate) fn chase_notes(clip: &ClipDesc, timing: &Timing<'_>, sink: &mut NoteS
             let t = p.t0 + (n.start - p.c0);
             // Before this piece (ahead of the content loop start): silent, unless a voice
             // held across the wrap the piece begins at joined it.
-            if t < p.begin - EVENT_SHIFT && !joined_into(clip, notes, i, p.pass) {
+            if t < p.begin - EVENT_SHIFT && !joined_into(clip, notes, joins, i, p.pass) {
                 continue;
             }
-            let (end, join) = voice_end(clip, notes, n.key, t + n.duration.max(0.0), &p);
+            let (end, join) = voice_end(clip, notes, joins, n.key, t + n.duration.max(0.0), &p);
             if end > timing.b0 {
                 let source = NoteSource {
                     clip: clip.id,

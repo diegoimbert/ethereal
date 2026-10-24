@@ -334,3 +334,27 @@ fn offline_renders_join_like_playback() {
         assert_eq!(ev, want, "chunk {chunk}");
     }
 }
+
+/// Many notes held across the wrap and many partner candidates before the loop start: the
+/// join lookups are precomputed, not a scan of the clip per voice (that was quadratic in
+/// the clip's notes on the audio thread). Played and chased (locate inside a pass).
+#[test]
+fn many_notes_across_the_wrap_stay_cheap() {
+    // Key 60: 4000 candidates before the loop start (all sounding there), 4000 notes held
+    // across the loop end.
+    let mut notes: Vec<(f64, f64, u8)> =
+        (0..16000).map(|i| (i as f64 * 0.00005, 1.5, 60)).collect();
+    notes.extend((0..16000).map(|i| (2.0 + i as f64 * 0.00005, 2.0, 60)));
+    let clip = || looped(&notes);
+    for from in [0.0, 3.5] {
+        let t0 = std::time::Instant::now();
+        let ev = note_events(clip(), from, s(6.0) as usize, 512);
+        let took = t0.elapsed();
+        assert!(!ev.is_empty());
+        eprintln!("from {from}: {took:?}");
+        assert!(
+            took < std::time::Duration::from_secs(5),
+            "from {from}: {took:?}"
+        );
+    }
+}
