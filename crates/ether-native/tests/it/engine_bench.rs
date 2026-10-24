@@ -223,6 +223,9 @@ struct SimTrack {
     sidechain: Option<u128>,
     /// Post-fader sends to these returns.
     sends: Vec<u128>,
+    /// Monitored (live input): real-time with everything downstream, under anticipative
+    /// processing.
+    monitor: bool,
 }
 
 impl SimTrack {
@@ -235,6 +238,7 @@ impl SimTrack {
             rack: vec![],
             sidechain: None,
             sends: vec![],
+            monitor: false,
         }
     }
 
@@ -359,6 +363,18 @@ const SCENARIOS: &[Scenario] = &[
     ("owner-nosc", "the same without the sidechain", || {
         owner(false)
     }),
+    (
+        "owner-live",
+        "owner with a monitored vocal into the vocal group: the vocal, its group, the mix bus \
+         and master stay real-time under anticipative processing",
+        || {
+            let mut t = owner(true);
+            let mut live = SimTrack::new(499, TrackKind::Audio, Some(6), &[200.0; 4]);
+            live.monitor = true;
+            t.push(live);
+            t
+        },
+    ),
     ("flat64", "64 independent tracks of 400 ns/frame", || {
         flat(64, 400.0)
     }),
@@ -611,6 +627,7 @@ fn build(
         .map(|s| {
             let output = s.output.map(tid);
             let mut t = track_desc(tid(s.id), s.kind, output);
+            t.monitor = s.monitor;
             // Groups nest: a track's group is its destination bus when that is a group.
             t.group = output.filter(|o| {
                 tracks
