@@ -128,15 +128,19 @@ fn listing<F: Fs>(
 
 /// Display name inside a `.ether` document (`project.settings.name`), without depending on
 /// the full model loader (a partially valid file still lists).
-fn name_of(ether_json: &[u8]) -> String {
-    serde_json::from_slice::<serde_json::Value>(ether_json)
+/// The title and the fork origin (`settings.forked_from`) of a `.ether` document.
+fn head_of(ether_json: &[u8]) -> (String, Option<ether_core::protocol::model::ForkOrigin>) {
+    let settings = serde_json::from_slice::<serde_json::Value>(ether_json)
         .ok()
-        .and_then(|v| {
-            v.pointer("/project/settings/name")
-                .and_then(|n| n.as_str())
-                .map(str::to_string)
-        })
-        .unwrap_or_else(|| "Untitled".to_string())
+        .and_then(|v| v.pointer("/project/settings").cloned())
+        .unwrap_or_default();
+    let name = settings["name"]
+        .as_str()
+        .map_or_else(|| "Untitled".to_string(), str::to_string);
+    let forked_from = serde_json::from_value(settings["forked_from"].clone())
+        .ok()
+        .flatten();
+    (name, forked_from)
 }
 
 /// Upload staging root (`file-import`), outside `projects/` so it never lists as a project.
@@ -216,11 +220,13 @@ impl<F: Fs> WebStore<F> {
             check_relative_path(f).ok()?;
             self.fs.read(&format!("{dir}/{f}")).ok()
         });
+        let (name, forked_from) = head_of(&bytes);
         Ok(ProjectSummary {
             id,
-            name: name_of(&bytes),
+            name,
             modified_ms,
             ext,
+            forked_from,
         })
     }
 

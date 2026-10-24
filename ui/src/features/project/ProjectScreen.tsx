@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent, type ReactNode } from "react";
-import { MoreHorizontal, Plus, Search } from "lucide-react";
+import { GitFork, MoreHorizontal, Plus, Search } from "lucide-react";
 import type { ProjectSummary } from "@/generated";
 import { errorMessage, useOptionalConnection, type EngineCommands } from "@/features/transport-bar/engine";
 import { NO_AUTOCORRECT, Badge, Button, Dialog, DismissibleError, IconButton, openContextMenu, TextInput, type ContextMenuEntry } from "@/kit";
@@ -458,6 +458,12 @@ export function RecentProjects({
                     <span className="eth-project-screen__name eth-user-text" title={p.name}>
                       {splitLocalCopy(p.name).base}
                     </span>
+                    {p.forked_from && (
+                      <span className="eth-project-screen__fork" title={t("project.fork.from", { name: p.forked_from.name })}>
+                        <GitFork aria-hidden />
+                        <span className="eth-user-text">{p.forked_from.name}</span>
+                      </span>
+                    )}
                     <ProjectBadges project={p} />
                     {/* A date in the user's language (Intl), not catalog text. */}
                     <span className="eth-project-screen__date" data-i18n-exempt>

@@ -1760,6 +1760,7 @@
   "project.menu.tutorials": "tutoriels",
   "project.cmd.save": "enregistrer",
   "project.cmd.save_as": "enregistrer sous…",
+  "project.fork.from": "dérivé de {name}",
   "project.cmd.duplicate": "dupliquer le projet",
   "project.cmd.rename": "renommer le projet",
   "project.cmd.show_projects_folder": "afficher le dossier des projets",

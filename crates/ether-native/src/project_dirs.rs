@@ -30,7 +30,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
 
-use ether_core::protocol::model::ProjectId;
+use ether_core::protocol::model::{ForkOrigin, ProjectId};
 
 /// File name of the document inside a project folder (`store::PROJECT_FILE`).
 const PROJECT_FILE: &str = "project.ether";
@@ -113,6 +113,8 @@ pub fn folder_name(title: &str, id: ProjectId) -> String {
 pub struct Head {
     pub id: Option<ProjectId>,
     pub name: Option<String>,
+    /// `project.settings.forked_from` (read with the rest of the settings).
+    pub forked_from: Option<ForkOrigin>,
 }
 
 /// Read [`Head`] from a document, streaming: the app writes `project.id` and
@@ -173,6 +175,11 @@ impl<'de> serde::de::Visitor<'de> for HeadSeed<'_> {
                 (Level::Settings, "name") => {
                     head.name = Some(map.next_value()?);
                 }
+                (Level::Settings, "forked_from") => {
+                    // A malformed origin is ignored, not a reason to lose the head.
+                    let v: serde_json::Value = map.next_value()?;
+                    head.forked_from = serde_json::from_value(v).ok();
+                }
                 _ => {
                     map.next_value::<serde::de::IgnoredAny>()?;
                 }
@@ -195,6 +202,8 @@ pub struct Folder {
     pub dir: PathBuf,
     /// The document's title (`None`: unreadable).
     pub name: Option<String>,
+    /// The document's fork origin.
+    pub forked_from: Option<ForkOrigin>,
 }
 
 /// Every project folder of `root` (hidden folders and folders that are no project are
@@ -222,7 +231,7 @@ pub fn scan(root: &Path) -> Vec<Folder> {
             (None, Some(Head { id: Some(id), .. })) => (*id, 2),
             _ => continue,
         };
-        let title = head.and_then(|h| h.name);
+        let (title, forked_from) = head.map_or((None, None), |h| (h.name, h.forked_from));
         let expected = title.as_deref().map(|t| folder_name(t, id));
         let rank = if expected.as_deref() == name.to_str() {
             0
@@ -233,6 +242,7 @@ pub fn scan(root: &Path) -> Vec<Folder> {
             id,
             dir,
             name: title,
+            forked_from,
         };
         match found.get(&id) {
             Some((_, r)) if *r <= rank => {
@@ -413,7 +423,8 @@ mod tests {
             head,
             Head {
                 id: Some(a),
-                name: Some("Tune".into())
+                name: Some("Tune".into()),
+                forked_from: None,
             }
         );
         let late =
@@ -422,10 +433,29 @@ mod tests {
             read_head(late.as_bytes()),
             Head {
                 id: Some(a),
-                name: Some("Late".into())
+                name: Some("Late".into()),
+                forked_from: None,
             }
         );
         assert_eq!(read_head(&b"not json"[..]), Head::default());
+        // A fork's origin is read with the settings; a malformed one is ignored.
+        let fork = format!(
+            r#"{{"project":{{"id":"{a}","settings":{{"name":"Fork","forked_from":{{"project":"{a}","name":"Tune","created_ms":5.0}}}}}}}}"#
+        );
+        let head = read_head(fork.as_bytes());
+        assert_eq!(head.name.as_deref(), Some("Fork"));
+        assert_eq!(
+            head.forked_from,
+            Some(ForkOrigin {
+                project: a,
+                name: "Tune".into(),
+                created_ms: 5.0
+            })
+        );
+        let bad =
+            format!(r#"{{"project":{{"id":"{a}","settings":{{"name":"F","forked_from":3}}}}}}"#);
+        let head = read_head(bad.as_bytes());
+        assert_eq!((head.name.as_deref(), head.forked_from), (Some("F"), None));
     }
 
     #[test]

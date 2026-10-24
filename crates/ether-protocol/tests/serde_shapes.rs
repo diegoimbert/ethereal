@@ -222,6 +222,11 @@ fn project_store_and_browser_shapes() {
             name: "Song".into(),
             modified_ms: 1.0,
             ext: None,
+            forked_from: Some(ForkOrigin {
+                project: pid,
+                name: "Demo".into(),
+                created_ms: 2.0,
+            }),
         }],
     });
     let json = roundtrip(&Command::Media(MediaCommand::Import {

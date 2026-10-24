@@ -245,9 +245,26 @@ fn list_rename_duplicate_delete_save_as() {
         new_id: c,
         name: "Copy".into(),
     }));
-    assert!(
-        matches!(v, ReplyValue::Saved { project } if project.id == c && project.name == "Copy")
-    );
+    let ReplyValue::Saved { project: copy } = v else {
+        panic!("{v:?}")
+    };
+    assert_eq!((copy.id, copy.name.as_str()), (c, "Copy"));
+    // A fork: it records where it came from (the list shows it), the original doesn't.
+    let origin = copy.forked_from.clone().expect("forked from");
+    assert_eq!((origin.project, origin.name.as_str()), (a, "Renamed"));
+    let ReplyValue::Projects { projects } = h.ok(Command::Project(ProjectCommand::List)) else {
+        panic!()
+    };
+    let listed = |id| {
+        projects
+            .iter()
+            .find(|p| p.id == id)
+            .unwrap()
+            .forked_from
+            .clone()
+    };
+    assert_eq!(listed(c), Some(origin));
+    assert_eq!(listed(a), None);
     assert_eq!(h.project().id, b, "duplicate does not open the copy");
     // Retried duplicate is a no-op.
     h.ok(Command::Project(ProjectCommand::Duplicate {
@@ -284,6 +301,13 @@ fn list_rename_duplicate_delete_save_as() {
     assert!(matches!(&events(&out)[0], Event::ProjectLoaded { project } if project.id == d));
     assert_eq!(h.project().id, d);
     assert_eq!(h.project().settings.name, "Version 2");
+    let origin = h.project().settings.forked_from.clone().expect("a fork");
+    assert_eq!((origin.project, origin.name.as_str()), (a, "Renamed"));
+    // Autosaves of the fork keep it on its summary.
+    let out = h.send(Command::Project(ProjectCommand::Save { autosave: true }));
+    assert!(
+        matches!(ok(&out), ReplyValue::Saved { project } if project.forked_from.as_ref() == Some(&origin))
+    );
     assert!(h.project().tracks.contains_key(&t));
     assert!(!h.ctl.is_dirty());
     // The original on disk doesn't have the new track.

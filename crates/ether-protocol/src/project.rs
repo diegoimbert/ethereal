@@ -149,6 +149,11 @@ pub struct ProjectSummary {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional, type = "unknown")]
     pub ext: Option<crate::ext::ExtValue>,
+    /// The project it was forked from (its document's `settings.forked_from`). Omitted for
+    /// an original.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub forked_from: Option<crate::model::ForkOrigin>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

@@ -143,6 +143,18 @@ describe("recents badges", () => {
     expect(within(copyRow).getByTitle("Beat sketch (local copy)").textContent).toBe("Beat sketch");
   });
 
+  it("shows where a fork came from", async () => {
+    const { mock } = await renderWithMock(<ProjectMenu />);
+    const beat = store().projects.find((p) => p.name === "Beat sketch")!;
+    await mock.send(cmd("Project", { type: "Duplicate", id: beat.id, new_id: "0190a000-0000-7000-8000-00000000f0f0", name: "Beat remix" }));
+
+    const dialog = await openScreen();
+    const fork = await within(dialog).findByRole("button", { name: "open Beat remix" });
+    expect(within(fork).getByTitle("forked from Beat sketch")).toBeInTheDocument();
+    const original = within(dialog).getByRole("button", { name: "open Beat sketch" });
+    expect(within(original).queryByTitle(/forked from/)).toBeNull();
+  });
+
   it("splits the local copy suffix", () => {
     expect(splitLocalCopy("Song (local copy)")).toEqual({ base: "Song", localCopy: true });
     expect(splitLocalCopy("Song")).toEqual({ base: "Song", localCopy: false });

@@ -174,17 +174,21 @@ impl MemoryStore {
     }
 
     fn summary(id: ProjectId, p: &MemProject) -> ProjectSummary {
-        let name = p
+        let settings = p
             .files
             .get(PROJECT_FILE)
             .and_then(|b| serde_json::from_slice::<serde_json::Value>(b).ok())
-            .and_then(|v| v["project"]["settings"]["name"].as_str().map(str::to_owned))
-            .unwrap_or_else(|| "Untitled".into());
+            .map(|v| v["project"]["settings"].clone())
+            .unwrap_or_default();
+        let name = settings["name"]
+            .as_str()
+            .map_or_else(|| "Untitled".into(), str::to_owned);
         ProjectSummary {
             id,
             name,
             modified_ms: p.modified_ms as f64,
             ext: summary_ext(&mut |f| p.files.get(f).cloned()),
+            forked_from: serde_json::from_value(settings["forked_from"].clone()).ok(),
         }
     }
 }
