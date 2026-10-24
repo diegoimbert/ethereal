@@ -54,7 +54,7 @@ L’inspecteur s’ouvre à droite quand vous sélectionnez quelque chose, et se
 
 ## le tiroir d’édition {#the-editor-drawer}
 
-Le tiroir du bas contient les éditeurs de clips, dans trois onglets : **piano roll** (clips MIDI), **warp** (clips audio) et **automation**. Cliquer sur un clip ouvre son éditeur ici.
+Le tiroir du bas contient les éditeurs de clips, dans trois onglets : **piano roll** (clips MIDI), **warp** (clips audio) et **automation**. Cliquer sur un clip ouvre son éditeur ici. Avec plusieurs clips sélectionnés, il en affiche un et ses modifications s’appliquent à tous.
 
 [[action:view.editor]] affiche ou masque le tiroir à tout moment.
 

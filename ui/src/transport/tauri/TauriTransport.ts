@@ -15,6 +15,13 @@
  *
  * `connect()` resolves with the current project, or `null` when the engine has none open
  * (fresh start: nothing is opened on launch, the project screen picks one).
+ *
+ * Commands sent before `connect()` (the app's first queries run as it mounts, before the
+ * provider connects) wait until the channels are registered: the host drops what it
+ * answers while no UI is subscribed, which left those promises pending forever (e.g. the
+ * device library's factory list, cached per transport, stayed empty for the session). A
+ * reconnect keeps taking replies from the previous `messages` channel, for the commands in
+ * flight when it swapped.
  */
 
 import { Channel, invoke as tauriInvoke } from "@tauri-apps/api/core";
@@ -83,6 +90,14 @@ interface Pending {
 
 const noop = () => {};
 
+function notConnected(command: Command, cause: unknown): CommandFailedError {
+  // Users read the key's text.
+  return new CommandFailedError(
+    { code: "InvalidState", message: `not connected: ${String(cause)}`, key: { id: "error.transport.engine_not_connected", args: {} } },
+    command,
+  ); // i18n-ignore: an internal error (logs, agents)
+}
+
 export class TauriTransport implements EngineTransport {
   /** `createDefaultTransport` uses this transport inside Tauri once implemented. */
   static readonly implemented: boolean = true;
@@ -104,6 +119,12 @@ export class TauriTransport implements EngineTransport {
   private channels: ChannelLike<unknown>[] = [];
   private nextId = 1;
   private disposed = false;
+  /**
+   * `connected`: `ether_connect` succeeded, the host has our channels and sends go out.
+   * Before that (`idle`, `connecting`) they wait in `outbox`; after a failed connect they
+   * fail right away until the next `connect()`.
+   */
+  private link: "idle" | "connecting" | "connected" | "failed" = "idle";
   /**
    * Tauri v2 doesn't guarantee that separate `invoke`s reach the backend in call order, so
    * one `ether_send_batch` is in flight at a time: it is accepted as soon as the host queued
@@ -130,9 +151,27 @@ export class TauriTransport implements EngineTransport {
     messages.onmessage = (m) => this.onServerMessage(m);
     playhead.onmessage = (f) => this.playheadEmitter.emit(f);
     meters.onmessage = (f) => this.meterEmitter.emit(f);
-    for (const c of this.channels) c.onmessage = noop;
+    // The previous channels: only the replies still on their way (the new channel gets the rest).
+    const [previous, ...frames] = this.channels;
+    if (previous) previous.onmessage = (m) => (m as ServerMessage).kind === "Reply" && this.onServerMessage(m as ServerMessage);
+    for (const c of frames) c.onmessage = noop;
     this.channels = [messages, playhead, meters] as ChannelLike<unknown>[];
-    this.info = (await this.invoke("ether_connect", { messages, playhead, meters })) as EngineInfo;
+    this.link = "connecting";
+    try {
+      this.info = (await this.invoke("ether_connect", { messages, playhead, meters })) as EngineInfo;
+    } catch (e) {
+      // What waited for the connection fails with it (callers may retry).
+      this.link = "failed";
+      for (const { id, command } of this.outbox.splice(0)) {
+        const p = this.pending.get(id);
+        this.pending.delete(id);
+        p?.reject(notConnected(command, e));
+      }
+      throw e;
+    }
+    if (this.disposed) throw new Error("TauriTransport disposed");
+    this.link = "connected";
+    this.pump();
     return this.currentProject();
   }
 
@@ -150,6 +189,7 @@ export class TauriTransport implements EngineTransport {
     if (this.disposed) {
       return Promise.reject(new CommandFailedError({ code: "InvalidState", message: "transport disposed" }, command)); // i18n-ignore: an internal error (logs, agents)
     }
+    if (this.link === "failed") return Promise.reject(notConnected(command, "the last connect failed"));
     const id = this.nextId++;
     const message: ClientMessage = { id, gesture: opts?.gesture ?? null, command };
     return new Promise<ReplyValue>((resolve, reject) => {
@@ -161,7 +201,7 @@ export class TauriTransport implements EngineTransport {
 
   /** Send everything queued in one invoke, unless one is in flight (it calls back here). */
   private pump(): void {
-    if (this.sending || this.disposed || this.outbox.length === 0) return;
+    if (this.sending || this.disposed || this.link !== "connected" || this.outbox.length === 0) return;
     const batch = this.outbox.splice(0);
     this.sending = true;
     // `new Promise`: a synchronous throw from `invoke` rejects too.

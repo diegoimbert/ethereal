@@ -552,6 +552,18 @@ describe("section-edit: the insert marker (Ableton's edit cursor, separate from 
     expect(timeEdits()).toMatchObject([{ type: "Split", at: 3, tracks: [track("Bass").id] }]);
   });
 
+  it("⌘E with the marker Shift-extended over several tracks splits every one of them", async () => {
+    // The click lands on the Keys clip's body (it selects the clip, no track), the Shift-click
+    // on the Bass row at the same beat spans the marker over both tracks.
+    await click(2.2, 0);
+    await drag(screen.getByTestId("arrangement-content"), HEADER_WIDTH + 2.2 * PX, ROW + BODY_Y, 0, 0, true);
+    expect(useTimeSelection.getState().selection).toMatchObject({ start: 2, end: 2, tracks: [track("Keys").id, track("Bass").id] });
+    await plain("e");
+    expect(timeEdits()).toHaveLength(1);
+    expect(timeEdits()[0]).toMatchObject({ type: "Split", at: 2 });
+    expect(new Set((timeEdits()[0] as { tracks: string[] }).tracks)).toEqual(new Set([track("Keys").id, track("Bass").id]));
+  });
+
   it("clip paste lands at the marker and moves the marker (not the playhead) to the pasted end", async () => {
     const keys = Object.values(project().clips).find((c) => c.track === track("Keys").id)!;
     act(() => itemSelection.getState().select("clip", [keys.id], "replace"));

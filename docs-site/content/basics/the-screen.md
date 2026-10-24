@@ -54,7 +54,7 @@ The inspector opens on the right when you select something, and hides again when
 
 ## the editor drawer
 
-The drawer at the bottom holds the clip editors, in three tabs: **piano roll** (MIDI clips), **warp** (audio clips) and **automation**. Clicking a clip opens its editor here.
+The drawer at the bottom holds the clip editors, in three tabs: **piano roll** (MIDI clips), **warp** (audio clips) and **automation**. Clicking a clip opens its editor here. With several clips selected, it shows one of them and its changes apply to all of them.
 
 [[action:view.editor]] shows or hides the drawer at any time.
 
