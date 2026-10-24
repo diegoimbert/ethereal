@@ -82,13 +82,14 @@ test("warp: markers, modes, transpose and playback", async ({ page }) => {
   await expect(editor).toHaveAttribute("data-clip-id", clip.id);
   await expect.poll(() => inkedPixels(page.getByTestId("warp-waveform")), { timeout: 20_000 }).toBeGreaterThan(50);
 
-  // --- New clips are unwarped; enabling warp lets the BPM stub pin start and end ---------
-  // The checkbox is controlled by the document: click, then wait for the patch.
-  const warpBox = editor.getByLabel("warp", { exact: true });
-  await expect(warpBox).not.toBeChecked();
+  // --- New clips are unwarped ("none"); a mode warps them: the BPM stub pins start and end
+  // The mode list is controlled by the document: pick, then wait for the patch.
+  const warpMode = editor.getByRole("combobox", { name: "warp mode", exact: true });
+  const warpOn = async () => pickOption(editor, "warp mode", { value: (await audioOf(page, clip.id)).warp.mode });
+  await expect(warpMode).toHaveText("none");
   expect((await audioOf(page, clip.id)).warp.enabled).toBe(false);
-  await warpBox.click();
-  await expect(warpBox).toBeChecked();
+  await warpOn();
+  await expect.poll(async () => (await audioOf(page, clip.id)).warp.enabled).toBe(true);
   await expect.poll(async () => (await markersOf(page, clip.id)).length).toBe(2);
   await expect(page.getByTestId("warp-marker")).toHaveCount(2);
 
@@ -99,10 +100,10 @@ test("warp: markers, modes, transpose and playback", async ({ page }) => {
   await expect(page.getByTestId("warp-web-fallback")).toHaveCount(0);
 
   // Off/on keeps the markers.
-  await warpBox.click();
-  await expect(warpBox).not.toBeChecked();
-  await warpBox.click();
-  await expect(warpBox).toBeChecked();
+  await pickOption(editor, "warp mode", "none");
+  await expect.poll(async () => (await audioOf(page, clip.id)).warp.enabled).toBe(false);
+  await warpOn();
+  await expect.poll(async () => (await audioOf(page, clip.id)).warp.enabled).toBe(true);
   expect(await markersOf(page, clip.id)).toHaveLength(2);
   const [first] = await markersOf(page, clip.id);
   expect(first!.beat).toBe(0);

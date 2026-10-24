@@ -5,8 +5,20 @@ import { useContributions } from "@/ext";
 import { AmbientBlobs, Button, openContextMenu, setDragCursor, useThemeColor } from "@/kit";
 import { useProjectScreen } from "@/features/project/screenStore";
 import { droppedFiles, hasOsFiles, importAudio, noteHover, openImportDialog, type DropPoint, type ImportSource } from "@/features/import";
+import { isSampleDrag, readSampleDrop, relinkDrop, useMediaRefs } from "@/features/media-refs";
+import { missingClipAt, type RelinkTarget } from "./missingDrop";
 import { AddTrackRow } from "./newTrack";
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type DragEvent,
+  type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent,
+} from "react";
 import type { Beats, TrackId } from "@/generated";
 import { useShellStore } from "@/state/shell";
 import { isReadOnly, useEditorStore, useReadOnly, dismissOnRelease, showClipOnClick, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
@@ -371,6 +383,20 @@ function ConnectedArrangementView() {
   };
 
   /**
+   * A click on the pinned master row's lane (outside the scrolling rows' marquee): like a
+   * click on another row without a timeline of its own, it selects the master and sets the
+   * cursor there (snapped; Alt: free).
+   */
+  const onMasterLaneClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || !masterRow || !(e.target as Element).closest?.(".eth-arr-lane")) return;
+    const hw = useArrangementUi.getState().headerWidth;
+    const x = e.clientX - e.currentTarget.getBoundingClientRect().left - hw;
+    if (x < 0) return;
+    selectAtLaneClick(masterRow.track.id, null, selectModeFromEvent(e));
+    setPlayStart(transport, Math.max(0, snap(pxToBeats(x, view.getState()), e.altKey)));
+  };
+
+  /**
    * Where a drop of `kind` files lands: on a track of that kind (audio clips on an audio
    * track, a MIDI file on a MIDI track), or below the tracks (new tracks). Other rows refuse.
    */
@@ -422,12 +448,38 @@ function ConnectedArrangementView() {
     useArrangementUi.getState().setDeviceDrop(ok ? track.id : null);
   };
 
+  /** The clip under a sample drag whose sample is missing (the drop relinks it). */
+  const relinkTargetAt = (e: DropPoint): RelinkTarget | null => {
+    const project = useProjectStore.getState().project;
+    const box = contentRef.current?.getBoundingClientRect();
+    const y = e.clientY - (box?.top ?? 0);
+    const row = rowsRef.current[rowIndexAt(rowsRef.current, y)];
+    // The main lane only (not its take lanes).
+    if (!project || !row || row.track.kind !== "Audio" || y - row.y >= row.laneHeight - (row.takesHeight ?? 0)) return null;
+    const x = e.clientX - (box?.left ?? 0) - useArrangementUi.getState().headerWidth;
+    if (x < 0) return null;
+    return missingClipAt(project.clips, row.track.id, pxToBeats(x, view.getState()), useMediaRefs.getState().missing);
+  };
+
   const onDragOver = (e: DragEvent<HTMLDivElement>) => {
     if (isReadOnly()) return;
     if (isDeviceDrag(e.dataTransfer.types)) return onDeviceDragOver(e);
     const files = hasOsFiles(e.dataTransfer);
     if (!files && !hasBrowserDrag(e.dataTransfer)) return;
     e.preventDefault();
+    // A sample over a clip whose sample is missing: relinks it.
+    const relink = isSampleDrag(e.dataTransfer) ? relinkTargetAt(e) : null;
+    useArrangementUi.getState().setRelinkDrop(relink);
+    if (relink) {
+      e.dataTransfer.dropEffect = "copy";
+      useArrangementUi.getState().setDropHint(null);
+      if (files)
+        noteHover(e, (sources) => {
+          useArrangementUi.getState().setRelinkDrop(null);
+          void relinkDrop(transport, relink.media, { kind: "files", sources });
+        });
+      return;
+    }
     // A browser MIDI file goes on MIDI tracks; OS files (their kinds aren't known until the
     // drop) on audio or MIDI tracks.
     let t = dropTarget(e, hasBrowserMidiDrag(e.dataTransfer) ? "Midi" : "Audio");
@@ -445,6 +497,15 @@ function ConnectedArrangementView() {
       if (!track || !acceptsDevices(track)) return;
       e.preventDefault();
       void dropDevicesOnTrack(transport, e.dataTransfer, track.id, e.metaKey || e.ctrlKey);
+      return;
+    }
+    useArrangementUi.getState().setRelinkDrop(null);
+    const relink = relinkTargetAt(e);
+    const sample = relink ? readSampleDrop(e.dataTransfer) : null;
+    if (relink && sample) {
+      e.preventDefault();
+      useArrangementUi.getState().setDropHint(null);
+      void relinkDrop(transport, relink.media, sample);
       return;
     }
     if (hasOsFiles(e.dataTransfer)) {
@@ -563,6 +624,7 @@ function ConnectedArrangementView() {
               // Leaving the content (not moving between its children).
               if (e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget)) return;
               useArrangementUi.getState().setDropHint(null);
+              useArrangementUi.getState().setRelinkDrop(null);
               useArrangementUi.getState().setDeviceDrop(null);
             }}
             onDrop={onDrop}
@@ -611,7 +673,8 @@ function ConnectedArrangementView() {
           </div>
         </div>
         {masterRow && (
-          <div className="eth-arr__master" data-testid="arrangement-master" onPointerDownCapture={onTracksPointerDownCapture}>
+          // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- a pointer gesture on the lane (the transport's keys move the cursor)
+          <div className="eth-arr__master" data-testid="arrangement-master" onPointerDownCapture={onTracksPointerDownCapture} onClick={onMasterLaneClick}>
             <div className="eth-arr__backdrop" style={{ left: headerWidth }}>
               <GridLayer />
             </div>

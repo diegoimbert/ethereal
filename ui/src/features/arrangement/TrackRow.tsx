@@ -38,6 +38,7 @@ import { InstrumentPick } from "./InstrumentPick";
 import { HeaderVolume } from "./HeaderVolume";
 import { sameTrackExceptVolume } from "./trackEquality";
 import { useTrackDisplayName } from "./trackDisplayName";
+import { useGroupRailColors } from "./groupRails";
 import { onTrackHeaderPointerDown } from "./trackDrag";
 import { HEADER_INDENT_PX, mainHeight, NARROW_HEADER_WIDTH, TRACK_HEIGHT_STEP, type Row } from "./layout";
 import { arrangementView, useArrangementUi, type PendingImport } from "./uiStore";
@@ -74,6 +75,9 @@ function RealTrackRow({ row }: { row: Row }) {
   const gl = row.track.kind !== "Master";
   // The lane part doesn't depend on the automation height (animated per frame).
   const { track, depth, laneHeight, takesHeight = 0 } = row;
+  // Inside groups: a rail per enclosing group along the header column, the innermost one's
+  // also along the lane's left edge (arrangement.css), so membership reads at a glance.
+  const groupColors = useGroupRailColors(track);
   const mainRow = useMemo(() => row, [track, depth, laneHeight, takesHeight]); // eslint-disable-line react-hooks/exhaustive-deps
   const main = useMemo(
     () => (
@@ -106,6 +110,14 @@ function RealTrackRow({ row }: { row: Row }) {
       style={{ height: row.height, ["--eth-track-depth" as string]: depth, ["--eth-track-color" as string]: colorCss(track.color) }}
       data-track={row.track.id}
     >
+      {groupColors.length > 0 && (
+        <div className="eth-arr-row__groups" aria-hidden data-testid="group-rails">
+          {groupColors.map((color, level) => (
+            <span key={level} className="eth-arr-row__group-rail" style={{ ["--eth-group-level" as string]: level, ["--eth-group-color" as string]: color }} />
+          ))}
+          <span className="eth-arr-row__group-edge" style={{ ["--eth-group-color" as string]: groupColors[groupColors.length - 1] }} />
+        </div>
+      )}
       {main}
       {/* Automation slot: its height is fed to `layoutRows` via `useAutomationHeight`. */}
       <div className="eth-arr-row__automation" data-slot="automation" data-track={row.track.id}>
@@ -555,13 +567,20 @@ function TrackNameInput({ name, onDone }: { name: string; onDone: (name: string 
   );
 }
 
-/** Live level along the header's right edge (its own component: re-renders at meter rate). */
+/** Live level along the header's right edge, left and right channels side by side (its own
+ *  component: re-renders at meter rate). */
 const HeaderMeter = memo(function HeaderMeter({ track }: { track: TrackId }) {
   const meter = useTrackMeter(track);
-  const level = meter ? meterPosition(Math.max(meter.peak[0], meter.peak[1])) : 0;
+  const left = meter ? meterPosition(meter.peak[0]) : 0;
+  const right = meter ? meterPosition(meter.peak[1]) : 0;
   return (
     <span className="eth-arr-header__meter" aria-hidden>
-      <span className="eth-arr-header__meter-fill" style={{ transform: `scaleY(${level})` }} />
+      <span className="eth-arr-header__meter-channel" data-channel="left">
+        <span className="eth-arr-header__meter-fill" style={{ transform: `scaleY(${left})` }} />
+      </span>
+      <span className="eth-arr-header__meter-channel" data-channel="right">
+        <span className="eth-arr-header__meter-fill" style={{ transform: `scaleY(${right})` }} />
+      </span>
     </span>
   );
 });
@@ -688,6 +707,7 @@ function LaneLayer({ origin, children }: { origin: Beats; children: ReactNode })
 const TrackLane = memo(function TrackLane({ track }: { track: Track }) {
   const ctx = useArrangement();
   const dropHint = useArrangementUi((s) => (s.dropHint?.track === track.id ? s.dropHint.at : null));
+  const relinkDrop = useArrangementUi((s) => (s.relinkDrop?.track === track.id ? s.relinkDrop : null));
   const imports = useArrangementUi((s) => s.imports);
   const tempo = useTempoMap();
   const t = useT();
@@ -733,6 +753,15 @@ const TrackLane = memo(function TrackLane({ track }: { track: Track }) {
           />
         )}
         {dropHint !== null && <div className="eth-arr-lane__drop-hint" style={{ left: beatsCss(dropHint - vp.scrollBeats) }} />}
+        {relinkDrop && (
+          <div
+            className="eth-arr-lane__relink-hint"
+            data-testid="relink-drop-hint"
+            style={{ left: beatsCss(relinkDrop.start - vp.scrollBeats), width: widthCss(relinkDrop.length) }}
+          >
+            <span className="eth-arr-lane__relink-label">{t("arrangement.lane.drop_relink")}</span>
+          </div>
+        )}
         {imports.map((i) => (i.track === track.id ? <ImportPlaceholder key={i.id} item={i} style={{ left: beatsCss(i.at - vp.scrollBeats) }} /> : null))}
         {(track.kind === "Audio" || track.kind === "Midi") && (
           <>

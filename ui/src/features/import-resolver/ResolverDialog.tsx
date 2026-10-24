@@ -17,7 +17,7 @@ import { Badge, Button, Dialog, Select, Toggle, type SelectOption } from "@/kit"
 import { isOffered } from "@/features/devices/chainUtils";
 import { useBuiltinTypes } from "@/features/devices/descriptors";
 import { useProjectStore } from "@/state";
-import { hasFolderPicker, pickRelinkSource, sourceLabel } from "@/features/media-refs";
+import { hasFolderPicker, pickRelinkSource, sampleDropSource, sourceLabel, useSampleDrop } from "@/features/media-refs";
 import type { EngineTransport } from "@/transport";
 import { missingSetup, useAiSettings } from "@/features/ai-chat/settings";
 import { formatList, Trans, useT, t, type MessageKey } from "@/i18n";
@@ -342,8 +342,20 @@ function MediaRow({ item, transport, focused, searching }: { item: MediaItem; tr
       useResolver.setState({ error: e instanceof Error ? e.message : String(e) });
     }
   };
+  // A sample dropped on the row is chosen like "choose file…".
+  const drop = useSampleDrop((d) => {
+    sampleDropSource(transport, d)
+      .then(({ source, display }) => chooseFile(item.key, source, display))
+      .catch((e: unknown) => useResolver.setState({ error: e instanceof Error ? e.message : String(e) }));
+  });
   return (
-    <li className={clsx("eth-resolver__row", focused && "eth-resolver__row--focused")} data-testid="resolver-media" data-key={item.key}>
+    <li
+      className={clsx("eth-resolver__row", focused && "eth-resolver__row--focused", drop.over && "eth-resolver__row--drop")}
+      data-testid="resolver-media"
+      data-key={item.key}
+      title={t("media_refs.drop.title")}
+      {...drop.props}
+    >
       <Toggle
         checked={item.apply}
         disabled={item.choice === null}
@@ -371,7 +383,9 @@ function MediaRow({ item, transport, focused, searching }: { item: MediaItem; tr
         </Button>
       </div>
       <div className="eth-resolver__why">
-        {chosen ? (
+        {drop.over ? (
+          <span className="eth-resolver__hint">{t("media_refs.drop.hint")}</span>
+        ) : chosen ? (
           <>
             <Confidence value={chosen.confidence} />
             <span className="eth-resolver__reason" data-i18n-exempt>

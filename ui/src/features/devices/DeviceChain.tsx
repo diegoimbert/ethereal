@@ -3,7 +3,7 @@ import { duration } from "@/theme/tokens";
 import { MOTION } from "@/timeline/motion";
 import { IconButton, Popover, Select } from "@/kit";
 import { Plus } from "lucide-react";
-import type { Device, DeviceCategory, DeviceDescriptor, DeviceId, Track, TrackId } from "@/generated";
+import type { Command, Device, DeviceCategory, DeviceDescriptor, DeviceId, Track, TrackId } from "@/generated";
 import clsx from "clsx";
 import { useDevicesOfTrack, useProjectStore, useReadOnly, useSelectionStore, useTracksOrdered } from "@/state";
 import { cmd, useTransport } from "@/transport";
@@ -19,6 +19,7 @@ import { DeviceView } from "./DeviceView";
 import { useSend } from "./gesture";
 import { useSelectedTrack } from "./selectedTrack";
 import { pasteChainAttr, useDeviceClipboard, useDeviceClipboardKeys, type PasteChain } from "./deviceClipboard";
+import { movedDevices } from "./trackDrop";
 import "./devices.css";
 
 function TrackPicker({ track }: { track: Track }) {
@@ -170,8 +171,12 @@ export interface ChainSectionsProps {
    * library at a place in its section; `null`: the end), else at its section's usual place.
    */
   onAdd(payload: LibraryDevicePayload, category: DeviceCategory, before?: DeviceId | null): void;
-  /** Move `id` before `before` (null: the end); only called for moves inside a section. */
-  onMove(id: DeviceId, before: DeviceId | null): void;
+  /**
+   * The command moving `id` before `before` (null: the end) in this chain; only asked for
+   * moves inside a section. A drag of a card of a multi-selection moves all of it (one undo
+   * step). None: devices don't move here.
+   */
+  moveCommand?(id: DeviceId, before: DeviceId | null): Command;
   /** Narrows the sections' libraries (e.g. no drum rack inside a drum pad). */
   accept?(payload: LibraryDevicePayload): boolean;
   /** Remove a device (default `Device::Remove`). */
@@ -198,7 +203,7 @@ export function ChainSections({
   layout,
   label,
   onAdd,
-  onMove,
+  moveCommand,
   accept,
   onRemove,
   autoOpenAdd = null,
@@ -215,6 +220,7 @@ export function ChainSections({
   const readOnly = useReadOnly();
   const categoryOf = (d: Device) => deviceCategory(d, builtins, plugins);
   const transport = useTransport();
+  const send = useSend();
   // Bound here too, so an empty chain takes a paste.
   useDeviceClipboardKeys(transport, categoryOf);
   // A click on the chain's own space (not a card, not a control): no device selected and the
@@ -243,18 +249,45 @@ export function ChainSections({
       if (category === "Instrument" && devices.some((d) => categoryOf(d) === "Instrument")) return false;
       return inSection(category, before);
     }
+    if (!moveCommand) return false;
     const id = drag?.id ?? null;
     const dragged = id === null ? undefined : devices.find((d) => d.id === id);
     if (!dragged) return true;
-    // Before itself or right after itself: no move.
-    if (before === id || (before !== null && devices[devices.indexOf(dragged) + 1]?.id === before)) return false;
-    if (before === null && devices.at(-1)?.id === id) return false;
-    return inSection(categoryOf(dragged), before);
+    const plan = movePlan(id!, before);
+    return plan !== null && inSection(categoryOf(dragged), before);
   };
-  const dropAt = (drag: ChainDrag, before: DeviceId | null) => {
+  /**
+   * What a drop of card `id` before `before` moves: the card, or the multi-selection it is
+   * part of (its devices of the card's kind), and where they land (`before` stepped past
+   * the moved devices). `null`: nothing would change.
+   */
+  const movePlan = (id: DeviceId, before: DeviceId | null) => {
+    const project = useProjectStore.getState().project;
+    if (!project) return null;
+    const ids = movedDevices(project, id, categoryOf);
+    const order = devices.map((d) => d.id);
+    let to = before;
+    while (to !== null && ids.includes(to)) to = order[order.indexOf(to) + 1] ?? null;
+    // The chain afterwards, against now: no change, no move.
+    const rest = order.filter((d) => !ids.includes(d));
+    const at = to === null ? rest.length : rest.indexOf(to);
+    const after = [...rest.slice(0, at), ...ids, ...rest.slice(at)];
+    if (ids.every((d) => order.includes(d)) && after.join() === order.join()) return null;
+    return { ids, before: to };
+  };
+  /** Drop `drag` before `before`; `single`: only the card itself (its left / right buttons). */
+  const dropAt = (drag: ChainDrag, before: DeviceId | null, single = false) => {
     if (!canDrop(drag, before)) return;
-    if (drag.type === "library") onAdd(drag.payload, drag.payload.category, before);
-    else onMove(drag.id, before);
+    if (drag.type === "library") return onAdd(drag.payload, drag.payload.category, before);
+    if (!moveCommand) return;
+    const plan = single ? { ids: [drag.id], before } : movePlan(drag.id, before);
+    if (!plan) return;
+    const commands = plan.ids.map((id) => moveCommand(id, plan.before));
+    void send(
+      commands.length === 1
+        ? commands[0]!
+        : cmd("Edit", { type: "Batch", label: "move devices", key: { id: "undo.device.move_selected", args: {} }, commands }), // i18n-ignore
+    );
   };
   const sections = CHAIN_SECTIONS.filter((s) => categories.includes(s.id)).map((s) => ({
     ...s,
@@ -340,7 +373,7 @@ export function ChainSections({
                   moveRightBefore={i === section.devices.length - 1 ? undefined : (devices[at + 2]?.id ?? null)}
                   onDropBefore={(dragged) => dropAt(dragged, d.id)}
                   acceptsBefore={(dragged) => canDrop(dragged, d.id)}
-                  onMove={(before) => dropAt({ type: "device", id: d.id }, before)}
+                  onMove={(before) => dropAt({ type: "device", id: d.id }, before, true)}
                   onRemove={onRemove && (() => onRemove(d))}
                   layout={layout}
                 />
@@ -372,7 +405,6 @@ export function ChainSections({
 function Chain({ track, layout, picker }: { track: Track; layout: ChainLayout; picker: boolean }) {
   const stack = layout === "stack";
   const t = useT();
-  const send = useSend();
   const transport = useTransport();
   const devices = useDevicesOfTrack(track.id);
   // Every section the track can hold is shown, empty or not (MIDI effects and the instrument
@@ -392,7 +424,7 @@ function Chain({ track, layout, picker }: { track: Track; layout: ChainLayout; p
         layout={layout}
         label={t("devices.chain.label", { name: track.name })}
         onAdd={(payload, _category, before) => void insertFromLibrary(transport, track, payload, before)}
-        onMove={(id, before) => void send(cmd("Device", { type: "Move", id, track: track.id, before }))}
+        moveCommand={(id, before) => cmd("Device", { type: "Move", id, track: track.id, before })}
         pasteChain={{ type: "Track", track: track.id }}
       />
     </div>

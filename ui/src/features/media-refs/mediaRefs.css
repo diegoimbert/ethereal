@@ -41,6 +41,13 @@
   opacity: 0.7;
 }
 
+/* A sample dragged over a missing row (dropping relinks it). */
+.eth-media-refs__row--drop {
+  border-color: var(--eth-color-accent);
+  border-style: dashed;
+  background: color-mix(in srgb, var(--eth-color-accent) 14%, transparent);
+}
+
 .eth-media-refs__icon {
   width: var(--eth-size-icon-md);
   height: var(--eth-size-icon-md);
