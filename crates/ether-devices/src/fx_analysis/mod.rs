@@ -1,6 +1,6 @@
 //! v0.2 analysis devices (the v0.2 contracts froze the param tables; see docs/DEVICES.md).
 //!
-//! Analysis devices (audio passes through untouched): spectrum analyzer and tuner. They publish `AnalysisKind::{Spectrum, Tuner}` frames through `Node::{has_analysis, analysis}` (`ether_core::analysis`).
+//! Analysis devices (audio passes through untouched): spectrum analyzer, tuner and loudness meter. They publish `AnalysisKind::{Spectrum, Tuner, Levels}` frames through `Node::{has_analysis, analysis}` (`ether_core::analysis`).
 //!
 //! DSP in [`spectrum`] and [`tuner_dsp`] (FFT in `fft`). **Param ids are stable and
 //! append-only** (documents, automation and presets store them): never renumber, only append.
@@ -23,8 +23,20 @@
 //! | 0 | Tuner | `Reference` | 415 ..= 466 Hertz, default 440 |
 //! | 1 | Tuner | `Input` | Stereo / Left / Right (default Stereo) |
 //! | 2 | Tuner | `Mute Output` | toggle, default off |
+//!
+//! # Loudness (`BuiltinDeviceType::Loudness`)
+//!
+//! EBU R 128 / BS.1770-4 meter ([`loudness_device`]): `AnalysisKind::Levels` frames as
+//! described by [`loudness_device::Frame`].
+//!
+//! | id | group | name | range |
+//! |----|-------|------|-------|
+//! | 0 | Display | `Target` | -36 ..= 0 Decibels (read as LUFS), default -14 |
+//! | 1 | Display | `History` | 10 s / 30 s / 1 min / 5 min / 15 min (default 30 s) |
+//! | 2 | Meter | `Reset On Play` | toggle, default on |
 
 mod fft;
+pub mod loudness_device;
 pub mod spectrum;
 pub mod tuner_dsp;
 
@@ -37,6 +49,7 @@ use crate::contract::{
     FactoryPreset, choice, descriptor as build, item, knob, layout, param, section, toggle,
 };
 
+pub use loudness_device::Loudness;
 pub use spectrum::SpectrumAnalyzer;
 pub use tuner_dsp::Tuner;
 
@@ -63,6 +76,16 @@ pub mod tuner {
     pub const COUNT: usize = 3;
 }
 
+/// Param ids of `Loudness` (stable, append-only).
+pub mod loudness {
+    use ether_core::protocol::model::ParamId;
+    pub const TARGET: ParamId = ParamId(0);
+    pub const HISTORY: ParamId = ParamId(1);
+    pub const RESET_ON_PLAY: ParamId = ParamId(2);
+    /// Number of params.
+    pub const COUNT: usize = 3;
+}
+
 /// Descriptor of a type of this group.
 ///
 /// # Panics
@@ -71,6 +94,7 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
     let mut d = params_descriptor(ty);
     d.layout = Some(match ty {
         BuiltinDeviceType::SpectrumAnalyzer => spectrum_layout(),
+        BuiltinDeviceType::Loudness => loudness_layout(),
         _ => tuner_layout(),
     });
     d
@@ -138,6 +162,32 @@ fn tuner_layout() -> DeviceLayout {
                 knob(p::REFERENCE, WidgetSize::Medium),
                 item(Widget::Choice { param: p::INPUT }, WidgetSize::Small),
                 item(Widget::Toggle { param: p::MUTE }, WidgetSize::Small),
+            ],
+        ),
+    ])
+}
+
+/// Loudness: the readouts and history across the panel, the settings beside it.
+fn loudness_layout() -> DeviceLayout {
+    use loudness as p;
+    let mut meter = item(Widget::Loudness { target: p::TARGET }, WidgetSize::Large);
+    meter.colspan = 4;
+    layout(vec![
+        section("loudness", None, 4, 4, vec![meter]),
+        section(
+            "settings",
+            Some("Meter"),
+            1,
+            1,
+            vec![
+                knob(p::TARGET, WidgetSize::Medium),
+                item(Widget::Choice { param: p::HISTORY }, WidgetSize::Small),
+                item(
+                    Widget::Toggle {
+                        param: p::RESET_ON_PLAY,
+                    },
+                    WidgetSize::Small,
+                ),
             ],
         ),
     ])
@@ -217,6 +267,33 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
             false,
             0,
         ),
+        BuiltinDeviceType::Loudness => build(
+            BuiltinDeviceType::Loudness,
+            "Loudness",
+            DeviceCategory::AudioEffect,
+            vec![
+                param(
+                    0,
+                    "Target",
+                    "Display",
+                    ParamUnit::Decibels,
+                    (-36.0, 0.0, -14.0),
+                    ParamScale::Linear,
+                ),
+                choice(
+                    1,
+                    "History",
+                    "Display",
+                    &["10 s", "30 s", "1 min", "5 min", "15 min"],
+                    1,
+                ),
+                toggle(2, "Reset On Play", "Meter", true),
+            ],
+            2,
+            2,
+            false,
+            0,
+        ),
         other => unreachable!("{other:?} is not a `fx-analysis` device"),
     }
 }
@@ -229,6 +306,7 @@ pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
     match device.device_type() {
         BuiltinDeviceType::SpectrumAnalyzer => Box::new(spectrum::create()),
         BuiltinDeviceType::Tuner => Box::new(tuner_dsp::create()),
+        BuiltinDeviceType::Loudness => Box::new(loudness_device::create()),
         other => unreachable!("{other:?} is not a `fx-analysis` device"),
     }
 }
@@ -257,11 +335,19 @@ const TUNER_PRESETS: &[FactoryPreset] = &[
     preset!("tuner", "silent-tuning"),
 ];
 
+const LOUDNESS_PRESETS: &[FactoryPreset] = &[
+    preset!("loudness", "streaming"),
+    preset!("loudness", "broadcast"),
+    preset!("loudness", "club-master"),
+    preset!("loudness", "long-take"),
+];
+
 /// Factory presets of a type of this group (embedded).
 pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {
     match ty {
         BuiltinDeviceType::SpectrumAnalyzer => SPECTRUM_PRESETS,
         BuiltinDeviceType::Tuner => TUNER_PRESETS,
+        BuiltinDeviceType::Loudness => LOUDNESS_PRESETS,
         _ => &[],
     }
 }

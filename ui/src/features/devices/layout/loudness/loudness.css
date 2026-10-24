@@ -1,0 +1,57 @@
+/* The loudness meter (tokens only; the plot, grid, line and fill are the shared `eth-plot` ones). */
+
+.eth-loudness {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+}
+.eth-loudness__readouts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--eth-space-md);
+}
+.eth-loudness__readout {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: var(--eth-space-xs);
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+.eth-loudness__value {
+  font-size: var(--eth-fs-md);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-loudness__readout--big .eth-loudness__value {
+  font-size: var(--eth-fs-xl);
+}
+.eth-loudness__unit {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-loudness__name {
+  grid-column: 1 / -1;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-loudness__readout--ok .eth-loudness__value {
+  color: var(--eth-color-ok);
+}
+.eth-loudness__readout--warn .eth-loudness__value {
+  color: var(--eth-color-warn);
+}
+.eth-loudness__readout--danger .eth-loudness__value {
+  color: var(--eth-color-danger);
+}
+.eth-loudness__history.eth-plot {
+  height: calc(var(--eth-size-row-height-lg) * 4);
+}
+.eth-loudness__target {
+  stroke: var(--eth-color-warn);
+  stroke-width: var(--eth-border-width);
+  stroke-dasharray: var(--eth-space-xs) var(--eth-space-xs);
+}
+.eth-loudness__momentary {
+  fill: none;
+}

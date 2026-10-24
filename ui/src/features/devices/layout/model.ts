@@ -50,6 +50,8 @@ export function boundParams(w: Widget): ParamId[] {
       return [w.algorithm];
     case "LfoCurve":
       return [w.sync, w.sync_rate, w.rate, w.phase, w.depth];
+    case "Loudness":
+      return [w.target];
     case "Macros":
       return macrosWidgetParams(w);
     case "ZoneMap":

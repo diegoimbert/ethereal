@@ -1,0 +1,27 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "streaming -14",
+    "device": {
+      "type": "Builtin",
+      "device": "Loudness"
+    },
+    "meta": {
+      "tags": [
+        "streaming"
+      ],
+      "author": "ethereal",
+      "description": "target -14 lufs integrated, a common streaming reference; 30 s history."
+    },
+    "params": {
+      "0": -14.0,
+      "1": 1.0,
+      "2": 1.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}
