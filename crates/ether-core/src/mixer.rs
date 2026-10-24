@@ -239,10 +239,22 @@ impl ChainRt {
     }
 
     /// RT. Keep this sub-block's input for the bypass path. Call before anything writes into
-    /// `input` (a sidechain alignment, a rack's chains), on every sub-block.
+    /// `input` (a sidechain alignment, a rack's chains), on every sub-block. An entry without
+    /// latency that is settled on skips the copy: the bypass path only ever reads the
+    /// sub-block it was pushed in then, and neither [`Self::bypass`] nor [`Self::blend`]
+    /// reads it while the entry stays settled on (a switch this sub-block pushes again).
     #[inline]
     pub(crate) fn push_dry(&mut self, input: &Stereo, n: usize) {
+        if self.dry.delay() == 0 && self.settled_on() {
+            return;
+        }
         self.dry.push(input, n);
+    }
+
+    /// On for the whole sub-block with its crossfade done: its output is the node's alone.
+    #[inline]
+    fn settled_on(&self) -> bool {
+        self.is_enabled() && self.auto_switch_at.is_none() && self.ran && self.fade >= 1.0
     }
 
     /// RT. The entry doesn't run: its output is its delayed input (written into `io`).
