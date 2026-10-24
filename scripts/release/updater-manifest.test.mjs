@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
-import { buildManifest, notesForApp } from "./updater-manifest.mjs";
+import { buildManifest, notesForApp, signedVersion } from "./updater-manifest.mjs";
 
 const V = "0.3.1";
 const ALL = [
@@ -27,7 +27,10 @@ const ALL = [
   `Ethereal_${V}_web.zip`,
   "SHA256SUMS.txt",
 ];
-const sig = (name) => `sig-of:${name}\n`;
+// A tauri `.sig`: base64 of a minisign signature file whose trusted comment names the version.
+const sigFor = (name, version) =>
+  `${Buffer.from(`untrusted comment: signature from tauri secret key\nRUQ=\ntrusted comment: timestamp:1700000000\tfile:${name}${version ? `\tversion:${version}` : ""}\nR0w=\n`).toString("base64")}\n`;
+const sig = (name) => sigFor(name.replace(/\.sig$/, ""), V);
 const base = { version: V, tag: `v${V}`, repo: "diegoimbert/ethereal", pubDate: "2026-10-04T00:00:00Z" };
 
 test("every platform, with urls and signatures", () => {
@@ -48,7 +51,7 @@ test("every platform, with urls and signatures", () => {
   const mac = manifest.platforms["darwin-aarch64"];
   assert.equal(mac.url, `https://github.com/diegoimbert/ethereal/releases/download/v${V}/Ethereal_${V}_aarch64.app.tar.gz`);
   // The signature is the .sig file's content, trimmed.
-  assert.equal(mac.signature, `sig-of:Ethereal_${V}_aarch64.app.tar.gz.sig`);
+  assert.equal(mac.signature, sig(`Ethereal_${V}_aarch64.app.tar.gz.sig`).trim());
   assert.match(manifest.platforms["linux-x86_64"].url, /_amd64\.AppImage$/);
   // Windows prefers NSIS; the MSI only answers MSI installs.
   assert.match(manifest.platforms["windows-x86_64"].url, /-setup\.exe$/);
@@ -144,4 +147,19 @@ test("CLI writes latest.json, and writes nothing (exit 0) without signatures", (
   const log = execFileSync(process.execPath, [script, ...args.slice(0, 8).map((a) => (a === dir ? bare : a)), "--out", out2], { encoding: "utf8" });
   assert.equal(existsSync(out2), false);
   assert.match(log, /latest\.json not written/);
+});
+
+test("a signature must be made for the announced version", () => {
+  assert.equal(signedVersion(sig("a.sig")), V);
+  assert.equal(signedVersion(sigFor("a", null)), null);
+  assert.equal(signedVersion("not base64 at all"), null);
+  const older = (name) => sigFor(name.replace(/\.sig$/, ""), "0.2.0");
+  const { manifest, warnings } = buildManifest({ ...base, files: ALL, readSig: older });
+  assert.equal(manifest, null);
+  assert.ok(
+    warnings.some((w) => w.includes("signed for version '0.2.0'")),
+    warnings.join("\n"),
+  );
+  const unversioned = (name) => sigFor(name.replace(/\.sig$/, ""), null);
+  assert.equal(buildManifest({ ...base, files: ALL, readSig: unversioned }).manifest, null);
 });
