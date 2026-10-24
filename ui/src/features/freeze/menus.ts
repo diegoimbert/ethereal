@@ -5,7 +5,7 @@
  *   Cancel while rendering.
  * - Clip: Bounce to New Track, Bounce in Place (audio), Consolidate (the selected clips).
  * - Device: freeze up to here (#25: partial chain freeze), unfreeze on a frozen device.
- * - Time selection: Bounce to New Track (the selected range of each selected track).
+ * - Time selection: Bounce to New Track, Consolidate (the selected range of each selected track).
  */
 
 import type { Beats, Clip, Device, DeviceCategory, Track, TrackId } from "@/generated";
@@ -22,6 +22,7 @@ import {
   canFreeze,
   cancelRenderJob,
   consolidateClips,
+  consolidateRange,
   flattenTracks,
   freezeTracks,
   freezeUpTo,
@@ -183,6 +184,19 @@ export function consolidateIfAllowed(transport: EngineTransport, clips: Readonly
   return true;
 }
 
+/**
+ * Bounce `clips` to new tracks (the arrangement's `clip.bounce`), when the clip menu would
+ * let you. Returns whether it ran.
+ */
+export function bounceIfAllowed(transport: EngineTransport, clips: ReadonlyArray<Clip>): boolean {
+  if (clips.length === 0 || consolidateState(clips) === "kind") return false;
+  const p = useProjectStore.getState().project;
+  const busy = clips.some((c) => !!jobOfTrack(useFreezeUi.getState(), c.track));
+  if (busy || (!!p && clips.some((c) => frozenAncestor(p.tracks, c.track)))) return false;
+  void bounceClips(transport, clips, "NewTrack");
+  return true;
+}
+
 /** Clip-menu entries for `clip` (acting on the selected clips). */
 export function freezeClipEntries(transport: EngineTransport, clip: Clip): ContextMenuEntry[] {
   const p = useProjectStore.getState().project;
@@ -195,6 +209,7 @@ export function freezeClipEntries(transport: EngineTransport, clip: Clip): Conte
   return [
     {
       label: t("freeze.menu.bounce_new"),
+      shortcut: shortcutLabel("clip.bounce"),
       disabled: busy || (!!p && tracks.some((t) => t && frozenAncestor(p.tracks, t.id))),
       onSelect: () => void bounceClips(transport, clips, "NewTrack"),
     },
@@ -220,25 +235,59 @@ export function withFreezeClipEntries(entries: ReadonlyArray<ContextMenuEntry>, 
   return insertBeforeLastGroup(entries, freezeClipEntries(transport, clip));
 }
 
-/**
- * Time-selection menu entries: "Bounce to New Track" renders `[start, end)` of each selected
- * audio/MIDI track (`tracks`: groups already expanded to their children) to a new track.
- */
-export function freezeRangeEntries(transport: EngineTransport, start: Beats, end: Beats, tracks: ReadonlyArray<TrackId>): ContextMenuEntry[] {
+/** What a time selection `[start, end)` over `tracks` can render: its tracks with clips in it, and why bounce/consolidate are off. */
+function rangeState(start: Beats, end: Beats, tracks: ReadonlyArray<TrackId>) {
   const p = useProjectStore.getState().project;
   const content = tracks.filter((id) => {
     const k = p?.tracks[id]?.kind;
     return k === "Audio" || k === "Midi";
   });
-  if (!content.length) return [];
   const withClips = tracksWithClipsIn(content, start, end);
   const busy = withClips.some((id) => !!jobOfTrack(useFreezeUi.getState(), id));
   const inert = !!p && withClips.some((id) => frozenAncestor(p.tracks, id));
+  const frozen = !!p && withClips.some((id) => isFrozenTrack(p, p.tracks[id]!));
+  return { content, withClips, bounceOff: !withClips.length || busy || inert, consolidateOff: !withClips.length || busy || frozen };
+}
+
+/** Bounce a time selection to new tracks (`clip.bounce` with a time selection), when allowed. */
+export function bounceRangeIfAllowed(transport: EngineTransport, start: Beats, end: Beats, tracks: ReadonlyArray<TrackId>): boolean {
+  const s = rangeState(start, end, tracks);
+  if (s.bounceOff) return false;
+  void bounceRange(transport, start, end, s.withClips);
+  return true;
+}
+
+/**
+ * Consolidate a time selection (`clip.consolidate`, Mod+J, with a time selection): one clip
+ * per track with clips in it, the parts outside the range untouched. Returns whether it ran.
+ */
+export function consolidateRangeIfAllowed(transport: EngineTransport, start: Beats, end: Beats, tracks: ReadonlyArray<TrackId>): boolean {
+  const s = rangeState(start, end, tracks);
+  if (s.consolidateOff) return false;
+  void consolidateRange(transport, start, end, s.withClips);
+  return true;
+}
+
+/**
+ * Time-selection menu entries: "Bounce to New Track" renders `[start, end)` of each selected
+ * audio/MIDI track (`tracks`: groups already expanded to their children) to a new track;
+ * "Consolidate" joins that range into one clip per track.
+ */
+export function freezeRangeEntries(transport: EngineTransport, start: Beats, end: Beats, tracks: ReadonlyArray<TrackId>): ContextMenuEntry[] {
+  const s = rangeState(start, end, tracks);
+  if (!s.content.length) return [];
   return [
     {
       label: t("freeze.menu.bounce_new"),
-      disabled: !withClips.length || busy || inert,
-      onSelect: () => void bounceRange(transport, start, end, withClips),
+      shortcut: shortcutLabel("clip.bounce"),
+      disabled: s.bounceOff,
+      onSelect: () => void bounceRange(transport, start, end, s.withClips),
+    },
+    {
+      label: t("freeze.menu.consolidate"),
+      shortcut: shortcutLabel("clip.consolidate"),
+      disabled: s.consolidateOff,
+      onSelect: () => void consolidateRange(transport, start, end, s.withClips),
     },
   ];
 }
