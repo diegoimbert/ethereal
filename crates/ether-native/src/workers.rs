@@ -71,8 +71,11 @@
 //! ([`promote_current_thread`], `audio.rs`).
 //!
 //! # Size
-//! [`default_workers`]: `ETHER_WORKERS` if set, else physical cores - 1 (the audio thread
-//! works too) capped at [`MAX_DEFAULT_WORKERS`]. The native host also reads
+//! [`default_workers`]: `ETHER_WORKERS` if set, else logical CPUs - 1 (the audio thread
+//! works too) capped at [`MAX_DEFAULT_WORKERS`]. Logical, not physical: a second hardware
+//! thread on a core still adds a lot of DSP throughput (engine_bench on a 2-core / 4-thread
+//! Windows runner, vectorized devices: 3 workers render the owner project in 3.5 ms where 1
+//! takes 5.0 ms), and idle workers park, so light projects don't pay for them. The native host also reads
 //! `<data_dir>/config/engine.json` (`{"worker_threads": n}`); the env var wins.
 
 use std::any::Any;
@@ -97,10 +100,15 @@ pub const SPIN_ITERS: u32 = 1 << 12;
 /// Spin iterations of the audio thread waiting for the last jobs before it yields.
 const WAIT_SPIN_ITERS: u32 = 1 << 14;
 
-/// `ETHER_WORKERS` if set (and a number), else physical cores - 1, capped at
-/// [`MAX_DEFAULT_WORKERS`].
+/// `ETHER_WORKERS` if set (and a number), else logical CPUs - 1, capped at
+/// [`MAX_DEFAULT_WORKERS`] (see the module docs, "Size").
 pub fn default_workers() -> usize {
-    env_workers().unwrap_or_else(|| physical_cores().saturating_sub(1).min(MAX_DEFAULT_WORKERS))
+    env_workers().unwrap_or_else(|| logical_cpus().saturating_sub(1).min(MAX_DEFAULT_WORKERS))
+}
+
+/// Logical CPUs (hardware threads) available to this process.
+pub fn logical_cpus() -> usize {
+    std::thread::available_parallelism().map_or(1, |n| n.get())
 }
 
 /// `ETHER_WORKERS`, if set to a number.
@@ -110,8 +118,7 @@ pub fn env_workers() -> Option<usize> {
 
 /// Physical CPU cores (logical CPUs where the OS doesn't tell).
 pub fn physical_cores() -> usize {
-    let logical = std::thread::available_parallelism().map_or(1, |n| n.get());
-    os::physical_cores().filter(|&n| n > 0).unwrap_or(logical)
+    os::physical_cores().filter(|&n| n > 0).unwrap_or_else(logical_cpus)
 }
 
 /// Non-RT (once per thread, before it renders): the real-time promotion the workers get
@@ -1264,7 +1271,7 @@ mod tests {
 
     #[test]
     fn default_workers_is_bounded() {
-        let n = physical_cores().saturating_sub(1).min(MAX_DEFAULT_WORKERS);
+        let n = logical_cpus().saturating_sub(1).min(MAX_DEFAULT_WORKERS);
         assert!(n <= MAX_DEFAULT_WORKERS);
         assert!(physical_cores() >= 1);
     }
