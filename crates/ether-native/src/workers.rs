@@ -118,7 +118,9 @@ pub fn env_workers() -> Option<usize> {
 
 /// Physical CPU cores (logical CPUs where the OS doesn't tell).
 pub fn physical_cores() -> usize {
-    os::physical_cores().filter(|&n| n > 0).unwrap_or_else(logical_cpus)
+    os::physical_cores()
+        .filter(|&n| n > 0)
+        .unwrap_or_else(logical_cpus)
 }
 
 /// Non-RT (once per thread, before it renders): the real-time promotion the workers get
