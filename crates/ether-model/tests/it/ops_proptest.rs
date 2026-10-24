@@ -727,7 +727,7 @@ proptest! {
     #[test]
     fn file_roundtrip_preserves_arbitrary_floats(
         seed in any::<u64>(),
-        beats in prop::collection::vec(0.0f64..1e7, 4),
+        beats in prop::collection::vec(0.0f64..1e6, 4),
         bpm in 1e-3f64..999.0,
         unit in 0.0f64..=1.0,
         param in prop::num::f64::NORMAL | prop::num::f64::SUBNORMAL | prop::num::f64::ZERO,

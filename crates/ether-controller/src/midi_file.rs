@@ -162,7 +162,8 @@ fn played_notes(p: &Project, clip: &Clip) -> Vec<MidiFileNote> {
     if let Some((ls, le)) = looping {
         let mut d = 0.0;
         let mut from = clip.offset.0;
-        while d < end {
+        // Bounded like the other loop unrollings (`freeze::edit::clip_pieces`).
+        while d < end && pieces.len() < 100_000 {
             pieces.push((d, from, le));
             d += le - from;
             from = ls;
