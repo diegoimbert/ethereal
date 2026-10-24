@@ -47,6 +47,7 @@ mod poly_synth;
 mod racks;
 mod render;
 mod reverb_shimmer;
+mod shaper;
 mod shifter;
 mod sidechain;
 mod silence_skipping;

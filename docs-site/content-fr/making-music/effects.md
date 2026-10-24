@@ -13,6 +13,7 @@ covers:
   - devices/convolution-reverb #convolution-reverb
   - devices/limiter #limiter
   - devices/maximizer #maximizer
+  - devices/shaper #shaper
   - devices/utility #utility
   - devices/color-effects-saturator-bitcrusher-auto-filter #color-saturator-bitcrusher-auto-filter
   - devices/modulation-effects-chorus-phaser-flanger-tremolo #modulation-chorus-phaser-flanger-tremolo
@@ -99,6 +100,16 @@ Un limiteur de mastering pour la sonie : baissez le **seuil** et le son devient
 - **liaison stéréo** à 100 % baisse les deux côtés ensemble ; plus bas, une crête d’un côté baisse moins l’autre, ce qui garde un mix large. **écrêtage** arrondit les crêtes les plus rapides avant le limiteur, pour un son plus dense et plus fort.
 - **niveau égalisé** baisse la sortie du gain apporté par le seuil, pour entendre ce que fait la limitation sans que la sonie vous trompe. Désactivez-le avant d’exporter.
 - Le graphe montre les 4 dernières secondes : le niveau d’entrée, la sortie et la réduction de gain qui descend du haut, avec la ligne du plafond. Ses valeurs affichent la réduction actuelle, la plus forte et la crête réelle de la sortie depuis la lecture.
+
+### façonnage {#shaper}
+
+Trois formes dessinées qui se répètent en rythme avec le morceau : une pour le **volume**, une pour la **coupure** d’un filtre et une pour le **panoramique**. Chaque piste a sa propre **vitesse** (1/64 à 8 mesures), sa **profondeur** et son interrupteur ; le volume est actif par défaut (un pompage façon sidechain), la coupure et le panoramique sont éteints.
+
+- Dessinez dans une piste comme dans le lfo de volume : double-cliquez pour ajouter ou supprimer un point, faites glisser les points (ils s’alignent sur la grille, maintenez alt pour ne pas aligner), alt-glissez un segment pour le courber, clic droit pour un segment en escalier, linéaire ou lissé. Une piste éteinte reste modifiable, en plus pâle.
+- **coupure** balaie un filtre **passe-bas**, **passe-haut** ou **passe-bande** entre les coupures **bas** et **haut** (le bas et le haut de la piste), avec de la **résonance**.
+- **panoramique** déplace le son à gauche (en bas) et à droite (en haut) en baissant l’autre côté, jamais en le montant.
+- **lissage** adoucit les arêtes (1 ms par défaut ; augmentez-le si une coupe claque). **mix** mélange le son sec.
+- Les formes suivent la position du morceau : chaque cycle commence sur le temps, où que vous lanciez la lecture.
 
 ### utilitaire {#utility}
 

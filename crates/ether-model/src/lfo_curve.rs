@@ -182,9 +182,101 @@ fn segment(a: LfoPoint, b: LfoPoint, x0: f64, x1: f64, p: f64) -> f64 {
     f64::from(a.y) + f64::from(b.y - a.y) * f
 }
 
+/// A lane of the shaper ([`ShaperCurves`]): what its drawn cycle moves.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+pub enum ShaperLane {
+    /// Gain (`y` = linear gain).
+    Volume,
+    /// The filter's cutoff (`y` = position between the shaper's low and high cutoffs, on
+    /// a log scale).
+    Cutoff,
+    /// Balance (`y` 0 = left, 0.5 = centre, 1 = right).
+    Pan,
+}
+
+impl ShaperLane {
+    /// Every lane, in panel order.
+    pub const ALL: [ShaperLane; 3] = [Self::Volume, Self::Cutoff, Self::Pan];
+}
+
+/// The shaper's three drawn cycles (`BuiltinDevice::Shaper`), each played at its own
+/// tempo-synced rate.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct ShaperCurves {
+    pub volume: LfoCurve,
+    pub cutoff: LfoCurve,
+    pub pan: LfoCurve,
+}
+
+impl Default for ShaperCurves {
+    /// Volume: the classic pump; cutoff: a curved rise over the cycle that drops back at
+    /// its end; pan: a triangle from the centre to the right, the left and back.
+    fn default() -> Self {
+        Self {
+            volume: LfoCurve::default(),
+            cutoff: LfoCurve {
+                points: vec![
+                    LfoPoint::curved(0.0, 0.15, 0.4),
+                    LfoPoint::linear(0.95, 1.0),
+                ],
+            },
+            pan: LfoCurve {
+                points: vec![
+                    LfoPoint::linear(0.0, 0.5),
+                    LfoPoint::linear(0.25, 1.0),
+                    LfoPoint::linear(0.75, 0.0),
+                ],
+            },
+        }
+    }
+}
+
+impl ShaperCurves {
+    /// The curve of `lane`.
+    pub fn lane(&self, lane: ShaperLane) -> &LfoCurve {
+        match lane {
+            ShaperLane::Volume => &self.volume,
+            ShaperLane::Cutoff => &self.cutoff,
+            ShaperLane::Pan => &self.pan,
+        }
+    }
+
+    /// These curves with `lane` replaced by `curve` (sanitized).
+    pub fn with(&self, lane: ShaperLane, curve: &LfoCurve) -> Self {
+        let mut c = self.clone();
+        *match lane {
+            ShaperLane::Volume => &mut c.volume,
+            ShaperLane::Cutoff => &mut c.cutoff,
+            ShaperLane::Pan => &mut c.pan,
+        } = curve.sanitized();
+        c
+    }
+
+    /// `Err` when a lane's curve isn't valid ([`LfoCurve::check`]).
+    pub fn check(&self) -> Result<(), String> {
+        for lane in ShaperLane::ALL {
+            self.lane(lane).check()?;
+        }
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn shaper_curves_default_valid_and_replace_one_lane() {
+        let c = ShaperCurves::default();
+        assert!(c.check().is_ok());
+        let flat = LfoCurve {
+            points: vec![LfoPoint::linear(0.0, 2.0)],
+        };
+        let d = c.with(ShaperLane::Pan, &flat);
+        assert_eq!(d.pan.points, vec![LfoPoint::linear(0.0, 1.0)]);
+        assert_eq!(d.volume, c.volume);
+        assert_eq!(d.cutoff, c.cutoff);
+    }
 
     #[test]
     fn evaluates_segments_wrap_and_edges() {

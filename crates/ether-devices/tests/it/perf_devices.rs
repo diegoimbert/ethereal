@@ -71,6 +71,15 @@ fn effects() -> Vec<(BuiltinDeviceType, Vec<(&'static str, f64)>)> {
         ),
         (Shifter, vec![("Mode/Mode", 2.0), ("Ring/Drive", 1.0)]),
         (Loudness, vec![]),
+        (Shaper, vec![]),
+        (
+            Shaper,
+            vec![
+                ("Cutoff/On", 1.0),
+                ("Pan/On", 1.0),
+                ("Cutoff/Resonance", 60.0),
+            ],
+        ),
         (Maximizer, vec![("Maximizer/Threshold", -12.0)]),
         (
             Maximizer,

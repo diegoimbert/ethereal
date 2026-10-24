@@ -2,7 +2,7 @@
 //! compressor, delay, EQ, reverb, limiter, utility and drum rack; [`poly_synth`],
 //! [`fm_synth`] (four-operator FM), [`multisampler`]; the effect groups [`fx_color`],
 //! [`fx_modulation`], [`fx_dynamics`], [`fx_analysis`], [`fx_space`] (convolution reverb),
-//! [`grain_delay`], [`shifter`], [`maximizer`] and [`midi_fx`]; [`racks`] and [`modulators`]; [`external`] (external instruments and
+//! [`grain_delay`], [`shifter`], [`maximizer`], [`shaper`] and [`midi_fx`]; [`racks`] and [`modulators`]; [`external`] (external instruments and
 //! effects). Shared scaffolding is in [`contract`]; factory presets come from
 //! [`factory_presets`] ([`factory`] holds the older types).
 //!
@@ -39,6 +39,7 @@ pub mod poly_synth;
 pub mod racks;
 pub mod reverb;
 pub mod sampler;
+pub mod shaper;
 pub mod shifter;
 pub mod synth;
 mod util;
@@ -127,6 +128,7 @@ fn type_descriptor(device: BuiltinDeviceType) -> DeviceDescriptor {
         BuiltinDeviceType::GrainDelay => grain_delay::descriptor(device),
         BuiltinDeviceType::Shifter => shifter::descriptor(device),
         BuiltinDeviceType::Maximizer => maximizer::descriptor(device),
+        BuiltinDeviceType::Shaper => shaper::descriptor(device),
     }
 }
 
@@ -181,6 +183,7 @@ pub fn factory_presets(device: BuiltinDeviceType) -> &'static [contract::Factory
         BuiltinDeviceType::GrainDelay => grain_delay::factory_presets(device),
         BuiltinDeviceType::Shifter => shifter::factory_presets(device),
         BuiltinDeviceType::Maximizer => maximizer::factory_presets(device),
+        BuiltinDeviceType::Shaper => shaper::factory_presets(device),
     }
 }
 
@@ -263,6 +266,7 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         BuiltinDevice::GrainDelay => grain_delay::create(device),
         BuiltinDevice::Shifter => shifter::create(device),
         BuiltinDevice::Maximizer => maximizer::create(device),
+        BuiltinDevice::Shaper { .. } => shaper::create(device),
     }
 }
 

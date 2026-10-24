@@ -519,7 +519,8 @@ impl EngineState {
                     || crate::multisampler::updatable_in_place(old, new)
                     || crate::external::updatable_in_place(old, new)
                     || crate::fx_space::updatable_in_place(old, new)
-                    || ether_devices::fx_modulation::updatable_in_place(old, new))
+                    || ether_devices::fx_modulation::updatable_in_place(old, new)
+                    || ether_devices::shaper::updatable_in_place(old, new))
                 && matches!(bridge.update_builtin(device.id, new), Ok(true))
             {
                 n.sig = sig;

@@ -1,0 +1,115 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "quarter pump",
+    "device": {
+      "type": "Builtin",
+      "device": "Shaper"
+    },
+    "meta": {
+      "tags": [
+        "pump",
+        "sidechain"
+      ],
+      "author": "ethereal",
+      "description": "the classic sidechain duck on every beat, nothing else."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 8.0,
+      "2": 100.0,
+      "3": 0.0,
+      "4": 10.0,
+      "5": 100.0,
+      "6": 200.0,
+      "7": 12000.0,
+      "8": 20.0,
+      "9": 0.0,
+      "10": 0.0,
+      "11": 9.0,
+      "12": 100.0,
+      "13": 1.0,
+      "14": 100.0,
+      "15": 0.0
+    },
+    "kind": {
+      "type": "Shaper",
+      "curves": {
+        "volume": {
+          "points": [
+            {
+              "x": 0,
+              "y": 1,
+              "curve": {
+                "type": "Linear"
+              }
+            },
+            {
+              "x": 0.02,
+              "y": 0,
+              "curve": {
+                "type": "Curve",
+                "tension": -0.45
+              }
+            },
+            {
+              "x": 0.6,
+              "y": 1,
+              "curve": {
+                "type": "Linear"
+              }
+            }
+          ]
+        },
+        "cutoff": {
+          "points": [
+            {
+              "x": 0,
+              "y": 0.15,
+              "curve": {
+                "type": "Curve",
+                "tension": 0.4
+              }
+            },
+            {
+              "x": 0.95,
+              "y": 1,
+              "curve": {
+                "type": "Linear"
+              }
+            }
+          ]
+        },
+        "pan": {
+          "points": [
+            {
+              "x": 0,
+              "y": 0.5,
+              "curve": {
+                "type": "Linear"
+              }
+            },
+            {
+              "x": 0.25,
+              "y": 1,
+              "curve": {
+                "type": "Linear"
+              }
+            },
+            {
+              "x": 0.75,
+              "y": 0,
+              "curve": {
+                "type": "Linear"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "samples": [],
+    "state": null
+  }
+}
