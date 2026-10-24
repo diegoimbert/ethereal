@@ -25,6 +25,7 @@
  *   time range in the lane, they (and Delete) act on the range (`range.ts`);
  * - arrows: nudge the selection (up/down: one step or 1 %, shift = to the next whole
  *   increment; left/right: one grid step, shift = a quarter);
+ * - drag the line (not a point) up/down: move that segment's two points (times kept);
  * - alt-drag a segment up/down: bend it (sets `CurveShape::Curve { tension }`);
  * - right-click: point / lane / range menus (cut, copy, paste, duplicate, curve, set value,
  *   delete).
@@ -821,6 +822,62 @@ export function AutomationLaneView({
     );
   };
 
+  /**
+   * The points whose line passes under `p` (lane-local px, within `LINE_HIT_PX`): the two
+   * ends of a segment, or the first / last point for the hold before / after it. Null off
+   * the line.
+   */
+  const segmentUnder = (p: { x: number; y: number }): AutomationPoint[] | null => {
+    const pts = live.current.points;
+    if (pts.length === 0) return null;
+    const g = geomNow();
+    const t = xToTime(p.x, g);
+    const v = evaluatePoints(pts, t)!;
+    if (Math.abs(valueToY(v, g.height, g.range) - p.y) > LINE_HIT_PX) return null;
+    const i = segmentAt(pts, t);
+    if (i >= 0) return [pts[i]!, pts[i + 1]!];
+    return [t < pts[0]!.time ? pts[0]! : pts[pts.length - 1]!];
+  };
+
+  /**
+   * A plain drag on the line: the segment under the press moves up/down (its two points'
+   * values, times kept), like Ableton's and Bitwig's. Same value rules as a point drag
+   * (stepped params by steps, ⇧: whole increments, ⌥: precision), one undo step; the two
+   * points become the selection. A click without moving is a click on the lane.
+   */
+  const moveSegment = (e: ReactPointerEvent, seg: AutomationPoint[], onClick: () => void) => {
+    const press = local(e);
+    const gesture = new LaneGesture(transport);
+    const offset = precisionDrag(press);
+    const grabbed = evaluatePoints(live.current.points, xToTime(press.x, geomNow()))!;
+    let started = false;
+    trackDrag(
+      (ev) => {
+        if (!started) {
+          started = true;
+          selection.getState().select(
+            "automationPoint",
+            seg.map((p) => p.id),
+            "replace",
+          );
+        }
+        const { dy } = offset(local(ev), { x: false, y: ev.altKey && !ev.shiftKey });
+        const edits = selfLane.dragEdits(seg, seg[0]!, 0, dy, { increments: ev.shiftKey, lockTime: true, lockValue: false });
+        gesture.update(editPointsCommand(edits));
+        const g = geomNow();
+        const inf = live.current.info;
+        const v = grabbed + (edits[0]?.value ?? seg[0]!.value) - seg[0]!.value;
+        setTip({ x: press.x, y: valueToY(v, g.height, g.range), value: formatNormalized(inf, v), hint: dragHint(inf) });
+      },
+      (moved) => {
+        gesture.end();
+        setTip(null);
+        if (!moved) onClick();
+      },
+      press,
+    );
+  };
+
   const onBackgroundPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     const hit = e.button === 0 ? glPointAt(e) : null;
     if (hit) {
@@ -876,6 +933,17 @@ export function AutomationLaneView({
       return;
     }
     if (owner.type === "Track" && !(e.metaKey || e.ctrlKey)) selectTrackEntity(owner.track, "replace");
+    // A plain press on the line: drag that segment up/down (a click stays a click).
+    const seg = e.altKey || e.metaKey || e.ctrlKey ? null : segmentUnder(local(e));
+    if (seg) {
+      e.preventDefault();
+      const at = local(e);
+      moveSegment(e, seg, () => {
+        selection.getState().clear("automationPoint");
+        placeCursor(at.x, false);
+      });
+      return;
+    }
     // Track lanes: the box goes on across the other lanes and tracks (`laneMarquee.ts`).
     if (owner.type === "Track" && rootRef.current) {
       e.preventDefault();
@@ -1092,9 +1160,17 @@ export function AutomationLaneView({
   const onGlHover = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (e.buttons !== 0) return;
     const p = glPointAt(e);
-    e.currentTarget.style.cursor = p ? "grab" : "";
+    e.currentTarget.style.cursor = p ? "grab" : lineCursor(e);
     const tipText = p ? formatNormalized(info, p.value) : null;
     if (tipText !== hoverTip) setHoverTip(tipText);
+  };
+  /** Over the line (not a point): the segment drag's cursor. */
+  const lineCursor = (e: ReactPointerEvent<SVGSVGElement>) => (!e.altKey && !e.shiftKey && segmentUnder(local(e)) ? "ns-resize" : "");
+  const onSvgHover = (e: ReactPointerEvent<SVGSVGElement>) => {
+    if (e.buttons !== 0) return;
+    // The circles set their own cursor.
+    const over = e.target instanceof Element && e.target.closest("[data-point]");
+    e.currentTarget.style.cursor = over ? "" : lineCursor(e);
   };
 
   return (
@@ -1118,7 +1194,7 @@ export function AutomationLaneView({
         // Double-clicks are detected on the second press (`doublePress`), not here.
         onDoubleClick={(e) => e.stopPropagation()}
         onContextMenu={laneMenu}
-        onPointerMove={gl ? onGlHover : undefined}
+        onPointerMove={gl ? onGlHover : onSvgHover}
         onPointerLeave={gl ? () => setHoverTip(null) : undefined}
         data-testid="automation-lane-svg"
         data-steps={lines.length}
