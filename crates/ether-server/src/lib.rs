@@ -105,9 +105,28 @@ pub struct ServerConfig {
     /// Empty (the default): any page that has the token (with no token, loopback pages
     /// only). Clients that send no `Origin` (the desktop app, scripts) are not affected.
     pub allowed_origins: Vec<String>,
-    /// Which client commands reach the engine (`None`: all). Others are answered
-    /// `Unsupported` (the agent bridge takes `Command::Agent` only).
-    pub commands: Option<fn(&ether_protocol::Command) -> bool>,
+    /// Which client commands reach the engine. Others are answered with an error (the
+    /// agent bridge takes the agent commands only).
+    pub commands: Commands,
+}
+
+/// [`ServerConfig::commands`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Commands {
+    /// Every command (a remote engine).
+    #[default]
+    All,
+    /// `Command::Agent` only (the agent bridge).
+    AgentOnly,
+}
+
+impl Commands {
+    fn allows(self, c: &ether_protocol::Command) -> bool {
+        match self {
+            Self::All => true,
+            Self::AgentOnly => matches!(c, ether_protocol::Command::Agent(_)),
+        }
+    }
 }
 
 impl Default for ServerConfig {
@@ -126,7 +145,7 @@ impl Default for ServerConfig {
             ping_interval: Duration::from_secs(20),
             idle_timeout: Duration::from_secs(60),
             allowed_origins: Vec::new(),
-            commands: None,
+            commands: Commands::All,
         }
     }
 }
@@ -875,12 +894,15 @@ fn pump(
             }
             Err(e) => return Err(e.to_string()),
         };
-        let decoded = decoded.and_then(|m| match shared.config.commands {
-            Some(allowed) if !allowed(&m.command) => Err(DecodeError {
-                id: Some(m.id),
-                message: "this connection takes only the agent commands".into(),
-            }),
-            _ => Ok(m),
+        let decoded = decoded.and_then(|m| {
+            if shared.config.commands.allows(&m.command) {
+                Ok(m)
+            } else {
+                Err(DecodeError {
+                    id: Some(m.id),
+                    message: "this connection takes only the agent commands".into(),
+                })
+            }
         });
         match decoded {
             Ok(m) => match shared.router.inbound(client, m) {

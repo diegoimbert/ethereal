@@ -142,7 +142,7 @@ impl AgentBridge {
                 projects_root: None,
                 // The agent tools only (`Command::Agent`): the token must not be the whole
                 // app (OS paths, plugin folders, sharing are the desktop's, for its UI).
-                commands: Some(|c| matches!(c, ether_protocol::Command::Agent(_))),
+                commands: crate::Commands::AgentOnly,
                 ..ServerConfig::default()
             },
             engine,
