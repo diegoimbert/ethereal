@@ -1,0 +1,35 @@
+/* The pitch correction's panel (tokens only; the plot, bands and lines are the shared `eth-plot` ones). */
+
+.eth-pitch-correction {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+}
+.eth-pitch-correction__readouts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--eth-space-md);
+}
+.eth-pitch-correction__readout {
+  display: grid;
+  font-variant-numeric: tabular-nums;
+}
+.eth-pitch-correction__value {
+  font-size: var(--eth-fs-md);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-pitch-correction__name {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-pitch-correction__readout--ok .eth-pitch-correction__value {
+  color: var(--eth-color-ok);
+}
+.eth-pitch-correction__readout--warn .eth-pitch-correction__value {
+  color: var(--eth-color-warn);
+}
+.eth-pitch-correction__trace.eth-plot {
+  height: calc(var(--eth-size-row-height-lg) * 5);
+}

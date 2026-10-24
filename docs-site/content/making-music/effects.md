@@ -14,6 +14,7 @@ covers:
   - devices/limiter #limiter
   - devices/maximizer #maximizer
   - devices/shaper #shaper
+  - devices/pitch-correction #pitch-correction
   - devices/utility #utility
   - devices/color-effects-saturator-bitcrusher-auto-filter #color-saturator-bitcrusher-auto-filter
   - devices/modulation-effects-chorus-phaser-flanger-tremolo #modulation-chorus-phaser-flanger-tremolo
@@ -110,6 +111,17 @@ Three drawn shapes that repeat in time with the song: one for the **volume**, on
 - **pan** moves the sound left (bottom) and right (top) by turning the other side down, never up.
 - **smoothing** softens hard edges (1 ms by default; raise it if a chop clicks). **mix** blends the dry sound back in.
 - The shapes follow the song position, so each cycle starts on the beat wherever you start playback.
+
+### pitch correction
+
+Tunes a single voice or a solo instrument: it hears the note being sung or played and moves it to the right one.
+
+- **key** and **scale** set the notes it tunes to (chromatic by default: the nearest semitone). With **target** on **midi**, it tunes to the note held on its midi input instead (choose a midi track as the device's midi input); while no note is held it falls back to the scale.
+- **retune** sets how fast it gets there: 0 ms snaps at once (the hard-tuned effect), 40 ms is a firm but natural correction, a few hundred keeps vibrato and slides. **humanize** relaxes the correction on long notes so they keep their movement while note changes stay quick. **amount** sets how much of the correction is applied, **transpose** moves the whole voice by semitones.
+- With **preserve formants** on (the default) the voice keeps its character whatever the shift. **formant** makes it deeper or brighter on its own, without changing the notes. Turn **preserve formants** off for the classic chipmunk effect.
+- **detector** picks how the pitch is found: **pyin** (the default) is steadier on breathy or noisy takes, **yin** is a little lighter. Raise **sensitivity** if quiet notes aren't corrected, lower it if breaths and noises get tuned.
+- The graph shows the last 4 seconds: the pitch it heard (dim) and the pitch it plays, over the notes of the scale.
+- It delays the sound by about 34 ms, compensated in playback; when you monitor yourself live through it you will hear that delay.
 
 ### utility
 

@@ -398,6 +398,9 @@ pub enum BuiltinDevice {
         #[serde(default)]
         curves: ShaperCurves,
     },
+    /// Monophonic pitch correction: detected pitch snapped to a scale or the note input,
+    /// formant-preserving shift (`pitch-correction`).
+    PitchCorrection,
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -452,11 +455,12 @@ pub enum BuiltinDeviceType {
     Loudness,
     Maximizer,
     Shaper,
+    PitchCorrection,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 47] = [
+    pub const ALL: [BuiltinDeviceType; 48] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -504,6 +508,7 @@ impl BuiltinDeviceType {
         Self::Loudness,
         Self::Maximizer,
         Self::Shaper,
+        Self::PitchCorrection,
     ];
 
     /// Rack types ([`crate::rack`]).
@@ -583,6 +588,7 @@ impl BuiltinDevice {
             Self::Loudness => BuiltinDeviceType::Loudness,
             Self::Maximizer => BuiltinDeviceType::Maximizer,
             Self::Shaper { .. } => BuiltinDeviceType::Shaper,
+            Self::PitchCorrection => BuiltinDeviceType::PitchCorrection,
         }
     }
 
@@ -677,6 +683,7 @@ impl BuiltinDevice {
             BuiltinDeviceType::Shaper => Self::Shaper {
                 curves: ShaperCurves::default(),
             },
+            BuiltinDeviceType::PitchCorrection => Self::PitchCorrection,
         }
     }
 

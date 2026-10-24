@@ -156,4 +156,27 @@ describe("analysis widgets", () => {
     expect(value("reduction")).toBe("3.0");
     expect(panel().querySelector('[data-readout="true peak"]')?.className).toContain("danger");
   });
+
+  it("the pitch correction panel shows the sung and corrected pitch over the scale", async () => {
+    const id = await mount("PitchCorrection");
+    const panel = () => screen.getByTestId("widget-pitch-correction");
+    const value = (name: string) => panel().querySelector(`[data-readout="${name}"] .eth-pitch-correction__value`)?.textContent;
+    expect(panel().textContent).toContain("no pitch");
+    await tick(1000);
+    expect(panel().querySelectorAll('[data-testid="pitch-output"]').length).toBeGreaterThan(0);
+    expect(panel().querySelectorAll('[data-testid="pitch-detected"]').length).toBeGreaterThan(0);
+    // Chromatic: every row is in the scale; C major: 7 of every 12.
+    expect(panel().querySelectorAll("[data-in-scale]")).toHaveLength(13);
+    await act(() => mock!.send(cmd("Device", { type: "SetParam", device: id, param: 1, value: 1 })));
+    expect(panel().querySelectorAll("[data-in-scale]").length).toBeLessThan(10);
+    act(() =>
+      analysisStore(mock!).handle({
+        type: "Analysis",
+        event: { type: "Frame", device: id, data: { type: "Levels", values: [57.2, 57.01, 57, -19, 0.9, 0.02, 0] } },
+      }),
+    );
+    expect(value("note")).toBe("A3");
+    expect(value("sung")).toBe("A3 +20");
+    expect(value("correction (cents)")).toBe("-19");
+  });
 });

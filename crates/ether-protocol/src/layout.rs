@@ -286,6 +286,15 @@ pub enum Widget {
         rate: ParamId,
         depth: ParamId,
     },
+    // --- pitch-correction ---
+    /// A pitch correction's trace: the detected and the corrected pitch over the last
+    /// seconds on a keyboard grid (the notes of `key` / `scale` highlighted), and the
+    /// readouts (`AnalysisData::Levels` of a `PitchCorrection`, layout in
+    /// `ether_devices::pitch_correction::Frame`).
+    PitchCorrection {
+        key: ParamId,
+        scale: ParamId,
+    },
 }
 
 /// Operator routing of one algorithm of a [`Widget::FmAlgorithm`]. Operators are numbered

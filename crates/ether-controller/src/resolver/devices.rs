@@ -70,6 +70,11 @@ const KEYWORDS: &[(&[&str], T, &str)] = &[
         "maximizer",
     ),
     (&["limiter"], T::Limiter, "limiter"),
+    (
+        &["correction", "corrector", "retune", "tune"],
+        T::PitchCorrection,
+        "pitch correction",
+    ),
     (&["eq", "equalizer"], T::Eq, "EQ"),
     (&["utility", "gain", "width"], T::Utility, "utility"),
     (&["transient"], T::TransientShaper, "transient shaper"),
