@@ -11,6 +11,7 @@ import { IrWidget } from "./ir";
 import { LfoCurveWidget } from "./lfoCurve";
 import { LoudnessWidget } from "./loudness";
 import { MaximizerWidget } from "./maximizer";
+import { PitchCorrectionWidget } from "./pitchCorrection";
 import { ShaperCurveWidget } from "./shaper";
 import { MacrosWidget, MeterWidget, RackChainsWidget, SampleWaveformWidget, SpectrumWidget, TunerWidget } from "./widgets/data";
 import { ZoneMapWidget } from "./zones";
@@ -130,5 +131,8 @@ export function WidgetView({ widget, size, label }: WidgetViewProps) {
     // shaper.
     case "ShaperCurve":
       return <ShaperCurveWidget widget={widget} size={size} label={label} />;
+    // pitch-correction.
+    case "PitchCorrection":
+      return <PitchCorrectionWidget widget={widget} size={size} label={label} />;
   }
 }

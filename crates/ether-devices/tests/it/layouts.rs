@@ -81,6 +81,7 @@ fn bound(w: &Widget) -> Vec<ParamId> {
         } => vec![*sync, *sync_rate, *rate, *phase, *depth],
         W::Loudness { target } => vec![*target],
         W::Maximizer { threshold, ceiling } => vec![*threshold, *ceiling],
+        W::PitchCorrection { key, scale } => vec![*key, *scale],
         W::ShaperCurve {
             on, rate, depth, ..
         } => vec![*on, *rate, *depth],

@@ -43,6 +43,7 @@ mod note_blocker;
 mod param_latency;
 mod param_steps;
 mod perf_devices;
+mod pitch_correction;
 mod poly_synth;
 mod racks;
 mod render;

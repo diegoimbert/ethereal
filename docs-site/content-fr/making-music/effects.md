@@ -14,6 +14,7 @@ covers:
   - devices/limiter #limiter
   - devices/maximizer #maximizer
   - devices/shaper #shaper
+  - devices/pitch-correction #pitch-correction
   - devices/utility #utility
   - devices/color-effects-saturator-bitcrusher-auto-filter #color-saturator-bitcrusher-auto-filter
   - devices/modulation-effects-chorus-phaser-flanger-tremolo #modulation-chorus-phaser-flanger-tremolo
@@ -110,6 +111,17 @@ Trois formes dessinées qui se répètent en rythme avec le morceau : une pour 
 - **panoramique** déplace le son à gauche (en bas) et à droite (en haut) en baissant l’autre côté, jamais en le montant.
 - **lissage** adoucit les arêtes (1 ms par défaut ; augmentez-le si une coupe claque). **mix** mélange le son sec.
 - Les formes suivent la position du morceau : chaque cycle commence sur le temps, où que vous lanciez la lecture.
+
+### correction de hauteur {#pitch-correction}
+
+Accorde une voix seule ou un instrument soliste : il entend la note chantée ou jouée et la ramène sur la bonne.
+
+- **tonalité** et **gamme** fixent les notes visées (chromatique par défaut : le demi-ton le plus proche). Avec **cible** sur **midi**, il vise la note tenue sur son entrée midi (choisissez une piste midi comme entrée midi de l’appareil) ; tant qu’aucune note n’est tenue, il revient à la gamme.
+- **vitesse de correction** règle la rapidité : 0 ms colle à la note tout de suite (l’effet de voix « autotunée »), 40 ms corrige franchement mais naturellement, quelques centaines gardent le vibrato et les glissés. **humaniser** relâche la correction sur les notes longues pour qu’elles gardent leur mouvement, tandis que les changements de note restent rapides. **quantité** dose la correction, **transposition** déplace toute la voix en demi-tons.
+- Avec **préserver les formants** (actif par défaut), la voix garde son timbre quel que soit le décalage. **formant** la rend plus grave ou plus claire, sans changer les notes. Désactivez **préserver les formants** pour l’effet « voix de souris » classique.
+- **détecteur** choisit la méthode : **pyin** (par défaut) est plus stable sur les prises soufflées ou bruitées, **yin** est un peu plus léger. Montez la **sensibilité** si les notes douces ne sont pas corrigées, baissez-la si les respirations et les bruits sont accordés.
+- Le graphe montre les 4 dernières secondes : la hauteur entendue (en pâle) et celle jouée, sur les notes de la gamme.
+- Il retarde le son d’environ 34 ms, compensés à la lecture ; si vous vous écoutez en direct à travers lui, vous entendrez ce retard.
 
 ### utilitaire {#utility}
 

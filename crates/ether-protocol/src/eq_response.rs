@@ -186,6 +186,36 @@ pub fn svf_coefs(shape: EqShape, freq: f64, gain_db: f64, q: f64, sample_rate: f
     SvfCoefs { g, k, m0, m1, m2 }
 }
 
+/// The plain bilinear-transform design of one stage (the EQ's before decramping): the
+/// coefficients every other device's filters use (calibrated against reference renders).
+/// Cutoff clamped to `1..=0.49·fs`, `q >= 0.01`.
+pub fn svf_coefs_bilinear(
+    shape: EqShape,
+    freq: f64,
+    gain_db: f64,
+    q: f64,
+    sample_rate: f64,
+) -> SvfCoefs {
+    let fc = freq.clamp(1.0, sample_rate * 0.49);
+    let g = (PI * fc / sample_rate).tan();
+    let q = q.max(0.01);
+    let k = 1.0 / q;
+    let a = 10f64.powf(gain_db / 40.0);
+    let c = |g, k, m0, m1, m2| SvfCoefs { g, k, m0, m1, m2 };
+    match shape {
+        EqShape::LowCut | EqShape::LowCut24 => c(g, k, 1.0, -k, -1.0),
+        EqShape::HighCut | EqShape::HighCut24 => c(g, k, 0.0, 0.0, 1.0),
+        EqShape::Notch => c(g, k, 1.0, -k, 0.0),
+        EqShape::BandPass => c(g, k, 0.0, k, 0.0),
+        EqShape::Bell => {
+            let k = 1.0 / (q * a);
+            c(g, k, 1.0, k * (a * a - 1.0), 0.0)
+        }
+        EqShape::LowShelf => c(g / a.sqrt(), k, 1.0, k * (a - 1.0), a * a - 1.0),
+        EqShape::HighShelf => c(g * a.sqrt(), k, a * a, k * (1.0 - a) * a, 1.0 - a * a),
+    }
+}
+
 /// The SVF `g`, `k` whose poles are those of `1 + a1·z⁻¹ + a2·z⁻²` (stable).
 fn poles_to_svf(a1: f64, a2: f64) -> (f64, f64) {
     let lo = 1.0 + a1 + a2;

@@ -5,8 +5,11 @@
  *
  * Gestures on a handle: drag = frequency (x) + gain (y; x only for shapes without gain),
  * Alt-drag or wheel = Q, Shift = fine, double-click = band on/off, context menu = on/off,
- * type and reset. Every drag (and every wheel burst) is one undo step. Focused handles take
- * arrow keys (←/→ frequency, ↑/↓ gain, Alt+↑/↓ Q; Shift = fine). The reset button (top right)
+ * type and reset. A double-click on empty space places a band there: the nearest unused one
+ * (off, or a bell / shelf at 0 dB) turns on at that frequency and gain. Every drag (and every
+ * wheel burst, every placement) is one undo step. Focused handles take arrow keys (←/→
+ * frequency, ↑/↓ gain, Alt+↑/↓ Q; Shift = fine), Enter/Space to toggle and Delete/Backspace
+ * to switch the band off. The reset button (top right)
  * puts every param of the device back to its default, as in a freshly inserted EQ: one undo
  * step.
  */
@@ -29,6 +32,8 @@ import {
   FREQ_LABELS,
   FREQ_TICKS,
   HIT,
+  bandToPlace,
+  dbAt,
   freqLabel,
   handleAt,
   hitBand,
@@ -244,6 +249,11 @@ export function EqCurveWidget({ widget: w, size, label }: EqCurveProps) {
       case " ":
         toggleOn(b);
         break;
+      case "Delete":
+      case "Backspace":
+        if (!b.on || !b.bindings.on) return;
+        toggleOn(b);
+        break;
       default:
         return;
     }
@@ -278,12 +288,29 @@ export function EqCurveWidget({ widget: w, size, label }: EqCurveProps) {
             sender.begin();
           }}
           end={sender.end}
-          onDoubleClick={() => {
+          onDoubleClick={(e) => {
             const p = lastPress.current;
-            if (!p || performance.now() - p.at > DOUBLE_MS) return;
-            const b = live.current.bands.find((x) => x.index === p.index);
-            if (b) toggleOn(b);
             lastPress.current = null;
+            if (p && performance.now() - p.at <= DOUBLE_MS) {
+              const b = live.current.bands.find((x) => x.index === p.index);
+              if (b) toggleOn(b);
+              return;
+            }
+            // Empty space: place the nearest unused band here.
+            const pt = localPoint(e);
+            const { plot, bands: bs } = live.current;
+            if (!pt || hitBand(plot, bs, pt.x, pt.y, selected) !== null) return;
+            const freq = xToFreq(clamp(pt.x / Math.max(1, plot.w), 0, 1));
+            const index = bandToPlace(bs, freq);
+            const b = index === null ? undefined : bs.find((x) => x.index === index);
+            if (!b) return;
+            const { on, gain } = b.bindings;
+            sender.begin();
+            if (on && !b.on) on.setPlain(on.info.max);
+            b.bindings.freq.setPlain(freq);
+            if (gain && usesGain(b.shape)) gain.setPlain(clamp(dbAt(plot, pt.y), gain.info.min, gain.info.max));
+            sender.end();
+            setSelected(b.index);
           }}
           drag={{
             start: (x, y, e) => {
