@@ -1799,6 +1799,14 @@
           "platform": "all"
         },
         {
+          "id": "devices/pitch-correction",
+          "title": "pitch correction",
+          "what": "monophonic pitch correction: pyin or yin detection, key and scale snapping or the held midi note (midi sidechain), retune speed, humanize, amount, transpose, formant-preserving shift with a separate formant control; a 4 s pitch graph; about 34 ms of compensated latency.",
+          "priority": "should",
+          "audience": "everyone",
+          "platform": "all"
+        },
+        {
           "id": "devices/utility",
           "title": "utility",
           "what": "gain (±36 db), balance pan, width (0–200 %) or mid/side balance, invert l / r, mono, bass mono below a frequency, channel stereo / left / right / swap, dc filter, mute, with output meters.",

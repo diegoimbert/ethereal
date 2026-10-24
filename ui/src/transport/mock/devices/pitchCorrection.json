@@ -1,0 +1,441 @@
+{
+  "PitchCorrection": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "PitchCorrection",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "pitch",
+          "items": [
+            {
+              "colspan": 4,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "key": 0,
+                "scale": 1,
+                "type": "PitchCorrection"
+              }
+            }
+          ],
+          "span": 4,
+          "title": null
+        },
+        {
+          "columns": 1,
+          "id": "scale",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 0,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 1,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 2,
+                "type": "Choice"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Scale"
+        },
+        {
+          "columns": 4,
+          "id": "correction",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Correction"
+        },
+        {
+          "columns": 2,
+          "id": "formant",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 7,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 8,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Formant"
+        },
+        {
+          "columns": 3,
+          "id": "detection",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 9,
+                "type": "Choice"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 10,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 11,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 1,
+          "title": "Detection"
+        }
+      ]
+    },
+    "midi_input": true,
+    "name": "Pitch Correction",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Scale",
+        "hidden": false,
+        "id": 0,
+        "labels": [
+          "C",
+          "C#",
+          "D",
+          "D#",
+          "E",
+          "F",
+          "F#",
+          "G",
+          "G#",
+          "A",
+          "A#",
+          "B"
+        ],
+        "max": 11.0,
+        "min": 0.0,
+        "name": "Key",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Scale",
+        "hidden": false,
+        "id": 1,
+        "labels": [
+          "Chromatic",
+          "Major",
+          "Minor",
+          "Harmonic Minor",
+          "Melodic Minor",
+          "Major Pentatonic",
+          "Minor Pentatonic",
+          "Blues",
+          "Dorian",
+          "Phrygian",
+          "Lydian",
+          "Mixolydian",
+          "Locrian",
+          "Whole Tone"
+        ],
+        "max": 13.0,
+        "min": 0.0,
+        "name": "Scale",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Scale",
+        "hidden": false,
+        "id": 2,
+        "labels": [
+          "Scale",
+          "MIDI"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Target",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 40.0,
+        "group": "Correction",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 400.0,
+        "min": 0.0,
+        "name": "Retune",
+        "scale": {
+          "exponent": 2.0,
+          "type": "Power"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Correction",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Humanize",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Correction",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Amount",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Correction",
+        "hidden": false,
+        "id": 6,
+        "labels": [
+          "-12",
+          "-11",
+          "-10",
+          "-9",
+          "-8",
+          "-7",
+          "-6",
+          "-5",
+          "-4",
+          "-3",
+          "-2",
+          "-1",
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12"
+        ],
+        "max": 12.0,
+        "min": -12.0,
+        "name": "Transpose",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Semitones"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Formant",
+        "hidden": false,
+        "id": 7,
+        "labels": [
+          "-5",
+          "-4",
+          "-3",
+          "-2",
+          "-1",
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+        ],
+        "max": 5.0,
+        "min": -5.0,
+        "name": "Formant",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Semitones"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Formant",
+        "hidden": false,
+        "id": 8,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Preserve Formants",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Detection",
+        "hidden": false,
+        "id": 9,
+        "labels": [
+          "pYIN",
+          "YIN"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Detector",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Detection",
+        "hidden": false,
+        "id": 10,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Sensitivity",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 11,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      }
+    ],
+    "sidechain_inputs": 0
+  }
+}

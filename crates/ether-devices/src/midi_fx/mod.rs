@@ -144,6 +144,7 @@ mod fx_scale;
 mod fx_velocity;
 
 pub use self::core::GENERATED;
+pub(crate) use self::core::{SCALE_KINDS, scale_mask};
 pub use self::fx_arp::Arpeggiator;
 pub use self::fx_chord::Chord;
 pub use self::fx_length::NoteLength;

@@ -72,6 +72,8 @@ fn effects() -> Vec<(BuiltinDeviceType, Vec<(&'static str, f64)>)> {
         (Shifter, vec![("Mode/Mode", 2.0), ("Ring/Drive", 1.0)]),
         (Loudness, vec![]),
         (Shaper, vec![]),
+        (PitchCorrection, vec![]),
+        (PitchCorrection, vec![("Detection/Detector", 1.0)]),
         (
             Shaper,
             vec![

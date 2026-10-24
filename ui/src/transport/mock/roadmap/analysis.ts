@@ -10,7 +10,9 @@
  * - `Loudness`: a song-like loudness curve around -14 LUFS (verses and choruses), its
  *   history at 10 points per second and the readouts, in the engine's `Levels` layout;
  * - `Maximizer`: drum-like peaks driven by the `Threshold` into the `Ceiling`, the gain
- *   reduction they cost and 4 s of history (50 points per second), in the engine's layout.
+ *   reduction they cost and 4 s of history (50 points per second), in the engine's layout;
+ * - `PitchCorrection`: a sung phrase (a few notes with vibrato and slides, breaths between)
+ *   snapped to the nearest semitone, with its history, in the engine's layout.
  *
  * Deterministic (own PRNG, frame counter), so tests can assert on it.
  */
@@ -74,6 +76,8 @@ export class MockAnalysis {
         return [this.tuner(device.params[0] ?? 440)];
       case "Loudness":
         return [this.loudness(device.params[1] ?? 1)];
+      case "PitchCorrection":
+        return [this.pitchCorrection()];
       case "Maximizer":
         return [this.maximizer(device.params[0] ?? 0, device.params[1] ?? -1)];
       default:
@@ -149,6 +153,31 @@ export class MockAnalysis {
         ...mom,
         ...short,
       ],
+    };
+  }
+
+  /** Detected pitch (MIDI note) of the simulated singer at `t` seconds, -1 in a breath. */
+  private static sung(t: number): number {
+    const phrase = t % 4;
+    if (phrase > 3.4) return -1;
+    const melody = [57, 60, 62, 60, 64, 62];
+    const note = melody[Math.floor(phrase / 0.6)] ?? 57;
+    return note + 0.3 * Math.sin(t * 2 * Math.PI * 5.5) - 0.25 * Math.exp(-((phrase % 0.6) * 12));
+  }
+
+  private pitchCorrection(): AnalysisData {
+    const t = this.frame / 30;
+    const step = 0.02;
+    const n = Math.min(200, Math.floor(t / step));
+    const at = (k: number) => t - (n - 1 - k) * step;
+    const round = (v: number) => Math.round(v * 100) / 100;
+    const detected = Array.from({ length: n }, (_, k) => round(MockAnalysis.sung(at(k))));
+    const output = detected.map((v) => (v < 0 ? -1 : Math.round(v) + 0.05 * (v - Math.round(v))));
+    const now = MockAnalysis.sung(t);
+    const out = now < 0 ? -1 : Math.round(now) + 0.05 * (now - Math.round(now));
+    return {
+      type: "Levels",
+      values: [now, out, now < 0 ? -1 : Math.round(now), now < 0 ? 0 : (out - now) * 100, now < 0 ? 0.1 : 0.95, step, n, ...detected, ...output],
     };
   }
 
