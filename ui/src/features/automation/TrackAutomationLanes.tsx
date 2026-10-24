@@ -105,10 +105,6 @@ function OpenTrackAutomationLanes({
       // clips the content, which keeps its natural height.
       style={{ height: animating ? undefined : height }}
       data-automation-track={trackId}
-      // How the arrangement animates the slot (its `laneAnimation.ts`): the whole track
-      // opening/closing slides in/out; lanes shown/hidden in an open track stay in place,
-      // a hidden one collapsing by exactly what the slot shrinks.
-      data-lane-motion={animating ? (shown.closing || shown.barEntering ? "slide" : "lanes") : undefined}
       // Keep lane and header gestures away from the arrangement's own handlers, except on the
       // bar's empty space (right of "+ Parameter…"): there a press is one on the track's empty
       // lane space (select the track, insert marker / playhead; drag: select clips or, with
