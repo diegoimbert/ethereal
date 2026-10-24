@@ -29,6 +29,10 @@ OPTIONS:
                     ~/Documents/Ethereal/Projects).
   --library <DIR>   Sample library folder for the browser (repeatable; default: the demo
                     samples plus $ETHER_LIBRARY).
+  --allow-origin <ORIGIN>
+                    Only browser pages from this origin may connect (repeatable, e.g.
+                    https://app.ethereal.ws). Default: any page with the token. Clients
+                    that send no Origin (the desktop app, scripts) are not affected.
   --allow-os-paths  Honour commands that name files and folders of this machine by path
                     (file import, save dialogs, user and plugin folders), like the
                     desktop app. For a UI on this machine only: loopback listen required.
@@ -49,6 +53,7 @@ pub struct Args {
     pub projects: Option<PathBuf>,
     pub library: Vec<PathBuf>,
     pub allow_os_paths: bool,
+    pub allow_origins: Vec<String>,
     pub help: bool,
 }
 
@@ -75,6 +80,7 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Args, String> {
             "--projects" => a.projects = Some(value("--projects")?.into()),
             "--library" => a.library.push(value("--library")?.into()),
             "--allow-os-paths" => a.allow_os_paths = true,
+            "--allow-origin" => a.allow_origins.push(value("--allow-origin")?),
             "-h" | "--help" => a.help = true,
             other => return Err(format!("unknown option {other:?} (see --help)")),
         }
@@ -243,6 +249,17 @@ mod tests {
         assert!(args(&["--allow-os-paths", "--listen", "::1"]).is_ok());
         assert!(args(&["--allow-os-paths", "--listen", "0.0.0.0"]).is_err());
         assert_eq!(bind(&args(&[]).unwrap(), 5).to_string(), "127.0.0.1:5");
+        assert_eq!(
+            args(&[
+                "--allow-origin",
+                "https://a.test",
+                "--allow-origin",
+                "https://b.test"
+            ])
+            .unwrap()
+            .allow_origins,
+            ["https://a.test", "https://b.test"]
+        );
     }
 
     #[test]

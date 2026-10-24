@@ -101,6 +101,10 @@ pub struct ServerConfig {
     pub ping_interval: Duration,
     /// Drop a client after this long without an inbound frame (pongs count; default 60 s).
     pub idle_timeout: Duration,
+    /// Browser pages allowed to connect (`Origin` values, e.g. `https://app.ethereal.ws`).
+    /// Empty (the default): any page that has the token (with no token, loopback pages
+    /// only). Clients that send no `Origin` (the desktop app, scripts) are not affected.
+    pub allowed_origins: Vec<String>,
 }
 
 impl Default for ServerConfig {
@@ -118,6 +122,7 @@ impl Default for ServerConfig {
             write_timeout: Duration::from_secs(10),
             ping_interval: Duration::from_secs(20),
             idle_timeout: Duration::from_secs(60),
+            allowed_origins: Vec::new(),
         }
     }
 }
@@ -205,6 +210,20 @@ fn check_unauthenticated_upgrade(req: &Request) -> Result<(), &'static str> {
         return Err("Origin must be a loopback page when the server has no token");
     }
     Ok(())
+}
+
+/// [`ServerConfig::allowed_origins`]: a browser page (an `Origin` header) must be one of them
+/// when the list is set.
+fn check_allowed_origin(req: &Request, allowed: &[String]) -> Result<(), &'static str> {
+    let origin = req.headers().get("origin").and_then(|v| v.to_str().ok());
+    match origin {
+        Some(o)
+            if !allowed.is_empty() && !allowed.iter().any(|a| a.eq_ignore_ascii_case(o.trim())) =>
+        {
+            Err("this page is not allowed to connect (see --allow-origin)")
+        }
+        _ => Ok(()),
+    }
 }
 
 /// Host name for `ServerInfo::name`.
@@ -616,9 +635,16 @@ fn serve_connection(
     // trickling bytes can't extend it).
     stream.set_nonblocking(true).map_err(|e| e.to_string())?;
     let unauthenticated = shared.config.token.is_none();
+    let origins = &shared.config.allowed_origins;
     #[allow(clippy::result_large_err)] // tungstenite's callback signature
     let check = move |req: &Request, resp: Response| -> Result<Response, ErrorResponse> {
-        if unauthenticated && let Err(why) = check_unauthenticated_upgrade(req) {
+        let refused = if unauthenticated {
+            check_unauthenticated_upgrade(req).err()
+        } else {
+            None
+        }
+        .or_else(|| check_allowed_origin(req, origins).err());
+        if let Some(why) = refused {
             let mut r = ErrorResponse::new(Some(why.to_string()));
             *r.status_mut() = StatusCode::FORBIDDEN;
             return Err(r);
