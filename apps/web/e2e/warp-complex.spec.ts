@@ -92,7 +92,7 @@ test("Complex warp keeps pitch at another tempo and transposes without changing 
   await openClip(page, clip.id);
   const editor = page.getByTestId("warp-editor");
   await expect(editor).toBeVisible();
-  await editor.getByLabel("warp", { exact: true }).click();
+  await pickOption(editor, "warp mode", "complex");
   await expect.poll(async () => (await audioOf(page, clip.id)).warp.enabled).toBe(true);
   await expect.poll(async () => (await audioOf(page, clip.id)).warp.source_bpm).toBe(120);
   await pickOption(editor, "warp mode", "complex");

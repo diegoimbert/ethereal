@@ -9,7 +9,8 @@
  * several: one undo step), or null when there is nothing to send.
  */
 
-import type { AudioContent, Clip, ClipId, Command, TextKey, WarpFormants, WarpSettings } from "@/generated";
+import type { AudioContent, Clip, ClipId, Command, TextKey, WarpFormants, WarpMode, WarpSettings } from "@/generated";
+import type { MessageKey } from "@/i18n";
 import { cmd } from "@/transport";
 
 export const TRANSPOSE_MAX = 48;
@@ -141,6 +142,34 @@ export function offsetFormant(clips: ReadonlyArray<AudioClip>, key: FormantKey, 
       const v = offsetValue(bases.get(c.clip.id) ?? now, delta, lo, hi);
       return v === now ? [] : [formantCmd(c, key, v)];
     }),
+  );
+}
+
+/**
+ * The one warp/pitch mode list of the UI: "none" (warp off: the clip plays at the source's
+ * native speed) or a warp mode. The model keeps `enabled` and `mode` apart (a clip switched
+ * to none keeps its mode for when it is warped again), so an unwarped clip reads as none.
+ */
+export type WarpChoice = "None" | WarpMode;
+
+export const WARP_CHOICES: ReadonlyArray<{ value: WarpChoice; label: MessageKey }> = [
+  { value: "None", label: "warp.mode.none" },
+  { value: "Repitch", label: "warp.mode.repitch" },
+  { value: "Complex", label: "warp.mode.complex" },
+  { value: "ComplexPlus", label: "warp.mode.complex_plus" },
+];
+
+/** A clip's choice in the mode list. */
+export const warpChoiceOf = (warp: WarpSettings): WarpChoice => (warp.enabled ? warp.mode : "None");
+
+/** The warp settings `patch` that picking `choice` sends (none keeps the mode). */
+export const warpChoicePatch = (choice: WarpChoice): Partial<WarpSettings> => (choice === "None" ? { enabled: false } : { enabled: true, mode: choice });
+
+/** Pick `choice` for every clip (one undo step; clips already on it are left out). */
+export function setAllWarpChoice(clips: ReadonlyArray<AudioClip>, choice: WarpChoice): Command | null {
+  return setAllWarp(
+    clips.filter((c) => warpChoiceOf(c.audio.warp) !== choice),
+    warpChoicePatch(choice),
   );
 }
 

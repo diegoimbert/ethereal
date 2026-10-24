@@ -90,7 +90,8 @@ describe("WarpEditor", () => {
   it("shows the clip's warp settings and a waveform", async () => {
     const { clip } = await setup();
     expect(screen.getByTestId("warp-editor").dataset.clipId).toBe(clip.id);
-    expect((screen.getByLabelText("warp") as HTMLInputElement).checked).toBe(true);
+    // One mode list, warp off ("none") included: no separate warp switch.
+    expect(screen.queryByRole("checkbox", { name: "warp" })).toBeNull();
     expect(screen.getByRole("combobox", { name: "warp mode" })).toHaveTextContent("repitch");
     expect(screen.getByTestId("warp-source-bpm").textContent).toBe("source 120.00 bpm");
     expect(screen.getByTestId("warp-waveform")).toBeTruthy();
@@ -103,11 +104,16 @@ describe("WarpEditor", () => {
     await flush();
     const content = () => clipNow(clip.id).content as Extract<Clip["content"], { type: "Audio" }>;
     expect(content().warp.mode).toBe("Complex");
-    fireEvent.click(screen.getByLabelText("warp"));
+    // "none" turns warp off and keeps the mode for later.
+    pickOption(screen.getByRole("combobox", { name: "warp mode" }), { value: "None" });
     await flush();
     expect(content().warp.enabled).toBe(false);
-    expect(screen.getByRole("combobox", { name: "warp mode" })).toBeDisabled();
+    expect(content().warp.mode).toBe("Complex");
+    expect(screen.getByRole("combobox", { name: "warp mode" })).toHaveTextContent("none");
     expect(screen.getByTestId("warp-marker-count").textContent).toBe("unwarped");
+    pickOption(screen.getByRole("combobox", { name: "warp mode" }), { value: "Complex" });
+    await flush();
+    expect(content().warp.enabled).toBe(true);
     typeTranspose("7");
     await flush();
     expect(content().transpose).toBe(7);
@@ -133,7 +139,7 @@ describe("WarpEditor", () => {
     ]);
     expect(screen.getByTestId("warp-marker-count").textContent).toBe("4 markers");
     // Not while unwarped.
-    fireEvent.click(screen.getByLabelText("warp"));
+    pickOption(screen.getByRole("combobox", { name: "warp mode" }), { value: "None" });
     await flush();
     await addMarker(12);
     expect(markers(clip.id)).toHaveLength(4);
@@ -356,12 +362,17 @@ describe("WarpEditor", () => {
     await flush();
     expect([tr(clip.id), tr("clip-b")]).toEqual([-5, -5]);
 
-    // Warp on/off too.
-    const warp = (id: string) => (clipNow(id).content as Extract<Clip["content"], { type: "Audio" }>).warp.enabled;
-    const before = warp(clip.id);
-    fireEvent.click(screen.getByRole("checkbox", { name: "warp" }));
+    // The mode list too, "none" (warp off) included.
+    const warp = (id: string) => (clipNow(id).content as Extract<Clip["content"], { type: "Audio" }>).warp;
+    pickOption(screen.getByRole("combobox", { name: "warp mode" }), { value: "None" });
     await flush();
-    expect([warp(clip.id), warp("clip-b")]).toEqual([!before, !before]);
+    expect([warp(clip.id).enabled, warp("clip-b").enabled]).toEqual([false, false]);
+    pickOption(screen.getByRole("combobox", { name: "warp mode" }), { value: "ComplexPlus" });
+    await flush();
+    expect([warp(clip.id), warp("clip-b")].map((w) => [w.enabled, w.mode])).toEqual([
+      [true, "ComplexPlus"],
+      [true, "ComplexPlus"],
+    ]);
 
     // Not part of the selection: only the edited clip.
     act(() => itemSelection.getState().select("clip", ["clip-b"], "replace"));

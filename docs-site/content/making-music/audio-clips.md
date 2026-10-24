@@ -52,11 +52,12 @@ Warp makes an audio clip follow the project's tempo: change the tempo and the cl
 
 ### warp on or off
 
-- The **warp** checkbox turns warping on or off. Unwarped, the clip plays at its original speed whatever the tempo.
-- **mode** picks how the audio is stretched:
+- **mode** turns warping off or picks how the audio is stretched:
+  - **none** turns warp off: the clip plays at its original speed whatever the tempo.
   - **repitch** changes the speed and the pitch together, like a record played faster or slower.
   - **complex** keeps the pitch while changing the speed. Use it for vocals and full mixes.
-- The toolbar shows the file's tempo (**source 120.00 bpm**), or **source tempo unknown**. When you first turn warp on, Ethereal guesses it from the file's length: the tempo between 80 and 160 bpm at which the file lasts 1, 2, 4, 8… bars. It doesn't listen to the audio, so the guess is right for loops cut to whole bars; for anything else, set the tempo with warp markers.
+- With several audio clips selected, the mode you pick applies to all of them. The clip menu's **warp mode** does the same.
+- The toolbar shows the file's tempo (**source 120.00 bpm**), or **source tempo unknown**. When you first pick a mode other than **none**, Ethereal guesses it from the file's length: the tempo between 80 and 160 bpm at which the file lasts 1, 2, 4, 8… bars. It doesn't listen to the audio, so the guess is right for loops cut to whole bars; for anything else, set the tempo with warp markers.
 - **transpose** changes the clip's pitch in semitones.
 
 If the engine you use has no time-stretching, the toolbar says **complex plays as repitch here**.
