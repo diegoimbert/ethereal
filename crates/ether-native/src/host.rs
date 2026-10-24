@@ -351,8 +351,9 @@ fn settings_file(data_dir: &std::path::Path) -> PathBuf {
 pub fn load_audio_settings(data_dir: &std::path::Path) -> AudioSettings {
     std::fs::read_to_string(settings_file(data_dir))
         .ok()
-        .and_then(|j| serde_json::from_str(&j).ok())
+        .and_then(|j| serde_json::from_str::<AudioSettings>(&j).ok())
         .unwrap_or_default()
+        .sanitized()
 }
 
 /// The backend forced by `ETHER_AUDIO`, if set.
