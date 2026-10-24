@@ -697,8 +697,12 @@ pub mod spectrum {
     pub const MAX_HZ: f32 = 20_000.0;
     /// dB floor of the published bins.
     pub const FLOOR_DB: f32 = -120.0;
-    /// Weight of the newest spectrum in the per-bin power average (display smoothing).
-    const SMOOTH: f32 = 0.5;
+    /// Ballistics of the display, per bin: a rising level follows quickly (this weight of
+    /// the newest spectrum per frame)...
+    const RISE: f32 = 0.7;
+    /// ...a falling one decays at most this fast (dB per second), like an analyzer's
+    /// release, so the curve moves smoothly instead of flickering frame to frame.
+    pub const FALL_DB_PER_S: f32 = 24.0;
 
     /// Highest bin frequency at `sample_rate` (below Nyquist).
     pub fn max_hz(sample_rate: f32) -> f32 {
@@ -707,7 +711,8 @@ pub mod spectrum {
 
     /// One mono spectrum: a sliding window of the last [`FFT_SIZE`] samples, a Hann-windowed
     /// radix-2 FFT, and [`BINS`] log-spaced dB bins (peak power of the FFT bins each covers,
-    /// interpolated where bins are narrower than the FFT resolution).
+    /// interpolated where bins are narrower than the FFT resolution), with analyzer
+    /// ballistics: fast rise, a release of at most [`FALL_DB_PER_S`].
     #[derive(Debug)]
     pub struct Analyzer {
         history: Box<[f32]>,
@@ -777,8 +782,11 @@ pub mod spectrum {
             self.ready
         }
 
-        /// RT. Recompute the bins from the last [`FFT_SIZE`] samples.
+        /// RT. Recompute the bins from the last [`FFT_SIZE`] samples (called once per
+        /// analysis period, `1 / ANALYSIS_HZ` s).
         pub fn compute(&mut self, sample_rate: f32) {
+            // Power ratio of the largest fall per frame.
+            let fall = 10f32.powf(-FALL_DB_PER_S / ether_core::analysis::ANALYSIS_HZ as f32 / 10.0);
             let n = FFT_SIZE;
             for i in 0..n {
                 self.re[i] = self.history[(self.write + i) & (n - 1)] * self.window[i];
@@ -811,10 +819,13 @@ pub mod spectrum {
                     power_at(&self.re, &self.im, k) * (1.0 - t)
                         + power_at(&self.re, &self.im, k + 1) * t
                 };
-                let s = if self.ready {
-                    self.power[b] + SMOOTH * (p - self.power[b])
-                } else {
+                let last = self.power[b];
+                let s = if !self.ready {
                     p
+                } else if p >= last {
+                    last + RISE * (p - last)
+                } else {
+                    p.max(last * fall)
                 };
                 // Flush tiny values (denormals) to zero.
                 self.power[b] = if s < 1e-20 { 0.0 } else { s };
