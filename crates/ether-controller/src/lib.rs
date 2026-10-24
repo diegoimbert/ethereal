@@ -155,6 +155,9 @@ use ether_core::protocol::transport::TransportState;
 use ether_core::protocol::{ClientMessage, Reply, ReplyResult, ServerMessage};
 use ether_core::{EngineOutputs, NodeKey, ParamChange, RenderGraphDesc, TransportControl};
 
+/// Controller time a tick may spend on media work (decode, peaks, resample), of the
+/// ~16 ms tick: commands still get a reply within a tick.
+pub const MEDIA_TICK_BUDGET_MS: u64 = 8;
 pub use compile::{CompileContext, NoteCache, compile_graph_cached, compile_graph_with};
 pub use doc::{ExtLabels, set_ext_labels};
 pub use engine::LATENCY_REPUBLISH_MS;
@@ -681,9 +684,11 @@ pub struct ControllerConfig {
     /// Minimum time between two graph publishes from `handle` (bursts coalesce; `tick`
     /// flushes).
     pub publish_interval_ms: u64,
-    /// Media work per tick, in frames (decode + resample). ~1 s of audio keeps a tick
-    /// around 10-20 ms in release builds.
+    /// Media work per step, in frames (decode + resample); a tick runs steps until
+    /// [`MEDIA_TICK_BUDGET_MS`], at most `media_steps_per_tick` of them.
     pub media_frames_per_tick: usize,
+    /// Media steps per tick at most (also the bound where the host clock doesn't move).
+    pub media_steps_per_tick: usize,
     /// Undo depth (0 = unlimited).
     pub history_depth: usize,
     /// Written into saved files (`app_version`).
@@ -700,6 +705,7 @@ impl Default for ControllerConfig {
             autosave_after_ms: Some(60_000),
             publish_interval_ms: 30,
             media_frames_per_tick: 48_000,
+            media_steps_per_tick: 16,
             history_depth: 500,
             app_version: env!("CARGO_PKG_VERSION").to_string(),
             patch_compat: PatchCompat::default(),

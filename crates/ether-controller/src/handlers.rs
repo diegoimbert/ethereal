@@ -1350,15 +1350,28 @@ where
             && self.media.has_jobs()
         {
             let mut events = Vec::new();
-            let loaded = self.media.step(
-                pid,
-                &mut self.store,
-                &mut self.library,
-                &mut self.bridge,
-                self.config.engine_sample_rate,
-                self.config.media_frames_per_tick,
-                &mut events,
-            );
+            // Steps of `media_frames_per_tick` frames until the tick's media time budget is
+            // spent: a fixed budget per tick left the controller idle most of each tick
+            // (an uncompressed file decodes ~1 s of audio in ~0.2 ms), so opening a project
+            // with minutes of audio took a tick per second of audio.
+            let started = self.host.now_ms();
+            let mut loaded = Vec::new();
+            for _ in 0..self.config.media_steps_per_tick.max(1) {
+                loaded.extend(self.media.step(
+                    pid,
+                    &mut self.store,
+                    &mut self.library,
+                    &mut self.bridge,
+                    self.config.engine_sample_rate,
+                    self.config.media_frames_per_tick,
+                    &mut events,
+                ));
+                if !self.media.has_jobs()
+                    || self.host.now_ms().saturating_sub(started) >= crate::MEDIA_TICK_BUDGET_MS
+                {
+                    break;
+                }
+            }
             for e in events {
                 event(out, e);
             }

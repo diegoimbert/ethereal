@@ -5,6 +5,7 @@
 use crate::common;
 
 use common::*;
+use ether_controller::ControllerConfig;
 use ether_controller::memory::MemoryLibrary;
 use ether_core::protocol::devices::{DeviceCommand, DeviceSpec};
 use ether_core::protocol::media::*;
@@ -175,7 +176,15 @@ fn zone_media_load_rebuilds_the_multisampler() {
     lib.add_root("lib", "Library");
     let x = sine(SR, 220.0, SR as usize, 0.5);
     lib.add_file("lib", "A2.wav", wav(SR, &[x]));
-    let mut h = Harness::with(FakeBridge::default(), lib, Default::default());
+    let mut h = Harness::with(
+        FakeBridge::default(),
+        lib,
+        ControllerConfig {
+            // One media step per tick: the test follows the work across ticks.
+            media_steps_per_tick: 1,
+            ..Default::default()
+        },
+    );
     h.create_project("Late");
     let track: TrackId = h.id();
     h.ok(Command::Track(TrackCommand::Create {
