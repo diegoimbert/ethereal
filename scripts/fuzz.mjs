@@ -105,7 +105,8 @@ if (cmd === "list") {
   if (!targets().includes(a)) throw new Error(`no fuzz target ${a} (node scripts/fuzz.mjs list)`);
   process.exit(run(a, Number(b ?? 60)) ? 0 : 1);
 } else if (cmd === "all") {
-  execFileSync("cargo", [toolchain, "fuzz", "build", "-O"], { cwd: fuzz, stdio: quiet ? "ignore" : "inherit" });
+  // The build output is public-safe (no input reached the code yet).
+  execFileSync("cargo", [toolchain, "fuzz", "build", "-O"], { cwd: fuzz, stdio: "inherit" });
   const failed = targets().filter((t) => !run(t, Number(a ?? 60)));
   process.exit(failed.length ? 1 : 0);
 } else {
