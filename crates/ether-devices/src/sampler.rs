@@ -330,6 +330,7 @@ pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
                         mode: Some(params::FILTER_TYPE),
                         drive: None,
                         gain: None,
+                        slope: None,
                     },
                     Medium,
                 ),

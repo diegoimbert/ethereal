@@ -18,7 +18,7 @@
       "description": "low-pass that closes when the key hits: route a kick to the sidechain for a filtered pump."
     },
     "params": {
-      "0": 1.0,
+      "0": 0.0,
       "1": 12000.0,
       "2": 25.0,
       "3": 0.0,
@@ -32,7 +32,9 @@
       "11": 8.0,
       "12": 0.0,
       "13": 100.0,
-      "14": 0.0
+      "14": 0.0,
+      "15": 0.0,
+      "16": 1.0
     }
   }
 }

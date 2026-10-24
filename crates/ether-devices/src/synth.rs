@@ -226,6 +226,7 @@ pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
             mode: None,
             drive: None,
             gain: None,
+            slope: None,
         },
         Large,
     );

@@ -810,6 +810,8 @@ where
         safe: bool,
         out: &mut dyn MessageSink,
     ) {
+        let mut project = project;
+        crate::device_upgrade::upgrade_project(&mut project);
         // Replaced without `autosave_before_switch` (an extension's adopt): deleted all the same.
         if self.discarded.is_some_and(|d| d != project.id) {
             self.close_discarded(out);

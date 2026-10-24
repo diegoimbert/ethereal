@@ -341,6 +341,7 @@ pub fn layout() -> DeviceLayout {
                             mode: Some(p::FILTER_TYPE),
                             drive: None,
                             gain: None,
+                            slope: None,
                         },
                         Medium,
                     ),

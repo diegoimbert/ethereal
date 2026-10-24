@@ -865,6 +865,7 @@ pub fn layout() -> DeviceLayout {
                             mode: Some(p::FILTER_TYPE),
                             drive: Some(p::DRIVE),
                             gain: None,
+                            slope: None,
                         },
                         Large,
                     ),

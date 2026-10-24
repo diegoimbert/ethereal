@@ -120,7 +120,8 @@ fn bound(w: &Widget) -> Vec<u32> {
             mode,
             drive,
             gain,
-        } => [Some(*cutoff), Some(*resonance), *mode, *drive, *gain]
+            slope,
+        } => [Some(*cutoff), Some(*resonance), *mode, *drive, *gain, *slope]
             .into_iter()
             .flatten()
             .map(|p| p.0)

@@ -229,17 +229,18 @@ export function FilterCurveWidget({ widget: w, size, label }: TypedProps<"Filter
   const cutoff = useParam(w.cutoff);
   const resonance = useParam(w.resonance);
   const mode = useParam(w.mode);
+  const slope = useParam(w.slope);
   const gain = useParam(w.gain);
   const ctx = useLayoutContext();
   if (!cutoff || !resonance) return <Missing type="FilterCurve" />;
-  const shape = filterShapeOf(currentLabel(mode));
+  const shape = filterShapeOf(currentLabel(mode), currentLabel(slope));
   const fcX = freqX(cutoff);
   const fc = xToFreq(fcX);
   const q = resonanceToQ(resonance.normalized);
   const g = gain ? (gain.info.unit === "Decibels" ? gain.plain : (gain.normalized * 2 - 1) * FILTER_DB) : 0;
   const yOf = (db: number, h: number) => h / 2 - (Math.max(-FILTER_DB * 2, Math.min(FILTER_DB, db)) / FILTER_DB) * (h / 2) * 0.9;
   return (
-    <TypedFrame type="filter-curve" size={size} label={label} controls={[w.mode, w.cutoff, w.resonance, w.drive, w.gain]}>
+    <TypedFrame type="filter-curve" size={size} label={label} controls={[w.mode, w.slope, w.cutoff, w.resonance, w.drive, w.gain]}>
       <Plot
         className="eth-plot--filter"
         label={t("devices.widget.filter", { cutoff: cutoff.text })}

@@ -512,6 +512,83 @@ fn auto_filter_responses() {
     assert!(tone_gain_db(&mut res, 1000.0) > 12.0);
 }
 
+fn sloped(mode: f64, slope: f64, cutoff: f64, res: f64) -> AutoFilter {
+    let mut d = AutoFilter::new();
+    set(&mut d, af::MODE, mode);
+    set(&mut d, af::SLOPE, slope);
+    set(&mut d, af::CUTOFF, cutoff);
+    set(&mut d, af::RESONANCE, res);
+    prepared(&mut d);
+    d
+}
+
+/// `Slope` 12 / 24 / 48 dB per octave on the low- and high-pass: flat passband, then the
+/// stopband falls by about the slope per octave (measured over the octave from `lo` Hz up,
+/// far enough out for the asymptote and above the test sine's f32 noise floor, ~-80 dB).
+#[test]
+fn auto_filter_slopes() {
+    for (slope, per_octave, passband, lo) in [
+        (0.0, 12.0, 0.5, 4000.0),
+        (1.0, 24.0, 1.0, 4000.0),
+        (2.0, 48.0, 0.5, 1414.0),
+    ] {
+        let mut lp = sloped(0.0, slope, 1000.0, 0.0);
+        let pass = tone_gain_db(&mut lp, 100.0);
+        assert!(pass.abs() < passband, "LP {per_octave}: passband {pass}");
+        let drop = tone_gain_db(&mut lp, lo) - tone_gain_db(&mut lp, 2.0 * lo);
+        assert!(
+            (drop - per_octave).abs() < per_octave * 0.15,
+            "LP {per_octave}: {drop} dB/oct"
+        );
+        let mut hp = sloped(1.0, slope, 1000.0, 0.0);
+        let pass = tone_gain_db(&mut hp, 12_000.0);
+        assert!(pass.abs() < passband, "HP {per_octave}: passband {pass}");
+        let hi = 1e6 / lo;
+        let drop = tone_gain_db(&mut hp, hi) - tone_gain_db(&mut hp, hi / 2.0);
+        assert!(
+            (drop - per_octave).abs() < per_octave * 0.15,
+            "HP {per_octave}: {drop} dB/oct"
+        );
+    }
+    // 48 dB: Butterworth, -3 dB at the cutoff; resonance peaks there.
+    let mut lp48 = sloped(0.0, 2.0, 1000.0, 0.0);
+    let at = tone_gain_db(&mut lp48, 1000.0);
+    assert!((at + 3.0).abs() < 0.5, "LP48 at the cutoff: {at}");
+    let mut res = sloped(0.0, 2.0, 1000.0, 90.0);
+    assert!(tone_gain_db(&mut res, 1000.0) > 12.0);
+    // The slope leaves band-pass, notch and peak alone.
+    for mode in 2..5 {
+        let mut a = sloped(f64::from(mode), 0.0, 1000.0, 30.0);
+        let mut b = sloped(f64::from(mode), 2.0, 1000.0, 30.0);
+        let x = stereo(noise(4800, 0.5));
+        assert_eq!(render(&mut a, &x, &[]), render(&mut b, &x, &[]), "mode {mode}");
+    }
+}
+
+/// Old documents: `Type (legacy)` still decides while `Type` and `Slope` are at their
+/// defaults, sample for sample as the matching new pair.
+#[test]
+fn auto_filter_legacy_type_still_loads() {
+    let x = stereo(noise(9600, 0.5));
+    for (legacy, mode, slope) in [
+        (1.0, 0.0, 1.0),
+        (2.0, 1.0, 0.0),
+        (3.0, 1.0, 1.0),
+        (4.0, 2.0, 0.0),
+        (5.0, 3.0, 0.0),
+        (6.0, 4.0, 0.0),
+    ] {
+        let mut old = filter(legacy, 800.0, 40.0);
+        let mut new = sloped(mode, slope, 800.0, 40.0);
+        assert_eq!(render(&mut old, &x, &[]), render(&mut new, &x, &[]), "legacy {legacy}");
+    }
+    // Once `Type` or `Slope` is set, they decide.
+    let mut d = filter(3.0, 800.0, 40.0);
+    set(&mut d, af::SLOPE, 2.0);
+    let mut lp48 = sloped(0.0, 2.0, 800.0, 40.0);
+    assert_eq!(render(&mut d, &x, &[]), render(&mut lp48, &x, &[]));
+}
+
 #[test]
 fn auto_filter_extremes_are_finite_without_allocating() {
     for ty in 0..7 {
@@ -519,6 +596,21 @@ fn auto_filter_extremes_are_finite_without_allocating() {
         set(&mut d, af::TYPE, f64::from(ty));
         extremes(&mut d, 64.0, &format!("auto filter type {ty}"));
     }
+    for slope in 0..3 {
+        for mode in 0..2 {
+            let mut d = AutoFilter::new();
+            set(&mut d, af::MODE, f64::from(mode));
+            set(&mut d, af::SLOPE, f64::from(slope));
+            extremes(&mut d, 64.0, &format!("auto filter mode {mode} slope {slope}"));
+        }
+    }
+    // Self-oscillating 48 dB cascade with full drive stays bounded.
+    let mut d = sloped(0.0, 2.0, 20_000.0, 100.0);
+    set(&mut d, af::DRIVE, 24.0);
+    set(&mut d, af::LFO_AMOUNT, 100.0);
+    set(&mut d, af::LFO_RATE, 20.0);
+    let out = render(&mut d, &stereo(noise(48_000, 1.0)), &[]);
+    finite_and_bounded(&out, 16.0, "48 dB self-oscillation");
     // Self-oscillating ladder with full drive and a loud input stays bounded.
     let mut d = filter(1.0, 20_000.0, 100.0);
     set(&mut d, af::DRIVE, 24.0);

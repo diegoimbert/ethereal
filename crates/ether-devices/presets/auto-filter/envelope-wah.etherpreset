@@ -18,7 +18,7 @@
       "description": "band-pass that opens with playing dynamics: an auto-wah for guitars and keys."
     },
     "params": {
-      "0": 4.0,
+      "0": 0.0,
       "1": 400.0,
       "2": 60.0,
       "3": 0.0,
@@ -32,7 +32,9 @@
       "11": 8.0,
       "12": 0.0,
       "13": 100.0,
-      "14": 6.0
+      "14": 6.0,
+      "15": 2.0,
+      "16": 0.0
     }
   }
 }

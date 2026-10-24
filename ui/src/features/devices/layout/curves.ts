@@ -23,16 +23,24 @@ export type FilterKind = "lowpass" | "highpass" | "bandpass" | "notch" | "peak" 
 
 export interface FilterShape {
   kind: FilterKind;
-  /** 24 dB/oct variants: the 12 dB response squared. */
-  steep: boolean;
+  /** 2-pole stages: 1 (12 dB/oct), 2 (24: the 12 dB response squared) or 4 (48). */
+  stages: number;
 }
 
-/** Filter shape from a mode label ("Low-pass 24", "HP", "Band-pass", "Notch", "Peak"...). */
-export function filterShapeOf(label: string | null | undefined): FilterShape {
+/** 2-pole stages a label names ("... 24", "4-pole", "48 dB/oct"...). */
+function stagesOf(l: string): number {
+  return /48|8-pole|8 pole/.test(l) ? 4 : /24|4-pole|4 pole/.test(l) ? 2 : 1;
+}
+
+/**
+ * Filter shape from a mode label ("Low-pass 24", "HP", "Band-pass", "Notch", "Peak"...) and,
+ * for a device with a separate slope choice, its label ("24 dB/oct"): that one only steepens
+ * the low- and high-pass.
+ */
+export function filterShapeOf(label: string | null | undefined, slope?: string | null): FilterShape {
   const l = (label ?? "").toLowerCase();
-  const steep = /24|48|4-pole|4 pole/.test(l);
   // A filter switched off draws flat (a 0 dB peak), not the default low-pass.
-  if (/^(off|bypass)$/.test(l.trim())) return { kind: "peak", steep: false };
+  if (/^(off|bypass)$/.test(l.trim())) return { kind: "peak", stages: 1 };
   const kind: FilterKind = /shelf/.test(l)
     ? /high|hi/.test(l)
       ? "highshelf"
@@ -46,7 +54,9 @@ export function filterShapeOf(label: string | null | undefined): FilterShape {
           : /high|hp/.test(l)
             ? "highpass"
             : "lowpass";
-  return { kind, steep };
+  const own = stagesOf(l);
+  const stages = slope && (kind === "lowpass" || kind === "highpass") ? Math.max(own, stagesOf(slope.toLowerCase())) : own;
+  return { kind, stages };
 }
 
 /** Q of a resonance param given as 0..1 (normalized): 0.5 (no peak) .. 12. */
@@ -89,7 +99,7 @@ export function filterMagnitudeDb(shape: FilterShape, f: number, fc: number, q: 
     }
   }
   const db = 20 * Math.log10(Math.max(mag, 1e-9));
-  return shape.steep ? 2 * db : db;
+  return shape.stages * db;
 }
 
 /** Waveshaper transfer: `drive` gain ≥ 1, `curve` 0 (soft, tanh) .. 1 (hard clip), `bias` -1..1. */

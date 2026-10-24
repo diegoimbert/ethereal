@@ -1,13 +1,16 @@
 //! Auto Filter: a zero-delay-feedback multimode filter swept by an envelope follower and an
 //! LFO.
 //!
-//! - **Filters.** `Low-pass 12`, `High-pass 12`, `Band-pass`, `Notch` and `Peak` are a
-//!   trapezoidal (TPT) state-variable filter (A. Simper); `Low-pass 24` / `High-pass 24` are
-//!   a TPT 4-pole ladder (V. Zavalishin, "The Art of VA Filter Design") with the feedback
-//!   solved without a unit delay; the high-pass taps the ladder stages
-//!   (`u - 4y1 + 6y2 - 4y3 + y4`). SVF Q follows the UI's curve: `Q = 0.5 · 24^res`; ladder
+//! - **Filters.** `Type` × `Slope`. Low/high-pass at 12 dB/oct, `Band-pass`, `Notch` and
+//!   `Peak` are a trapezoidal (TPT) state-variable filter (A. Simper); low/high-pass at
+//!   24 dB/oct a TPT 4-pole ladder (V. Zavalishin, "The Art of VA Filter Design") with the
+//!   feedback solved without a unit delay; the high-pass taps the ladder stages
+//!   (`u - 4y1 + 6y2 - 4y3 + y4`); at 48 dB/oct four cascaded SVF sections with the poles
+//!   of an 8th-order Butterworth (flat passband, -3 dB at the cutoff), resonance raising the
+//!   highest-Q section's Q by `max(1, 24^res / √2)` (about the 12 dB filter's peak above
+//!   Butterworth). SVF Q follows the UI's curve: `Q = 0.5 · 24^res`; ladder
 //!   feedback `k = 3.9 · res` (self-oscillation at the top). `Peak` is a bell of
-//!   `6 + 12·res` dB. Cutoff moves in octaves, so every modulation is musical and the TPT
+//!   `6 + 12·res` dB. `Slope` only shapes the low- and high-pass. Cutoff moves in octaves, so every modulation is musical and the TPT
 //!   structures stay stable while it moves every sample.
 //! - **Drive** (0..24 dB) boosts the filter input into a `tanh` stage (on the ladder, in the
 //!   feedback path, which also tames resonance); the output is compensated by half the
@@ -20,7 +23,7 @@
 //!   the song position while playing; free-running at the tempo while stopped), `Amount`
 //!   = ±4 octaves at 100 %. `Stereo Phase` offsets the right channel (0..180°). A 1 ms
 //!   one-pole softens the steps of square / sample & hold.
-//! - A filter type change between the SVF and the ladder crossfades over 5 ms.
+//! - A type or slope change between the SVF, the ladder and the cascade crossfades over 5 ms.
 //! - **4x oversampled**: the filters and the drive run at four times the rate
 //!   between the saturator's linear-phase half-band stages ([`super::oversample`]), so
 //!   driven input folds far less back into the audio band (at 24 dB of drive on a 5 kHz
@@ -54,20 +57,35 @@ const LADDER_K_MAX: f32 = 3.9;
 const FADE_MS: f32 = 5.0;
 const LFO_SMOOTH_MS: f32 = 1.0;
 
-/// Filter type (param `Type`).
+/// Effective filter: params `Type` × `Slope` (or `Type (legacy)` in an old document).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FilterType {
     LowPass12,
     LowPass24,
+    LowPass48,
     HighPass12,
     HighPass24,
+    HighPass48,
     BandPass,
     Notch,
     Peak,
 }
 
+/// Filter structure of a [`FilterType`] (each keeps its own state).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Topology {
+    Svf,
+    Ladder,
+    Cascade,
+}
+
+/// Q of the four 2-pole sections of an 8th-order Butterworth, the highest last
+/// (`1 / (2 sin((2k - 1)π / 16))`).
+const BUTTERWORTH_8_Q: [f32; 4] = [0.509_795_6, 0.601_344_9, 0.899_976_2, 2.562_915_5];
+
 impl FilterType {
-    const ALL: [Self; 7] = [
+    /// `Type (legacy)` order.
+    const LEGACY: [Self; 7] = [
         Self::LowPass12,
         Self::LowPass24,
         Self::HighPass12,
@@ -77,12 +95,72 @@ impl FilterType {
         Self::Peak,
     ];
 
-    fn from_index(i: usize) -> Self {
-        Self::ALL[i.min(6)]
+    /// From `Type`, `Slope` and `Type (legacy)` (indices): the legacy type decides while the
+    /// other two are at their defaults.
+    pub fn resolve(mode: usize, slope: usize, legacy: usize) -> Self {
+        if mode == 0 && slope == 0 && legacy != 0 {
+            return Self::LEGACY[legacy.min(6)];
+        }
+        match (mode.min(4), slope.min(2)) {
+            (0, 0) => Self::LowPass12,
+            (0, 1) => Self::LowPass24,
+            (0, _) => Self::LowPass48,
+            (1, 0) => Self::HighPass12,
+            (1, 1) => Self::HighPass24,
+            (1, _) => Self::HighPass48,
+            (2, _) => Self::BandPass,
+            (3, _) => Self::Notch,
+            _ => Self::Peak,
+        }
     }
 
-    fn ladder(self) -> bool {
-        matches!(self, Self::LowPass24 | Self::HighPass24)
+    /// `Type` and `Slope` indices of this filter.
+    pub fn mode_slope(self) -> (usize, usize) {
+        match self {
+            Self::LowPass12 => (0, 0),
+            Self::LowPass24 => (0, 1),
+            Self::LowPass48 => (0, 2),
+            Self::HighPass12 => (1, 0),
+            Self::HighPass24 => (1, 1),
+            Self::HighPass48 => (1, 2),
+            Self::BandPass => (2, 0),
+            Self::Notch => (3, 0),
+            Self::Peak => (4, 0),
+        }
+    }
+
+    /// The filter of a param map (plain values; a missing param is at its default).
+    pub fn of_params(params: &std::collections::BTreeMap<ParamId, f64>) -> Self {
+        let idx = |id| params.get(&id).map_or(0, |v: &f64| v.round().max(0.0) as usize);
+        Self::resolve(idx(ids::MODE), idx(ids::SLOPE), idx(ids::TYPE))
+    }
+
+    /// Rewrites an old document's `Type (legacy)` as `Type` + `Slope` (same sound), so the
+    /// panel shows what plays. `None` when there is nothing to rewrite; else the `Type` index
+    /// it set (for retargeting automation of the legacy param).
+    pub fn upgrade_params(params: &mut std::collections::BTreeMap<ParamId, f64>) -> Option<usize> {
+        let legacy = params.get(&ids::TYPE).map_or(0, |v| v.round().max(0.0) as usize);
+        if legacy == 0 {
+            return None;
+        }
+        let (mode, slope) = Self::of_params(params).mode_slope();
+        params.insert(ids::TYPE, 0.0);
+        params.insert(ids::MODE, mode as f64);
+        params.insert(ids::SLOPE, slope as f64);
+        Some(mode)
+    }
+
+    /// The `Type` index a `Type (legacy)` index stands for.
+    pub fn legacy_mode(legacy: usize) -> usize {
+        Self::LEGACY[legacy.min(6)].mode_slope().0
+    }
+
+    fn topology(self) -> Topology {
+        match self {
+            Self::LowPass24 | Self::HighPass24 => Topology::Ladder,
+            Self::LowPass48 | Self::HighPass48 => Topology::Cascade,
+            _ => Topology::Svf,
+        }
     }
 }
 
@@ -149,6 +227,8 @@ struct Coefs {
     bell: f32,
     /// Ladder feedback.
     fb: f32,
+    /// Damping `1/Q` of the cascade's resonant (last) section.
+    k_last: f32,
     /// Input drive gain, saturation blend, output compensation.
     drive: f32,
     sat: f32,
@@ -160,6 +240,22 @@ struct FilterState {
     ic1: f32,
     ic2: f32,
     s: [f32; 4],
+    /// The cascade's four SVF sections (`ic1`, `ic2`).
+    cas: [[f32; 2]; 4],
+}
+
+/// One TPT SVF step on `ic` (`[ic1, ic2]`): `(v1, v2)` (band, low).
+#[inline]
+fn svf_step(ic: &mut [f32; 2], v0: f32, g: f32, k: f32) -> (f32, f32) {
+    let a1 = 1.0 / (1.0 + g * (g + k));
+    let a2 = g * a1;
+    let a3 = g * a2;
+    let v3 = v0 - ic[1];
+    let v1 = a1 * ic[0] + a2 * v3;
+    let v2 = ic[1] + a2 * ic[0] + a3 * v3;
+    ic[0] = flush(2.0 * v1 - ic[0]);
+    ic[1] = flush(2.0 * v2 - ic[1]);
+    (v1, v2)
 }
 
 #[inline]
@@ -181,37 +277,55 @@ impl FilterState {
         self.s = [0.0; 4];
     }
 
+    fn reset(&mut self, t: Topology) {
+        match t {
+            Topology::Svf => self.reset_svf(),
+            Topology::Ladder => self.reset_ladder(),
+            Topology::Cascade => self.cas = [[0.0; 2]; 4],
+        }
+    }
+
     #[inline]
     fn tick(&mut self, ty: FilterType, x: f32, c: &Coefs) -> f32 {
         let x = x * c.drive;
-        let y = if ty.ladder() {
-            self.ladder(ty, x, c)
-        } else {
-            self.svf(ty, saturate(x, c.sat), c)
+        let y = match ty.topology() {
+            Topology::Ladder => self.ladder(ty, x, c),
+            Topology::Svf => self.svf(ty, saturate(x, c.sat), c),
+            Topology::Cascade => self.cascade(ty, saturate(x, c.sat), c),
         };
         y * c.comp
     }
 
     #[inline]
     fn svf(&mut self, ty: FilterType, v0: f32, c: &Coefs) -> f32 {
-        let g = c.g;
         let k = c.k;
-        let a1 = 1.0 / (1.0 + g * (g + k));
-        let a2 = g * a1;
-        let a3 = g * a2;
-        let v3 = v0 - self.ic2;
-        let v1 = a1 * self.ic1 + a2 * v3;
-        let v2 = self.ic2 + a2 * self.ic1 + a3 * v3;
-        self.ic1 = flush(2.0 * v1 - self.ic1);
-        self.ic2 = flush(2.0 * v2 - self.ic2);
+        let mut ic = [self.ic1, self.ic2];
+        let (v1, v2) = svf_step(&mut ic, v0, c.g, k);
+        [self.ic1, self.ic2] = ic;
         match ty {
-            FilterType::LowPass12 => v2,
             FilterType::HighPass12 => v0 - k * v1 - v2,
             FilterType::BandPass => k * v1,
             FilterType::Notch => v0 - k * v1,
             FilterType::Peak => v0 + k * c.bell * v1,
-            FilterType::LowPass24 | FilterType::HighPass24 => unreachable!(),
+            _ => v2,
         }
+    }
+
+    /// Four Butterworth SVF sections in series (8 poles), the resonant one last.
+    #[inline]
+    fn cascade(&mut self, ty: FilterType, v0: f32, c: &Coefs) -> f32 {
+        let high = ty == FilterType::HighPass48;
+        let mut v = v0;
+        for (i, ic) in self.cas.iter_mut().enumerate() {
+            let k = if i == 3 {
+                c.k_last
+            } else {
+                1.0 / BUTTERWORTH_8_Q[i]
+            };
+            let (v1, v2) = svf_step(ic, v, c.g, k);
+            v = if high { v - k * v1 - v2 } else { v2 };
+        }
+        v
     }
 
     #[inline]
@@ -253,6 +367,8 @@ pub struct AutoFilter {
     sample_rate: f32,
     ty: FilterType,
     fade_from: FilterType,
+    /// Indices of `Type`, `Slope`, `Type (legacy)`.
+    sel: [usize; 3],
     fade_left: u32,
     fade_len: u32,
     /// log2 of the cutoff (Hz).
@@ -331,6 +447,7 @@ impl AutoFilter {
             sample_rate: 48_000.0,
             ty: FilterType::LowPass12,
             fade_from: FilterType::LowPass12,
+            sel: [0; 3],
             fade_left: 0,
             fade_len: 1,
             cutoff: z(),
@@ -375,16 +492,19 @@ impl AutoFilter {
     fn apply(&mut self, id: ParamId, smooth: bool) {
         let v = |s: &Self, id| s.values.f(id);
         match id {
-            ids::TYPE => {
-                let t = FilterType::from_index(self.values.index(ids::TYPE));
+            ids::TYPE | ids::MODE | ids::SLOPE => {
+                let slot = match id {
+                    ids::MODE => 0,
+                    ids::SLOPE => 1,
+                    _ => 2,
+                };
+                self.sel[slot] = self.values.index(id);
+                let [mode, slope, legacy] = self.sel;
+                let t = FilterType::resolve(mode, slope, legacy);
                 if t != self.ty {
-                    if smooth && t.ladder() != self.ty.ladder() {
+                    if smooth && t.topology() != self.ty.topology() {
                         for c in &mut self.ch {
-                            if t.ladder() {
-                                c.reset_ladder();
-                            } else {
-                                c.reset_svf();
-                            }
+                            c.reset(t.topology());
                         }
                         self.fade_from = self.ty;
                         self.fade_left = self.fade_len;
@@ -577,11 +697,13 @@ impl AutoFilter {
                         (1.0 / (0.5 * 24f32.powf(res)), 0.0)
                     };
                     let drive = db(drive_db);
+                    let boost = (24f32.powf(res) * std::f32::consts::FRAC_1_SQRT_2).max(1.0);
                     let c = Coefs {
                         g: 0.0,
                         k: q_k,
                         bell,
                         fb: LADDER_K_MAX * res,
+                        k_last: 1.0 / (BUTTERWORTH_8_Q[3] * boost),
                         drive,
                         sat: (drive_db / 3.0).min(1.0),
                         comp: db(-0.5 * drive_db),

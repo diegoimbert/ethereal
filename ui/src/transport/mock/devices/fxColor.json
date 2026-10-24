@@ -21,8 +21,9 @@
                 "cutoff": 1,
                 "drive": 3,
                 "gain": null,
-                "mode": 0,
+                "mode": 15,
                 "resonance": 2,
+                "slope": 16,
                 "type": "FilterCurve"
               }
             }
@@ -146,7 +147,7 @@
         "automatable": true,
         "default": 0.0,
         "group": "Filter",
-        "hidden": false,
+        "hidden": true,
         "id": 0,
         "labels": [
           "Low-pass 12",
@@ -159,7 +160,7 @@
         ],
         "max": 6.0,
         "min": 0.0,
-        "name": "Type",
+        "name": "Type (legacy)",
         "scale": {
           "type": "Linear"
         },
@@ -403,6 +404,48 @@
           "type": "Linear"
         },
         "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 15,
+        "labels": [
+          "Low-pass",
+          "High-pass",
+          "Band-pass",
+          "Notch",
+          "Peak"
+        ],
+        "max": 4.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Filter",
+        "hidden": false,
+        "id": 16,
+        "labels": [
+          "12 dB/oct",
+          "24 dB/oct",
+          "48 dB/oct"
+        ],
+        "max": 2.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
       }
     ],
     "sidechain_inputs": 2

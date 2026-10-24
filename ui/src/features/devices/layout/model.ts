@@ -20,7 +20,7 @@ export function boundParams(w: Widget): ParamId[] {
     case "Envelope":
       return some([w.attack, w.decay, w.sustain, w.release, w.delay, w.hold]);
     case "FilterCurve":
-      return some([w.cutoff, w.resonance, w.mode, w.drive, w.gain]);
+      return some([w.cutoff, w.resonance, w.mode, w.slope, w.drive, w.gain]);
     case "TransferCurve":
       return some([w.drive, w.curve, w.bias]);
     case "Oscillator":
