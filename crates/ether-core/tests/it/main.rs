@@ -43,6 +43,7 @@ mod nested_sidechain;
 mod no_alloc;
 mod parallel;
 mod parallel_graphs;
+mod perf_audio_clips;
 mod perf_engine;
 mod preview_fade;
 mod racks;
