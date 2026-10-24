@@ -18,7 +18,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const fuzz = join(root, "fuzz");
+// The cargo-fuzz crate (FUZZ_DIR, relative to the repository root: another crate, e.g. ee/fuzz,
+// can list its seeds in its own seeds.json).
+const fuzz = join(root, process.env.FUZZ_DIR || "fuzz");
 const quiet = process.env.FUZZ_QUIET === "1";
 // The nightly toolchain cargo-fuzz runs on (CI pins a dated one).
 const toolchain = `+${process.env.FUZZ_TOOLCHAIN || "nightly"}`;
@@ -41,6 +43,10 @@ const SEEDS = {
   },
 };
 
+// `<fuzz dir>/seeds.json`: { "<target>": { "dirs": [...], "hex": [...] } } (dirs relative to the
+// repository root).
+const extra = existsSync(join(fuzz, "seeds.json")) ? JSON.parse(readFileSync(join(fuzz, "seeds.json"), "utf8")) : {};
+
 function targets() {
   return readdirSync(join(fuzz, "fuzz_targets"))
     .filter((f) => f.endsWith(".rs"))
@@ -51,11 +57,16 @@ function targets() {
 function seed(target) {
   const dir = join(fuzz, "corpus", target);
   mkdirSync(dir, { recursive: true });
-  const s = SEEDS[target] ?? {};
+  const s = { ...(process.env.FUZZ_DIR ? {} : SEEDS[target]), ...extra[target] };
   for (const d of s.dirs ?? []) {
-    for (const f of readdirSync(join(root, d))) copyFileSync(join(root, d, f), join(dir, `seed-${f}`));
+    for (const f of readdirSync(join(root, d), { recursive: true, withFileTypes: true })) {
+      if (!f.isFile()) continue;
+      const from = join(f.parentPath, f.name);
+      copyFileSync(from, join(dir, `seed-${from.slice(root.length + 1).replace(/[^A-Za-z0-9._-]/g, "_")}`));
+    }
   }
   (s.inline ?? []).forEach((b, i) => writeFileSync(join(dir, `seed-inline-${i}`), b));
+  (s.hex ?? []).forEach((h, i) => writeFileSync(join(dir, `seed-hex-${i}`), Buffer.from(h, "hex")));
   return dir;
 }
 
