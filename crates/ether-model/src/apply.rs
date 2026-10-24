@@ -54,6 +54,16 @@ fn invariant(msg: impl Into<String>) -> ModelError {
     ModelError::Invariant(msg.into())
 }
 
+/// The table whose document-wide invariants `op` may break ([`Project::check_globals`]).
+fn global_key(op: &Op) -> Option<EntityKey> {
+    match op {
+        Op::Insert { entity } => Some(entity.key()),
+        Op::Update { update } => Some(update.key()),
+        Op::Remove { key } => Some(*key),
+        Op::Settings { .. } => None,
+    }
+}
+
 fn finite(x: f64) -> bool {
     x.is_finite()
 }
@@ -948,6 +958,12 @@ impl Project {
     }
 
     pub(crate) fn apply_checked(&mut self, op: &Op) -> Result<Op, ModelError> {
+        self.apply_one(op, true)
+    }
+
+    /// Apply `op` and check it: the entity's own rules, plus the document-wide ones when
+    /// `globals` (a batch checks those once at its end, [`Self::apply_all_checked`]).
+    fn apply_one(&mut self, op: &Op, globals: bool) -> Result<Op, ModelError> {
         self.ensure_index();
         if let Op::Remove { key } = op {
             if let EntityKey::Track(id) = key
@@ -963,7 +979,13 @@ impl Project {
             }
         }
         let inverse = self.apply_unchecked(op)?;
-        if let Err(e) = self.check_after(op) {
+        let checked = self
+            .check_local(op)
+            .and_then(|()| match (globals, global_key(op)) {
+                (true, Some(key)) => self.check_globals(key),
+                _ => Ok(()),
+            });
+        if let Err(e) = checked {
             self.apply_unchecked(&inverse)
                 .expect("the inverse of a just-applied op always applies");
             return Err(e);
@@ -971,35 +993,48 @@ impl Project {
         Ok(inverse)
     }
 
+    /// A batch: each op is checked on its own, and the document-wide invariants (routing
+    /// cycles, sidechains, ...) once at the end, once per kind of table touched, instead of
+    /// after every op (which made big batches quadratic). All or nothing.
     pub(crate) fn apply_all_checked(&mut self, ops: &[Op]) -> Result<Vec<Op>, ModelError> {
         let mut inverses = Vec::with_capacity(ops.len());
+        let mut kinds: Vec<EntityKey> = Vec::new();
+        let rollback = |p: &mut Self, inverses: &[Op]| {
+            for inv in inverses.iter().rev() {
+                p.apply_unchecked(inv)
+                    .expect("rolling back a partially applied batch always succeeds");
+            }
+        };
         for op in ops {
-            match self.apply_checked(op) {
+            match self.apply_one(op, false) {
                 Ok(inv) => inverses.push(inv),
                 Err(e) => {
-                    for inv in inverses.iter().rev() {
-                        self.apply_unchecked(inv)
-                            .expect("rolling back a partially applied batch always succeeds");
-                    }
+                    rollback(self, &inverses);
                     return Err(e);
                 }
             }
+            if let Some(key) = global_key(op)
+                && !kinds
+                    .iter()
+                    .any(|k| std::mem::discriminant(k) == std::mem::discriminant(&key))
+            {
+                kinds.push(key);
+            }
+        }
+        if let Some(e) = kinds.iter().find_map(|&k| self.check_globals(k).err()) {
+            rollback(self, &inverses);
+            return Err(e);
         }
         inverses.reverse();
         Ok(inverses)
     }
 
-    fn check_after(&self, op: &Op) -> Result<(), ModelError> {
+    /// The op's own rules (the entity it leaves, or the settings).
+    fn check_local(&self, op: &Op) -> Result<(), ModelError> {
         match op {
-            Op::Insert { entity } => {
-                self.check_entity(entity.key())?;
-                self.check_globals(entity.key())
-            }
-            Op::Update { update } => {
-                self.check_entity(update.key())?;
-                self.check_globals(update.key())
-            }
-            Op::Remove { key } => self.check_globals(*key),
+            Op::Insert { entity } => self.check_entity(entity.key()),
+            Op::Update { update } => self.check_entity(update.key()),
+            Op::Remove { .. } => Ok(()),
             Op::Settings { .. } => check_settings(&self.settings),
         }
     }
