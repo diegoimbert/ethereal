@@ -181,8 +181,10 @@ impl<'a> Args<'a> {
             .ok_or_else(|| InputError(format!("input.{key}: missing required number")))
     }
 
+    /// Clamped to `0..=2^30` (offsets, limits, counts: never a sum that overflows `usize`).
     pub fn u64(&self, key: &str) -> Option<u64> {
-        self.f64(key).map(|f| f.max(0.0) as u64)
+        self.f64(key)
+            .map(|f| f.clamp(0.0, (1u64 << 30) as f64) as u64)
     }
 
     pub fn bool(&self, key: &str) -> Option<bool> {
