@@ -3222,6 +3222,7 @@
   "devices.group.not_consecutive": "to group devices into a rack, select devices next to each other in one track’s chain.",
   "devices.group.failed": "couldn’t group: {error}",
   "undo.device.remove_selected": "remove devices",
+  "undo.device.move_selected": "move devices",
   "undo.device.enable_selected": "enable devices",
   "undo.device.bypass_selected": "bypass devices",
   "devices.device.delete_failed": "couldn’t delete: {error}",
