@@ -454,6 +454,24 @@
   background: var(--eth-color-bg-inset);
 }
 
+/* The clip's material behind the envelope (notes, waveform): faint, never in the way. */
+.eth-auto-clip__backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.35;
+}
+
+.eth-auto-clip__lane .eth-auto-lane {
+  background: transparent;
+}
+
+.eth-auto-clip__notes {
+  display: block;
+  fill: var(--eth-color-text-dim);
+}
+
 .eth-auto-clip__missing {
   display: flex;
   align-items: center;
