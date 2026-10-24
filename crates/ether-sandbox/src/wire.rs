@@ -225,8 +225,16 @@ pub(crate) fn read_frame<T: for<'de> Deserialize<'de>>(r: &mut impl Read) -> io:
             format!("frame too large: {len}"),
         ));
     }
-    let mut body = vec![0u8; len];
-    r.read_exact(&mut body)?;
+    // Grown as the bytes arrive: a length prefix alone (from a misbehaving helper) never
+    // reserves the whole frame up front.
+    let mut body = Vec::with_capacity(len.min(1 << 20));
+    r.take(len as u64).read_to_end(&mut body)?;
+    if body.len() != len {
+        return Err(io::Error::new(
+            io::ErrorKind::UnexpectedEof,
+            "frame cut short",
+        ));
+    }
     serde_json::from_slice(&body)
         .map(Some)
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
@@ -235,6 +243,14 @@ pub(crate) fn read_frame<T: for<'de> Deserialize<'de>>(r: &mut impl Read) -> io:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_frame_cut_short_is_an_error_without_reserving_its_length() {
+        let mut bytes = (200u32 << 20).to_le_bytes().to_vec();
+        bytes.extend_from_slice(b"{}");
+        let r: io::Result<Option<serde_json::Value>> = read_frame(&mut bytes.as_slice());
+        assert!(r.is_err());
+    }
 
     #[test]
     fn frames_roundtrip() {
