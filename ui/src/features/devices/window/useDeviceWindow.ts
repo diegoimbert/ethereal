@@ -1,10 +1,10 @@
 import type { Device } from "@/generated";
 import { contributions } from "@/ext";
-import { setPluginWindow } from "@/features/plugins";
+import { raisePluginWindow, setPluginWindow } from "@/features/plugins";
 import { isMissing, usePluginEvents, usePluginStore, useScannedPlugins } from "@/features/plugins/pluginStore";
 import { webclapOf } from "@/features/webclap/hooks";
 import { useProjectStore } from "@/state";
-import { cmd, useTransport, type EngineTransport } from "@/transport";
+import { useTransport, type EngineTransport } from "@/transport";
 import { useDeviceWindows } from "./store";
 import { useT } from "@/i18n";
 import { isChainRack } from "@/features/racks/model";
@@ -12,6 +12,8 @@ import { isChainRack } from "@/features/racks/model";
 export interface DeviceWindowControl {
   /** The device's window is open: the plugin's editor, or the factory device window. */
   open: boolean;
+  /** Asked to open, not open yet (a plugin's editor: loading, or the engine still on it). */
+  opening?: boolean;
   /** It can be opened: not a crashed, missing or found-but-not-reloaded plugin, nor one held by safe mode. */
   available: boolean;
   toggle(): void;
@@ -54,6 +56,7 @@ export function useDeviceWindow(device: Device): DeviceWindowControl {
   // The plugin's window closing by itself (`EditorClosed`) or crashing reaches the store.
   usePluginEvents();
   const editorOpen = usePluginStore((s) => !!s.editors[device.id]);
+  const opening = usePluginStore((s) => !!s.opening[device.id]);
   const crashed = usePluginStore((s) => s.crashed[device.id] !== undefined);
   const found = usePluginStore((s) => !!s.found[device.id]);
   const scanned = useScannedPlugins(plugin !== null);
@@ -86,6 +89,7 @@ export function useDeviceWindow(device: Device): DeviceWindowControl {
   const open = plugin ? editorOpen : windowOpen;
   return {
     open,
+    opening: plugin !== null && opening && !open,
     available: hasWindow(device) && (!plugin || (!crashed && !held && !missing && !found)),
     toggle: () => setDeviceWindow(transport, device, !open),
     show: () => showDeviceWindow(transport, device),
@@ -101,8 +105,8 @@ export function showDeviceWindow(transport: EngineTransport, device: Device): vo
   if (!hasWindow(device)) return;
   if (device.kind.type !== "Plugin" || isWebclapWindow(transport, device)) return useDeviceWindows.getState().setOpen(device.id, true);
   if (!usePluginStore.getState().editors[device.id]) return setPluginWindow(transport, device, true);
-  if (usePluginStore.getState().crashed[device.id] !== undefined) return;
-  transport.send(cmd("Plugin", { type: "OpenEditor", device: device.id })).catch((e: unknown) => console.warn("plugin window failed", e));
+  if (usePluginStore.getState().crashed[device.id] !== undefined) return setPluginWindow(transport, device, true);
+  raisePluginWindow(transport, device);
 }
 
 /** Opens or closes a device's window (plugin editor or factory window). */
