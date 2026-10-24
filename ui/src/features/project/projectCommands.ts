@@ -168,6 +168,7 @@ export function openProjectCommands(transport: EngineTransport, project: { id: s
       id: "project:export-audio",
       group: "Project",
       label: t("project.cmd.export_audio"),
+      action: "project.exportAudio",
       keywords: "export render bounce mixdown wav mp3 flac audio file stems",
       run: () => useExportAudio.getState().show(),
     },
