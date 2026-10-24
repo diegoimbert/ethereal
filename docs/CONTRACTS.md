@@ -39,7 +39,7 @@ Files: `ids.rs`, `value.rs`, `project.rs`, `track.rs`, `clip.rs`, `note.rs`, `au
 - **IDs.** Entity IDs are typed ULID newtypes (`TrackId`, `ClipId`, `NoteId`, `DeviceId`,
   `SendId`, `AutomationLaneId`, `AutomationPointId`, `TempoPointId`,
   `TimeSignatureId`, `WarpMarkerId`, `MediaId`). **`ProjectId` is a UUIDv7** (hyphenated
-  string); it names the project folder in the store. I chose this mix over UUIDv7
+  string); it identifies the project folder in the store (whose name also shows the title). I chose this mix over UUIDv7
   everywhere: ULIDs are shorter on the wire, and only project IDs are user-visible or
   used as folder names. On the wire and in TS all IDs are strings.
   **Whoever creates an entity picks its ID**: usually the UI, with `newId()` or
@@ -167,8 +167,13 @@ machine than the engine, so the protocol never carries file-system paths.
   only by the controller.
   - Native: folders on disk (`ether-native::DiskStore`).
   - Web: OPFS, accessed from the engine's Worker, which is still engine-side.
-- **Layout.** Each project lives in `<projects_root>/<project-uuid>/`:
-  - `project.ether`, which holds the display name, so a rename never moves the folder
+- **Layout.** Each project lives in a folder of `<projects_root>`. Native: `<title> - <short id>/`
+  (the title made file-name safe, then the last 8 hex digits of the id), found by id
+  (`ether_native::project_dirs`: a bare-UUID name, else the `project.id` in its document); a
+  folder follows its title only while nothing has files open in it (just created or copied,
+  closed, or at startup, which also migrates bare-UUID folders of older versions). Web (OPFS):
+  `<project-uuid>/`. Inside:
+  - `project.ether`, which holds the display name and id
   - `media/`: imported audio is copied in, so projects are self-contained
   - `cache/`: peaks and decoded audio
 - **`projects_root`** comes from engine/host config (`ether_native::default_projects_root`):

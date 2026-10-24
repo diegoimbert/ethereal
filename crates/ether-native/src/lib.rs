@@ -33,6 +33,7 @@ pub mod media;
 pub mod plugin_folders;
 pub mod plugin_mirror;
 pub mod plugins;
+pub mod project_dirs;
 pub mod recording;
 pub mod reveal;
 pub mod rt;
