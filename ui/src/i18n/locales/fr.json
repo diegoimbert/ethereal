@@ -1214,6 +1214,7 @@
   "shell.action.clip_toggle_loop": "activer / désactiver la boucle du clip",
   "shell.action.clip_reverse": "inverser le clip / les notes sélectionnées",
   "shell.action.clip_consolidate": "consolider les clips sélectionnés",
+  "shell.action.track_toggle_mute": "rendre muette / réactiver la sélection",
   "shell.action.track_group": "grouper les pistes sélectionnées",
   "shell.action.track_ungroup": "dégrouper",
   "shell.action.track_add_audio": "ajouter une piste audio",
