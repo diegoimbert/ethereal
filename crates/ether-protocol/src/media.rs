@@ -75,6 +75,28 @@ pub enum MediaCommand {
     WriteMidiFile {
         request: MidiExportRequest,
     },
+    /// Show a file or folder in the OS file manager of the engine machine (desktop: Finder,
+    /// Explorer, the freedesktop file manager), the file selected. The engine resolves the
+    /// target to its own path (the UI still never sees one). Replies `Unit`; `NotFound` when
+    /// the file isn't there; hosts whose UI is not on the engine machine (web, remote) reply
+    /// `Unsupported`.
+    Reveal {
+        target: RevealTarget,
+    },
+}
+
+/// What `Media::Reveal` shows.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[serde(tag = "type")]
+pub enum RevealTarget {
+    /// The folder of the stored projects (opened).
+    Projects,
+    /// A stored project's folder (selected in the projects folder).
+    Project { id: crate::model::ProjectId },
+    /// A media file: a library file (`Location`), a media of the open project (`Project`:
+    /// the referenced file, else the project copy), or a desktop path (`Path`). Not
+    /// `Upload`.
+    Media { source: MediaSource },
 }
 
 /// The contents of a Standard MIDI File (`Media::ReadMidiFile`). Times are in beats

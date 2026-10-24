@@ -1096,6 +1096,7 @@ where
             | MediaCommand::CancelUpload { .. } => self.upload_command(c, out),
             MediaCommand::ReadMidiFile { source } => self.read_midi_file(source),
             MediaCommand::WriteMidiFile { request } => self.write_midi_file(request),
+            MediaCommand::Reveal { target } => self.reveal(target),
         }
     }
 

@@ -2,7 +2,7 @@
 
 import type { EngineTransport } from "@/transport";
 import { cmd, newId } from "@/transport";
-import type { Clip, Command, Project, Track, TrackId } from "@/generated";
+import type { AudioContent, Clip, Command, Project, Track, TrackId } from "@/generated";
 import { firstMatch, shortcutLabel, type ChordEvent } from "@/features/keymap";
 import type { ContextMenuEntry } from "@/kit";
 import { t } from "@/i18n";
@@ -18,6 +18,7 @@ import { useArrangementUi } from "./uiStore";
 import { reverseClipsCommand } from "@/features/clip-editing/clipEditing";
 import { consolidateIfAllowed } from "@/features/freeze";
 import { exportMidiClips, midiClipsOfTracks } from "@/features/midi-file/exportMidi";
+import { canReveal, revealLabel, revealMedia } from "@/features/reveal";
 import { asOneStep, deleteCommand, duplicateCommand, splitCommand, toggleLoopCommand } from "./editMath";
 import { getTrackClipboard } from "./clipboard";
 import {
@@ -372,6 +373,10 @@ export function clipMenu(transport: EngineTransport, clip: Clip): ContextMenuEnt
           clips.map((c) => c.id),
         ),
     },
+    // Desktop: the clip's audio file in the OS file manager.
+    ...(clip.content.type === "Audio" && canReveal(transport)
+      ? [{ label: revealLabel(), onSelect: () => void revealMedia(transport, { type: "Project", media: (clip.content as AudioContent).media }) }]
+      : []),
     "separator",
     { label: t("arrangement.menu.cut"), shortcut: shortcutLabel("edit.cut"), onSelect: run("cut") },
     { label: t("arrangement.menu.copy"), shortcut: shortcutLabel("edit.copy"), onSelect: run("copy") },
