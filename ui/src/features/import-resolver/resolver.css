@@ -67,6 +67,13 @@
   border-color: var(--eth-color-accent);
 }
 
+/* A sample dragged over a missing file's row (dropping picks it). */
+.eth-resolver__row--drop {
+  border-color: var(--eth-color-accent);
+  border-style: dashed;
+  background: color-mix(in srgb, var(--eth-color-accent) 14%, transparent);
+}
+
 .eth-resolver__icon {
   width: var(--eth-size-icon-md);
   height: var(--eth-size-icon-md);
