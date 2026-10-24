@@ -3223,6 +3223,7 @@
   "devices.group.not_consecutive": "pour grouper des appareils dans un rack, sélectionnez des appareils côte à côte dans la chaîne d’une piste.",
   "devices.group.failed": "impossible de grouper : {error}",
   "undo.device.remove_selected": "supprimer des appareils",
+  "undo.device.move_selected": "déplacer des appareils",
   "undo.device.enable_selected": "activer les appareils",
   "undo.device.bypass_selected": "contourner les appareils",
   "devices.device.delete_failed": "impossible de supprimer : {error}",

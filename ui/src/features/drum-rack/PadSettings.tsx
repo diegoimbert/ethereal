@@ -202,7 +202,7 @@ function PadChain({ pad }: { pad: DrumPad }) {
             }),
           )
         }
-        onMove={(id, before) => void send(cmd("DrumRack", { type: "MoveDevice", id, pad: pad.id, before }))}
+        moveCommand={(id, before) => cmd("DrumRack", { type: "MoveDevice", id, pad: pad.id, before })}
         pasteChain={{ type: "Pad", pad: pad.id }}
         // The pad is its devices: removing the last one deletes the pad (one undo step).
         onRemove={(d) => void send(chain.length <= 1 ? cmd("DrumRack", { type: "RemovePad", id: pad.id }) : cmd("Device", { type: "Remove", id: d.id }))}
@@ -241,7 +241,6 @@ export function EmptyPadSettings({ rack, note }: { rack: DeviceId; note: number 
           label={t("drum_rack.pad.chain", { name: noteName(note) })}
           accept={acceptInPad}
           onAdd={(p) => void create(p).catch((e: unknown) => console.warn("add instrument failed", e))}
-          onMove={() => {}}
         />
       </div>
     </section>

@@ -5,7 +5,7 @@
  * instrument where the track has one replaces it once confirmed; what the track can't host
  * is skipped with a toast).
  */
-import type { Device, Track, TrackId } from "@/generated";
+import type { Device, DeviceCategory, DeviceId, Project, Track, TrackId } from "@/generated";
 import { usePluginStore } from "@/features/plugins/pluginStore";
 import type { EngineTransport } from "@/transport";
 import { DEVICE_DRAG_TYPE, deviceCategory } from "./chainUtils";
@@ -22,6 +22,29 @@ export const acceptsDevices = (track: Track): boolean => track.kind !== "Vca";
 export function draggedDevices(id: string): string[] {
   const { selected } = useDeviceClipboard.getState();
   return selected.includes(id) ? [...selected] : [id];
+}
+
+/**
+ * What a drag of card `id` moves within the device chains: the card, or the selection when
+ * it is part of it, keeping the devices of the card's kind (a move stays in its section),
+ * leaving out those inside a moved rack (they go with it), in chain order.
+ */
+export function movedDevices(project: Project, id: DeviceId, categoryOf: (d: Device) => DeviceCategory): DeviceId[] {
+  const grabbed = project.devices[id];
+  if (!grabbed) return [id];
+  const kind = categoryOf(grabbed);
+  const devices = draggedDevices(id)
+    .map((d) => project.devices[d])
+    .filter((d): d is Device => !!d && categoryOf(d) === kind);
+  const ids = new Set(devices.map((d) => d.id));
+  const inMoved = (d: Device): boolean => {
+    const rack = d.chain != null ? project.rack_chains[d.chain]?.rack : d.pad !== null ? project.drum_pads[d.pad]?.rack : undefined;
+    return rack !== undefined && (ids.has(rack) || (!!project.devices[rack] && inMoved(project.devices[rack])));
+  };
+  return devices
+    .filter((d) => !inMoved(d))
+    .sort((a, b) => (a.order < b.order ? -1 : a.order > b.order ? 1 : a.id < b.id ? -1 : 1))
+    .map((d) => d.id);
 }
 
 /** Drops the dragged devices (`dt`) on `track`; `copy`: copies instead of moving. */
