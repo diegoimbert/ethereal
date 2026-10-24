@@ -1077,6 +1077,8 @@ impl Engine {
             } else {
                 hint.saturating_sub(q - frames)
             };
+            let with_ahead = self.queue.longest_within(frames);
+            let mut pass_at = 0;
             while off < frames {
                 let Some(&head) = self.queue.front() else {
                     break;
@@ -1089,15 +1091,11 @@ impl Engine {
                     self.queue.pop();
                     head
                 };
-                // With more queued than this block, the head is a leftover of the last one:
-                // pair each real-time sub-block with as many frames ahead (the last one takes
-                // the rest), so every pass overlaps both sides. Otherwise the plans as
-                // before (the ahead side splits where the real-time engine does).
-                let take = if q == frames || off + now.n >= frames {
-                    left
-                } else {
-                    left.min(now.n)
-                };
+                // The ahead side renders with the longest real-time sub-block (and those
+                // after it), so the master chain overlaps the most: with irregular device
+                // buffers the head is a short leftover of the last block.
+                let take = if pass_at >= with_ahead { left } else { 0 };
+                pass_at += 1;
                 let ahead = (take > 0 && !self.queue.is_full()).then(|| self.plan(take));
                 let pass = if ahead.is_some() {
                     Pass::Overlap
