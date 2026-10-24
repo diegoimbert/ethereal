@@ -32,12 +32,26 @@ const F_DUPFD_CLOEXEC: c_int = 67;
 const F_DUPFD_CLOEXEC: c_int = 1030;
 const EINTR: i32 = 4;
 
+/// A random value per host process, so other local users can't predict (and squat) the
+/// names of its IPC objects. The host passes the names to the helper.
+fn process_nonce() -> u64 {
+    use std::hash::{BuildHasher, Hasher};
+    static NONCE: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
+    *NONCE.get_or_init(|| {
+        // `RandomState` is seeded from the OS's randomness.
+        let mut h = std::collections::hash_map::RandomState::new().build_hasher();
+        h.write_u32(std::process::id());
+        h.finish()
+    })
+}
+
 /// OS name for a sandbox IPC object. Built from [`ipc_name`] (instance + host pid +
-/// purpose), then hashed: macOS limits POSIX shm and semaphore names to 31 bytes.
+/// purpose) and a per-process random nonce, then hashed: macOS limits POSIX shm and
+/// semaphore names to 31 bytes.
 pub(crate) fn os_name(instance: &str, pid: u32, purpose: &str) -> String {
     let full = ipc_name(instance, pid, purpose);
-    // FNV-1a 64.
-    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    // FNV-1a 64, from a random basis.
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325 ^ process_nonce();
     for b in full.bytes() {
         h ^= u64::from(b);
         h = h.wrapping_mul(0x0000_0100_0000_01b3);
