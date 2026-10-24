@@ -95,6 +95,8 @@ describe("WarpEditor", () => {
     expect(screen.getByRole("combobox", { name: "warp mode" })).toHaveTextContent("repitch");
     expect(screen.getByTestId("warp-source-bpm").textContent).toBe("source 120.00 bpm");
     expect(screen.getByTestId("warp-waveform")).toBeTruthy();
+    // The clip envelope lane shows the waveform behind its points.
+    expect(screen.getByTestId("clip-envelope").querySelector('[data-testid="clip-envelope-waveform"]')).toBeTruthy();
     expect(screen.queryByTestId("warp-web-fallback")).toBeNull();
   });
 

@@ -294,6 +294,11 @@ pub enum ParamScale {
     /// Decibel fader law for params in dB: linear amplitude = `normalized³ · amp(max)`, so
     /// 0 → -inf (clamped to `min`) and 1 → `max` dB (e.g. min -70, max +6).
     Fader,
+    /// Gain knob law for params in dB with unity at the centre (max > 0, min = silence,
+    /// e.g. -144 ..= +36): the upper half is linear in dB (`(2n - 1) · max`), the lower half
+    /// `max · ln(2n)`, which meets it at 0 dB with the same slope and falls to -inf (clamped
+    /// to `min`) at 0. Appended.
+    Gain,
 }
 
 /// Normalized ↔ plain mapping, shared by the engine (automation), the controller and the
@@ -310,6 +315,15 @@ pub fn scale_to_plain(scale: ParamScale, min: f64, max: f64, normalized: f64) ->
                 min
             } else {
                 (20.0 * amp.log10()).max(min)
+            }
+        }
+        ParamScale::Gain => {
+            if n >= 0.5 {
+                (2.0 * n - 1.0) * max
+            } else if n <= 0.0 {
+                min
+            } else {
+                (max * (2.0 * n).ln()).max(min)
             }
         }
     };
@@ -331,6 +345,15 @@ pub fn scale_to_normalized(scale: ParamScale, min: f64, max: f64, plain: f64) ->
                 0.0
             } else {
                 (10f64.powf(p / 20.0) / 10f64.powf(max / 20.0)).cbrt()
+            }
+        }
+        ParamScale::Gain => {
+            if p >= 0.0 {
+                0.5 + 0.5 * p / max
+            } else if p <= min {
+                0.0
+            } else {
+                0.5 * (p / max).exp()
             }
         }
     };
@@ -403,16 +426,33 @@ mod tests {
             scale_to_plain(ParamScale::Fader, -70.0, 6.0, 0.0),
             -70.0
         ));
+        assert!(close(
+            scale_to_plain(ParamScale::Gain, -144.0, 36.0, 0.5),
+            0.0
+        ));
+        assert!(close(
+            scale_to_plain(ParamScale::Gain, -144.0, 36.0, 0.75),
+            18.0
+        ));
+        assert!(close(
+            scale_to_plain(ParamScale::Gain, -144.0, 36.0, 0.25),
+            -24.953_298_500_158_03
+        ));
+        assert!(close(
+            scale_to_plain(ParamScale::Gain, -144.0, 36.0, 0.0),
+            -144.0
+        ));
         for scale in [
             ParamScale::Linear,
             ParamScale::Log,
             ParamScale::Power { exponent: 3.0 },
             ParamScale::Fader,
+            ParamScale::Gain,
         ] {
-            let (min, max) = if scale == ParamScale::Fader {
-                (-70.0, 6.0)
-            } else {
-                (20.0, 20000.0)
+            let (min, max) = match scale {
+                ParamScale::Fader => (-70.0, 6.0),
+                ParamScale::Gain => (-144.0, 36.0),
+                _ => (20.0, 20000.0),
             };
             for i in 1..10 {
                 let n = i as f64 / 10.0;

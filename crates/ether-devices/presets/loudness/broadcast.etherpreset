@@ -1,0 +1,27 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "broadcast -23",
+    "device": {
+      "type": "Builtin",
+      "device": "Loudness"
+    },
+    "meta": {
+      "tags": [
+        "broadcast"
+      ],
+      "author": "ethereal",
+      "description": "the ebu r 128 broadcast target, -23 lufs; 5 min history."
+    },
+    "params": {
+      "0": -23.0,
+      "1": 3.0,
+      "2": 1.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

@@ -9,6 +9,7 @@ import { MockTransport } from "@/transport/mock";
 import { PianoRoll } from "@/features/piano-roll";
 import { clipEnvelopeOptions, ENVELOPE_PREFIX, envelopeKeyOf } from "./clipEnvelopeTargets";
 import { PAN_INFO, VOLUME_INFO, type TargetInfo } from "./params";
+import { NotesBackdrop } from "./ClipEnvelopes";
 
 // The piano roll's view starts at 40 px/beat, scrolled to content beat 0; jsdom boxes are at
 // (0, 0), so client coordinates are lane-local px.
@@ -138,6 +139,36 @@ describe("clip envelopes in the piano roll", () => {
     expect(clipLanes()).toHaveLength(1);
     await send(cmd("Clip", { type: "Delete", ids: [CLIP] }));
     expect(clipLanes()).toEqual([]);
+  });
+});
+
+describe("NotesBackdrop", () => {
+  it("draws the notes on the lane's time axis, lowest pitch at the bottom", () => {
+    render(
+      <NotesBackdrop
+        notes={[
+          { id: "a", pitch: 60, start: 1, duration: 1 },
+          { id: "b", pitch: 67, start: 3, duration: 0.5 },
+          // Off screen: left out.
+          { id: "c", pitch: 64, start: 40, duration: 1 },
+        ]}
+        vp={{ scrollBeats: 0.5, pxPerBeat: PX }}
+        width={400}
+        height={60}
+      />,
+    );
+    const rects = [...screen.getByTestId("clip-envelope-notes").querySelectorAll("rect")];
+    expect(rects).toHaveLength(2);
+    const [low, high] = rects.map((r) => ({ x: Number(r.getAttribute("x")), y: Number(r.getAttribute("y")), w: Number(r.getAttribute("width")) }));
+    expect(low!.x).toBeCloseTo(0.5 * PX, 6);
+    expect(high!.x).toBeCloseTo(2.5 * PX, 6);
+    expect(high!.w).toBeCloseTo(0.5 * PX - 1, 6);
+    expect(high!.y).toBeLessThan(low!.y);
+  });
+
+  it("draws nothing without notes", () => {
+    render(<NotesBackdrop notes={[]} vp={{ scrollBeats: 0, pxPerBeat: PX }} width={400} height={60} />);
+    expect(screen.queryByTestId("clip-envelope-notes")).toBeNull();
   });
 });
 

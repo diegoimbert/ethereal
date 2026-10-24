@@ -59,6 +59,13 @@ const allCanvas2d = process.env.ETHER_E2E_ARRANGER === "canvas2d";
 const TOURS_WALKTHROUGH = "tours.walkthrough.spec.ts";
 const toursOn = process.env.ETHEREAL_TOURS === "1";
 
+/**
+ * Specs that also run on Playwright's WebKit (a stand-in for Safari), opt-in:
+ * `ETHER_E2E_WEBKIT=1` defines the `webkit` project (needs `npx playwright install webkit`).
+ */
+const WEBKIT_SPECS = ["library-drag.spec.ts"];
+const webkitOn = process.env.ETHER_E2E_WEBKIT === "1";
+
 /** The arranger specs, run on both backends (perf and never-disappear tests stay on WebGL). */
 const ARRANGER_SPECS = [
   "webgl-presence.spec.ts",
@@ -135,6 +142,7 @@ export default defineConfig({
           },
         ]
       : []),
+    ...(webkitOn ? [{ name: "webkit", testMatch: WEBKIT_SPECS, use: { ...devices["Desktop Safari"], storageState: storage() } }] : []),
   ],
   webServer: {
     // Run vite directly (not through pnpm) so Playwright can terminate it.

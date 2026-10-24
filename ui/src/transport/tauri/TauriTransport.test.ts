@@ -147,7 +147,8 @@ describe("TauriTransport", () => {
     const t = new TauriTransport({ invoke, createChannel: () => new FakeChannel() });
     // Register channels directly (skip connect's project bootstrap).
     channels = { messages: new FakeChannel(), playhead: new FakeChannel(), meters: new FakeChannel() };
-    (t as unknown as { channels: unknown[] }).channels = [];
+    (t as unknown as { channels: unknown[]; link: string }).channels = [];
+    (t as unknown as { link: string }).link = "connected";
     channels.messages.onmessage = (m) => (t as unknown as { onServerMessage(m: ServerMessage): void }).onServerMessage(m);
     const flush = () => new Promise((r) => setTimeout(r, 0));
     const sends = [1, 2, 3].map(() => t.send({ domain: "Transport", command: { type: "Play" } }));
@@ -193,13 +194,61 @@ describe("TauriTransport", () => {
     expect(e).toBeInstanceOf(CommandFailedError);
     expect((e as CommandFailedError).code).toBe("NotFound");
     expect((e as CommandFailedError).command).toEqual(cmd);
+  });
 
-    const broken = new TauriTransport({
-      invoke: () => Promise.reject(new Error("boom")),
-      createChannel: () => new FakeChannel(),
+  it("holds commands sent before connect until the host has the channels (factory device list)", async () => {
+    // The host drops replies while no UI channel is registered: a command that went out
+    // before `ether_connect` would never be answered (the device library's cached factory
+    // list stayed empty for the whole session).
+    const builtins = [{ name: "Reverb" }];
+    const { t, host } = transport((m) =>
+      (m.command.command as { type: string }).type === "ListBuiltin"
+        ? [ok(m.id, { type: "DeviceTypes", devices: builtins })]
+        : [ok(m.id, { type: "Project", project })],
+    );
+    const early = t.send({ domain: "Device", command: { type: "ListBuiltin" } });
+    await new Promise((r) => setTimeout(r, 5));
+    expect(host.state.calls).toEqual([]);
+    await t.connect();
+    await expect(early).resolves.toEqual({ type: "DeviceTypes", devices: builtins });
+    expect(host.state.calls[0]).toBe("ether_connect");
+  });
+
+  it("fails what waited when connect fails, and later sends until it connects again", async () => {
+    let up = false;
+    const host = fakeHost((m) => [ok(m.id, { type: "Project", project })]);
+    const invoke: InvokeFn = (c, args) => (c === "ether_connect" && !up ? Promise.reject(new Error("boom")) : host.invoke(c, args));
+    const t = new TauriTransport({ invoke, createChannel: () => new FakeChannel() });
+    const cmd = { domain: "Transport", command: { type: "Play" } } as const;
+    const waiting = t.send(cmd);
+    await expect(t.connect()).rejects.toThrow("boom");
+    await expect(waiting).rejects.toMatchObject({ code: "InvalidState", command: cmd });
+    await expect(t.send(cmd)).rejects.toMatchObject({ code: "InvalidState" });
+    up = true;
+    await t.connect();
+    await expect(t.send(cmd)).resolves.toEqual({ type: "Project", project });
+  });
+
+  it("a reconnect still delivers the replies sent on the previous channel", async () => {
+    let hold = false;
+    const held: ClientMessage[] = [];
+    const { t, host } = transport((m) => {
+      if (hold) {
+        held.push(m);
+        return [];
+      }
+      return [ok(m.id, { type: "Project", project })];
     });
-    const e2 = await broken.send(cmd).catch((x: unknown) => x);
-    expect((e2 as CommandFailedError).code).toBe("Internal");
+    await t.connect();
+    const old = host.state.channels!.messages;
+    hold = true;
+    const inFlight = t.send({ domain: "Transport", command: { type: "Play" } });
+    await new Promise((r) => setTimeout(r, 5));
+    hold = false;
+    await t.connect();
+    // The host answers the earlier command on the channel it had then.
+    old.onmessage(ok(held[0]!.id, { type: "Project", project }));
+    await expect(inFlight).resolves.toEqual({ type: "Project", project });
   });
 
   it("routes playhead and meter channels to their subscribers", async () => {

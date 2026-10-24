@@ -27,7 +27,7 @@ use ether_core::protocol::project::ProjectCommand;
 
 use crate::tx::{CmdResult, Tx, invalid, not_found, unsupported};
 
-pub use clips::clip_start;
+pub use clips::{MIN_CLIP_SLIVER, clip_start, drop_slivers};
 pub use labels::UndoLabel;
 pub use labels::{ExtLabels, set_ext_labels};
 pub use labels::{label_of, undo};

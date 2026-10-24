@@ -26,7 +26,7 @@ import polySynth from "./polySynth.json";
 import racks from "./racks.json";
 import shifter from "./shifter.json";
 
-/** The v0.2 built-in types (after `DrumRack` in `BuiltinDeviceType::ALL`), the later fx-modulation `Vibrato` and fx-color `Erosion` and `Pedal`, `GrainDelay` and `Shifter`. */
+/** The v0.2 built-in types (after `DrumRack` in `BuiltinDeviceType::ALL`), the later fx-modulation `Vibrato` and fx-color `Erosion` and `Pedal`, `GrainDelay`, `Shifter` and fx-analysis `Loudness`. */
 export type V02DeviceType =
   | "PolySynth"
   | "MultiSampler"
@@ -48,6 +48,7 @@ export type V02DeviceType =
   | "TransientShaper"
   | "SpectrumAnalyzer"
   | "Tuner"
+  | "Loudness"
   | "Arpeggiator"
   | "Chord"
   | "ScaleQuantize"

@@ -7,7 +7,14 @@
 
 export { AutomationLanes } from "./AutomationLanes";
 export { AutomationLaneView, type AutomationLaneViewProps } from "./AutomationLaneView";
-export { ClipEnvelopeButtons, ClipEnvelopeLane, ClipEnvelopeStrip, type ClipEnvelopeLaneProps, type ClipEnvelopeStripProps } from "./ClipEnvelopes";
+export {
+  ClipEnvelopeButtons,
+  ClipEnvelopeLane,
+  ClipEnvelopeStrip,
+  NotesBackdrop,
+  type ClipEnvelopeLaneProps,
+  type ClipEnvelopeStripProps,
+} from "./ClipEnvelopes";
 export { ENVELOPE_PREFIX, clipEnvelopeOptions, envelopeKeyOf, useClipEnvelopes, useClipLanes } from "./clipEnvelopeTargets";
 export {
   animateGroupFold,
@@ -18,6 +25,7 @@ export {
   useAutomationSlotHeight,
   useLaneMotion,
 } from "./laneMotion";
+export { pointsInRect, registerClipHitTester } from "./laneRegistry";
 export { TrackAutomationLanes, type TrackAutomationLanesProps } from "./TrackAutomationLanes";
 export { useAutomationToggle } from "./toggle";
 export { openValueMenu, ValueEditHost, valueMenuEntries, type ValueMenuTarget } from "./valueMenu";

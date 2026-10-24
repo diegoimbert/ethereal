@@ -47,11 +47,16 @@ A group can't be frozen when one of its tracks sends its output outside the grou
 
 Select clips, right-click one of them, and choose:
 
-- **bounce to new track**: renders the selected clips, with the track's effects and their tail (reverb and delay ring out, up to 30 seconds), to a new audio track right below. The original track is muted, so you hear the bounce.
+- **bounce to new track** ([[action:clip.bounce]]): renders the selected clips, with the track's effects and their tail (reverb and delay ring out, up to 30 seconds), to a new audio track right below. The original track is muted, so you hear the bounce.
 - **bounce in place** (audio clips only): renders the clips without the track's effects and replaces them with the result.
-- **consolidate**: joins the selected clips on each track into one clip.
+- **consolidate** ([[action:clip.consolidate]]): joins the selected clips on each track into one clip.
 
-With a time selection, its right-click menu also has **bounce to new track**: it bounces that range of every selected track, as one step. Tracks with nothing playing in the range are skipped.
+With a time selection, the same shortcuts and its right-click menu act on the range instead:
+
+- **bounce to new track** bounces that range of every selected track, as one step.
+- **consolidate** joins that range of every selected track into one clip per track, audio or MIDI. The parts of the clips outside the selection stay as they are.
+
+Tracks with nothing playing in the range are skipped.
 
 Bouncing and consolidating are one undo step each.
 

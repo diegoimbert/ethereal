@@ -1817,7 +1817,7 @@
         {
           "id": "devices/analysis-spectrum-and-tuner",
           "title": "analysis: spectrum and tuner",
-          "what": "spectrum analyzer (block size, averaging, channel incl. mid / side, range, slope, peak hold) and tuner (reference 415–466 hz, mute output for silent tuning). audio passes through unchanged; they only draw while their window is open.",
+          "what": "spectrum analyzer (block size, averaging, channel incl. mid / side, range, slope, peak hold) and tuner (reference 415–466 hz, mute output for silent tuning). loudness meter: momentary / short-term / integrated lufs, loudness range, true peak, a history graph with a target line, reset on play. audio passes through unchanged; spectrum and tuner only draw while their window is open, the loudness meter measures all the time.",
           "priority": "nice",
           "audience": "everyone",
           "platform": "all"

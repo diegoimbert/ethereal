@@ -31,6 +31,12 @@
  * ```
  * During `dragover` browsers only expose the MIME types, not the data: use
  * `hasBrowserDrag`, then read the payload on `drop`.
+ *
+ * ## In-page fallback (Safari)
+ * The payload of the drag in progress is also kept in memory, from `writeBrowserDrag` to
+ * the drag's end, and `hasBrowserDrag` / `readBrowserDrag` fall back to it when the
+ * `DataTransfer` doesn't show it (Safari can leave a custom type out of `types` or
+ * `getData`). While it is set, the drag is never taken for OS files (`hasOsFiles`).
  */
 import type { FileKind, GestureId, LibraryItem, MediaId, MediaRef, MediaSource } from "@/generated";
 import { useProjectStore } from "@/state";
@@ -64,32 +70,71 @@ export interface DragData {
   effectAllowed?: DataTransfer["effectAllowed"];
 }
 
+/** The browser drag in progress in this page (see "In-page fallback" above). */
+let inPage: BrowserDragPayload | null = null;
+let stopListening: (() => void) | null = null;
+
+/** Forget the in-page drag (at its end: `dragend`, after a drop, the next press or drag). */
+export function endBrowserDrag(): void {
+  inPage = null;
+  stopListening?.();
+  stopListening = null;
+}
+
+/** The payload of the browser drag in progress in this page, if any. */
+export function inPageBrowserDrag(): BrowserDragPayload | null {
+  return inPage;
+}
+
+function rememberBrowserDrag(payload: BrowserDragPayload): void {
+  endBrowserDrag();
+  inPage = payload;
+  if (typeof window === "undefined") return;
+  const end = () => endBrowserDrag();
+  // The drop's own handlers read it first (this listener bubbles last, then waits a tick).
+  const afterDrop = () => setTimeout(() => inPage === payload && endBrowserDrag(), 0);
+  // `dragstart` captured at the window: another drag, before its handlers write their own.
+  window.addEventListener("dragend", end, true);
+  window.addEventListener("drop", afterDrop);
+  window.addEventListener("pointerdown", end, true);
+  window.addEventListener("dragstart", end, true);
+  stopListening = () => {
+    window.removeEventListener("dragend", end, true);
+    window.removeEventListener("drop", afterDrop);
+    window.removeEventListener("pointerdown", end, true);
+    window.removeEventListener("dragstart", end, true);
+  };
+}
+
 /** Put `payload` on a drag's `DataTransfer` (call from `onDragStart`). */
 export function writeBrowserDrag(dt: DataTransfer, payload: BrowserDragPayload): void {
   dt.setData(BROWSER_DRAG_MIME, JSON.stringify(payload));
   if (payload.file_kind === "Midi") dt.setData(BROWSER_MIDI_DRAG_MIME, "");
   dt.setData("text/plain", payload.name);
   dt.effectAllowed = "copy";
+  rememberBrowserDrag(payload);
 }
 
 /** `true` if the drag carries a browser payload (usable during `dragover`). */
 export function hasBrowserDrag(dt: Pick<DragData, "types"> | null | undefined): boolean {
-  return !!dt && Array.from(dt.types).includes(BROWSER_DRAG_MIME);
+  return !!dt && (inPage !== null || Array.from(dt.types).includes(BROWSER_DRAG_MIME));
 }
 
 /** `true` if the drag carries a browser MIDI file (usable during `dragover`). */
 export function hasBrowserMidiDrag(dt: Pick<DragData, "types"> | null | undefined): boolean {
-  return !!dt && Array.from(dt.types).includes(BROWSER_MIDI_DRAG_MIME);
+  return !!dt && (inPage ? inPage.file_kind === "Midi" : Array.from(dt.types).includes(BROWSER_MIDI_DRAG_MIME));
 }
 
 /** The payload of a drop, or `null` if absent/malformed. */
 export function readBrowserDrag(dt: Pick<DragData, "getData" | "types"> | null | undefined): BrowserDragPayload | null {
   if (!hasBrowserDrag(dt)) return null;
   try {
-    return parseBrowserDragPayload(JSON.parse(dt!.getData(BROWSER_DRAG_MIME)));
+    const data = Array.from(dt!.types).includes(BROWSER_DRAG_MIME) ? dt!.getData(BROWSER_DRAG_MIME) : "";
+    if (data) return parseBrowserDragPayload(JSON.parse(data)) ?? inPage;
   } catch {
-    return null;
+    // Malformed: the in-page drag's own payload, if any.
   }
+  return inPage;
 }
 
 /**

@@ -7,10 +7,12 @@ pub(crate) mod blep;
 pub(crate) mod cut_filter;
 pub(crate) mod delay_line;
 pub(crate) mod halfband_iir;
+pub(crate) mod loudness;
 pub(crate) mod pitch_taps;
 pub(crate) mod resample;
 pub(crate) mod sliding_min;
 pub(crate) mod svf;
+pub(crate) mod true_peak;
 
 /// Flush values that would decay into the subnormal range (the audio thread has no FTZ).
 #[inline]

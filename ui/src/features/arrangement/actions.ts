@@ -2,7 +2,7 @@
 
 import type { EngineTransport } from "@/transport";
 import { cmd, newId } from "@/transport";
-import type { Clip, Command, Project, Track, TrackId } from "@/generated";
+import type { AudioContent, Clip, Command, Project, Track, TrackId } from "@/generated";
 import { firstMatch, shortcutLabel, type ChordEvent } from "@/features/keymap";
 import type { ContextMenuEntry } from "@/kit";
 import { t } from "@/i18n";
@@ -15,9 +15,11 @@ import { isArrangementClip } from "./clipTime";
 import { arrangementTracks } from "./layout";
 import { selectedClips, sendEdit } from "./context";
 import { useArrangementUi } from "./uiStore";
+import { copyMixed, cutMixed, deleteMixedCommand, duplicateMixed, isMixedSelection } from "./mixedSelection";
 import { reverseClipsCommand } from "@/features/clip-editing/clipEditing";
-import { consolidateIfAllowed } from "@/features/freeze";
+import { bounceIfAllowed, consolidateIfAllowed } from "@/features/freeze";
 import { exportMidiClips, midiClipsOfTracks } from "@/features/midi-file/exportMidi";
+import { canReveal, revealLabel, revealMedia } from "@/features/reveal";
 import { asOneStep, deleteCommand, duplicateCommand, splitCommand, toggleLoopCommand } from "./editMath";
 import { getTrackClipboard } from "./clipboard";
 import {
@@ -139,16 +141,19 @@ export function selectAtLaneClick(track: TrackId | null, clip: Clip["id"] | null
 
 /**
  * Keep a single kind of selected entity in the arrangement: selecting clips clears the
- * automation points and the track focus, and the other way around. Returns the unsubscribe.
+ * automation points and the track focus, and the other way around. Kinds a box selects
+ * together (`selectKinds`: across clip and automation lanes) stay selected together.
+ * Returns the unsubscribe.
  */
 export function bindSingleSelection(): () => void {
   return itemSelection.subscribe((s, prev) => {
     const kinds = (["clip", "automationPoint", "tempoPoint"] as const).filter((k) => s.selected[k] !== prev.selected[k] && s.selected[k].size > 0);
-    const chosen = kinds[0];
-    if (!chosen) return;
+    if (kinds.length === 0) return;
     useArrangementUi.getState().setTrackFocus(null);
-    // One kind at a time in the arrangement: clips, automation points or tempo points.
-    for (const k of ["clip", "automationPoint", "tempoPoint"] as const) if (k !== chosen) itemSelection.getState().clear(k);
+    // One kind at a time in the arrangement: clips, automation points or tempo points; a box
+    // keeps what it selected together.
+    const kept = new Set<string>(s.together.length ? s.together : [kinds[0]!]);
+    for (const k of ["clip", "automationPoint", "tempoPoint"] as const) if (!kept.has(k)) itemSelection.getState().clear(k);
   });
 }
 
@@ -238,7 +243,8 @@ itemSelection.subscribe((s, prev) => {
   if (s.selected.clip !== prev.selected.clip && s.selected.clip.size > 0) clipSelectedAt = ++selectionSeq;
 });
 
-export type ClipAction = "split" | "duplicate" | "delete" | "loop" | "select-all" | "deselect" | "copy" | "cut" | "paste" | "reverse" | "consolidate";
+export type ClipAction =
+  "split" | "duplicate" | "delete" | "loop" | "select-all" | "deselect" | "copy" | "cut" | "paste" | "reverse" | "consolidate" | "bounce" | "mute";
 
 export function runClipAction(transport: EngineTransport, action: ClipAction): Promise<void> {
   const clips = selectedClips();
@@ -251,6 +257,7 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
       return sendEdit(transport, splitCommand(clips, insertPoint().at, newId));
     case "duplicate": {
       if (onTracks) return duplicateSelectedTracks(transport).then(() => {});
+      if (isMixedSelection()) return duplicateMixed(transport);
       // Select the copies, so repeated duplicates keep extending the pattern.
       const ids: string[] = [];
       const command = duplicateCommand(clips, () => {
@@ -267,7 +274,8 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
     case "delete":
       // The selected entity: a track (header clicked) or the selected clips.
       if (onTracks) return deleteSelectedTracks(transport);
-      return sendEdit(transport, deleteCommand(clips.map((c) => c.id)));
+      // Clips and track automation points selected together (a box across both): both go.
+      return sendEdit(transport, isMixedSelection() ? deleteMixedCommand() : deleteCommand(clips.map((c) => c.id)));
     case "loop":
       return sendEdit(transport, toggleLoopCommand(clips));
     case "reverse": {
@@ -275,9 +283,17 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
       // notes, lanes and envelopes are mirrored in time.
       return sendEdit(transport, reverseClipsCommand(clips));
     }
+    case "mute":
+      // 0: the selected tracks (or clips, when they are the edit target) are muted, unless
+      // all already are (then unmuted).
+      return sendEdit(transport, onTracks || clips.length === 0 ? toggleTrackMuteCommand() : toggleClipMuteCommand(clips));
     case "consolidate":
       // Mod+J, like the clip menu's "consolidate" (frozen / rendering tracks: nothing).
       consolidateIfAllowed(transport, clips);
+      return Promise.resolve();
+    case "bounce":
+      // Mod+B, like the clip menu's "bounce to new track".
+      bounceIfAllowed(transport, clips);
       return Promise.resolve();
     case "select-all": {
       // A track selected from its header: every track; else (clips, or a track selected by a
@@ -297,10 +313,12 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
     }
     case "copy":
       if (onTracks) copySelectedTracks();
+      else if (isMixedSelection()) copyMixed();
       else copyClips();
       return Promise.resolve();
     case "cut":
-      return onTracks ? cutSelectedTracks(transport) : cutClips(transport);
+      if (onTracks) return cutSelectedTracks(transport);
+      return isMixedSelection() ? cutMixed(transport) : cutClips(transport);
     case "paste":
       if (getTrackClipboard()) return pasteTracks(transport).then(() => {});
       // At the insert marker (after a range selection; the playhead only without either),
@@ -336,7 +354,30 @@ const CLIP_KEY_ACTIONS: Record<string, ClipAction> = {
   "clip.toggleLoop": "loop",
   "clip.reverse": "reverse",
   "clip.consolidate": "consolidate",
+  "clip.bounce": "bounce",
+  "track.toggleMute": "mute",
 };
+
+/** The selected tracks (else the focused one): muted, unless all are (then unmuted); one undo step. */
+export function toggleTrackMuteCommand(): Command | null {
+  const project = useProjectStore.getState().project;
+  if (!project) return null;
+  const ui = useArrangementUi.getState();
+  const focus = useSelectionStore.getState().selectedTrack;
+  const ids = (ui.selectedTracks.size > 0 ? [...ui.selectedTracks] : focus ? [focus] : []).filter((id) => project.tracks[id]);
+  if (ids.length === 0) return null;
+  const mute = !ids.every((id) => project.tracks[id]!.mixer.mute);
+  const commands = ids.filter((id) => project.tracks[id]!.mixer.mute !== mute).map((track) => cmd("Mixer", { type: "SetMute", track, mute }));
+  if (commands.length === 1) return commands[0]!;
+  const key = mute ? "undo.mixer.mute" : "undo.mixer.unmute";
+  return cmd("Edit", { type: "Batch", label: t(key), key: { id: key, args: {} }, commands });
+}
+
+/** The clips: muted, unless all are (then unmuted). */
+function toggleClipMuteCommand(clips: ReadonlyArray<Clip>): Command | null {
+  if (clips.length === 0) return null;
+  return cmd("Clip", { type: "SetMuted", ids: clips.map((c) => c.id), muted: !clips.every((c) => c.muted) });
+}
 
 /**
  * Right-click menu of a clip. Right-clicking an unselected clip selects just it (and its
@@ -372,6 +413,10 @@ export function clipMenu(transport: EngineTransport, clip: Clip): ContextMenuEnt
           clips.map((c) => c.id),
         ),
     },
+    // Desktop: the clip's audio file in the OS file manager.
+    ...(clip.content.type === "Audio" && canReveal(transport)
+      ? [{ label: revealLabel(), onSelect: () => void revealMedia(transport, { type: "Project", media: (clip.content as AudioContent).media }) }]
+      : []),
     "separator",
     { label: t("arrangement.menu.cut"), shortcut: shortcutLabel("edit.cut"), onSelect: run("cut") },
     { label: t("arrangement.menu.copy"), shortcut: shortcutLabel("edit.copy"), onSelect: run("copy") },

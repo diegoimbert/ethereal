@@ -88,8 +88,9 @@ pub enum RackCommand {
         chain: Option<RackChainId>,
         before: Option<DeviceId>,
     },
-    /// Wrap consecutive track-chain devices into a new rack of `rack_type` with one chain
-    /// `chain` holding them (Ableton "Group"). The rack takes the first device's position.
+    /// Wrap consecutive devices of one track chain or one rack chain into a new rack of
+    /// `rack_type` with one chain `chain` holding them (Ableton "Group"). The rack takes the
+    /// first device's position (nested in that rack chain for rack-chain devices).
     Group {
         rack: DeviceId,
         rack_type: BuiltinDeviceType,

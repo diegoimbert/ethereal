@@ -285,6 +285,22 @@ pub trait ProjectStore {
             "exports are delivered as downloads on this host".into(),
         ))
     }
+
+    // --- the OS file manager (`Media::Reveal`), defaulted ---
+
+    /// The engine-machine path of the folder holding the projects. Default: none (the
+    /// projects aren't OS files).
+    fn projects_os_path(&self) -> Option<String> {
+        None
+    }
+
+    /// The engine-machine path of project `id`'s folder (`rel_path` empty) or of a file in
+    /// it (`rel_path` relative, checked). Hosts resolve the folder themselves (never
+    /// `projects_os_path` joined with the id). Default: none.
+    fn project_os_path(&self, id: ProjectId, rel_path: &str) -> Option<String> {
+        let _ = (id, rel_path);
+        None
+    }
 }
 
 /// File extensions `Project::ExportTo` writes to a path (lowercase, no dot).
