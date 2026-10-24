@@ -3,7 +3,10 @@
 //! Eight-band parametric EQ. Every band has the same five params (on, type, frequency,
 //! gain, Q) and can be any of: low cut, low shelf, bell, notch, high shelf, high cut
 //! (12 dB/oct cuts). Bands are TPT state-variable filters ([`crate::dsp::svf`]) run in
-//! series, in `f64`, followed by an output gain.
+//! series, in `f64`, followed by an output gain. Their coefficients are decramped: each band
+//! is matched to its analog prototype up to Nyquist (`ether_protocol::eq_response`), so a
+//! bell or cut at 15 kHz keeps its analog shape instead of being squeezed by the bilinear
+//! transform.
 //!
 //! No zipper noise: parameter events recompute each band's *target* coefficients, and the
 //! running coefficients glide to them per sample through two cascaded one-poles (an
