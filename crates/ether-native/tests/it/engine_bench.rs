@@ -738,7 +738,7 @@ fn render(
     let size = |b: usize| {
         if jitter == 0 {
             opts.block
-        } else if b % 2 == 0 {
+        } else if b.is_multiple_of(2) {
             opts.block - jitter
         } else {
             opts.block + jitter
@@ -785,7 +785,7 @@ fn render(
         }
         let n = size(b);
         // Hinted like the native host (`RtRenderer`): the longest recent buffer.
-        let hint = n;
+        let hint = if jitter == 0 { n } else { opts.block + jitter };
         let t = Instant::now();
         {
             let mut outs: [&mut [f32]; 2] = [&mut l[..n], &mut r[..n]];

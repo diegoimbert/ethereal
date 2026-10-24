@@ -194,7 +194,14 @@ pub struct RtRenderer {
     sample_rate: f64,
     shared: Arc<AudioShared>,
     give_back: Sender<Box<Engine>>,
+    /// The last [`RECENT_BUFFERS`] device buffer lengths (frames), for the engine's
+    /// look-ahead hint.
+    recent: [u32; RECENT_BUFFERS],
+    recent_at: usize,
 }
+
+/// Device buffers the look-ahead hint looks back on.
+const RECENT_BUFFERS: usize = 16;
 
 impl RtRenderer {
     /// Non-RT. `give_back` receives the engine when the renderer is dropped.
@@ -215,6 +222,8 @@ impl RtRenderer {
             sample_rate,
             shared,
             give_back,
+            recent: [0; RECENT_BUFFERS],
+            recent_at: 0,
         }
     }
 
@@ -244,6 +253,13 @@ impl RtRenderer {
         self.shared
             .output_channels
             .store(channels as u32, Ordering::Relaxed);
+        self.recent[self.recent_at] = total.min(u32::MAX as usize) as u32;
+        self.recent_at = (self.recent_at + 1) % RECENT_BUFFERS;
+        // The next buffer's length, for anticipative processing: the longest of the recent
+        // ones. Devices whose buffers vary (shared-mode WASAPI, resampling) then keep at
+        // least a buffer queued, and the master chain still overlaps the anticipated tracks
+        // instead of everything rendering in real time on the longer buffers.
+        let longest = self.recent.iter().copied().max().unwrap_or(0) as usize;
         let mut done = 0;
         while done < total {
             let n = (total - done).min(self.max_block);
@@ -258,11 +274,11 @@ impl RtRenderer {
                     })
                 };
                 // The next engine block: the rest of this buffer, else the next buffer's
-                // first (the same size, as device buffers usually are).
+                // first (the longest recent size).
                 let next = if done + n < total {
                     (total - done - n).min(self.max_block)
                 } else {
-                    total.min(self.max_block)
+                    longest.max(total).min(self.max_block)
                 };
                 process_guarded(engine, &inputs, &mut outputs[..n_out], n, next);
             }
