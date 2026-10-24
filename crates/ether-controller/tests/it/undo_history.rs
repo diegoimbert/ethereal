@@ -12,6 +12,7 @@ use ether_core::protocol::model::*;
 use ether_core::protocol::project::EditCommand;
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::undo_history::{HistoryCommand, HistoryEvent, HistoryList};
+use ether_core::protocol::versions::{VersionCommand, VersionInfo, VersionKind};
 use ether_core::protocol::{Command, ErrorCode, Event, ReplyValue};
 
 fn track(h: &mut Harness) -> TrackId {
@@ -296,6 +297,71 @@ fn checkpoints_are_named_for_the_session() {
     checkpoint(&mut h, ids[0], Some("Old"));
     h.create_project("Other");
     assert_eq!(list(&mut h), HistoryList::default());
+}
+
+fn versions(h: &mut Harness) -> Vec<VersionInfo> {
+    match h.ok(Command::Version(VersionCommand::List)) {
+        ReplyValue::Versions { versions } => versions,
+        r => panic!("{r:?}"),
+    }
+}
+
+/// The undo history is never saved: a named checkpoint is kept as a named version of the
+/// document at that step, renamed and deleted with it, and still there after reopening.
+#[test]
+fn checkpoints_are_kept_as_named_versions() {
+    let mut h = Harness::with_project();
+    let t = four_steps(&mut h);
+    let ids: Vec<u32> = list(&mut h).steps.iter().map(|s| s.id).collect();
+    assert!(versions(&mut h).is_empty());
+
+    // A past step: its state, not the current one.
+    ok(&checkpoint(&mut h, ids[1], Some("Before mix")));
+    let v = versions(&mut h);
+    assert_eq!(v.len(), 1);
+    assert_eq!(
+        (v[0].kind, v[0].name.as_deref()),
+        (VersionKind::Manual, Some("Before mix"))
+    );
+    assert_eq!(
+        h.project().tracks[&t].mixer.volume,
+        Decibels(-9.0),
+        "untouched"
+    );
+    let version = v[0].id.clone();
+
+    // Renaming the checkpoint renames its version (no second one).
+    ok(&checkpoint(&mut h, ids[1], Some("Rough mix")));
+    let v = versions(&mut h);
+    assert_eq!(v.len(), 1);
+    assert_eq!(
+        (v[0].id.as_str(), v[0].name.as_deref()),
+        (version.as_str(), Some("Rough mix"))
+    );
+
+    // Clearing it deletes the version.
+    ok(&checkpoint(&mut h, ids[1], None));
+    assert!(versions(&mut h).is_empty());
+
+    // Kept across a reopen; restoring it gives the step's state.
+    ok(&checkpoint(&mut h, ids[1], Some("Before mix")));
+    let id = h.project().id;
+    h.ok(Command::Project(
+        ether_core::protocol::project::ProjectCommand::Save { autosave: false },
+    ));
+    h.ok(Command::Project(
+        ether_core::protocol::project::ProjectCommand::Open { id },
+    ));
+    assert_eq!(list(&mut h), HistoryList::default(), "a new history");
+    let v = versions(&mut h);
+    let kept = v
+        .iter()
+        .find(|v| v.name.as_deref() == Some("Before mix"))
+        .expect("the checkpoint's version");
+    h.ok(Command::Version(VersionCommand::Restore {
+        version: kept.id.clone(),
+    }));
+    assert_eq!(h.project().tracks[&t].mixer.volume, Decibels(-3.0));
 }
 
 #[test]
