@@ -56,8 +56,25 @@ pub enum ProjectCommand {
     /// Rename a project. For the current project this is an undoable document edit; for a
     /// stored one the store rewrites its file. The folder never moves.
     Rename { id: ProjectId, name: String },
-    /// Delete a stored project (not the current one). Not undoable.
+    /// Delete a stored project (not the current one), also one in the bin ("delete
+    /// forever"). Not undoable.
     Delete { id: ProjectId },
+    /// Move a stored project (not the open one) to the bin: it leaves `List` for
+    /// `ListBin` until `RestoreFromBin` or `Delete`; a project in the bin for
+    /// [`BIN_RETENTION_MS`] is deleted. It can't be opened from the bin (`InvalidState`).
+    /// Not undoable. Replies `Unit`.
+    MoveToBin { id: ProjectId },
+    /// Take a project out of the bin (back in `List`, as it was). Replies `Unit`.
+    RestoreFromBin { id: ProjectId },
+    /// The projects in the bin (`ProjectSummary::binned_ms` set), most recently binned
+    /// first. Replies `Projects`.
+    ListBin,
+    /// Delete every project in the bin. Not undoable. Replies `Unit`.
+    EmptyBin,
+    /// Archive a project or bring it back (`archived: false`): it stays in `List`,
+    /// flagged [`ProjectSummary::archived`] (the UI keeps it out of the recent projects);
+    /// it still opens. Not undoable. Replies `Unit`.
+    SetArchived { id: ProjectId, archived: bool },
     /// The user discarded a project (an untitled one, on leaving it): delete it, its versions
     /// and recovery data. A project that is not open: as `Delete`. The open one: nothing of
     /// it is saved from now on (no autosave, no save before a switch or on quit), and its
@@ -154,7 +171,19 @@ pub struct ProjectSummary {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub forked_from: Option<crate::model::ForkOrigin>,
+    /// Archived (`Project::SetArchived`). Omitted when not.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub archived: bool,
+    /// In the bin since then, Unix epoch milliseconds (`Project::ListBin` only). It is
+    /// deleted [`BIN_RETENTION_MS`] later.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub binned_ms: Option<f64>,
 }
+
+/// How long a project stays in the bin before it is deleted (30 days).
+pub const BIN_RETENTION_MS: u64 = 30 * 24 * 3_600_000;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]

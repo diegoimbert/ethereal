@@ -227,6 +227,9 @@ impl<F: Fs> WebStore<F> {
             modified_ms,
             ext,
             forked_from,
+            // Status (archive, bin): the controller's (`project_status`).
+            archived: false,
+            binned_ms: None,
         })
     }
 

@@ -580,3 +580,46 @@
   flex-direction: column;
   gap: var(--eth-space-md);
 }
+
+/* The archived projects and the bin (`ProjectShelves.tsx`), folded under the recents. */
+.eth-project-shelves {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+}
+.eth-project-shelves__head {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border: none;
+  background: none;
+  color: var(--eth-color-text-dim);
+  font: inherit;
+  cursor: pointer;
+}
+.eth-project-shelves__head svg {
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+}
+.eth-project-shelves__head:focus-visible {
+  outline: var(--eth-focus-ring-width) solid var(--eth-color-focus);
+}
+.eth-project-shelves__item {
+  gap: var(--eth-space-xs);
+  padding-right: var(--eth-space-xs);
+}
+.eth-project-shelves__item > .eth-project-screen__name {
+  padding-left: var(--eth-space-sm);
+}
+.eth-project-shelves__note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--eth-space-sm);
+  margin: 0;
+  padding: 0 var(--eth-space-sm);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}

@@ -99,18 +99,18 @@ describe("open project actions", () => {
     await waitFor(() => expect(current().settings.name).toBe("Demo 3"));
   });
 
-  it("deletes the open project from the menu (confirmed in place) by closing it first", async () => {
-    await renderWithMock(<ProjectMenu />);
+  it("moves the open project to the bin from the menu by closing it first; the toast restores it", async () => {
+    const { mock } = await renderWithMock(<ProjectMenu />);
     const id = current().id;
     const menu = await openMenu();
-    fireEvent.click(within(menu).getByRole("menuitem", { name: "delete project…" }));
-    const confirm = within(menu).getByRole("group", { name: "confirm delete" });
-    expect(confirm.textContent).toMatch(/delete “Demo”\?/);
-    // The keyboard stays in the menu: the confirmation's cancel takes focus.
-    expect(within(confirm).getByRole("menuitem", { name: "cancel" })).toHaveFocus();
-    fireEvent.click(within(confirm).getByRole("menuitem", { name: "delete" }));
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "move project to the bin" }));
     await waitFor(() => expect(store().projects.some((p) => p.id === id)).toBe(false));
     expect(current().id).not.toBe(id);
+    const binned = await mock.send(cmd("Project", { type: "ListBin" }));
+    expect(binned.type === "Projects" && binned.projects.map((p) => p.id)).toEqual([id]);
+    const notice = useNotices.getState().notices.find((n) => n.message.toLowerCase() === "moved “demo” to the bin");
+    act(() => notice!.action!.onSelect());
+    await waitFor(() => expect(store().projects.some((p) => p.id === id)).toBe(true));
   });
 
   it("Rename focuses the name field", async () => {

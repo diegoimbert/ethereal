@@ -50,3 +50,12 @@ export function formatModified(ms: number, now: number = Date.now()): string {
   const sameDay = new Date(now).toDateString() === d.toDateString();
   return sameDay ? formatDate(d, { hour: "2-digit", minute: "2-digit" }) : formatDate(d, { year: "numeric", month: "short", day: "numeric" });
 }
+
+/** How long the engine keeps a project in the bin (`BIN_RETENTION_MS`). */
+export const BIN_RETENTION_MS = 30 * 24 * 3_600_000;
+const DAY_MS = 24 * 3_600_000;
+
+/** Whole days left at `now` before a project binned at `binnedMs` is deleted (at least 1). */
+export function daysLeft(binnedMs: number, now: number): number {
+  return Math.max(1, Math.ceil((binnedMs + BIN_RETENTION_MS - now) / DAY_MS));
+}

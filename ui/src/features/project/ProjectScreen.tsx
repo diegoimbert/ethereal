@@ -9,7 +9,7 @@ import { notify } from "@/features/notifications";
 import { newProjectCommand, ProjectTemplatePicker, type ProjectTemplateChoice } from "@/features/templates";
 import { useProjectStore } from "@/state";
 import { cmd, listProjects, newProjectId, type EngineTransport } from "@/transport";
-import { saveProjectAs } from "./actions";
+import { moveToBin, saveProjectAs } from "./actions";
 import { useExportProject } from "./exportProjectStore";
 import { guardLeave } from "./leaveGuard";
 import { copyName, dateName, formatModified, sortProjects, uniqueName } from "./projectNames";
@@ -20,7 +20,7 @@ import { APP_VERSION } from "@/config/version";
 import { splitLocalCopy } from "./sessionMarks";
 import { t as translate, Trans, useT } from "@/i18n";
 import { contributions, useContributions, type ProjectRowAction } from "@/ext";
-import { DeleteChoices, DeleteChoiceSwitches } from "./deleteChoices";
+import { ProjectShelves } from "./ProjectShelves";
 
 /**
  * The project picker ("Open project"): a modal listing the stored projects to
@@ -156,6 +156,7 @@ export function RecentProjects({
   showEmpty = false,
   extraError,
   clearExtraError,
+  shelves = false,
 }: {
   commands: EngineCommands;
   /** A project opened (the screen / menu closes). */
@@ -169,14 +170,16 @@ export function RecentProjects({
   /** An error of the surroundings to show on the error line too (e.g. "new project" failed). */
   extraError?: string | null;
   clearExtraError?(): void;
+  /** Also the archived projects and the bin (the project picker; not the menu's submenu). */
+  shelves?: boolean;
 }) {
   const t = useT();
   const { send, transport } = commands;
   const [bones] = useState(readRecentCount);
   const projects = useProjectStore((s) => s.projects);
   const current = useProjectStore((s) => s.project);
-  // Not the open project, nor untouched drafts.
-  const others = useMemo(() => sortProjects(projects).filter((p) => p.id !== current?.id && !isDraft(p.id)), [projects, current?.id]);
+  // Not the open project, nor untouched drafts, nor archived ones (`ProjectShelves`).
+  const others = useMemo(() => sortProjects(projects).filter((p) => p.id !== current?.id && !isDraft(p.id) && !p.archived), [projects, current?.id]);
   // The search over the recent projects (focused when the screen opens).
   const [query, setQuery] = useState("");
   const shown = useMemo(() => {
@@ -194,8 +197,6 @@ export function RecentProjects({
   }, [ready, focusSearch]);
   const [busy, setBusy] = useState(false);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
-  // The row asking to delete, with the extensions' choices (`@/ext` "project.deleteChoices").
-  const [confirmDelete, setConfirmDelete] = useState<{ id: string; choices: DeleteChoices } | null>(null);
   const listSections = useContributions("project.listSection");
   // A pending extension row action's confirmation (`@/ext` "project.rowActions").
   const [confirmAction, setConfirmAction] = useState<{ id: string; action: ProjectRowAction } | null>(null);
@@ -310,7 +311,9 @@ export function RecentProjects({
           ] as ContextMenuEntry[])
         : []),
       "separator",
-      { label: t("project.row.delete"), danger: true, onSelect: () => setConfirmDelete({ id: p.id, choices: new DeleteChoices(p) }) },
+      { label: t("project.row.archive"), onSelect: () => void run(cmd("Project", { type: "SetArchived", id: p.id, archived: true })) },
+      // Restorable (the toast, the bin); deleted for good from the bin (`ProjectShelves`).
+      { label: t("project.row.move_to_bin"), danger: true, onSelect: () => void act((tr) => moveToBin(tr, p)) },
     ];
     openContextMenu(e, entries);
   };
@@ -424,29 +427,6 @@ export function RecentProjects({
                       {confirmAction.action.confirm.button}
                     </Button>
                   </span>
-                ) : confirmDelete?.id === p.id ? (
-                  <span className="eth-project-screen__confirm">
-                    <span className="eth-project-screen__name">
-                      <Trans k="project.actions.delete_named" values={{ name: <span className="eth-user-text">{p.name}</span> }} />
-                    </span>
-                    <DeleteChoiceSwitches choices={confirmDelete.choices} />
-                    <Button size="sm" onClick={() => setConfirmDelete(null)}>
-                      {t("project.actions.cancel")}
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="eth-project-screen__danger"
-                      disabled={busy}
-                      aria-label={t("project.actions.confirm_delete", { name: p.name })}
-                      onClick={() => {
-                        const { choices } = confirmDelete;
-                        setConfirmDelete(null);
-                        void run(cmd("Project", { type: "Delete", id: p.id })).then((r) => r && choices.runChecked((e) => setError(errorMessage(e))));
-                      }}
-                    >
-                      {t("project.actions.delete")}
-                    </Button>
-                  </span>
                 ) : (
                   <button
                     type="button"
@@ -498,6 +478,7 @@ export function RecentProjects({
       {listSections.map((Section, i) => (
         <Section key={i} query={query} ready={ready} onDone={onDone} />
       ))}
+      {shelves && ready && <ProjectShelves commands={commands} openProject={(id) => void openProject(id)} setError={setError} />}
     </div>
   );
 }
@@ -579,7 +560,7 @@ function Home({ commands, onDone }: { commands: EngineCommands; onDone(): void }
       )}
       <div className="eth-welcome__columns">
         <GetStarted commands={commands} onStarted={onDone} />
-        <RecentProjects commands={commands} onDone={onDone} ready={ready} focusSearch extraError={error} clearExtraError={() => setError(null)} />
+        <RecentProjects commands={commands} onDone={onDone} ready={ready} focusSearch shelves extraError={error} clearExtraError={() => setError(null)} />
       </div>
     </div>
   );

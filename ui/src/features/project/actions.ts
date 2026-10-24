@@ -1,11 +1,12 @@
 // Project actions shared by the project screen and the command palette: save,
-// save as, duplicate, export / import a `.ether` bundle, delete (or close and delete the open
+// save as, duplicate, export / import a `.ether` bundle, move to the bin (or close and bin the open
 // project). Every file operation is engine-side (`Command::Project`); the desktop passes the
 // OS dialog's path to the engine, the web build downloads / uploads the bundle.
 import { emit } from "@/ext";
 import type { ProjectSummary, ReplyValue } from "@/generated";
 import { fetchDownload, saveFile } from "@/features/export/download";
 import { notify } from "@/features/notifications";
+import { errorMessage } from "@/features/transport-bar/engine";
 import { withUpload, type UploadSource } from "@/features/remote/upload";
 import { useProjectStore } from "@/state";
 import { cmd, newProjectId, type EngineTransport } from "@/transport";
@@ -190,15 +191,26 @@ export function deleteProject(t: EngineTransport, id: string): Promise<ReplyValu
   return t.send(cmd("Project", { type: "Delete", id }));
 }
 
+/** Move a stored project (not the open one) to the bin; the toast offers to restore it. */
+export async function moveToBin(t: EngineTransport, p: { id: string; name: string }): Promise<void> {
+  await t.send(cmd("Project", { type: "MoveToBin", id: p.id }));
+  notify("Info", tr("project.bin.moved", { name: p.name }), {
+    action: {
+      label: tr("project.bin.restore"),
+      onSelect: () => void t.send(cmd("Project", { type: "RestoreFromBin", id: p.id })).catch((e: unknown) => notify("Error", errorMessage(e))),
+    },
+  });
+}
+
 /**
- * The open project can't be deleted while open (`Project::Delete` refuses it): open the most
- * recently saved other project (or a new draft one), then delete it.
+ * The open project can't go to the bin while open (`Project::MoveToBin` refuses it): open the
+ * most recently saved other project (or a new draft one), then move it to the bin.
  */
-export async function closeAndDelete(t: EngineTransport, id: string): Promise<void> {
-  const next = sortProjects(projects()).find((p) => p.id !== id);
+export async function closeAndBin(t: EngineTransport, id: string, name: string): Promise<void> {
+  const next = sortProjects(projects()).find((p) => p.id !== id && !p.archived);
   if (next) await openProject(t, next.id);
   // None left: a new draft project (`drafts.ts`).
   else await createDraftProject(t);
   if (current()?.id === id) throw new Error("the project is still open");
-  await deleteProject(t, id);
+  await moveToBin(t, { id, name });
 }
