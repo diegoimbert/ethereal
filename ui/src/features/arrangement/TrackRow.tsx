@@ -567,13 +567,20 @@ function TrackNameInput({ name, onDone }: { name: string; onDone: (name: string 
   );
 }
 
-/** Live level along the header's right edge (its own component: re-renders at meter rate). */
+/** Live level along the header's right edge, left and right channels side by side (its own
+ *  component: re-renders at meter rate). */
 const HeaderMeter = memo(function HeaderMeter({ track }: { track: TrackId }) {
   const meter = useTrackMeter(track);
-  const level = meter ? meterPosition(Math.max(meter.peak[0], meter.peak[1])) : 0;
+  const left = meter ? meterPosition(meter.peak[0]) : 0;
+  const right = meter ? meterPosition(meter.peak[1]) : 0;
   return (
     <span className="eth-arr-header__meter" aria-hidden>
-      <span className="eth-arr-header__meter-fill" style={{ transform: `scaleY(${level})` }} />
+      <span className="eth-arr-header__meter-channel" data-channel="left">
+        <span className="eth-arr-header__meter-fill" style={{ transform: `scaleY(${left})` }} />
+      </span>
+      <span className="eth-arr-header__meter-channel" data-channel="right">
+        <span className="eth-arr-header__meter-fill" style={{ transform: `scaleY(${right})` }} />
+      </span>
     </span>
   );
 });

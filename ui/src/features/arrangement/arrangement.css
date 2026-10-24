@@ -1177,12 +1177,19 @@
   box-sizing: border-box;
   border-top: var(--eth-size-track-card-inset-y) solid transparent;
   border-bottom: var(--eth-size-track-card-inset-y) solid transparent;
-  background-clip: padding-box;
   width: var(--eth-size-track-meter-width);
+  /* Left and right channels side by side, each its own thin bar. */
+  display: flex;
+  gap: var(--eth-size-track-meter-gap);
+  pointer-events: none;
+}
+
+.eth-arr-header__meter-channel {
+  position: relative;
+  flex: 1;
   border-radius: var(--eth-radius-pill);
   background: color-mix(in srgb, var(--eth-color-text) 6%, transparent);
   overflow: hidden;
-  pointer-events: none;
 }
 
 .eth-arr-header__meter-fill {

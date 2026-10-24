@@ -9,6 +9,8 @@ import { useSelectedItems } from "@/timeline";
 import { cmd, commandErrorText, isCommandFailed, newId, TransportContext, type EngineTransport } from "@/transport";
 import { fetchDownload, saveFile } from "./download";
 import { useExportAudio } from "./store";
+import { matchesAction } from "@/features/keymap";
+import { isTextEntry } from "@/features/transport-bar/engine";
 import { formatBytes, useT, type MessageKey } from "@/i18n";
 import {
   BIT_DEPTH_OPTIONS,
@@ -88,6 +90,18 @@ function ExportPanel({ transport }: { transport: EngineTransport }) {
   const projectId = project?.id ?? null;
 
   const candidates = useMemo(() => (project ? stemCandidates(project) : []), [project]);
+
+  // keymap `project.exportAudio` (default Mod+Shift+E): anywhere but in text fields, and
+  // before the browser's own use of the chord.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.repeat || isTextEntry(e.target) || !matchesAction("project.exportAudio", e)) return;
+      e.preventDefault();
+      useExportAudio.getState().show();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   // A new project: fresh stem defaults, forget results (state adjusted during render).
   const [seenProject, setSeenProject] = useState<string | null>(null);
