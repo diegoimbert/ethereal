@@ -80,7 +80,7 @@ assert_no_alloc = "1.1"
 crossbeam-channel = "0.5"
 
 # --- audio I/O, media, DSP ---
-cpal = "0.17"
+cpal = "0.18"
 midir = "0.11"
 symphonia = { version = "0.6.1", default-features = false, features = ["wav", "pcm", "aiff", "flac", "mp3", "ogg", "vorbis", "isomp4", "aac", "alac", "id3v1", "id3v2", "ape"] }
 rubato = "5.0"
