@@ -73,3 +73,27 @@ fn runtime_file_token_and_disable() {
         .unwrap_err();
     assert!(e.contains("Allow AI agents (MCP)"), "{e}");
 }
+
+/// A runtime file left by a process that is gone (a crash) is not used: its port may now be
+/// anyone's.
+#[test]
+fn a_stale_runtime_file_is_skipped() {
+    let tmp = TempDir::new("bridge-stale");
+    let stale = tmp.path().join("agent-bridge.json");
+    // Runtime files are only written by `write_runtime_file`; a dead pid stands for a crash.
+    ether_server::agent_bridge::write_runtime_file(
+        &stale,
+        &RuntimeInfo {
+            port: 1,
+            token: "t".repeat(48),
+            pid: u32::MAX / 2,
+            version: "0.0.1".into(),
+        },
+    )
+    .unwrap();
+    let b = RemoteBackend::new(Target::Desktop {
+        candidates: vec![stale],
+    });
+    let e = b.connect().unwrap_err();
+    assert!(e.contains("stale"), "{e}");
+}

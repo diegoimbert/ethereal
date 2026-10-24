@@ -58,6 +58,11 @@ impl Target {
                 let mut why = "the agent bridge is off".to_string();
                 for path in candidates {
                     match read_runtime_file(path) {
+                        // A file left by a crash: its port may now be anyone's (another local
+                        // user could listen there and answer with tools of its own).
+                        Ok(RuntimeInfo { pid, .. }) if !process_is_ours(pid) => {
+                            why = format!("{} is stale (the app is not running)", path.display());
+                        }
                         Ok(RuntimeInfo { port, token, .. }) => {
                             return Ok((format!("ws://127.0.0.1:{port}/"), Some(token)));
                         }
@@ -239,5 +244,27 @@ fn pump(ws: &mut Ws, rx: &Receiver<ClientMessage>, pending: &Pending) -> String 
             Ok(_) => {}
             Err(e) => tracing::debug!(%e, "undecodable frame"),
         }
+    }
+}
+
+/// Whether `pid` is a running process this user may signal (the app that wrote a runtime
+/// file). Unix: `kill(pid, 0)` (another user's process, after a pid reuse, is not ours).
+/// Elsewhere: assumed running.
+fn process_is_ours(pid: u32) -> bool {
+    #[cfg(unix)]
+    {
+        unsafe extern "C" {
+            fn kill(pid: i32, sig: i32) -> i32;
+        }
+        let Ok(pid) = i32::try_from(pid) else {
+            return false;
+        };
+        // SAFETY: signal 0 only checks that the process exists and may be signalled.
+        pid > 0 && unsafe { kill(pid, 0) } == 0
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = pid;
+        true
     }
 }
