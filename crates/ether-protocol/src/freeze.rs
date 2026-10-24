@@ -114,7 +114,12 @@ pub enum FreezeCommand {
     /// into that many velocity layers, each rendered at the centre of its range; `1` renders
     /// one layer at full velocity with the multisampler's velocity sensitivity on, so playing
     /// soft stays soft. Zones cover 0..=127: notes outside `[first_key, last_key]` use the
-    /// nearest edge sample, pitched.
+    /// nearest edge sample, pitched. Pitching is plain resampling (an octave up plays twice
+    /// as fast), never pitch-preserving.
+    ///
+    /// Each sample starts on the note's first frame: the device's latency is dropped, the
+    /// start is never trimmed, and the multisampler's amp attack is 0 (no added fade-in), so
+    /// a sampled key plays back sample for sample like the instrument.
     ///
     /// `device` must be a track-chain device of category `Instrument` on a MIDI track (not
     /// a device inside a rack or drum pad, not on a frozen track). `new_device` and the
