@@ -152,6 +152,30 @@ export function bindSingleSelection(): () => void {
   });
 }
 
+/**
+ * Keep the editor drawer on a multi-clip selection: when clips are added to a selection of
+ * two or more and the clip the drawer shows is not among them (a marquee, a Shift/Cmd-click
+ * of audio clips, select-all), the drawer shows one of them instead (the last added, of the
+ * shown clip's kind when there is one), so its edits apply to every selected clip
+ * (multi-clip editing: the warp editor's and the piano roll's targets). A single selected
+ * clip keeps the click behaviour (shown on release). Returns the unsubscribe.
+ */
+export function bindEditedClipToSelection(): () => void {
+  return itemSelection.subscribe((s, prev) => {
+    const now = s.selected.clip;
+    if (now === prev.selected.clip || now.size < 2) return;
+    const added = [...now].filter((id) => !prev.selected.clip.has(id));
+    const editor = useEditorStore.getState();
+    if (added.length === 0 || !editor.clip || now.has(editor.clip)) return;
+    const project = useProjectStore.getState().project;
+    if (!project) return;
+    const kind = project.clips[editor.clip]?.content.type;
+    const live = added.filter((id) => !!project.clips[id]);
+    const pick = [...live].reverse().find((id) => project.clips[id]!.content.type === kind) ?? live.at(-1);
+    if (pick) editor.focusClip(pick);
+  });
+}
+
 /** Add a track (see `addTrackCommand`), at the end or at `at`, and select it. */
 export async function addTrack(transport: EngineTransport, kind: NewTrackKind, at?: { parent: TrackId | null; before: TrackId | null }): Promise<TrackId> {
   const id = newId();
