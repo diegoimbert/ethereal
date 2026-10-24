@@ -5,7 +5,7 @@
  * | action          | key        | what                                                     |
  * |-----------------|------------|----------------------------------------------------------|
  * | split           | ⌘E         | split every selected track at the selection edges        |
- * | split-tracks    | ⌘E         | no time range, tracks selected or an insert marker: split them at the marker (else the selection cursor) |
+ * | split-tracks    | ⌘E         | no time range, tracks selected or an insert marker: split every track the marker spans and every selected track at the marker (else the selection cursor) |
  * | cut             | ⌘X / ⇧⌘X   | copy the selection, then delete its time                 |
  * | copy            | ⌘C / ⇧⌘C   | copy the selection to the (engine) time clipboard        |
  * | paste           | ⌘V         | paste the copied section (its full length, over what is there) right after the selection, else at the insert marker, else the selection cursor |
@@ -121,7 +121,9 @@ export async function runTimeAction(transport: EngineTransport, action: TimeActi
       await send(transport, [
         timeEdit({
           type: "Split",
-          tracks: ctx!.selectedTracks.size ? [...ctx!.selectedTracks] : [...insertMarker()!.tracks],
+          // Every track the marker spans (a Shift-click extends it over several) and every
+          // selected track, not just the last clicked one.
+          tracks: [...new Set([...(insertMarker()?.tracks ?? []), ...ctx!.selectedTracks])],
           at: insertPoint().at,
           seed: newId(),
         }),

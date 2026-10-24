@@ -12,7 +12,7 @@ import { MockTransport } from "@/transport/mock";
 import { ContextMenuHost } from "@/kit";
 import { pickOption } from "@/kit/testing";
 import { ArrangementView } from "./ArrangementView";
-import { clipMenu } from "./actions";
+import { clipMenu, selectTrackEntity } from "./actions";
 import { BROWSER_DRAG_MIME, BROWSER_MIDI_DRAG_MIME } from "./browserDrop";
 import { clearClipboard } from "./clipboard";
 import { flushDraws } from "./drawQueue";
@@ -190,6 +190,37 @@ describe("ArrangementView: tracks", () => {
     expect(store().armedTracks).toEqual([trackByName("Drums").id]);
     expect(screen.queryByRole("button", { name: "arm Master" })).toBeNull();
     expect(screen.queryByRole("button", { name: "solo Master" })).toBeNull();
+  });
+
+  it("0 mutes the selected tracks (one undo step), again unmutes; with clips selected, the clips", async () => {
+    const [keys, bass] = ["Keys", "Bass"].map(trackByName);
+    act(() => {
+      selectTrackEntity(keys!.id);
+      selectTrackEntity(bass!.id, "add");
+    });
+    const press = async (init: KeyboardEventInit) => {
+      await act(async () => {
+        fireEvent.keyDown(document.querySelector(".eth-arr")!, init);
+      });
+      await flush();
+    };
+    await press({ key: "0" });
+    expect([trackByName("Keys").mixer.mute, trackByName("Bass").mixer.mute]).toEqual([true, true]);
+    await undo();
+    expect([trackByName("Keys").mixer.mute, trackByName("Bass").mixer.mute]).toEqual([false, false]);
+    // Some muted: all get muted; all muted: all unmuted.
+    await press({ key: "0" });
+    await press({ key: "0" });
+    expect([trackByName("Keys").mixer.mute, trackByName("Bass").mixer.mute]).toEqual([false, false]);
+    // Not with a modifier.
+    await press({ key: "0", ctrlKey: true });
+    expect(trackByName("Keys").mixer.mute).toBe(false);
+
+    const chords = clipByName("Chords");
+    await dragClip(chords, 0);
+    await press({ key: "0" });
+    expect(project().clips[chords.id]!.muted).toBe(true);
+    expect(trackByName("Keys").mixer.mute).toBe(false);
   });
 
   it("a soloed muted track's mute button shows the solo override (outlined, with a tooltip)", async () => {

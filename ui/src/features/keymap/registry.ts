@@ -152,6 +152,16 @@ export const BUILTIN_ACTIONS: ReadonlyArray<KeymapAction> = [
     handled: true,
     keywords: "bounce render audio new track resample clips time selection",
   },
+  {
+    id: "track.toggleMute",
+    labelKey: "shell.action.track_toggle_mute",
+    group: "Arrangement",
+    scopes: ["arrangement"],
+    // Ableton's activator toggle (M is the computer MIDI keyboard).
+    chords: ["0"],
+    handled: true,
+    keywords: "mute unmute silence deactivate activator tracks clips",
+  },
   { id: "track.group", labelKey: "shell.action.track_group", group: "Arrangement", scopes: ["arrangement"], chords: ["Mod+G"], handled: true },
   { id: "track.ungroup", labelKey: "shell.action.track_ungroup", group: "Arrangement", scopes: ["arrangement"], chords: ["Mod+Shift+G"], handled: true },
   // The selected device cards (a device card focused: features/devices/deviceClipboard.ts).
