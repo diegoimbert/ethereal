@@ -14,6 +14,7 @@ static ALLOC: assert_no_alloc::AllocDisabler = assert_no_alloc::AllocDisabler;
 
 mod adaptive_eq;
 mod compressor_detector;
+mod device_costs;
 mod device_ui_layouts;
 mod devices2;
 mod drum_rack;
