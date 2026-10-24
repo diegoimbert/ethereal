@@ -103,7 +103,7 @@ e2e-tours *args:
 # feature (left out of release builds) and runs apps/web/src/engine/*.bench.test.ts.
 # `just dev-web`/`e2e-web` rebuild the pkg without it.
 bench-wasm:
-    cd apps/web && ETHER_WASM_FEATURES="${ETHER_WASM_FEATURES:-full},bench" node scripts/build-wasm.mjs && npx vitest run src/engine/graphSnapshot.bench.test.ts src/engine/irSwap.bench.test.ts src/engine/stretch.bench.test.ts
+    cd apps/web && ETHER_WASM_FEATURES="${ETHER_WASM_FEATURES:-full},bench" node scripts/build-wasm.mjs && npx vitest run src/engine/graphSnapshot.bench.test.ts src/engine/irSwap.bench.test.ts src/engine/stretch.bench.test.ts src/engine/render.bench.test.ts
 
 # Native smoke test: the desktop host (null audio backend) driven through the full user flow.
 e2e-native:
