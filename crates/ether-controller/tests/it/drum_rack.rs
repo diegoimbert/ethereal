@@ -611,6 +611,17 @@ fn slice_markers_edit_by_sorted_index() {
         positions: vec![],
     }));
     assert_eq!(err(&out).code, ErrorCode::InvalidArgument, "not a sampler");
+    let out = h.send(Command::Slice(SliceCommand::Add {
+        device: s,
+        positions: (0..=ether_controller::drum_rack::MAX_SLICES)
+            .map(|i| Seconds(i as f64 * 0.01))
+            .collect(),
+    }));
+    assert_eq!(
+        err(&out).code,
+        ErrorCode::InvalidArgument,
+        "too many at once"
+    );
 }
 
 #[test]

@@ -147,11 +147,13 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &NoteCommand) -> CmdResult<()> {
                 s + crate::groove::swing_delay(s, grid.0, *swing)
             };
             let snap = |t: f64| t + (target(t) - t) * strength;
+            let ids: Option<std::collections::HashSet<NoteId>> =
+                notes.as_ref().map(|ids| ids.iter().copied().collect());
             let targets: Vec<Note> = ctx
                 .p()
                 .notes_of(*clip)
                 .into_iter()
-                .filter(|n| notes.as_ref().is_none_or(|ids| ids.contains(&n.id)))
+                .filter(|n| ids.as_ref().is_none_or(|ids| ids.contains(&n.id)))
                 .cloned()
                 .collect();
             for n in targets {

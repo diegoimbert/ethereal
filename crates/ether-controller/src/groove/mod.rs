@@ -63,11 +63,13 @@ fn humanize(
     let velocity = f64::from(velocity).max(0.0);
     // Deterministic order (by id), independent of positions, so the same seed on the same
     // notes always gives the same result.
+    let ids: Option<std::collections::HashSet<NoteId>> =
+        ids.map(|ids| ids.iter().copied().collect());
     let mut targets: Vec<Note> = ctx
         .p()
         .notes_of(clip)
         .into_iter()
-        .filter(|n| ids.is_none_or(|ids| ids.contains(&n.id)))
+        .filter(|n| ids.as_ref().is_none_or(|ids| ids.contains(&n.id)))
         .cloned()
         .collect();
     targets.sort_by_key(|n| n.id);

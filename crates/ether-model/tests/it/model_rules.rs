@@ -666,3 +666,26 @@ fn beat_values_are_bounded() {
     assert_eq!(f.p, before);
     f.p.apply(&insert(ok)).unwrap();
 }
+
+#[test]
+fn audio_input_channels_stay_in_range() {
+    let mut f = Fx::new();
+    let mut t = f.track(TrackKind::Audio, None);
+    t.input = TrackInput::Audio {
+        first: u16::MAX,
+        count: 2,
+    };
+    let before = f.p.clone();
+    assert!(matches!(
+        f.p.apply(&Op::Insert {
+            entity: Entity::Track(t.clone())
+        }),
+        Err(ModelError::InvalidValue(_))
+    ));
+    assert_eq!(f.p, before);
+    t.input = TrackInput::Audio { first: 2, count: 2 };
+    f.p.apply(&Op::Insert {
+        entity: Entity::Track(t),
+    })
+    .unwrap();
+}
