@@ -10,8 +10,11 @@
  *   rows (`animatedRows`), so clicks land where things are drawn mid-animation;
  * - rows below an animating slot (and the drop area) are shifted up by a transform, which
  *   the compositor applies without re-laying out or repainting their clips;
- * - the animating slot clips its lanes, which slide in/out from its top edge (a transform
- *   too): what shows is exactly the tweened height, and the rows below cover the rest.
+ * - the animating slot clips its lanes. Opening or closing the track, they slide in/out
+ *   from its top edge (a transform too): what shows is exactly the tweened height, and the
+ *   rows below cover the rest. Showing or hiding a lane of an open track, they stay in
+ *   place: a hidden lane collapses (`collapseLeaving`) by exactly what the slot shrinks this
+ *   frame, so the lanes under it and the rows below move together, by the layout change.
  *
  * Rows are stacking contexts at rest (`content-visibility: auto` on `.eth-arr-row`), so the
  * `will-change` of a moving row doesn't change paint order, and rows away from the view are
@@ -24,7 +27,7 @@
  */
 
 import { useCallback, useEffect, useLayoutEffect, useRef, type MutableRefObject, type RefObject } from "react";
-import { animatedSlotHeight, groupFoldProgress, subscribeLaneFrames } from "@/features/automation";
+import { animatedSlotHeight, automationLaneHeights, groupFoldProgress, subscribeLaneFrames } from "@/features/automation";
 import type { Row } from "./layout";
 import { useArrangementUi } from "./uiStore";
 
@@ -63,8 +66,11 @@ function foldNow(rows: ReadonlyArray<Row>): (row: Row) => number {
   };
 }
 
-/** Tweened slot height of a laid-out row (its laid-out slot height when not animating). */
-const slotNow = (r: Row): number => animatedSlotHeight(r.track.id, r.height - r.laneHeight);
+/**
+ * Tweened slot height of a laid-out row, else its target: the frame a tween ends draws the
+ * rows where they end, not where they were laid out (React re-lays them out right after).
+ */
+const slotNow = (r: Row): number => animatedSlotHeight(r.track.id, automationLaneHeights(r.track.id));
 
 const EPS = 0.01;
 
@@ -98,10 +104,56 @@ function setFold(row: HTMLElement, hidden: number | null, alpha: number): void {
   if (row.style.opacity !== opacity) row.style.opacity = opacity;
 }
 
+/**
+ * Heights of the lanes leaving an open track's slot on screen now (pure): `slot` is the
+ * slot's tweened height, `target` its height without them (what the layout goes to), and
+ * `full` their own heights. They give up the difference, each in proportion, so the slot's
+ * content is exactly `slot` tall every frame: the lanes under them move up by just what the
+ * rows below the track do, and nothing jumps when the tween ends.
+ */
+export function collapseLeaving(slot: number, target: number, full: ReadonlyArray<number>): number[] {
+  const total = full.reduce((a, b) => a + b, 0);
+  if (total <= 0) return full.map(() => 0);
+  const k = Math.min(1, Math.max(0, (slot - target) / total));
+  return full.map((h) => h * k);
+}
+
+/** A lane leaving an open track (collapsing), with its laid-out height. */
+interface Leaving {
+  el: HTMLElement;
+  height: number;
+}
+
 /** A rendered row and its automation slot (looked up once per commit, not per frame). */
 interface RowEls {
   row: HTMLElement;
   slot: HTMLElement | null;
+}
+
+/**
+ * The lanes leaving `slot`, when it shows or hides lanes of a track that stays open (no
+ * slide: `collapseLeaving`), else `null`. Looked up each frame of an animating slot: the
+ * lanes component may commit after the arrangement does.
+ */
+function leavingLanes(slot: HTMLElement | null): Leaving[] | null {
+  const lanes = slot?.querySelector<HTMLElement>(".eth-auto-track[data-lane-motion]");
+  if (lanes?.dataset.laneMotion !== "lanes") return null;
+  return [...lanes.querySelectorAll<HTMLElement>(":scope > .eth-auto-row--leaving")].map((el) => ({ el, height: laidHeight(el) }));
+}
+
+/** Draw a leaving lane at `height` px (fading with it), the rest clipped. */
+function setLeaving(l: Leaving, height: number): void {
+  const st = l.el.style;
+  st.maxHeight = `${height}px`;
+  // Under 1px, without its top border (drawn at least 1px): the lane takes exactly `height`.
+  st.borderTopWidth = height < 1 ? "0" : "";
+  st.opacity = l.height > 0 ? String(height / l.height) : "0";
+}
+
+/** The laid-out height of a lane row (its inline height, set from the UI state). */
+function laidHeight(el: HTMLElement): number {
+  const h = parseFloat(el.style.height);
+  return Number.isFinite(h) ? h : el.offsetHeight;
 }
 
 /**
@@ -129,7 +181,19 @@ export function useLaneAnimation(contentRef: RefObject<HTMLElement | null>, rows
       const f = fold(r);
       // A row of a group folding / unfolding: cut at its on-screen height (and fading).
       setFold(el.row, f < 1 - EPS ? Math.max(0, r.height - s.height) : null, f);
-      if (f >= 1 - EPS) setSlot(el.slot, s.height < r.height - EPS ? r.height - s.height : null);
+      if (f < 1 - EPS) continue;
+      const hidden = s.height < r.height - EPS ? r.height - s.height : null;
+      const leaving = hidden === null ? null : leavingLanes(el.slot);
+      if (leaving) {
+        // A lane shown or hidden: the slot clips at its bottom, the lanes stay in place.
+        setSlot(el.slot, 0);
+        const heights = collapseLeaving(
+          s.height - s.laneHeight,
+          automationLaneHeights(r.track.id),
+          leaving.map((l) => l.height),
+        );
+        leaving.forEach((l, j) => setLeaving(l, heights[j]!));
+      } else setSlot(el.slot, hidden);
     }
     const a = laid[laid.length - 1];
     const b = shown[shown.length - 1];

@@ -47,11 +47,16 @@ Un groupe ne peut pas être gelé si l’une de ses pistes envoie sa sortie hors
 
 Sélectionnez des clips, faites un clic droit sur l’un d’eux et choisissez :
 
-- **rendre sur une nouvelle piste** : fait le rendu des clips sélectionnés, avec les effets de la piste et leur queue (la réverbération et le délai résonnent jusqu’à 30 secondes), sur une nouvelle piste audio juste en dessous. La piste d’origine est mise en muet, pour que vous entendiez le rendu.
+- **rendre sur une nouvelle piste** ([[action:clip.bounce]]) : fait le rendu des clips sélectionnés, avec les effets de la piste et leur queue (la réverbération et le délai résonnent jusqu’à 30 secondes), sur une nouvelle piste audio juste en dessous. La piste d’origine est mise en muet, pour que vous entendiez le rendu.
 - **rendre sur place** (clips audio uniquement) : fait le rendu des clips sans les effets de la piste et les remplace par le résultat.
-- **consolider** : réunit en un seul clip les clips sélectionnés de chaque piste.
+- **consolider** ([[action:clip.consolidate]]) : réunit en un seul clip les clips sélectionnés de chaque piste.
 
-Avec une sélection temporelle, son menu du clic droit propose aussi **rendre sur une nouvelle piste** : le rendu porte sur cette plage de chaque piste sélectionnée, en une seule étape. Les pistes où rien ne joue dans la plage sont ignorées.
+Avec une sélection temporelle, les mêmes raccourcis et son menu du clic droit agissent sur la plage :
+
+- **rendre sur une nouvelle piste** fait le rendu de cette plage de chaque piste sélectionnée, en une seule étape.
+- **consolider** réunit cette plage de chaque piste sélectionnée en un seul clip par piste, audio ou MIDI. Les parties des clips hors de la sélection restent telles quelles.
+
+Les pistes où rien ne joue dans la plage sont ignorées.
 
 Le rendu et la consolidation comptent chacun pour une étape d’annulation.
 
