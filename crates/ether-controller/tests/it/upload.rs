@@ -420,6 +420,51 @@ fn bundle_round_trip_keeps_the_document_and_media() {
     assert!(matches!(ok(&out), ReplyValue::Saved { project } if project.id == new_id));
 }
 
+/// A bundle's in-place references survive only with a content hash and off the network.
+#[test]
+fn bundle_import_limits_in_place_references() {
+    let mut h = H::new();
+    h.upload("u1", &tone());
+    let (media_id, out) = h.import("u1");
+    ok(&out);
+    let mut doc = h.ctl.project().unwrap().clone();
+    let base = doc.media[&media_id].clone();
+    let mut cases = Vec::new();
+    for (i, (path, hash)) in [
+        ("/samples/a.wav", None),
+        ("/samples/b.wav", Some("ab".repeat(32))),
+        ("\\\\host\\share\\c.wav", Some("ab".repeat(32))),
+        ("//host/share/d.wav", Some("ab".repeat(32))),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut m = base.clone();
+        m.id = h.ids.next(T0 + 10 + i as u64);
+        m.file = format!("media/ref-{i}.wav");
+        m.hash = hash;
+        m.location = MediaLocation::External { path: path.into() };
+        cases.push(m.id);
+        doc.media.insert(m.id, m);
+    }
+    h.upload("doc", file::save(&doc, "test").unwrap().as_bytes());
+    let (new_id, out) = h.import_bundle("doc", None);
+    ok(&out);
+    let stored = h
+        .ctl
+        .store
+        .inner
+        .file(new_id, "project.ether")
+        .unwrap()
+        .to_vec();
+    let stored = file::load(std::str::from_utf8(&stored).unwrap()).unwrap();
+    let kept: Vec<bool> = cases
+        .iter()
+        .map(|id| matches!(stored.media[id].location, MediaLocation::External { .. }))
+        .collect();
+    assert_eq!(kept, [false, true, false, false]);
+}
+
 #[test]
 fn bundle_import_accepts_a_bare_document_and_refuses_bad_input() {
     let mut h = H::new();

@@ -788,6 +788,7 @@ where
     }
 
     /// `ImportBundle`: a new stored project from a bundle (or a bare `project.ether`).
+    /// In-place references the bundle brings ([`drop_foreign_external_refs`]) are limited.
     fn import_bundle(
         &mut self,
         new_id: ProjectId,
@@ -821,6 +822,7 @@ where
             .map_err(|_| invalid("project.ether is not a text document"))?;
         let mut project = file::load(json).map_err(import_err)?;
         project.id = new_id;
+        drop_foreign_external_refs(&mut project);
         if let Some(name) = name {
             project.settings.name = name;
         }
@@ -966,5 +968,21 @@ fn fork_origin(original: ProjectId, name: &str, now_ms: u64) -> ForkOrigin {
         project: original,
         name: name.to_string(),
         created_ms: now_ms as f64,
+    }
+}
+
+/// A document from elsewhere (an imported bundle) keeps an in-place media reference only if it
+/// can't be used to read an arbitrary file of this machine: it must carry the content hash
+/// (checked when the file is read; without it any audio file at that path would be taken,
+/// and re-shared by a later bundle export or collaboration), and must not be a network path
+/// (`\\host\share`, `//host/share`: on Windows looking at one authenticates to the host).
+/// Others become project copies, missing until relinked.
+pub(crate) fn drop_foreign_external_refs(project: &mut Project) {
+    for m in project.media.values_mut() {
+        if let MediaLocation::External { path } = &m.location
+            && (m.hash.is_none() || path.starts_with("\\\\") || path.starts_with("//"))
+        {
+            m.location = MediaLocation::Project;
+        }
     }
 }

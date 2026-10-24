@@ -52,7 +52,7 @@ use tungstenite::{Message, WebSocket};
 pub use ether_protocol::remote::{PROTOCOL_VERSION, ServerCapabilities, ServerInfo};
 
 use crate::frames::{DecodeError, Frame, decode_client_binary, decode_client_text};
-use crate::router::{CLIENT_QUEUE, ClientId, Router};
+use crate::router::{ClientId, QueueRx, Router, client_queue};
 
 /// Close codes after a `Rejected` hello (`ether_protocol::remote`).
 pub const CLOSE_AUTH: u16 = 4001;
@@ -238,6 +238,12 @@ pub trait Engine: Send + Sync {
     fn patch_compat(&self) -> Option<PatchCompat> {
         None
     }
+
+    /// Client messages queued and not handled yet: while it's at `HOST_BACKLOG` or more the
+    /// server stops reading its clients. `0`: no such count.
+    fn backlog(&self) -> usize {
+        0
+    }
 }
 
 impl Engine for NativeHost {
@@ -248,6 +254,10 @@ impl Engine for NativeHost {
     fn patch_compat(&self) -> Option<PatchCompat> {
         Some(NativeHost::patch_compat(self).clone())
     }
+
+    fn backlog(&self) -> usize {
+        NativeHost::backlog(self)
+    }
 }
 
 impl<E: Engine + ?Sized> Engine for Arc<E> {
@@ -257,6 +267,10 @@ impl<E: Engine + ?Sized> Engine for Arc<E> {
 
     fn patch_compat(&self) -> Option<PatchCompat> {
         (**self).patch_compat()
+    }
+
+    fn backlog(&self) -> usize {
+        (**self).backlog()
     }
 }
 
@@ -279,6 +293,13 @@ impl HostRef {
         match self {
             Self::Owned(h) => Engine::patch_compat(&**h),
             Self::Attached(e) => e.patch_compat(),
+        }
+    }
+
+    fn backlog(&self) -> usize {
+        match self {
+            Self::Owned(h) => Engine::backlog(&**h),
+            Self::Attached(e) => e.backlog(),
         }
     }
 }
@@ -685,7 +706,7 @@ fn serve_connection(
             return Err(e);
         }
     };
-    let (tx, rx) = crossbeam_channel::bounded::<Frame>(CLIENT_QUEUE);
+    let (tx, rx) = client_queue();
     let (max, multiple) = (
         shared.config.max_clients,
         shared.config.allow_multiple_clients,
@@ -743,9 +764,12 @@ fn serve_connection(
     result
 }
 
+/// Client messages the engine may have queued before the server stops reading its clients.
+const HOST_BACKLOG: usize = 1024;
+
 fn pump(
     ws: &mut WebSocket<TcpStream>,
-    rx: &crossbeam_channel::Receiver<Frame>,
+    rx: &QueueRx,
     client: ClientId,
     shared: &Shared,
 ) -> Result<(), String> {
@@ -800,7 +824,13 @@ fn pump(
         if wrote {
             ws.flush().map_err(|e| e.to_string())?;
         }
-        // Incoming (waits at most `POLL`).
+        // Incoming (waits at most `POLL`), unless the engine is behind on what clients sent:
+        // then the socket isn't read (TCP pushes back on the client) until it catches up.
+        if shared.host.backlog() >= HOST_BACKLOG {
+            last_inbound = Instant::now();
+            std::thread::sleep(Duration::from_millis(5));
+            continue;
+        }
         let read = ws.read();
         if read.is_ok() {
             last_inbound = Instant::now();
