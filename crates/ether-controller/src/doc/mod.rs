@@ -16,6 +16,7 @@ mod misc;
 mod mixer;
 mod notes;
 mod reverse;
+mod stretch;
 mod tracks;
 
 use ether_core::protocol::Command;

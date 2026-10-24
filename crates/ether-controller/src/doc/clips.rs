@@ -73,7 +73,11 @@ fn check_length(length: Beats) -> CmdResult<()> {
 /// Make room for arrangement clip `keep` on its track, Ableton-style: clips it fully covers
 /// are deleted, partially covered clips are trimmed, a clip that contains it is split.
 /// Crossfade overlaps (see `ether_model::clip`) are left alone.
-fn resolve_overlaps(ctx: &mut DocCtx, keep: ClipId, ignore: &BTreeSet<ClipId>) -> CmdResult<()> {
+pub(super) fn resolve_overlaps(
+    ctx: &mut DocCtx,
+    keep: ClipId,
+    ignore: &BTreeSet<ClipId>,
+) -> CmdResult<()> {
     let Some(k) = ctx.p().clips.get(&keep).cloned() else {
         return Ok(());
     };
@@ -347,6 +351,9 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &ClipCommand) -> CmdResult<()> {
                 *id,
                 ClipChange::Gain(Decibels(gain.0.clamp(MIN_GAIN_DB, MAX_GAIN_DB))),
             )
+        }
+        ClipCommand::Stretch { id, start, length } => {
+            super::stretch::stretch(ctx, *id, *start, *length)
         }
         ClipCommand::SetTranspose { id, semitones } => {
             crate::clip_editing::transpose::set_transpose(ctx, *id, *semitones)

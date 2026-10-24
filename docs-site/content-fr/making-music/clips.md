@@ -13,6 +13,7 @@ covers:
   - clips/moving-onto-other-clips-trims-or-deletes-them #dropping-onto-other-clips
   - clips/moving-clips-between-tracks-and-to-new-tracks #moving-to-another-track
   - clips/trimming-limits-and-leading-gaps #trimming
+  - clips/stretch-edge-cmd-ctrl-shift-drag #stretching
   - clips/slip-edit-cmd-ctrl-shift-drag #slip-editing
   - clips/create-midi-clips-with-double-click #making-a-midi-clip
   - clips/drag-and-drop-audio #adding-audio
@@ -84,6 +85,10 @@ Faites glisser le bord gauche ou droit d’un clip pour le raccourcir ou le rall
 - Un clip audio qui ne boucle pas ne peut pas dépasser la fin de son fichier. Avec la boucle activée, il se répète aussi loin que vous faites glisser.
 - Faire glisser le début vers la gauche au-delà du début du contenu laisse un espace vide (du silence, ou aucune note) avant lui. Faites glisser de nouveau vers la droite pour supprimer cet espace.
 - Le clip le plus court dure un seizième de temps.
+
+### étirer {#stretching}
+
+Maintenez [[key:Mod+Shift]] en faisant glisser un bord pour étirer le clip à la place : son contenu est joué plus vite ou plus lentement pour remplir la nouvelle longueur. Les notes, l’expression et la boucle d’un clip MIDI suivent. Un clip audio est warpé pour jouer son audio sur la nouvelle longueur (un clip non warpé est d’abord warpé), et ses fondus et enveloppes suivent aussi. En mode repitch, la hauteur suit la vitesse. Avec plusieurs clips sélectionnés, tous sont étirés, en une seule étape d’annulation.
 
 ## édition par glissement du contenu {#slip-editing}
 

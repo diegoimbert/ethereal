@@ -727,6 +727,14 @@
           "platform": "all"
         },
         {
+          "id": "clips/stretch-edge-cmd-ctrl-shift-drag",
+          "title": "stretching a clip from its edge",
+          "what": "cmd/ctrl+shift while dragging a clip edge stretches it: the content plays faster or slower to fill the new length (midi notes, expression and loop scale; audio gets warped markers scaled, fades and envelopes scale). every selected clip, one undo step.",
+          "priority": "nice",
+          "audience": "everyone",
+          "platform": "all"
+        },
+        {
           "id": "clips/slip-edit-cmd-ctrl-shift-drag",
           "title": "slip edit: cmd/ctrl+shift-drag",
           "what": "hold ctrl+shift (cmd+shift on mac) and drag a clip's body to move its content inside the clip without moving the clip; snapped (alt: free); escape cancels. it stops at the file's ends, so a clip showing the whole file can't slip.",

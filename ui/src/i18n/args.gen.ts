@@ -746,6 +746,7 @@ export interface MessageArgs {
   "undo.clips.rename": { count: number };
   "undo.clips.resize": { count: number };
   "undo.clips.split": { count: number };
+  "undo.clips.stretch": { count: number };
   "undo.clips.unloop": { count: number };
   "undo.device.add": { device: string | number };
   "undo.device.bypass": { device: string | number };

@@ -11,6 +11,7 @@ mod capture;
 mod clip_editing;
 mod clip_envelopes;
 mod clip_reverse;
+mod clip_stretch;
 mod clip_transpose;
 mod commands;
 #[path = "../common/mod.rs"]

@@ -902,6 +902,19 @@ function clipCommand(ctx: ReducerContext, c: ClipCommand): void {
       resolveOverlaps(ctx, next, new Set());
       break;
     }
+    case "Stretch": {
+      const cl = clip(ctx, c.id);
+      if (!(c.length > 0)) fail("InvalidArgument", "clip length must be > 0");
+      checkClipStart(c.start);
+      const k = c.length / cl.length;
+      if (!(k >= 1 / 1024 && k <= 1024)) fail("InvalidArgument", "stretch factor out of range");
+      stretchContent(ctx, cl, k);
+      const after = tx.get("Clip", cl.id)!;
+      const next = { ...after, start: c.start, length: c.length };
+      tx.upsert("Clip", next);
+      resolveOverlaps(ctx, next, new Set());
+      break;
+    }
     case "Split": {
       if (tx.get("Clip", c.new_id)) break; // already split: no-op
       const cl = clip(ctx, c.id);
@@ -961,6 +974,49 @@ function clipCommand(ctx: ReducerContext, c: ClipCommand): void {
       break;
     }
   }
+}
+
+/**
+ * `ClipCommand::Stretch`'s content scaling (`ether_controller::doc::stretch`): offset, loop,
+ * notes, clip envelopes, and for audio the warp markers (pinned first when the clip has no
+ * mapping of its own; an unwarped clip gets warped) and the fades. (Expression lanes are not
+ * scaled here.)
+ */
+function stretchContent(ctx: ReducerContext, cl: Clip, k: number): void {
+  const { tx } = ctx;
+  let next: Clip = { ...cl, offset: cl.offset * k, looping: { ...cl.looping, start: cl.looping.start * k, end: cl.looping.end * k } };
+  for (const n of tx.all("Note")) if (n.clip === cl.id) tx.upsert("Note", { ...n, start: n.start * k, duration: n.duration * k });
+  const lanes = new Set(
+    tx
+      .all("AutomationLane")
+      .filter((l) => l.owner.type === "Clip" && l.owner.clip === cl.id)
+      .map((l) => l.id),
+  );
+  for (const p of tx.all("AutomationPoint")) if (lanes.has(p.lane)) tx.upsert("AutomationPoint", { ...p, time: p.time * k });
+  if (cl.content.type === "Audio") {
+    const audio = cl.content;
+    let markers = tx.all("WarpMarker").filter((m) => m.clip === cl.id);
+    if (!audio.warp.enabled || markers.length < 2) {
+      const bpm = audio.warp.enabled && audio.warp.source_bpm ? audio.warp.source_bpm : bpmAt(tx.project, cl.start);
+      const [b, s] = audio.warp.enabled && markers[0] ? [markers[0].beat, markers[0].source] : [0, 0];
+      for (const m of markers) tx.remove("WarpMarker", m.id);
+      const b0 = Math.max(0, cl.offset);
+      const b1 = b0 + Math.max(cl.length, 1);
+      markers = [b0, b1].map((beat) => ({ id: ctx.newId(), clip: cl.id, beat, source: Math.max(0, s + ((beat - b) * 60) / bpm) }));
+    }
+    for (const m of markers) tx.upsert("WarpMarker", { ...m, beat: m.beat * k });
+    const len = cl.length * k;
+    next = {
+      ...next,
+      content: {
+        ...audio,
+        warp: audio.warp.enabled ? audio.warp : { ...audio.warp, enabled: true, source_bpm: audio.warp.source_bpm ?? bpmAt(tx.project, cl.start) },
+        fade_in: Math.min(audio.fade_in * k, len),
+        fade_out: Math.min(audio.fade_out * k, len),
+      },
+    };
+  }
+  tx.upsert("Clip", next);
 }
 
 // ─── Notes ──────────────────────────────────────────────────────────────────────────────
