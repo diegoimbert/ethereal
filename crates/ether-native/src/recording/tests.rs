@@ -464,6 +464,7 @@ fn loopback_names() {
     assert_eq!(parse_loopback("loopback:512"), Some(512));
     assert_eq!(parse_loopback("loopbackX"), None);
     assert_eq!(parse_loopback("Built-in Microphone"), None);
+    assert_eq!(parse_loopback("loopback:99999999999999"), Some(MAX_LOOPBACK));
     assert_eq!(midi::short_message(&[0x92, 1, 2]), Some([0x92, 1, 2]));
     assert_eq!(midi::short_message(&[0xc0, 5]), Some([0xc0, 5, 0]));
     assert_eq!(midi::short_message(&[0xf8]), None);
