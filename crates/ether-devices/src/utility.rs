@@ -431,6 +431,97 @@ impl Utility {
 
     /// The effects pass stages are idle (channel mode stereo, no DC filter, no
     /// bass mono): the plain loop applies.
+    /// [`Self::render`] when nothing ramps and no filter runs (the usual case): the same
+    /// products with the smoothers' constant values hoisted, so the loop vectorizes. Bit for
+    /// bit what the per-sample loop computes (`tick` returns `current` and changes nothing).
+    /// Returns false (nothing rendered) otherwise.
+    fn render_settled(
+        &mut self,
+        audio: &mut AudioBuffers<'_, '_>,
+        start: usize,
+        end: usize,
+    ) -> bool {
+        let s = &self.s;
+        let ramping = s.gain.is_smoothing()
+            || s.width.is_smoothing()
+            || s.mid.is_smoothing()
+            || s.bal.iter().chain(&s.sign).any(Smoother::is_smoothing);
+        if ramping || !self.plain() {
+            return false;
+        }
+        #[cfg(test)]
+        if tests::NO_FAST_PATH.with(std::cell::Cell::get) {
+            return false;
+        }
+        let (s0, s1) = (s.sign[0].current(), s.sign[1].current());
+        let (m, w, g) = (s.mid.current(), s.width.current(), s.gain.current());
+        let (b0, b1) = (s.bal[0].current(), s.bal[1].current());
+        let inputs = audio.inputs;
+        let silent = [0.0f32; 0];
+        let il: &[f32] = inputs.first().map_or(&silent[..], |c| &c[..]);
+        let ir: &[f32] = if inputs.len() == 1 {
+            il
+        } else {
+            inputs.get(1).map_or(&silent[..], |c| &c[..])
+        };
+        let at = |x: &[f32], i: usize| x.get(i).copied().unwrap_or(0.0);
+        let frame = |i: usize| {
+            let l = at(il, i) * s0;
+            let r = at(ir, i) * s1;
+            let mid = (l + r) * 0.5 * m;
+            let side = (l - r) * 0.5 * w;
+            ((mid + side) * b0 * g, (mid - side) * b1 * g)
+        };
+        let [mut ml, mut mr] = self.meter;
+        match audio.outputs {
+            [ol, or, rest @ ..] => {
+                if il.len() >= end && ir.len() >= end {
+                    // Full inputs: no per-sample bounds fallbacks, the loop vectorizes.
+                    let (il, ir) = (&il[start..end], &ir[start..end]);
+                    let (ol, or) = (&mut ol[start..end], &mut or[start..end]);
+                    for (((ol, or), &l), &r) in ol.iter_mut().zip(or.iter_mut()).zip(il).zip(ir) {
+                        let l = l * s0;
+                        let r = r * s1;
+                        let mid = (l + r) * 0.5 * m;
+                        let side = (l - r) * 0.5 * w;
+                        *ol = (mid + side) * b0 * g;
+                        *or = (mid - side) * b1 * g;
+                        ml = ml.max(ol.abs());
+                        mr = mr.max(or.abs());
+                    }
+                } else {
+                    for i in start..end {
+                        let (l, r) = frame(i);
+                        ol[i] = l;
+                        or[i] = r;
+                        ml = ml.max(l.abs());
+                        mr = mr.max(r.abs());
+                    }
+                }
+                for o in rest.iter_mut() {
+                    o[start..end].fill(0.0);
+                }
+            }
+            [o] => {
+                for i in start..end {
+                    let (l, r) = frame(i);
+                    o[i] = (l + r) * 0.5;
+                    ml = ml.max(l.abs());
+                    mr = mr.max(r.abs());
+                }
+            }
+            [] => {
+                for i in start..end {
+                    let (l, r) = frame(i);
+                    ml = ml.max(l.abs());
+                    mr = mr.max(r.abs());
+                }
+            }
+        }
+        self.meter = [ml, mr];
+        true
+    }
+
     fn plain(&self) -> bool {
         let route = &self.s.route;
         !self.on(params::DC_FILTER)
@@ -442,6 +533,9 @@ impl Utility {
     }
 
     fn render(&mut self, audio: &mut AudioBuffers<'_, '_>, start: usize, end: usize) {
+        if self.render_settled(audio, start, end) {
+            return;
+        }
         let inputs = audio.inputs;
         let input = |c: usize, i: usize| inputs.get(c).map_or(0.0, |ch| ch[i]);
         let mono_in = inputs.len() == 1;
@@ -563,5 +657,93 @@ impl Device for Utility {
 
     fn set_param(&mut self, id: ParamId, value: f64) {
         self.apply_param(id, value, false);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    thread_local! {
+        /// Force the per-sample loop (to compare the settled fast path against it).
+        pub(super) static NO_FAST_PATH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+
+    fn run(
+        settings: &[(ParamId, f64)],
+        mono_in: bool,
+        outs: usize,
+        slow: bool,
+    ) -> (Vec<f32>, [f32; 2]) {
+        NO_FAST_PATH.with(|c| c.set(slow));
+        let mut u = Utility::new();
+        u.prepare(&PrepareConfig {
+            sample_rate: 48_000.0,
+            max_block_size: 128,
+            max_events_per_block: 16,
+        });
+        for &(p, v) in settings {
+            u.set_param(p, v);
+        }
+        let mut seed = 7u32;
+        let mut noise = || {
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (seed >> 8) as f32 / (1u32 << 24) as f32 - 0.5
+        };
+        let mut all = Vec::new();
+        for _ in 0..4 {
+            let l: Vec<f32> = (0..128).map(|_| noise()).collect();
+            let r: Vec<f32> = (0..128).map(|_| noise()).collect();
+            let ins: Vec<&[f32]> = if mono_in { vec![&l] } else { vec![&l, &r] };
+            let mut bufs = vec![vec![0.0f32; 128]; outs];
+            {
+                let mut o: Vec<&mut [f32]> = bufs.iter_mut().map(|b| &mut b[..]).collect();
+                let mut audio = AudioBuffers {
+                    inputs: &ins,
+                    outputs: &mut o,
+                };
+                u.render(&mut audio, 0, 100);
+                u.render(&mut audio, 100, 128);
+            }
+            all.extend(bufs.into_iter().flatten());
+        }
+        NO_FAST_PATH.with(|c| c.set(false));
+        (all, u.meter)
+    }
+
+    /// The settled fast path computes exactly what the per-sample loop does.
+    #[test]
+    fn settled_fast_path_is_bit_identical() {
+        let cases: &[&[(ParamId, f64)]] = &[
+            &[],
+            &[
+                (params::GAIN, -6.0),
+                (params::PAN, 0.3),
+                (params::WIDTH, 1.5),
+            ],
+            &[(params::INVERT_L, 1.0), (params::WIDTH, 0.0)],
+            &[(params::MONO, 1.0), (params::GAIN, 3.0)],
+        ];
+        for (k, case) in cases.iter().enumerate() {
+            for mono_in in [false, true] {
+                for outs in [2, 3, 1, 0] {
+                    let fast = run(case, mono_in, outs, false);
+                    let slow = run(case, mono_in, outs, true);
+                    assert_eq!(fast.0.len(), slow.0.len());
+                    assert!(
+                        fast.0
+                            .iter()
+                            .zip(&slow.0)
+                            .all(|(a, b)| a.to_bits() == b.to_bits()),
+                        "case {k}, mono in {mono_in}, {outs} outputs"
+                    );
+                    assert_eq!(
+                        fast.1.map(f32::to_bits),
+                        slow.1.map(f32::to_bits),
+                        "case {k} meter"
+                    );
+                }
+            }
+        }
     }
 }
