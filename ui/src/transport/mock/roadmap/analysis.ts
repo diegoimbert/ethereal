@@ -8,7 +8,9 @@
  * - `Eq`: the same as `Pre` + `Post` frames (for the EQ overlay);
  * - `Tuner`: an A2 string drifting a few cents around pitch, relative to `Reference`;
  * - `Loudness`: a song-like loudness curve around -14 LUFS (verses and choruses), its
- *   history at 10 points per second and the readouts, in the engine's `Levels` layout.
+ *   history at 10 points per second and the readouts, in the engine's `Levels` layout;
+ * - `Maximizer`: drum-like peaks driven by the `Threshold` into the `Ceiling`, the gain
+ *   reduction they cost and 4 s of history (50 points per second), in the engine's layout.
  *
  * Deterministic (own PRNG, frame counter), so tests can assert on it.
  */
@@ -72,6 +74,8 @@ export class MockAnalysis {
         return [this.tuner(device.params[0] ?? 440)];
       case "Loudness":
         return [this.loudness(device.params[1] ?? 1)];
+      case "Maximizer":
+        return [this.maximizer(device.params[0] ?? 0, device.params[1] ?? -1)];
       default:
         return [];
     }
@@ -146,6 +150,28 @@ export class MockAnalysis {
         ...short,
       ],
     };
+  }
+
+  /** Input peak (dBFS) of the simulated drum loop at `t` seconds: a hit every 0.25 s. */
+  private static drumPeak(t: number): number {
+    const phase = (t * 4) % 1;
+    return -14 + 10 * Math.exp(-phase * 12) + 1.5 * Math.sin(t * 1.7);
+  }
+
+  private maximizer(threshold: number, ceiling: number): AnalysisData {
+    const t = this.frame / 30;
+    const step = 0.02;
+    const n = Math.min(200, Math.floor(t / step));
+    const at = (k: number) => t - (n - 1 - k) * step;
+    const round = (v: number) => Math.round(v * 10) / 10;
+    const input = Array.from({ length: n }, (_, k) => round(MockAnalysis.drumPeak(at(k))));
+    const gr = input.map((v) => round(Math.min(0, ceiling - (v - threshold))));
+    const output = input.map((v, k) => round(v - threshold + gr[k]!));
+    const now = MockAnalysis.drumPeak(t);
+    const grNow = Math.min(0, ceiling - (now - threshold));
+    const deepest = gr.reduce((a, b) => Math.min(a, b), 0);
+    const outMax = output.reduce((a, b) => Math.max(a, b), -90);
+    return { type: "Levels", values: [grNow, now, now - threshold + grNow, n ? outMax : -90, deepest, step, n, ...input, ...output, ...gr] };
   }
 
   private tuner(reference: number): AnalysisData {

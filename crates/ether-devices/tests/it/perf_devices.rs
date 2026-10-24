@@ -71,6 +71,15 @@ fn effects() -> Vec<(BuiltinDeviceType, Vec<(&'static str, f64)>)> {
         ),
         (Shifter, vec![("Mode/Mode", 2.0), ("Ring/Drive", 1.0)]),
         (Loudness, vec![]),
+        (Maximizer, vec![("Maximizer/Threshold", -12.0)]),
+        (
+            Maximizer,
+            vec![
+                ("Maximizer/Threshold", -12.0),
+                ("Character/Stereo Link", 50.0),
+                ("Character/Clip", 60.0),
+            ],
+        ),
         (ConvolutionReverb, vec![]),
         // The new stages switched on (the defaults above skip them).
         (
