@@ -5,9 +5,12 @@ use std::sync::Mutex;
 
 use vst3::Steinberg::IBStream_::IStreamSeekMode_::{kIBSeekCur, kIBSeekEnd, kIBSeekSet};
 use vst3::Steinberg::{
-    IBStream, IBStreamTrait, int32, int64, kInvalidArgument, kResultOk, tresult,
+    IBStream, IBStreamTrait, int32, int64, kInvalidArgument, kResultFalse, kResultOk, tresult,
 };
 use vst3::{Class, ComWrapper};
+
+/// The largest stream a plugin may write (its saved state): 1 GiB.
+const MAX_STREAM_BYTES: usize = 1 << 30;
 
 #[derive(Default)]
 struct Inner {
@@ -80,8 +83,12 @@ impl IBStreamTrait for MemoryStream {
         let n = num_bytes as usize;
         let mut s = self.lock();
         let pos = s.pos;
-        if s.data.len() < pos + n {
-            s.data.resize(pos + n, 0);
+        // A plugin's state stream (written past a seek): bounded, never an abort.
+        let Some(end) = pos.checked_add(n).filter(|&e| e <= MAX_STREAM_BYTES) else {
+            return kResultFalse;
+        };
+        if s.data.len() < end {
+            s.data.resize(end, 0);
         }
         if n > 0 {
             // SAFETY: the caller provides `num_bytes` readable bytes at `buffer`.
@@ -157,5 +164,27 @@ mod tests {
             p.write(x.as_mut_ptr().cast(), 1, std::ptr::null_mut());
         }
         assert_eq!(s.bytes(), b"hello world\0\0!");
+    }
+
+    #[test]
+    fn a_write_far_past_the_end_is_refused() {
+        let s = MemoryStream::new();
+        let p = s.to_com_ptr::<IBStream>().unwrap();
+        let mut x = *b"!";
+        unsafe {
+            assert_eq!(
+                p.seek(i64::MAX / 2, kIBSeekSet as i32, std::ptr::null_mut()),
+                kResultOk
+            );
+            assert_eq!(
+                p.write(x.as_mut_ptr().cast(), 1, std::ptr::null_mut()),
+                kResultFalse
+            );
+            let mut out = [0u8; 4];
+            let mut n = 0;
+            assert_eq!(p.read(out.as_mut_ptr().cast(), 4, &mut n), kResultOk);
+            assert_eq!(n, 0);
+        }
+        assert!(s.bytes().is_empty());
     }
 }
