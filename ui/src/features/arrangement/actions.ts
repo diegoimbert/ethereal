@@ -16,7 +16,7 @@ import { arrangementTracks } from "./layout";
 import { selectedClips, sendEdit } from "./context";
 import { useArrangementUi } from "./uiStore";
 import { reverseClipsCommand } from "@/features/clip-editing/clipEditing";
-import { consolidateIfAllowed } from "@/features/freeze";
+import { bounceIfAllowed, consolidateIfAllowed } from "@/features/freeze";
 import { exportMidiClips, midiClipsOfTracks } from "@/features/midi-file/exportMidi";
 import { asOneStep, deleteCommand, duplicateCommand, splitCommand, toggleLoopCommand } from "./editMath";
 import { getTrackClipboard } from "./clipboard";
@@ -238,7 +238,8 @@ itemSelection.subscribe((s, prev) => {
   if (s.selected.clip !== prev.selected.clip && s.selected.clip.size > 0) clipSelectedAt = ++selectionSeq;
 });
 
-export type ClipAction = "split" | "duplicate" | "delete" | "loop" | "select-all" | "deselect" | "copy" | "cut" | "paste" | "reverse" | "consolidate";
+export type ClipAction =
+  "split" | "duplicate" | "delete" | "loop" | "select-all" | "deselect" | "copy" | "cut" | "paste" | "reverse" | "consolidate" | "bounce";
 
 export function runClipAction(transport: EngineTransport, action: ClipAction): Promise<void> {
   const clips = selectedClips();
@@ -278,6 +279,10 @@ export function runClipAction(transport: EngineTransport, action: ClipAction): P
     case "consolidate":
       // Mod+J, like the clip menu's "consolidate" (frozen / rendering tracks: nothing).
       consolidateIfAllowed(transport, clips);
+      return Promise.resolve();
+    case "bounce":
+      // Mod+B, like the clip menu's "bounce to new track".
+      bounceIfAllowed(transport, clips);
       return Promise.resolve();
     case "select-all": {
       // A track selected from its header: every track; else (clips, or a track selected by a
@@ -336,6 +341,7 @@ const CLIP_KEY_ACTIONS: Record<string, ClipAction> = {
   "clip.toggleLoop": "loop",
   "clip.reverse": "reverse",
   "clip.consolidate": "consolidate",
+  "clip.bounce": "bounce",
 };
 
 /**

@@ -95,13 +95,15 @@ Le contenu s’arrête aux extrémités du fichier audio (pour le MIDI, à la de
 
 Ces raccourcis agissent sur les clips sélectionnés quand l’arrangement a le focus :
 
-| action | raccourci |
-|---|---|
-| scinder au marqueur d’insertion (ou aux bords d’une sélection temporelle) | [[action:edit.split]] |
-| dupliquer juste après le clip | [[action:edit.duplicate]] |
-| activer / désactiver la boucle | [[action:clip.toggleLoop]] |
-| inverser | [[action:clip.reverse]] |
-| supprimer | [[action:edit.delete]] |
+| action                                                                    | raccourci                   |
+| ------------------------------------------------------------------------- | --------------------------- |
+| scinder au marqueur d’insertion (ou aux bords d’une sélection temporelle) | [[action:edit.split]]       |
+| dupliquer juste après le clip                                             | [[action:edit.duplicate]]   |
+| activer / désactiver la boucle                                            | [[action:clip.toggleLoop]]  |
+| inverser                                                                  | [[action:clip.reverse]]     |
+| consolider en un clip par piste (ou la sélection temporelle)              | [[action:clip.consolidate]] |
+| rendre sur une nouvelle piste (ou la sélection temporelle)                | [[action:clip.bounce]]      |
+| supprimer                                                                 | [[action:edit.delete]]      |
 
 Le menu contextuel du clip propose les mêmes actions, plus **muet**, **renommer** et, pour les clips MIDI, **ouvrir dans le piano roll**. L’inversion est expliquée dans [clips audio](/docs/making-music/audio-clips#reverse).
 

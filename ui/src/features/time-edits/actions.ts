@@ -13,6 +13,8 @@
  * | duplicate       | ⌘D / ⇧⌘D   | paste a copy of the selection right after it, over what is there |
  * | delete          | ⌫ / ⇧⌘⌫    | remove the selected time (later material moves left)     |
  * | insert-silence  | ⇧⌘I        | insert the selection's length of silence at its start    |
+ * | consolidate     | ⌘J         | join the selection into one clip per track (the parts outside it stay) |
+ * | bounce          | ⌘B         | bounce the selection of each track to a new audio track  |
  *
  * section-edit (owner report): while a time selection exists, the PLAIN ⌘C/X/V/D and ⌫ act
  * on it (the section: clips are cut at its edges, only the span is copied), not on whole
@@ -28,7 +30,7 @@
 
 import { notify } from "@/features/notifications";
 import type { Command, TrackId } from "@/generated";
-import { freezeRangeEntries } from "@/features/freeze";
+import { bounceRangeIfAllowed, consolidateRangeIfAllowed, freezeRangeEntries } from "@/features/freeze";
 import { firstMatch, shortcutLabel, type ChordEvent } from "@/features/keymap";
 import type { ContextMenuEntry } from "@/kit";
 import { useProjectStore } from "@/state";
@@ -39,7 +41,8 @@ import { insertMarker, insertPoint, pasteTarget } from "./marker";
 import { trackRangeOf, useTimeSelection, type TimeRangeSelection } from "./store";
 import { t } from "@/i18n";
 
-export type TimeAction = "split" | "split-tracks" | "cut" | "copy" | "paste" | "paste-insert" | "duplicate" | "delete" | "insert-silence";
+export type TimeAction =
+  "split" | "split-tracks" | "cut" | "copy" | "paste" | "paste-insert" | "duplicate" | "delete" | "insert-silence" | "consolidate" | "bounce";
 
 function errorText(err: unknown): string {
   let message = String(err);
@@ -166,6 +169,12 @@ export async function runTimeAction(transport: EngineTransport, action: TimeActi
     case "delete":
       if (await send(transport, [timeEdit({ type: "DeleteTime", selection: selected!, seed: newId() })])) select(null);
       return;
+    case "consolidate":
+    case "bounce": {
+      const tracks = expandTracks(project, sel!.tracks);
+      (action === "consolidate" ? consolidateRangeIfAllowed : bounceRangeIfAllowed)(transport, sel!.start, sel!.end, tracks);
+      return;
+    }
     case "insert-silence":
       await send(transport, [
         timeEdit({
@@ -189,6 +198,8 @@ const TIME_KEY_ACTIONS: Record<string, TimeAction> = {
   "time.duplicate": "duplicate",
   "time.insertSilence": "insert-silence",
   "time.delete": "delete",
+  "clip.consolidate": "consolidate",
+  "clip.bounce": "bounce",
 };
 
 /** The plain edit actions that act on the section while a time range exists (section-edit). */
