@@ -250,7 +250,6 @@ export interface MessageArgs {
   "drum_rack.pad.label": { name: string | number };
   "drum_rack.pad.load_failed": { error: string | number };
   "drum_rack.pad.mute_label": { name: string | number };
-  "drum_rack.pad.preview_label": { name: string | number };
   "drum_rack.pad.solo_label": { name: string | number };
   "drum_rack.slice.failed": { error: string | number; name: string | number };
   "drum_rack.slices.at_tempo": { bpm: string | number };
@@ -600,6 +599,7 @@ export interface MessageArgs {
   "resolver.used_times": { count: string | number };
   "resolver.where": { names: string | number };
   "resolver.where_more": { count: number; names: string | number };
+  "reveal.failed": { error: string | number };
   "sampler.convert.key_step_n": { count: number };
   "sampler.convert.replaces": { name: string | number };
   "sampler.convert.summary": { count: number; keys: number; velocities: number };
@@ -691,6 +691,7 @@ export interface MessageArgs {
   "shell.transport.engine_status": { backend: string | number; buffer: string | number; count: number; rate: string | number };
   "shell.transport.engine_stopped": { backend: string | number };
   "shell.transport.loading_media": { done: string | number; total: string | number };
+  "shell.transport.loading_percent": { pct: string | number };
   "shell.transport.loading_plugins": { done: string | number; total: string | number };
   "shell.transport.play_key": { key: string | number };
   "shell.transport.rendering": { percent: string | number };

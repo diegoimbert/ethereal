@@ -82,6 +82,11 @@ impl<'a> Tx<'a> {
         self.project
     }
 
+    /// The ops applied so far.
+    pub fn ops(&self) -> &[Op] {
+        &self.ops
+    }
+
     pub fn apply(&mut self, op: Op) -> CmdResult<()> {
         let inverse = self.project.apply(&op).map_err(model_err)?;
         self.ops.push(op);

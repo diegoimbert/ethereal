@@ -235,6 +235,7 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
             <RecentProjects commands={commands} onDone={close} focusSearch showEmpty />
           </SubMenu>
         )}
+        {item("project:show-projects-folder")}
         {extra("start")}
         {project && (
           <>
@@ -243,6 +244,7 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
             {item("project:save-as")}
             {item("project:duplicate")}
             {item("project:rename")}
+            {item("project:show-folder")}
             {item("template:save-project")}
             <Separator />
             <div className="eth-project-menu__scale">

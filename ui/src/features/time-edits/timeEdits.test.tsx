@@ -276,6 +276,27 @@ describe("time selection", () => {
     expect(useTimeSelection.getState().selection).not.toBeNull();
   });
 
+  it("⌘J consolidates the selected range of each track with clips in it, ⌘B bounces it; both in its menu", async () => {
+    await selectTime(4, 20);
+    await key("j");
+    const ids = [track("Keys").id, track("Bass").id];
+    expect(sent.find((c) => c.domain === "Freeze")).toMatchObject({ command: { type: "Consolidate", start: 4, end: 20, tracks: ids } });
+    // Not a clip consolidate of a stale clip selection: one command.
+    expect(sent.filter((c) => c.domain === "Freeze")).toHaveLength(1);
+    sent.length = 0;
+    await key("b");
+    expect(sent.find((c) => c.domain === "Freeze")).toMatchObject({ command: { type: "BounceRange", start: 4, end: 20, tracks: ids } });
+    fireEvent.contextMenu(screen.getByTestId("arrangement-content"), { clientX: HEADER_WIDTH + 8 * PX, clientY: 5 });
+    await flush();
+    expect(screen.getByText("consolidate").parentElement!.textContent).toMatch(/(⌘|Ctrl\+)J/);
+    expect(screen.getByText("bounce to new track").parentElement!.textContent).toMatch(/(⌘|Ctrl\+)B/);
+  });
+
+  it("⌘J without a time selection or clips does nothing", async () => {
+    await key("j");
+    expect(sent.some((c) => c.domain === "Freeze")).toBe(false);
+  });
+
   it("⌘E without a time selection splits the selected tracks at the playhead", async () => {
     act(() => useArrangementUi.getState().setTrackSelection([track("Keys").id], track("Keys").id));
     await key("e");
@@ -550,6 +571,18 @@ describe("section-edit: the insert marker (Ableton's edit cursor, separate from 
     act(() => useTimeSelection.getState().setSelection({ start: 3, end: 3, tracks: [track("Bass").id] }));
     await plain("e");
     expect(timeEdits()).toMatchObject([{ type: "Split", at: 3, tracks: [track("Bass").id] }]);
+  });
+
+  it("⌘E with the marker Shift-extended over several tracks splits every one of them", async () => {
+    // The click lands on the Keys clip's body (it selects the clip, no track), the Shift-click
+    // on the Bass row at the same beat spans the marker over both tracks.
+    await click(2.2, 0);
+    await drag(screen.getByTestId("arrangement-content"), HEADER_WIDTH + 2.2 * PX, ROW + BODY_Y, 0, 0, true);
+    expect(useTimeSelection.getState().selection).toMatchObject({ start: 2, end: 2, tracks: [track("Keys").id, track("Bass").id] });
+    await plain("e");
+    expect(timeEdits()).toHaveLength(1);
+    expect(timeEdits()[0]).toMatchObject({ type: "Split", at: 2 });
+    expect(new Set((timeEdits()[0] as { tracks: string[] }).tracks)).toEqual(new Set([track("Keys").id, track("Bass").id]));
   });
 
   it("clip paste lands at the marker and moves the marker (not the playhead) to the pasted end", async () => {

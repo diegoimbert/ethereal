@@ -10,6 +10,7 @@
  */
 import type { DragEvent } from "react";
 import type { EngineTransport, Unsubscribe } from "@/transport";
+import { inPageBrowserDrag } from "@/features/browser/dragPayload";
 import { fileSource, pathSource, type ImportSource } from "./sources";
 
 /** The desktop transport's path-drop and file-dialog hooks (`TauriTransport`). */
@@ -31,9 +32,12 @@ export interface FileDragData {
   files?: ArrayLike<File> | null;
 }
 
-/** Does this drag carry OS files? (During `dragover` only the types are readable.) */
+/**
+ * Does this drag carry OS files? (During `dragover` only the types are readable.) Never
+ * while a library row is being dragged in this page (Safari can list "Files" for it).
+ */
 export function hasOsFiles(dt: FileDragData | null | undefined): boolean {
-  return !!dt && Array.from(dt.types).includes("Files");
+  return !!dt && inPageBrowserDrag() === null && Array.from(dt.types).includes("Files");
 }
 
 /** The dropped files, as import sources. */

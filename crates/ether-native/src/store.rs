@@ -811,6 +811,22 @@ impl ProjectStore for DiskStore {
         fs::read(p).map_err(io_err)
     }
 
+    fn projects_os_path(&self) -> Option<String> {
+        self.projects_root.to_str().map(str::to_string)
+    }
+
+    /// The project's folder as the store resolves it ([`Self::project_dir`]), and a
+    /// sandboxed file inside it.
+    fn project_os_path(&self, id: ProjectId, rel_path: &str) -> Option<String> {
+        let dir = self.existing_project_dir(id).ok()?;
+        let path = if rel_path.is_empty() {
+            dir
+        } else {
+            resolve_in(&dir, rel_path).ok()?
+        };
+        path.to_str().map(str::to_string)
+    }
+
     /// v0.3: delete one file (never a folder); missing = `Ok`.
     fn remove(&mut self, id: ProjectId, rel_path: &str) -> Result<(), StoreError> {
         self.flush_if_document(rel_path);
@@ -1578,6 +1594,57 @@ mod tests {
             .unwrap();
         drop(s);
         assert_eq!(fs::read_to_string(file).unwrap(), ether("last words"));
+    }
+
+    #[test]
+    fn reveal_paths_come_from_the_stores_own_folders() {
+        use ether_controller::reveal::{Resolved, resolve};
+        use ether_core::protocol::media::{MediaSource, RevealTarget};
+        let tmp = TempDir::new("store-reveal");
+        let s = {
+            let mut s = store(&tmp);
+            s.create(pid(5)).unwrap();
+            s.write(pid(5), "media/kick.wav", b"RIFF").unwrap();
+            s
+        };
+        let dir = s.project_dir(pid(5));
+        let at = |p: &Path| p.to_str().unwrap().to_string();
+        assert_eq!(s.projects_os_path(), Some(at(&s.projects_root)));
+        assert_eq!(s.project_os_path(pid(5), ""), Some(at(&dir)));
+        assert_eq!(
+            s.project_os_path(pid(5), "media/kick.wav"),
+            Some(at(&dir.join("media").join("kick.wav")))
+        );
+        assert_eq!(s.project_os_path(pid(5), "../x"), None);
+        assert_eq!(s.project_os_path(pid(5), "/etc/passwd"), None);
+        assert_eq!(s.project_os_path(pid(6), ""), None, "no such project");
+
+        let r = |t: RevealTarget| resolve(&t, &s, &s, None, |_| false);
+        assert_eq!(
+            r(RevealTarget::Projects).unwrap(),
+            Resolved {
+                path: at(&s.projects_root),
+                open: true
+            }
+        );
+        assert_eq!(
+            r(RevealTarget::Project { id: pid(5) }).unwrap(),
+            Resolved {
+                path: at(&dir),
+                open: false
+            }
+        );
+        assert_eq!(
+            r(RevealTarget::Media {
+                source: MediaSource::Location {
+                    location: BrowseLocation::Library { id: "lib".into() },
+                    path: "drums/kick.wav".into(),
+                },
+            })
+            .unwrap()
+            .path,
+            at(&tmp.path().join("lib").join("drums").join("kick.wav"))
+        );
     }
 
     #[test]

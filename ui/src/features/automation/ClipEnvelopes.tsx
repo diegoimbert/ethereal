@@ -8,15 +8,19 @@
  * - the piano roll offers them in its lane picker (`ExpressionLanes`, group "Envelope · …");
  * - the warp editor shows `ClipEnvelopeStrip` under the waveform.
  *
+ * Behind the envelope, the clip's material, like Ableton's and Bitwig's clip envelopes: the
+ * notes of a MIDI clip (`NotesBackdrop`), the waveform of an audio clip (the warp editor's),
+ * faint, so the points line up with what they shape.
+ *
  * Points are edited with the track lane's editor (`AutomationLaneView`), so every gesture,
  * modifier and menu of the README's "Automation editing" applies. The lane is created with
  * its first point; picking a parameter never touches the document.
  */
 
-import { useMemo, useState } from "react";
-import type { AutomationLane, AutomationOwner, Clip } from "@/generated";
+import { useMemo, useState, type ReactNode } from "react";
+import type { AutomationLane, AutomationOwner, Clip, Note } from "@/generated";
 import { Button, Select } from "@/kit";
-import { DEFAULT_GRID, type GridSetting, type TempoMap, type TimelineViewStore } from "@/timeline";
+import { DEFAULT_GRID, type GridSetting, type TempoMap, type TimelineViewport, type TimelineViewStore } from "@/timeline";
 import { cmd, useTransport } from "@/transport";
 import { songToContent } from "@/features/piano-roll/clipTime";
 import { AutomationLaneView } from "./AutomationLaneView";
@@ -41,10 +45,12 @@ export interface ClipEnvelopeLaneProps {
   grid?: GridSetting;
   /** Tempo map of the editor's axis (grid snapping; default: the song's). */
   tempo?: TempoMap;
+  /** The clip's material drawn faintly behind the envelope (notes, waveform), lane-sized. */
+  backdrop?: ReactNode;
 }
 
 /** One clip envelope: the automation lane editor on the clip's content axis. */
-export function ClipEnvelopeLane({ clip, target, lane, view, offset = 0, height, grid = DEFAULT_GRID, tempo }: ClipEnvelopeLaneProps) {
+export function ClipEnvelopeLane({ clip, target, lane, view, offset = 0, height, grid = DEFAULT_GRID, tempo, backdrop }: ClipEnvelopeLaneProps) {
   const t = useT();
   const owner: AutomationOwner = useMemo(() => ({ type: "Clip", clip: clip.id }), [clip.id]);
   const info = target?.info;
@@ -60,6 +66,11 @@ export function ClipEnvelopeLane({ clip, target, lane, view, offset = 0, height,
   }
   return (
     <div className="eth-auto-clip__lane" data-testid="clip-envelope" data-target={target.key} style={{ height }}>
+      {backdrop && (
+        <div className="eth-auto-clip__backdrop" aria-hidden="true">
+          {backdrop}
+        </div>
+      )}
       <AutomationLaneView
         lane={lane}
         owner={owner}
@@ -116,13 +127,15 @@ export interface ClipEnvelopeStripProps {
   labelWidth?: number;
   grid?: GridSetting;
   tempo?: TempoMap;
+  /** Drawn behind the envelope (`ClipEnvelopeLaneProps.backdrop`). */
+  backdrop?: ReactNode;
 }
 
 /**
  * A picker and one clip envelope (the warp editor's envelope area). Opens on the first
  * envelope that holds points, else on the track volume.
  */
-export function ClipEnvelopeStrip({ clip, view, offset = 0, height, labelWidth = 0, grid, tempo }: ClipEnvelopeStripProps) {
+export function ClipEnvelopeStrip({ clip, view, offset = 0, height, labelWidth = 0, grid, tempo, backdrop }: ClipEnvelopeStripProps) {
   const t = useT();
   const { targets, lanes, options } = useClipEnvelopes(clip);
   const [activeOnly, setActiveOnly] = usePickerActiveOnly();
@@ -155,9 +168,72 @@ export function ClipEnvelopeStrip({ clip, view, offset = 0, height, labelWidth =
       <div className="eth-auto-clip__row">
         {labelWidth > 0 && <div className="eth-auto-clip__label" style={{ width: labelWidth }} />}
         <div className="eth-auto-clip__body">
-          {key && <ClipEnvelopeLane key={key} clip={clip} target={target} lane={lane} view={view} offset={offset} height={height} grid={grid} tempo={tempo} />}
+          {key && (
+            <ClipEnvelopeLane
+              key={key}
+              clip={clip}
+              target={target}
+              lane={lane}
+              view={view}
+              offset={offset}
+              height={height}
+              grid={grid}
+              tempo={tempo}
+              backdrop={backdrop}
+            />
+          )}
         </div>
       </div>
     </div>
+  );
+}
+
+/** Vertical room (px) above and below the notes of `NotesBackdrop`. */
+const NOTES_PAD = 4;
+
+/**
+ * The notes of a MIDI clip as bars behind its envelope: time on the editor's axis (`vp`,
+ * the notes' own beats), pitch spread over the lane's height (lowest note at the bottom).
+ */
+export function NotesBackdrop({
+  notes,
+  vp,
+  width,
+  height,
+}: {
+  notes: ReadonlyArray<Pick<Note, "id" | "start" | "duration" | "pitch">>;
+  vp: Pick<TimelineViewport, "scrollBeats" | "pxPerBeat">;
+  width: number;
+  height: number;
+}) {
+  if (notes.length === 0 || width <= 0) return null;
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const n of notes) {
+    lo = Math.min(lo, n.pitch);
+    hi = Math.max(hi, n.pitch);
+  }
+  const rows = hi - lo + 1;
+  const usable = Math.max(1, height - 2 * NOTES_PAD);
+  // One row per pitch in the clip's range, at most 6 px tall (a narrow range stays thin).
+  const rowH = Math.min(6, usable / rows);
+  const top = NOTES_PAD + (usable - rowH * rows) / 2;
+  const x0 = vp.scrollBeats;
+  const x1 = vp.scrollBeats + width / vp.pxPerBeat;
+  return (
+    <svg className="eth-auto-clip__notes" width={width} height={height} data-testid="clip-envelope-notes">
+      {notes
+        .filter((n) => n.start < x1 && n.start + n.duration > x0)
+        .map((n) => (
+          <rect
+            key={n.id}
+            x={(n.start - x0) * vp.pxPerBeat}
+            y={top + (hi - n.pitch) * rowH}
+            width={Math.max(1, n.duration * vp.pxPerBeat - 1)}
+            height={Math.max(1, rowH - 1)}
+            rx={1}
+          />
+        ))}
+    </svg>
   );
 }

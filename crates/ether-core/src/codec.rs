@@ -729,6 +729,7 @@ impl Writer<'_> {
                 self.f64(exponent);
             }
             ParamScale::Fader => self.u8(3),
+            ParamScale::Gain => self.u8(4),
         }
         self.opt(&steps, |w, v| w.u32(*v));
     }
@@ -1260,13 +1261,14 @@ impl Reader<'_> {
         Ok(ParamMapping {
             min: self.f64()?,
             max: self.f64()?,
-            scale: match self.tag(4, "param scale")? {
+            scale: match self.tag(5, "param scale")? {
                 0 => ParamScale::Linear,
                 1 => ParamScale::Log,
                 2 => ParamScale::Power {
                     exponent: self.f64()?,
                 },
-                _ => ParamScale::Fader,
+                3 => ParamScale::Fader,
+                _ => ParamScale::Gain,
             },
             steps: self.opt(Self::u32)?,
         })

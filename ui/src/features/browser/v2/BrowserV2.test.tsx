@@ -244,6 +244,8 @@ describe("Browser v2 (indexed)", () => {
       file_kind: "Audio",
       source: { type: "Location", location: { type: "Library", id: "library" }, path: "Drums/Loops/Break 120.wav" },
     });
+    // The drag ends (the in-page payload is forgotten: a later OS drop is one again).
+    fireEvent.dragEnd(row);
   });
 
   it("rescans a root from its context menu", async () => {

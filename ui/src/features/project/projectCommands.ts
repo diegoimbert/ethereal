@@ -11,6 +11,7 @@ import { notify } from "@/features/notifications";
 import { openSettings } from "@/features/audio-settings";
 import { errorMessage } from "@/features/transport-bar/engine";
 import { useExportAudio } from "@/features/export";
+import { canReveal, reveal } from "@/features/reveal";
 import { openSnapshotPrompt, openVersions } from "@/features/versions/store";
 import { useTemplateDialog } from "@/features/templates/model";
 import { useConfirm } from "@/kit";
@@ -102,6 +103,18 @@ export function appProjectCommands(transport: EngineTransport): ProjectCommand[]
       keywords: "projects recent switch load",
       run: () => useProjectScreen.getState().show(),
     },
+    // Desktop: the projects folder in the OS file manager.
+    ...(canReveal(transport)
+      ? [
+          {
+            id: "project:show-projects-folder",
+            group: "Project",
+            label: t("project.cmd.show_projects_folder"),
+            keywords: "projects folder finder explorer file manager reveal open disk",
+            run: () => void reveal(transport, { type: "Projects" }),
+          },
+        ]
+      : []),
     ...contributed(transport, null),
   ];
 }
@@ -139,6 +152,17 @@ export function openProjectCommands(transport: EngineTransport, project: { id: s
       keywords: "name title project",
       run: () => useProjectScreen.getState().rename(),
     },
+    ...(canReveal(transport)
+      ? [
+          {
+            id: "project:show-folder",
+            group: "Project",
+            label: t("project.cmd.show_project_folder"),
+            keywords: "project folder finder explorer file manager reveal disk",
+            run: () => void reveal(transport, { type: "Project", id }),
+          },
+        ]
+      : []),
     {
       id: "template:save-project",
       group: "Templates",

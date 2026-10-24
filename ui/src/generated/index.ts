@@ -313,6 +313,7 @@ export type * from "./ReplyValue";
 export type * from "./ResolveCommand";
 export type * from "./ResolveEvent";
 export type * from "./ResolveProposal";
+export type * from "./RevealTarget";
 export type * from "./SampleCategory";
 export type * from "./SampleInfo";
 export type * from "./SampleLicense";

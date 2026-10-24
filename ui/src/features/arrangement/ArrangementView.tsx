@@ -39,7 +39,7 @@ import {
   useTimelineWheel,
   type BeatWindow,
 } from "@/timeline";
-import { isGroupFoldAnimating, useAutomationSlotHeight, useLaneMotion } from "@/features/automation";
+import { isGroupFoldAnimating, pointsInRect, registerClipHitTester, useAutomationSlotHeight, useLaneMotion } from "@/features/automation";
 import { handleTakeKey, useTakesHeight } from "@/features/comping";
 import {
   clipboardAction,
@@ -54,7 +54,7 @@ import {
 import { firstMatch, shortcutLabel } from "@/features/keymap";
 import { groupTracks, ungroupSelected, UngroupConfirmDialog } from "@/features/groups";
 import { TransportContext, useTransport, useTransportEvent } from "@/transport";
-import { actionForKey, bindSingleSelection, newTrackMenu, runClipAction, selectAtLaneClick, selectTrackEntity } from "./actions";
+import { actionForKey, bindEditedClipToSelection, bindSingleSelection, newTrackMenu, runClipAction, selectAtLaneClick, selectTrackEntity } from "./actions";
 import { dropBrowserMedia, hasBrowserDrag, hasBrowserMidiDrag, readBrowserDrag } from "./browserDrop";
 import { acceptsDevices, dropDevicesOnTrack, isDeviceDrag } from "@/features/devices/trackDrop";
 import { importMidiFile, isMidiName } from "@/features/midi-file/importMidi";
@@ -191,6 +191,7 @@ function ConnectedArrangementView() {
   useMiddleButtonPan(scrollRef, view);
   useSmoothFollow(view);
   useEffect(() => bindSingleSelection(), []);
+  useEffect(() => bindEditedClipToSelection(), []);
   // The insert marker placed while playing becomes the play start on the next stop.
   useEffect(() => bindPlayFrom(transport), [transport]);
 
@@ -276,6 +277,18 @@ function ConnectedArrangementView() {
   // time-edits: a drag selects clips; a Shift-drag makes the time section (live); shortcuts
   // and the section's menu.
   const timeEdits = useArrangementTimeEdits(transport, rowsRef);
+  // A box started in an automation lane selects the clips it crosses too (client px).
+  useEffect(
+    () =>
+      registerClipHitTester(view, (rect) => {
+        const project = useProjectStore.getState().project;
+        const box = contentRef.current?.getBoundingClientRect();
+        if (!project || !box) return [];
+        const local = { x0: rect.x0 - box.left, y0: rect.y0 - box.top, x1: rect.x1 - box.left, y1: rect.y1 - box.top };
+        return marqueeHits(local, clipRects(rowsRef.current, Object.values(project.clips), view.getState(), useArrangementUi.getState().headerWidth));
+      }),
+    [view],
+  );
   const marquee = useMarquee({
     kind: "clip",
     // The lanes start after the header column; dragging past their edges scrolls the timeline.
@@ -287,6 +300,17 @@ function ConnectedArrangementView() {
       const hw = useArrangementUi.getState().headerWidth;
       return project ? marqueeHits(rect, clipRects(rowsRef.current, Object.values(project.clips), view.getState(), hw)) : [];
     },
+    // The automation lanes it crosses: their points too (client px from content px).
+    also: [
+      {
+        kind: "automationPoint",
+        hitTest: (rect) => {
+          const box = contentRef.current?.getBoundingClientRect();
+          if (!box) return [];
+          return pointsInRect(view, { x0: rect.x0 + box.left, y0: rect.y0 + box.top, x1: rect.x1 + box.left, y1: rect.y1 + box.top });
+        },
+      },
+    ],
     onEnd: timeEdits.onMarqueeEnd,
     section: {
       ...timeEdits.section,
