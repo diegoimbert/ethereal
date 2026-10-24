@@ -8,7 +8,8 @@
 //! **Oversampling** runs the curve at 2x or 4x through linear-phase half-band filters
 //! ([`super::oversample`]), with first-order antiderivative anti-aliasing
 //! ([`crate::dsp::adaa`]) on the curve: at 24 dB of drive on a 5 kHz sine, 2x aliases at
-//! -51 to -56 dB and 4x (the default) at -64 to -89 dB, rectify aside. The device always reports the 4x latency
+//! -51 to -56 dB and 4x (the default) at -64 to -89 dB; the rectifier, whose kink aliases
+//! more, gets second-order ADAA (-41 dB at 2x, -69 dB at 4x). The device always reports the 4x latency
 //! ([`LATENCY`] samples) and pads the Off/2x paths to it, so switching modes never moves the
 //! track in time (no PDC republish) and the dry path of `Mix` stays aligned. A mode change
 //! crossfades the old and new paths over 5 ms.
@@ -177,6 +178,9 @@ impl Shape {
     fn apply_adaa(&self, st: &mut Adaa, x: f32) -> f32 {
         let u = f64::from(self.drive) * f64::from(x + self.bias);
         let c = self.curve;
+        if c == Curve::Rectify {
+            return st.tick_rectify(u) as f32 - self.offset;
+        }
         st.tick(u, |u| c.apply64(u), |u| c.integral(u)) as f32 - self.offset
     }
 }

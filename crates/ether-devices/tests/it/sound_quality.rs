@@ -1062,10 +1062,11 @@ fn multisampler_resonance_is_bounded() {
 
 /// Saturator aliasing at 24 dB of drive on a 4987 Hz sine (2x aliased at -30 to -35
 /// dB, 4x hard clipping at -39 and rectify at -19, before ADAA; the default is now 4x).
+/// Rectify has second-order ADAA (first-order left it at -24 dB at 2x, -45 at 4x).
 #[test]
 fn saturator_oversampled_curves_alias_little() {
     let x = sine(4987.0, 0.5, secs(0.8));
-    // (curve, oversampling, bound): 2x / 4x of soft, hard, tube, tape; rectify at 4x.
+    // (curve, oversampling, bound): 2x / 4x of soft, hard, tube, tape; rectify at 2x / 4x.
     let cases = [
         (0, 1, -50.0),
         (1, 1, -48.0),
@@ -1075,7 +1076,8 @@ fn saturator_oversampled_curves_alias_little() {
         (1, 2, -60.0),
         (2, 2, -70.0),
         (3, 2, -70.0),
-        (5, 2, -40.0),
+        (5, 1, -38.0),
+        (5, 2, -65.0),
     ];
     for (curve, os, bound) in cases {
         let mut d = make(
