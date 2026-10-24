@@ -13,8 +13,9 @@
 //! Changing a parent reference in place (`p.clips.get_mut(..).track = ..`) is not
 //! detected: such code must call [`Project::invalidate_index`].
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::ops::RangeInclusive;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::automation::AutomationOwner;
 use crate::entity::{Entity, EntityKey};
@@ -105,6 +106,17 @@ pub(crate) struct ProjectIndex {
     points: BTreeSet<(AutomationLaneId, AutomationPointId)>,
     expression_lanes: BTreeSet<(ClipId, ExpressionLaneId)>,
     note_expressions: BTreeSet<(NoteId, NoteExpressionId)>,
+    /// Unique per build ([`next_revision`]): revisions of different builds never match.
+    base: u64,
+    /// Per clip: the revision of its last note change since the build (absent: none).
+    note_revs: HashMap<ClipId, u64>,
+}
+
+/// Process-wide revision counter: every build and every note change takes a fresh value,
+/// so equal revisions mean the same notes, across clones of a project too.
+fn next_revision() -> u64 {
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed)
 }
 
 /// Derived data: two projects with the same tables are equal whatever their indexes.
@@ -136,6 +148,7 @@ impl ProjectIndex {
     pub(crate) fn build(p: &Project) -> Self {
         let mut ix = ProjectIndex {
             built: true,
+            base: next_revision(),
             notes: p.notes.values().map(|n| (n.clip, n.id)).collect(),
             clips: p.clips.values().map(|c| (c.track, c.id)).collect(),
             warp_markers: p.warp_markers.values().map(|m| (m.clip, m.id)).collect(),
@@ -182,7 +195,21 @@ impl ProjectIndex {
         *self = Self::default();
     }
 
+    /// A note of `link`'s clip changed (inserted, removed, edited or moved).
+    fn touch(&mut self, link: Link) {
+        if let Link::Note(clip, _) = link {
+            self.note_revs.insert(clip, next_revision());
+        }
+    }
+
+    /// `(build, revision)` of `clip`'s notes: equal values mean the same notes (the
+    /// controller's compiled-notes cache).
+    pub(crate) fn notes_revision(&self, clip: ClipId) -> (u64, u64) {
+        (self.base, self.note_revs.get(&clip).copied().unwrap_or(0))
+    }
+
     pub(crate) fn add(&mut self, link: Link) {
+        self.touch(link);
         match link {
             Link::None => {}
             Link::Note(p, c) => {
@@ -213,6 +240,7 @@ impl ProjectIndex {
     }
 
     pub(crate) fn remove(&mut self, link: Link) {
+        self.touch(link);
         match link {
             Link::None => {}
             Link::Note(p, c) => {
@@ -247,6 +275,9 @@ impl ProjectIndex {
         if old != new {
             self.remove(old);
             self.add(new);
+        } else {
+            // Edited in place (a note's start, pitch, mute...).
+            self.touch(new);
         }
     }
 

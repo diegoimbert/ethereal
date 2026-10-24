@@ -912,6 +912,13 @@ impl Project {
     }
 
     /// Notes of a clip sorted by start, then pitch.
+    /// A token of `clip`'s notes: equal tokens mean the same notes (no note of the clip was
+    /// inserted, removed, edited or moved in between, in this project or a clone of it).
+    /// `None` while the index is unusable (rows changed behind the model's back).
+    pub fn notes_revision(&self, clip: ClipId) -> Option<(u64, u64)> {
+        self.index().map(|ix| ix.notes_revision(clip))
+    }
+
     pub fn notes_of(&self, clip: ClipId) -> Vec<&Note> {
         let mut v: Vec<&Note> = match self.index() {
             Some(ix) => ix

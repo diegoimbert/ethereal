@@ -22,7 +22,7 @@ use ether_core::protocol::model::*;
 use ether_core::protocol::{ErrorCode, NotificationLevel};
 use ether_core::{NodeKey, ParamChange, ParamTarget};
 
-use crate::compile::{CompileContext, compile_graph_with};
+use crate::compile::{CompileContext, compile_graph_cached};
 use crate::doc::{DocHost, builtin_descriptor, missing_descriptor};
 use crate::tx::{CmdResult, cmd_err, unsupported};
 use crate::{BridgeError, EngineBridge};
@@ -96,6 +96,8 @@ pub struct EngineState {
     plugins_pending: Vec<DeviceId>,
     /// `plugins_pending` as last reported to the UI (`take_loading_change`).
     plugins_reported: Vec<DeviceId>,
+    /// Compiled notes per clip, reused by the next publish of the same document.
+    note_cache: crate::compile::NoteCache,
     pub graph_dirty: bool,
     /// The engine refused the last published graph for lack of capacity (the message for
     /// the user); cleared by the next accepted publish.
@@ -301,6 +303,7 @@ impl EngineState {
         self.audition.clear();
         self.midi_fx_scales.clear();
         self.created_plugins.clear();
+        self.note_cache.clear();
         self.graph_dirty = true;
     }
 
@@ -619,10 +622,11 @@ impl EngineState {
         self.version += 1;
         let mut desc = match project {
             Some(p) => {
+                let mut cache = std::mem::take(&mut self.note_cache);
                 let nodes = |d: DeviceId| self.node(d);
                 let descriptors = |d: &Device| self.descriptor(d);
                 let is_armed = |t: TrackId| armed.contains(&t);
-                compile_graph_with(
+                let desc = compile_graph_cached(
                     p,
                     &CompileContext {
                         nodes: &nodes,
@@ -630,7 +634,10 @@ impl EngineState {
                         armed: &is_armed,
                         version: self.version,
                     },
-                )
+                    &mut cache,
+                );
+                self.note_cache = cache;
+                desc
             }
             None => ether_core::RenderGraphDesc {
                 version: self.version,
