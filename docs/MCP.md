@@ -285,8 +285,9 @@ agents) and deletes the file.
 - **What an agent can do.** An agent can do what the tools allow: edit the open project
   (each edit can be undone), control the transport, save, and export audio into the
   project folder. It can't read or write arbitrary files, run commands, or open other
-  projects. The bridge speaks the full remote-engine protocol, though, so a client holding
-  the token can send any command the UI can. Treat the token like the app itself.
+  projects. The bridge only takes the agent commands (`Command::Agent`: the tools); any
+  other command is refused, and bridge clients get the replies to their own requests, not
+  the app's events (chat, collaboration, sharing).
 - **Prompt injection.** Tool results contain user-controlled text (track and clip names). The
   MCP client shows the model's tool calls, and every edit can be undone.
 
