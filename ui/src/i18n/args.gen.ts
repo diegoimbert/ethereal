@@ -531,6 +531,7 @@ export interface MessageArgs {
   "project.duplicated": { name: string | number };
   "project.export.done_file": { file: string | number; name: string | number };
   "project.export.done_path": { name: string | number; path: string | number };
+  "project.fork.from": { name: string | number };
   "project.menu.delete_confirm": { name: string | number };
   "project.names.copy": { name: string | number };
   "project.names.dated": { date: string | number };

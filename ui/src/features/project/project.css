@@ -351,6 +351,27 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* "Forked from <original>": an icon and the original's title, dim. */
+.eth-project-screen__fork {
+  display: inline-flex;
+  flex-shrink: 1;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+  max-width: 16ch;
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-project-screen__fork svg {
+  flex-shrink: 0;
+  width: var(--eth-size-icon-sm);
+  height: var(--eth-size-icon-sm);
+}
+.eth-project-screen__fork span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .eth-project-screen__date {
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);

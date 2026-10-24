@@ -1755,6 +1755,7 @@
   "project.menu.tutorials": "tutorials",
   "project.cmd.save": "save",
   "project.cmd.save_as": "save as…",
+  "project.fork.from": "forked from {name}",
   "project.cmd.duplicate": "duplicate project",
   "project.cmd.rename": "rename project",
   "project.cmd.show_projects_folder": "show projects folder",

@@ -295,7 +295,9 @@ describe("MockTransport documents", () => {
     const beat = env.store().projects.find((pr) => pr.name === "Beat sketch")!;
     const dupId = newProjectId();
     const dup = await env.mock.send(cmd("Project", { type: "Duplicate", id: beat.id, new_id: dupId, name: "Beat copy" }));
-    expect(dup).toMatchObject({ type: "Saved", project: { id: dupId, name: "Beat copy" } });
+    expect(dup).toMatchObject({ type: "Saved", project: { id: dupId, name: "Beat copy", forked_from: { project: beat.id, name: "Beat sketch" } } });
+    expect(env.store().projects.find((pr) => pr.id === dupId)?.forked_from?.project).toBe(beat.id);
+    expect(env.store().projects.find((pr) => pr.id === beat.id)?.forked_from).toBeUndefined();
     expect(env.p().id).toBe(demoId);
     await env.mock.send(cmd("Project", { type: "Rename", id: dupId, name: "Beat v2" }));
     expect(env.store().projects.find((pr) => pr.id === dupId)?.name).toBe("Beat v2");
@@ -312,6 +314,7 @@ describe("MockTransport documents", () => {
     await env.mock.send(cmd("Project", { type: "SaveAs", new_id: asId, name: "Variation" }));
     expect(env.p().id).toBe(asId);
     expect(env.p().settings.name).toBe("Variation");
+    expect(env.p().settings.forked_from?.project).toBe(demoId);
     expect(env.mock.storedProjects().map((pr) => pr.id)).toEqual(expect.arrayContaining([demoId, asId]));
   });
 

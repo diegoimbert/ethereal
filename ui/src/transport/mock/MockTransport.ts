@@ -120,6 +120,7 @@ import type {
   TrackMeter,
   TransportCommand,
   TransportState,
+  ForkOrigin,
 } from "@/generated";
 import { cmd } from "../cmd";
 import { CommandFailedError, Emitter, type EngineTransport, type SendOptions, type Unsubscribe } from "../EngineTransport";
@@ -212,6 +213,8 @@ interface StoredProject {
   json: string;
   name: string;
   modified_ms: number;
+  /** The document's `settings.forked_from`. */
+  forked_from?: ForkOrigin;
 }
 
 /** JSON round-trip: what a real host's serialization would do to the value. */
@@ -912,9 +915,9 @@ export class MockTransport implements EngineTransport {
   }
 
   private storeProject(project: Project, modified_ms: number): ProjectSummary {
-    const entry = { json: serializeEtherFile(project), name: project.settings.name, modified_ms };
+    const entry = { json: serializeEtherFile(project), name: project.settings.name, modified_ms, forked_from: project.settings.forked_from };
     this.store.set(project.id, entry);
-    return { id: project.id, name: entry.name, modified_ms };
+    return { id: project.id, name: entry.name, modified_ms, ...(entry.forked_from ? { forked_from: entry.forked_from } : {}) };
   }
 
   private summaries(): ProjectSummary[] {
@@ -924,6 +927,7 @@ export class MockTransport implements EngineTransport {
         // The current project's (possibly unsaved) name is what the user sees.
         name: id === this.project.id ? this.project.settings.name : e.name,
         modified_ms: e.modified_ms,
+        ...(e.forked_from ? { forked_from: e.forked_from } : {}),
       }))
       .sort((a, b) => b.modified_ms - a.modified_ms || a.name.localeCompare(b.name));
   }
@@ -1004,7 +1008,9 @@ export class MockTransport implements EngineTransport {
         if (c.new_id === this.project.id) return { type: "Project", project: this.project };
         const name = this.checkNewProject(c.new_id, c.name);
         const copy: Project = { ...wire(this.project), id: c.new_id };
-        copy.settings = { ...copy.settings, name };
+        // A fork, as the controller: where it came from.
+        const forked_from = { project: this.project.id, name: this.project.settings.name, created_ms: this.wallNow() };
+        copy.settings = { ...copy.settings, name, forked_from };
         const summary = this.storeProject(copy, this.wallNow());
         this.project = copy;
         this.undoStack = [];
@@ -1024,7 +1030,8 @@ export class MockTransport implements EngineTransport {
         const name = this.checkNewProject(c.new_id, c.name);
         // The open project is copied as it is now (unsaved changes included), as the controller.
         const copy: Project = { ...(c.id === this.project.id ? wire(this.project) : parseEtherFile(src.json)), id: c.new_id };
-        copy.settings = { ...copy.settings, name };
+        const forked_from = { project: c.id, name: copy.settings.name, created_ms: this.wallNow() };
+        copy.settings = { ...copy.settings, name, forked_from };
         const summary = this.storeProject(copy, this.wallNow());
         this.emitListChanged();
         return { type: "Saved", project: summary };
