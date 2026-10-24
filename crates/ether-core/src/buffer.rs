@@ -16,6 +16,17 @@ impl AudioBuffers<'_, '_> {
         }
     }
 
+    /// Replace non-finite output samples (NaN, ±inf) with silence. RT-safe, no branch per
+    /// sample (vectorizes). For outputs written by third-party code (plugins): one NaN would
+    /// otherwise spread through every node and bus downstream.
+    pub fn flush_non_finite_outputs(&mut self) {
+        for ch in self.outputs.iter_mut() {
+            for s in ch.iter_mut() {
+                *s = if s.is_finite() { *s } else { 0.0 };
+            }
+        }
+    }
+
     /// Copy inputs to outputs channel-wise (extra outputs cleared). Handy for bypass.
     pub fn pass_through(&mut self) {
         for (i, out) in self.outputs.iter_mut().enumerate() {
