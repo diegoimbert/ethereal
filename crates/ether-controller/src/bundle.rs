@@ -142,12 +142,12 @@ pub fn is_archive(bytes: &[u8]) -> bool {
 }
 
 fn rd16(b: &[u8], at: usize) -> Result<u16, String> {
-    b.get(at..at + 2)
+    b.get(at..at.saturating_add(2))
         .map(|s| u16::from_le_bytes([s[0], s[1]]))
         .ok_or_else(corrupt)
 }
 fn rd32(b: &[u8], at: usize) -> Result<u32, String> {
-    b.get(at..at + 4)
+    b.get(at..at.saturating_add(4))
         .map(|s| u32::from_le_bytes([s[0], s[1], s[2], s[3]]))
         .ok_or_else(corrupt)
 }
@@ -178,11 +178,14 @@ pub fn unpack(bytes: &[u8]) -> Result<Vec<(String, &[u8])>, String> {
         let extra_len = rd16(bytes, at + 30)? as usize;
         let comment_len = rd16(bytes, at + 32)? as usize;
         let local = rd32(bytes, at + 42)? as usize;
-        let name = bytes.get(at + 46..at + 46 + name_len).ok_or_else(corrupt)?;
+        let name = (at + 46)
+            .checked_add(name_len)
+            .and_then(|e| bytes.get(at + 46..e))
+            .ok_or_else(corrupt)?;
         let name = std::str::from_utf8(name)
             .map_err(|_| corrupt())?
             .to_string();
-        at += 46 + name_len + extra_len + comment_len;
+        at = at.saturating_add(46 + name_len + extra_len + comment_len);
 
         let wanted = name == DOCUMENT || (name.starts_with(MEDIA_PREFIX) && !name.ends_with('/'));
         if !wanted {
@@ -197,9 +200,14 @@ pub fn unpack(bytes: &[u8]) -> Result<Vec<(String, &[u8])>, String> {
         if rd32(bytes, local)? != LOCAL_SIG {
             return Err(corrupt());
         }
-        let start =
-            local + 30 + rd16(bytes, local + 26)? as usize + rd16(bytes, local + 28)? as usize;
-        let data = bytes.get(start..start + size).ok_or_else(corrupt)?;
+        // Checked: on 32-bit (the web) these sums of header fields can overflow.
+        let start = local
+            .checked_add(30 + rd16(bytes, local + 26)? as usize + rd16(bytes, local + 28)? as usize)
+            .ok_or_else(corrupt)?;
+        let data = start
+            .checked_add(size)
+            .and_then(|e| bytes.get(start..e))
+            .ok_or_else(corrupt)?;
         if crc32(data) != crc {
             return Err(format!(
                 "{name} is damaged in the bundle (checksum mismatch)"
