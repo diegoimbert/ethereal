@@ -69,7 +69,7 @@ impl LoadState {
 
     /// The progress of the load in progress.
     pub fn progress(&self) -> Option<LoadProgress> {
-        self.current.as_ref().map(|l| l.progress)
+        self.current.as_ref().map(|l| l.progress.clone())
     }
 }
 
@@ -160,6 +160,11 @@ where
             plugins_total,
             media_loaded: load.media_total - pending_media,
             media_total: load.media_total,
+            media_pending: if pending_media == 0 {
+                Vec::new()
+            } else {
+                self.media.load_job_media()
+            },
         };
         // Ready: no plugin waits, the last graph was accepted, no media left to load (or
         // the project was closed, or the engine turned off).

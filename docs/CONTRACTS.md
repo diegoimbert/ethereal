@@ -1828,7 +1828,8 @@ all-notes-off, re-sends automation, chases notes and lets the mixer smoothers ju
 targets. With plugins, the load then lasts `PRIME_MS` (150 ms) more of rendered audio by the
 engine's clock (the plugins' first blocks, often slow, run with the transport stopped;
 `PRIME_TIMEOUT_MS` if that clock stands still). Meanwhile `TransportState::loading`
-carries `LoadProgress` (plugins and media, done / total) and `Transport::{Play, Stop,
+carries `LoadProgress` (plugins and media, done / total, and the media still decoding:
+`media_pending`, so each track and clip shows as ready once its own media are) and `Transport::{Play, Stop,
 TogglePlay}` and `Recording::SetRecording` are refused (`InvalidState`,
 `error.project.loading`) before extensions see them: the UI, its shortcuts, MIDI-mapped
 controls, the agent tools and the API alike. Locate works. Edits work as usual: they apply

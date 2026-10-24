@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::model::{BeatRange, Beats, Seconds, TimeSignature};
+use crate::model::{BeatRange, Beats, MediaId, Seconds, TimeSignature};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
@@ -92,7 +92,7 @@ pub struct RenderingState {
 }
 
 /// How far the open project's load is ([`TransportState::loading`]).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
 pub struct LoadProgress {
     /// Plugin devices instantiated (or failed) of `plugins_total`.
     pub plugins_loaded: u32,
@@ -100,6 +100,12 @@ pub struct LoadProgress {
     /// Media files decoded (or found missing) of `media_total`.
     pub media_loaded: u32,
     pub media_total: u32,
+    /// The media still decoding (of the `media_total`): what isn't ready yet, so the UI
+    /// shows each track and clip as ready as soon as its own media are. Empty (absent)
+    /// once all are in.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[ts(optional, as = "Option<Vec<MediaId>>")]
+    pub media_pending: Vec<MediaId>,
 }
 
 /// High-rate playhead stream (~30-60 Hz), delivered via `EngineTransport.subscribePlayhead`.

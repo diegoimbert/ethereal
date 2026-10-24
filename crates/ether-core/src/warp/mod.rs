@@ -10,10 +10,16 @@
 //!   [`Stretcher::set_transpose_semitones`], Complex+'s formant settings to
 //!   [`Stretcher::set_formants`]. Each mode has its own factory and voices. Without a
 //!   stretcher (no factory: a build without the stretch feature, the voice limit reached,
-//!   or not provisioned yet) the clip falls back to Repitch. Where the mapping plays the
-//!   source at its own speed (ratio 1) and the clip isn't transposed (nor its formants
-//!   shifted), there is nothing to stretch: the clip plays like Repitch, which is then
-//!   exact, and needs no stretcher.
+//!   or not provisioned yet) the clip falls back to Repitch.
+//! - **Unit rate**: where the mapping plays the source at its own speed (ratio 1) and the
+//!   clip isn't transposed (nor its formants shifted), there is nothing to stretch: the clip
+//!   reads its source straight ([`sched::render_audio`]), bit for bit what the same clip
+//!   unwarped plays, with no stretcher latency or smearing. Where the clip goes in or out of
+//!   that state while playing on (a marker between a stretched and a 1:1 stretch, tempo
+//!   automation, a transpose edit) the two paths crossfade over [`PATH_XFADE_SECONDS`]: the
+//!   stretcher keeps running through the fade out, and seeks (pre-rolled, latency
+//!   compensated like after any jump) to come back in, so both are at the same source
+//!   position.
 //! - **Transposition envelope** (`AutomationTarget::ClipTranspose`, semitones added to the
 //!   clip transpose): Complex sets the stretcher's transposition at every chunk it renders
 //!   (≤ the stretcher's output block, a few ms); Repitch integrates the varying playback
@@ -88,6 +94,11 @@ const CONTINUITY_EPS: f64 = 1e-6;
 /// Tolerance on the source frames per output sample under which a Complex clip plays at its
 /// own speed (no stretching needed).
 const UNIT_RATE_EPS: f64 = 1e-9;
+/// Crossfade between the stretcher and the straight read when a playing clip goes in or out
+/// of unit rate (seconds).
+const PATH_XFADE_SECONDS: f64 = 0.005;
+/// [`Voice::xf`] of a voice with no crossfade under way.
+const XF_DONE: usize = usize::MAX;
 /// Documented worst-case onset delay after a seek (Signalsmith fades primed output in over
 /// about two of its 30 ms intervals). Tests assert the signal is back within this.
 #[cfg(test)]
@@ -466,6 +477,11 @@ pub(crate) struct Voice {
     next_c: f64,
     /// Next source frame to feed (integer-valued).
     next_src: f64,
+    /// The clip read its source straight (unit rate) in the last sub-block, instead of
+    /// through the stretcher.
+    direct: bool,
+    /// Samples into the crossfade to the current path ([`Voice::direct`]), or [`XF_DONE`].
+    xf: usize,
 }
 
 /// Audio-thread half (lives in `Engine`).
@@ -499,6 +515,8 @@ impl WarpRt {
                                 used_until: 0,
                                 next_c: f64::NAN,
                                 next_src: 0.0,
+                                direct: false,
+                                xf: XF_DONE,
                             },
                         );
                     }
@@ -583,6 +601,17 @@ unsafe impl Sync for WarpTable {}
 /// Complex-warped clips).
 #[derive(Debug)]
 pub(crate) struct WarpScratch {
+    st: StretchScratch,
+    /// A sub-block of each path while they crossfade (stretched, straight).
+    xs: [Vec<f32>; 2],
+    xd: [Vec<f32>; 2],
+    /// [`PATH_XFADE_SECONDS`] in samples.
+    xf_len: usize,
+}
+
+/// The stretcher's feed and output buffers.
+#[derive(Debug)]
+struct StretchScratch {
     in_l: Vec<f32>,
     in_r: Vec<f32>,
     out_l: Vec<f32>,
@@ -596,20 +625,27 @@ impl WarpScratch {
         let max_block = max_block.max(1);
         let seek_len = (sample_rate * SEEK_SECONDS).ceil() as usize;
         let in_cap = (max_block * INPUT_HEADROOM).max(seek_len);
+        let block = || vec![0.0; max_block];
         Self {
-            in_l: vec![0.0; in_cap],
-            in_r: vec![0.0; in_cap],
-            out_l: vec![0.0; max_block],
-            out_r: vec![0.0; max_block],
-            seek_len,
+            st: StretchScratch {
+                in_l: vec![0.0; in_cap],
+                in_r: vec![0.0; in_cap],
+                out_l: block(),
+                out_r: block(),
+                seek_len,
+            },
+            xs: [block(), block()],
+            xd: [block(), block()],
+            xf_len: ((sample_rate * PATH_XFADE_SECONDS).round() as usize).max(1),
         }
     }
 }
 
 /// RT. Render (add) one audio clip for the sub-block: through a stretcher voice of the
-/// track (of the clip's mode) when it is Complex- or Complex+-warped, needs stretching and a
-/// voice is available, else by resampling ([`sched::render_audio`]). Returns `false` on a
-/// source underrun.
+/// track (of the clip's mode) when it is Complex- or Complex+-warped and a voice is
+/// available, else by resampling ([`sched::render_audio`]). A voice's clip at unit rate
+/// reads its source straight (see the module docs), crossfading with the stretcher where it
+/// changes path while playing on. Returns `false` on a source underrun.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn render(
     voices: &mut [Voice],
@@ -621,64 +657,123 @@ pub(crate) fn render(
     out: [&mut [f32]; 2],
     src_scratch: &mut [f32],
 ) -> bool {
-    if let (Some((kind, w)), Some(scratch)) = (stretched_warp(clip), scratch)
-        && !voices.is_empty()
-    {
-        // This mode's voices (the track's are sorted by kind).
-        let from = voices
-            .iter()
-            .position(|v| v.key.kind == kind)
-            .unwrap_or(voices.len());
-        let to = voices[from..]
-            .iter()
-            .position(|v| v.key.kind != kind)
-            .map_or(voices.len(), |n| from + n);
-        let voices = &mut voices[from..to];
-        let mine = voices
-            .iter()
-            .position(|v| v.clip.is_some_and(|(id, _, _)| id == clip.id));
-        let ClipContentDesc::Audio {
-            transpose,
-            transpose_envelope,
-            ..
-        } = &clip.content
-        else {
-            unreachable!("complex_warp: audio clips only")
-        };
-        let shifts_formants = kind == Kind::Plus && w.formants.shift != 0.0;
-        if *transpose == 0.0
-            && transpose_envelope.is_none()
-            && !shifts_formants
-            && unit_rate(clip, w, ref_bpm, timing)
-        {
-            // Nothing to stretch: play it straight, and give the voice back (it seeks if
-            // the clip needs stretching again).
-            if let Some(i) = mine {
-                voices[i].clip = None;
-                voices[i].next_c = f64::NAN;
-            }
+    let (Some((kind, w)), Some(scratch)) = (stretched_warp(clip), scratch) else {
+        return sched::render_audio(clip, source, ref_bpm, timing, out, src_scratch);
+    };
+    // This mode's voices (the track's are sorted by kind).
+    let from = voices
+        .iter()
+        .position(|v| v.key.kind == kind)
+        .unwrap_or(voices.len());
+    let to = voices[from..]
+        .iter()
+        .position(|v| v.key.kind != kind)
+        .map_or(voices.len(), |n| from + n);
+    let voices = &mut voices[from..to];
+    let mine = voices
+        .iter()
+        .position(|v| v.clip.is_some_and(|(id, _, _)| id == clip.id));
+    let ClipContentDesc::Audio {
+        transpose,
+        transpose_envelope,
+        ..
+    } = &clip.content
+    else {
+        unreachable!("complex_warp: audio clips only")
+    };
+    let shifts_formants = kind == Kind::Plus && w.formants.shift != 0.0;
+    let direct = *transpose == 0.0
+        && transpose_envelope.is_none()
+        && !shifts_formants
+        && unit_rate(clip, w, ref_bpm, timing);
+    let free = |v: &Voice| match v.clip {
+        None => true,
+        Some((_, start, end)) => {
+            v.used_until < timing.sample_time || end <= timing.b0 || start >= timing.b1
+        }
+    };
+    let Some(i) = mine.or_else(|| voices.iter().position(free)) else {
+        // No voice: Repitch (exact at unit rate).
+        return sched::render_audio(clip, source, ref_bpm, timing, out, src_scratch);
+    };
+    let v = &mut voices[i];
+    // Playing on from the sub-block just before, through this voice: a change of path
+    // crossfades.
+    let playing_on = mine.is_some() && v.used_until == timing.sample_time;
+    if mine.is_none() {
+        v.clip = Some((clip.id, clip.start, clip.start + clip.length));
+        v.next_c = f64::NAN;
+    }
+    let xf_len = scratch.xf_len;
+    if !playing_on {
+        v.xf = XF_DONE;
+    } else if v.direct != direct {
+        // Back the other way from where a crossfade under way got to.
+        v.xf = xf_len - v.xf.min(xf_len);
+    }
+    v.direct = direct;
+    v.used_until = timing.sample_time + timing.frames as u64;
+    if v.xf >= xf_len {
+        v.xf = XF_DONE;
+        if direct {
+            // The stretcher seeks when the clip needs it again.
+            v.next_c = f64::NAN;
             return sched::render_audio(clip, source, ref_bpm, timing, out, src_scratch);
         }
-        if voices.is_empty() {
-            return sched::render_audio(clip, source, ref_bpm, timing, out, src_scratch);
-        }
-        let free = |v: &Voice| match v.clip {
-            None => true,
-            Some((_, start, end)) => {
-                v.used_until < timing.sample_time || end <= timing.b0 || start >= timing.b1
-            }
+        return render_complex(v, &mut scratch.st, clip, w, source, ref_bpm, timing, out);
+    }
+    // Crossfade: both paths into scratch, mixed into `out`. The stretcher plays on through
+    // its fade-out, or seeks to fade in.
+    let n = out[0].len();
+    let [xs_l, xs_r] = &mut scratch.xs;
+    let [xd_l, xd_r] = &mut scratch.xd;
+    for b in [&mut *xs_l, &mut *xs_r, &mut *xd_l, &mut *xd_r] {
+        b[..n].fill(0.0);
+    }
+    let mut ok = sched::render_audio(
+        clip,
+        source,
+        ref_bpm,
+        timing,
+        [&mut xd_l[..n], &mut xd_r[..n]],
+        src_scratch,
+    );
+    ok &= render_complex(
+        v,
+        &mut scratch.st,
+        clip,
+        w,
+        source,
+        ref_bpm,
+        timing,
+        [&mut xs_l[..n], &mut xs_r[..n]],
+    );
+    let [dst_l, dst_r] = out;
+    for k in 0..n {
+        // Equal power: the two paths carry the same audio, not in phase.
+        let x = (v.xf + k) as f32 / xf_len as f32;
+        let (g_new, g_old) = if x >= 1.0 {
+            (1.0, 0.0)
+        } else {
+            let x = x * std::f32::consts::FRAC_PI_2;
+            (x.sin(), x.cos())
         };
-        if let Some(i) = mine.or_else(|| voices.iter().position(free)) {
-            let v = &mut voices[i];
-            if mine.is_none() {
-                v.clip = Some((clip.id, clip.start, clip.start + clip.length));
-                v.next_c = f64::NAN;
-            }
-            v.used_until = timing.sample_time + timing.frames as u64;
-            return render_complex(v, scratch, clip, w, source, ref_bpm, timing, out);
+        let (g_d, g_s) = if direct {
+            (g_new, g_old)
+        } else {
+            (g_old, g_new)
+        };
+        dst_l[k] += xd_l[k] * g_d + xs_l[k] * g_s;
+        dst_r[k] += xd_r[k] * g_d + xs_r[k] * g_s;
+    }
+    v.xf += n;
+    if v.xf >= xf_len {
+        v.xf = XF_DONE;
+        if direct {
+            v.next_c = f64::NAN;
         }
     }
-    sched::render_audio(clip, source, ref_bpm, timing, out, src_scratch)
+    ok
 }
 
 /// The clip plays its source at its own speed over the whole sub-block: one source frame
@@ -706,7 +801,7 @@ fn unit_rate(clip: &ClipDesc, warp: &WarpDesc, ref_bpm: f64, timing: &Timing<'_>
 #[allow(clippy::too_many_arguments)]
 fn render_complex(
     voice: &mut Voice,
-    scratch: &mut WarpScratch,
+    scratch: &mut StretchScratch,
     clip: &ClipDesc,
     warp: &WarpDesc,
     source: &dyn AudioSource,
@@ -724,7 +819,7 @@ fn render_complex(
         return true;
     };
     let transpose_env = transpose_envelope.as_ref().map(|t| &t.env);
-    let WarpScratch {
+    let StretchScratch {
         in_l,
         in_r,
         out_l,
