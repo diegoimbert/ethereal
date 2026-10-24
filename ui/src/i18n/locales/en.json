@@ -1212,6 +1212,7 @@
   "shell.action.clip_toggle_loop": "clip loop on / off",
   "shell.action.clip_reverse": "reverse clip / selected notes",
   "shell.action.clip_consolidate": "consolidate selected clips",
+  "shell.action.track_toggle_mute": "mute / unmute selection",
   "shell.action.track_group": "group selected tracks",
   "shell.action.track_ungroup": "ungroup",
   "shell.action.track_add_audio": "add audio track",
