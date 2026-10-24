@@ -124,6 +124,7 @@ Gestures and modifiers (for UX review). `⌘` is Ctrl off macOS.
 | Lane, dragging | `⌥` held | precision: time off the grid (the app-wide meaning) and the point moves 1/10 of the pointer's motion, counted from the press, so pressing or releasing it mid-drag never jumps (`precisionDrag`). With `⇧`, `⇧`'s increments win for the value; only the time is slowed. The tempo and expression lanes do the same |
 | Lane, dragging | `⌘` held | lock to the dominant axis |
 | Lane, dragging | — | a tooltip shows the value and these modifiers (from the keymap's `POINT_DRAG_GESTURES`) |
+| Lane | drag the line (within 6 px of it, not on a point) | move that segment up/down: its two points' values, times kept (before the first / after the last point: that point), like Ableton and Bitwig; the two points become the selection. Value rules of a point drag (steps, `⇧` increments, `⌥` precision); a click without moving is a click on the lane. The cursor shows `ns-resize` over the line |
 | Lane | `⌥`-drag a segment | bend it (curve tension) |
 | Lane | double-click a point | delete it |
 | Lane (focused) | `⌘C` / `⌘X` / `⌘V` / `⌘D` | copy / cut / paste at the selection cursor / duplicate right after the selection |

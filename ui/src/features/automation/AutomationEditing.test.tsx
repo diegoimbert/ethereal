@@ -11,6 +11,7 @@ import { pickOption } from "@/kit/testing";
 import { AutomationToggleButton } from "./AutomationToggleButton";
 import { clearPointClipboard, pointClipboard } from "./clipboard";
 import { LANE_PAD } from "./geometry";
+import { evaluatePoints } from "./curve";
 import { TrackAutomationLanes } from "./index";
 import { VOLUME_INFO } from "./params";
 import { resetTimeSelection, useTimeSelection } from "@/features/time-edits/store";
@@ -562,5 +563,51 @@ describe("unmount mid-drag (#591)", () => {
     } finally {
       window.removeEventListener("error", onError);
     }
+  });
+});
+
+describe("dragging the line", () => {
+  const svgOf = () => lanes()[0]!.querySelector('[data-testid="automation-lane-svg"]')!;
+  const lineY = (lane: string, t: number) => y(evaluatePoints(lanePoints(lane), t)!);
+
+  it("a plain drag on a segment moves its two points up or down, times kept, as one undo step", async () => {
+    const track = await renderLanes();
+    const lane = laneOf(track, "TrackVolume")!;
+    const [a, b, c] = lanePoints(lane.id);
+    const at: [number, number] = [40, lineY(lane.id, 4)];
+    // Down (up would clamp the pair at the top: 0.9 is near it).
+    await drag(svgOf(), at, [at[0] + 7, at[1] + 10]);
+    const lift = -10 / (LANE_HEIGHT - 2 * LANE_PAD);
+    expect(project().automation_points[a!.id]).toMatchObject({ time: a!.time });
+    expect(project().automation_points[b!.id]).toMatchObject({ time: b!.time });
+    expect(project().automation_points[a!.id]!.value).toBeCloseTo(a!.value + lift, 6);
+    expect(project().automation_points[b!.id]!.value).toBeCloseTo(b!.value + lift, 6);
+    expect(project().automation_points[c!.id]!.value).toBe(c!.value);
+    // The segment's points are the selection.
+    expect([...itemSelection.getState().selected.automationPoint].sort()).toEqual([a!.id, b!.id].sort());
+    await send(cmd("Edit", { type: "Undo" }));
+    expect(project().automation_points[a!.id]!.value).toBe(a!.value);
+    expect(project().automation_points[b!.id]!.value).toBe(b!.value);
+  });
+
+  it("the hold after the last point moves that point; a click on the line changes nothing", async () => {
+    const track = await renderLanes();
+    const lane = laneOf(track, "TrackVolume")!;
+    const before = lanePoints(lane.id);
+    const last = before[before.length - 1]!;
+    await drag(svgOf(), [300, lineY(lane.id, 30)], [300, lineY(lane.id, 30)]);
+    expect(lanePoints(lane.id)).toEqual(before);
+    // Away from the click (two presses in one spot are a double-click: a new point).
+    await drag(svgOf(), [360, lineY(lane.id, 36)], [360, lineY(lane.id, 36) + 8]);
+    expect(project().automation_points[last.id]!.value).toBeLessThan(last.value);
+    expect(lanePoints(lane.id).slice(0, -1)).toEqual(before.slice(0, -1));
+  });
+
+  it("away from the line, a drag is still a selection box", async () => {
+    const track = await renderLanes();
+    const lane = laneOf(track, "TrackVolume")!;
+    const before = lanePoints(lane.id);
+    await drag(svgOf(), [40, LANE_HEIGHT - 2], [100, LANE_HEIGHT - 3]);
+    expect(lanePoints(lane.id)).toEqual(before);
   });
 });
