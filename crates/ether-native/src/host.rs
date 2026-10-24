@@ -22,7 +22,7 @@
 use ether_controller::text::{Msg, msg};
 use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -321,6 +321,8 @@ fn recovered_warning(data_dir: &std::path::Path) -> Option<Msg> {
 /// The running native host. Methods are callable from any thread (Tauri commands).
 pub struct NativeHost {
     tx: Sender<HostMsg>,
+    /// Client messages queued and not handled yet ([`NativeHost::backlog`]).
+    backlog: Arc<AtomicUsize>,
     subscriber: Arc<Mutex<Option<Subscriber>>>,
     controller_thread: Option<JoinHandle<()>>,
     gc_stop: Arc<AtomicBool>,
@@ -575,6 +577,7 @@ impl NativeHost {
         };
 
         let (tx, rx) = unbounded();
+        let backlog: Arc<AtomicUsize> = Arc::default();
         let subscriber: Arc<Mutex<Option<Subscriber>>> = Arc::default();
         let plugins = PluginHost::new(options.main_thread);
         let plugin_db = config.data_dir.join("plugin-db");
@@ -608,6 +611,8 @@ impl NativeHost {
         let patch_compat = options.patch_compat;
         let health = plugins.health().clone();
         let ctx = ControllerThread {
+            backlog: backlog.clone(),
+            retries: Arc::default(),
             health: health.clone(),
             rx,
             tx: tx.clone(),
@@ -671,6 +676,7 @@ impl NativeHost {
 
         Ok(Self {
             tx,
+            backlog,
             subscriber,
             controller_thread: Some(controller_thread),
             gc_stop,
@@ -695,9 +701,17 @@ impl NativeHost {
 
     /// Queue a client message (never blocks).
     pub fn send(&self, message: ClientMessage) -> Result<(), HostError> {
-        self.tx
-            .send(HostMsg::Client(message))
-            .map_err(|_| HostError::Stopped)
+        self.backlog.fetch_add(1, Ordering::Relaxed);
+        self.tx.send(HostMsg::Client(message)).map_err(|_| {
+            self.backlog.fetch_sub(1, Ordering::Relaxed);
+            HostError::Stopped
+        })
+    }
+
+    /// Client messages queued and not handled yet. A remote server stops reading its
+    /// clients while this is high (backpressure: [`send`](Self::send) never blocks).
+    pub fn backlog(&self) -> usize {
+        self.backlog.load(Ordering::Relaxed)
     }
 
     /// Queue a JSON-encoded `ClientMessage`.
@@ -1148,6 +1162,10 @@ fn command_label(msg: &ClientMessage) -> String {
 }
 
 struct ControllerThread {
+    /// [`NativeHost::backlog`]: decremented as client messages are handled.
+    backlog: Arc<AtomicUsize>,
+    /// `Plugin::RetryScan`s running (each is a scanner process): at most [`MAX_RETRIES`].
+    retries: Arc<AtomicUsize>,
     /// Marks each step (command, tick) for the watchdog.
     health: Arc<Health>,
     rx: Receiver<HostMsg>,
@@ -1195,6 +1213,7 @@ impl ControllerThread {
                     while let Some(msg) = next.take() {
                         match msg {
                             HostMsg::Client(msg) => {
+                                self.backlog.fetch_sub(1, Ordering::Relaxed);
                                 let health = self.health.clone();
                                 let _step = health.controller_step(Work::Command);
                                 let started = Instant::now();
@@ -1674,6 +1693,22 @@ impl ControllerThread {
                 "plugin scanner binary not found",
             ));
         };
+        if self.retries.fetch_add(1, Ordering::SeqCst) >= MAX_RETRIES {
+            self.retries.fetch_sub(1, Ordering::SeqCst);
+            return reply_now(reply_err(
+                id,
+                ErrorCode::InvalidState,
+                format!("{MAX_RETRIES} rescans are already running"),
+            ));
+        }
+        // Released when the retry thread ends (or never starts).
+        struct Running(Arc<AtomicUsize>);
+        impl Drop for Running {
+            fn drop(&mut self) {
+                self.0.fetch_sub(1, Ordering::SeqCst);
+            }
+        }
+        let running = Running(self.retries.clone());
         let runner = runner.with_timeout(retry_timeout(timeout_ms));
         let tx = self.tx.clone();
         let catalog = self.catalog.clone();
@@ -1683,6 +1718,7 @@ impl ControllerThread {
         let spawned = std::thread::Builder::new()
             .name("ether-plugin-retry".into())
             .spawn(move || {
+                let _running = running;
                 let scan = runner.scan_one(&target);
                 {
                     let _db = scan_db.lock().unwrap_or_else(|e| e.into_inner());
@@ -1731,6 +1767,9 @@ impl ControllerThread {
         }
     }
 }
+
+/// `Plugin::RetryScan`s at once (each runs a scanner process).
+const MAX_RETRIES: usize = 4;
 
 /// Default timeout of `Plugin::RetryScan`, and its bounds.
 const RETRY_TIMEOUT: Duration = Duration::from_secs(90);

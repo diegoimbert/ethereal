@@ -138,3 +138,18 @@ fn json_messages_and_bad_input() {
     assert!(c.host().send_json("{not json").is_err());
     c.quit();
 }
+
+/// `NativeHost::backlog` counts client messages queued and not handled yet: it goes back to
+/// zero once their replies are in (a server reads its clients only while it is low).
+#[test]
+fn the_client_backlog_drains() {
+    let tmp = TempDir::new("null-host-backlog");
+    let mut c = Client::start(&Paths::new(tmp.path()));
+    let ids: Vec<u32> = (0..200)
+        .map(|_| c.post("Transport", json!({"type": "Stop"}), None))
+        .collect();
+    for id in ids {
+        let _ = c.reply(id);
+    }
+    assert_eq!(c.host().backlog(), 0);
+}
