@@ -95,13 +95,15 @@ The content stops at the ends of the audio file (for MIDI, at the last note). So
 
 These shortcuts act on the selected clips while the arrangement has the focus:
 
-| action | shortcut |
-|---|---|
-| split at the insert marker (or at the edges of a time selection) | [[action:edit.split]] |
-| duplicate right after the clip | [[action:edit.duplicate]] |
-| loop on / off | [[action:clip.toggleLoop]] |
-| reverse | [[action:clip.reverse]] |
-| delete | [[action:edit.delete]] |
+| action                                                           | shortcut                    |
+| ---------------------------------------------------------------- | --------------------------- |
+| split at the insert marker (or at the edges of a time selection) | [[action:edit.split]]       |
+| duplicate right after the clip                                   | [[action:edit.duplicate]]   |
+| loop on / off                                                    | [[action:clip.toggleLoop]]  |
+| reverse                                                          | [[action:clip.reverse]]     |
+| consolidate into one clip per track (or the time selection)      | [[action:clip.consolidate]] |
+| bounce to a new track (or the time selection)                    | [[action:clip.bounce]]      |
+| delete                                                           | [[action:edit.delete]]      |
 
 The clip's right-click menu has the same actions, plus **mute**, **rename** and, for MIDI clips, **open in piano roll**. Reverse is explained in [audio clips](/docs/making-music/audio-clips#reverse).
 
