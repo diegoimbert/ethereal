@@ -189,6 +189,9 @@ impl MemoryStore {
             modified_ms: p.modified_ms as f64,
             ext: summary_ext(&mut |f| p.files.get(f).cloned()),
             forked_from: serde_json::from_value(settings["forked_from"].clone()).ok(),
+            // Status (archive, bin): the controller's (`project_status`).
+            archived: false,
+            binned_ms: None,
         }
     }
 }

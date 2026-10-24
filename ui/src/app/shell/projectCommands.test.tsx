@@ -1,7 +1,6 @@
 // Project entries of the command palette (`buildCommands`).
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { ConfirmDialog } from "@/kit";
 import { MidiLearnRoot } from "@/features/midi-learn";
 import { useMidiLearnStore } from "@/features/midi-learn/store";
 import { MIDI_MODE_CLASS } from "@/features/midi-learn/useMidiMode";
@@ -9,6 +8,7 @@ import { useNotices } from "@/features/notifications";
 import { useProjectScreen } from "@/features/project/screenStore";
 import { renderWithMock, resetStores } from "@/features/transport-bar/testUtils";
 import { useProjectStore } from "@/state";
+import { cmd } from "@/transport";
 import { ProjectMenu } from "@/features/project";
 import { CommandPalette } from "./CommandPalette";
 import { buildCommands } from "./commands";
@@ -60,7 +60,7 @@ describe("palette: project commands", () => {
       // The versions dialog, and a named version.
       "versions…",
       "save snapshot…",
-      "delete project…",
+      "move project to the bin",
     ]);
     // No engine: no project entries.
     expect(buildCommands(null, []).some((c) => c.group === "Project")).toBe(false);
@@ -129,19 +129,13 @@ describe("palette: project commands", () => {
     }
   });
 
-  it("delete project… in the palette asks first, then deletes the open project", async () => {
-    const { mock } = await renderWithMock(
-      <>
-        <CommandPalette />
-        <ConfirmDialog />
-      </>,
-    );
+  it("move project to the bin in the palette bins the open project (restorable: no question)", async () => {
+    const { mock } = await renderWithMock(<CommandPalette />);
     const id = useProjectStore.getState().project!.id;
     act(() => byId(buildCommands(mock, []), "project:delete")!.run());
-    const dialog = await screen.findByRole("dialog", { name: /delete “Demo”\?/ });
-    expect(useProjectStore.getState().projects.some((p) => p.id === id)).toBe(true);
-    fireEvent.click(within(dialog).getByRole("button", { name: "delete" }));
     await waitFor(() => expect(useProjectStore.getState().projects.some((p) => p.id === id)).toBe(false));
+    const binned = await mock.send(cmd("Project", { type: "ListBin" }));
+    expect(binned.type === "Projects" && binned.projects.map((p) => p.id)).toEqual([id]);
   });
 
   it("are found by typing in the palette", async () => {

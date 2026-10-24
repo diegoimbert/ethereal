@@ -57,19 +57,51 @@ function curveOf(device: Device): LfoCurve {
 }
 
 export function LfoCurveWidget({ widget: w, size, label }: { widget: Spec; size: WidgetSize; label: string | null }) {
-  const t = useT();
-  const ctx = useLayoutContext();
-  const { sender, device } = ctx;
-  const doc = curveOf(device);
+  const { sender, device } = useLayoutContext();
   const sync = useParam(w.sync);
   const syncRate = useParam(w.sync_rate);
   const rate = useParam(w.rate);
   const phase = useParam(w.phase);
   const depth = useParam(w.depth);
   const cycleBeats = sync && sync.plain >= 0.5 && syncRate ? (SYNC_RATE_BEATS[Math.round(syncRate.plain)] ?? 1) : null;
-  const divisions = gridDivisions(cycleBeats);
   const d = depth ? depth.plain / 100 : 1;
+  return (
+    <TypedFrame type="lfo-curve" size={size} label={label}>
+      <CurveEditor
+        curve={curveOf(device)}
+        send={(curve) => void sender.send(cmd("Device", { type: "SetLfoCurve", device: device.id, curve }))}
+        cycleBeats={cycleBeats}
+        hz={rate?.plain ?? 1}
+        offset={(phase?.plain ?? 0) / 360}
+        played={d < 1 ? (y) => 1 - d * (1 - y) : null}
+        testId="widget-lfo-curve"
+      />
+    </TypedFrame>
+  );
+}
 
+export interface CurveEditorProps {
+  /** The curve in the document. */
+  curve: LfoCurve;
+  /** Send an edit (inside the gesture the editor opens). */
+  send(curve: LfoCurve): void;
+  /** Cycle length in beats (synced: the grid and the song-locked playhead), or `null` (free, at `hz`). */
+  cycleBeats: number | null;
+  hz: number;
+  /** Phase offset (cycles). */
+  offset: number;
+  /** What the device plays for a drawn value (depth applied), drawn under the curve; `null` = as drawn. */
+  played: ((y: number) => number) | null;
+  /** Dimmed (the lane is off). */
+  off?: boolean;
+  testId: string;
+}
+
+/** The drawn-cycle editor shared by the Volume LFO and the shaper's lanes. */
+export function CurveEditor({ curve: doc, send, cycleBeats, hz, offset, played, off, testId }: CurveEditorProps) {
+  const t = useT();
+  const { sender } = useLayoutContext();
+  const divisions = gridDivisions(cycleBeats);
   const [draft, setDraft] = useState<LfoCurve | null>(null);
   const curve = draft ?? doc;
   const [ref, box] = useBoxSize<HTMLDivElement>();
@@ -84,7 +116,6 @@ export function LfoCurveWidget({ widget: w, size, label }: { widget: Spec; size:
     if (!grab.current) setDraft(null);
   }, [doc]);
 
-  const send = (next: LfoCurve) => void sender.send(cmd("Device", { type: "SetLfoCurve", device: device.id, curve: next }));
   /** One edit, one undo step. */
   const commit = (next: LfoCurve) => {
     sender.begin();
@@ -94,9 +125,9 @@ export function LfoCurveWidget({ widget: w, size, label }: { widget: Spec; size:
 
   // Playhead: the engine's phase (synced: the song position; free: since playback started).
   const playhead = useRef<SVGLineElement>(null);
-  const timing = useRef({ cycleBeats, hz: rate?.plain ?? 1, offset: (phase?.plain ?? 0) / 360 });
+  const timing = useRef({ cycleBeats, hz, offset });
   useLayoutEffect(() => {
-    timing.current = { cycleBeats, hz: rate?.plain ?? 1, offset: (phase?.plain ?? 0) / 360 };
+    timing.current = { cycleBeats, hz, offset };
   });
   useEffect(() => {
     let started: number | null = null;
@@ -224,51 +255,52 @@ export function LfoCurveWidget({ widget: w, size, label }: { widget: Spec; size:
   };
 
   const { w: bw, h: bh } = box;
-  const gain = (y: number) => 1 - d * (1 - y);
   return (
-    <TypedFrame type="lfo-curve" size={size} label={label}>
-      <div ref={ref} className={clsx("eth-plot eth-plot--interactive eth-lfo-curve", draft && "eth-lfo-curve--dragging")} data-testid="widget-lfo-curve">
-        <svg
-          className="eth-plot__svg"
-          width={bw}
-          height={bh}
-          viewBox={`0 0 ${bw} ${bh}`}
-          role="img"
-          aria-label={t("devices.lfo_curve.label", { count: curve.points.length })}
-          data-points={curve.points.length}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          onPointerCancel={onPointerUp}
-          onContextMenu={onContextMenu}
-        >
-          <title>{t("devices.lfo_curve.hint")}</title>
-          <g className="eth-plot__grid" aria-hidden="true">
-            {Array.from({ length: divisions - 1 }, (_, k) => {
-              const x = ((k + 1) / divisions) * bw;
-              return <line key={k} className={clsx((k + 1) % 4 === 0 && "eth-lfo-curve__beat")} x1={x} x2={x} y1={0} y2={bh} />;
-            })}
-            <line x1={0} x2={bw} y1={bh / 2} y2={bh / 2} />
-          </g>
-          {d < 1 && <polyline className="eth-lfo-curve__gain" points={curvePath(curve.points, bw, bh, gain)} data-testid="lfo-curve-gain" />}
-          <polygon className="eth-plot__fill" points={`0,${bh} ${curvePath(curve.points, bw, bh)} ${bw},${bh}`} />
-          <polyline className="eth-plot__line" points={curvePath(curve.points, bw, bh)} data-testid="lfo-curve-line" />
-          <line ref={playhead} className="eth-lfo-curve__playhead" x1={0} x2={0} y1={0} y2={bh} style={{ visibility: "hidden" }} />
-          {curve.points.map((p, i) => (
-            <circle
-              key={i}
-              className="eth-plot__handle eth-lfo-curve__point"
-              cx={p.x * bw}
-              cy={(1 - p.y) * bh}
-              tabIndex={0}
-              role="button"
-              aria-label={t("devices.lfo_curve.point", { n: i + 1, x: Math.round(p.x * 100), y: Math.round(p.y * 100) })}
-              data-point={i}
-              onKeyDown={onKeyDown(i)}
-            />
-          ))}
-        </svg>
-      </div>
-    </TypedFrame>
+    <div
+      ref={ref}
+      className={clsx("eth-plot eth-plot--interactive eth-lfo-curve", draft && "eth-lfo-curve--dragging", off && "eth-lfo-curve--off")}
+      data-testid={testId}
+    >
+      <svg
+        className="eth-plot__svg"
+        width={bw}
+        height={bh}
+        viewBox={`0 0 ${bw} ${bh}`}
+        role="img"
+        aria-label={t("devices.lfo_curve.label", { count: curve.points.length })}
+        data-points={curve.points.length}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onContextMenu={onContextMenu}
+      >
+        <title>{t("devices.lfo_curve.hint")}</title>
+        <g className="eth-plot__grid" aria-hidden="true">
+          {Array.from({ length: divisions - 1 }, (_, k) => {
+            const x = ((k + 1) / divisions) * bw;
+            return <line key={k} className={clsx((k + 1) % 4 === 0 && "eth-lfo-curve__beat")} x1={x} x2={x} y1={0} y2={bh} />;
+          })}
+          <line x1={0} x2={bw} y1={bh / 2} y2={bh / 2} />
+        </g>
+        {played && <polyline className="eth-lfo-curve__gain" points={curvePath(curve.points, bw, bh, played)} data-testid="lfo-curve-gain" />}
+        <polygon className="eth-plot__fill" points={`0,${bh} ${curvePath(curve.points, bw, bh)} ${bw},${bh}`} />
+        <polyline className="eth-plot__line" points={curvePath(curve.points, bw, bh)} data-testid="lfo-curve-line" />
+        <line ref={playhead} className="eth-lfo-curve__playhead" x1={0} x2={0} y1={0} y2={bh} style={{ visibility: "hidden" }} />
+        {curve.points.map((p, i) => (
+          <circle
+            key={i}
+            className="eth-plot__handle eth-lfo-curve__point"
+            cx={p.x * bw}
+            cy={(1 - p.y) * bh}
+            tabIndex={0}
+            role="button"
+            aria-label={t("devices.lfo_curve.point", { n: i + 1, x: Math.round(p.x * 100), y: Math.round(p.y * 100) })}
+            data-point={i}
+            onKeyDown={onKeyDown(i)}
+          />
+        ))}
+      </svg>
+    </div>
   );
 }

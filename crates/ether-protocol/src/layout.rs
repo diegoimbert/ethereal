@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::eq_response::EqShape;
-use crate::model::ParamId;
+use crate::model::{ParamId, ShaperLane};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, TS)]
 pub struct DeviceLayout {
@@ -274,6 +274,17 @@ pub enum Widget {
     Maximizer {
         threshold: ParamId,
         ceiling: ParamId,
+    },
+    // --- shaper ---
+    /// Editor of one lane of a shaper (`BuiltinDevice::Shaper::curves`, written with
+    /// `Device::SetShaperCurve`): like [`Widget::LfoCurve`], always tempo-synced. `rate`
+    /// (a sync-rate choice) sets the grid and the playhead's speed, `depth` scales what is
+    /// played, `on` dims the lane when off.
+    ShaperCurve {
+        lane: ShaperLane,
+        on: ParamId,
+        rate: ParamId,
+        depth: ParamId,
     },
 }
 

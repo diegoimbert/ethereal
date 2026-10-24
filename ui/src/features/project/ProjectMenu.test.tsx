@@ -177,9 +177,40 @@ describe("ProjectMenu", () => {
     await waitFor(() => expect(names()).toContain("Beats 2"));
     expect(names()).not.toContain("Beat sketch copy");
 
-    await projectAction(dialog, "Beats 2", "delete…");
-    fireEvent.click(await enabledButton(dialog, "confirm delete Beats 2"));
+    await projectAction(dialog, "Beats 2", "move to bin");
     await waitFor(() => expect(names()).not.toContain("Beats 2"));
+  });
+
+  it("archives projects out of the recents, and keeps deleted ones in the bin until restored or deleted forever", async () => {
+    const { mock } = await renderWithMock(<ProjectMenu />);
+    const dialog = await openManager();
+    const recents = () => within(dialog).getByRole("list", { name: "stored projects" });
+
+    // Archived: out of the recents, in the folded "archived" section; it opens and comes back.
+    await projectAction(dialog, "Beat sketch", "archive");
+    await waitFor(() => expect(within(recents()).queryByRole("button", { name: "open Beat sketch" })).toBeNull());
+    fireEvent.click(await within(dialog).findByRole("button", { name: "archived (1)" }));
+    fireEvent.click(await enabledButton(dialog, "unarchive"));
+    await waitFor(() => expect(within(recents()).getByRole("button", { name: "open Beat sketch" })).toBeTruthy());
+
+    // The bin: restorable, then deleted forever.
+    await projectAction(dialog, "Beat sketch", "move to bin");
+    await waitFor(() => expect(names()).not.toContain("Beat sketch"));
+    fireEvent.click(await within(dialog).findByRole("button", { name: "bin (1)" }));
+    // The days left (the mock's clock is not the wall clock).
+    expect(await within(dialog).findByText(/^deleted in \d+ days?$/)).toBeTruthy();
+    fireEvent.click(await enabledButton(dialog, "restore Beat sketch"));
+    await waitFor(() => expect(names()).toContain("Beat sketch"));
+    await projectAction(dialog, "Beat sketch", "move to bin");
+    // The bin stays unfolded.
+    expect(await within(dialog).findByRole("button", { name: "bin (1)" })).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(await enabledButton(dialog, "delete Beat sketch forever"));
+    fireEvent.click(await enabledButton(dialog, "confirm delete Beat sketch"));
+    await waitFor(async () => {
+      const r = await mock.send(cmd("Project", { type: "ListBin" }));
+      expect(r.type === "Projects" && r.projects.length).toBe(0);
+    });
+    expect(mock.storedProjects().some((p) => p.name === "Beat sketch")).toBe(false);
   });
 
   it("offers the extensions' delete choices and list sections", async () => {
@@ -193,7 +224,10 @@ describe("ProjectMenu", () => {
       const dialog = await openManager();
       expect(within(dialog).getByText("in the cloud: all")).toBeTruthy();
       const id = store().projects.find((p) => p.name === "Beat sketch")!.id;
-      await projectAction(dialog, "Beat sketch", "delete…");
+      // Deleting for good happens in the bin.
+      await projectAction(dialog, "Beat sketch", "move to bin");
+      fireEvent.click(await within(dialog).findByRole("button", { name: "bin (1)" }));
+      fireEvent.click(await enabledButton(dialog, "delete Beat sketch forever"));
       fireEvent.click(within(dialog).getByRole("switch", { name: "also delete it from the cloud" }));
       fireEvent.click(await enabledButton(dialog, "confirm delete Beat sketch"));
       await waitFor(() => expect(ran).toEqual([id]));
@@ -268,7 +302,7 @@ describe("ProjectMenu", () => {
     await waitFor(() => expect(screen.queryByRole("menu", { name: "project" })).toBeNull());
   });
 
-  it("a project's delete from the submenu's row menu asks in place, the submenu staying open", async () => {
+  it("a project's move to bin from the submenu's row menu keeps the submenu open", async () => {
     await renderWithMock(<ProjectMenu />);
     fireEvent.click(screen.getByRole("button", { name: "projects" }));
     const menu = await screen.findByRole("menu", { name: "project" });
@@ -277,16 +311,16 @@ describe("ProjectMenu", () => {
     fireEvent.click(await enabledButton(panel, "more actions for Beat sketch"));
     // WebKit (the desktop app) doesn't focus a clicked button: nothing in the submenu has focus.
     (document.activeElement as HTMLElement | null)?.blur();
-    // The pointer goes to the row menu (outside the submenu), then picks delete.
+    // The pointer goes to the row menu (outside the submenu), then picks "move to bin".
     fireEvent.mouseLeave(panel.closest(".eth-project-menu__sub")!);
-    const del = useContextMenuStore.getState().menu!.items.find((i) => i !== "separator" && i.label === "delete…");
-    if (!del || del === "separator") throw new Error("no delete item");
+    const bin = useContextMenuStore.getState().menu!.items.find((i) => i !== "separator" && i.label === "move to bin");
+    if (!bin || bin === "separator") throw new Error("no move to bin item");
     act(() => {
-      del.onSelect();
+      bin.onSelect();
       useContextMenuStore.getState().close();
     });
-    await act(() => new Promise((r) => setTimeout(r, 300)));
-    expect(within(screen.getByRole("dialog", { name: "open project" })).getByRole("button", { name: "confirm delete Beat sketch" })).toBeTruthy();
+    await waitFor(() => expect(names()).not.toContain("Beat sketch"));
+    expect(screen.getByRole("dialog", { name: "open project" })).toBeTruthy();
   });
 
   it("closes on Escape", async () => {

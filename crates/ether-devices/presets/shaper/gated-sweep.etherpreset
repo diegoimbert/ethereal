@@ -1,0 +1,158 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "gated sweep",
+    "device": {
+      "type": "Builtin",
+      "device": "Shaper"
+    },
+    "meta": {
+      "tags": [
+        "gate",
+        "filter",
+        "pan"
+      ],
+      "author": "ethereal",
+      "description": "a sixteenth gate pattern over a one-bar resonant sweep, with a slow pan."
+    },
+    "params": {
+      "0": 1.0,
+      "1": 10.0,
+      "2": 100.0,
+      "3": 1.0,
+      "4": 10.0,
+      "5": 80.0,
+      "6": 300.0,
+      "7": 9000.0,
+      "8": 55.0,
+      "9": 0.0,
+      "10": 1.0,
+      "11": 11.0,
+      "12": 50.0,
+      "13": 2.0,
+      "14": 100.0,
+      "15": 0.0
+    },
+    "kind": {
+      "type": "Shaper",
+      "curves": {
+        "volume": {
+          "points": [
+            {
+              "x": 0,
+              "y": 1,
+              "curve": {
+                "type": "Step"
+              }
+            },
+            {
+              "x": 0.125,
+              "y": 0,
+              "curve": {
+                "type": "Step"
+              }
+            },
+            {
+              "x": 0.25,
+              "y": 1,
+              "curve": {
+                "type": "Step"
+              }
+            },
+            {
+              "x": 0.375,
+              "y": 0,
+              "curve": {
+                "type": "Step"
+              }
+            },
+            {
+              "x": 0.5,
+              "y": 1,
+              "curve": {
+                "type": "Step"
+              }
+            },
+            {
+              "x": 0.625,
+              "y": 1,
+              "curve": {
+                "type": "Step"
+              }
+            },
+            {
+              "x": 0.75,
+              "y": 0,
+              "curve": {
+                "type": "Step"
+              }
+            },
+            {
+              "x": 0.875,
+              "y": 1,
+              "curve": {
+                "type": "Step"
+              }
+            }
+          ]
+        },
+        "cutoff": {
+          "points": [
+            {
+              "x": 0,
+              "y": 0.0,
+              "curve": {
+                "type": "Curve",
+                "tension": -0.3
+              }
+            },
+            {
+              "x": 0.5,
+              "y": 1,
+              "curve": {
+                "type": "Linear"
+              }
+            },
+            {
+              "x": 0.5,
+              "y": 1,
+              "curve": {
+                "type": "Curve",
+                "tension": 0.3
+              }
+            }
+          ]
+        },
+        "pan": {
+          "points": [
+            {
+              "x": 0,
+              "y": 0.5,
+              "curve": {
+                "type": "Linear"
+              }
+            },
+            {
+              "x": 0.25,
+              "y": 1,
+              "curve": {
+                "type": "Linear"
+              }
+            },
+            {
+              "x": 0.75,
+              "y": 0,
+              "curve": {
+                "type": "Linear"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "samples": [],
+    "state": null
+  }
+}

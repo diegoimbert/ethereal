@@ -59,6 +59,18 @@ export function newBuiltinDevice(type: BuiltinDeviceType): BuiltinDevice {
       },
     };
   }
+  // Rust `ShaperCurves::default`.
+  if (type === "Shaper") {
+    const lin = (x: number, y: number) => ({ x, y, curve: { type: "Linear" as const } });
+    return {
+      type,
+      curves: {
+        volume: { points: [lin(0, 1), { x: 0.02, y: 0, curve: { type: "Curve", tension: -0.45 } }, lin(0.6, 1)] },
+        cutoff: { points: [{ x: 0, y: 0.15, curve: { type: "Curve", tension: 0.4 } }, lin(0.95, 1)] },
+        pan: { points: [lin(0, 0.5), lin(0.25, 1), lin(0.75, 0)] },
+      },
+    };
+  }
   return { type } as BuiltinDevice;
 }
 

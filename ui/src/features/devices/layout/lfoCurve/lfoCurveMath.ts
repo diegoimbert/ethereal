@@ -6,7 +6,7 @@
  * vertical edge (the later one wins from that `x` on). At most 64 points, at least one.
  */
 
-import type { CurveShape, LfoCurve, LfoPoint } from "@/generated";
+import type { CurveShape, LfoCurve, LfoPoint, ShaperCurves } from "@/generated";
 import { shapeFraction } from "@/features/automation/curve";
 
 /** `ether_model::MAX_LFO_POINTS`. */
@@ -22,6 +22,24 @@ export const DEFAULT_LFO_CURVE: LfoCurve = {
     { x: 0.02, y: 0, curve: { type: "Curve", tension: -0.45 } },
     { x: 0.6, y: 1, curve: { type: "Linear" } },
   ],
+};
+
+/** The shaper's default curves (Rust `ShaperCurves::default`). */
+export const DEFAULT_SHAPER_CURVES: ShaperCurves = {
+  volume: DEFAULT_LFO_CURVE,
+  cutoff: {
+    points: [
+      { x: 0, y: 0.15, curve: { type: "Curve", tension: 0.4 } },
+      { x: 0.95, y: 1, curve: { type: "Linear" } },
+    ],
+  },
+  pan: {
+    points: [
+      { x: 0, y: 0.5, curve: { type: "Linear" } },
+      { x: 0.25, y: 1, curve: { type: "Linear" } },
+      { x: 0.75, y: 0, curve: { type: "Linear" } },
+    ],
+  },
 };
 
 /** The segment of `pts` covering `p` (0..1): its start point index and its x span (the wrap may start below 0 or end above 1). */

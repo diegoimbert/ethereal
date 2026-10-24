@@ -81,8 +81,14 @@ where
                 projects: self.list_projects()?,
             }),
             ProjectCommand::Create { id, name } => self.create(*id, name, now, out),
-            ProjectCommand::Open { id } => self.open(*id, now, out),
-            ProjectCommand::OpenSafe { id } => self.open_safe(*id, now, out),
+            ProjectCommand::Open { id } => {
+                self.check_not_binned(*id)?;
+                self.open(*id, now, out)
+            }
+            ProjectCommand::OpenSafe { id } => {
+                self.check_not_binned(*id)?;
+                self.open_safe(*id, now, out)
+            }
             ProjectCommand::LoadPlugins => {
                 self.doc.as_ref().ok_or_else(no_project)?;
                 if self.engine.load_deferred() {
@@ -131,6 +137,27 @@ where
                 self.emit_list_changed(out);
                 Ok(ReplyValue::Unit)
             }
+            ProjectCommand::MoveToBin { id } => {
+                if self.doc.as_ref().is_some_and(|d| d.project.id == *id) {
+                    return Err(crate::tx::keyed_err(
+                        ether_core::protocol::ErrorCode::InvalidState,
+                        crate::text::msg("error.project.delete_open"),
+                    ));
+                }
+                let now = self.host.now_ms();
+                self.set_status(*id, |s| s.binned_ms = Some(now), out)
+            }
+            ProjectCommand::RestoreFromBin { id } => {
+                self.set_status(*id, |s| s.binned_ms = None, out)
+            }
+            ProjectCommand::SetArchived { id, archived } => {
+                let archived = *archived;
+                self.set_status(*id, |s| s.archived = archived, out)
+            }
+            ProjectCommand::ListBin => Ok(ReplyValue::Projects {
+                projects: self.stored_projects()?.1,
+            }),
+            ProjectCommand::EmptyBin => self.empty_bin(out),
             ProjectCommand::Discard { id } => {
                 if self.doc.as_ref().is_some_and(|d| d.project.id == *id) {
                     // Deleted once it closes (`close_discarded`); never saved meanwhile.
@@ -184,9 +211,10 @@ where
         }
     }
 
-    /// Stored projects, newest first (the open project shows its current name).
+    /// Stored projects, newest first (the open project shows its current name), not those
+    /// in the bin (`project_status`).
     pub fn list_projects(&mut self) -> CmdResult<Vec<ProjectSummary>> {
-        let mut list = self.store.list().map_err(store_err)?;
+        let mut list = self.stored_projects()?.0;
         if let Some(doc) = &self.doc {
             for s in &mut list {
                 if s.id == doc.project.id {
@@ -548,6 +576,10 @@ where
             StoreError::AlreadyExists(_) => invalid(format!("project {new_id} already exists")),
             e => store_err(e),
         })?;
+        // A copy is a live project (not archived).
+        let _ = self
+            .store
+            .remove(new_id, crate::project_status::STATUS_FILE);
         let mut project = doc.project.clone();
         // A copy is a private project: the extensions drop their files from it.
         self.ext_each(|e, ctl| e.project_copied(ctl, new_id));
@@ -612,6 +644,10 @@ where
             return Ok(ReplyValue::Saved { project: existing });
         }
         self.store.duplicate(id, new_id).map_err(store_err)?;
+        // A copy is a live project (not archived, not in the bin).
+        let _ = self
+            .store
+            .remove(new_id, crate::project_status::STATUS_FILE);
         self.ext_each(|e, ctl| e.project_copied(ctl, new_id));
         // A duplicate is a private project: `duplicate` never copies the original's
         // `share.json`.

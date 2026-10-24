@@ -227,6 +227,8 @@ fn project_store_and_browser_shapes() {
                 name: "Demo".into(),
                 created_ms: 2.0,
             }),
+            archived: true,
+            binned_ms: Some(3.0),
         }],
     });
     let json = roundtrip(&Command::Media(MediaCommand::Import {

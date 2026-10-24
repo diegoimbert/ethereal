@@ -337,6 +337,8 @@ export type * from "./ServerInfo";
 export type * from "./ServerMessage";
 export type * from "./SettingsChange";
 export type * from "./SettingsCommand";
+export type * from "./ShaperCurves";
+export type * from "./ShaperLane";
 export type * from "./SidechainChain";
 export type * from "./SidechainTap";
 export type * from "./SiteId";

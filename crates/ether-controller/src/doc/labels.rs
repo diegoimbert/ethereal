@@ -367,6 +367,7 @@ pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
             ),
             D::SetZones { .. } => k("undo.device.set_zones"),
             D::SetLfoCurve { .. } => k("undo.device.set_lfo_curve"),
+            D::SetShaperCurve { .. } => k("undo.device.set_shaper_curve"),
             D::RenameMacro { .. } => k("undo.device.rename_macro"),
             D::SetMacroCount { .. } => k("undo.device.set_macro_count"),
             D::SetIr { ir, .. } => {
@@ -569,7 +570,13 @@ pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
             P::SaveAs { .. } => k("undo.project.save_as"),
             P::Duplicate { .. } => k("undo.project.duplicate"),
             P::Rename { .. } => k("undo.project.rename"),
-            P::Delete { .. } | P::Discard { .. } => k("undo.project.delete"),
+            P::Delete { .. } | P::Discard { .. } | P::EmptyBin => k("undo.project.delete"),
+            P::MoveToBin { .. } => k("undo.project.move_to_bin"),
+            P::RestoreFromBin { .. } => k("undo.project.restore_from_bin"),
+            P::ListBin => k("undo.project.list"),
+            P::SetArchived { archived, .. } => {
+                pick(*archived, "undo.project.archive", "undo.project.unarchive")
+            }
             P::Get => k("undo.project.get"),
             P::SetScale { .. } => k("undo.project.set_scale"),
             P::ExportBundle { .. } | P::ExportTo { .. } => k("undo.project.export"),

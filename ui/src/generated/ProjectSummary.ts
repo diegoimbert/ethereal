@@ -19,4 +19,13 @@ ext?: unknown,
  * The project it was forked from (its document's `settings.forked_from`). Omitted for
  * an original.
  */
-forked_from?: ForkOrigin, };
+forked_from?: ForkOrigin, 
+/**
+ * Archived (`Project::SetArchived`). Omitted when not.
+ */
+archived?: boolean, 
+/**
+ * In the bin since then, Unix epoch milliseconds (`Project::ListBin` only). It is
+ * deleted [`BIN_RETENTION_MS`] later.
+ */
+binned_ms?: number, };

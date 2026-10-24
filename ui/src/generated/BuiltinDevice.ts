@@ -5,6 +5,7 @@ import type { LfoCurve } from "./LfoCurve";
 import type { MediaId } from "./MediaId";
 import type { RackMacros } from "./RackMacros";
 import type { SampleZone } from "./SampleZone";
+import type { ShaperCurves } from "./ShaperCurves";
 import type { SliceSettings } from "./SliceSettings";
 
 /**
@@ -42,4 +43,8 @@ macros?: RackMacros, } | { "type": "ConvolutionReverb", ir: IrSource | null, } |
 /**
  * Omitted (an agent's `{"type": "VolumeLfo"}`) = the default pump.
  */
-curve: LfoCurve, } | { "type": "NoteBlocker" } | { "type": "Erosion" } | { "type": "Pedal" } | { "type": "GrainDelay" } | { "type": "Shifter" } | { "type": "Loudness" } | { "type": "Maximizer" };
+curve: LfoCurve, } | { "type": "NoteBlocker" } | { "type": "Erosion" } | { "type": "Pedal" } | { "type": "GrainDelay" } | { "type": "Shifter" } | { "type": "Loudness" } | { "type": "Maximizer" } | { "type": "Shaper", 
+/**
+ * Omitted (an agent's `{"type": "Shaper"}`) = the defaults.
+ */
+curves: ShaperCurves, };

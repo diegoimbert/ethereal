@@ -461,6 +461,9 @@ impl DiskStore {
             modified_ms: modified_ms(&dir.join(PROJECT_FILE)),
             ext: Self::summary_ext_at(dir),
             forked_from,
+            // Status (archive, bin): the controller's (`project_status`).
+            archived: false,
+            binned_ms: None,
         }
     }
 
@@ -506,6 +509,9 @@ impl DiskStore {
             ext: self.summary_ext(id),
             // The controller fills it in from the document it saved.
             forked_from: None,
+            // Status (archive, bin): the controller's (`project_status`).
+            archived: false,
+            binned_ms: None,
         })
     }
 

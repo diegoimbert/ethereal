@@ -14,11 +14,10 @@ import { type EngineCommands } from "@/features/transport-bar/engine";
 import { ProjectScale } from "@/features/scale/ProjectScale";
 import { useProjectStore } from "@/state";
 import { openResolver, resolveMissingLabel, useMissingCount } from "@/features/import-resolver";
-import { appProjectCommands, byId, deleteOpenProject, openProjectCommands } from "./projectCommands";
-import { DeleteChoices, DeleteChoiceSwitches } from "./deleteChoices";
+import { appProjectCommands, byId, openProjectCommands } from "./projectCommands";
 import { docsCommands } from "@/features/docs/commands";
 import { newsCommands } from "@/features/news";
-import { Trans, useT } from "@/i18n";
+import { useT } from "@/i18n";
 import { RecentProjects } from "./ProjectScreen";
 import { GetStarted } from "./GetStarted";
 import { useMobileUi } from "@/features/mobile/mode";
@@ -147,24 +146,14 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
   const t = useT();
   const { transport, send } = commands;
   const project = useProjectStore((s) => s.project);
-  // The in-place delete confirmation, with the extensions' choices (`@/ext` "project.deleteChoices").
-  const [confirmDelete, setConfirmDelete] = useState<DeleteChoices | null>(null);
   const [openSub, setOpenSub] = useState<string | null>(null);
   const subContext = useMemo(() => ({ open: openSub, setOpen: setOpenSub }), [openSub]);
   const ref = useRef<HTMLDivElement>(null);
-  const confirmRef = useRef<HTMLDivElement>(null);
   const missing = useMissingCount();
   const entries = useContributions("project.menu");
   const mobile = useMobileUi((s) => s.enabled);
   // Opens like the kit menus: the first item focused, then ↑/↓/Home/End.
   useFocusFirstItem(ref);
-  // The delete confirmation replaces its item: keep the keyboard on it (its cancel).
-  useEffect(() => {
-    if (confirmDelete)
-      menuItems(ref.current)
-        .find((el) => confirmRef.current?.contains(el))
-        ?.focus();
-  }, [confirmDelete]);
   if (!transport) return null;
 
   // The same actions and labels as the command palette (`projectCommands.ts`).
@@ -272,33 +261,8 @@ export function ProjectMenuPanel({ commands, close }: { commands: EngineCommands
               </Item>
             )}
             <Separator />
-            {confirmDelete ? (
-              <div ref={confirmRef} className="eth-project-menu__confirm" role="group" aria-label={t("project.menu.confirm_delete")}>
-                <span className="eth-project-menu__confirm-text">
-                  <Trans k="project.menu.delete_confirm" values={{ name: <span className="eth-user-text">{project.settings.name}</span> }} />
-                </span>
-                <DeleteChoiceSwitches choices={confirmDelete} />
-                <span className="eth-project-menu__confirm-actions">
-                  <button type="button" role="menuitem" className="eth-menu__item" onClick={() => setConfirmDelete(null)}>
-                    {t("project.actions.cancel")}
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="eth-menu__item eth-menu__item--danger"
-                    onClick={() => {
-                      close();
-                      deleteOpenProject(transport, project.id, confirmDelete);
-                    }}
-                  >
-                    {t("project.actions.delete")}
-                  </button>
-                </span>
-              </div>
-            ) : (
-              // The palette's entry asks in a dialog; here the menu asks in place.
-              item("project:delete", { danger: true, onClick: () => setConfirmDelete(new DeleteChoices({ id: project.id, name: project.settings.name })) })
-            )}
+            {/* Restorable from the bin: no confirmation (the toast offers to restore it). */}
+            {item("project:delete", { danger: true })}
           </>
         )}
         <Separator />

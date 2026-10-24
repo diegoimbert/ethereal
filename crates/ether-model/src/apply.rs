@@ -1111,6 +1111,7 @@ impl Project {
                         BuiltinDevice::Sampler { slices, .. } => check_slices(slices)?,
                         BuiltinDevice::MultiSampler { zones } => check_sample_zones(zones)?,
                         BuiltinDevice::VolumeLfo { curve } => curve.check().map_err(invalid)?,
+                        BuiltinDevice::Shaper { curves } => curves.check().map_err(invalid)?,
                         BuiltinDevice::ConvolutionReverb {
                             ir: Some(IrSource::Factory { id }),
                         } if id.is_empty() || id.len() > 64 => {
