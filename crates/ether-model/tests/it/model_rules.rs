@@ -689,3 +689,39 @@ fn audio_input_channels_stay_in_range() {
     })
     .unwrap();
 }
+
+/// A batch checks routing (and the other document-wide rules) once, at its end: a cycle it
+/// leaves is refused and the whole batch rolled back; a big batch stays linear.
+#[test]
+fn batches_check_routing_once_at_the_end() {
+    let mut f = Fx::new();
+    let r1 = f.add_track(TrackKind::Return, None);
+    let r2 = f.add_track(TrackKind::Return, None);
+    let send = |f: &mut Fx, from, to| Op::Insert {
+        entity: Entity::Send(TrackSend {
+            id: f.id(),
+            from,
+            to,
+            level: Decibels(0.0),
+            pre_fader: false,
+        }),
+    };
+    let before = f.p.clone();
+    let ops = vec![send(&mut f, r1, r2), send(&mut f, r2, r1)];
+    assert!(matches!(f.p.apply_all(&ops), Err(ModelError::Invariant(_))));
+    assert_eq!(f.p, before, "rolled back");
+
+    let ops: Vec<Op> = (0..5000)
+        .map(|_| Op::Insert {
+            entity: Entity::Track(f.track(TrackKind::Audio, None)),
+        })
+        .collect();
+    let t0 = std::time::Instant::now();
+    f.p.apply_all(&ops).unwrap();
+    assert!(
+        t0.elapsed() < std::time::Duration::from_secs(2),
+        "{:?}",
+        t0.elapsed()
+    );
+    f.p.validate().unwrap();
+}
