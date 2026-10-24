@@ -30,7 +30,9 @@
 //!
 //! `Channel` picks what the bands process: both channels (default, unchanged), one side
 //! only, or the mid (`(L+R)/2`) or side (`(L-R)/2`) signal of a mid/side encode-decode
-//! (the other component passes untouched). Changing it resets the band states.
+//! (the other component passes untouched). A change while playing crossfades over
+//! [`CHANNEL_FADE_MS`] from the old routing (its band states kept) to the new one (its
+//! states from rest), so switching modes doesn't click.
 //!
 //! Default bands: 1 Low Cut 30 Hz (off), 2 Low Shelf 100 Hz, 3-6 Bell 250 / 1k / 2.5k /
 //! 6k Hz, 7 High Shelf 10 kHz, 8 High Cut 18 kHz (off); all gains 0 dB (flat).
@@ -288,8 +290,10 @@ struct Band {
     target: Coefs,
     /// `current != target` (gliding).
     moving: bool,
-    state: [Svf; 2],
 }
+
+/// Crossfade of a `Channel` change (ms).
+pub const CHANNEL_FADE_MS: f32 = 10.0;
 
 /// The built-in parametric EQ.
 #[derive(Debug)]
@@ -309,6 +313,14 @@ pub struct Eq {
     until_hop: usize,
     /// `Channel` index (`CHANNEL_*`).
     channel: usize,
+    /// Per band and component: the filter states of the current routing...
+    states: [[Svf; 2]; BANDS],
+    /// ...and of the routing a `Channel` change fades out from (`fade_from`).
+    old_states: [[Svf; 2]; BANDS],
+    fade_from: usize,
+    /// Frames left of the `Channel` crossfade (0 = none) and its length.
+    fade_left: u32,
+    fade_len: u32,
     /// Silence reporting.
     tail: util::Tail,
 }
@@ -334,7 +346,6 @@ impl Eq {
             mid: Coefs::BYPASS,
             target: Coefs::BYPASS,
             moving: false,
-            state: [Svf::default(); 2],
         };
         let mut eq = Self {
             values,
@@ -348,6 +359,11 @@ impl Eq {
             since_asked: usize::MAX,
             until_hop: 0,
             channel: CHANNEL_STEREO,
+            states: [[Svf::ZERO; 2]; BANDS],
+            old_states: [[Svf::ZERO; 2]; BANDS],
+            fade_from: CHANNEL_STEREO,
+            fade_left: 0,
+            fade_len: 1,
             tail: util::Tail::default(),
         };
         eq.sync_all();
@@ -356,6 +372,7 @@ impl Eq {
 
     fn sync_all(&mut self) {
         self.glide = util::tau_coef(GLIDE_MS, self.sample_rate) as f64;
+        self.fade_len = ((CHANNEL_FADE_MS * 0.001 * self.sample_rate) as u32).max(1);
         self.output = Smoother::new(
             util::db_to_amp(self.values[params::OUTPUT.0 as usize] as f32),
             20.0,
@@ -411,11 +428,19 @@ impl Eq {
                 self.output.set_immediate(amp);
             }
         } else if id == params::CHANNEL {
-            // A band state of one signal is meaningless for another: start from rest.
+            // A band state of one signal is meaningless for another: the new routing starts
+            // from rest; while playing, the old one keeps running under a crossfade.
             let channel = util::index(self.values[i], CHANNEL_LABELS.len());
             if channel != self.channel {
+                if smooth {
+                    self.old_states = self.states;
+                    self.fade_from = self.channel;
+                    self.fade_left = self.fade_len;
+                } else {
+                    self.fade_left = 0;
+                }
                 self.channel = channel;
-                self.reset();
+                self.states = [[Svf::ZERO; 2]; BANDS];
             }
         } else {
             self.update_band(i / BAND_PARAMS as usize, smooth);
@@ -449,39 +474,68 @@ impl Eq {
     }
 
     fn render(&mut self, audio: &mut AudioBuffers<'_, '_>, start: usize, end: usize) {
-        if self.channel != CHANNEL_STEREO && audio.outputs.len() >= 2 {
-            self.render_channel(audio, start, end);
-            return;
-        }
         let inputs = audio.inputs;
         let channels = audio.outputs.len().min(2);
+        // One-channel modes need two channels (a mono track's EQ always runs as stereo).
+        let routing = |ch: usize| if channels < 2 { CHANNEL_STEREO } else { ch };
         for i in start..end {
             let mut x = [0.0f64; 2];
             for (c, v) in x.iter_mut().enumerate().take(channels) {
-                *v = inputs.get(c).map_or(0.0, |ch| ch[i]) as f64;
+                // A mono input feeds both sides of the one-channel modes.
+                let src = if self.channel == CHANNEL_STEREO {
+                    inputs.get(c)
+                } else {
+                    inputs.get(c).or(inputs.first())
+                };
+                *v = src.map_or(0.0, |ch| ch[i]) as f64;
             }
             // Always fed (two stores per sample) so a new watch starts from real audio.
             self.pre.push(mono(&x, channels));
-            for band in &mut self.bands {
+            let mut active = [false; BANDS];
+            for (b, band) in self.bands.iter_mut().enumerate() {
                 if band.moving {
                     let a = band.mid.glide(&band.target, self.glide);
-                    let b = band.current.glide(&band.mid, self.glide);
-                    band.moving = a | b;
+                    let c = band.current.glide(&band.mid, self.glide);
+                    band.moving = a | c;
                 } else if band.current.is_bypass() {
                     // Settled and off: exact pass-through. Clear the state so the band
                     // starts from rest when switched back on (its m1/m2 glide from 0).
-                    band.state = [Svf::default(); 2];
+                    self.states[b] = [Svf::ZERO; 2];
+                    self.old_states[b] = [Svf::ZERO; 2];
                     continue;
                 }
-                for (c, v) in x.iter_mut().enumerate().take(channels) {
-                    *v = band.state[c].tick(*v, &band.current);
+                active[b] = true;
+            }
+            let mut y = run(
+                &self.bands,
+                &active,
+                &mut self.states,
+                routing(self.channel),
+                x,
+                channels,
+            );
+            if self.fade_left > 0 {
+                let old = run(
+                    &self.bands,
+                    &active,
+                    &mut self.old_states,
+                    routing(self.fade_from),
+                    x,
+                    channels,
+                );
+                // Raised cosine: no slope break at either end of the fade.
+                let u = f64::from(self.fade_left) / f64::from(self.fade_len);
+                let t = 0.5 - 0.5 * (std::f64::consts::PI * u).cos();
+                for (v, o) in y.iter_mut().zip(old) {
+                    *v += (o - *v) * t;
                 }
+                self.fade_left -= 1;
             }
             let gain = self.output.tick() as f64;
-            self.post.push(mono(&x, channels) * gain as f32);
+            self.post.push(mono(&y, channels) * gain as f32);
             for (c, out) in audio.outputs.iter_mut().enumerate() {
                 out[i] = if c < channels {
-                    (x[c] * gain) as f32
+                    (y[c] * gain) as f32
                 } else {
                     0.0
                 };
@@ -490,42 +544,46 @@ impl Eq {
     }
 }
 
-impl Eq {
-    /// [`Self::render`] for the one-channel modes (`Channel` Left / Right / Mid / Side): the
-    /// bands run on one component only.
-    fn render_channel(&mut self, audio: &mut AudioBuffers<'_, '_>, start: usize, end: usize) {
-        let inputs = audio.inputs;
-        let ms = self.channel >= CHANNEL_MID;
-        // Which component (0 = left / mid, 1 = right / side) the bands process.
-        let c = usize::from(matches!(self.channel, CHANNEL_RIGHT | CHANNEL_SIDE));
-        for i in start..end {
-            let l = inputs.first().map_or(0.0, |ch| ch[i]) as f64;
-            let r = inputs.get(1).or(inputs.first()).map_or(0.0, |ch| ch[i]) as f64;
-            self.pre.push(mono(&[l, r], 2));
-            let mut x = if ms {
-                [(l + r) * 0.5, (l - r) * 0.5]
-            } else {
-                [l, r]
-            };
-            for band in &mut self.bands {
-                if band.moving {
-                    let a = band.mid.glide(&band.target, self.glide);
-                    let b = band.current.glide(&band.mid, self.glide);
-                    band.moving = a | b;
-                } else if band.current.is_bypass() {
-                    band.state = [Svf::default(); 2];
-                    continue;
+/// One frame through the active bands with `channel`'s routing: both channels (`Stereo`),
+/// or one component of the left/right or mid/side pair, the other passing untouched.
+#[inline(always)]
+fn run(
+    bands: &[Band; BANDS],
+    active: &[bool; BANDS],
+    states: &mut [[Svf; 2]; BANDS],
+    channel: usize,
+    x: [f64; 2],
+    channels: usize,
+) -> [f64; 2] {
+    if channel == CHANNEL_STEREO {
+        let [mut l, mut r] = x;
+        let both = channels >= 2;
+        for ((band, on), st) in bands.iter().zip(active).zip(states.iter_mut()) {
+            if *on {
+                l = st[0].tick(l, &band.current);
+                if both {
+                    r = st[1].tick(r, &band.current);
                 }
-                x[c] = band.state[c].tick(x[c], &band.current);
-            }
-            let y = if ms { [x[0] + x[1], x[0] - x[1]] } else { x };
-            let gain = self.output.tick() as f64;
-            self.post.push(mono(&y, 2) * gain as f32);
-            for (k, out) in audio.outputs.iter_mut().enumerate() {
-                out[i] = if k < 2 { (y[k] * gain) as f32 } else { 0.0 };
             }
         }
+        return [l, if both { r } else { x[1] }];
     }
+    let ms = channel >= CHANNEL_MID;
+    // Which component (0 = left / mid, 1 = right / side) the bands process.
+    let c = usize::from(matches!(channel, CHANNEL_RIGHT | CHANNEL_SIDE));
+    let mut v = if ms {
+        [(x[0] + x[1]) * 0.5, (x[0] - x[1]) * 0.5]
+    } else {
+        x
+    };
+    let mut y = v[c];
+    for ((band, on), st) in bands.iter().zip(active).zip(states.iter_mut()) {
+        if *on {
+            y = st[c].tick(y, &band.current);
+        }
+    }
+    v[c] = y;
+    if ms { [v[0] + v[1], v[0] - v[1]] } else { v }
 }
 
 const CHANNEL_STEREO: usize = 0;
@@ -541,9 +599,9 @@ impl Node for Eq {
     }
 
     fn reset(&mut self) {
-        for band in &mut self.bands {
-            band.state.iter_mut().for_each(Svf::reset);
-        }
+        self.states = [[Svf::ZERO; 2]; BANDS];
+        self.old_states = [[Svf::ZERO; 2]; BANDS];
+        self.fade_left = 0;
     }
 
     fn process(
@@ -564,7 +622,9 @@ impl Node for Eq {
         );
         self.advance_analysis(ctx.frames);
         // Ringing bands decay under the floor; settled once no band or the gain glides.
-        let settled = !self.output.is_smoothing() && self.bands.iter().all(|b| !b.moving);
+        let settled = !self.output.is_smoothing()
+            && self.fade_left == 0
+            && self.bands.iter().all(|b| !b.moving);
         let hold = util::samples(util::BASE_HOLD_SECONDS, self.sample_rate);
         self.tail.status_of(ctx, audio, settled, hold)
     }

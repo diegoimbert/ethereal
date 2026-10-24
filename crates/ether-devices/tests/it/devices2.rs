@@ -336,6 +336,102 @@ fn eq_param_changes_do_not_click() {
     );
 }
 
+/// Dense automation (an event every 32 frames sweeping a +12 dB bell from 60 Hz to 1 kHz
+/// and back, its gain and Q moving too) on a 100 Hz sine: the coefficient glide keeps the
+/// output as smooth as a sine (no zipper), while stepping the coefficients at each event is
+/// a buzz of small clicks.
+#[test]
+fn eq_dense_automation_has_no_zipper() {
+    let frames = 48_000;
+    let x = sine(100.0, 0.1, frames);
+    let f = eq::params::band(2, eq::params::FREQ);
+    let g = eq::params::band(2, eq::params::GAIN);
+    let q = eq::params::band(2, eq::params::Q);
+    let mut events = Vec::new();
+    for k in (0..frames).step_by(32).skip(1) {
+        let t = k as f64 / frames as f64;
+        let tri = 1.0 - (2.0 * t - 1.0).abs();
+        events.push((k, param(f, 60.0 * (1000f64 / 60.0).powf(tri))));
+        events.push((k, param(g, 12.0 * (1.0 - 0.5 * tri))));
+        events.push((k, param(q, 0.7 + 2.0 * tri)));
+    }
+    let mut e = eq_with(|e| solo_band(e, 2, 2.0, 60.0, 12.0, 0.7));
+    let out = render(&mut e, &[x.clone(), x.clone()], &events);
+    let w = std::f32::consts::TAU * 100.0 / SR;
+    let smooth = 0.1 * 10f32.powf(12.0 / 20.0) * w * w;
+    let glided = max_curvature(&out[0][4800..]);
+    // Control: each event applied unsmoothed at the block boundary.
+    let mut e = eq_with(|e| solo_band(e, 2, 2.0, 60.0, 12.0, 0.7));
+    let mut stepped = Vec::new();
+    let mut at = 0;
+    for chunk in events.chunks(3) {
+        let frame = chunk[0].0;
+        let seg = [x[at..frame].to_vec(), x[at..frame].to_vec()];
+        stepped.extend(render(&mut e, &seg, &[])[0].iter().copied());
+        for (_, ev) in chunk {
+            if let EventKind::Param { param, value, .. } = *ev {
+                e.set_param(param, value);
+            }
+        }
+        at = frame;
+    }
+    let stepped = max_curvature(&stepped[4800..]);
+    eprintln!(
+        "dense automation: max curvature {glided:.2e} glided, {stepped:.2e} stepped (smooth sine {smooth:.2e})"
+    );
+    assert!(glided < smooth * 2.0, "{glided} vs {smooth}");
+    assert!(stepped > glided * 3.0, "{stepped} vs {glided}");
+}
+
+/// Switching `Channel` while playing crossfades between the routings: no click on a low
+/// sine through a +12 dB bell, where restarting the bands from rest (the previous behaviour,
+/// still what a non-smoothed change does) is one.
+#[test]
+fn eq_channel_changes_do_not_click() {
+    let frames = 48_000;
+    let l = sine(100.0, 0.1, frames);
+    let r: Vec<f32> = sine(100.0, 0.1, frames + 120)[120..].to_vec();
+    let x = [l, r];
+    let ch = eq::params::CHANNEL;
+    let events = [
+        (6000 + 37, param(ch, 3.0)),
+        (12_000 + 11, param(ch, 1.0)),
+        (18_000 + 5, param(ch, 4.0)),
+        (24_000 + 29, param(ch, 0.0)),
+    ];
+    let mut e = eq_with(|e| solo_band(e, 2, 2.0, 100.0, 12.0, 1.0));
+    let out = render(&mut e, &x, &events);
+    let w = std::f32::consts::TAU * 100.0 / SR;
+    let smooth = 0.1 * 10f32.powf(12.0 / 20.0) * w * w;
+    let worst = (0..2).map(|c| max_curvature(&out[c])).fold(0.0, f32::max);
+    assert!(worst < smooth * 3.0, "{worst} vs {smooth}");
+    // The modes did change: mid only (the side passes) from 6000 on.
+    assert!(peak(&out[0][9000..12_000]) < peak(&out[0][3000..6000]));
+
+    // Control: the same switches applied between blocks, unsmoothed.
+    let mut e = eq_with(|e| solo_band(e, 2, 2.0, 100.0, 12.0, 1.0));
+    let mut joined = [Vec::new(), Vec::new()];
+    let mut at = 0;
+    for (frame, ev) in events {
+        let seg = [x[0][at..frame].to_vec(), x[1][at..frame].to_vec()];
+        let o = render(&mut e, &seg, &[]);
+        for c in 0..2 {
+            joined[c].extend_from_slice(&o[c]);
+        }
+        if let EventKind::Param { param, value, .. } = ev {
+            e.set_param(param, value);
+        }
+        at = frame;
+    }
+    let hard = (0..2)
+        .map(|c| max_curvature(&joined[c]))
+        .fold(0.0, f32::max);
+    assert!(hard > worst * 10.0, "restarting clicks: {hard} vs {worst}");
+    eprintln!(
+        "channel switch: max curvature {worst:.2e} crossfaded, {hard:.2e} restarted (smooth sine {smooth:.2e})"
+    );
+}
+
 // ---------------------------------------------------------------------------------------
 // Limiter
 
