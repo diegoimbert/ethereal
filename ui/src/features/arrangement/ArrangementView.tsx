@@ -8,7 +8,17 @@ import { droppedFiles, hasOsFiles, importAudio, noteHover, openImportDialog, typ
 import { isSampleDrag, readSampleDrop, relinkDrop, useMediaRefs } from "@/features/media-refs";
 import { missingClipAt, type RelinkTarget } from "./missingDrop";
 import { AddTrackRow } from "./newTrack";
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef, type DragEvent, type KeyboardEvent, type PointerEvent } from "react";
+import {
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type DragEvent,
+  type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent,
+} from "react";
 import type { Beats, TrackId } from "@/generated";
 import { useShellStore } from "@/state/shell";
 import { isReadOnly, useEditorStore, useReadOnly, dismissOnRelease, showClipOnClick, useProjectStore, useSelectionStore, useTracksOrdered } from "@/state";
@@ -373,6 +383,20 @@ function ConnectedArrangementView() {
   };
 
   /**
+   * A click on the pinned master row's lane (outside the scrolling rows' marquee): like a
+   * click on another row without a timeline of its own, it selects the master and sets the
+   * cursor there (snapped; Alt: free).
+   */
+  const onMasterLaneClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || !masterRow || !(e.target as Element).closest?.(".eth-arr-lane")) return;
+    const hw = useArrangementUi.getState().headerWidth;
+    const x = e.clientX - e.currentTarget.getBoundingClientRect().left - hw;
+    if (x < 0) return;
+    selectAtLaneClick(masterRow.track.id, null, selectModeFromEvent(e));
+    setPlayStart(transport, Math.max(0, snap(pxToBeats(x, view.getState()), e.altKey)));
+  };
+
+  /**
    * Where a drop of `kind` files lands: on a track of that kind (audio clips on an audio
    * track, a MIDI file on a MIDI track), or below the tracks (new tracks). Other rows refuse.
    */
@@ -649,7 +673,8 @@ function ConnectedArrangementView() {
           </div>
         </div>
         {masterRow && (
-          <div className="eth-arr__master" data-testid="arrangement-master" onPointerDownCapture={onTracksPointerDownCapture}>
+          // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- a pointer gesture on the lane (the transport's keys move the cursor)
+          <div className="eth-arr__master" data-testid="arrangement-master" onPointerDownCapture={onTracksPointerDownCapture} onClick={onMasterLaneClick}>
             <div className="eth-arr__backdrop" style={{ left: headerWidth }}>
               <GridLayer />
             </div>

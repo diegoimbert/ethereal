@@ -63,10 +63,12 @@
   font: inherit;
   text-align: left;
 }
-.eth-toast--clickable .eth-toast__body {
+.eth-toast--clickable .eth-toast__body,
+.eth-toast--expandable .eth-toast__body {
   cursor: pointer;
 }
-.eth-toast--clickable .eth-toast__body:hover {
+.eth-toast--clickable .eth-toast__body:hover,
+.eth-toast--expandable .eth-toast__body:hover {
   background: var(--eth-color-bg-hover);
 }
 .eth-toast__body:focus-visible {
@@ -87,6 +89,30 @@
   line-height: var(--eth-lh-normal);
   overflow-wrap: anywhere;
   white-space: pre-line;
+}
+/* Expanded: all of the text, scrolling past half the window. */
+.eth-toast--expanded .eth-toast__text {
+  display: block;
+  max-height: 50vh;
+  overflow-y: auto;
+  -webkit-line-clamp: unset;
+  line-clamp: none;
+  user-select: text;
+}
+/* Close, then expand and copy below it. */
+.eth-toast__tools {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+}
+.eth-toast__tools > .eth-toast__close + .eth-toast__close {
+  margin-top: 0;
+}
+.eth-toast__expand svg {
+  transition: transform var(--context-menu-enter-duration) var(--context-menu-enter-ease);
+}
+.eth-toast--expanded .eth-toast__expand svg {
+  transform: rotate(180deg);
 }
 .eth-toast__action {
   flex: none;

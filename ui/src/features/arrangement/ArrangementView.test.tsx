@@ -976,6 +976,19 @@ describe("ArrangementView: clip editing", () => {
     expect(sent.filter((c) => c.domain === "Transport" && c.command.type === "Locate")).toHaveLength(1);
   });
 
+  it("a click on the master's lane selects the master and moves the playhead there (snapped)", async () => {
+    const master = screen.getByTestId("arrangement-master");
+    const lane = master.querySelector<HTMLElement>(".eth-arr-lane")!;
+    // jsdom: the master row's box starts at x 0, its lane after the header column.
+    fireEvent.click(lane, { clientX: HEADER_WIDTH + 12.4 * PX, clientY: 10 });
+    await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(12));
+    const m = tracksOrdered(project()).find((t) => t.kind === "Master")!;
+    expect([...useArrangementUi.getState().selectedTracks]).toEqual([m.id]);
+    // The header column is not the lane: no move.
+    fireEvent.click(master.querySelector(".eth-arr-header")!, { clientX: 10, clientY: 10 });
+    expect(sent.filter((c) => c.domain === "Transport" && c.command.type === "Locate")).toHaveLength(1);
+  });
+
   it("a click on a lane's empty space selects its track like a header click (inspector focus, marker kept)", async () => {
     const content = screen.getByTestId("arrangement-content");
     const [keys, bass, drums] = ["Keys", "Bass", "Drums"].map(trackByName);
@@ -1843,6 +1856,21 @@ describe("ArrangementView: track multi-selection (base-151)", () => {
     expect(useArrangementUi.getState().selectedTracks.size).toBe(0);
     fireEvent.pointerLeave(outerHeader);
     await waitFor(() => expect(headerOf("Keys")).not.toHaveAttribute("data-group-hover"));
+  });
+
+  it("a grouped track's row shows a rail per enclosing group (none at the top level)", async () => {
+    const [keys, bass] = [trackByName("Keys"), trackByName("Bass")];
+    const [inner, outer] = [newId(), newId()];
+    await act(async () => {
+      await mock.send(cmd("Track", { type: "GroupSelected", ids: [keys.id], group: inner, name: "Inner" }));
+      await mock.send(cmd("Track", { type: "GroupSelected", ids: [inner, bass.id], group: outer, name: "Outer" }));
+    });
+    await flush();
+    const railsOf = (id: string) => document.querySelectorAll(`.eth-arr-row[data-track="${id}"] .eth-arr-row__group-rail`).length;
+    await waitFor(() => expect(railsOf(keys.id)).toBe(2));
+    expect(railsOf(bass.id)).toBe(1);
+    expect(railsOf(inner)).toBe(1);
+    expect(railsOf(outer)).toBe(0);
   });
 
   it("allSelectableTracks: the shown rows in display order, children of folded groups and the master left out", async () => {
