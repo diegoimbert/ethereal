@@ -177,6 +177,9 @@ impl Shape {
     fn apply_adaa(&self, st: &mut Adaa, x: f32) -> f32 {
         let u = f64::from(self.drive) * f64::from(x + self.bias);
         let c = self.curve;
+        if c == Curve::Rectify {
+            return st.tick_rectify(u) as f32 - self.offset;
+        }
         st.tick(u, |u| c.apply64(u), |u| c.integral(u)) as f32 - self.offset
     }
 }
