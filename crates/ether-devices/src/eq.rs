@@ -478,6 +478,23 @@ impl Eq {
         let channels = audio.outputs.len().min(2);
         // One-channel modes need two channels (a mono track's EQ always runs as stereo).
         let routing = |ch: usize| if channels < 2 { CHANNEL_STEREO } else { ch };
+        // No band gliding (the usual case): which bands run can't change in this span
+        // (only parameter events start a glide, and they split spans), so decide it once
+        // and clear the off bands' state once instead of on every sample.
+        let settled = !self.bands.iter().any(|b| b.moving);
+        #[cfg(test)]
+        let settled = settled && !span_tests::PER_SAMPLE.with(std::cell::Cell::get);
+        let mut fixed = [false; BANDS];
+        if settled {
+            for (b, band) in self.bands.iter().enumerate() {
+                if band.current.is_bypass() {
+                    self.states[b] = [Svf::ZERO; 2];
+                    self.old_states[b] = [Svf::ZERO; 2];
+                } else {
+                    fixed[b] = true;
+                }
+            }
+        }
         for i in start..end {
             let mut x = [0.0f64; 2];
             for (c, v) in x.iter_mut().enumerate().take(channels) {
@@ -491,8 +508,8 @@ impl Eq {
             }
             // Always fed (two stores per sample) so a new watch starts from real audio.
             self.pre.push(mono(&x, channels));
-            let mut active = [false; BANDS];
-            for (b, band) in self.bands.iter_mut().enumerate() {
+            let mut active = fixed;
+            for (b, band) in self.bands.iter_mut().enumerate().filter(|_| !settled) {
                 if band.moving {
                     let a = band.mid.glide(&band.target, self.glide);
                     let c = band.current.glide(&band.mid, self.glide);
@@ -869,5 +886,65 @@ pub mod spectrum {
             }
             len <<= 1;
         }
+    }
+}
+
+#[cfg(test)]
+mod span_tests {
+    use super::*;
+
+    thread_local! {
+        /// Force the per-sample band decisions (to compare the settled path against them).
+        pub(super) static PER_SAMPLE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    }
+
+    fn run_eq(per_sample: bool) -> Vec<f32> {
+        PER_SAMPLE.with(|c| c.set(per_sample));
+        let mut eq = Eq::new();
+        eq.prepare(&PrepareConfig {
+            sample_rate: 48_000.0,
+            max_block_size: 128,
+            max_events_per_block: 16,
+        });
+        // Two bands on (a bell boost and a high shelf cut), the rest off.
+        eq.set_param(params::band(2, params::ON), 1.0);
+        eq.set_param(params::band(2, params::GAIN), 6.0);
+        eq.set_param(params::band(5, params::ON), 1.0);
+        eq.set_param(params::band(5, params::GAIN), -4.0);
+        let mut seed = 3u32;
+        let mut noise = || {
+            seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (seed >> 8) as f32 / (1u32 << 24) as f32 - 0.5
+        };
+        let mut all = Vec::new();
+        // The first blocks glide to the new coefficients (per sample either way), the
+        // later ones are settled.
+        for _ in 0..400 {
+            let l: Vec<f32> = (0..128).map(|_| noise()).collect();
+            let r: Vec<f32> = (0..128).map(|_| noise()).collect();
+            let ins: [&[f32]; 2] = [&l, &r];
+            let (mut ol, mut or) = (vec![0.0f32; 128], vec![0.0f32; 128]);
+            {
+                let mut outs: [&mut [f32]; 2] = [&mut ol, &mut or];
+                let mut audio = AudioBuffers {
+                    inputs: &ins,
+                    outputs: &mut outs,
+                };
+                eq.render(&mut audio, 0, 60);
+                eq.render(&mut audio, 60, 128);
+            }
+            all.extend(ol);
+            all.extend(or);
+        }
+        PER_SAMPLE.with(|c| c.set(false));
+        all
+    }
+
+    /// Deciding the running bands once per settled span is bit-identical.
+    #[test]
+    fn settled_spans_are_bit_identical() {
+        let (a, b) = (run_eq(false), run_eq(true));
+        assert!(a.iter().zip(&b).all(|(x, y)| x.to_bits() == y.to_bits()));
+        assert!(a.iter().any(|&x| x != 0.0));
     }
 }
