@@ -125,6 +125,36 @@ export function hitBand(p: Plot, bands: ReadonlyArray<EqBand & { index: number }
   return best;
 }
 
+/** Curve-scale dB at `y` px (the inverse of [`yOf`], clamped to the range). */
+export function dbAt(p: Plot, y: number): number {
+  const t = 1 - (y - PAD) / Math.max(1, p.h - 2 * PAD);
+  return Math.max(-DB_RANGE, Math.min(DB_RANGE, t * 2 * DB_RANGE - DB_RANGE));
+}
+
+/** A band nobody uses yet: switched off, or a bell / shelf left at 0 dB. */
+export function isUnused(b: EqBand): boolean {
+  return !b.on || (usesGain(b.shape) && Math.abs(b.gainDb) < 0.05);
+}
+
+/**
+ * The band a double-click on empty space at `freq` takes: the unused band nearest in
+ * octaves, a bell or shelf before a cut (a click places a gain point), or `null` when every
+ * band is in use.
+ */
+export function bandToPlace(bands: ReadonlyArray<EqBand & { index: number }>, freq: number): number | null {
+  let best: number | null = null;
+  let bestScore = Infinity;
+  for (const b of bands) {
+    if (!isUnused(b)) continue;
+    const score = Math.abs(Math.log2(b.freq / freq)) + (usesGain(b.shape) ? 0 : 100);
+    if (score < bestScore) {
+      bestScore = score;
+      best = b.index;
+    }
+  }
+  return best;
+}
+
 /** `n` log-spaced frequencies from `F_MIN` to `F_MAX` (the curve's sample points). */
 export function logFreqs(n: number): number[] {
   const out: number[] = [];

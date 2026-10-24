@@ -132,6 +132,51 @@ describe("EqCurve", () => {
     expect(param(id(2, ON))).toBe(0);
   });
 
+  it("double-click on empty space places the nearest unused band there (one undo step)", async () => {
+    const { svg } = await renderEq();
+    // Just left of band 6 (a 6 kHz bell at 0 dB, the nearest unused band), at +18 dB.
+    const x = handle(svg, 5).x - 3;
+    const y = 10 + (72 - 20) * 0.125;
+    const undo = store().history.undo_label;
+    await act(async () => {
+      fireEvent.pointerDown(svg, { button: 0, pointerId: 1, clientX: x, clientY: y });
+      fireEvent.pointerUp(svg, { pointerId: 1, clientX: x, clientY: y });
+      fireEvent.doubleClick(svg, { clientX: x, clientY: y });
+    });
+    // Params changed inside a gesture go out once per animation frame.
+    await act(() => new Promise((r) => setTimeout(r, 50)));
+    await flush();
+    expect(param(id(5, FREQ))).toBeGreaterThan(2500);
+    expect(param(id(5, FREQ))).toBeLessThan(6000);
+    expect(param(id(5, GAIN))).toBeCloseTo(18, 0);
+    expect(param(id(4, GAIN))).toBe(0);
+    await act(() => mock!.send(cmd("Edit", { type: "Undo" })));
+    expect(param(id(5, FREQ))).toBe(6000);
+    expect(param(id(5, GAIN))).toBe(0);
+    expect(store().history.undo_label).toBe(undo);
+    // Once every bell and shelf is in use, a cut that is off takes the click.
+    for (const b of [1, 2, 3, 4, 5, 6]) await act(() => mock!.send(cmd("Device", { type: "SetParam", device: eqId, param: id(b, GAIN), value: 3 })));
+    await flush();
+    const low = 3;
+    await act(async () => {
+      fireEvent.doubleClick(svg, { clientX: low, clientY: 60 });
+    });
+    await act(() => new Promise((r) => setTimeout(r, 50)));
+    await flush();
+    expect(param(id(0, ON))).toBe(1);
+  });
+
+  it("Delete switches the focused band off", async () => {
+    const { svg } = await renderEq();
+    fireEvent.keyDown(handle(svg, 3).el, { key: "Delete" });
+    await flush();
+    expect(param(id(3, ON))).toBe(0);
+    // An off band stays off.
+    fireEvent.keyDown(handle(svg, 3).el, { key: "Backspace" });
+    await flush();
+    expect(param(id(3, ON))).toBe(0);
+  });
+
   it("the handle's context menu sets the type, toggles and resets the band", async () => {
     const { svg, panel } = await renderEq();
     const wrap = panel.querySelector(".eth-eq")!;
