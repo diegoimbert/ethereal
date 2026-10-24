@@ -289,11 +289,9 @@ fn quitting_on_the_main_thread_saves_the_live_plugin_state() {
     // On the "main thread": nothing else serves the plugin calls of the save.
     host.shutdown();
 
-    let file = dir
-        .path()
-        .join("projects")
-        .join(&project)
-        .join("project.ether");
+    let file =
+        ether_native::project_dirs::dir(&dir.path().join("projects"), project.parse().unwrap())
+            .join("project.ether");
     let doc: Value = serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
     let state = &doc["project"]["devices"][&device]["kind"]["plugin"]["state"];
     let state: Base64Bytes = serde_json::from_value(state.clone())

@@ -115,6 +115,8 @@ where
                 project.settings.name = name;
                 let json = file::save(&project, &self.config.app_version).map_err(file_err)?;
                 self.store.save(*id, &json).map_err(store_err)?;
+                // Not open: its folder may follow the new title now.
+                self.store.settle_folder(*id);
                 self.emit_list_changed(out);
                 Ok(ReplyValue::Unit)
             }
@@ -547,6 +549,8 @@ where
         project.settings.name = name;
         // The copy still holds the old document until this lands: remove it on failure.
         let summary = self.save_copy(new_id, &project)?;
+        // Nothing is open in the new folder yet.
+        self.store.settle_folder(new_id);
         // Same content: the engine keeps its nodes and media; only identity/name/history change.
         let doc = self.doc.as_mut().expect("checked");
         doc.project = project.clone();
@@ -629,6 +633,7 @@ where
         project.id = new_id;
         project.settings.name = name;
         let summary = self.save_copy(new_id, &project)?;
+        self.store.settle_folder(new_id);
         self.emit_list_changed(out);
         Ok(ReplyValue::Saved { project: summary })
     }
@@ -792,6 +797,7 @@ where
                 return Err(store_err(e));
             }
         };
+        self.store.settle_folder(new_id);
         self.emit_list_changed(out);
         Ok(ReplyValue::Saved { project: summary })
     }
@@ -810,6 +816,7 @@ where
         safe: bool,
         out: &mut dyn MessageSink,
     ) {
+        let previous = self.doc.as_ref().map(|d| d.project.id);
         // Replaced without `autosave_before_switch` (an extension's adopt): deleted all the same.
         if self.discarded.is_some_and(|d| d != project.id) {
             self.close_discarded(out);
@@ -821,6 +828,12 @@ where
             self.engine.defer_plugins(&project);
         }
         self.media.reset(&mut self.bridge);
+        // Nothing holds files open in the closed project's folder nor in this one yet: their
+        // folders may follow their titles now (`ProjectStore::settle_folder`).
+        if let Some(previous) = previous.filter(|p| *p != project.id) {
+            self.store.settle_folder(previous);
+        }
+        self.store.settle_folder(project.id);
         self.armed.clear();
         self.plugin_gestures.clear();
         let _ = self.bridge.transport(TransportControl::Stop);
