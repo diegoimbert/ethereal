@@ -2453,6 +2453,7 @@
   "transport.dialog.export_midi": "exporter en midi",
   "transport.filter.midi": "fichier midi",
   "error.transport.not_connected": "pas connecté au moteur distant",
+  "error.transport.engine_not_connected": "pas connecté au moteur",
   "notice.web.engine_stopped": "moteur audio arrêté : {error}",
   "docs.command.open": "documentation",
   "docs.command.shortcuts": "documentation : raccourcis clavier",
