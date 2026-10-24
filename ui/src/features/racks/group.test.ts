@@ -9,7 +9,16 @@ const dev = (id: string, order: string, extra: Partial<Device> = {}) => ({ id, o
 const project = (...ds: Device[]) => ({ devices: Object.fromEntries(ds.map((d) => [d.id, d])) }) as unknown as Project;
 
 describe("group into rack", () => {
-  const p = project(dev("a", "1"), dev("b", "2"), dev("c", "3"), dev("x", "1", { track: "u" }), dev("r", "4", { chain: "ch" }), dev("s", "5", { chain: "ch" }), dev("q", "6", { chain: "ch" }), dev("o", "1", { chain: "other" }));
+  const p = project(
+    dev("a", "1"),
+    dev("b", "2"),
+    dev("c", "3"),
+    dev("x", "1", { track: "u" }),
+    dev("r", "4", { chain: "ch" }),
+    dev("s", "5", { chain: "ch" }),
+    dev("q", "6", { chain: "ch" }),
+    dev("o", "1", { chain: "other" }),
+  );
 
   it("takes devices next to each other on one track chain, in chain order", () => {
     expect(groupable(p, ["c", "b"])?.map((d) => d.id)).toEqual(["b", "c"]);
