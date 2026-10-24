@@ -176,6 +176,10 @@ machine than the engine, so the protocol never carries file-system paths.
   - `project.ether`, which holds the display name and id
   - `media/`: imported audio is copied in, so projects are self-contained
   - `cache/`: peaks and decoded audio
+  - `.status.json` (optional): archived (`{"archived": true}`) or in the bin since
+    (`{"binned_ms": …}`), `ether_controller::project_status`. `Project::List` leaves binned
+    projects out (`ListBin` lists them) and deletes those binned 30 days ago
+    (`BIN_RETENTION_MS`); a binned project doesn't open; copies never carry the file.
 - **`projects_root`** comes from engine/host config (`ether_native::default_projects_root`):
   - `~/Documents/Ethereal/Projects` by default;
   - `<data_dir>/ethereal-dev/<instance>/projects` in dev builds, so each instance is

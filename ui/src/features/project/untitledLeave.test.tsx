@@ -11,7 +11,7 @@ import { isDraft, isUntitled, resetDrafts } from "./drafts";
 import { ProjectMenu } from "./index";
 import { useLaunchPrefs } from "./launch";
 import { guardLeave } from "./leaveGuard";
-import { deleteOpenProject } from "./projectCommands";
+import { binOpenProject } from "./projectCommands";
 import { useProjectScreen } from "./screenStore";
 
 const store = () => useProjectStore.getState();
@@ -226,9 +226,9 @@ describe("leaving an untitled project", () => {
     await waitFor(async () => expect(await stored(mock, draft)).toBe(false));
   });
 
-  it("deleting the open untitled project doesn't ask (it is deleted anyway)", async () => {
+  it("moving the open untitled project to the bin doesn't ask (it is kept there)", async () => {
     const { mock, id } = await untitledProject();
-    act(() => deleteOpenProject(new NothingOpen(mock), id));
+    act(() => binOpenProject(new NothingOpen(mock), id, "Untitled"));
     await waitFor(() => expect(store().project?.id).not.toBe(id));
     expect(screen.queryByRole("dialog", { name: "discard this untitled project?" })).toBeNull();
   });
