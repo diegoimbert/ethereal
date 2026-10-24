@@ -337,6 +337,16 @@ export const BUILTIN_ACTIONS: ReadonlyArray<KeymapAction> = [
   },
   // App
   { id: "palette.open", labelKey: "shell.action.palette_open", group: "App", scopes: G, chords: ["Mod+K"], handled: true, keywords: "search commands" },
+  // Answered from text fields too (app/shell/QuickSearch.tsx); the web browser's find bar never opens.
+  {
+    id: "search.open",
+    labelKey: "shell.action.search_open",
+    group: "App",
+    scopes: G,
+    chords: ["Mod+F"],
+    handled: true,
+    keywords: "find search jump go to track clip device marker sample",
+  },
   { id: "keymap.open", labelKey: "shell.action.keymap_open", group: "App", scopes: G, chords: [], palette: "keymap:open", keywords: "keymap bindings hotkeys" },
   { id: "project.save", labelKey: "shell.action.project_save", group: "App", scopes: G, chords: ["Mod+S"], handled: true },
   {

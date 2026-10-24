@@ -46,6 +46,7 @@ import { NewsRoot } from "@/features/news";
 import { useDocumentTitle } from "@/features/document-title";
 import { VersionsRoot } from "@/features/versions";
 import { CommandPalette } from "./shell/CommandPalette";
+import { QuickSearch } from "./shell/QuickSearch";
 import { DrawerFullscreenButton, DrawerShortcut, DrawerTabs, EditorDrawer, useDrawerFullscreen } from "./shell/EditorDrawer";
 import { FloatingPane } from "./shell/FloatingPane";
 import { Inspector } from "./shell/Inspector";
@@ -422,6 +423,9 @@ function EditorShell() {
       </PanelBoundary>
       <PanelBoundary name="command palette" variant="overlay">
         <CommandPalette />
+      </PanelBoundary>
+      <PanelBoundary name="quick search" variant="overlay">
+        <QuickSearch />
       </PanelBoundary>
       <PanelBoundary name="settings" variant="overlay">
         <AudioSettingsDialog />

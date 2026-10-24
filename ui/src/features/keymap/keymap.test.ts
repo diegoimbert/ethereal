@@ -137,6 +137,7 @@ describe("registry and presets", () => {
       "palette.open": ["Mod+K"],
       "project.save": ["Mod+S"],
       "project.snapshot": ["Mod+Alt+S"],
+      "search.open": ["Mod+F"],
       "file.import": ["Mod+I"],
       "view.editor": ["Mod+Alt+L"],
       "ai:ask": ["Mod+Shift+A"],
