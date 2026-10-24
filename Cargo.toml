@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 # `ee/` (the full product's private repository, when checked out) is a workspace of its own.
-exclude = ["ee"]
+exclude = ["ee", "fuzz"]
 members = [
     "crates/ether-protocol",
     "crates/ether-model",

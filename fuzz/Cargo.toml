@@ -1,0 +1,66 @@
+# cargo-fuzz targets over the parsers that take untrusted bytes (files, network frames).
+# Not a workspace member (needs nightly + libFuzzer): `just fuzz <target> [seconds]`,
+# `just fuzz-all [seconds]`; CI runs them on main (.github/workflows/fuzz.yml).
+[package]
+name = "ether-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "AGPL-3.0-or-later"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+ether-media = { path = "../crates/ether-media" }
+ether-model = { path = "../crates/ether-model" }
+ether-controller = { path = "../crates/ether-controller" }
+ether-server = { path = "../crates/ether-server" }
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "media_decode"
+path = "fuzz_targets/media_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "midi_file"
+path = "fuzz_targets/midi_file.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "peaks"
+path = "fuzz_targets/peaks.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "project_file"
+path = "fuzz_targets/project_file.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bundle"
+path = "fuzz_targets/bundle.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "server_frames"
+path = "fuzz_targets/server_frames.rs"
+test = false
+doc = false
+bench = false

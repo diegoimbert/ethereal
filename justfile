@@ -146,6 +146,14 @@ check-licenses:
 check-advisories:
     cargo deny check advisories bans sources
 
+# Fuzz a parser that takes untrusted bytes (fuzz/; nightly + `cargo install cargo-fuzz`):
+# `just fuzz media_decode 300`; `just fuzz-all 60` runs every target (`node scripts/fuzz.mjs list`).
+fuzz target seconds="60":
+    node scripts/fuzz.mjs run {{target}} {{seconds}}
+
+fuzz-all seconds="60":
+    node scripts/fuzz.mjs all {{seconds}}
+
 # cargo check for the wasm32 target (engine-side crates), with every feature and with none.
 check-wasm:
     cargo check --target wasm32-unknown-unknown {{wasm_crates}} --all-features
