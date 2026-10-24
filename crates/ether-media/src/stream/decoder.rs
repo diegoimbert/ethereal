@@ -285,9 +285,8 @@ impl ChunkDecoder {
         engine_rate: u32,
     ) -> Result<Self, MediaError> {
         let (src, source_rate) = SourceReader::new(source, extension, source_frames)?;
-        if source_rate == 0 || engine_rate == 0 {
-            return Err(MediaError::Decode("unknown sample rate".into()));
-        }
+        crate::check_rate(source_rate)?;
+        crate::check_rate(engine_rate)?;
         let channels = src.channels.max(1) as u16;
         let n_ch = channels as usize;
         let frames = resampled_len(source_frames as usize, source_rate, engine_rate) as u64;

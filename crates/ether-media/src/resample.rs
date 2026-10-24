@@ -87,9 +87,8 @@ pub fn resampled_len(frames: usize, source_rate: u32, target_rate: u32) -> usize
 /// `k / ratio`, exactly) and has exactly
 /// `ceil(frames * target_rate / sample_rate)` frames.
 pub fn resample(audio: &DecodedAudio, target_rate: u32) -> Result<DecodedAudio, MediaError> {
-    if target_rate == 0 || audio.sample_rate == 0 {
-        return Err(MediaError::Resample("sample rate must be > 0".into()));
-    }
+    crate::check_rate(target_rate)?;
+    crate::check_rate(audio.sample_rate)?;
     if audio.sample_rate == target_rate {
         return Ok(audio.clone());
     }
