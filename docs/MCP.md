@@ -151,7 +151,7 @@ claude mcp add ethereal-song -- /path/to/ether-mcp --project ~/Music/song.ether
 This mode embeds the engine with the null audio backend (`ETHER_AUDIO=null`), so nothing is
 played. The `--project` argument can be:
 
-- a project folder of an Ethereal store (`<projects root>/<uuid>/`) or the `project.ether`
+- a project folder of an Ethereal store (`<projects root>/<title> - <short id>/`) or the `project.ether`
   in it. It is opened in place, with its media.
 - any other `.ether` path, existing or new. A new file is created named after the path.
   `save_project` writes the document there. Media imported in this mode are not kept.

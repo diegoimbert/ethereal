@@ -14,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use ether_native::audio::{AudioBackendKind, AudioSettings};
+use ether_native::project_dirs;
 use ether_native::store::{PROJECT_FILE, PROJECT_SUBDIRS, atomic_write};
 use ether_native::{DedicatedThread, HostConfig, HostOptions, LibraryRoot, NativeHost};
 use ether_protocol::model::{IdGen, ProjectId};
@@ -28,8 +29,8 @@ pub struct HeadlessBackend {
     host: Option<NativeHost>,
     pending: Arc<Pending>,
     project: ProjectId,
-    /// The project's file in the store.
-    store_file: PathBuf,
+    /// The store's root (the project's folder in it: `project_dirs::dir`).
+    projects_root: PathBuf,
     /// Standalone mode: the user's file (written on save) and the work dir (removed).
     standalone: Option<(PathBuf, PathBuf)>,
 }
@@ -74,7 +75,11 @@ fn in_store(path: &Path) -> Option<(PathBuf, ProjectId)> {
     if !dir.join(PROJECT_FILE).is_file() {
         return None;
     }
-    let id: ProjectId = dir.file_name()?.to_str()?.parse().ok()?;
+    // A bare-UUID folder, else the id in its document (`project_dirs`).
+    let id: ProjectId = match dir.file_name()?.to_str()?.parse() {
+        Ok(id) => id,
+        Err(_) => project_dirs::head_of(dir)?.id?,
+    };
     Some((dir.parent()?.to_path_buf(), id))
 }
 
@@ -187,7 +192,7 @@ impl HeadlessBackend {
             host: Some(host),
             pending,
             project,
-            store_file: projects_root.join(project.to_string()).join(PROJECT_FILE),
+            projects_root: projects_root.clone(),
             standalone,
         };
         if me.standalone.is_some() && created {
@@ -216,6 +221,13 @@ fn request(host: &NativeHost, pending: &Pending, command: Command) -> Result<Rep
     wait(pending, id, rx)
 }
 
+impl HeadlessBackend {
+    /// The project's file in the store (its folder follows its title).
+    fn store_file(&self) -> PathBuf {
+        project_dirs::dir(&self.projects_root, self.project).join(PROJECT_FILE)
+    }
+}
+
 impl Backend for HeadlessBackend {
     fn request(&self, command: Command) -> Result<ReplyValue, String> {
         let host = self.host.as_ref().ok_or("the engine is stopped")?;
@@ -224,9 +236,9 @@ impl Backend for HeadlessBackend {
 
     fn after_save(&self) -> Result<Option<String>, String> {
         let Some((file, _)) = &self.standalone else {
-            return Ok(Some(format!("saved to {}", self.store_file.display())));
+            return Ok(Some(format!("saved to {}", self.store_file().display())));
         };
-        let json = std::fs::read(&self.store_file)
+        let json = std::fs::read(self.store_file())
             .map_err(|e| format!("cannot read the saved document: {e}"))?;
         if let Some(dir) = file.parent() {
             std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
@@ -238,7 +250,7 @@ impl Backend for HeadlessBackend {
     fn describe(&self) -> String {
         let file = match &self.standalone {
             Some((f, _)) => f.clone(),
-            None => self.store_file.clone(),
+            None => self.store_file(),
         };
         format!(
             "a headless Ethereal engine (no audio output) on {}; call save_project to write it",
