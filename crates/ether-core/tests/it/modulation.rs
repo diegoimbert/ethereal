@@ -406,3 +406,23 @@ fn readback_frames_carry_base_and_effective() {
     assert!((0.0..=1.0).contains(&v[2]) && v[2] != 0.5);
     let _ = to_plain(&LINEAR, 0.5);
 }
+
+/// A degenerate source (an LFO at 1e308 Hz: its phase is NaN) never hands a plugin NaN: the
+/// target keeps its base.
+#[test]
+fn a_nan_source_leaves_the_target_at_its_base() {
+    let mut p = create(config());
+    let (rec, mut rx) = Recorder::new();
+    let rec = p.handle.add_node(Box::new(rec)).unwrap();
+    let mut t = with_chain(track(tid(2), TrackKind::Audio, Some(tid(1))), &[rec]);
+    t.modulation = ModulationDesc {
+        modulators: vec![lfo(rec, 1e308)],
+        mappings: vec![mapping(ModSourceDesc::Modulator(0), rec, 0.25, 0.5)],
+        macros: vec![],
+    };
+    p.handle.publish(desc(1, t)).unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    render(&mut p.engine, BEAT, BLOCK);
+    let ev = params_of(&drain(&mut rx));
+    assert!(ev.iter().all(|&(_, v)| v.is_finite()), "{ev:?}");
+}
