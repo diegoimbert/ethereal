@@ -2,7 +2,7 @@ import clsx from "clsx";
 import { Headphones, Music, Volume2, VolumeX, Waves } from "lucide-react";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useShallow } from "zustand/react/shallow";
-import type { Clip, Command, ParamInfo, Track, TrackId, TrackSend, WarpMode } from "@/generated";
+import type { Clip, Command, ParamInfo, Track, TrackId, TrackSend } from "@/generated";
 import { inertTitle, useFrozenAncestor } from "@/features/freeze";
 import { DeviceChain } from "@/features/devices";
 import { collapseAll } from "@/features/devices/collapsed";
@@ -21,10 +21,14 @@ import {
   offsetTranspose,
   setAllGain,
   setAllTranspose,
-  setAllWarp,
+  setAllWarpChoice,
   transposeBases,
+  WARP_CHOICES,
+  warpChoiceOf,
+  warpChoicePatch,
   type AudioClip,
   type Bases,
+  type WarpChoice,
 } from "@/features/clip-editing/multiEdit";
 import { dbToFader, faderToDb } from "@/features/arrangement/faderLaw";
 import { defaultOutputLabel, outputTargets, outputValue, parseOutputValue } from "./outputRouting";
@@ -289,8 +293,8 @@ function ManyAudioClipsSection({ clips }: { clips: ReadonlyArray<Clip> }) {
   const gain = common(audio.map((a) => a.audio.gain));
   const transpose = common(audio.map((a) => a.audio.transpose));
   const reversed = audio.every((a) => a.audio.reversed);
-  const warped = audio.every((a) => a.audio.warp.enabled);
-  const mode = common(audio.map((a) => a.audio.warp.mode));
+  // The mode list, "none" (warp off) included: a mode the clips don't share shows as "—".
+  const choice = common(audio.map((a) => warpChoiceOf(a.audio.warp)));
   const allClips = (list: ReadonlyArray<AudioClip>) => list.map((a) => a.clip);
   return (
     <Section title={audio.length === clips.length ? t("shell.inspector.audio") : t("shell.inspector.audio_some", { count: audio.length, total: clips.length })}>
@@ -339,37 +343,32 @@ function ManyAudioClipsSection({ clips }: { clips: ReadonlyArray<Clip> }) {
           }}
         />
       </Row>
-      <Row label={t("shell.inspector.warp")}>
-        <Toggle
-          size="sm"
-          aria-label={t("shell.inspector.warp_clips")}
-          checked={warped}
-          onChange={(enabled) => {
-            const c = setAllWarp(audio, { enabled });
-            if (c) void send(c);
-          }}
-        />
-      </Row>
       <Row label={t("shell.inspector.warp_mode")}>
-        <Select
-          size="sm"
-          aria-label={t("shell.inspector.warp_mode")}
-          value={(mode ?? "") as WarpMode}
-          placeholder="—"
-          disabled={!audio.some((a) => a.audio.warp.enabled)}
-          onChange={(m) => {
-            const c = setAllWarp(audio, { mode: m });
-            if (c) void send(c);
+        <WarpChoiceSelect
+          value={choice}
+          onChange={(c) => {
+            const command = setAllWarpChoice(audio, c);
+            if (command) void send(command);
           }}
-          options={[
-            { value: "Repitch", label: t("shell.inspector.repitch") },
-            { value: "Complex", label: t("shell.inspector.complex") },
-            { value: "ComplexPlus", label: t("shell.inspector.complex_plus") },
-          ]}
         />
       </Row>
-      {mode === "ComplexPlus" && warped && <FormantFields targets={audio} row={formantRow} />}
+      {choice === "ComplexPlus" && <FormantFields targets={audio} row={formantRow} />}
     </Section>
+  );
+}
+
+/** The warp/pitch mode list ("none" = warp off); `null`: the clips differ ("—"). */
+function WarpChoiceSelect({ value, onChange }: { value: WarpChoice | null; onChange: (c: WarpChoice) => void }) {
+  const t = useT();
+  return (
+    <Select<WarpChoice>
+      size="sm"
+      aria-label={t("shell.inspector.warp_mode")}
+      value={(value ?? "") as WarpChoice}
+      placeholder="—"
+      onChange={onChange}
+      options={WARP_CHOICES.map((m) => ({ value: m.value, label: t(m.label) }))}
+    />
   );
 }
 
@@ -484,29 +483,13 @@ function ClipInspector({ clip }: { clip: Clip }) {
               }}
             />
           </Row>
-          <Row label={t("shell.inspector.warp")}>
-            <Toggle
-              size="sm"
-              aria-label={t("shell.inspector.warp_clip")}
-              checked={audio.warp.enabled}
-              onChange={(enabled) => void send(cmd("Warp", { type: "SetWarp", clip: clip.id, warp: { ...audio.warp, enabled } }))}
-            />
-          </Row>
           <Row label={t("shell.inspector.warp_mode")}>
-            <Select
-              size="sm"
-              aria-label={t("shell.inspector.warp_mode")}
-              value={audio.warp.mode}
-              disabled={!audio.warp.enabled}
-              onChange={(mode) => void send(cmd("Warp", { type: "SetWarp", clip: clip.id, warp: { ...audio.warp, mode } }))}
-              options={[
-                { value: "Repitch", label: t("shell.inspector.repitch") },
-                { value: "Complex", label: t("shell.inspector.complex") },
-                { value: "ComplexPlus", label: t("shell.inspector.complex_plus") },
-              ]}
+            <WarpChoiceSelect
+              value={warpChoiceOf(audio.warp)}
+              onChange={(c) => void send(cmd("Warp", { type: "SetWarp", clip: clip.id, warp: { ...audio.warp, ...warpChoicePatch(c) } }))}
             />
           </Row>
-          {audio.warp.enabled && audio.warp.mode === "ComplexPlus" && <FormantFields targets={[{ clip, audio }]} row={formantRow} />}
+          {warpChoiceOf(audio.warp) === "ComplexPlus" && <FormantFields targets={[{ clip, audio }]} row={formantRow} />}
         </Section>
       )}
 

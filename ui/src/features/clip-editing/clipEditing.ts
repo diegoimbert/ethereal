@@ -1,6 +1,7 @@
 /**
  * Clip editing helpers (pure / command builders): fade-drag math (the arranger's fade
- * layer, arrangement/gl/layers/clipFades.ts), and the clip context-menu entries (Reverse, Crossfade, fade curves).
+ * layer, arrangement/gl/layers/clipFades.ts), and the clip context-menu entries (Reverse, Crossfade, fade curves,
+ * the warp mode of every selected audio clip).
  */
 
 import type { AudioContent, Clip, Command, FadeCurve, Project, TextKey } from "@/generated";
@@ -11,6 +12,7 @@ import { clipsOfTrack, useProjectStore } from "@/state";
 import { itemSelection } from "@/timeline";
 import { cmd, nextGestureId, type EngineTransport } from "@/transport";
 import { fadeGain } from "./fades";
+import { audioClips, setAllWarpChoice, WARP_CHOICES, warpChoiceOf } from "./multiEdit";
 
 const EPS = 1e-9;
 
@@ -263,6 +265,19 @@ export function clipEditingEntries(transport: EngineTransport, clip: Clip): Cont
     {
       label: equalPower ? t("clip_edit.menu.linear_fades") : t("clip_edit.menu.equal_power_fades"),
       onSelect: () => void sendEdit(transport, fadeCurvesCommand(clips, { type: equalPower ? "Linear" : "EqualPower" })),
+    },
+    // Every selected audio clip at once; the mode they all have already is greyed out.
+    {
+      label: t("clip_edit.menu.warp_mode"),
+      onSelect: () => {},
+      submenu: WARP_CHOICES.map(({ value, label }) => {
+        const audio = audioClips(clips);
+        return {
+          label: t(label),
+          disabled: audio.every((a) => warpChoiceOf(a.audio.warp) === value),
+          onSelect: () => void sendEdit(transport, setAllWarpChoice(audio, value)),
+        };
+      }),
     },
   ];
   if (prev) entries.push({ label: t("clip_edit.menu.crossfade_prev"), onSelect: () => void sendEdit(transport, crossfadeCommand(prev, clip)) });

@@ -14,7 +14,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { Clip, Project, WarpMarker } from "@/generated";
 import { arrangerApi, clipPart, openClip } from "./clips";
-import { createTrack, expandFolder, launch, openLibrary, setNumberField } from "./ui";
+import { createTrack, expandFolder, launch, openLibrary, pickOption, setNumberField } from "./ui";
 
 interface Handle {
   state(): { project: Project | null };
@@ -117,11 +117,14 @@ test("warp on keeps the clip's start; a middle marker only moves its own segment
   await openClip(page, id);
   const editor = page.getByTestId("warp-editor");
   await expect(editor).toHaveAttribute("data-clip-id", id);
-  const warpBox = editor.getByLabel("warp", { exact: true });
+  // The mode list: "none" is warp off; the clip's own mode warps it.
+  const warpOf = async () => ((await clipOf(page, id)).content as Extract<Clip["content"], { type: "Audio" }>).warp;
+  const warpOn = async () => pickOption(editor, "warp mode", { value: (await warpOf()).mode });
+  const warpOff = async () => pickOption(editor, "warp mode", "none");
   await page.mouse.move(0, 0);
   await shot(page, "warp-on-before");
-  await warpBox.click();
-  await expect(warpBox).toBeChecked();
+  await warpOn();
+  await expect.poll(async () => (await warpOf()).enabled).toBe(true);
   await expect.poll(async () => (await markersOf(page, id)).length).toBe(2);
   const warped = await clipOf(page, id);
   expect([warped.start, warped.length]).toEqual([unwarped.start, unwarped.length]);
@@ -131,12 +134,12 @@ test("warp on keeps the clip's start; a middle marker only moves its own segment
   await shot(page, "warp-on-after");
 
   // Off: back to the unwarped window.
-  await warpBox.click();
-  await expect(warpBox).not.toBeChecked();
+  await warpOff();
+  await expect.poll(async () => (await warpOf()).enabled).toBe(false);
   await expect.poll(async () => r3((await clipOf(page, id)).offset)).toBe(2);
   expect(await startSource(page, id)).toBe(s0);
-  await warpBox.click();
-  await expect(warpBox).toBeChecked();
+  await warpOn();
+  await expect.poll(async () => (await warpOf()).enabled).toBe(true);
   await expect.poll(async () => r3((await clipOf(page, id)).offset)).toBe(2.4);
 
   // --- 2. Markers at 0 | 1 | 2 | 4 | 8 (end): drag the one at 2 ---------------------------

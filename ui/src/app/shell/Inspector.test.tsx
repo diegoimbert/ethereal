@@ -256,18 +256,25 @@ describe("Inspector: several audio clips (base-150)", () => {
     await flush();
     expect([audioOf(a).reversed, audioOf(b).reversed]).toEqual([true, true]);
 
-    // Mixed warp: the switch shows off and turns warp on for both.
+    // One warp off, one warped: the mode list shows them as mixed; a mode warps both.
     await act(async () => {
       await mock!.send(cmd("Warp", { type: "SetWarp", clip: a, warp: { ...audioOf(a).warp, enabled: true } }));
       await mock!.send(cmd("Warp", { type: "SetWarp", clip: b, warp: { ...audioOf(b).warp, enabled: false } }));
     });
-    expect(screen.getByRole("switch", { name: "warp clips" })).toHaveAttribute("aria-checked", "false");
-    fireEvent.click(screen.getByRole("switch", { name: "warp clips" }));
-    await flush();
-    expect([audioOf(a).warp.enabled, audioOf(b).warp.enabled]).toEqual([true, true]);
+    expect(screen.queryByRole("switch", { name: "warp clips" })).toBeNull();
+    expect(screen.getByRole("combobox", { name: "warp mode" })).toHaveTextContent("—");
     pickOption(screen.getByRole("combobox", { name: "warp mode" }), "complex");
     await flush();
-    expect([audioOf(a).warp.mode, audioOf(b).warp.mode]).toEqual(["Complex", "Complex"]);
+    expect([audioOf(a).warp, audioOf(b).warp].map((w) => [w.enabled, w.mode])).toEqual([
+      [true, "Complex"],
+      [true, "Complex"],
+    ]);
+    // "none": warp off for both.
+    pickOption(screen.getByRole("combobox", { name: "warp mode" }), "none");
+    await flush();
+    expect([audioOf(a).warp.enabled, audioOf(b).warp.enabled]).toEqual([false, false]);
+    pickOption(screen.getByRole("combobox", { name: "warp mode" }), "complex");
+    await flush();
     expect(screen.queryByRole("spinbutton", { name: "formants" })).toBeNull();
 
     // Complex+: its formant settings, for both clips.
