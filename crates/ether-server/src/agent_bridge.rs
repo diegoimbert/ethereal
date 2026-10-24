@@ -140,6 +140,9 @@ impl AgentBridge {
                 instance,
                 // The UI's own uploads are not the bridge's to clean up.
                 projects_root: None,
+                // The agent tools only (`Command::Agent`): the token must not be the whole
+                // app (OS paths, plugin folders, sharing are the desktop's, for its UI).
+                commands: Some(|c| matches!(c, ether_protocol::Command::Agent(_))),
                 ..ServerConfig::default()
             },
             engine,
@@ -182,13 +185,9 @@ impl AgentBridge {
                 self.router.outbound(message);
                 None
             }
-            ServerMessage::Reply(_) => Some(message),
-            _ => {
-                if self.router.client_count() > 0 {
-                    self.router.outbound(message.clone());
-                }
-                Some(message)
-            }
+            // Events stay the UI's: bridge clients only get the replies to their own
+            // requests (chat, collab and share events are not the agent's to read).
+            _ => Some(message),
         }
     }
 

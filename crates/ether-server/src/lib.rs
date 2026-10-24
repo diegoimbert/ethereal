@@ -105,6 +105,9 @@ pub struct ServerConfig {
     /// Empty (the default): any page that has the token (with no token, loopback pages
     /// only). Clients that send no `Origin` (the desktop app, scripts) are not affected.
     pub allowed_origins: Vec<String>,
+    /// Which client commands reach the engine (`None`: all). Others are answered
+    /// `Unsupported` (the agent bridge takes `Command::Agent` only).
+    pub commands: Option<fn(&ether_protocol::Command) -> bool>,
 }
 
 impl Default for ServerConfig {
@@ -123,6 +126,7 @@ impl Default for ServerConfig {
             ping_interval: Duration::from_secs(20),
             idle_timeout: Duration::from_secs(60),
             allowed_origins: Vec::new(),
+            commands: None,
         }
     }
 }
@@ -871,6 +875,13 @@ fn pump(
             }
             Err(e) => return Err(e.to_string()),
         };
+        let decoded = decoded.and_then(|m| match shared.config.commands {
+            Some(allowed) if !allowed(&m.command) => Err(DecodeError {
+                id: Some(m.id),
+                message: "this connection takes only the agent commands".into(),
+            }),
+            _ => Ok(m),
+        });
         match decoded {
             Ok(m) => match shared.router.inbound(client, m) {
                 Ok(Some(m)) => shared.host.send(m).map_err(|e| e.to_string())?,

@@ -53,6 +53,13 @@ fn runtime_file_token_and_disable() {
     };
     assert!(tools.iter().any(|t| t.name == "add_notes"));
     assert_eq!(desktop.bridge_clients(), 1);
+    // The agent tools only: the token is not the whole app.
+    let e = b
+        .request(Command::Project(
+            ether_protocol::project::ProjectCommand::List,
+        ))
+        .unwrap_err();
+    assert!(e.contains("agent commands"), "{e}");
 
     // Disable: listener closed, file gone, clients see a clear error.
     desktop.disable_bridge();
