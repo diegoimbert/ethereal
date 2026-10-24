@@ -103,9 +103,9 @@ fn type_descriptor(device: BuiltinDeviceType) -> DeviceDescriptor {
         BuiltinDeviceType::Gate
         | BuiltinDeviceType::MultibandCompressor
         | BuiltinDeviceType::TransientShaper => fx_dynamics::descriptor(device),
-        BuiltinDeviceType::SpectrumAnalyzer | BuiltinDeviceType::Tuner => {
-            fx_analysis::descriptor(device)
-        }
+        BuiltinDeviceType::SpectrumAnalyzer
+        | BuiltinDeviceType::Tuner
+        | BuiltinDeviceType::Loudness => fx_analysis::descriptor(device),
         BuiltinDeviceType::Arpeggiator
         | BuiltinDeviceType::Chord
         | BuiltinDeviceType::ScaleQuantize
@@ -157,9 +157,9 @@ pub fn factory_presets(device: BuiltinDeviceType) -> &'static [contract::Factory
         BuiltinDeviceType::Gate
         | BuiltinDeviceType::MultibandCompressor
         | BuiltinDeviceType::TransientShaper => fx_dynamics::factory_presets(device),
-        BuiltinDeviceType::SpectrumAnalyzer | BuiltinDeviceType::Tuner => {
-            fx_analysis::factory_presets(device)
-        }
+        BuiltinDeviceType::SpectrumAnalyzer
+        | BuiltinDeviceType::Tuner
+        | BuiltinDeviceType::Loudness => fx_analysis::factory_presets(device),
         BuiltinDeviceType::Arpeggiator
         | BuiltinDeviceType::Chord
         | BuiltinDeviceType::ScaleQuantize
@@ -237,7 +237,9 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         BuiltinDevice::Gate
         | BuiltinDevice::MultibandCompressor
         | BuiltinDevice::TransientShaper => fx_dynamics::create(device),
-        BuiltinDevice::SpectrumAnalyzer | BuiltinDevice::Tuner => fx_analysis::create(device),
+        BuiltinDevice::SpectrumAnalyzer | BuiltinDevice::Tuner | BuiltinDevice::Loudness => {
+            fx_analysis::create(device)
+        }
         BuiltinDevice::Arpeggiator
         | BuiltinDevice::Chord
         | BuiltinDevice::ScaleQuantize

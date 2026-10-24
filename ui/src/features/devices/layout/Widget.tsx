@@ -9,6 +9,7 @@ import { HardwareRoutingWidget } from "@/features/external";
 import { EqCurveWidget } from "./eq";
 import { IrWidget } from "./ir";
 import { LfoCurveWidget } from "./lfoCurve";
+import { LoudnessWidget } from "./loudness";
 import { MacrosWidget, MeterWidget, RackChainsWidget, SampleWaveformWidget, SpectrumWidget, TunerWidget } from "./widgets/data";
 import { ZoneMapWidget } from "./zones";
 import { DelayTapsWidget, DynamicsCurveWidget, ReverbDecayWidget, VelocityCurveWidget } from "./widgets/effects";
@@ -118,5 +119,8 @@ export function WidgetView({ widget, size, label }: WidgetViewProps) {
     // fx-modulation.
     case "LfoCurve":
       return <LfoCurveWidget widget={widget} size={size} label={label} />;
+    // fx-analysis.
+    case "Loudness":
+      return <LoudnessWidget widget={widget} size={size} label={label} />;
   }
 }

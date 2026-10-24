@@ -6,7 +6,9 @@
  * - `SpectrumAnalyzer`: a moving pink-ish mix spectrum (256 log bins, 20 Hz – 20 kHz) with a
  *   bass line and a few partials, tilted by the device's `Slope` and smoothed by `Averaging`;
  * - `Eq`: the same as `Pre` + `Post` frames (for the EQ overlay);
- * - `Tuner`: an A2 string drifting a few cents around pitch, relative to `Reference`.
+ * - `Tuner`: an A2 string drifting a few cents around pitch, relative to `Reference`;
+ * - `Loudness`: a song-like loudness curve around -14 LUFS (verses and choruses), its
+ *   history at 10 points per second and the readouts, in the engine's `Levels` layout.
  *
  * Deterministic (own PRNG, frame counter), so tests can assert on it.
  */
@@ -68,6 +70,8 @@ export class MockAnalysis {
         return [this.spectrum(device.id, 0, 0.6, "Pre", 2), this.spectrum(device.id, 0, 0.6, "Post")];
       case "Tuner":
         return [this.tuner(device.params[0] ?? 440)];
+      case "Loudness":
+        return [this.loudness(device.params[1] ?? 1)];
       default:
         return [];
     }
@@ -108,6 +112,40 @@ export class MockAnalysis {
     }
     this.smooth.set(key, bins);
     return { type: "Spectrum", min_hz: MIN_HZ, max_hz: MAX_HZ, bins_db: bins, stage };
+  }
+
+  /** Momentary loudness of the simulated song at `t` seconds. */
+  private static songLufs(t: number): number {
+    const chorus = Math.floor(t / 8) % 2 === 1 ? 4 : 0;
+    return -18 + chorus + 2.5 * Math.sin(t * 7.3) + 1.2 * Math.sin(t * 2.1);
+  }
+
+  private loudness(history: number): AnalysisData {
+    const t = this.frame / 30;
+    const window = [10, 30, 60, 300, 900][Math.round(history)] ?? 30;
+    const bucket = Math.ceil((window * 10) / 300);
+    const step = bucket / 10;
+    const n = Math.min(Math.floor((t * 10) / bucket), Math.ceil((window * 10) / bucket));
+    const at = (k: number) => t - (n - 1 - k) * step;
+    const mom = Array.from({ length: n }, (_, k) => Math.round(MockAnalysis.songLufs(at(k)) * 10) / 10);
+    const short = Array.from({ length: n }, (_, k) => Math.round((MockAnalysis.songLufs(at(k)) - 2.5 * Math.sin(at(k) * 7.3)) * 10) / 10);
+    const momentary = MockAnalysis.songLufs(t);
+    return {
+      type: "Levels",
+      values: [
+        momentary,
+        short[n - 1] ?? -120,
+        t > 0.4 ? -15.2 : -120,
+        t > 3 ? 6.4 : 0,
+        -1.4,
+        -2 - Math.abs(Math.sin(t * 3)) * 4,
+        window,
+        step,
+        n,
+        ...mom,
+        ...short,
+      ],
+    };
   }
 
   private tuner(reference: number): AnalysisData {
