@@ -45,7 +45,17 @@ import {
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import type { AutomationLane, AutomationOwner, AutomationPoint, AutomationPointId, AutomationTarget, CurveShape, ParamInfo, PointEdit } from "@/generated";
+import type {
+  AutomationLane,
+  AutomationOwner,
+  AutomationPoint,
+  AutomationPointId,
+  AutomationTarget,
+  Command,
+  CurveShape,
+  ParamInfo,
+  PointEdit,
+} from "@/generated";
 import { dragEnd, openContextMenu, useDragScope, type ContextMenuEntry } from "@/kit";
 import { firstMatch, shortcutLabel } from "@/features/keymap";
 import { paramToNormalized, paramToPlain } from "@/domain/paramScale";
@@ -100,7 +110,8 @@ import { addPointCommand, bendTension, editPointsCommand, moveEdits, removePoint
 import { LANE_PAD, lanePath, pointRect, POINT_RADIUS, segmentAt, timeToX, valueToY, xToTime, yToValue, type LaneGeometry } from "./geometry";
 import { LaneGesture, sendEdit } from "./gesture";
 import { evaluatePoints, splitPointAt } from "./curve";
-import { sectionMovePlan } from "./range";
+import { sectionMovePlan, writeRange } from "./range";
+import { useAutomationUi } from "./uiStore";
 import { flattenCommands, laneOf, registerLane, selectedByLane, type DragMods, type RegisteredLane } from "./laneRegistry";
 import { startLaneMarquee } from "./laneMarquee";
 import { emptyLaneBaseline, useTargetValue } from "./baseline";
@@ -116,6 +127,7 @@ import "@/features/time-edits/time-edits.css";
 
 /** The lane's keymap actions (automation scope), in lookup order. */
 const AUTOMATION_ACTIONS = [
+  "automation.drawMode",
   "edit.delete",
   "edit.deleteModified",
   "edit.selectAll",
@@ -230,6 +242,8 @@ const DRAG_THRESHOLD = 2;
  * touch, the touch slop. Below it the point keeps exactly the lane's value at its time.
  */
 const CREATE_THRESHOLD_PX = 3;
+/** Draw mode without a grid (or with ⌥): one point every this many px. */
+const FREE_DRAW_PX = 4;
 const CREATE_TOUCH_THRESHOLD_PX = 8;
 /** How close (px, vertically) to the lane's line a ⇧-press grabs a time section. */
 const LINE_HIT_PX = 6;
@@ -878,6 +892,97 @@ export function AutomationLaneView({
     );
   };
 
+  /**
+   * Draw mode: the drag writes the automation it passes over, like Ableton's draw mode. With
+   * a grid, one step per grid cell at the pointer's value there (cells skipped by a fast
+   * drag are filled in between); with ⌥ or no grid, freehand (a linear point every few px).
+   * Everything between the first and the last cell drawn is replaced, the lane outside kept
+   * (`writeRange`). A click draws one cell. One undo step, live while drawing.
+   */
+  const draw = (e: ReactPointerEvent) => {
+    const l = live.current;
+    const original = l.points;
+    const g = geomNow();
+    const step = e.altKey ? null : gridStep();
+    const off = g.offset ?? 0;
+    const free = step === null;
+    const cell = free ? FREE_DRAW_PX / g.vp.pxPerBeat : stepLength(step, l.tempo.signatureAt(0));
+    const curve: CurveShape = free ? { type: "Linear" } : { type: "Step" };
+    // Cell index (on the view's grid) → value drawn there.
+    const cells = new Map<number, number>();
+    const cellOf = (t: number) => Math.floor((t + off) / cell + 1e-9);
+    const startOf = (i: number) => i * cell - off;
+    const valueAtY = (yy: number) => {
+      const gm = geomNow();
+      return snapValue(live.current.info, Math.min(1, Math.max(0, yToValue(yy, gm.height, gm.range))), false);
+    };
+    let prev: { t: number; v: number } | null = null;
+    const sample = (p: { x: number; y: number }) => {
+      const t = Math.max(0, xToTime(p.x, geomNow()));
+      const v = valueAtY(p.y);
+      const from = prev ?? { t, v };
+      const [i0, i1] = [cellOf(from.t), cellOf(t)];
+      const n = Math.abs(i1 - i0);
+      for (let k = 0; k <= n; k++) {
+        const i = i0 + Math.sign(i1 - i0) * k;
+        cells.set(i, n === 0 ? v : from.v + ((v - from.v) * k) / n);
+      }
+      prev = { t, v };
+    };
+    const laneId = l.lane?.id ?? newId();
+    let created = l.lane !== null;
+    const removed = new Set<AutomationPointId>();
+    let added: AutomationPointId[] = [];
+    const build = (): Command | null => {
+      const idx = [...cells.keys()].sort((a, b) => a - b);
+      if (idx.length === 0) return null;
+      const lo = idx[0]!;
+      const hi = idx[idx.length - 1]!;
+      const at = Math.max(0, startOf(lo));
+      // Steps fill their cell; freehand ends on its last point.
+      const end = free ? startOf(hi) : startOf(hi + 1);
+      const piece = idx.filter((i) => startOf(i) >= at - 1e-9).map((i) => ({ time: startOf(i) - at, value: cells.get(i)!, curve }));
+      const w = writeRange(original, at, Math.max(0, end - at), piece);
+      const commands: Command[] = [];
+      if (!created) {
+        commands.push(cmd("Automation", { type: "CreateLane", id: laneId, owner: live.current.owner, target: live.current.target }));
+        created = true;
+      }
+      // The originals in the range (once) and what the last send added.
+      const remove = [...w.remove.filter((id) => !removed.has(id)), ...added];
+      for (const id of w.remove) removed.add(id);
+      if (remove.length) commands.push(cmd("Automation", { type: "RemovePoints", ids: remove }));
+      commands.push(cmd("Automation", { type: "AddPoints", lane: laneId, points: w.add }));
+      added = w.add.map((p) => p.id);
+      return batchStep(keyedStep("undo.automation.draw", "draw automation"), commands);
+    };
+    selection.getState().clear("automationPoint");
+    const press = local(e);
+    const gesture = new LaneGesture(transport);
+    const showTip = (p: { x: number; y: number }) => {
+      const gm = geomNow();
+      const v = valueAtY(p.y);
+      setTip({ x: p.x, y: valueToY(v, gm.height, gm.range), value: formatNormalized(live.current.info, v), hint: "" });
+    };
+    sample(press);
+    gesture.updateWith(build);
+    showTip(press);
+    trackDrag(
+      (ev) => {
+        const p = local(ev);
+        sample(p);
+        gesture.updateWith(build);
+        showTip(p);
+      },
+      () => {
+        gesture.end();
+        setTip(null);
+      },
+      press,
+      0,
+    );
+  };
+
   const onBackgroundPointerDown = (e: ReactPointerEvent<SVGSVGElement>) => {
     const hit = e.button === 0 ? glPointAt(e) : null;
     if (hit) {
@@ -888,6 +993,12 @@ export function AutomationLaneView({
     e.stopPropagation();
     rootRef.current?.focus();
     if (e.button !== 0) return;
+    // Draw mode: the drag draws (points stay grabbable).
+    if (useAutomationUi.getState().drawMode && !(e.metaKey || e.ctrlKey || e.shiftKey)) {
+      e.preventDefault();
+      draw(e);
+      return;
+    }
     if (doublePress(e)) {
       createAndDrag(e);
       return;
@@ -991,6 +1102,12 @@ export function AutomationLaneView({
     if (mixed && owner.type === "Track" && (isMixedSelection() || (mixed === "paste" && hasMixedClipboard()))) {
       handled();
       void runClipAction(transport, mixed);
+      return;
+    }
+    if (action === "automation.drawMode") {
+      handled();
+      const ui = useAutomationUi.getState();
+      ui.setDrawMode(!ui.drawMode);
       return;
     }
     if (action === "edit.delete" || action === "edit.deleteModified") {
@@ -1165,7 +1282,8 @@ export function AutomationLaneView({
     if (tipText !== hoverTip) setHoverTip(tipText);
   };
   /** Over the line (not a point): the segment drag's cursor. */
-  const lineCursor = (e: ReactPointerEvent<SVGSVGElement>) => (!e.altKey && !e.shiftKey && segmentUnder(local(e)) ? "ns-resize" : "");
+  const lineCursor = (e: ReactPointerEvent<SVGSVGElement>) =>
+    useAutomationUi.getState().drawMode ? "crosshair" : !e.altKey && !e.shiftKey && segmentUnder(local(e)) ? "ns-resize" : "";
   const onSvgHover = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (e.buttons !== 0) return;
     // The circles set their own cursor.
