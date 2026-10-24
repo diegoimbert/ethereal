@@ -975,6 +975,19 @@ describe("ArrangementView: clip editing", () => {
     expect(sent.filter((c) => c.domain === "Transport" && c.command.type === "Locate")).toHaveLength(1);
   });
 
+  it("a click on the master's lane selects the master and moves the playhead there (snapped)", async () => {
+    const master = screen.getByTestId("arrangement-master");
+    const lane = master.querySelector<HTMLElement>(".eth-arr-lane")!;
+    // jsdom: the master row's box starts at x 0, its lane after the header column.
+    fireEvent.click(lane, { clientX: HEADER_WIDTH + 12.4 * PX, clientY: 10 });
+    await waitFor(() => expect(playheadStore.getPlayhead()?.transport.position).toBe(12));
+    const m = tracksOrdered(project()).find((t) => t.kind === "Master")!;
+    expect([...useArrangementUi.getState().selectedTracks]).toEqual([m.id]);
+    // The header column is not the lane: no move.
+    fireEvent.click(master.querySelector(".eth-arr-header")!, { clientX: 10, clientY: 10 });
+    expect(sent.filter((c) => c.domain === "Transport" && c.command.type === "Locate")).toHaveLength(1);
+  });
+
   it("a click on a lane's empty space selects its track like a header click (inspector focus, marker kept)", async () => {
     const content = screen.getByTestId("arrangement-content");
     const [keys, bass, drums] = ["Keys", "Bass", "Drums"].map(trackByName);
