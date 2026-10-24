@@ -173,7 +173,7 @@ impl Drop for DiskStreams {
     }
 }
 
-/// The file of `source`: the external reference, else `<project folder>/<file>` (a
+/// The file of `source`: the external reference, else `<root>/<project>/<file>` (a
 /// relative path inside the project folder).
 pub fn media_path(
     source: &StreamSource,
@@ -191,7 +191,7 @@ fn project_file(root: &Path, project: ProjectId, file: &str) -> Result<PathBuf, 
     if file.is_empty() || !rel.components().all(|c| matches!(c, Component::Normal(_))) {
         return Err(MediaError::Decode(format!("invalid media path {file:?}")));
     }
-    Ok(crate::project_dirs::dir(root, project).join(rel))
+    Ok(root.join(project.to_string()).join(rel))
 }
 
 struct Pending {

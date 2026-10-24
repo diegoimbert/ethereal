@@ -573,12 +573,6 @@ impl NativeHost {
         let sandbox_defaults = SandboxDefaults::open(&plugin_db);
         let store = DiskStore::new(config.projects_root.clone(), config.library_roots.clone())
             .with_sample_cache(Some(config.data_dir.join("samples")));
-        // Nothing is open yet: project folders follow their titles (and bare-UUID folders of
-        // older versions get readable names, `project_dirs`).
-        let renamed = store.settle_all();
-        if renamed > 0 {
-            tracing::info!(renamed, "project folders renamed after their titles");
-        }
         let mut bridge = NativeBridge::new(
             parts.handle,
             prepare,

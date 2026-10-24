@@ -59,8 +59,7 @@ fn referenced_in_place_missing_relinked_collected() {
         s["location"],
         json!({"type": "External", "path": library.join("Drums").join("Snare.wav").to_str().unwrap()})
     );
-    let project_dir =
-        ether_native::project_dirs::dir(&tmp.path().join("projects"), pid.parse().unwrap());
+    let project_dir = tmp.path().join("projects").join(&pid);
     for m in [&k, &s] {
         assert!(!project_dir.join(m["file"].as_str().unwrap()).exists());
     }

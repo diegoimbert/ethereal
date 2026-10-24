@@ -11,9 +11,6 @@
 //!                               /cache/          peaks, decoded audio (regenerable)
 //! ```
 //!
-//! The native store names the folder `<title> - <short id>` instead (readable in a file
-//! manager; still found by id, see [`ProjectStore::settle_folder`]).
-//!
 //! `projects_root` comes from engine/host config: default `~/Documents/Ethereal/Projects`;
 //! in dev builds `<data_dir>/ethereal-dev/<instance>/projects` (per-instance isolation).
 //!
@@ -129,14 +126,6 @@ pub trait ProjectStore {
 
     /// Delete the project folder.
     fn delete(&mut self, id: ProjectId) -> Result<(), StoreError>;
-
-    /// Nothing has files open in project `id`'s folder right now (it was just created,
-    /// copied or closed, or is about to be opened): a store whose folder names follow the
-    /// project's title may rename it now (native: `<title> - <short id>`). Best effort,
-    /// silent. Default: nothing (folders named by id).
-    fn settle_folder(&mut self, id: ProjectId) {
-        let _ = id;
-    }
 
     /// Read a file relative to the project folder (e.g. `media/<file>`).
     fn read(&mut self, id: ProjectId, rel_path: &str) -> Result<Vec<u8>, StoreError>;

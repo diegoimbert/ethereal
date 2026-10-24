@@ -1,0 +1,257 @@
+{
+  "Maximizer": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "Maximizer",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "maximizer",
+          "items": [
+            {
+              "colspan": 3,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "ceiling": 1,
+                "threshold": 0,
+                "type": "Maximizer"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": "GR",
+              "size": "Medium",
+              "widget": {
+                "index": 0,
+                "max_db": 0.0,
+                "min_db": -24.0,
+                "type": "Meter"
+              }
+            }
+          ],
+          "span": 4,
+          "title": null
+        },
+        {
+          "columns": 4,
+          "id": "controls",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 3,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 7,
+                "type": "Toggle"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Maximizer"
+        }
+      ]
+    },
+    "midi_input": false,
+    "name": "Maximizer",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Maximizer",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 0.0,
+        "min": -30.0,
+        "name": "Threshold",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": -1.0,
+        "group": "Maximizer",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 0.0,
+        "min": -12.0,
+        "name": "Ceiling",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 60.0,
+        "group": "Release",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 1000.0,
+        "min": 1.0,
+        "name": "Release",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Release",
+        "hidden": false,
+        "id": 3,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Auto Release",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "Maximizer",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 5.0,
+        "min": 0.1,
+        "name": "Attack",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Character",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Stereo Link",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Character",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Clip",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 7,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Match Level",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      }
+    ],
+    "sidechain_inputs": 0
+  }
+}

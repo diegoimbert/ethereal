@@ -19,7 +19,7 @@
 //!   used to stamp MIDI. No locks, no allocation.
 //! - **Writer thread** (one per engine, non-RT): drains the engine's capture ring, splits
 //!   it into takes and streams them as 32-bit float WAV files into
-//!   `<project folder>/media/` (`project_dirs`). MIDI played while recording is collected there too.
+//!   `<projects_root>/<project>/media/`. MIDI played while recording is collected there too.
 //! - **MIDI input** (`midir`): every port is connected the first time the inputs are listed
 //!   (the recording panel does at startup), so connecting needs no extra permission and
 //!   costs nothing until recording features are used.
@@ -189,7 +189,7 @@ impl RecordingShared {
         self.inner.lock().unwrap_or_else(|p| p.into_inner())
     }
 
-    /// Root of the project store: takes are written to `<project folder>/media/` (`project_dirs`).
+    /// Root of the project store: takes are written to `<root>/<project>/media/`.
     pub fn set_projects_root(&self, root: PathBuf) {
         self.inner().projects_root = Some(root);
     }
@@ -605,7 +605,8 @@ pub fn start(audio: &AudioShared, session: &RecordSession) -> Result<(), BridgeE
         return Err(BridgeError::Other(e));
     }
     let root = root.ok_or_else(|| BridgeError::Other("no project folder to record into".into()))?;
-    let media_dir = crate::project_dirs::dir(&root, session.project)
+    let media_dir = root
+        .join(session.project.to_string())
         .join(ether_core::protocol::model::file::MEDIA_DIR);
     if !session.audio.is_empty() || !session.taps.is_empty() {
         std::fs::create_dir_all(&media_dir).map_err(|e| BridgeError::Other(e.to_string()))?;

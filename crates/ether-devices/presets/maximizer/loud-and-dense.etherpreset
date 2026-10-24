@@ -1,0 +1,33 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "loud and dense",
+    "device": {
+      "type": "Builtin",
+      "device": "Maximizer"
+    },
+    "meta": {
+      "tags": [
+        "mastering",
+        "loud"
+      ],
+      "author": "ethereal",
+      "description": "9 db of boost with the soft clipper taking the fastest peaks: dense and loud, some grit."
+    },
+    "params": {
+      "0": -9.0,
+      "1": -0.3,
+      "2": 40.0,
+      "3": 1.0,
+      "4": 1.0,
+      "5": 100.0,
+      "6": 50.0,
+      "7": 0.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

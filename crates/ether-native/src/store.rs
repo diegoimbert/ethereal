@@ -3,16 +3,11 @@
 //! Layout (see `ether_controller::store`):
 //!
 //! ```text
-//! <projects_root>/<title> - <short id>/project.ether
-//!                                    /media/
-//!                                    /cache/
+//! <projects_root>/<project-uuid>/project.ether
+//!                               /media/
+//!                               /cache/
 //! ```
 //!
-//! - Folder names are readable (the project's title, then the end of its id) and folders
-//!   are found by id through [`crate::project_dirs`]: the id is the identity. A folder is
-//!   renamed to follow its title only while nothing has files open in it
-//!   ([`ProjectStore::settle_folder`]); bare-UUID folders of older versions are migrated at
-//!   startup ([`DiskStore::settle_all`]).
 //! - `projects_root` is per instance in dev builds (`default_projects_root`), so parallel
 //!   dev instances never share projects.
 //! - Every write of `project.ether` (and of any other file) is atomic: the bytes go to a
@@ -482,50 +477,38 @@ impl DiskStore {
         self.library_root(root).map(|r| r.path.clone())
     }
 
-    /// Folder of a project: where it is (readable name, [`crate::project_dirs`]), else
-    /// where a new one is created (`<projects_root>/<uuid>`).
+    /// Folder of a project (the id is a UUID, so it is always a safe single component).
     pub fn project_dir(&self, id: ProjectId) -> PathBuf {
-        crate::project_dirs::dir(&self.projects_root, id)
+        self.projects_root.join(id.to_string())
     }
 
     fn existing_project_dir(&self, id: ProjectId) -> Result<PathBuf, StoreError> {
-        crate::project_dirs::existing(&self.projects_root, id)
-            .ok_or_else(|| StoreError::NotFound(id.to_string()))
-    }
-
-    /// Rename every project folder after its title (at startup, nothing open), migrating
-    /// bare-UUID folders. Returns how many were renamed.
-    pub fn settle_all(&self) -> usize {
-        self.writer.flush();
-        crate::project_dirs::settle_all(&self.projects_root)
+        let dir = self.project_dir(id);
+        if dir.is_dir() {
+            Ok(dir)
+        } else {
+            Err(StoreError::NotFound(id.to_string()))
+        }
     }
 
     fn summary(&self, id: ProjectId) -> Result<ProjectSummary, StoreError> {
-        let dir = self.existing_project_dir(id)?;
-        let reader = fs::File::open(dir.join(PROJECT_FILE)).map_err(|e| match e.kind() {
+        let file = self.project_dir(id).join(PROJECT_FILE);
+        let reader = fs::File::open(&file).map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => StoreError::NotFound(id.to_string()),
             _ => io_err(e),
         })?;
-        let name = name_from_ether(std::io::BufReader::new(reader));
-        Ok(Self::summary_at(id, &dir, name))
-    }
-
-    /// The summary of project `id` in `dir`, its title already read.
-    fn summary_at(id: ProjectId, dir: &Path, name: Option<String>) -> ProjectSummary {
-        ProjectSummary {
+        Ok(ProjectSummary {
             id,
-            name: name.unwrap_or_else(|| "Untitled".to_string()),
-            modified_ms: modified_ms(&dir.join(PROJECT_FILE)),
-            ext: Self::summary_ext_at(dir),
-        }
+            name: name_from_ether(std::io::BufReader::new(reader))
+                .unwrap_or_else(|| "Untitled".to_string()),
+            modified_ms: modified_ms(&file),
+            ext: self.summary_ext(id),
+        })
     }
 
     /// An extension's [`ProjectSummary::ext`] of the project folder.
     fn summary_ext(&self, id: ProjectId) -> Option<ether_core::protocol::ext::ExtValue> {
-        Self::summary_ext_at(&self.existing_project_dir(id).ok()?)
-    }
-
-    fn summary_ext_at(dir: &Path) -> Option<ether_core::protocol::ext::ExtValue> {
+        let dir = self.project_dir(id);
         summary_ext(&mut |f| fs::read(dir.join(sanitize_rel(f).ok()?)).ok())
     }
 
@@ -574,15 +557,18 @@ impl DiskStore {
 impl ProjectStore for DiskStore {
     fn list(&mut self) -> Result<Vec<ProjectSummary>, StoreError> {
         self.writer.flush();
-        match fs::metadata(&self.projects_root) {
-            Ok(_) => {}
+        let rd = match fs::read_dir(&self.projects_root) {
+            Ok(rd) => rd,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
             Err(e) => return Err(io_err(e)),
-        }
+        };
         let mut out = Vec::new();
-        for folder in crate::project_dirs::scan(&self.projects_root) {
-            if folder.dir.join(PROJECT_FILE).is_file() {
-                out.push(Self::summary_at(folder.id, &folder.dir, folder.name));
+        for entry in rd.flatten() {
+            let Ok(id) = entry.file_name().to_string_lossy().parse::<ProjectId>() else {
+                continue;
+            };
+            if let Ok(summary) = self.summary(id) {
+                out.push(summary);
             }
         }
         out.sort_by(|a, b| b.modified_ms.total_cmp(&a.modified_ms));
@@ -590,9 +576,8 @@ impl ProjectStore for DiskStore {
     }
 
     fn create(&mut self, id: ProjectId) -> Result<(), StoreError> {
-        // Named by its id until its first `settle_folder`.
-        let dir = self.projects_root.join(id.to_string());
-        if dir.exists() || crate::project_dirs::existing(&self.projects_root, id).is_some() {
+        let dir = self.project_dir(id);
+        if dir.exists() {
             return Err(StoreError::AlreadyExists(id.to_string()));
         }
         fs::create_dir_all(&self.projects_root).map_err(io_err)?;
@@ -660,9 +645,8 @@ impl ProjectStore for DiskStore {
     fn duplicate(&mut self, from: ProjectId, to: ProjectId) -> Result<(), StoreError> {
         self.writer.flush();
         let src = self.existing_project_dir(from)?;
-        // Named by its id until its first `settle_folder`.
-        let dst = self.projects_root.join(to.to_string());
-        if dst.exists() || crate::project_dirs::existing(&self.projects_root, to).is_some() {
+        let dst = self.project_dir(to);
+        if dst.exists() {
             return Err(StoreError::AlreadyExists(to.to_string()));
         }
         // Copy into a temp folder first, then rename: a failed copy leaves no half project.
@@ -688,15 +672,7 @@ impl ProjectStore for DiskStore {
     fn delete(&mut self, id: ProjectId) -> Result<(), StoreError> {
         self.writer.flush();
         let dir = self.existing_project_dir(id)?;
-        fs::remove_dir_all(dir).map_err(io_err)?;
-        crate::project_dirs::forget(&self.projects_root, id);
-        Ok(())
-    }
-
-    fn settle_folder(&mut self, id: ProjectId) {
-        // A queued autosave holds the folder's current path.
-        self.writer.flush();
-        crate::project_dirs::settle(&self.projects_root, id);
+        fs::remove_dir_all(dir).map_err(io_err)
     }
 
     fn read(&mut self, id: ProjectId, rel_path: &str) -> Result<Vec<u8>, StoreError> {
@@ -1987,59 +1963,6 @@ mod tests {
         s.delete(a).unwrap();
         assert!(!s.project_dir(a).exists());
         assert!(matches!(s.delete(a), Err(StoreError::NotFound(_))));
-        assert_eq!(ProjectStore::list(&mut s).unwrap().len(), 1);
-    }
-
-    /// Readable folder names (`project_dirs`): a project keeps working through renames of
-    /// its folder, and autosaves queued before one land in the renamed folder.
-    #[test]
-    fn folders_follow_titles_when_settled() {
-        let tmp = TempDir::new("store-settle");
-        let mut s = store(&tmp);
-        let a = pid(30);
-        let doc = |name: &str| {
-            serde_json::json!({
-                "format": "ethereal-project",
-                "format_version": 1,
-                "app_version": "test",
-                "project": { "id": a.to_string(), "settings": { "name": name } }
-            })
-            .to_string()
-        };
-        s.create(a).unwrap();
-        assert_eq!(s.project_dir(a), s.projects_root.join(a.to_string()));
-        s.save(a, &doc("Song")).unwrap();
-        s.write(a, "media/a.wav", b"A").unwrap();
-        s.settle_folder(a);
-        let readable = s
-            .projects_root
-            .join(crate::project_dirs::folder_name("Song", a));
-        assert_eq!(s.project_dir(a), readable);
-        assert!(!s.projects_root.join(a.to_string()).exists());
-        assert_eq!(ProjectStore::read(&mut s, a, "media/a.wav").unwrap(), b"A");
-
-        // Renamed while open: autosaves keep landing; the folder follows once settled.
-        let json = doc("Final");
-        s.save_in_background(a, "Final", render(json.clone()))
-            .unwrap();
-        s.settle_folder(a);
-        let renamed = s
-            .projects_root
-            .join(crate::project_dirs::folder_name("Final", a));
-        assert_eq!(s.project_dir(a), renamed);
-        assert_eq!(s.load(a).unwrap(), json);
-        assert_eq!(ProjectStore::read(&mut s, a, "media/a.wav").unwrap(), b"A");
-        let list = ProjectStore::list(&mut s).unwrap();
-        assert_eq!(list.len(), 1);
-        assert_eq!((list[0].id, list[0].name.as_str()), (a, "Final"));
-
-        // A copy gets a folder of its own; deleting finds the readable folder.
-        let b = pid(31);
-        s.duplicate(a, b).unwrap();
-        assert_eq!(s.project_dir(b), s.projects_root.join(b.to_string()));
-        s.delete(a).unwrap();
-        assert!(!renamed.exists());
-        assert!(matches!(s.load(a), Err(StoreError::NotFound(_))));
         assert_eq!(ProjectStore::list(&mut s).unwrap().len(), 1);
     }
 

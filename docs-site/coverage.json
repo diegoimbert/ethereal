@@ -653,6 +653,9 @@
     "devices/limiter": [
       "making-music/effects#limiter"
     ],
+    "devices/maximizer": [
+      "making-music/effects#maximizer"
+    ],
     "devices/utility": [
       "making-music/effects#utility"
     ],

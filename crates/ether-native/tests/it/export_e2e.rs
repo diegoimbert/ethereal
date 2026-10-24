@@ -79,8 +79,7 @@ fn exports_are_written_into_the_project_folder() {
         panic!("native exports are files")
     };
     assert_eq!(files, vec!["exports/Bounce.wav".to_string()]);
-    let path = ether_native::project_dirs::dir(&paths.projects_root, pid.parse().unwrap())
-        .join("exports/Bounce.wav");
+    let path = paths.projects_root.join(&pid).join("exports/Bounce.wav");
     let bytes = std::fs::read(&path).expect("file on disk");
     let audio = ether_media::decode(&bytes, Some("wav")).unwrap();
     // 4 beats at 120 bpm + 0.5 s tail.
@@ -104,10 +103,7 @@ fn exports_are_written_into_the_project_folder() {
         panic!()
     };
     assert_eq!(files, vec!["exports/Bounce - Keys.flac".to_string()]);
-    let flac = std::fs::read(
-        ether_native::project_dirs::dir(&paths.projects_root, pid.parse().unwrap()).join(&files[0]),
-    )
-    .unwrap();
+    let flac = std::fs::read(paths.projects_root.join(&pid).join(&files[0])).unwrap();
     assert!(ether_media::decode(&flac, Some("flac")).unwrap().frames() > 0);
     c.quit();
 }

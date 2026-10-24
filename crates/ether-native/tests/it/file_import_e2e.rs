@@ -50,8 +50,7 @@ fn import_os_files_by_path() {
     assert!(media["hash"].is_string());
     let file = media["file"].as_str().unwrap().to_string();
     assert!(file.starts_with("media/"), "{file}");
-    let copy = ether_native::project_dirs::dir(&tmp.path().join("projects"), pid.parse().unwrap())
-        .join(&file);
+    let copy = tmp.path().join("projects").join(&pid).join(&file);
     assert!(!copy.exists(), "nothing copied into the project");
     assert_eq!(
         std::fs::read(&path).unwrap(),

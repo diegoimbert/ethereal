@@ -52,6 +52,8 @@ export function boundParams(w: Widget): ParamId[] {
       return [w.sync, w.sync_rate, w.rate, w.phase, w.depth];
     case "Loudness":
       return [w.target];
+    case "Maximizer":
+      return [w.threshold, w.ceiling];
     case "Macros":
       return macrosWidgetParams(w);
     case "ZoneMap":

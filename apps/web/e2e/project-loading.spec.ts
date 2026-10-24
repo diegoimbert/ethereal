@@ -74,13 +74,12 @@ test("while a project loads the transport waits, and the project can be explored
   await expect(page.locator(".eth-tb__position[data-loading]")).toBeVisible();
   await expect(page.getByTestId("position-loading")).toHaveCount(0);
   // The tracks whose audio files load look unavailable, their controls inactive, the bar shown.
-  // Each track is ready once its own file is decoded (#353), so look at one still loading; its
-  // bar counts its own files (one here).
-  const first = page.locator('[data-tour="track-header"][data-loading="true"]').first();
+  const first = page.getByRole("group", { name: "1 audio track" });
+  await expect(first).toHaveAttribute("data-loading", "true");
   await expect(first).toHaveClass(/eth-arr-header--loading/);
   await expect(first.getByRole("button", { name: /^mute / })).toBeDisabled();
   await expect(first.getByRole("button", { name: /^mute / })).toHaveAttribute("title", "still loading");
-  await expect(first.getByRole("progressbar", { name: /loading audio files 0\/1/ })).toBeVisible();
+  await expect(first.getByRole("progressbar", { name: /loading audio files \d+\/6/ })).toBeVisible();
   const filter = await first.locator(".eth-arr-header__main").evaluate((e) => getComputedStyle(e).filter);
   expect(filter).toMatch(/saturate/);
   if (process.env.ETH_SHOTS_DIR) await page.screenshot({ path: `${process.env.ETH_SHOTS_DIR}/project-loading.png` });
