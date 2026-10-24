@@ -10,7 +10,7 @@ import { NO_AUTOCORRECT } from "@/kit";
 import { useProjectStore } from "@/state";
 import { useShellStore } from "@/state/shell";
 import { cmd } from "@/transport";
-import { LIBRARY_LIMIT, goTo, libraryResults, resultKindLabel, searchProject, useQuickSearch, type QuickResult } from "./quickSearch";
+import { LIBRARY_LIMIT, goTo, libraryResults, resultKindLabel, searchProject, useQuickSearch, type QuickResult } from "./quickSearchIndex";
 import "./palette.css";
 
 /** Keep in sync with the exit animation (`--select-exit-duration`); unmount fallback. */
@@ -19,7 +19,7 @@ const EXIT_MS = 140;
 const KEEP_FOCUS_MS = 400;
 
 /**
- * Quick search (`quickSearch.ts`): ⌘F / Ctrl+F (keymap `search.open`) anywhere, also from a
+ * Quick search (`quickSearchIndex.ts`): ⌘F / Ctrl+F (keymap `search.open`) anywhere, also from a
  * text field (the panels' own search fields keep their text; the web browser's find bar
  * never opens). Type, ↑/↓, Enter jumps, Escape closes. The command palette's look.
  */
