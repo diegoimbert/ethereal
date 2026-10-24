@@ -215,6 +215,9 @@ export function touchesEnd(ends: Float64Array, start: number): boolean {
 
 const NO_NOTES: ReadonlyArray<Note> = [];
 
+/** Opacity of the clip's color for its loop lines on the body. */
+const LOOP_LINE_ALPHA = 0.7;
+
 /** Instances of one pipeline in two draw groups. */
 class Groups {
   base: Batch;
@@ -293,7 +296,7 @@ export class LaneScene {
   private loadAlpha = 1;
   /** The clips' title band height (`titleHeight` of the lane's height: all of a compact lane). */
   titleHeight = CLIP_TITLE;
-  /** A compact lane: its clips are a title band alone (no notes, waveform or loop seams). */
+  /** A compact lane: its clips are a title band alone (no notes or waveform). */
   compact = false;
   /** Bumped at each static rebuild (the view data depends on it). */
   staticVersion = 0;
@@ -583,11 +586,19 @@ export class LaneScene {
         }
       }
     }
-    // Loop seams: where a looped clip wraps around to its loop start.
-    if (clip.looping.enabled && !this.compact) {
+    // Loop lines: a thin line where a looped clip wraps around to its loop start, across
+    // the whole clip (in the clip's color on the body, darker on the title band).
+    if (looping.enabled) {
+      const bodyLine = withAlpha(colors.strong, LOOP_LINE_ALPHA);
       for (const seg of contentSegments(shaped, bounds.start)) {
-        if (seg.t0 <= bounds.start || seg.c0 !== looping.start) continue;
-        writeRect(out.over, { x: { b0: seg.t0, b1: seg.t0, p1: 1 }, y: BODY_Y, fill: input.palette.seam, flags: RectFlag.Snap, clip: clipBox, fx, alpha });
+        if (seg.t0 <= bounds.start + 1e-9 || seg.c0 !== looping.start) continue;
+        const x = { b0: seg.t0, b1: seg.t0, p1: 1 };
+        if (this.compact) {
+          writeRect(out.over, { x, y: BOX_Y, fill: bodyLine, flags: RectFlag.Snap, clip: clipBox, fx, alpha });
+        } else {
+          writeRect(out.over, { x, y: TITLE_Y, fill: input.palette.seam, flags: RectFlag.Snap, clip: clipBox, fx, alpha });
+          writeRect(out.over, { x, y: BODY_Y, fill: bodyLine, flags: RectFlag.Snap, clip: clipBox, fx, alpha });
+        }
       }
     }
     // The separator on the edge shared with the clip before (bordered clips draw their border
