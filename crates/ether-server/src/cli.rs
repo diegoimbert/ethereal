@@ -29,6 +29,9 @@ OPTIONS:
                     ~/Documents/Ethereal/Projects).
   --library <DIR>   Sample library folder for the browser (repeatable; default: the demo
                     samples plus $ETHER_LIBRARY).
+  --allow-os-paths  Honour commands that name files and folders of this machine by path
+                    (file import, save dialogs, user and plugin folders), like the
+                    desktop app. For a UI on this machine only: loopback listen required.
   -h, --help        This help.
 
 Set ETHER_AUDIO=null to run without an audio device.";
@@ -45,6 +48,7 @@ pub struct Args {
     pub data_dir: Option<PathBuf>,
     pub projects: Option<PathBuf>,
     pub library: Vec<PathBuf>,
+    pub allow_os_paths: bool,
     pub help: bool,
 }
 
@@ -70,12 +74,16 @@ pub fn parse<I: IntoIterator<Item = String>>(args: I) -> Result<Args, String> {
             "--data-dir" => a.data_dir = Some(value("--data-dir")?.into()),
             "--projects" => a.projects = Some(value("--projects")?.into()),
             "--library" => a.library.push(value("--library")?.into()),
+            "--allow-os-paths" => a.allow_os_paths = true,
             "-h" | "--help" => a.help = true,
             other => return Err(format!("unknown option {other:?} (see --help)")),
         }
     }
     if a.no_auth && a.token.is_some() {
         return Err("--no-auth and --token are exclusive".into());
+    }
+    if a.allow_os_paths && a.listen.is_some_and(|ip| !ip.is_loopback()) {
+        return Err("--allow-os-paths needs a loopback --listen address".into());
     }
     Ok(a)
 }
@@ -230,6 +238,10 @@ mod tests {
         assert!(args(&["--nope"]).is_err());
         assert!(args(&["--port"]).is_err());
         assert!(args(&["--no-auth", "--token", "x"]).is_err());
+        assert!(!args(&[]).unwrap().allow_os_paths);
+        assert!(args(&["--allow-os-paths"]).unwrap().allow_os_paths);
+        assert!(args(&["--allow-os-paths", "--listen", "::1"]).is_ok());
+        assert!(args(&["--allow-os-paths", "--listen", "0.0.0.0"]).is_err());
         assert_eq!(bind(&args(&[]).unwrap(), 5).to_string(), "127.0.0.1:5");
     }
 

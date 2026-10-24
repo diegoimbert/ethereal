@@ -49,7 +49,9 @@ pub enum PluginCommand {
     ListFolders,
     /// Add a user plugin folder (`format`: only that format's plugins; `null` = any) and
     /// rescan (incrementally). Adding a folder already listed updates its format filter.
-    /// Replies `PluginFolders`.
+    /// Replies `PluginFolders`. `path` is an absolute engine-machine path from the desktop's
+    /// OS dialog: hosts whose UI is not on the engine machine (web, remote) reply
+    /// `Unsupported`.
     AddFolder {
         path: String,
         format: Option<PluginFormat>,

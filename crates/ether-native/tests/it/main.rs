@@ -37,6 +37,7 @@ mod multicore;
 mod multicore_bench;
 mod multicore_real;
 mod null_host;
+mod os_paths_e2e;
 mod perf_audio;
 #[cfg(feature = "plugins-clap")]
 mod plugin_folders_e2e;
