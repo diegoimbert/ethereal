@@ -147,10 +147,11 @@ fn the_engine_is_suspended_until_every_plugin_is_in() {
         plugins_total: PLUGINS as u32,
         media_loaded: 0,
         media_total: 0,
+        media_pending: Vec::new(),
     };
-    assert_eq!(loading(&h), Some(progress));
+    assert_eq!(loading(&h), Some(progress.clone()));
     assert!(events(&out).iter().any(|e| matches!(e,
-        Event::Transport { state } if state.loading == Some(progress))));
+        Event::Transport { state } if state.loading.as_ref() == Some(&progress))));
 
     h.tick();
     assert_eq!(loading(&h).map(|l| l.plugins_loaded), Some(4));
@@ -249,10 +250,14 @@ fn the_load_waits_for_the_media() {
     // All plugins fit in the budget now; the media is still decoding.
     let l = loading(&h).expect("loading");
     assert_eq!(l.media_total, 1);
+    // Which media is still decoding (the UI shows the rest as ready).
+    let media: Vec<_> = h.project().media.keys().copied().collect();
+    assert_eq!(l.media_pending, media);
     let mut ticks = 0;
     while loading(&h).is_some() {
         let l = loading(&h).unwrap();
         assert_eq!((l.plugins_loaded, l.plugins_total), (5, 5));
+        assert_eq!(l.media_pending.len() as u32, l.media_total - l.media_loaded);
         refused(&mut h, play());
         h.tick();
         ticks += 1;
