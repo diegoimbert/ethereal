@@ -12,6 +12,9 @@ run-name: >-
 #
 # Safety, since this repository is public:
 #   - The private code is fetched with the ETHER_PRIVATE_TOKEN secret (never on fork events).
+#   - A dispatched `ref` that is on neither main nor the dispatched branch (a fork's PR) is built
+#     only if it changes no CI file (.github/, scripts/ci/): those run with the token or decide
+#     what the log shows (the Resolve job's trust check, before any of the ref's code runs).
 #   - No private code in the public log: every step that compiles or runs it goes through
 #     scripts/ci/private-step.mjs (its output goes to a file; the log shows the result and the
 #     names of what failed), and the files are uploaded encrypted with age to the private
@@ -88,6 +91,40 @@ jobs:
       ee_ref: ${{ steps.r.outputs.ee_ref }}
       all: ${{ steps.r.outputs.all }}
     steps:
+      # Before anything of `ref` runs: a dispatch may name code that isn't ours (a fork's pull
+      # request, `refs/pull/N/head`). Its CI files would then run with the private token (local
+      # actions) or decide what reaches the public log (scripts/ci/private-step.mjs), so such a
+      # ref is built only if it changes none of them. Ours = contained in main or in the branch
+      # this run was dispatched on. This step is the dispatched branch's own (never `ref`'s).
+      - name: Trust check (the ref's CI files)
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          [[ "$REF" =~ ^[A-Za-z0-9._/-]+$ ]] || { echo "::error::bad ref"; exit 1; }
+          if [[ "$REF" =~ ^[0-9a-f]{40}$ ]]; then sha="$REF"
+          else
+            sha="$(git ls-remote "https://github.com/$repo" "$REF" "refs/heads/$REF" | awk 'NR == 1 { print $1 }')"
+          fi
+          [ -n "$sha" ] || { echo "::error::cannot resolve $REF"; exit 1; }
+          contained() { s="$(gh api "repos/$repo/compare/$sha...$1" --jq .status 2>/dev/null || true)"; [ "$s" = ahead ] || [ "$s" = identical ]; }
+          if contained main || contained "$GITHUB_REF_NAME"; then
+            echo "$sha is on main or on $GITHUB_REF_NAME"
+            exit 0
+          fi
+          base="$(gh api "repos/$repo/compare/main...$sha" --jq .merge_base_commit.sha)"
+          files="$(gh api "repos/$repo/compare/$base...$sha" --jq '.files[].filename')"
+          if [ "$(grep -c . <<<"$files")" -ge 300 ]; then
+            echo "::error::$sha changes 300 files or more (the listing is cut): not built with the private token"; exit 1
+          fi
+          ci="$(grep -E '^(\.github/|scripts/ci/)' <<<"$files" || true)"
+          if [ -n "$ci" ]; then
+            echo "::error::$sha is not on a branch of this repository and changes CI files ($(tr '\n' ' ' <<<"$ci")): not built with the private token"; exit 1
+          fi
+          echo "$sha is someone else's and changes no CI file"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
