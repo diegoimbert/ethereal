@@ -58,6 +58,11 @@ pub struct Clip {
     pub lane: Option<TakeLaneId>,
 }
 
+/// The largest beat value a project holds (positions, lengths, offsets, loop bounds; in
+/// either direction): ~58 days at 120 bpm. Keeps the time arithmetic, loop unrolling and
+/// renders driven by these values bounded.
+pub const MAX_BEAT: f64 = 1e7;
+
 /// Shortest content loop the engine plays (beats; `ether_core::sched::MIN_LOOP`).
 pub const MIN_CLIP_LOOP: f64 = 1.0 / 256.0;
 
