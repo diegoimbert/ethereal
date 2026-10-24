@@ -15,6 +15,7 @@ covers:
   - devices/maximizer #maximizer
   - devices/shaper #shaper
   - devices/pitch-correction #pitch-correction
+  - devices/adaptive-eq #adaptive-eq
   - devices/utility #utility
   - devices/color-effects-saturator-bitcrusher-auto-filter #color-saturator-bitcrusher-auto-filter
   - devices/modulation-effects-chorus-phaser-flanger-tremolo #modulation-chorus-phaser-flanger-tremolo
@@ -122,6 +123,18 @@ Tunes a single voice or a solo instrument: it hears the note being sung or playe
 - **detector** picks how the pitch is found: **pyin** (the default) is steadier on breathy or noisy takes, **yin** is a little lighter. Raise **sensitivity** if quiet notes aren't corrected, lower it if breaths and noises get tuned.
 - The graph shows the last 4 seconds: the pitch it heard (dim) and the pitch it plays, over the notes of the scale.
 - It delays the sound by about 34 ms, compensated in playback; when you monitor yourself live through it you will hear that delay.
+
+### adaptive eq
+
+An eq that listens and keeps rebalancing the sound: it cuts what sticks out (resonances, a boomy or harsh range) and lifts what is buried, all the time, towards a balanced tonal curve. Good on a mix bus, a master or a busy group.
+
+- **tame** sets how much it cuts what sticks out, **recover** how much it lifts what is buried. Both at 0 leave the sound untouched.
+- **brighten** tilts the balanced curve it aims for: up for a brighter result, down for a darker one.
+- **range** limits how far any band moves (6 dB by default). **speed** sets how fast it follows the music: slow is smooth and transparent, fast follows every note (and can pump).
+- **low** and **high** set the frequency range it works on (40 Hz to 16 kHz by default).
+- **auto gain** keeps the loudness the same, so you hear the balance and not just a louder sound. **freeze** holds the current curve. **mix** blends the dry sound back in.
+- The graph shows what it does now: the curve it applies over bars of where each band sits against the balanced curve (up: sticks out, down: buried).
+- It adds no latency.
 
 ### utility
 

@@ -1807,6 +1807,14 @@
           "platform": "all"
         },
         {
+          "id": "devices/adaptive-eq",
+          "title": "adaptive eq",
+          "what": "an eq that keeps rebalancing the sound: tame (cut what sticks out), recover (lift what is buried), brighten (tilt of the target curve), range, speed, low / high limits, auto gain, freeze, mix; shows its curve over the band balance; no latency.",
+          "priority": "should",
+          "audience": "everyone",
+          "platform": "all"
+        },
+        {
           "id": "devices/utility",
           "title": "utility",
           "what": "gain (±36 db), balance pan, width (0–200 %) or mid/side balance, invert l / r, mono, bass mono below a frequency, channel stereo / left / right / swap, dc filter, mute, with output meters.",

@@ -73,6 +73,7 @@ fn effects() -> Vec<(BuiltinDeviceType, Vec<(&'static str, f64)>)> {
         (Loudness, vec![]),
         (Shaper, vec![]),
         (PitchCorrection, vec![]),
+        (AdaptiveEq, vec![]),
         (PitchCorrection, vec![("Detection/Detector", 1.0)]),
         (
             Shaper,

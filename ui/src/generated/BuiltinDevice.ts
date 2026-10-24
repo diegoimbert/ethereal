@@ -47,4 +47,4 @@ curve: LfoCurve, } | { "type": "NoteBlocker" } | { "type": "Erosion" } | { "type
 /**
  * Omitted (an agent's `{"type": "Shaper"}`) = the defaults.
  */
-curves: ShaperCurves, } | { "type": "PitchCorrection" };
+curves: ShaperCurves, } | { "type": "PitchCorrection" } | { "type": "AdaptiveEq" };

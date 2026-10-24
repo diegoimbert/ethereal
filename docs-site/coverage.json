@@ -1,7 +1,7 @@
 {
-  "total": 383,
+  "total": 384,
   "removed": 1,
-  "covered": 382,
+  "covered": 383,
   "pending": 0,
   "percent": 100,
   "items": {
@@ -661,6 +661,9 @@
     ],
     "devices/pitch-correction": [
       "making-music/effects#pitch-correction"
+    ],
+    "devices/adaptive-eq": [
+      "making-music/effects#adaptive-eq"
     ],
     "devices/utility": [
       "making-music/effects#utility"

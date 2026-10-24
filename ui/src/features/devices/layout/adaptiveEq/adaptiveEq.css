@@ -1,0 +1,31 @@
+/* The adaptive EQ's panel (tokens only; the plot, grid, bars and line are the shared `eth-plot` ones). */
+
+.eth-adaptive-eq {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+}
+.eth-adaptive-eq__readout {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: var(--eth-space-xs);
+  align-items: baseline;
+  justify-content: start;
+  font-variant-numeric: tabular-nums;
+}
+.eth-adaptive-eq__value {
+  font-size: var(--eth-fs-md);
+  font-weight: var(--eth-fw-medium);
+}
+.eth-adaptive-eq__unit,
+.eth-adaptive-eq__name {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-adaptive-eq__name {
+  grid-column: 1 / -1;
+}
+.eth-adaptive-eq__curve.eth-plot {
+  height: calc(var(--eth-size-row-height-lg) * 5);
+}

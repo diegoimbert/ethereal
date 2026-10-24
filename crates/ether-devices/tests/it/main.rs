@@ -12,6 +12,7 @@ mod quality_rig;
 #[global_allocator]
 static ALLOC: assert_no_alloc::AllocDisabler = assert_no_alloc::AllocDisabler;
 
+mod adaptive_eq;
 mod compressor_detector;
 mod device_ui_layouts;
 mod devices2;
