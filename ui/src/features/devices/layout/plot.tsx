@@ -4,7 +4,7 @@
  */
 
 import clsx from "clsx";
-import { useRef, type PointerEvent, type ReactNode } from "react";
+import { useRef, type MouseEvent, type PointerEvent, type ReactNode } from "react";
 import { useBoxSize } from "./useBoxSize";
 
 export interface PlotDrag {
@@ -22,7 +22,7 @@ export interface PlotProps {
   /** Gesture hooks around a drag (one undo step). */
   begin?(): void;
   end?(): void;
-  onDoubleClick?(): void;
+  onDoubleClick?(e: MouseEvent<SVGSVGElement>): void;
   children(size: { w: number; h: number }): ReactNode;
   testId?: string;
 }
