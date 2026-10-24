@@ -27,6 +27,9 @@ export function scaleToPlain(scale: ParamScale, min: number, max: number, normal
       v = amp <= 0 ? min : Math.max(20 * Math.log10(amp), min);
       break;
     }
+    case "Gain":
+      v = n >= 0.5 ? (2 * n - 1) * max : n <= 0 ? min : Math.max(max * Math.log(2 * n), min);
+      break;
   }
   return clamp(v, Math.min(min, max), Math.max(min, max));
 }
@@ -47,6 +50,9 @@ export function scaleToNormalized(scale: ParamScale, min: number, max: number, p
       break;
     case "Fader":
       n = p <= min ? 0 : Math.cbrt(Math.pow(10, p / 20) / Math.pow(10, max / 20));
+      break;
+    case "Gain":
+      n = p >= 0 ? 0.5 + (0.5 * p) / max : p <= min ? 0 : 0.5 * Math.exp(p / max);
       break;
   }
   return clamp(n, 0, 1);

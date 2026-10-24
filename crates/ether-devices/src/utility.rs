@@ -23,7 +23,7 @@
 //!
 //! | id | name      | range                    |
 //! |----|-----------|--------------------------|
-//! | 0  | `Gain`    | -36 ..= 36 dB            |
+//! | 0  | `Gain`    | -inf (-144) ..= 36 dB, gain law |
 //! | 1  | `Pan`     | -1 ..= 1                 |
 //! | 2  | `Width`   | 0 ..= 200 %              |
 //! | 3  | `Invert L`| toggle                   |
@@ -82,6 +82,9 @@ pub const CHANNEL_LABELS: [&str; 4] = ["Stereo", "Left", "Right", "Swap"];
 pub const WIDTH_MODE_LABELS: [&str; 2] = ["Width", "Mid/Side"];
 /// DC filter corner (Hz).
 const DC_HZ: f32 = 5.0;
+/// Bottom of `Gain`: -inf (`Decibels::SILENCE`; JSON has no infinity). The knob's lower half
+/// falls to it smoothly ([`ParamScale::Gain`]), unity sits at the centre.
+pub const GAIN_SILENCE_DB: f64 = -144.0;
 /// Output level reported for silence (dBFS).
 const METER_FLOOR_DB: f32 = -90.0;
 
@@ -95,8 +98,8 @@ pub fn param_infos() -> Vec<ParamInfo> {
             "Gain",
             "Utility",
             ParamUnit::Decibels,
-            (-36.0, 36.0, 0.0),
-            ParamScale::Linear,
+            (GAIN_SILENCE_DB, 36.0, 0.0),
+            ParamScale::Gain,
         ),
         param(
             1,
@@ -342,7 +345,7 @@ impl Utility {
         };
         let width = if self.on(params::MONO) { 0.0 } else { side };
         let sign = |id| if self.on(id) { -1.0 } else { 1.0 };
-        let gain = if self.on(params::MUTE) {
+        let gain = if self.on(params::MUTE) || self.value(params::GAIN) <= GAIN_SILENCE_DB {
             0.0
         } else {
             util::db_to_amp(self.value(params::GAIN) as f32)
