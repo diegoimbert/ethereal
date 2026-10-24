@@ -58,6 +58,8 @@ export function boundParams(w: Widget): ParamId[] {
       return [w.on, w.rate, w.depth];
     case "PitchCorrection":
       return [w.key, w.scale];
+    case "AdaptiveEq":
+      return [w.recover, w.tame];
     case "Macros":
       return macrosWidgetParams(w);
     case "ZoneMap":

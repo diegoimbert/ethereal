@@ -1,0 +1,326 @@
+{
+  "AdaptiveEq": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "AdaptiveEq",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 4,
+          "id": "curve",
+          "items": [
+            {
+              "colspan": 4,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "recover": 0,
+                "tame": 1,
+                "type": "AdaptiveEq"
+              }
+            }
+          ],
+          "span": 4,
+          "title": null
+        },
+        {
+          "columns": 5,
+          "id": "balance",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 0,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "param": 1,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Medium",
+              "widget": {
+                "param": 2,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 3,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 4,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 3,
+          "title": "Balance"
+        },
+        {
+          "columns": 3,
+          "id": "output",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 5,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 6,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 9,
+                "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 7,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 8,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 10,
+                "type": "Knob"
+              }
+            }
+          ],
+          "span": 2,
+          "title": "Output"
+        }
+      ]
+    },
+    "midi_input": false,
+    "name": "Adaptive EQ",
+    "params": [
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Balance",
+        "hidden": false,
+        "id": 0,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Recover",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 50.0,
+        "group": "Balance",
+        "hidden": false,
+        "id": 1,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Tame",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Balance",
+        "hidden": false,
+        "id": 2,
+        "labels": null,
+        "max": 100.0,
+        "min": -100.0,
+        "name": "Brighten",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 6.0,
+        "group": "Balance",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 12.0,
+        "min": 1.0,
+        "name": "Range",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 300.0,
+        "group": "Balance",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 3000.0,
+        "min": 20.0,
+        "name": "Speed",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 40.0,
+        "group": "Bands",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 500.0,
+        "min": 20.0,
+        "name": "Low",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 16000.0,
+        "group": "Bands",
+        "hidden": false,
+        "id": 6,
+        "labels": null,
+        "max": 20000.0,
+        "min": 2000.0,
+        "name": "High",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 7,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Auto Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 8,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Freeze",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 9,
+        "labels": null,
+        "max": 12.0,
+        "min": -12.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 10,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Mix",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      }
+    ],
+    "sidechain_inputs": 0
+  }
+}

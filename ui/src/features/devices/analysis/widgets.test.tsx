@@ -179,4 +179,26 @@ describe("analysis widgets", () => {
     expect(value("sung")).toBe("A3 +20");
     expect(value("correction (cents)")).toBe("-19");
   });
+
+  it("the adaptive eq panel shows its curve over the band balance", async () => {
+    const id = await mount("AdaptiveEq");
+    const panel = () => screen.getByTestId("widget-adaptive-eq");
+    expect(panel().textContent).toContain("no signal");
+    await tick(100);
+    expect(panel().querySelector('[data-testid="adaptive-eq-response"]')?.getAttribute("points")?.split(" ").length).toBe(64);
+    expect(panel().querySelectorAll("[data-band]")).toHaveLength(32);
+    // Recover and tame at 0: a flat curve on the 0 dB line.
+    await act(() => mock!.send(cmd("Device", { type: "SetParam", device: id, param: 0, value: 0 })));
+    await act(() => mock!.send(cmd("Device", { type: "SetParam", device: id, param: 1, value: 0 })));
+    await tick(100);
+    const ys = new Set(
+      panel()
+        .querySelector('[data-testid="adaptive-eq-response"]')!
+        .getAttribute("points")!
+        .split(" ")
+        .map((pt) => pt.split(",")[1]),
+    );
+    expect(ys.size).toBe(1);
+    expect(panel().querySelector('[data-readout="auto gain"] .eth-adaptive-eq__value')?.textContent).toBe("0.0");
+  });
 });

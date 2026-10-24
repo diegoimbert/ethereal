@@ -1,0 +1,36 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "gentle balance",
+    "device": {
+      "type": "Builtin",
+      "device": "AdaptiveEq"
+    },
+    "meta": {
+      "tags": [
+        "mastering",
+        "balance"
+      ],
+      "author": "ethereal",
+      "description": "a light touch both ways: a little more clarity, a little less mud and harshness."
+    },
+    "params": {
+      "0": 30.0,
+      "1": 30.0,
+      "2": 0.0,
+      "3": 4.0,
+      "4": 500.0,
+      "5": 40.0,
+      "6": 16000.0,
+      "7": 1.0,
+      "8": 0.0,
+      "9": 0.0,
+      "10": 100.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}

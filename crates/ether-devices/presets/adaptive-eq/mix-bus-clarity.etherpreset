@@ -1,0 +1,36 @@
+{
+  "format": "ethereal-preset",
+  "version": 1,
+  "app_version": "0.2.0",
+  "preset": {
+    "name": "mix bus clarity",
+    "device": {
+      "type": "Builtin",
+      "device": "AdaptiveEq"
+    },
+    "meta": {
+      "tags": [
+        "mix bus",
+        "clarity"
+      ],
+      "author": "ethereal",
+      "description": "lifts what is buried more than it cuts: an opened-up, clearer mix."
+    },
+    "params": {
+      "0": 60.0,
+      "1": 35.0,
+      "2": 10.0,
+      "3": 6.0,
+      "4": 300.0,
+      "5": 40.0,
+      "6": 16000.0,
+      "7": 1.0,
+      "8": 0.0,
+      "9": 0.0,
+      "10": 100.0
+    },
+    "kind": null,
+    "samples": [],
+    "state": null
+  }
+}
