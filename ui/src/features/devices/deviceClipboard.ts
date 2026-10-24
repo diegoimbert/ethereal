@@ -241,10 +241,6 @@ export async function placeDevices(
 }
 
 /**
- * Removes `ids` (one undo step); a drum pad left without devices goes with them (like its
- * last device's ×). Nothing is selected afterwards.
- */
-/**
  * Turn `id` on or off; when it is part of a selection of several devices, all of them (one
  * undo step), so on/off on one card of a selection sets the whole selection.
  */
@@ -265,6 +261,10 @@ export async function setDevicesEnabled(transport: EngineTransport, id: DeviceId
   );
 }
 
+/**
+ * Removes `ids` (one undo step); a drum pad left without devices goes with them (like its
+ * last device's ×). Nothing is selected afterwards.
+ */
 export async function deleteDevices(transport: EngineTransport, ids: readonly DeviceId[]): Promise<void> {
   const project = useProjectStore.getState().project;
   if (!project) return;
