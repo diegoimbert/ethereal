@@ -218,6 +218,17 @@ impl MediaState {
         self.jobs.iter().filter(|j| !j.report && !j.ir).count()
     }
 
+    /// The media of [`Self::load_jobs`] (sorted, deduplicated).
+    pub fn load_job_media(&self) -> Vec<MediaId> {
+        let ids: BTreeSet<MediaId> = self
+            .jobs
+            .iter()
+            .filter(|j| !j.report && !j.ir)
+            .map(|j| j.media.id)
+            .collect();
+        ids.into_iter().collect()
+    }
+
     /// Are any media of the project streamed?
     pub fn any_streamed(&self) -> bool {
         !self.streamed.is_empty()

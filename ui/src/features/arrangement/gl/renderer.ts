@@ -32,7 +32,7 @@ import { renderDpr } from "@/timeline/renderDpr";
 import { MOTION } from "@/timeline/motion";
 
 const NO_ROWS = (): ReadonlyArray<Row> => [];
-const NO_TRACKS: ReadonlySet<TrackId> = new Set();
+const NO_CLIPS: ReadonlySet<ClipId> = new Set();
 
 /** Canvas rows drawn above and below the viewport (px): covers a frame of scrolling. */
 export const MARGIN_Y = 96;
@@ -112,9 +112,12 @@ export class ArrangerRenderer {
   drawnView: DrawnView | null = null;
   private disposed = false;
   private extraRows: () => ReadonlyArray<Row> = NO_ROWS;
-  /** Tracks drawn as loading at the last frame, and when the ones since loaded did (#260). */
-  private wasLoading = new Set<TrackId>();
-  private loadedAt = new Map<TrackId, number>();
+  /** Clips drawn as loading at the last frame, and when the ones since loaded did (#260). */
+  private wasLoading = new Set<ClipId>();
+  private loadedAt = new Map<ClipId, number>();
+  /** The loading look last handed to the lanes, and its version. */
+  private lastLoading: ReadonlySet<ClipId> = NO_CLIPS;
+  private loadVersion = 0;
   private offs: Array<() => void> = [];
   /** Content y of the canvas top as last drawn. */
   originY = 0;
@@ -374,7 +377,7 @@ export class ArrangerRenderer {
         if (box.y >= bottom || box.y + box.height <= top) continue;
         const scene = this.extraLane(extra.key, track, extra.source);
         scene.setAlpha(extra.alpha ?? 1);
-        look(scene, track.id);
+        look(scene);
         scene.sync(track, input, extra.height);
         scene.syncView(input, win, scroll, scroll + v.width / ppb);
         this.tiles.touch(scene.waveRows);
@@ -434,7 +437,7 @@ export class ArrangerRenderer {
       visible.push([row, row.track, true]);
     }
     const look = this.loadingLook(input);
-    for (const [, track] of visible) look(this.lane(track), track.id);
+    for (const [, track] of visible) look(this.lane(track));
     // Selection glows first, for every row: unclipped, they spread past their lane under the
     // neighbouring lanes' clips (drawn after).
     for (const [row, track, extraRow] of visible) {
@@ -480,13 +483,13 @@ export class ArrangerRenderer {
 
   /** The scene of a layer's extra lane (see `ExtraLane`), kept by key while it is drawn. */
   /**
-   * This frame's look of the loading tracks (#260): `(lane, track)` sets it on a lane. A
-   * loading track's clips are desaturated at the loading opacity; once it loaded they ease
-   * back to full opacity over `loadedFadeMs` (at once with reduced motion).
+   * This frame's look of the loading clips (#260): `(lane)` sets it on a lane. A loading
+   * clip is desaturated at the loading opacity; once it loaded it eases back to full
+   * opacity over `loadedFadeMs` (at once with reduced motion).
    */
-  private loadingLook(input: SceneInput): (lane: LaneScene, track: TrackId) => void {
+  private loadingLook(input: SceneInput): (lane: LaneScene) => void {
     const now = performance.now();
-    const loading = input.loading ?? NO_TRACKS;
+    const loading = input.loadingClips ?? NO_CLIPS;
     const opacity = input.palette.loadingOpacity ?? 0.6;
     const fadeMs = input.palette.loadedFadeMs ?? 300;
     for (const id of this.wasLoading) {
@@ -495,14 +498,17 @@ export class ArrangerRenderer {
       if (MOTION.enabled && fadeMs > 0) this.loadedAt.set(id, now);
     }
     for (const id of loading) this.wasLoading.add(id);
+    const fading = this.loadedAt.size > 0;
     for (const [id, at] of this.loadedAt) if (now - at >= fadeMs) this.loadedAt.delete(id);
-    return (lane, track) => {
-      if (loading.has(track)) return lane.setLoading(true, opacity);
-      const at = this.loadedAt.get(track);
-      if (at === undefined) return lane.setLoading(false, 1);
+    const fade = new Map<ClipId, number>();
+    for (const [id, at] of this.loadedAt) {
       const t = (now - at) / fadeMs;
-      lane.setLoading(false, opacity + (1 - opacity) * (1 - (1 - t) ** 3));
-    };
+      fade.set(id, opacity + (1 - opacity) * (1 - (1 - t) ** 3));
+    }
+    if (loading !== this.lastLoading || fading) this.loadVersion++;
+    this.lastLoading = loading;
+    const version = this.loadVersion;
+    return (lane) => lane.setLoading(loading, opacity, fade, version);
   }
 
   private extraLane(key: string, track: Track, source: LaneSource): LaneScene {
