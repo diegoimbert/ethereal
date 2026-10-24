@@ -145,6 +145,8 @@ pub struct ImportReport {
 }
 
 /// `Event::Import` (one job at a time; `id` = the new project's id).
+// Sent a few times per import: `Done`'s inline summary and report cost nothing worth boxing.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
 #[serde(tag = "type")]
 pub enum ImportEvent {
