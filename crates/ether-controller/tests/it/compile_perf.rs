@@ -489,3 +489,32 @@ fn command_to_patch_timings() {
         println!("{total} notes: {}", rows.join("; "));
     }
 }
+
+/// Opening a stored project: the file's size, parsing it (`file::load`), and the `Open`
+/// command end to end (read, parse, upgrade, index, first compile and publish). Printed.
+#[test]
+fn open_timings() {
+    for per_clip in sizes() {
+        let mut h = Harness::with_project();
+        let mut ids = IdGen::new(19);
+        let p = synthetic(&mut ids, per_clip);
+        let total = p.notes.len();
+        let json = file::save(&p, "0.3.0").unwrap();
+        let parse = best_of(3, || file::load(&json).unwrap());
+        h.ctl.store.create(p.id).unwrap();
+        h.ctl.store.save(p.id, &json).unwrap();
+        let t = Instant::now();
+        h.ok(Command::Project(ProjectCommand::Open { id: p.id }));
+        let open = t.elapsed();
+        let t = Instant::now();
+        h.tick();
+        let first_tick = t.elapsed();
+        println!(
+            "{total} notes: file {:.1} MB, parse {}, Open {}, first tick (compile + publish) {}",
+            json.len() as f64 / 1e6,
+            ms(parse),
+            ms(open),
+            ms(first_tick)
+        );
+    }
+}
