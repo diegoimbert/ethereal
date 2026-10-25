@@ -20,6 +20,7 @@ import { immer } from "zustand/middleware/immer";
 import type { HistoryState, Patch, DeviceId, Project, ProjectSummary, TrackId, TransportState } from "@/generated";
 import { withPatchChanges } from "./entities";
 import { carryGroups } from "./groups";
+import { noteTable } from "./noteTable";
 
 export const EMPTY_HISTORY: HistoryState = { can_undo: false, can_redo: false, undo_label: null, redo_label: null, undo_id: null, redo_id: null };
 
@@ -28,6 +29,11 @@ export type PatchResult = "applied" | "stale" | "gap" | "no-project";
 
 export interface ProjectStoreState {
   project: Project | null;
+  /**
+   * The object last given to `loadProject` (`project` is a copy of it with its notes
+   * sharded): lets a caller tell whether its load is still the current one.
+   */
+  loadedFrom: Project | null;
   /**
    * Revision of the last applied patch. `null` right after a (re)load: the full project
    * carries no revision, so the next patch is accepted as-is and sets it.
@@ -70,6 +76,7 @@ export interface ProjectStoreState {
 
 const INITIAL = {
   project: null,
+  loadedFrom: null,
   revision: null,
   history: EMPTY_HISTORY,
   transport: null,
@@ -86,7 +93,9 @@ export const useProjectStore = create<ProjectStoreState>()(
 
     loadProject(project, opts) {
       set((s) => {
-        s.project = project;
+        // Notes sharded (`./noteTable`): patches copy only the buckets they touch.
+        s.project = { ...project, notes: noteTable(project.notes) };
+        s.loadedFrom = project;
         s.revision = null;
         s.history = opts?.history ?? EMPTY_HISTORY;
         // Armed tracks, the project list and the dirty flag come from their own events.
@@ -96,6 +105,7 @@ export const useProjectStore = create<ProjectStoreState>()(
     clearProject() {
       set((s) => {
         s.project = null;
+        s.loadedFrom = null;
         s.revision = null;
         s.history = EMPTY_HISTORY;
         s.dirty = false;

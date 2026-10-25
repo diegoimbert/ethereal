@@ -11,17 +11,30 @@ import { notesOfClip } from "./selectors";
 const store = () => useProjectStore.getState();
 const SIZES = (process.env.ETHER_UI_PERF_NOTES ?? "16384").split(",").map(Number);
 
+/** `total` notes over 1024 MIDI clips (copies of the demo's first MIDI clip). */
 function bigProject(total: number) {
   const p = createDemoProject();
-  const clips = Object.values(p.clips).filter((c) => c.content.type === "Midi");
-  const perClip = Math.ceil(total / 1024);
-  let n = 0;
-  for (let c = 0; n < total; c++) {
-    const clip = clips[c % clips.length]!.id;
-    for (let k = 0; k < perClip && n < total; k++, n++) {
-      const id = `01HZZZ${n.toString(36).padStart(20, "0")}`.toUpperCase();
-      p.notes[id] = { id, clip, pitch: 36 + (k % 48), velocity: 0.8, release_velocity: 0.5, start: k * 0.25, duration: 0.25, muted: false } as Note;
-    }
+  const base = Object.values(p.clips).find((c) => c.content.type === "Midi")!;
+  const clips: string[] = [];
+  for (let c = 0; c < 1024; c++) {
+    const id = `01HZZY${c.toString(36).padStart(20, "0")}`.toUpperCase();
+    p.clips[id] = { ...base, id, start: base.start + c * 4 };
+    clips.push(id);
+  }
+  const perClip = Math.ceil(total / clips.length);
+  for (let n = 0; n < total; n++) {
+    const id = `01HZZZ${n.toString(36).padStart(20, "0")}`.toUpperCase();
+    const k = n % perClip;
+    p.notes[id] = {
+      id,
+      clip: clips[Math.floor(n / perClip)]!,
+      pitch: 36 + (k % 48),
+      velocity: 0.8,
+      release_velocity: 0.5,
+      start: k * 0.25,
+      duration: 0.25,
+      muted: false,
+    } as Note;
   }
   return p;
 }
