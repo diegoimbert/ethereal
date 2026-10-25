@@ -63,6 +63,7 @@ pub mod recording;
 pub mod render_preview;
 mod sched;
 mod sidechain;
+pub(crate) mod simd;
 pub mod stream_tap;
 pub mod tempo;
 pub mod transport;

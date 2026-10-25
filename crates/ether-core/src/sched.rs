@@ -731,19 +731,6 @@ pub(crate) fn read_frames(
     ok
 }
 
-/// Render (add) an audio clip into `out` for the sub-block. Reads through
-/// `scratch` (≥ 2 × frames recommended). Returns `false` on a source underrun.
-///
-/// Resamples (linear interpolation): unwarped and `Repitch` clips, and `Complex` clips
-/// without a stretcher (`crate::warp` handles the stretched path). Transpose changes the
-/// playback rate. Fades follow [`ClipEnvelope`].
-///
-/// **Reverse** (`reversed`): the clip plays the reversed media `R[i] = M[N - 1 - i]`. The
-/// whole content → source mapping (offset, clip loop, warp markers, transpose) is computed
-/// on that reversed timeline exactly as for a forward clip, and only the final frame lookup
-/// is mirrored, so a reversed clip is sample-for-sample the forward rendering of a
-/// reversed file.
-#[allow(clippy::too_many_arguments)]
 /// Distance (source frames) under which a playback position counts as on a frame.
 const FRAME_SNAP: f64 = 1e-6;
 
@@ -757,115 +744,129 @@ fn snap_frame(f: f64) -> f64 {
     if (f - r).abs() < FRAME_SNAP { r } else { f }
 }
 
-pub(crate) fn render_audio(
-    clip: &ClipDesc,
-    source: &dyn AudioSource,
-    ref_bpm: f64,
-    timing: &Timing<'_>,
-    out: [&mut [f32]; 2],
-    scratch: &mut [f32],
-) -> bool {
-    let ClipContentDesc::Audio {
-        warp,
-        transpose,
-        reversed,
-        transpose_envelope,
-        ..
-    } = &clip.content
-    else {
-        return true;
-    };
-    let Some(env) = ClipEnvelope::new(clip, timing) else {
-        return true;
-    };
-    let reversed = *reversed;
-    let sr = timing.sample_rate;
-    let channels = source.channels().max(1);
-    let total = source.frames();
-    let last = total as f64 - 1.0;
-    let [out_l, out_r] = out;
-    let mut ok = true;
-    let cap = scratch.len();
-    for_each_piece(clip, timing.b0, timing.b1, |p| {
-        let o_a = timing.sample_ceil(p.t0);
-        let o_b = timing.sample_ceil(p.t1);
-        // Media frame (fractional) played at output sample `o`.
-        // A leading gap (negative offset) keeps the pivot at the content start.
-        let anchor = clip.offset.max(0.0);
-        let frame_at = |o: usize| {
-            let t = timing.beat_at(o as f64);
-            let c = p.c0 + (t - p.t0);
-            let f = match transpose_envelope {
-                None => crate::warp::repitch_source_seconds(
-                    warp.as_ref(),
-                    *transpose,
-                    ref_bpm,
-                    anchor,
-                    c,
-                ),
-                Some(te) => te
-                    .rate
-                    .seconds(warp.as_ref(), *transpose, &te.env, ref_bpm, anchor, c),
-            } * sr;
-            let f = snap_frame(f);
-            if reversed { last - f } else { f }
+crate::simd::avx2_fn! {
+    /// Render (add) an audio clip into `out` for the sub-block. Reads through
+    /// `scratch` (≥ 2 × frames recommended). Returns `false` on a source underrun.
+    ///
+    /// Resamples (linear interpolation): unwarped and `Repitch` clips, and `Complex` clips
+    /// without a stretcher (`crate::warp` handles the stretched path). Transpose changes the
+    /// playback rate. Fades follow [`ClipEnvelope`].
+    ///
+    /// **Reverse** (`reversed`): the clip plays the reversed media `R[i] = M[N - 1 - i]`. The
+    /// whole content → source mapping (offset, clip loop, warp markers, transpose) is computed
+    /// on that reversed timeline exactly as for a forward clip, and only the final frame lookup
+    /// is mirrored, so a reversed clip is sample-for-sample the forward rendering of a
+    /// reversed file.
+    pub(crate) fn render_audio => render_audio_avx2, render_audio_generic(
+        clip: &ClipDesc,
+        source: &dyn AudioSource,
+        ref_bpm: f64,
+        timing: &Timing<'_>,
+        out: [&mut [f32]; 2],
+        scratch: &mut [f32],
+    ) -> bool {
+        let ClipContentDesc::Audio {
+            warp,
+            transpose,
+            reversed,
+            transpose_envelope,
+            ..
+        } = &clip.content
+        else {
+            return true;
         };
-        let mut o = o_a;
-        while o < o_b {
-            // Chunk so the source window fits in the scratch buffer (per channel half).
-            let mut len = (o_b - o).min(256);
-            let half = cap / 2;
-            let (lo, hi) = loop {
-                let f0 = frame_at(o);
-                let f1 = frame_at(o + len);
-                let lo = f0.min(f1).floor();
-                let hi = f0.max(f1).ceil() + 2.0;
-                if hi - lo <= half as f64 || len == 1 {
-                    break (lo, hi);
-                }
-                len /= 2;
+        let Some(env) = ClipEnvelope::new(clip, timing) else {
+            return true;
+        };
+        let reversed = *reversed;
+        let sr = timing.sample_rate;
+        let channels = source.channels().max(1);
+        let total = source.frames();
+        let last = total as f64 - 1.0;
+        let [out_l, out_r] = out;
+        let mut ok = true;
+        let cap = scratch.len();
+        for_each_piece(clip, timing.b0, timing.b1, |p| {
+            let o_a = timing.sample_ceil(p.t0);
+            let o_b = timing.sample_ceil(p.t1);
+            // Media frame (fractional) played at output sample `o`.
+            // A leading gap (negative offset) keeps the pivot at the content start.
+            let anchor = clip.offset.max(0.0);
+            let frame_at = |o: usize| {
+                let t = timing.beat_at(o as f64);
+                let c = p.c0 + (t - p.t0);
+                let f = match transpose_envelope {
+                    None => crate::warp::repitch_source_seconds(
+                        warp.as_ref(),
+                        *transpose,
+                        ref_bpm,
+                        anchor,
+                        c,
+                    ),
+                    Some(te) => te
+                        .rate
+                        .seconds(warp.as_ref(), *transpose, &te.env, ref_bpm, anchor, c),
+                } * sr;
+                let f = snap_frame(f);
+                if reversed { last - f } else { f }
             };
-            let base = lo.max(0.0) as u64;
-            let count = ((hi - lo.max(0.0)).max(0.0) as usize).min(half);
-            if base < total && count > 0 {
-                let (sl, sr_buf) = scratch.split_at_mut(half);
-                let sl = &mut sl[..count];
-                let sr_buf = &mut sr_buf[..count];
-                ok &= source.read(0, base, sl);
-                if channels > 1 {
-                    ok &= source.read(1, base, sr_buf);
-                } else {
-                    sr_buf.copy_from_slice(sl);
-                }
-                for s in o..o + len {
-                    let f = frame_at(s);
-                    if f < 0.0 || (reversed && f > last) {
-                        continue;
+            let mut o = o_a;
+            while o < o_b {
+                // Chunk so the source window fits in the scratch buffer (per channel half).
+                let mut len = (o_b - o).min(256);
+                let half = cap / 2;
+                let (lo, hi) = loop {
+                    let f0 = frame_at(o);
+                    let f1 = frame_at(o + len);
+                    let lo = f0.min(f1).floor();
+                    let hi = f0.max(f1).ceil() + 2.0;
+                    if hi - lo <= half as f64 || len == 1 {
+                        break (lo, hi);
                     }
-                    let rel = f - base as f64;
-                    let i = rel.floor();
-                    let frac = (rel - i) as f32;
-                    let i = i as usize;
-                    if i + 1 >= count {
-                        continue;
+                    len /= 2;
+                };
+                let base = lo.max(0.0) as u64;
+                let count = ((hi - lo.max(0.0)).max(0.0) as usize).min(half);
+                if base < total && count > 0 {
+                    let (sl, sr_buf) = scratch.split_at_mut(half);
+                    let sl = &mut sl[..count];
+                    let sr_buf = &mut sr_buf[..count];
+                    ok &= source.read(0, base, sl);
+                    if channels > 1 {
+                        ok &= source.read(1, base, sr_buf);
+                    } else {
+                        sr_buf.copy_from_slice(sl);
                     }
-                    let t = timing.beat_at(s as f64);
-                    let g = env.at_content(t, p.c0 + (t - p.t0));
-                    let l = sl[i] + (sl[i + 1] - sl[i]) * frac;
-                    let r = sr_buf[i] + (sr_buf[i + 1] - sr_buf[i]) * frac;
-                    out_l[s] += l * g;
-                    out_r[s] += r * g;
+                    for s in o..o + len {
+                        let f = frame_at(s);
+                        if f < 0.0 || (reversed && f > last) {
+                            continue;
+                        }
+                        let rel = f - base as f64;
+                        let i = rel.floor();
+                        let frac = (rel - i) as f32;
+                        let i = i as usize;
+                        if i + 1 >= count {
+                            continue;
+                        }
+                        let t = timing.beat_at(s as f64);
+                        let g = env.at_content(t, p.c0 + (t - p.t0));
+                        let l = sl[i] + (sl[i + 1] - sl[i]) * frac;
+                        let r = sr_buf[i] + (sr_buf[i + 1] - sr_buf[i]) * frac;
+                        out_l[s] += l * g;
+                        out_r[s] += r * g;
+                    }
+                    if reversed {
+                        source.prefetch_hint(base.saturating_sub(count as u64));
+                    } else {
+                        source.prefetch_hint(base + count as u64);
+                    }
                 }
-                if reversed {
-                    source.prefetch_hint(base.saturating_sub(count as u64));
-                } else {
-                    source.prefetch_hint(base + count as u64);
-                }
+                o += len;
             }
-            o += len;
-        }
-    });
-    ok
+        });
+        ok
+    }
 }
 
 #[cfg(test)]
