@@ -51,6 +51,7 @@ mod plugin_sidechain;
 mod plugins_e2e;
 mod project_folders_e2e;
 mod project_load_xruns;
+mod project_perf;
 mod quit_save;
 mod recording_e2e;
 mod render_suspend;
