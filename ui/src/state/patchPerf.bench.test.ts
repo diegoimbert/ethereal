@@ -49,7 +49,17 @@ describe("patch apply cost", () => {
   it("prints the cost of note edits on big documents", () => {
     for (const total of SIZES) {
       store().reset();
-      store().loadProject(bigProject(total));
+      const big = bigProject(total);
+      const json = JSON.stringify(big);
+      let parsed: ReturnType<typeof bigProject> | null = null;
+      const parseMs = ms(() => (parsed = JSON.parse(json) as ReturnType<typeof bigProject>));
+      const loadMs = ms(() => store().loadProject(parsed!));
+      const groupMs = ms(() => {
+        for (const c of Object.keys(store().project!.clips)) notesOfClip(store().project!, c);
+      });
+      console.log(
+        `ui load ${total} notes: JSON ${(json.length / 1e6).toFixed(1)} MB, parse ${parseMs.toFixed(1)} ms, loadProject ${loadMs.toFixed(1)} ms, first notesOfClip of every clip ${groupMs.toFixed(1)} ms`,
+      );
       const notes = Object.values(store().project!.notes);
       const one = notes[Math.floor(notes.length / 2)]!;
       const clip = one.clip;

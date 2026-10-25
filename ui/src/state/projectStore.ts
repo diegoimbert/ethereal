@@ -30,10 +30,11 @@ export type PatchResult = "applied" | "stale" | "gap" | "no-project";
 export interface ProjectStoreState {
   project: Project | null;
   /**
-   * The object last given to `loadProject` (`project` is a copy of it with its notes
-   * sharded): lets a caller tell whether its load is still the current one.
+   * Whether `project` was the object last given to `loadProject` (the store holds a copy of
+   * it with its notes sharded): lets a caller tell whether its load is still the current
+   * one. Kept outside the immer state, so the loaded object isn't deep-frozen.
    */
-  loadedFrom: Project | null;
+  isLoadedFrom(project: Project): boolean;
   /**
    * Revision of the last applied patch. `null` right after a (re)load: the full project
    * carries no revision, so the next patch is accepted as-is and sets it.
@@ -76,7 +77,6 @@ export interface ProjectStoreState {
 
 const INITIAL = {
   project: null,
-  loadedFrom: null,
   revision: null,
   history: EMPTY_HISTORY,
   transport: null,
@@ -87,15 +87,19 @@ const INITIAL = {
   safeMode: [],
 } satisfies Partial<ProjectStoreState>;
 
+/** The object last given to `loadProject` (see `isLoadedFrom`). */
+let loadedFrom: Project | null = null;
+
 export const useProjectStore = create<ProjectStoreState>()(
   immer((set, get) => ({
     ...INITIAL,
 
     loadProject(project, opts) {
+      loadedFrom = project;
       set((s) => {
         // Notes sharded (`./noteTable`): patches copy only the buckets they touch.
         s.project = { ...project, notes: noteTable(project.notes) };
-        s.loadedFrom = project;
+
         s.revision = null;
         s.history = opts?.history ?? EMPTY_HISTORY;
         // Armed tracks, the project list and the dirty flag come from their own events.
@@ -103,9 +107,10 @@ export const useProjectStore = create<ProjectStoreState>()(
     },
 
     clearProject() {
+      loadedFrom = null;
       set((s) => {
         s.project = null;
-        s.loadedFrom = null;
+
         s.revision = null;
         s.history = EMPTY_HISTORY;
         s.dirty = false;
@@ -119,6 +124,10 @@ export const useProjectStore = create<ProjectStoreState>()(
         s.safe = active;
         s.safeMode = [...devices];
       });
+    },
+
+    isLoadedFrom(project) {
+      return loadedFrom === project && get().project !== null;
     },
 
     applyPatch(patch) {
@@ -174,6 +183,7 @@ export const useProjectStore = create<ProjectStoreState>()(
     },
 
     reset() {
+      loadedFrom = null;
       set(() => ({ ...INITIAL }));
     },
   })),
