@@ -284,3 +284,41 @@ fn latencies() {
         (4096 + 3072, 4096)
     );
 }
+
+#[test]
+fn avx2_variant_is_bit_identical() {
+    // Chord + clicks + noise in stereo: tonal, transient and noisy bins.
+    let frames = 48_000;
+    let mut seed = 9u32;
+    let mut noise = || {
+        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        ((seed >> 8) as f32 / (1u32 << 24) as f32 - 0.5) * 0.1
+    };
+    let (a, b) = (sine(220.0, frames), sine(331.0, frames));
+    let l: Vec<f32> = (0..frames)
+        .map(|i| a[i] + b[i] * 0.5 + if i % 12_000 < 40 { 0.8 } else { 0.0 } + noise())
+        .collect();
+    let r: Vec<f32> = l.iter().map(|v| v * 0.7 + noise()).collect();
+    let input = [l, r];
+    for (ratio, semitones) in [(0.8, 0.0), (1.25, 3.0), (1.0, -5.0)] {
+        let render = || {
+            let mut st = PlusStretcher::new();
+            // The same tick stagger for both renders.
+            st.instance = 3;
+            st.set_formants(Formants {
+                amount: 1.0,
+                shift_semitones: 1.0,
+                envelope: 96.0,
+            });
+            drive(&mut st, &input, ratio, semitones)
+        };
+        let fast = render();
+        let generic = crate::simd::force_generic(render);
+        let same = fast
+            .iter()
+            .flatten()
+            .zip(generic.iter().flatten())
+            .all(|(x, y)| x.to_bits() == y.to_bits());
+        assert!(same, "ratio {ratio}, {semitones} st: AVX2 output differs");
+    }
+}

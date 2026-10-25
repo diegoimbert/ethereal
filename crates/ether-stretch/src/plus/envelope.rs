@@ -49,10 +49,21 @@ impl EnvelopeEstimator {
         }
     }
 
-    /// RT. Natural-log envelope of `mag` (`n/2 + 1` bins) into `out`, with cepstral cutoff
-    /// `cutoff` (samples of quefrency) and at most `iters` iterations (1 = plain cepstral
-    /// smoothing).
-    pub(crate) fn estimate(&mut self, mag: &[f32], cutoff: usize, iters: usize, out: &mut [f32]) {
+    crate::simd::avx2_dispatch! {
+        /// RT. Natural-log envelope of `mag` (`n/2 + 1` bins) into `out`, with cepstral cutoff
+        /// `cutoff` (samples of quefrency) and at most `iters` iterations (1 = plain cepstral
+        /// smoothing).
+        pub(crate) fn estimate => estimate_avx2, estimate_generic(
+            &mut self,
+            mag: &[f32],
+            cutoff: usize,
+            iters: usize,
+            out: &mut [f32],
+        )
+    }
+
+    #[inline(always)]
+    fn estimate_generic(&mut self, mag: &[f32], cutoff: usize, iters: usize, out: &mut [f32]) {
         let bins = self.n / 2 + 1;
         let max = mag[..bins].iter().fold(0.0f32, |m, v| m.max(*v));
         if max <= 0.0 || !max.is_finite() {

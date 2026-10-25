@@ -467,7 +467,20 @@ impl State {
         }
     }
 
-    fn process(
+    crate::simd::avx2_dispatch! {
+        fn process => process_avx2, process_generic(
+            &mut self,
+            input: &[&[f32]],
+            input_frames: usize,
+            output: &mut [&mut [f32]],
+            output_frames: usize,
+            transpose: f32,
+            formants: &Formants,
+        )
+    }
+
+    #[inline(always)]
+    fn process_generic(
         &mut self,
         input: &[&[f32]],
         input_frames: usize,

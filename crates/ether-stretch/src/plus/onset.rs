@@ -147,8 +147,15 @@ impl OnsetDetector {
         self.count += 1;
     }
 
-    /// RT. Analyse every frame the pushed input completes.
-    pub(crate) fn run(&mut self) {
+    crate::simd::avx2_dispatch! {
+        /// RT. Analyse every frame the pushed input completes.
+        pub(crate) fn run => run_avx2, run_generic(
+            &mut self,
+        )
+    }
+
+    #[inline(always)]
+    fn run_generic(&mut self) {
         let half = (self.n / 2) as i64;
         while self.next_center + half <= self.count {
             let c = self.next_center;
