@@ -34,10 +34,12 @@ fn open_with_many_audio_files() {
     let frames = seconds * 48_000;
     let mut lib = MemoryLibrary::new();
     lib.add_root("lib", "Library");
+    // `ETHER_LOAD_FORMAT`: wav (default), flac or mp3.
+    let format = std::env::var("ETHER_LOAD_FORMAT").unwrap_or_else(|_| "wav".into());
     for f in 0..files {
         let l = sine(48_000, 110.0 + f as f32, frames, 0.3);
         let r = sine(48_000, 220.0 + f as f32, frames, 0.3);
-        lib.add_file("lib", &format!("f{f}.wav"), wav(48_000, &[l, r]));
+        lib.add_file("lib", &format!("f{f}.{format}"), encode(&format, &[l, r]));
     }
     let mut h = Harness::with(FakeBridge::default(), lib, Default::default());
     let project = h.create_project("Load perf");
@@ -47,7 +49,7 @@ fn open_with_many_audio_files() {
             id: media,
             source: MediaSource::Location {
                 location: BrowseLocation::Library { id: "lib".into() },
-                path: format!("f{f}.wav"),
+                path: format!("f{f}.{format}"),
             },
         }));
         let track: TrackId = h.id();
@@ -85,10 +87,35 @@ fn open_with_many_audio_files() {
     }
     let wall = t.elapsed();
     println!(
-        "open {files} x {seconds} s stereo files: {ticks} ticks until decoded (~{:.1} s at 60 Hz), controller busy {:.0} ms ({:.2} ms per tick), harness wall {:.0} ms",
+        "open {files} x {seconds} s stereo {format} files: {ticks} ticks until decoded (~{:.1} s at 60 Hz), controller busy {:.0} ms ({:.2} ms per tick), harness wall {:.0} ms",
         ticks as f64 / 60.0,
         busy.as_secs_f64() * 1e3,
         busy.as_secs_f64() * 1e3 / ticks.max(1) as f64,
         wall.as_secs_f64() * 1e3,
     );
+}
+
+/// `channels` at 48 kHz as a `format` file.
+fn encode(format: &str, channels: &[Vec<f32>]) -> Vec<u8> {
+    use ether_controller::export::encode::{FlacEncoder, Mp3Encoder, Sink};
+    use ether_core::protocol::export::BitDepth;
+    let finish = |sink: Sink| match sink {
+        Sink::Memory(c) => c.into_inner(),
+        Sink::File(_) => unreachable!(),
+    };
+    let block: Vec<&[f32]> = channels.iter().map(|c| c.as_slice()).collect();
+    match format {
+        "flac" => {
+            let mut e =
+                FlacEncoder::new(2, 48_000, BitDepth::Int16, Sink::memory(1 << 20)).unwrap();
+            e.push(&block, 1.0).unwrap();
+            finish(e.finish().unwrap())
+        }
+        "mp3" => {
+            let mut e = Mp3Encoder::new(2, 48_000, Sink::memory(1 << 20)).unwrap();
+            e.push(&block, 1.0).unwrap();
+            finish(e.finish().unwrap())
+        }
+        _ => wav(48_000, channels),
+    }
 }
