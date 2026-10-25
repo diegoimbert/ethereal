@@ -5,7 +5,25 @@
  */
 
 import type { AutomationLaneId, AutomationPoint, Clip, ClipId, Device, Note, PatchChange, Project, TrackId, WarpMarker } from "@/generated";
+import { isNoteTable } from "./noteTable";
 import { compareOrderKeys } from "./orderKey";
+
+/** First index of `sorted` whose entry sorts after `e`. */
+function upperBound<T>(sorted: ReadonlyArray<T>, e: T, compare: (a: T, b: T) => number): number {
+  let lo = 0;
+  let hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (compare(sorted[mid]!, e) <= 0) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** A store table (frozen, or the sharded note table): it changes identity when it changes. */
+function immutableTable(t: object): boolean {
+  return Object.isFrozen(t) || isNoteTable(t);
+}
 
 export const byOrder = (a: { order: string; id: string }, b: { order: string; id: string }) =>
   compareOrderKeys(a.order, b.order) || compareOrderKeys(a.id, b.id);
@@ -37,7 +55,7 @@ export function groupedBy<T, K>(
     else groups.set(k, [t]);
   }
   for (const g of groups.values()) g.sort(compare);
-  if (Object.isFrozen(table)) {
+  if (immutableTable(table)) {
     // Shared between callers: never mutate a returned group (copy it first).
     for (const g of groups.values()) Object.freeze(g);
     cache.set(table, groups);
@@ -95,7 +113,7 @@ export function carryGroups(prev: Project, next: Project, changes: ReadonlyArray
   for (const g of GROUPINGS) {
     const before = g.table(prev);
     const after = g.table(next);
-    if (before === after || !Object.isFrozen(after)) continue;
+    if (before === after || !immutableTable(after)) continue;
     const old = g.cache.get(before);
     if (!old) continue;
     const ids = new Set<string>();
@@ -104,21 +122,31 @@ export function carryGroups(prev: Project, next: Project, changes: ReadonlyArray
       else if (c.type === "Remove" && c.key.type === g.type) ids.add(c.key.id);
       else if (c.type === "DeviceParam" && g.type === "Device") ids.add(c.id);
     }
-    const owners = new Set<unknown>();
+    // Each touched owner and what the patch puts in it (one pass over the changed ids).
+    const owners = new Map<unknown, { id: string }[]>();
     for (const id of ids) {
-      for (const e of [before[id], after[id]]) {
-        const k = e === undefined ? null : g.keyOf(e);
-        if (k !== null) owners.add(k);
+      const was = before[id];
+      const k0 = was === undefined ? null : g.keyOf(was);
+      if (k0 !== null && !owners.has(k0)) owners.set(k0, []);
+      const now = after[id];
+      const k1 = now === undefined ? null : g.keyOf(now);
+      if (k1 !== null) {
+        const list = owners.get(k1);
+        if (list) list.push(now!);
+        else owners.set(k1, [now!]);
       }
     }
     const groups = new Map(old);
-    for (const k of owners) {
+    for (const [k, added] of owners) {
       const members = (old.get(k) ?? []).filter((e) => !ids.has(e.id));
-      for (const id of ids) {
-        const e = after[id];
-        if (e !== undefined && g.keyOf(e) === k) members.push(e);
+      if (added.length > 16) {
+        members.push(...added);
+        members.sort(g.compare);
+      } else {
+        // A few changes (an edit, a drag step): insert them where they sort, instead of
+        // re-sorting the group (a big clip's notes).
+        for (const e of added) members.splice(upperBound(members, e, g.compare), 0, e);
       }
-      members.sort(g.compare);
       if (members.length === 0) groups.delete(k);
       else groups.set(k, Object.freeze(members) as { id: string }[]);
     }
