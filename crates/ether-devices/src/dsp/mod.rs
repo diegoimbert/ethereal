@@ -11,6 +11,7 @@ pub(crate) mod loudness;
 pub(crate) mod pitch_taps;
 pub(crate) mod psola;
 pub(crate) mod resample;
+pub(crate) mod simd;
 pub(crate) mod sliding_min;
 pub(crate) mod svf;
 pub(crate) mod true_peak;

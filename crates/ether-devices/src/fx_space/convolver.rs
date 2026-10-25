@@ -32,6 +32,7 @@ use realfft::num_complex::Complex32;
 use realfft::{ComplexToReal, RealFftPlanner, RealToComplex};
 
 use super::ir::{IrBase, IrInput, Shaping};
+use crate::dsp::simd;
 
 /// Head block (direct FIR length, stage-1 block).
 pub const B: usize = 128;
@@ -178,7 +179,7 @@ fn inverse(
 }
 
 /// `Σ a[i]·b[i]` with eight independent accumulators (vectorizes; `len % 8 == 0`).
-#[inline]
+#[inline(always)]
 fn dot(a: &[f32], b: &[f32]) -> f32 {
     let mut acc = [0.0f32; 8];
     for (x, y) in a.as_chunks::<8>().0.iter().zip(b.as_chunks::<8>().0) {
@@ -190,7 +191,7 @@ fn dot(a: &[f32], b: &[f32]) -> f32 {
 }
 
 /// `acc += x·h` (complex, element-wise).
-#[inline]
+#[inline(always)]
 fn cmac(acc: &mut [Complex32], x: &[Complex32], h: &[Complex32]) {
     for ((a, x), h) in acc.iter_mut().zip(x).zip(h) {
         a.re += x.re * h.re - x.im * h.im;
@@ -466,6 +467,23 @@ impl Convolver {
 
     /// RT. Convolve `n` frames of `input` (2 channels) into `output`.
     pub fn process(&mut self, input: [&[f32]; 2], output: [&mut [f32]; 2], n: usize) {
+        #[cfg(target_arch = "x86_64")]
+        if simd::avx2() {
+            // SAFETY: `avx2()` checked that the CPU has AVX2 and FMA.
+            return unsafe { self.process_avx2(input, output, n) };
+        }
+        self.process_generic(input, output, n)
+    }
+
+    /// [`Self::process`] compiled for AVX2 + FMA (bit-identical, see [`simd`]).
+    #[cfg(target_arch = "x86_64")]
+    #[target_feature(enable = "avx2,fma")]
+    fn process_avx2(&mut self, input: [&[f32]; 2], output: [&mut [f32]; 2], n: usize) {
+        self.process_generic(input, output, n)
+    }
+
+    #[inline(always)]
+    fn process_generic(&mut self, input: [&[f32]; 2], output: [&mut [f32]; 2], n: usize) {
         let [out_l, out_r] = output;
         let outs = [out_l, out_r];
         let mut i = 0;
@@ -512,7 +530,8 @@ impl Convolver {
     }
 
     /// The end of a `B` block: stage 1, this tick's share of stage 2, rebuild work and
-    /// phase changes.
+    /// phase changes. Inlined into both variants of [`Self::process`].
+    #[inline(always)]
     fn on_tick(&mut self) {
         let t = self.tick;
         let dual = matches!(self.phase, Phase::Armed | Phase::Fading);
@@ -674,6 +693,31 @@ mod tests {
         }
         assert_eq!(y, yr, "mono IR: both channels equal");
         y
+    }
+
+    #[test]
+    fn avx2_variant_is_bit_identical() {
+        let h = noise(40_000, 11);
+        let x = noise(60_000, 13);
+        let rev = Shaping {
+            reverse: true,
+            ..Shaping::default()
+        };
+        let render = || {
+            let mut conv = Convolver::new(IrInput::Factory(0), base(h.clone()), Shaping::default());
+            let mut y = run(&mut conv, &x[..20_000], &[64, 1, 333, 128]);
+            // A shaping change: rebuild, both kernels, crossfade.
+            conv.set_target(rev);
+            y.extend(run(&mut conv, &x[20_000..], &[128, 77]));
+            y
+        };
+        let fast = render();
+        let generic = simd::force_generic(render);
+        assert!(
+            fast.iter()
+                .zip(&generic)
+                .all(|(a, b)| a.to_bits() == b.to_bits())
+        );
     }
 
     #[test]
