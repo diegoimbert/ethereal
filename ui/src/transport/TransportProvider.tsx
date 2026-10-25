@@ -64,7 +64,7 @@ export function TransportProvider({ transport: local, children }: TransportProvi
       transport.send(cmd("History", { type: "State" })).then(
         (reply) => {
           const s = store();
-          if (active && reply.type === "HistoryState" && s.loadedFrom === project && s.revision === null) s.setHistory(reply.history);
+          if (active && reply.type === "HistoryState" && s.isLoadedFrom(project) && s.revision === null) s.setHistory(reply.history);
         },
         () => undefined, // An engine without it: the next patch brings the history.
       );

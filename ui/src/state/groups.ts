@@ -5,7 +5,7 @@
  */
 
 import type { AutomationLaneId, AutomationPoint, Clip, ClipId, Device, Note, PatchChange, Project, TrackId, WarpMarker } from "@/generated";
-import { isNoteTable } from "./noteTable";
+import { isNoteTable, noteValues } from "./noteTable";
 import { compareOrderKeys } from "./orderKey";
 
 /** First index of `sorted` whose entry sorts after `e`. */
@@ -47,7 +47,7 @@ export function groupedBy<T, K>(
   const hit = cache.get(table);
   if (hit) return hit;
   const groups = new Map<K, T[]>();
-  for (const t of Object.values(table)) {
+  for (const t of (noteValues(table) as T[] | null) ?? Object.values(table)) {
     const k = keyOf(t);
     if (k === null) continue;
     const g = groups.get(k);

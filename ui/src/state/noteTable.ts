@@ -133,3 +133,12 @@ export function withNotes(table: Readonly<Notes>, ops: ReadonlyArray<readonly [s
   for (const b of copied) Object.freeze(buckets[b]);
   return make({ buckets, keys: null });
 }
+
+/** The notes of a store table without going through the proxy (every bucket's values). */
+export function noteValues(table: object): Note[] | null {
+  const target = PROXIES.get(table);
+  if (!target) return null;
+  const out: Note[] = [];
+  for (const b of TABLES.get(target)!.buckets) for (const k in b) out.push(b[k]!);
+  return out;
+}
