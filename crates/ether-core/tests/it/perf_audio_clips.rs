@@ -65,6 +65,19 @@ fn clip(fades: f64, warp: Option<WarpDesc>) -> ClipDesc {
 /// Mean µs per `FRAMES`-frame block over 4 s of playback (after 0.5 s).
 fn time(c: &ClipDesc) -> f64 {
     let mut p = create(config());
+    // The native host's stretchers (Complex: Signalsmith; Complex+), or the web's Rust port
+    // of Complex with `ETHER_PERF_RUST_COMPLEX=1`.
+    if std::env::var("ETHER_PERF_RUST_COMPLEX").is_ok() {
+        p.handle
+            .set_stretcher_factory(Arc::new(ether_stretch::RustStretchFactory {
+                preset: ether_stretch::RustPreset::Web,
+            }));
+    } else {
+        p.handle
+            .set_stretcher_factory(Arc::new(ether_stretch::SignalsmithFactory::default()));
+    }
+    p.handle
+        .set_plus_stretcher_factory(Arc::new(ether_stretch::PlusStretchFactory));
     let n = 48_000 * 40;
     let l: Vec<f32> = (0..n).map(|i| ((i % 977) as f32 / 977.0) - 0.5).collect();
     let r = l.iter().map(|v| -v).collect();
@@ -113,10 +126,22 @@ fn audio_clip_block_times() {
         markers: vec![(0.0, 0.0), (16.0, 7.9), (64.0, 33.0)],
         formants: Default::default(),
     };
+    let stretched = |mode| WarpDesc {
+        mode,
+        ..warp.clone()
+    };
     for (name, c) in [
         ("unwarped", clip(0.0, None)),
         ("unwarped, 1-beat fades", clip(1.0, None)),
-        ("repitch-warped", clip(0.0, Some(warp))),
+        ("repitch-warped", clip(0.0, Some(warp.clone()))),
+        (
+            "complex-warped",
+            clip(0.0, Some(stretched(WarpMode::Complex))),
+        ),
+        (
+            "complex+-warped",
+            clip(0.0, Some(stretched(WarpMode::ComplexPlus))),
+        ),
     ] {
         let best = (0..5).map(|_| time(&c)).fold(f64::INFINITY, f64::min);
         println!(
