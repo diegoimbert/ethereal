@@ -394,7 +394,24 @@ impl Delay {
         (seconds * f64::from(self.sample_rate)).clamp(1.0, max) as f32
     }
 
-    fn render(&mut self, audio: &mut AudioBuffers<'_, '_>, bpm: f64, start: usize, end: usize) {
+    crate::dsp::simd::avx2_dispatch! {
+        fn render => render_avx2, render_generic(
+            &mut self,
+            audio: &mut AudioBuffers<'_, '_>,
+            bpm: f64,
+            start: usize,
+            end: usize,
+        )
+    }
+
+    #[inline(always)]
+    fn render_generic(
+        &mut self,
+        audio: &mut AudioBuffers<'_, '_>,
+        bpm: f64,
+        start: usize,
+        end: usize,
+    ) {
         let target = self.target_delay(bpm);
         if self.snap_delay {
             self.delay = target;
@@ -469,10 +486,21 @@ impl Delay {
         }
     }
 
-    /// [`Self::render`] with the effects pass stages: feedback filters, time
-    /// modulation and freeze (the plain loop above stays bit-identical to the device before
-    /// them).
-    fn render_extended(
+    crate::dsp::simd::avx2_dispatch! {
+        /// [`Self::render`] with the effects pass stages: feedback filters, time
+        /// modulation and freeze (the plain loop above stays bit-identical to the device before
+        /// them).
+        fn render_extended => render_extended_avx2, render_extended_generic(
+            &mut self,
+            audio: &mut AudioBuffers<'_, '_>,
+            target: f32,
+            start: usize,
+            end: usize,
+        )
+    }
+
+    #[inline(always)]
+    fn render_extended_generic(
         &mut self,
         audio: &mut AudioBuffers<'_, '_>,
         target: f32,

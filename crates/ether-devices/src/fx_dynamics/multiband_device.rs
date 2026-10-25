@@ -286,7 +286,18 @@ impl MultibandCompressor {
         self.update_coefs();
     }
 
-    fn render(
+    crate::dsp::simd::avx2_dispatch! {
+        fn render => render_avx2, render_generic(
+            &mut self,
+            audio: &mut AudioBuffers<'_, '_>,
+            sidechain: &[&[f32]],
+            start: usize,
+            end: usize,
+        )
+    }
+
+    #[inline(always)]
+    fn render_generic(
         &mut self,
         audio: &mut AudioBuffers<'_, '_>,
         sidechain: &[&[f32]],

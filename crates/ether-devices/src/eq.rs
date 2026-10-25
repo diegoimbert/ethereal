@@ -473,7 +473,17 @@ impl Eq {
         bands * util::db_to_amp(self.values[params::OUTPUT.0 as usize] as f32) as f64
     }
 
-    fn render(&mut self, audio: &mut AudioBuffers<'_, '_>, start: usize, end: usize) {
+    crate::dsp::simd::avx2_dispatch! {
+        fn render => render_avx2, render_generic(
+            &mut self,
+            audio: &mut AudioBuffers<'_, '_>,
+            start: usize,
+            end: usize,
+        )
+    }
+
+    #[inline(always)]
+    fn render_generic(&mut self, audio: &mut AudioBuffers<'_, '_>, start: usize, end: usize) {
         let inputs = audio.inputs;
         let channels = audio.outputs.len().min(2);
         // One-channel modes need two channels (a mono track's EQ always runs as stereo).

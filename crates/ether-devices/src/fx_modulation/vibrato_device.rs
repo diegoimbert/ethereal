@@ -423,7 +423,18 @@ impl Vibrato {
         self.params.index(p::RETRIGGER, 2) == 1
     }
 
-    fn render(
+    crate::dsp::simd::avx2_dispatch! {
+        fn render => render_avx2, render_generic(
+            &mut self,
+            ctx: &ProcessContext<'_>,
+            audio: &mut AudioBuffers<'_, '_>,
+            start: usize,
+            end: usize,
+        )
+    }
+
+    #[inline(always)]
+    fn render_generic(
         &mut self,
         ctx: &ProcessContext<'_>,
         audio: &mut AudioBuffers<'_, '_>,
