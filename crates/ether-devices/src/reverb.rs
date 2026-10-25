@@ -826,157 +826,159 @@ impl Reverb {
         }
     }
 
-    fn render(&mut self, audio: &mut AudioBuffers<'_, '_>, start: usize, end: usize) {
-        let (size_t, pre_t) = (self.target_size(), self.target_pre());
-        if self.snap {
-            self.size = size_t;
-            self.pre = pre_t;
-            self.snap = false;
-            self.control_countdown = 0;
-        }
-        let inputs = audio.inputs;
-        let input = |c: usize, i: usize| {
-            inputs
-                .get(c)
-                .or_else(|| inputs.first())
-                .map_or(0.0, |ch| ch[i])
-        };
-        let scale = self.scale();
-        // A settled angle (the usual case): its rotation once, not a `sin_cos` per sample.
-        let angle = (!self.angle.is_smoothing()).then(|| self.angle.current().sin_cos());
-        #[cfg(test)]
-        let angle = angle.filter(|_| !tests::UNCACHED.with(std::cell::Cell::get));
-        // A settled size (the usual case: the glide then keeps it exactly): every line's
-        // read position is the same for the whole span, split once instead of per sample.
-        let taps = (self.size == size_t).then(|| {
-            let quarter = scale * self.size * 0.25;
-            let multi: [[[(usize, f32); DIFF_CH]; DIFF_STAGES]; 2] = std::array::from_fn(|c| {
-                std::array::from_fn(|st| {
-                    let span = DIFF_SPANS[st] * quarter;
-                    std::array::from_fn(|k| {
-                        let d = (span * (k as f32 + DIFF_POS[c][st][k])).max(1.0);
-                        self.multi[c][st][k].split(d)
+    crate::dsp::simd::avx2_method! {
+        fn render => render_avx2, render_generic(&mut self, audio: &mut AudioBuffers<'_, '_>, start: usize, end: usize) {
+            let (size_t, pre_t) = (self.target_size(), self.target_pre());
+            if self.snap {
+                self.size = size_t;
+                self.pre = pre_t;
+                self.snap = false;
+                self.control_countdown = 0;
+            }
+            let inputs = audio.inputs;
+            let input = |c: usize, i: usize| {
+                inputs
+                    .get(c)
+                    .or_else(|| inputs.first())
+                    .map_or(0.0, |ch| ch[i])
+            };
+            let scale = self.scale();
+            // A settled angle (the usual case): its rotation once, not a `sin_cos` per sample.
+            let angle = (!self.angle.is_smoothing()).then(|| self.angle.current().sin_cos());
+            #[cfg(test)]
+            let angle = angle.filter(|_| !tests::UNCACHED.with(std::cell::Cell::get));
+            // A settled size (the usual case: the glide then keeps it exactly): every line's
+            // read position is the same for the whole span, split once instead of per sample.
+            let taps = (self.size == size_t).then(|| {
+                let quarter = scale * self.size * 0.25;
+                let multi: [[[(usize, f32); DIFF_CH]; DIFF_STAGES]; 2] = std::array::from_fn(|c| {
+                    std::array::from_fn(|st| {
+                        let span = DIFF_SPANS[st] * quarter;
+                        std::array::from_fn(|k| {
+                            let d = (span * (k as f32 + DIFF_POS[c][st][k])).max(1.0);
+                            self.multi[c][st][k].split(d)
+                        })
                     })
-                })
+                });
+                let fdn: [(usize, f32); LINES] =
+                    std::array::from_fn(|k| self.lines[k].split(BASE_LENGTHS[k] * scale * self.size));
+                (multi, fdn)
             });
-            let fdn: [(usize, f32); LINES] =
-                std::array::from_fn(|k| self.lines[k].split(BASE_LENGTHS[k] * scale * self.size));
-            (multi, fdn)
-        });
-        #[cfg(test)]
-        let taps = taps.filter(|_| !tests::UNCACHED.with(std::cell::Cell::get));
-        for i in start..end {
-            self.size = size_t + (self.size - size_t) * self.glide_coef;
-            self.pre = pre_t + (self.pre - pre_t) * self.glide_coef;
-            self.decay.tick();
-            if self.control_countdown == 0 {
-                self.update_gains();
-                self.control_countdown = CONTROL_INTERVAL;
-            }
-            self.control_countdown -= 1;
-            let damp = self.damping.tick();
-            let diffusion = self.diffusion.tick();
-            let a = self.angle.tick();
-            let (sin, cos) = angle.unwrap_or_else(|| a.sin_cos());
-            let freeze = self.freeze.tick();
-            let filtered = !self.filter.is_bypass();
-            if filtered {
-                self.filter.glide();
-            }
-
-            let dry = [input(0, i), input(1, i)];
-            // Pre-delay (0 = straight through), input filters and diffusion.
-            let mut feed = [0.0f32; 2];
-            for c in 0..2 {
-                let line = &mut self.pre_delay[c];
-                line.push(dry[c]);
-                let mut x = if self.pre < 1.0 {
-                    dry[c]
-                } else {
-                    line.read(self.pre + 1.0)
-                };
+            #[cfg(test)]
+            let taps = taps.filter(|_| !tests::UNCACHED.with(std::cell::Cell::get));
+            for i in start..end {
+                self.size = size_t + (self.size - size_t) * self.glide_coef;
+                self.pre = pre_t + (self.pre - pre_t) * self.glide_coef;
+                self.decay.tick();
+                if self.control_countdown == 0 {
+                    self.update_gains();
+                    self.control_countdown = CONTROL_INTERVAL;
+                }
+                self.control_countdown -= 1;
+                let damp = self.damping.tick();
+                let diffusion = self.diffusion.tick();
+                let a = self.angle.tick();
+                let (sin, cos) = angle.unwrap_or_else(|| a.sin_cos());
+                let freeze = self.freeze.tick();
+                let filtered = !self.filter.is_bypass();
                 if filtered {
-                    x = self.filter.tick(c, x);
+                    self.filter.glide();
                 }
-                let [a, b] = &mut self.diffusers[c];
-                feed[c] = b.tick(a.tick(x, diffusion), diffusion);
-            }
-            // Multichannel diffusion: 4 lines' worth of echoes per channel.
-            let mut lanes = [[0.0f32; DIFF_CH]; 2];
-            // A quarter of a stage's span (each channel delays within its own quarter).
-            let quarter = scale * self.size * 0.25;
-            for (c, lane) in lanes.iter_mut().enumerate() {
-                *lane = [feed[c]; DIFF_CH];
-                for (st, stage) in self.multi[c].iter_mut().enumerate() {
-                    let span = DIFF_SPANS[st] * quarter;
-                    for (k, line) in stage.iter_mut().enumerate() {
-                        let y = match &taps {
-                            Some((multi, _)) => line.read_split(multi[c][st][k]),
-                            None => line.read((span * (k as f32 + DIFF_POS[c][st][k])).max(1.0)),
-                        };
-                        line.push(lane[k]);
-                        lane[k] = y * DIFF_FLIPS[st][k];
+
+                let dry = [input(0, i), input(1, i)];
+                // Pre-delay (0 = straight through), input filters and diffusion.
+                let mut feed = [0.0f32; 2];
+                for c in 0..2 {
+                    let line = &mut self.pre_delay[c];
+                    line.push(dry[c]);
+                    let mut x = if self.pre < 1.0 {
+                        dry[c]
+                    } else {
+                        line.read(self.pre + 1.0)
+                    };
+                    if filtered {
+                        x = self.filter.tick(c, x);
                     }
-                    diffuse_mix(lane, cos, sin);
+                    let [a, b] = &mut self.diffusers[c];
+                    feed[c] = b.tick(a.tick(x, diffusion), diffusion);
                 }
+                // Multichannel diffusion: 4 lines' worth of echoes per channel.
+                let mut lanes = [[0.0f32; DIFF_CH]; 2];
+                // A quarter of a stage's span (each channel delays within its own quarter).
+                let quarter = scale * self.size * 0.25;
+                for (c, lane) in lanes.iter_mut().enumerate() {
+                    *lane = [feed[c]; DIFF_CH];
+                    for (st, stage) in self.multi[c].iter_mut().enumerate() {
+                        let span = DIFF_SPANS[st] * quarter;
+                        for (k, line) in stage.iter_mut().enumerate() {
+                            let y = match &taps {
+                                Some((multi, _)) => line.read_split(multi[c][st][k]),
+                                None => line.read((span * (k as f32 + DIFF_POS[c][st][k])).max(1.0)),
+                            };
+                            line.push(lane[k]);
+                            lane[k] = y * DIFF_FLIPS[st][k];
+                        }
+                        diffuse_mix(lane, cos, sin);
+                    }
+                    if freeze > 0.0 {
+                        // Frozen: the tank stops taking input.
+                        lane.iter_mut().for_each(|v| *v *= 1.0 - freeze);
+                    }
+                }
+
+                // FDN.
+                let mut o = [0.0f32; LINES];
+                let mut wet = [0.0f32; 2];
+                let mut level = lanes
+                    .iter()
+                    .flatten()
+                    .chain(&feed)
+                    .fold(0.0f32, |m, v| m.max(v.abs()));
+                for (k, line) in self.lines.iter().enumerate() {
+                    let y = match &taps {
+                        Some((_, fdn)) => line.read_split(fdn[k]),
+                        None => line.read(BASE_LENGTHS[k] * scale * self.size),
+                    };
+                    o[k] = y;
+                    wet[0] += y * OUT_L[k];
+                    wet[1] += y * OUT_R[k];
+                    level = level.max(y.abs());
+                }
+                self.loud |= level >= util::SILENCE_FLOOR;
                 if freeze > 0.0 {
-                    // Frozen: the tank stops taking input.
-                    lane.iter_mut().for_each(|v| *v *= 1.0 - freeze);
+                    // Frozen: unity loop gain and no damping (the tail sustains).
+                    let damp = damp * (1.0 - freeze);
+                    for ((v, lp), g) in o.iter_mut().zip(&mut self.lp).zip(self.gains) {
+                        *lp = flush32(*v * (1.0 - damp) + *lp * damp);
+                        *v = *lp * (g + (1.0 - g) * freeze);
+                    }
+                } else {
+                    for ((v, lp), g) in o.iter_mut().zip(&mut self.lp).zip(self.gains) {
+                        *lp = flush32(*v * (1.0 - damp) + *lp * damp);
+                        *v = *lp * g;
+                    }
                 }
-            }
+                if self.shimmer_active {
+                    self.shimmer_tick(&mut o, freeze);
+                }
+                hadamard8(&mut o);
+                for (k, line) in self.lines.iter_mut().enumerate() {
+                    line.push(o[k] + lanes[k & 1][k >> 1]);
+                }
 
-            // FDN.
-            let mut o = [0.0f32; LINES];
-            let mut wet = [0.0f32; 2];
-            let mut level = lanes
-                .iter()
-                .flatten()
-                .chain(&feed)
-                .fold(0.0f32, |m, v| m.max(v.abs()));
-            for (k, line) in self.lines.iter().enumerate() {
-                let y = match &taps {
-                    Some((_, fdn)) => line.read_split(fdn[k]),
-                    None => line.read(BASE_LENGTHS[k] * scale * self.size),
-                };
-                o[k] = y;
-                wet[0] += y * OUT_L[k];
-                wet[1] += y * OUT_R[k];
-                level = level.max(y.abs());
-            }
-            self.loud |= level >= util::SILENCE_FLOOR;
-            if freeze > 0.0 {
-                // Frozen: unity loop gain and no damping (the tail sustains).
-                let damp = damp * (1.0 - freeze);
-                for ((v, lp), g) in o.iter_mut().zip(&mut self.lp).zip(self.gains) {
-                    *lp = flush32(*v * (1.0 - damp) + *lp * damp);
-                    *v = *lp * (g + (1.0 - g) * freeze);
+                let width = self.width.tick();
+                let mix = self.mix.tick();
+                let trim = self.output.tick();
+                let (wl, wr) = (wet[0] * WET_GAIN * trim, wet[1] * WET_GAIN * trim);
+                let mid = (wl + wr) * 0.5;
+                let side = (wl - wr) * 0.5 * width;
+                let out = [
+                    dry[0] * (1.0 - mix) + (mid + side) * mix,
+                    dry[1] * (1.0 - mix) + (mid - side) * mix,
+                ];
+                for (c, ch) in audio.outputs.iter_mut().enumerate() {
+                    ch[i] = if c < 2 { out[c] } else { 0.0 };
                 }
-            } else {
-                for ((v, lp), g) in o.iter_mut().zip(&mut self.lp).zip(self.gains) {
-                    *lp = flush32(*v * (1.0 - damp) + *lp * damp);
-                    *v = *lp * g;
-                }
-            }
-            if self.shimmer_active {
-                self.shimmer_tick(&mut o, freeze);
-            }
-            hadamard8(&mut o);
-            for (k, line) in self.lines.iter_mut().enumerate() {
-                line.push(o[k] + lanes[k & 1][k >> 1]);
-            }
-
-            let width = self.width.tick();
-            let mix = self.mix.tick();
-            let trim = self.output.tick();
-            let (wl, wr) = (wet[0] * WET_GAIN * trim, wet[1] * WET_GAIN * trim);
-            let mid = (wl + wr) * 0.5;
-            let side = (wl - wr) * 0.5 * width;
-            let out = [
-                dry[0] * (1.0 - mix) + (mid + side) * mix,
-                dry[1] * (1.0 - mix) + (mid - side) * mix,
-            ];
-            for (c, ch) in audio.outputs.iter_mut().enumerate() {
-                ch[i] = if c < 2 { out[c] } else { 0.0 };
             }
         }
     }

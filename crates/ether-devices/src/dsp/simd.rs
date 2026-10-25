@@ -100,6 +100,37 @@ macro_rules! avx2_dispatch {
 }
 pub(crate) use avx2_dispatch;
 
+/// Like [`avx2_dispatch!`], but the method body is stamped into both variants instead of
+/// being inlined from a generic method: closures in the body (separate functions) then get
+/// the features too, and the AVX2 copy is optimized like the original.
+macro_rules! avx2_method {
+    (
+        $(#[$meta:meta])*
+        $vis:vis fn $name:ident => $fast:ident, $generic:ident
+            (&mut $self:ident $(, $arg:ident: $ty:ty)* $(,)?) $(-> $ret:ty)? $body:block
+    ) => {
+        $(#[$meta])*
+        $vis fn $name(&mut $self $(, $arg: $ty)*) $(-> $ret)? {
+            #[cfg(target_arch = "x86_64")]
+            if $crate::dsp::simd::avx2() {
+                // SAFETY: `avx2()` checked that the CPU has AVX2 and FMA.
+                return unsafe { $self.$fast($($arg),*) };
+            }
+            $self.$generic($($arg),*)
+        }
+
+        $(#[$meta])*
+        #[cfg(target_arch = "x86_64")]
+        #[target_feature(enable = "avx2,fma")]
+        fn $fast(&mut $self $(, $arg: $ty)*) $(-> $ret)? $body
+
+        $(#[$meta])*
+        #[inline]
+        fn $generic(&mut $self $(, $arg: $ty)*) $(-> $ret)? $body
+    };
+}
+pub(crate) use avx2_method;
+
 #[cfg(test)]
 mod tests {
     use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType};
