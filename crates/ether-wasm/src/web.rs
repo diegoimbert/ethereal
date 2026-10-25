@@ -304,6 +304,7 @@ impl WasmController {
         control: &SharedArrayBuffer,
         reports: &SharedArrayBuffer,
         fs: JsFsHost,
+        media_steps_per_tick: Option<u32>,
     ) -> Result<WasmController, JsError> {
         console_error_panic_hook::set_once();
         let shared = bridge::shared(SabMemory::new(control)?, SabMemory::new(reports)?);
@@ -317,10 +318,15 @@ impl WasmController {
             .map(|e| format!("Demo samples could not be written: {e}"));
         let host = WebHost::new(seed);
         let http = host.http.clone();
-        let config = ControllerConfig {
+        let mut config = ControllerConfig {
             engine_sample_rate: sample_rate,
             ..ControllerConfig::default()
         };
+        // Tests that watch a load in progress slow the media decode down
+        // (`eth.debug.media-steps`, `apps/web/src/engine/endpoint.ts`).
+        if let Some(n) = media_steps_per_tick {
+            config.media_steps_per_tick = n.max(1) as usize;
+        }
         let controller: Box<dyn Controller> = match CONTROLLER_FACTORY.get() {
             Some(factory) => factory(
                 bridge,

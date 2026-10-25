@@ -116,7 +116,7 @@ scope.onmessage = (e) => {
         const { memory } = initSync({ module: msg.module });
         handled = new Int32Array(msg.handled);
         const fs = new SyncFs(msg.fsBuffer, msg.fsPort);
-        const ctl = new WasmController(BigInt(msg.seed), msg.sampleRate, msg.control, msg.reports, fs);
+        const ctl = new WasmController(BigInt(msg.seed), msg.sampleRate, msg.control, msg.reports, fs, msg.mediaStepsPerTick);
         controller = ctl;
         const host = new WebclapHost({
           engineMemory: () => memory,

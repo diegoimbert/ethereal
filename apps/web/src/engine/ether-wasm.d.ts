@@ -24,7 +24,7 @@ declare module "@ether-wasm/ether_wasm.js" {
   }
 
   export class WasmController {
-    constructor(seed: bigint, sampleRate: number, control: SharedArrayBuffer, reports: SharedArrayBuffer, fs: JsFsHost);
+    constructor(seed: bigint, sampleRate: number, control: SharedArrayBuffer, reports: SharedArrayBuffer, fs: JsFsHost, mediaStepsPerTick?: number);
     handle(messageJson: string): string;
     tick(nowMs: number): string;
     pending_control_bytes(): number;
