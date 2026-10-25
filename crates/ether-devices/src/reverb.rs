@@ -846,6 +846,25 @@ impl Reverb {
         let angle = (!self.angle.is_smoothing()).then(|| self.angle.current().sin_cos());
         #[cfg(test)]
         let angle = angle.filter(|_| !tests::UNCACHED.with(std::cell::Cell::get));
+        // A settled size (the usual case: the glide then keeps it exactly): every line's
+        // read position is the same for the whole span, split once instead of per sample.
+        let taps = (self.size == size_t).then(|| {
+            let quarter = scale * self.size * 0.25;
+            let multi: [[[(usize, f32); DIFF_CH]; DIFF_STAGES]; 2] = std::array::from_fn(|c| {
+                std::array::from_fn(|st| {
+                    let span = DIFF_SPANS[st] * quarter;
+                    std::array::from_fn(|k| {
+                        let d = (span * (k as f32 + DIFF_POS[c][st][k])).max(1.0);
+                        self.multi[c][st][k].split(d)
+                    })
+                })
+            });
+            let fdn: [(usize, f32); LINES] =
+                std::array::from_fn(|k| self.lines[k].split(BASE_LENGTHS[k] * scale * self.size));
+            (multi, fdn)
+        });
+        #[cfg(test)]
+        let taps = taps.filter(|_| !tests::UNCACHED.with(std::cell::Cell::get));
         for i in start..end {
             self.size = size_t + (self.size - size_t) * self.glide_coef;
             self.pre = pre_t + (self.pre - pre_t) * self.glide_coef;
@@ -891,8 +910,10 @@ impl Reverb {
                 for (st, stage) in self.multi[c].iter_mut().enumerate() {
                     let span = DIFF_SPANS[st] * quarter;
                     for (k, line) in stage.iter_mut().enumerate() {
-                        let d = (span * (k as f32 + DIFF_POS[c][st][k])).max(1.0);
-                        let y = line.read(d);
+                        let y = match &taps {
+                            Some((multi, _)) => line.read_split(multi[c][st][k]),
+                            None => line.read((span * (k as f32 + DIFF_POS[c][st][k])).max(1.0)),
+                        };
                         line.push(lane[k]);
                         lane[k] = y * DIFF_FLIPS[st][k];
                     }
@@ -913,7 +934,10 @@ impl Reverb {
                 .chain(&feed)
                 .fold(0.0f32, |m, v| m.max(v.abs()));
             for (k, line) in self.lines.iter().enumerate() {
-                let y = line.read(BASE_LENGTHS[k] * scale * self.size);
+                let y = match &taps {
+                    Some((_, fdn)) => line.read_split(fdn[k]),
+                    None => line.read(BASE_LENGTHS[k] * scale * self.size),
+                };
                 o[k] = y;
                 wet[0] += y * OUT_L[k];
                 wet[1] += y * OUT_R[k];

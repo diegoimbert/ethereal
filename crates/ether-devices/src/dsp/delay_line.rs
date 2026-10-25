@@ -52,9 +52,22 @@ impl DelayLine {
     /// Fractional read `delay` samples back (`1.0 ..= max_delay`).
     #[inline]
     pub(crate) fn read(&self, delay: f32) -> f32 {
+        self.read_split(self.split(delay))
+    }
+
+    /// `delay` as [`Self::read`] uses it: whole samples and fraction, clamped to the line.
+    /// Lets a caller whose delay doesn't change read with [`Self::read_split`] for many
+    /// samples (the same reads).
+    #[inline]
+    pub(crate) fn split(&self, delay: f32) -> (usize, f32) {
         let d = delay.clamp(1.0, self.max_delay() as f32);
         let i = d as usize;
-        let frac = d - i as f32;
+        (i, d - i as f32)
+    }
+
+    /// [`Self::read`] at a delay already [`Self::split`].
+    #[inline]
+    pub(crate) fn read_split(&self, (i, frac): (usize, f32)) -> f32 {
         let a = self.tap(i);
         let b = self.tap(i + 1);
         a + (b - a) * frac
