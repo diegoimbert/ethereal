@@ -32,6 +32,7 @@ use realfft::num_complex::Complex32;
 use realfft::{ComplexToReal, RealFftPlanner, RealToComplex};
 
 use super::ir::{IrBase, IrInput, Shaping};
+#[cfg(any(test, target_arch = "x86_64"))]
 use crate::dsp::simd;
 
 /// Head block (direct FIR length, stage-1 block).
@@ -475,7 +476,7 @@ impl Convolver {
         self.process_generic(input, output, n)
     }
 
-    /// [`Self::process`] compiled for AVX2 + FMA (bit-identical, see [`simd`]).
+    /// [`Self::process`] compiled for AVX2 + FMA (bit-identical, see `dsp::simd`).
     #[cfg(target_arch = "x86_64")]
     #[target_feature(enable = "avx2,fma")]
     fn process_avx2(&mut self, input: [&[f32]; 2], output: [&mut [f32]; 2], n: usize) {
