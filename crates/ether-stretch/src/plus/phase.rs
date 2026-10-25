@@ -131,15 +131,32 @@ impl PhaseIntegrator {
         }
     }
 
-    /// RT. Integrate the phase (unit phasors) of bins `lo..hi` into `phase` (other bins
-    /// untouched). `hop` is
-    /// the synthesis hop (samples) since `prev`, `bin_step` the output bin spacing
-    /// (rad/sample, `2π/N`). Bins of the previous frame below `tol` times the frame's largest
-    /// magnitude don't seed the integration; if none does (a start after silence), the
-    /// strongest current bin is seeded by time integration. Bins `fixed.0..fixed.1` already
-    /// hold their phase (taken from another resolution): they seed the integration too.
+    crate::simd::avx2_dispatch! {
+        /// RT. Integrate the phase (unit phasors) of bins `lo..hi` into `phase` (other bins
+        /// untouched). `hop` is
+        /// the synthesis hop (samples) since `prev`, `bin_step` the output bin spacing
+        /// (rad/sample, `2π/N`). Bins of the previous frame below `tol` times the frame's largest
+        /// magnitude don't seed the integration; if none does (a start after silence), the
+        /// strongest current bin is seeded by time integration. Bins `fixed.0..fixed.1` already
+        /// hold their phase (taken from another resolution): they seed the integration too.
+        #[allow(clippy::too_many_arguments)]
+        pub(crate) fn integrate => integrate_avx2, integrate_generic(
+            &mut self,
+            lo: usize,
+            hi: usize,
+            fixed: (usize, usize),
+            hop: f32,
+            bin_step: f32,
+            tol: f32,
+            cur: &Gradient<'_>,
+            prev: &Previous<'_>,
+            phase: &mut [C],
+        )
+    }
+
+    #[inline(always)]
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn integrate(
+    fn integrate_generic(
         &mut self,
         lo: usize,
         hi: usize,

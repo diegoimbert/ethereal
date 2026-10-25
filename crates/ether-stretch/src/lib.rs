@@ -79,6 +79,10 @@ pub trait StretcherFactory: Send + Sync {
     fn create(&self) -> Box<dyn Stretcher>;
 }
 
+/// Runtime AVX2 dispatch of hot loops (Complex+).
+#[cfg(feature = "rust-stretch")]
+pub(crate) mod simd;
+
 /// Signalsmith Stretch implementation (native, `signalsmith` feature).
 #[cfg(all(feature = "signalsmith", not(target_arch = "wasm32")))]
 pub mod signalsmith;

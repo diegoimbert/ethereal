@@ -471,8 +471,16 @@ impl Path {
         };
     }
 
-    /// RT. Analyse, process and overlap-add one frame.
-    pub(crate) fn frame(&mut self, a: &FrameArgs<'_>) {
+    crate::simd::avx2_dispatch! {
+        /// RT. Analyse, process and overlap-add one frame.
+        pub(crate) fn frame => frame_avx2, frame_generic(
+            &mut self,
+            a: &FrameArgs<'_>,
+        )
+    }
+
+    #[inline(always)]
+    fn frame_generic(&mut self, a: &FrameArgs<'_>) {
         self.set_pitch(a.pitch);
         let n = self.n;
         let half = (n / 2) as i64;
@@ -809,19 +817,30 @@ impl Path {
         self.primed = true;
     }
 
-    /// Transposing (`p != 1`): the source spectrum as windowed sinusoids plus a residual
-    /// (McAulay & Quatieri's sinusoidal model, Serra's deterministic + stochastic split, on the
-    /// phase vocoder's own frames). Each peak (strongest first) gets the amplitude that best
-    /// fits its main lobe (least squares on the 3 bins around it, at its reassigned
-    /// frequency), and its whole lobe, side lobes included, is subtracted. The partials are
-    /// then synthesised at `p` times their frequency with the exact Hann lobe shape
-    /// ([`Path::lobe`]), so the valleys between them come out as deep as the output spacing
-    /// makes them (copying source bins would carry the source's shallower valleys, lifted
-    /// by close neighbours' side lobes); the residual (noise, transients, what the model
-    /// misses) is bin-scaled (`k` reads `k/p`). Fills, per output bin: `mag_o` (before the
-    /// formant gain), `omega_o`, `ana_o`, the residual's source bin `src`, the source
-    /// position for the formants `srcf`, the dominant partial `dom`.
-    fn model_pitch(&mut self, p: f32, bin_step: f32, s_lo: usize, s_hi: usize) {
+    crate::simd::avx2_dispatch! {
+        /// Transposing (`p != 1`): the source spectrum as windowed sinusoids plus a residual
+        /// (McAulay & Quatieri's sinusoidal model, Serra's deterministic + stochastic split, on the
+        /// phase vocoder's own frames). Each peak (strongest first) gets the amplitude that best
+        /// fits its main lobe (least squares on the 3 bins around it, at its reassigned
+        /// frequency), and its whole lobe, side lobes included, is subtracted. The partials are
+        /// then synthesised at `p` times their frequency with the exact Hann lobe shape
+        /// ([`Path::lobe`]), so the valleys between them come out as deep as the output spacing
+        /// makes them (copying source bins would carry the source's shallower valleys, lifted
+        /// by close neighbours' side lobes); the residual (noise, transients, what the model
+        /// misses) is bin-scaled (`k` reads `k/p`). Fills, per output bin: `mag_o` (before the
+        /// formant gain), `omega_o`, `ana_o`, the residual's source bin `src`, the source
+        /// position for the formants `srcf`, the dominant partial `dom`.
+        fn model_pitch => model_pitch_avx2, model_pitch_generic(
+            &mut self,
+            p: f32,
+            bin_step: f32,
+            s_lo: usize,
+            s_hi: usize,
+        )
+    }
+
+    #[inline(always)]
+    fn model_pitch_generic(&mut self, p: f32, bin_step: f32, s_lo: usize, s_hi: usize) {
         let (k_lo, k_hi) = (self.k_lo, self.k_hi);
         let channels = self.acc.len();
         let lobe = MODEL_LOBE as f32;
@@ -1018,10 +1037,19 @@ impl Path {
         }
     }
 
-    /// RT. Channel `ch`'s transposed spectrum (`model_pitch`): the residual at each bin,
-    /// turned like its bin, plus every partial's lobe at its new frequency, turned like its
-    /// centre bin.
-    fn synth_modeled(&mut self, ch: usize, p: f32) {
+    crate::simd::avx2_dispatch! {
+        /// RT. Channel `ch`'s transposed spectrum (`model_pitch`): the residual at each bin,
+        /// turned like its bin, plus every partial's lobe at its new frequency, turned like its
+        /// centre bin.
+        fn synth_modeled => synth_modeled_avx2, synth_modeled_generic(
+            &mut self,
+            ch: usize,
+            p: f32,
+        )
+    }
+
+    #[inline(always)]
+    fn synth_modeled_generic(&mut self, ch: usize, p: f32) {
         let (k_lo, k_hi) = (self.k_lo, self.k_hi);
         let channels = self.acc.len();
         let rscale = p.recip().sqrt();
@@ -1066,7 +1094,16 @@ impl Path {
         }
     }
 
-    fn add_norm(&mut self, a: &FrameArgs<'_>, _ci: i64) {
+    crate::simd::avx2_dispatch! {
+        fn add_norm => add_norm_avx2, add_norm_generic(
+            &mut self,
+            a: &FrameArgs<'_>,
+            _ci: i64,
+        )
+    }
+
+    #[inline(always)]
+    fn add_norm_generic(&mut self, a: &FrameArgs<'_>, _ci: i64) {
         let n = self.n;
         let half = (n / 2) as i64;
         let gated = a.gate.pre.is_some() || a.gate.post.is_some();
