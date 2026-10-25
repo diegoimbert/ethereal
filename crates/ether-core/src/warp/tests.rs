@@ -921,3 +921,47 @@ fn rate_integral_survives_degenerate_ranges() {
         let _ = rate.seconds(None, 2.0, &env, 100.0, 1e308, c);
     }
 }
+
+#[test]
+fn resampled_clips_are_bit_identical_with_avx2() {
+    // `sched::render_audio` (unwarped, Repitch, reversed, transpose envelopes, fades) with
+    // and without its AVX2 variant.
+    let markers = [(0.0, 0.0), (1.0, 0.55), (4.0, 2.1)];
+    let clips = || {
+        let mut faded = audio_clip(1, 0.0, 4.0, 0.0, None);
+        if let ClipContentDesc::Audio {
+            fade_in,
+            fade_out,
+            gain,
+            ..
+        } = &mut faded.content
+        {
+            (*fade_in, *fade_out, *gain) = (0.7, 1.3, 0.6);
+        }
+        let mut reversed = audio_clip(2, 0.5, 3.0, -2.0, warp(WarpMode::Repitch, &markers));
+        if let ClipContentDesc::Audio { reversed: r, .. } = &mut reversed.content {
+            *r = true;
+        }
+        let env = steps(&[(0.0, st(0.0)), (1.5, st(7.0))], TRANSPOSE_MAP);
+        vec![
+            faded,
+            audio_clip(3, 0.25, 3.5, 3.0, warp(WarpMode::Repitch, &markers)),
+            reversed,
+            with_transpose_env(audio_clip(4, 0.0, 4.0, 0.0, None), env),
+        ]
+    };
+    let render = || {
+        let mut p = engine(false);
+        p.handle.add_source(MEDIA, sine(440.0, 8.0, 0.0)).unwrap();
+        publish(&mut p, clips());
+        play(&mut p, 2 * SR)
+    };
+    let fast = render();
+    let generic = crate::simd::force_generic(render);
+    assert!(rms(&fast) > 0.1);
+    assert!(
+        fast.iter()
+            .zip(&generic)
+            .all(|(a, b)| a.to_bits() == b.to_bits())
+    );
+}
