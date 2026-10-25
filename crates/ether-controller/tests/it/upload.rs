@@ -496,3 +496,47 @@ fn bundle_import_accepts_a_bare_document_and_refuses_bad_input() {
     }));
     assert_eq!(err(&out).code, ErrorCode::Unsupported);
 }
+
+/// Opening a project right after `ImportBundle` stored it reuses the parsed document: the
+/// same project as parsing the stored file; a change to the file in between (a rename) is
+/// seen.
+#[test]
+fn open_after_import_matches_the_stored_file() {
+    let mut h = H::new();
+    let audio = tone();
+    h.upload("u1", &audio);
+    let _ = h.import("u1");
+    let pid = h.ctl.project().unwrap().id;
+    let bundle = h.export_bundle(pid);
+    for rename in [false, true] {
+        h.upload(if rename { "b2" } else { "b1" }, &bundle);
+        let (new_id, out) = h.import_bundle(if rename { "b2" } else { "b1" }, None);
+        assert!(matches!(ok(&out), ReplyValue::Saved { .. }));
+        if rename {
+            h.ok(Command::Project(ProjectCommand::Rename {
+                id: new_id,
+                name: "Renamed in between".into(),
+            }));
+        }
+        let stored = file::load(&h.ctl.store.load(new_id).unwrap()).unwrap();
+        let ReplyValue::Project { project } =
+            h.ok(Command::Project(ProjectCommand::Open { id: new_id }))
+        else {
+            panic!()
+        };
+        let mut stored = stored;
+        stored.id = new_id;
+        assert_eq!(project.settings, stored.settings, "rename {rename}");
+        assert_eq!(project.tracks, stored.tracks);
+        assert_eq!(project.clips, stored.clips);
+        assert_eq!(project.notes, stored.notes);
+        assert_eq!(project.media, stored.media);
+        assert_eq!(
+            project.devices.keys().collect::<Vec<_>>(),
+            stored.devices.keys().collect::<Vec<_>>()
+        );
+        if rename {
+            assert_eq!(project.settings.name, "Renamed in between");
+        }
+    }
+}

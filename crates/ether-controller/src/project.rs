@@ -527,7 +527,7 @@ where
     ) -> CmdResult<ReplyValue> {
         self.autosave_before_switch(out)?;
         let json = self.store.load(id).map_err(store_err)?;
-        let mut project = file::load(&json).map_err(file_err)?;
+        let mut project = self.parse_stored(id, &json)?;
         // The folder name is the identity.
         project.id = id;
         self.load_project(project.clone(), now, out);
@@ -545,7 +545,7 @@ where
     ) -> CmdResult<ReplyValue> {
         self.autosave_before_switch(out)?;
         let json = self.store.load(id).map_err(store_err)?;
-        let mut project = file::load(&json).map_err(file_err)?;
+        let mut project = self.parse_stored(id, &json)?;
         project.id = id;
         self.load_project_with(project.clone(), now, true, out);
         Ok(ReplyValue::Project {
@@ -856,7 +856,18 @@ where
         };
         self.store.settle_folder(new_id);
         self.emit_list_changed(out);
+        self.just_stored = Some((new_id, json, project));
         Ok(ReplyValue::Saved { project: summary })
+    }
+
+    /// `json` (project `id`'s stored text) parsed, or the document `ImportBundle` just stored
+    /// for `id` when the text is still exactly what it wrote (a byte compare instead of a
+    /// parse; an imported project is opened right after).
+    fn parse_stored(&mut self, id: ProjectId, json: &str) -> CmdResult<Project> {
+        match self.just_stored.take() {
+            Some((sid, text, project)) if sid == id && text == json => Ok(project),
+            _ => file::load(json).map_err(file_err),
+        }
     }
 
     /// Make `project` the open document: reset history, runtime state, engine nodes and

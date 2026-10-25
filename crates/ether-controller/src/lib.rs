@@ -809,6 +809,10 @@ where
     /// The open project the user discarded (`ProjectCommand::Discard`): never saved again,
     /// deleted once it closes.
     pub discarded: Option<ether_core::protocol::model::ProjectId>,
+    /// The document `ImportBundle` just stored, parsed: an `Open` of it right after (what
+    /// the UI does) reuses it when the stored text is still the same, instead of parsing it
+    /// again (`project::open`).
+    pub(crate) just_stored: Option<(ether_core::protocol::model::ProjectId, String, Project)>,
     /// The project load in progress: the engine is suspended until it ends (`loading`).
     pub loading: loading::LoadState,
     /// The render in progress: the engine is suspended and plays its preview (`rendering`).
@@ -893,6 +897,7 @@ where
             next_gesture: 0x8000_0000,
             last_transport: None,
             discarded: None,
+            just_stored: None,
             loading: Default::default(),
             rendering: Default::default(),
             outputs: EngineOutputs::default(),
