@@ -10,7 +10,8 @@
  * objects and on immer drafts.
  */
 
-import type { Entity, EntityKey, PatchChange, Project } from "@/generated";
+import type { Entity, EntityKey, Note, PatchChange, Project } from "@/generated";
+import { withNotes } from "./noteTable";
 
 export type EntityType = Entity["type"];
 
@@ -135,16 +136,23 @@ export function withPatchChanges(project: Project, changes: ReadonlyArray<PatchC
     return next[name] as unknown as Record<string, unknown>;
   };
   const devices = new Set<string>();
+  // Notes go to the sharded table (`./noteTable`): only the buckets they touch are copied.
+  const noteOps: (readonly [string, Note | undefined])[] = [];
   for (const change of changes) {
     switch (change.type) {
       case "Upsert": {
         const { type, value } = change.entity;
+        if (type === "Note") {
+          noteOps.push([value.id, value as Note]);
+          break;
+        }
         table(type)[value.id] = deepFreeze(value);
         if (type === "Device") devices.delete(value.id);
         break;
       }
       case "Remove":
-        delete table(change.key.type)[change.key.id];
+        if (change.key.type === "Note") noteOps.push([change.key.id, undefined]);
+        else delete table(change.key.type)[change.key.id];
         break;
       case "Settings":
         next.settings = deepFreeze(change.settings);
@@ -168,5 +176,6 @@ export function withPatchChanges(project: Project, changes: ReadonlyArray<PatchC
     if (d) deepFreeze(d);
   }
   for (const name of copied) Object.freeze(next[name]);
+  if (noteOps.length > 0) next.notes = withNotes(project.notes, noteOps);
   return Object.freeze(next);
 }

@@ -113,7 +113,7 @@ describe("Replace device…", () => {
 
   it("a row replaces at once, retaining values and automation by name; says what it couldn't keep; one undo step", async () => {
     const { t, device, cutoffLane, releaseLane } = await setup();
-    const before = structuredClone(project());
+    const before = structuredClone({ ...project(), notes: { ...project().notes } });
     const popover = await openFromHeader();
     const list = await listIn(popover);
     fireEvent.click(await list.findByRole("button", { name: "Mock Mini" }));
