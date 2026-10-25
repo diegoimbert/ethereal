@@ -162,9 +162,18 @@ pub fn load_with(
     migrations: &[Box<dyn Migration>],
     target_version: u32,
 ) -> Result<Project, FileError> {
-    let mut doc: Value = serde_json::from_str(json)?;
-    migrate(&mut doc, migrations, target_version)?;
-    let mut file: EtherFile = serde_json::from_value(doc)?;
+    // A document already at `target` (every file this app wrote since its last schema
+    // change) parses straight into the typed file: the untyped tree costs as much again as
+    // the parse (a 77 MB project: ~370 ms in all). Anything else (older, newer, not an
+    // `.ether` file, malformed) goes the untyped way, exactly as before.
+    let mut file = match serde_json::from_str::<EtherFile>(json) {
+        Ok(f) if f.format == FORMAT_TAG && f.format_version == target_version => f,
+        _ => {
+            let mut doc: Value = serde_json::from_str(json)?;
+            migrate(&mut doc, migrations, target_version)?;
+            serde_json::from_value(doc)?
+        }
+    };
     rename_legacy_master(&mut file.project);
     file.project.ensure_index();
     file.project.validate()?;
@@ -284,6 +293,27 @@ mod tests {
 
     fn project() -> Project {
         Project::new(&mut IdGen::new(7), 1_700_000_000_000)
+    }
+
+    /// A current-version document loads the same through the typed fast path as through
+    /// the untyped tree (and the fixtures, older, still migrate).
+    #[test]
+    fn typed_fast_path_matches_the_untyped_one() {
+        let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_some_and(|e| e == "ether") {
+                let old = load(&std::fs::read_to_string(&path).unwrap()).unwrap();
+                let json = save(&old, "test").unwrap();
+                let fast = load(&json).unwrap();
+                let mut doc: Value = serde_json::from_str(&json).unwrap();
+                migrate(&mut doc, &migrations(), CURRENT_VERSION).unwrap();
+                let mut slow: EtherFile = serde_json::from_value(doc).unwrap();
+                rename_legacy_master(&mut slow.project);
+                assert_eq!(fast, slow.project, "{}", path.display());
+                assert_eq!(fast, old, "{}", path.display());
+            }
+        }
     }
 
     #[test]
