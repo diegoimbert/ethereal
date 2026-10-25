@@ -704,7 +704,17 @@ impl Synth {
         }
     }
 
-    fn render(&mut self, outputs: &mut [&mut [f32]], start: usize, end: usize) {
+    crate::dsp::simd::avx2_dispatch! {
+        fn render => render_avx2, render_generic(
+            &mut self,
+            outputs: &mut [&mut [f32]],
+            start: usize,
+            end: usize,
+        )
+    }
+
+    #[inline(always)]
+    fn render_generic(&mut self, outputs: &mut [&mut [f32]], start: usize, end: usize) {
         let waveform = util::index(self.value(params::WAVEFORM), WAVEFORMS.len());
         let transpose = self.value(params::TRANSPOSE) as f32;
         let fine = self.value(params::FINE) as f32 * 0.01;

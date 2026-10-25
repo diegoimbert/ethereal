@@ -109,7 +109,17 @@ impl Bitcrusher {
         (x * self.steps + d).round() / self.steps
     }
 
-    fn render(&mut self, audio: &mut AudioBuffers<'_, '_>, start: usize, end: usize) {
+    crate::dsp::simd::avx2_dispatch! {
+        fn render => render_avx2, render_generic(
+            &mut self,
+            audio: &mut AudioBuffers<'_, '_>,
+            start: usize,
+            end: usize,
+        )
+    }
+
+    #[inline(always)]
+    fn render_generic(&mut self, audio: &mut AudioBuffers<'_, '_>, start: usize, end: usize) {
         let n_ch = audio.outputs.len().min(2);
         for i in start..end {
             if self.acc >= self.threshold {

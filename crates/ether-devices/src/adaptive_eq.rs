@@ -57,6 +57,7 @@ use realfft::{RealFftPlanner, RealToComplex};
 use crate::contract::{
     FactoryPreset, descriptor as build, item, knob, layout, param, section, toggle,
 };
+use crate::dsp::simd;
 use crate::dsp::svf::{Coefs, Shape, Svf};
 use crate::util;
 
@@ -577,7 +578,18 @@ impl AdaptiveEq {
         self.gain.set_target(self.output_target());
     }
 
-    fn render(&mut self, audio: &mut AudioBuffers<'_, '_>, start: usize, end: usize) {
+    simd::avx2_dispatch! {
+        /// RT. Frames `start..end` of a block.
+        fn render => render_avx2, render_generic(
+            &mut self,
+            audio: &mut AudioBuffers<'_, '_>,
+            start: usize,
+            end: usize,
+        )
+    }
+
+    #[inline(always)]
+    fn render_generic(&mut self, audio: &mut AudioBuffers<'_, '_>, start: usize, end: usize) {
         let inputs = audio.inputs;
         let input = |c: usize, i: usize| {
             inputs

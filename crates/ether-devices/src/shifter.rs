@@ -1335,9 +1335,20 @@ impl Shifter {
         }
     }
 
+    crate::dsp::simd::avx2_dispatch! {
+        fn render => render_avx2, render_generic(
+            &mut self,
+            audio: &mut AudioBuffers<'_, '_>,
+            transport: &TransportInfo,
+            start: usize,
+            end: usize,
+        )
+    }
+
+    #[inline(always)]
     // Per-channel state lives in several arrays indexed by the channel.
     #[allow(clippy::needless_range_loop)]
-    fn render(
+    fn render_generic(
         &mut self,
         audio: &mut AudioBuffers<'_, '_>,
         transport: &TransportInfo,
