@@ -29,6 +29,8 @@ export type ToController =
       seed: string;
       /** AudioContext sample rate (the engine's rate). */
       sampleRate: number;
+      /** Debug: media decode steps per controller tick (`eth.debug.media-steps`; tests). */
+      mediaStepsPerTick?: number;
       /**
        * One Int32: how many `client` messages the Worker has handled (a closing page
        * waits for its last save, `WasmEndpoint.drain`).

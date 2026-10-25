@@ -51,6 +51,9 @@ test("while a project loads the transport waits, and the project can be explored
   test.setTimeout(180_000);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  // The decode runs one step per controller tick (the default runs many, and finishes
+  // before the checks below can look at the load).
+  await page.addInitScript(() => localStorage.setItem("eth.debug.media-steps", "1"));
   await launch(page, "Loading");
   const chooser = page.waitForEvent("filechooser");
   await page.keyboard.press("ControlOrMeta+i");

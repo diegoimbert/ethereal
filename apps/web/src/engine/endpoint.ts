@@ -191,6 +191,7 @@ export function createWebEndpoint(extensions: ReadonlyArray<WebEngineExtension> 
         fsPort: channel.port2,
         seed: randomSeed(),
         sampleRate: context.sampleRate,
+        mediaStepsPerTick: debugMediaSteps(),
         handled: handled.buffer as SharedArrayBuffer,
         webclapCatalog: webclap.catalogJson(),
         webclapModules: webclap.moduleMessages(),
@@ -227,4 +228,18 @@ export function createWebEndpoint(extensions: ReadonlyArray<WebEngineExtension> 
       fatal.clear();
     },
   };
+}
+
+/**
+ * Debug override of the media decode steps per controller tick (`localStorage`
+ * `eth.debug.media-steps`): e2e specs that watch a load in progress set it to 1 so the
+ * decode lasts long enough to look at. `undefined` = the controller's default.
+ */
+function debugMediaSteps(): number | undefined {
+  try {
+    const v = Number(globalThis.localStorage?.getItem("eth.debug.media-steps"));
+    return Number.isInteger(v) && v > 0 ? v : undefined;
+  } catch {
+    return undefined;
+  }
 }
