@@ -196,6 +196,9 @@ machine than the engine, so the protocol never carries file-system paths.
   - `OpenSafe { id }` opens a project in safe mode (every plugin device is a
     bypassed placeholder: no instance, state and params untouched, nothing written);
     `LoadPlugins` leaves it (instantiates them). `Plugin::Reload` loads one placeholder.
+  - `OpenMirrored { id, safe? }` is `Open` (`OpenSafe` with `safe`) for clients that
+    mirror the document from events (the UI): the project comes once, in
+    `Event::ProjectLoaded`, and the reply is `Unit` instead of a second copy.
   - `Event::Project` carries `ListChanged`, `Saved`, `DirtyChanged` or
     `SafeMode { active, devices }`.
   - **Launch: no host opens a project.** The controller starts with none,

@@ -116,7 +116,7 @@ async function launchInner(transport: EngineTransport): Promise<void> {
     if (fromUrl && !useProjectStore.getState().project) {
       if (!(await projectStored(transport, fromUrl))) missing = true;
       else if ((await previousSession(transport)).clean) {
-        await transport.send(cmd("Project", { type: "Open", id: fromUrl }));
+        await transport.send(cmd("Project", { type: "OpenMirrored", id: fromUrl }));
         hideEarlyPicker();
         return;
       }
@@ -133,7 +133,7 @@ async function launchInner(transport: EngineTransport): Promise<void> {
   try {
     const id = await projectToReopen(transport);
     if (id && !useProjectStore.getState().project) {
-      await transport.send(cmd("Project", { type: "Open", id }));
+      await transport.send(cmd("Project", { type: "OpenMirrored", id }));
       hideEarlyPicker();
       return;
     }

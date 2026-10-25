@@ -309,7 +309,7 @@ export function BrowserV2({ initialRoots }: BrowserV2Props) {
     void send(loadPresetCommand(device.id, preset)).then((r) => r && setCurrentPreset(device.id, preset, item.name));
   };
   // Leaving the open project: an untitled one asks to keep or discard it first.
-  const openProject = (item: LibraryItem) => void guardLeave(() => send(cmd("Project", { type: "Open", id: item.path })));
+  const openProject = (item: LibraryItem) => void guardLeave(() => send(cmd("Project", { type: "OpenMirrored", id: item.path })));
   const open = (item: LibraryItem) => {
     if (item.kind === "Preset") loadPreset(item);
     else if (item.kind === "Project") openProject(item);

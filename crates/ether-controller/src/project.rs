@@ -89,6 +89,15 @@ where
                 self.check_not_binned(*id)?;
                 self.open_safe(*id, now, out)
             }
+            ProjectCommand::OpenMirrored { id, safe } => {
+                self.check_not_binned(*id)?;
+                if *safe {
+                    self.open_safe(*id, now, out)?;
+                } else {
+                    self.open(*id, now, out)?;
+                }
+                Ok(ReplyValue::Unit)
+            }
             ProjectCommand::LoadPlugins => {
                 self.doc.as_ref().ok_or_else(no_project)?;
                 if self.engine.load_deferred() {

@@ -1011,20 +1011,23 @@ export class MockTransport implements EngineTransport {
         return { type: "Project", project: this.project };
       }
       case "Open":
-      case "OpenSafe": {
+      case "OpenSafe":
+      case "OpenMirrored": {
         const entry = this.stored(c.id);
         if (entry.binned_ms !== undefined) fail("InvalidState", "this project is in the bin: restore it first");
         this.saveBeforeSwitch();
         // Re-read after a possible autosave (opening the current project reloads it).
         this.loadProject(parseEtherFile(this.store.get(c.id)?.json ?? entry.json));
         // Safe mode: the mock hosts no plugins; it reports their devices as held.
-        if (c.type === "OpenSafe") {
+        if (c.type === "OpenSafe" || (c.type === "OpenMirrored" && c.safe)) {
           this.safeMode = Object.values(this.project.devices)
             .filter((d) => d.kind.type === "Plugin")
             .map((d) => d.id);
           this.safe = true;
           this.emit({ type: "Project", event: { type: "SafeMode", active: true, devices: this.safeMode } });
         }
+        // The UI mirrors the document from `ProjectLoaded`: no second copy in the reply.
+        if (c.type === "OpenMirrored") return UNIT;
         return { type: "Project", project: this.project };
       }
       case "LoadPlugins":

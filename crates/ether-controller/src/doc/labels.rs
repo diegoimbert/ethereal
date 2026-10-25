@@ -564,7 +564,7 @@ pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
         Command::Project(c) => match c {
             P::List => k("undo.project.list"),
             P::Create { .. } => k("undo.project.create"),
-            P::Open { .. } | P::OpenSafe { .. } => k("undo.project.open"),
+            P::Open { .. } | P::OpenSafe { .. } | P::OpenMirrored { .. } => k("undo.project.open"),
             P::LoadPlugins => k("undo.project.load_plugins"),
             P::Save { .. } => k("undo.project.save"),
             P::SaveAs { .. } => k("undo.project.save_as"),

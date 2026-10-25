@@ -144,7 +144,7 @@ export function RecoveryDialog() {
                 disabled={busy}
                 aria-label={t("versions.recovery.open_safe_named", { name: item.name })}
                 title={t("versions.recovery.open_safe_hint")}
-                onClick={() => void run(cmd("Project", { type: "OpenSafe", id: item.project }), true, item)}
+                onClick={() => void run(cmd("Project", { type: "OpenMirrored", id: item.project, safe: true }), true, item)}
               >
                 {t("project.actions.open_safe")}
               </Button>
@@ -162,7 +162,7 @@ export function RecoveryDialog() {
                   tone="accent"
                   disabled={busy}
                   aria-label={t("project.actions.open_named", { name: item.name })}
-                  onClick={() => void run(cmd("Project", { type: "Open", id: item.project }), true, item)}
+                  onClick={() => void run(cmd("Project", { type: "OpenMirrored", id: item.project }), true, item)}
                 >
                   {t("project.actions.open")}
                 </Button>

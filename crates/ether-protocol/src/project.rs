@@ -28,6 +28,15 @@ pub enum ProjectCommand {
     /// document), and `Event::Project { SafeMode }` lists them. Nothing is written to the
     /// store. Replies `Project` (also emitted as `Event::ProjectLoaded`).
     OpenSafe { id: ProjectId },
+    /// `Open` (`OpenSafe` with `safe`) for clients that mirror the document from events,
+    /// like the UI: the project comes once, in `Event::ProjectLoaded`, and the reply is
+    /// `Unit`. (`Open` sends it twice; a 262k-note project is 52 MB of JSON each time.)
+    OpenMirrored {
+        id: ProjectId,
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        #[ts(as = "Option<bool>", optional)]
+        safe: bool,
+    },
     /// Leave safe mode: instantiate the plugin devices held as placeholders.
     /// Emits `SafeMode { active: false, devices: [] }` (nothing when not in safe mode).
     /// Replies `Unit`.
