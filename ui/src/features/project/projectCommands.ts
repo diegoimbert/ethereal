@@ -153,7 +153,7 @@ export function openProjectCommands(transport: EngineTransport, project: { id: s
       run: () =>
         attempt(async () => {
           const summary = await importProject(transport);
-          if (summary) await guardLeave(() => transport.send(cmd("Project", { type: "Open", id: summary.id })));
+          if (summary) await guardLeave(() => transport.send(cmd("Project", { type: "OpenMirrored", id: summary.id })));
         }),
     },
     {

@@ -246,7 +246,7 @@ export function RecentProjects({
     }
   };
 
-  const openProject = (id: string, safe = false) => guardLeave(() => run(cmd("Project", { type: safe ? "OpenSafe" : "Open", id })).then((r) => r && onDone()));
+  const openProject = (id: string, safe = false) => guardLeave(() => run(cmd("Project", { type: "OpenMirrored", id, safe })).then((r) => r && onDone()));
 
   const rename = (id: string, name: string) => {
     const trimmed = name.trim();

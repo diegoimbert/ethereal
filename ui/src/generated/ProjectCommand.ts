@@ -4,7 +4,7 @@ import type { MusicalScale } from "./MusicalScale";
 import type { ProjectExportFormat } from "./ProjectExportFormat";
 import type { ProjectId } from "./ProjectId";
 
-export type ProjectCommand = { "type": "List" } | { "type": "Create", id: ProjectId, name: string, } | { "type": "Open", id: ProjectId, } | { "type": "OpenSafe", id: ProjectId, } | { "type": "LoadPlugins" } | { "type": "Save", 
+export type ProjectCommand = { "type": "List" } | { "type": "Create", id: ProjectId, name: string, } | { "type": "Open", id: ProjectId, } | { "type": "OpenSafe", id: ProjectId, } | { "type": "OpenMirrored", id: ProjectId, safe?: boolean, } | { "type": "LoadPlugins" } | { "type": "Save", 
 /**
  * A routine autosave (the UI's timer after edits), not the user asking to save:
  * plugin states are re-read only from instances that reported a change, and the

@@ -518,3 +518,36 @@ fn open_timings() {
         );
     }
 }
+
+/// `OpenMirrored` loads like `Open` (the same `ProjectLoaded`), but replies `Unit`: the
+/// project goes out once.
+#[test]
+fn open_mirrored_sends_the_project_once() {
+    let mut h = Harness::with_project();
+    let mut ids = IdGen::new(23);
+    let p = synthetic(&mut ids, 2);
+    let json = file::save(&p, "0.3.0").unwrap();
+    h.ctl.store.create(p.id).unwrap();
+    h.ctl.store.save(p.id, &json).unwrap();
+    let count = |out: &[ether_core::protocol::ServerMessage]| {
+        out.iter()
+            .filter(|m| {
+                serde_json::to_string(m)
+                    .unwrap()
+                    .contains(&format!("\"{}\"", p.notes.keys().next().unwrap()))
+            })
+            .count()
+    };
+    let open = h.send(Command::Project(ProjectCommand::Open { id: p.id }));
+    assert_eq!(count(&open), 2, "Open: ProjectLoaded and the reply");
+    let mirrored = h.send(Command::Project(ProjectCommand::OpenMirrored {
+        id: p.id,
+        safe: false,
+    }));
+    assert_eq!(count(&mirrored), 1, "OpenMirrored: ProjectLoaded only");
+    assert!(matches!(
+        ok(&mirrored),
+        ether_core::protocol::ReplyValue::Unit
+    ));
+    assert_eq!(h.project().notes.len(), p.notes.len());
+}

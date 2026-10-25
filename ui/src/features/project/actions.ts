@@ -183,7 +183,7 @@ export async function importAndOpenBundle(t: EngineTransport, source: { file: Up
 /** Open a stored project. */
 export function openProject(t: EngineTransport, id: string): Promise<ReplyValue> {
   emit("app.event", { type: "project_opened" });
-  return t.send(cmd("Project", { type: "Open", id }));
+  return t.send(cmd("Project", { type: "OpenMirrored", id }));
 }
 
 /** Delete a stored project that is not open (the engine refuses the open one). */
