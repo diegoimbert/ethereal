@@ -47,3 +47,15 @@ describe("shared Rust ↔ TS vectors (crates/ether-server/tests/frame_vectors.rs
     expect(bytesToBase64(new Uint8Array())).toBe("");
   });
 });
+
+describe("bytesToBase64", () => {
+  it("matches btoa for every length and byte value", () => {
+    const reference = (b: Uint8Array) => btoa(Array.from(b, (x) => String.fromCharCode(x)).join(""));
+    const all = new Uint8Array(1031);
+    for (let i = 0; i < all.length; i++) all[i] = (i * 2654435761) >>> 24;
+    for (let i = 0; i < 256; i++) all[i] = i;
+    for (let len = 0; len <= 64; len++) expect(bytesToBase64(all.subarray(0, len))).toBe(reference(all.subarray(0, len)));
+    expect(bytesToBase64(all)).toBe(reference(all));
+    expect(bytesToBase64(all.subarray(5, 700))).toBe(reference(all.subarray(5, 700)));
+  });
+});
