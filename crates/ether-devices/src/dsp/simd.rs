@@ -30,6 +30,7 @@
 
 /// Whether this CPU runs the AVX2 + FMA variants (std caches the detection: one load).
 #[inline]
+#[cfg_attr(not(any(test, target_arch = "x86_64")), allow(dead_code))]
 pub(crate) fn avx2() -> bool {
     #[cfg(test)]
     if FORCE_GENERIC.with(std::cell::Cell::get) {
