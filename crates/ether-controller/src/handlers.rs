@@ -153,6 +153,19 @@ pub fn media_file_name(id: MediaId, name: &str) -> String {
     format!("{MEDIA_DIR}/{id}-{clean}")
 }
 
+/// A user's mute / solo click (track, drum pad): applied to the document but never an undo
+/// step, so Ctrl+Z doesn't flip the mix. Mutes made as part of another edit (a bounce
+/// muting its sources, an agent call) stay in that edit's step.
+fn is_toggle(command: &Command) -> bool {
+    use ether_core::protocol::drum_rack::DrumRackCommand;
+    use ether_core::protocol::mixer::MixerCommand;
+    matches!(
+        command,
+        Command::Mixer(MixerCommand::SetMute { .. } | MixerCommand::SetSolo { .. })
+            | Command::DrumRack(DrumRackCommand::SetPadMute { .. })
+    )
+}
+
 /// Commands that edit the shared document (refused on a listen link). Local
 /// playback (transport, monitoring) stays available on the read-only copy.
 fn share_edits(command: &Command, current: Option<ProjectId>) -> bool {
@@ -242,7 +255,8 @@ where
         let _templates = self.template_scope(command, msg.gesture, now, out)?;
         if doc::is_document_command(command, current) {
             let label = doc::label_of(command, self.doc.as_ref().map(|d| &d.project));
-            self.edit_with(&label, msg.gesture, now, out, |ctx| {
+            let record = !is_toggle(command);
+            self.edit_recorded(&label, msg.gesture, now, out, record, |ctx| {
                 doc::apply(ctx, command).map(drop)
             })?;
             return Ok(ReplyValue::Unit);
@@ -347,6 +361,20 @@ where
         out: &mut dyn MessageSink,
         f: impl FnOnce(&mut DocCtx) -> CmdResult<()>,
     ) -> CmdResult<()> {
+        self.edit_recorded(label, gesture, now, out, true, f)
+    }
+
+    /// [`Self::edit_with`]; `record: false` applies the edit without an undo step
+    /// ([`is_toggle`]).
+    fn edit_recorded(
+        &mut self,
+        label: impl Into<doc::UndoLabel>,
+        gesture: Option<GestureId>,
+        now: u64,
+        out: &mut dyn MessageSink,
+        record: bool,
+        f: impl FnOnce(&mut DocCtx) -> CmdResult<()>,
+    ) -> CmdResult<()> {
         let label = label.into();
         let doc = self.doc.as_mut().ok_or_else(no_project)?;
         let mut host = EngineCtx {
@@ -397,10 +425,13 @@ where
         };
         let doc = self.doc.as_mut().expect("checked above");
         doc.history.set_now_ms(now);
-        let (applied, inverse) = doc
-            .history
-            .commit_with_inverse(&mut doc.project, tx, gesture)
-            .map_err(model_err)?;
+        let (applied, inverse) = if record {
+            doc.history
+                .commit_with_inverse(&mut doc.project, tx, gesture)
+        } else {
+            doc.history.apply_untracked(&mut doc.project, tx)
+        }
+        .map_err(model_err)?;
         // Collab: stamp and send (no-op outside a session).
         self.ext_committed(&label, &applied, &inverse);
         self.after_ops(&applied, now, out);

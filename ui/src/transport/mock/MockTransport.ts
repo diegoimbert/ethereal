@@ -126,7 +126,7 @@ import { cmd } from "../cmd";
 import { CommandFailedError, Emitter, type EngineTransport, type SendOptions, type Unsubscribe } from "../EngineTransport";
 import { newId as defaultNewId } from "../ids";
 import { createDemoProjects, createEmptyProject, createStarterProject } from "./demoProject";
-import { fail, isDocumentCommand, labelOf, reduceDocumentCommand } from "./documentReducer";
+import { fail, isDocumentCommand, isToggle, labelOf, reduceDocumentCommand } from "./documentReducer";
 import { findLibraryFile, LIBRARY_ID, listLibraryFolder, MOCK_LOCATIONS, normalize, wavSize } from "./library";
 import { synthesizePeaks } from "./peaks";
 import { mockParamText } from "./plugins";
@@ -322,7 +322,7 @@ export class MockTransport implements EngineTransport {
   private readonly timeEdits = new MockTimeEdits({
     ...this.host,
     transact: (label, edit) =>
-      void this.transact(label, null, (tx) => {
+      void this.transact(label, null, true, (tx) => {
         edit(tx);
         return UNIT;
       }),
@@ -330,7 +330,7 @@ export class MockTransport implements EngineTransport {
   private readonly freeze = new MockFreeze({
     ...this.host,
     transact: (label, edit) =>
-      void this.transact(label, null, (tx) => {
+      void this.transact(label, null, true, (tx) => {
         const ctx = { tx, newId: this.newId, position: this.position };
         edit(tx, (c) => void reduceDocumentCommand(ctx, c));
         return UNIT;
@@ -349,7 +349,7 @@ export class MockTransport implements EngineTransport {
     project: () => this.project,
     emit: (event) => this.emit(event),
     updateMedia: (label, media) =>
-      void this.transact(label, null, (tx) => {
+      void this.transact(label, null, true, (tx) => {
         for (const m of media) tx.upsert("Media", m);
         return UNIT;
       }),
@@ -366,13 +366,13 @@ export class MockTransport implements EngineTransport {
     isMissing: (m) => this.mediaRefs.isMissing(m),
     libraryHash: (rel) => hashHex(`library:${normalize(rel)}`),
     commit: (label, devices, media) =>
-      void this.transact(label, null, (tx) => {
+      void this.transact(label, null, true, (tx) => {
         for (const d of devices) tx.upsert("Device", d);
         for (const m of media) tx.upsert("Media", m);
         return UNIT;
       }),
     edit: (label, f) =>
-      void this.transact(label, null, (tx) => {
+      void this.transact(label, null, true, (tx) => {
         f(tx);
         return UNIT;
       }),
@@ -402,7 +402,7 @@ export class MockTransport implements EngineTransport {
     armed: () => this.armed,
     play: () => this.transportCommand({ type: "Play" }),
     commit: (media, commands) =>
-      void this.transact("record", null, (tx) => {
+      void this.transact("record", null, true, (tx) => {
         for (const m of media) tx.upsert("Media", m);
         const ctx = { tx, newId: this.newId, position: this.position };
         for (const c of commands) reduceDocumentCommand(ctx, c);
@@ -423,7 +423,7 @@ export class MockTransport implements EngineTransport {
     position: () => this.position,
     playing: () => this.playing,
     commit: (commands, lanes) =>
-      void this.transact("capture midi", null, (tx) => {
+      void this.transact("capture midi", null, true, (tx) => {
         const ctx = { tx, newId: this.newId, position: this.position };
         for (const c of commands) reduceDocumentCommand(ctx, c);
         for (const lane of lanes) tx.upsert("ExpressionLane", lane);
@@ -607,7 +607,7 @@ export class MockTransport implements EngineTransport {
 
     // Project commands first: `Rename` is a document edit only for the current project.
     if (command.domain === "Project") return this.projectCommand(command.command, gesture);
-    if (isDocumentCommand(command)) return this.applyDocument([command], labelOf(command), gesture);
+    if (isDocumentCommand(command)) return this.applyDocument([command], labelOf(command), gesture, !isToggle(command));
 
     if (command.domain === "Agent") return this.agent.command(command.command);
     const extension = this.extensionCommand(command.domain, command.command);
@@ -690,10 +690,10 @@ export class MockTransport implements EngineTransport {
     return fail("InvalidArgument", `unknown command`);
   }
 
-  /** Apply document commands as one transaction / undo step and emit its patch. */
-  private applyDocument(commands: Command[], label: string, gesture: GestureId | null): ReplyValue {
+  /** Apply document commands as one transaction / undo step (none with `record: false`) and emit its patch. */
+  private applyDocument(commands: Command[], label: string, gesture: GestureId | null, record = true): ReplyValue {
     const warnings: string[] = [];
-    const value = this.transact(label, gesture, (tx) => {
+    const value = this.transact(label, gesture, record, (tx) => {
       const ctx = { tx, newId: this.newId, position: this.position, warn: (m: string) => void warnings.push(m) };
       let value: ReplyValue = UNIT;
       for (const c of commands) value = reduceDocumentCommand(ctx, c);
@@ -704,8 +704,8 @@ export class MockTransport implements EngineTransport {
     return value;
   }
 
-  /** Run `body` as one atomic transaction / undo step and emit its patch. */
-  private transact(label: string, gesture: GestureId | null, body: (tx: Tx) => ReplyValue): ReplyValue {
+  /** Run `body` as one atomic transaction / undo step (none with `record: false`) and emit its patch. */
+  private transact(label: string, gesture: GestureId | null, record: boolean, body: (tx: Tx) => ReplyValue): ReplyValue {
     const tx = new Tx(this.project);
     let value: ReplyValue;
     try {
@@ -715,7 +715,7 @@ export class MockTransport implements EngineTransport {
       throw e;
     }
     if (!tx.isEmpty) {
-      this.record(label, tx, gesture);
+      if (record) this.record(label, tx, gesture);
       this.emitPatch(tx.wireChanges());
     }
     this.syncTransport();
@@ -1312,7 +1312,7 @@ export class MockTransport implements EngineTransport {
       case "Import": {
         if (this.project.media[c.id]) fail("InvalidArgument", `media ${c.id} already exists`);
         const media = this.resolveImport(c.id, c.source);
-        const value = this.transact("import audio", gesture, (tx) => {
+        const value = this.transact("import audio", gesture, true, (tx) => {
           tx.upsert("Media", media);
           return { type: "Media", media };
         });

@@ -93,6 +93,12 @@ const EPS = BEATS_EPSILON;
 const SILENCE_DB = -144;
 const MAX_DB = 6;
 
+/** A mute / solo click (track, drum pad): applied but not an undo step (like the controller's `is_toggle`). */
+export function isToggle(command: Command): boolean {
+  const c = command.command;
+  return (command.domain === "Mixer" && (c.type === "SetMute" || c.type === "SetSolo")) || (command.domain === "DrumRack" && c.type === "SetPadMute");
+}
+
 /** `true` if the command changes the document (and so is undoable / allowed in a Batch). */
 export function isDocumentCommand(command: Command): boolean {
   const c = command.command;

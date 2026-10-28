@@ -240,6 +240,19 @@ impl History {
         Ok((tx.ops, own_inverse))
     }
 
+    /// Apply `tx` to `project` without recording it: the stacks and the open gesture stay as
+    /// they were (a mute / solo toggle is a monitoring choice, not an edit). Returns the ops
+    /// applied and their inverse, as [`History::commit_with_inverse`]. On error nothing
+    /// changes.
+    pub fn apply_untracked(
+        &mut self,
+        project: &mut Project,
+        tx: Transaction,
+    ) -> Result<(Vec<Op>, Vec<Op>), ModelError> {
+        let inverse = project.apply_all(&tx.ops)?;
+        Ok((tx.ops, inverse))
+    }
+
     /// Close an open gesture so the next commit starts a new undo step.
     pub fn end_gesture(&mut self, gesture: GestureId) {
         if self.open_gesture == Some(gesture) {

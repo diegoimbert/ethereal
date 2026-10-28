@@ -237,9 +237,10 @@ v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with sl
     high-rate streams. Hosts may deliver them
     on a separate channel (a Tauri `Channel`, or a SAB ring).
 - **Undoable vs. not undoable.**
-  - Undoable: all document edits, including loop region, tempo, time signature, mute
-    and solo.
-  - Not undoable: record-arm (not in the document), transport play/stop/locate, plugin
+  - Undoable: all document edits, including loop region, tempo and time signature.
+  - Not undoable: a mute or solo click (track, drum pad: in the document, but never an
+    undo step; a mute made as part of another edit, such as a bounce muting its sources,
+    stays in that edit's step), record-arm (not in the document), transport play/stop/locate, plugin
     editor windows, engine config, and project store operations
     (list/open/delete/duplicate).
 - **Clip commands.** `ClipCommand::CreateMidi`, `CreateAudio` and `SetBounds` take
@@ -515,7 +516,7 @@ v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with sl
    rings.
 2. **Time.** `f64` beats, with the epsilon and snap conventions in §2.
 3. **Undo.** Arm is not undoable and has been removed from the document. Mute and solo
-   are undoable.
+   clicks are not undo steps either (§ Undoable vs. not undoable).
 4. **Automation override/re-enable.** Not in v0.1; no flag or command exists for it.
 5. **Group tracks.** In v0.1, via `parent` in the model and group bus routing in the
    render graph (`TrackDesc.output`/`group`).

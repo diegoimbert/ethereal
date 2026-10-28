@@ -352,7 +352,6 @@ fn pad_notes_swap_and_every_command_is_one_undo_step() {
             id: a,
             pan: Pan(0.25),
         },
-        DrumRackCommand::SetPadMute { id: a, mute: true },
         DrumRackCommand::AddSamplePad {
             pad: h.id(),
             device: dev,
@@ -379,10 +378,16 @@ fn pad_notes_swap_and_every_command_is_one_undo_step() {
         },
     );
     assert_eq!(h.project().drum_pads[&a].volume, Decibels(6.0));
-    for _ in 0..9 {
+    for _ in 0..8 {
         undo(&mut h);
     }
     assert_eq!(h.project(), &before);
+    // A pad mute is a toggle: applied, but not an undo step (nothing left to undo past
+    // `before` but the setup, which stays).
+    rack_cmd(&mut h, DrumRackCommand::SetPadMute { id: a, mute: true });
+    assert!(h.project().drum_pads[&a].mute);
+    h.ok(Command::Edit(EditCommand::Redo));
+    assert!(h.project().drum_pads[&a].mute, "the redo stack is kept");
 }
 
 #[test]
