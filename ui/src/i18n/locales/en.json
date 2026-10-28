@@ -2859,6 +2859,7 @@
   "time_edits.menu.paste_over": "paste over selection",
   "time_edits.menu.paste_insert": "paste time",
   "time_edits.menu.split": "split at selection",
+  "time_edits.menu.mute": "mute selection",
   "time_edits.menu.duplicate": "duplicate time",
   "time_edits.menu.insert_silence": "insert silence",
   "time_edits.menu.delete": "delete time",

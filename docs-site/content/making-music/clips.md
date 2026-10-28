@@ -106,6 +106,7 @@ These shortcuts act on the selected clips while the arrangement has the focus:
 | duplicate right after the clip                                   | [[action:edit.duplicate]]   |
 | loop on / off                                                    | [[action:clip.toggleLoop]]  |
 | reverse                                                          | [[action:clip.reverse]]     |
+| mute / unmute (or the clips in the time selection)               | [[action:track.toggleMute]] |
 | consolidate into one clip per track (or the time selection)      | [[action:clip.consolidate]] |
 | bounce to a new track (or the time selection)                    | [[action:clip.bounce]]      |
 | delete                                                           | [[action:edit.delete]]      |

@@ -2859,6 +2859,7 @@
   "time_edits.menu.paste_over": "coller par-dessus la sélection",
   "time_edits.menu.paste_insert": "coller la durée",
   "time_edits.menu.split": "scinder à la sélection",
+  "time_edits.menu.mute": "rendre muette la sélection",
   "time_edits.menu.duplicate": "dupliquer la durée",
   "time_edits.menu.insert_silence": "insérer un silence",
   "time_edits.menu.delete": "supprimer la durée",

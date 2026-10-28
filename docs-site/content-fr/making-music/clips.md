@@ -106,6 +106,7 @@ Ces raccourcis agissent sur les clips sélectionnés quand l’arrangement a le 
 | dupliquer juste après le clip                                             | [[action:edit.duplicate]]   |
 | activer / désactiver la boucle                                            | [[action:clip.toggleLoop]]  |
 | inverser                                                                  | [[action:clip.reverse]]     |
+| rendre muet / rétablir le son (ou les clips de la sélection temporelle)   | [[action:track.toggleMute]] |
 | consolider en un clip par piste (ou la sélection temporelle)              | [[action:clip.consolidate]] |
 | rendre sur une nouvelle piste (ou la sélection temporelle)                | [[action:clip.bounce]]      |
 | supprimer                                                                 | [[action:edit.delete]]      |

@@ -6,6 +6,7 @@
  * |-----------------|------------|----------------------------------------------------------|
  * | split           | ⌘E         | split every selected track at the selection edges        |
  * | split-tracks    | ⌘E         | no time range, tracks selected or an insert marker: split every track the marker spans and every selected track at the marker (else the selection cursor) |
+ * | mute            | 0          | mute the clips in the selection: a clip crossing an edge is split there and only its part inside is muted (unmuted when all already are) |
  * | cut             | ⌘X / ⇧⌘X   | copy the selection, then delete its time                 |
  * | copy            | ⌘C / ⇧⌘C   | copy the selection to the (engine) time clipboard        |
  * | paste           | ⌘V         | paste the copied section (its full length, over what is there) right after the selection, else at the insert marker, else the selection cursor |
@@ -42,7 +43,7 @@ import { trackRangeOf, useTimeSelection, type TimeRangeSelection } from "./store
 import { t } from "@/i18n";
 
 export type TimeAction =
-  "split" | "split-tracks" | "cut" | "copy" | "paste" | "paste-insert" | "duplicate" | "delete" | "insert-silence" | "consolidate" | "bounce";
+  "split" | "split-tracks" | "mute" | "cut" | "copy" | "paste" | "paste-insert" | "duplicate" | "delete" | "insert-silence" | "consolidate" | "bounce";
 
 function errorText(err: unknown): string {
   let message = String(err);
@@ -67,6 +68,39 @@ async function send(transport: EngineTransport, commands: Command[]): Promise<bo
 }
 
 const timeEdit = (c: Extract<Command, { domain: "TimeEdit" }>["command"]): Command => cmd("TimeEdit", c);
+
+const EPS = 1e-9;
+
+/**
+ * Mute the clips of `tracks` in `[start, end)` (unmute when all already are), one undo step:
+ * the clips crossing an edge are split there first, so only their part inside changes.
+ */
+async function muteRange(transport: EngineTransport, tracks: TrackId[], start: number, end: number): Promise<void> {
+  const clipsIn = (crossing: boolean) =>
+    Object.values(useProjectStore.getState().project?.clips ?? {}).filter(
+      (c) =>
+        c.lane == null &&
+        tracks.includes(c.track) &&
+        (crossing ? c.start < end - EPS && c.start + c.length > start + EPS : c.start >= start - EPS && c.start + c.length <= end + EPS),
+    );
+  const over = clipsIn(true);
+  if (over.length === 0) return;
+  const muted = !over.every((c) => c.muted);
+  const cuts = [start, end].filter((at) => over.some((c) => c.start < at - EPS && c.start + c.length > at + EPS));
+  const gesture = nextGestureId();
+  try {
+    for (const at of cuts) await transport.send(timeEdit({ type: "Split", tracks, at, seed: newId() }), { gesture });
+    // The clips inside now (the split pieces included).
+    const ids = clipsIn(false)
+      .filter((c) => c.muted !== muted)
+      .map((c) => c.id);
+    if (ids.length) await transport.send(cmd("Clip", { type: "SetMuted", ids, muted }), { gesture });
+  } catch (err) {
+    notify("Warning", errorText(err));
+  } finally {
+    transport.send(cmd("Edit", { type: "EndGesture", gesture })).catch(() => {});
+  }
+}
 
 /**
  * The selected tracks for "split at the cursor" when there is no time selection (nor
@@ -116,6 +150,9 @@ export async function runTimeAction(transport: EngineTransport, action: TimeActi
           seed: newId(),
         }),
       ]);
+      return;
+    case "mute":
+      await muteRange(transport, expandTracks(project, sel!.tracks), sel!.start, sel!.end);
       return;
     case "split-tracks":
       await send(transport, [
@@ -221,8 +258,10 @@ export function timeActionForKey(e: ChordEvent, ctx: TimeActionContext): TimeAct
   // keymap: chords from the user's keymap. Plain Mod+I is "Import audio..." (never here).
   // The insert marker is not a section: Copy/Cut/Duplicate/Delete then act on clips.
   const hasSelection = trackRangeOf(useTimeSelection.getState().selection) !== null;
-  const id = firstMatch([...SECTION_KEY_ACTIONS, ...Object.keys(TIME_KEY_ACTIONS), "edit.split"], e);
+  const id = firstMatch([...SECTION_KEY_ACTIONS, ...Object.keys(TIME_KEY_ACTIONS), "edit.split", "track.toggleMute"], e);
   if (!id) return null;
+  // The mute key mutes the section's clips while there is one; else clips/tracks.
+  if (id === "track.toggleMute") return hasSelection ? "mute" : null;
   // Delete (plain ⌫) deletes the selected time while there is one; else clips/tracks.
   if (id === "edit.delete") return hasSelection && canRun("delete", ctx) ? "delete" : null;
   if (id === "edit.copy" || id === "edit.cut" || id === "edit.paste" || id === "edit.duplicate") {
@@ -286,6 +325,11 @@ export function timeSelectionMenu(transport: EngineTransport): ContextMenuEntry[
       label: t("time_edits.menu.split"),
       shortcut: shortcutLabel("edit.split"),
       onSelect: run("split"),
+    },
+    {
+      label: t("time_edits.menu.mute"),
+      shortcut: shortcutLabel("track.toggleMute"),
+      onSelect: run("mute"),
     },
     {
       label: t("time_edits.menu.duplicate"),
