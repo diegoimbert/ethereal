@@ -37,7 +37,7 @@ mod editable;
 mod job;
 mod sample;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use ether_core::freeze::FrozenDesc;
 use ether_core::protocol::devices::DeviceCategory;
@@ -96,6 +96,53 @@ pub enum Finish {
         new_device: DeviceId,
         zones: Vec<SampleZone>,
     },
+}
+
+/// The params of `device` (and of what is nested in it) that the macros of its ancestor
+/// racks (`ancestors`, innermost first) move, as plain values with those macros' current
+/// offsets added (`clamp(base + Σ depth · macro, 0, 1)` normalized, like the engine): a
+/// sampling pass renders the instrument without its racks, so it bakes them in.
+fn macro_baked_params(
+    p: &Project,
+    engine: &crate::engine::EngineState,
+    device: DeviceId,
+    ancestors: &[DeviceId],
+) -> Vec<(DeviceId, ParamId, f64)> {
+    let inside =
+        |id: DeviceId| id == device || p.device_path(id).is_some_and(|path| path.contains(&device));
+    let mut sums: BTreeMap<(DeviceId, ParamId), f64> = BTreeMap::new();
+    for m in p.mod_mappings.values() {
+        let ModSource::Macro { rack, index } = m.source else {
+            continue;
+        };
+        if !ancestors.contains(&rack) || !inside(m.device) {
+            continue;
+        }
+        let Some(r) = p.devices.get(&rack) else {
+            continue;
+        };
+        let DeviceKind::Builtin { device: kind } = &r.kind else {
+            continue;
+        };
+        let Some(param) = ether_model::macro_param(kind.device_type(), index) else {
+            continue;
+        };
+        let value = r.params.get(&param).copied().unwrap_or(0.0).clamp(0.0, 1.0);
+        *sums.entry((m.device, m.param)).or_default() += m.depth * value;
+    }
+    sums.into_iter()
+        .filter_map(|((id, param), offset)| {
+            let d = p.devices.get(&id)?;
+            let info = engine
+                .descriptor(d)?
+                .params
+                .into_iter()
+                .find(|x| x.id == param)?;
+            let base = d.params.get(&param).copied().unwrap_or(info.default);
+            let n = (info.to_normalized(base) + offset).clamp(0.0, 1.0);
+            Some((id, param, info.to_plain(n)))
+        })
+        .collect()
 }
 
 struct Running {
@@ -346,10 +393,8 @@ where
                     .devices
                     .get(device)
                     .ok_or_else(|| not_found(format!("device {device}")))?;
-                if d.pad.is_some() || d.chain.is_some() {
-                    return Err(invalid(
-                        "only an instrument on a track's own chain can be converted",
-                    ));
+                if d.pad.is_some() {
+                    return Err(invalid("an instrument on a drum pad can't be converted"));
                 }
                 let t = p
                     .tracks
@@ -369,11 +414,17 @@ where
                 if descriptor.map(|d| d.category) != Some(DeviceCategory::Instrument) {
                     return Err(invalid(format!("\"{}\" is not an instrument", d.name)));
                 }
-                if !p.devices_of(t.id).iter().any(|x| x.id == *device) {
-                    return Err(invalid(format!(
-                        "device {device} is not on the track's chain"
-                    )));
+                // On the track's chain, or nested in racks on it (not in a drum pad).
+                let Some(path) = p.device_path(*device) else {
+                    return Err(invalid(format!("device {device} is not on a device chain")));
+                };
+                if path
+                    .iter()
+                    .any(|a| p.devices.get(a).is_none_or(|x| x.pad.is_some()))
+                {
+                    return Err(invalid("an instrument in a drum pad can't be converted"));
                 }
+                let params = macro_baked_params(p, &self.engine, *device, &path[1..]);
                 if p.devices.contains_key(new_device) {
                     return Err(invalid(format!("device {new_device} already exists")));
                 }
@@ -407,6 +458,8 @@ where
                             chain: true,
                             up_to: Some(*device),
                             sample: Some(job::SampleNote {
+                                device: *device,
+                                params: params.clone(),
                                 key: point.key,
                                 velocity: f32::from(point.velocity) / 127.0,
                                 duration,

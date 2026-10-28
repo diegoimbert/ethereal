@@ -121,8 +121,14 @@ pub enum FreezeCommand {
     /// start is never trimmed, and the multisampler's amp attack is 0 (no added fade-in), so
     /// a sampled key plays back sample for sample like the instrument.
     ///
-    /// `device` must be a track-chain device of category `Instrument` on a MIDI track (not
-    /// a device inside a rack or drum pad, not on a frozen track). `new_device` and the
+    /// Each sample is `device` alone (with what is nested in it): the track's other devices
+    /// (the MIDI effects before it included, which stay in front of the sampler) and its
+    /// racks' other chains don't play, its chain's mix isn't applied, and the macros of its
+    /// racks that move its params are baked in at their current values.
+    ///
+    /// `device` must be a device of category `Instrument` on a MIDI track, on its chain or
+    /// nested in racks there (not in a drum pad, not on a frozen track); the sampler takes
+    /// its place (on the track chain or its rack chain). `new_device` and the
     /// media (`derive_id(seed_media, i)`) must not exist. At most `MAX_ZONES` samples are
     /// allowed (`InvalidArgument` otherwise). Replies `RenderStarted`; at `Done` the media
     /// and the replaced device are one undo step.

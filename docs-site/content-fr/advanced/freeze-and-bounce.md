@@ -62,7 +62,7 @@ Le rendu et la consolidation comptent chacun pour une étape d’annulation.
 
 ## convertir un instrument en échantillonneur {#converting-an-instrument-to-a-sampler}
 
-Vous pouvez jouer un instrument terminé sans le faire tourner : faites un clic droit sur lui dans la chaîne d’appareils d’une piste (un rack d’instruments, un synthé) et choisissez **convertir en échantillonneur…**. Ethereal enregistre l’instrument note par note, puis le remplace par un multi-échantillonneur qui joue ces enregistrements. L’enregistrement consomme beaucoup moins de processeur, mais c’est un instantané : les modifications du son d’origine ne l’atteignent pas, et une note tenue s’arrête à la fin de son échantillon.
+Vous pouvez jouer un instrument terminé sans le faire tourner : faites un clic droit sur lui dans la chaîne d’appareils d’une piste (un rack d’instruments, un synthé), ou à l’intérieur d’un rack d’instruments, et choisissez **convertir en échantillonneur…**. Ethereal enregistre l’instrument note par note, puis le remplace à sa place par un multi-échantillonneur qui joue ces enregistrements. Les enregistrements sont l’instrument seul : les effets MIDI placés avant lui, les autres chaînes du rack et le volume de sa chaîne restent tels quels autour de l’échantillonneur, et les macros du rack qui règlent ses paramètres sont enregistrées telles qu’elles sont. L’enregistrement consomme beaucoup moins de processeur, mais c’est un instantané : les modifications du son d’origine ne l’atteignent pas, et une note tenue s’arrête à la fin de son échantillon.
 
 La boîte de dialogue choisit ce qui est enregistré :
 

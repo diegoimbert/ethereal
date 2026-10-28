@@ -34,6 +34,10 @@ pub const TAIL_PAD_FRAMES: usize = 256;
 /// clips with this single note, so each sample is rendered from a fresh engine.
 #[derive(Clone, Debug)]
 pub struct SampleNote {
+    /// The instrument sampled: the pass renders it alone, on the track chain (out of its
+    /// racks, without the track's other devices), with `params` set (plain values).
+    pub device: DeviceId,
+    pub params: Vec<(DeviceId, ParamId, f64)>,
     pub key: u8,
     /// 0..=1.
     pub velocity: f32,
@@ -198,6 +202,71 @@ pub fn live_tail(p: &Project, track: TrackId, up_to: DeviceId) -> BTreeSet<Devic
         .filter(|d| p.chain_root(d.id).is_some_and(|r| roots.contains(&r.id)))
         .map(|d| d.id)
         .collect()
+}
+
+/// Leave `device` (with what is nested in it) as the only device of `track`, on its chain:
+/// out of its racks, the track's other devices (and their chains, pads, modulators and
+/// mappings) dropped, and `params` (plain values, the racks' macro offsets baked in) set. A
+/// sample is then the instrument alone: the MIDI effects before it stay in front of the
+/// sampler that replaces it, and its rack's other chains don't play.
+fn isolate_device(
+    p: &mut Project,
+    track: TrackId,
+    device: DeviceId,
+    params: &[(DeviceId, ParamId, f64)],
+) {
+    let keep: BTreeSet<DeviceId> = p
+        .devices
+        .values()
+        .filter(|d| d.track == track)
+        .filter(|d| {
+            d.id == device
+                || p.device_path(d.id)
+                    .is_some_and(|path| path.contains(&device))
+        })
+        .map(|d| d.id)
+        .collect();
+    let dropped: BTreeSet<DeviceId> = p
+        .devices
+        .values()
+        .filter(|d| d.track == track && !keep.contains(&d.id))
+        .map(|d| d.id)
+        .collect();
+    if dropped.is_empty() && p.devices.get(&device).is_some_and(|d| d.chain.is_none()) {
+        // Already alone (the previous pass).
+        for &(id, param, value) in params {
+            if let Some(d) = p.devices.get_mut(&id) {
+                d.params.insert(param, value);
+            }
+        }
+        return;
+    }
+    p.devices.retain(|id, _| !dropped.contains(id));
+    p.rack_chains.retain(|_, c| !dropped.contains(&c.rack));
+    p.drum_pads.retain(|_, pad| !dropped.contains(&pad.rack));
+    let mods: BTreeSet<ModulatorId> = p
+        .modulators
+        .values()
+        .filter(|m| dropped.contains(&m.device))
+        .map(|m| m.id)
+        .collect();
+    p.modulators.retain(|id, _| !mods.contains(id));
+    p.mod_mappings.retain(|_, m| {
+        let source_gone = match m.source {
+            ModSource::Modulator { modulator } => mods.contains(&modulator),
+            ModSource::Macro { rack, .. } => dropped.contains(&rack),
+        };
+        !source_gone && !dropped.contains(&m.device)
+    });
+    if let Some(d) = p.devices.get_mut(&device) {
+        d.chain = None;
+        d.pad = None;
+    }
+    for &(id, param, value) in params {
+        if let Some(d) = p.devices.get_mut(&id) {
+            d.params.insert(param, value);
+        }
+    }
 }
 
 /// Media the passes need: audio clips and frozen renders of the needed tracks, samples of
@@ -557,6 +626,7 @@ impl RenderJob {
             return;
         };
         let track = self.spec().track;
+        isolate_device(&mut self.project, track, sample.device, &sample.params);
         let p = &mut self.project;
         let removed: BTreeSet<ClipId> = p
             .clips

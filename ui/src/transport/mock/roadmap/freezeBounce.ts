@@ -245,7 +245,8 @@ export class MockFreeze {
       case "ConvertToSampler": {
         this.checkCanStart(c.job);
         const d = p.devices[c.device] ?? fail("NotFound", `device ${c.device} not found`);
-        if (d.pad != null || d.chain != null) fail("InvalidArgument", "only an instrument on a track's own chain can be converted");
+        // On the track chain or nested in racks (not in a drum pad).
+        if (d.pad != null) fail("InvalidArgument", "an instrument on a drum pad can't be converted");
         const t = p.tracks[d.track] ?? fail("NotFound", `track ${d.track} not found`);
         if (t.kind !== "Midi") fail("InvalidArgument", "only instruments on MIDI tracks can be converted");
         if (t.freeze) fail("InvalidState", `track "${t.name}" is frozen: unfreeze it first`);
@@ -389,14 +390,12 @@ export class MockFreeze {
           const d = p.devices[f.device] ?? fail("InvalidState", "the device was deleted during the render");
           const t = p.tracks[d.track] ?? fail("InvalidState", "the track was deleted during the render");
           for (const m of job.media) tx.upsert("Media", m);
+          const device = { type: "Builtin", device: { type: "MultiSampler", zones: f.zones } } as const;
+          // In its place: on the track chain, or on its rack chain.
           apply(
-            cmd("Device", {
-              type: "Insert",
-              id: f.newDevice,
-              track: d.track,
-              device: { type: "Builtin", device: { type: "MultiSampler", zones: f.zones } },
-              before: f.device,
-            }),
+            d.chain != null
+              ? cmd("Rack", { type: "InsertDevice", id: f.newDevice, chain: d.chain, device, before: f.device })
+              : cmd("Device", { type: "Insert", id: f.newDevice, track: d.track, device, before: f.device }),
           );
           apply(cmd("Device", { type: "SetParam", device: f.newDevice, param: 0, value: 0 }));
           const layered = new Set(f.zones.map((z) => `${z.velocities.lo}:${z.velocities.hi}`)).size > 1;

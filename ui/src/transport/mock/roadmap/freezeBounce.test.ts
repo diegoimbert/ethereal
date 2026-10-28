@@ -226,4 +226,34 @@ describe("MockTransport ConvertToSampler", () => {
     expect(h.project.devices[device.id]).toEqual(device);
     expect(h.project.devices[next]).toBeUndefined();
   });
+
+  it("converts an instrument nested in a rack in its rack chain", () => {
+    const h = harness();
+    const synth = Object.values(h.project.devices).find((d) => !d.pad && !d.chain && h.project.tracks[d.track]?.kind === "Midi")!;
+    const [rack, chain] = [newId(), newId()];
+    const ctx = { tx: new Tx(h.project), newId, position: 0 };
+    reduceDocumentCommand(
+      ctx,
+      cmd("Device", { type: "Insert", id: rack, track: synth.track, device: { type: "Builtin", device: { type: "InstrumentRack" } }, before: null }),
+    );
+    reduceDocumentCommand(ctx, cmd("Rack", { type: "AddChain", id: chain, rack, name: null, before: null }));
+    reduceDocumentCommand(ctx, cmd("Rack", { type: "MoveDevice", id: synth.id, chain, before: null }));
+    expect(h.project.devices[synth.id]!.chain).toBe(chain);
+    const next = newId();
+    h.send({
+      type: "ConvertToSampler",
+      job: "n",
+      device: synth.id,
+      new_device: next,
+      seed_media: newId(),
+      keys: [60],
+      velocities: [127],
+      note_seconds: 1,
+      tail_seconds: 1,
+    });
+    h.freeze.step();
+    h.freeze.step();
+    expect(h.project.devices[synth.id]).toBeUndefined();
+    expect(h.project.devices[next]!.chain).toBe(chain);
+  });
 });

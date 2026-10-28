@@ -62,7 +62,7 @@ Bouncing and consolidating are one undo step each.
 
 ## converting an instrument to a sampler
 
-You can play a finished instrument without running it: right-click it on a track's device chain (an instrument rack, a synth) and choose **convert to sampler…**. Ethereal records the instrument note by note, then replaces it with a multisampler that plays those recordings. The recording uses far less cpu, but it is a snapshot: edits to the original sound don't reach it, and a held note ends at the end of its sample.
+You can play a finished instrument without running it: right-click it on a track's device chain (an instrument rack, a synth), or inside an instrument rack, and choose **convert to sampler…**. Ethereal records the instrument note by note, then replaces it in its place with a multisampler that plays those recordings. The recordings are the instrument alone: the MIDI effects before it, the rack's other chains and its chain's volume stay as they are around the sampler, and the rack macros that move its settings are recorded as they are set. The recording uses far less cpu, but it is a snapshot: edits to the original sound don't reach it, and a held note ends at the end of its sample.
 
 The dialog chooses what to record:
 

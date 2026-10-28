@@ -28,12 +28,12 @@ export const useSamplerConvert = create<ConvertState>()((set) => ({
   close: () => set({ device: null }),
 }));
 
-/** The menu entry on an instrument on a track's own chain (not inside a rack or pad). */
+/** The menu entry on an instrument on a track's chain or nested in racks there (not in a drum pad). */
 export function convertToSamplerEntries(device: Device, categoryOf: (d: Device) => DeviceCategory): ContextMenuEntry[] {
   const p = useProjectStore.getState().project;
   const track = p?.tracks[device.track];
   if (!p || !track || track.kind !== "Midi") return [];
-  if (device.pad != null || device.chain != null) return [];
+  if (device.pad != null) return [];
   if (categoryOf(device) !== "Instrument") return [];
   if (track.freeze || frozenAncestor(p.tracks, track.id)) return [];
   if (jobOfTrack(useFreezeUi.getState(), track.id)) return [];

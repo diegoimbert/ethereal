@@ -968,9 +968,12 @@ half-open ranges). `arrangement_clips_of` lists main-lane clips only.
   locked; the track counts as frozen everywhere else. `Flatten` keeps the live tail (on the
   audio track, or moved to the new audio track).
 - **Convert to sampler** (`ConvertToSampler { device, new_device, seed_media, keys,
-  velocities, note_seconds, tail_seconds }`, additive): render a track-chain instrument
-  (an instrument rack, synth, ...) once per listed key and velocity and replace it with a
-  `MultiSampler` (`new_device`, same place in the chain) whose zones play the renders. The
+  velocities, note_seconds, tail_seconds }`, additive): render an instrument (an
+  instrument rack, synth, ...) on a track chain or nested in racks there (not in a drum
+  pad) once per listed key and velocity and replace it with a `MultiSampler`
+  (`new_device`, same place: track chain or rack chain) whose zones play the renders. Each
+  pass renders the instrument alone (its project copy has it as the track's only device,
+  out of its racks, the macros of those racks that move its params baked in). The
   lists are any set (sorted, duplicates dropped; at least one key, 1 to 16 velocities in
   1..=127). Each key owns the range up to the midpoint with its neighbours (edges cover
   0..=127), so a note between samples plays the nearest one pitched (`root_key`); each

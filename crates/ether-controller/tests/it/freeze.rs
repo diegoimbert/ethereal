@@ -2494,6 +2494,129 @@ fn convert_to_sampler_keeps_the_attack() {
     }
 }
 
+/// An instrument nested in an instrument rack converts in its rack chain. Its sample is the
+/// instrument alone: not the rack's other chain, not its chain's volume (still applied after
+/// the sampler), but with the rack macro that moves one of its params baked in.
+#[test]
+fn converts_an_instrument_nested_in_a_rack() {
+    use ether_core::protocol::racks::ModulationCommand;
+    use ether_devices::synth::params as sp;
+    let mut d = Drive::new();
+    let (t, _) = percussive(&mut d, 1.0, false);
+    // Replace the plain synth by a rack holding a percussive synth (chain A) and a square
+    // synth (chain B).
+    let plain = d.p().devices_of(t)[0].id;
+    d.ok(Command::Device(DeviceCommand::Remove { id: plain }));
+    let (rack, synth) = instrument_rack(&mut d, t);
+    for (param, value) in [
+        (sp::WAVEFORM, 1.0),
+        (sp::ATTACK, 0.0),
+        (sp::DECAY, 40.0),
+        (sp::SUSTAIN, 0.0),
+        (sp::RELEASE, 20.0),
+        (sp::CUTOFF, 20_000.0),
+    ] {
+        d.ok(Command::Device(DeviceCommand::SetParam {
+            device: synth,
+            param,
+            value,
+        }));
+    }
+    let chain_a = d.p().devices[&synth].chain.unwrap();
+    let chain_b: RackChainId = d.id();
+    d.ok(Command::Rack(RackCommand::AddChain {
+        id: chain_b,
+        rack,
+        name: None,
+        before: None,
+    }));
+    let other: DeviceId = d.id();
+    d.ok(Command::Rack(RackCommand::InsertDevice {
+        id: other,
+        chain: chain_b,
+        device: DeviceSpec::Builtin {
+            device: BuiltinDevice::new(BuiltinDeviceType::Synth),
+        },
+        before: None,
+    }));
+    // Macro 1 at 0.8 turns the synth's volume down (depth -0.5).
+    let mapping: ModMappingId = d.id();
+    d.ok(Command::Modulation(ModulationCommand::Map {
+        id: mapping,
+        source: ModSource::Macro { rack, index: 0 },
+        device: synth,
+        param: sp::VOLUME,
+        depth: -0.5,
+    }));
+    d.ok(Command::Device(DeviceCommand::SetParam {
+        device: rack,
+        param: ether_model::rack_macro_param(0),
+        value: 0.8,
+    }));
+    // The reference: chain A alone, at unity, as it plays live (macro included).
+    let mute_b = |d: &mut Drive, mute: bool| {
+        d.ok(Command::Rack(RackCommand::SetChainMix {
+            id: chain_b,
+            volume: None,
+            pan: None,
+            mute: Some(mute),
+            solo: None,
+        }))
+    };
+    mute_b(&mut d, true);
+    one_note(&mut d, t, 60);
+    let n = SR as usize / 10;
+    let live = d.play(n);
+    // Chain B playing, chain A turned down: neither is in the sample.
+    mute_b(&mut d, false);
+    d.ok(Command::Rack(RackCommand::SetChainMix {
+        id: chain_a,
+        volume: Some(Decibels(-6.0)),
+        pan: None,
+        mute: None,
+        solo: None,
+    }));
+    d.settle();
+    let sample = sample_key_60(&mut d, synth);
+    // Live playback glides the synth's volume from its unmodulated value to the macro's
+    // when it starts; the sample has the macro's value from its first frame. Past that glide
+    // they match.
+    let from = SR as usize / 50;
+    for c in 0..2 {
+        let level = peak(std::slice::from_ref(&live[c]));
+        assert!(level > 0.01, "a sound");
+        let diff = live[c][from..]
+            .iter()
+            .zip(&sample[c][from..])
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0f32, f32::max);
+        assert!(
+            diff < 0.01 * level,
+            "ch{c}: the synth alone, macro baked in ({diff} of {level})"
+        );
+    }
+    // The sampler took the synth's place in chain A; chain B and the rack are untouched.
+    let p = d.p();
+    assert!(!p.devices.contains_key(&synth));
+    let in_a: Vec<&Device> = p
+        .devices
+        .values()
+        .filter(|x| x.chain == Some(chain_a))
+        .collect();
+    assert_eq!(in_a.len(), 1);
+    assert!(matches!(
+        &in_a[0].kind,
+        DeviceKind::Builtin {
+            device: BuiltinDevice::MultiSampler { .. }
+        }
+    ));
+    assert_eq!(p.devices[&other].chain, Some(chain_b));
+    assert_eq!(
+        p.devices_of(t).iter().map(|x| x.id).collect::<Vec<_>>(),
+        vec![rack]
+    );
+}
+
 /// An instrument with latency (a rack with an oversampled saturator after the synth): the
 /// render drops it, so the sample starts on the note's frame like an unlatent one.
 #[test]
