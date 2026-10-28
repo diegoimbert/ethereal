@@ -976,9 +976,24 @@ describe("ArrangementView: clip editing", () => {
   it("opens MIDI clips in the editor on double-click", () => {
     const chords = clipByName("Chords");
     const at = partAt(chords);
+    fireEvent.pointerDown(lanes(), { button: 0, pointerId: 1, clientX: at.x, clientY: at.y });
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: at.x, clientY: at.y });
+    const pressed = useEditorStore.getState().request;
     fireEvent.doubleClick(lanes(), { clientX: at.x, clientY: at.y });
     expect(useEditorStore.getState().clip).toBe(chords.id);
-    expect(useEditorStore.getState().request).toBe(1);
+    // The double-click expands the drawer (a request), not only the press.
+    expect(useEditorStore.getState().request).toBe(pressed + 1);
+  });
+
+  it("a double-click whose second press was elsewhere opens nothing where it's released", () => {
+    const chords = clipByName("Chords");
+    const at = partAt(chords);
+    const before = useEditorStore.getState().request;
+    // Second press far from the clip, held, then released over it.
+    fireEvent.pointerDown(lanes(), { button: 0, pointerId: 1, clientX: at.x, clientY: at.y + 200 });
+    fireEvent.pointerUp(window, { pointerId: 1, clientX: at.x, clientY: at.y });
+    fireEvent.doubleClick(lanes(), { clientX: at.x, clientY: at.y });
+    expect(useEditorStore.getState().request).toBe(before);
   });
 
   it("moves the playhead to a clip's start when it is pressed while stopped", async () => {
