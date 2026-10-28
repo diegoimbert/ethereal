@@ -12,6 +12,7 @@ import { MockTransport } from "@/transport/mock";
 import { ContextMenuHost } from "@/kit";
 import { pickOption } from "@/kit/testing";
 import { ArrangementView } from "./ArrangementView";
+import { ClipColorPicker } from "./ClipColorPicker";
 import { clipMenu, selectTrackEntity } from "./actions";
 import { BROWSER_DRAG_MIME, BROWSER_MIDI_DRAG_MIME } from "./browserDrop";
 import { clearClipboard } from "./clipboard";
@@ -99,6 +100,7 @@ async function renderView() {
     <TransportProvider transport={mock}>
       <ArrangementView />
       <ContextMenuHost />
+      <ClipColorPicker />
     </TransportProvider>,
   );
   await waitFor(() => expect(store().project).not.toBeNull());
@@ -2194,6 +2196,36 @@ describe("ArrangementView: MIDI files (#717)", () => {
       ]),
     );
     expect(added).toHaveLength(2);
+  });
+
+  it("change color… colors every selected clip in one undo step", async () => {
+    const chords = Object.values(project().clips).find((c) => c.name === "Chords")!;
+    // A clip on another track (no "use track color" swatch then).
+    const bass = Object.values(project().clips).find((c) => c.track !== chords.track && !c.lane)!;
+    act(() => itemSelection.getState().select("clip", [chords.id, bass.id]));
+    const entry = clipMenu(mock, chords).find((e) => e !== "separator" && e.label === "change the color of 2 clips…");
+    if (!entry || entry === "separator") throw new Error("no change color… entry");
+    act(() => entry.onSelect());
+    const palette = screen.getByRole("radiogroup", { name: "color of 2 clips" });
+    const swatch = within(palette).getAllByRole("radio")[3]!;
+    await act(async () => fireEvent.click(swatch));
+    await flush();
+    const colors = [project().clips[chords.id]!.color, project().clips[bass.id]!.color];
+    expect(colors[0]).not.toBeNull();
+    expect(colors[1]).toBe(colors[0]);
+    expect(screen.queryByRole("radiogroup", { name: "color of 2 clips" })).toBeNull();
+    await undo();
+    expect([project().clips[chords.id]!.color, project().clips[bass.id]!.color]).toEqual([chords.color, bass.color]);
+    // One clip on its own track: "use track color" comes first and resets it.
+    act(() => itemSelection.getState().select("clip", [chords.id]));
+    const one = clipMenu(mock, chords).find((e) => e !== "separator" && e.label === "change color…");
+    if (!one || one === "separator") throw new Error("no change color… entry");
+    act(() => one.onSelect());
+    expect(
+      within(screen.getByRole("radiogroup", { name: "clip color" }))
+        .getAllByRole("radio")[0]!
+        .getAttribute("aria-label"),
+    ).toBe("track color");
   });
 
   it("export MIDI… on a MIDI clip and on a track writes a MIDI file", async () => {

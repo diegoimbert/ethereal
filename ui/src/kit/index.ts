@@ -18,7 +18,7 @@ export { DismissibleError, type DismissibleErrorProps } from "./DismissibleError
 export { useConfirm, type ConfirmRequest } from "./confirmStore";
 export { ContextMenuHost } from "./ContextMenu";
 export { TitleTooltipHost } from "./TitleTooltips";
-export { MOD_KEY, openContextMenu, useContextMenuStore, type ContextMenuEntry, type ContextMenuItem } from "./contextMenuStore";
+export { lastContextMenuPoint, MOD_KEY, openContextMenu, useContextMenuStore, type ContextMenuEntry, type ContextMenuItem } from "./contextMenuStore";
 export { setDragCursor } from "./dragCursor";
 export { Fader, type FaderProps } from "./Fader";
 export {

@@ -52,6 +52,8 @@ export interface MessageArgs {
   "arrangement.clip.rename_named": { name: string | number };
   "arrangement.clip.selected_many": { count: number };
   "arrangement.clip.selected_one": { name: string | number };
+  "arrangement.clip_menu.change_color": { count: number };
+  "arrangement.clip_menu.color_named": { count: number };
   "arrangement.clip_menu.delete": { count: number };
   "arrangement.clip_menu.edit_in_piano_roll": { count: string | number };
   "arrangement.clip_menu.rename": { count: number };

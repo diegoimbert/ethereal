@@ -20,7 +20,7 @@ import { ConfirmDialog, ContextMenuHost, ReadOnlySurface, TitleTooltipHost, Toas
 import { ConvertToSamplerDialog } from "@/features/sampler-convert";
 import { dismissOnRelease, useEditorStore, useProjectStore, useReadOnly } from "@/state";
 import { size } from "@/theme";
-import { ArrangementView, useKeepTrackHeights } from "@/features/arrangement";
+import { ArrangementView, ClipColorPicker, useKeepTrackHeights } from "@/features/arrangement";
 import { AudioSettingsDialog } from "@/features/audio-settings";
 import { MarkerLane } from "@/features/clip-editing";
 import { DebugPanelsRoot } from "@/features/debug";
@@ -485,6 +485,7 @@ function EditorShell() {
       {/* Destructive actions (freeze, comping, expression, project delete) confirm here. */}
       <ConfirmDialog />
       <ConvertToSamplerDialog />
+      <ClipColorPicker />
       <ContextMenuHost />
       <TitleTooltipHost />
       <ValueEditHost />
