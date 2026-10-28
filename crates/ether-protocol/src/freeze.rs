@@ -119,9 +119,7 @@ pub enum FreezeCommand {
     ///
     /// Each sample starts on the note's first frame: the device's latency is dropped, the
     /// start is never trimmed, and the multisampler's amp attack is 0 (no added fade-in), so
-    /// a sampled key plays back sample for sample like the instrument. A render with plugins
-    /// first runs them on silence, transport stopped (0.5 s, and at least 300 ms of wall
-    /// time; dropped), so a fresh instance has settled into its patch before the note.
+    /// a sampled key plays back sample for sample like the instrument.
     ///
     /// `device` must be a track-chain device of category `Instrument` on a MIDI track (not
     /// a device inside a rack or drum pad, not on a frozen track). `new_device` and the

@@ -290,19 +290,6 @@ impl NodeSetup {
         start: Beats,
         edit: impl FnOnce(&mut RenderGraphDesc),
     ) -> Result<OfflineRenderer, String> {
-        let mut renderer = self.finish_stopped(p, engine, edit)?;
-        renderer.start(start).map_err(engine_err)?;
-        Ok(renderer)
-    }
-
-    /// [`NodeSetup::finish`] without starting the transport: the graph runs stopped (its
-    /// nodes process silence) until the caller calls `OfflineRenderer::start`.
-    pub fn finish_stopped(
-        self,
-        p: &Project,
-        engine: &EngineState,
-        edit: impl FnOnce(&mut RenderGraphDesc),
-    ) -> Result<OfflineRenderer, String> {
         let Self {
             mut renderer,
             nodes,
@@ -324,6 +311,7 @@ impl NodeSetup {
         super::job::offline_overrides(&mut desc);
         edit(&mut desc);
         renderer.publish(desc).map_err(engine_err)?;
+        renderer.start(start).map_err(engine_err)?;
         Ok(renderer)
     }
 }

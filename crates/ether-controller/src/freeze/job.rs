@@ -30,15 +30,6 @@ pub const MAX_TAIL_SECONDS: f64 = 30.0;
 /// engine's anti-click ramp at clip edges (64 samples) then never touches the audio.
 pub const TAIL_PAD_FRAMES: usize = 256;
 
-/// Silence a pass with plugins renders, transport stopped, before its first frame (dropped):
-/// a fresh plugin instance often restores its patch, or glides its parameters from their
-/// defaults, over its first blocks, and a note in them (a sample's note is on frame 0) would
-/// be rendered with the wrong sound, its attack softened.
-pub const PLUGIN_WARMUP_SECONDS: f64 = 0.5;
-/// ...and at least this much wall-clock time, for plugins that load their state on a
-/// background thread (an offline render runs much faster than real time).
-pub const PLUGIN_WARMUP_WALL_MS: u64 = 300;
-
 /// One note rendered by a sampling pass (`ConvertToSampler`): the pass replaces its track's
 /// clips with this single note, so each sample is rendered from a fresh engine.
 #[derive(Clone, Debug)]
@@ -87,8 +78,6 @@ pub struct Rendered {
 enum Stage {
     Media,
     Setup(Box<NodeSetup>),
-    /// Plugins warming up on silence before the pass starts ([`PLUGIN_WARMUP_SECONDS`]).
-    WarmUp(Box<WarmUp>),
     Render(Box<Capture>),
     Encode {
         channels: Vec<Vec<f32>>,
@@ -96,15 +85,6 @@ enum Stage {
         /// Frames encoded so far.
         pos: usize,
     },
-}
-
-struct WarmUp {
-    renderer: ether_core::offline::OfflineRenderer,
-    /// Frames of silence still to render.
-    frames: usize,
-    /// Not before (wall clock).
-    until: std::time::Instant,
-    scratch: Vec<Vec<f32>>,
 }
 
 pub enum Step {
@@ -124,8 +104,6 @@ pub struct RenderJob {
     pub results: Vec<Rendered>,
     /// User-facing warnings not reported yet.
     pub warnings: Vec<crate::text::Msg>,
-    /// Plugins created for the current pass so far.
-    pass_plugins: usize,
 }
 
 /// Tracks a pass needs besides `target`: the sources of its devices' sidechains
@@ -386,7 +364,6 @@ impl RenderJob {
             stage: Stage::Media,
             results: Vec::new(),
             warnings: Vec::new(),
-            pass_plugins: 0,
         }
     }
 
@@ -403,7 +380,7 @@ impl RenderJob {
     pub fn progress(&self) -> f32 {
         let n = self.passes.len().max(1) as f32;
         let within = match &self.stage {
-            Stage::Media | Stage::Setup(_) | Stage::WarmUp(_) => 0.0,
+            Stage::Media | Stage::Setup(_) => 0.0,
             Stage::Render(r) => 0.9 * r.captured() as f32 / r.total().max(1) as f32,
             Stage::Encode { channels, pos, .. } => {
                 let frames = channels.first().map_or(0, Vec::len).max(1);
@@ -448,51 +425,18 @@ impl RenderJob {
                     &mut devices,
                     &mut plugins,
                 )? {
-                    self.pass_plugins += plugins;
                     return Ok(Step::Working);
                 }
-                self.pass_plugins += plugins;
                 let Stage::Setup(setup) = std::mem::replace(&mut self.stage, Stage::Media) else {
                     unreachable!()
                 };
                 let spec = self.passes[self.pass].clone();
                 let needed = needed_tracks(p, spec.track, spec.chain);
-                let renderer = setup.finish_stopped(p, engine, |desc| {
+                let renderer = setup.finish(p, engine, spec.start, |desc| {
                     isolate(desc, spec.track, &needed, spec.chain)
                 })?;
-                if self.pass_plugins == 0 {
-                    // Built-ins are ready on their first frame.
-                    self.stage = self.start_render(renderer)?;
-                } else {
-                    self.stage = Stage::WarmUp(Box::new(WarmUp {
-                        renderer,
-                        frames: (PLUGIN_WARMUP_SECONDS * self.engine_rate as f64).round() as usize,
-                        until: std::time::Instant::now()
-                            + std::time::Duration::from_millis(PLUGIN_WARMUP_WALL_MS),
-                        scratch: vec![Vec::new(); 2],
-                    }));
-                }
-                Ok(Step::Working)
-            }
-            Stage::WarmUp(w) => {
-                if w.frames > 0 {
-                    let n = ether_core::offline::OFFLINE_MAX_BLOCK.min(w.frames);
-                    for ch in &mut w.scratch {
-                        ch.resize(n, 0.0);
-                    }
-                    let mut outs: Vec<&mut [f32]> =
-                        w.scratch.iter_mut().map(|c| &mut c[..n]).collect();
-                    w.renderer.render(n, &mut outs);
-                    w.frames -= n;
-                    return Ok(Step::Working);
-                }
-                if std::time::Instant::now() < w.until {
-                    return Ok(Step::Working);
-                }
-                let Stage::WarmUp(w) = std::mem::replace(&mut self.stage, Stage::Media) else {
-                    unreachable!()
-                };
-                self.stage = self.start_render(w.renderer)?;
+                let tail = if spec.tail { self.tail_chunk() } else { 0 };
+                self.stage = Stage::Render(Box::new(Capture::new(renderer, spec.frames + tail)));
                 Ok(Step::Working)
             }
             Stage::Render(r) => {
@@ -656,25 +600,8 @@ impl RenderJob {
         );
     }
 
-    /// Start the pass's transport and capture its frames (the latency dropped first).
-    fn start_render(
-        &self,
-        mut renderer: ether_core::offline::OfflineRenderer,
-    ) -> Result<Stage, String> {
-        let spec = self.spec();
-        renderer
-            .start(spec.start)
-            .map_err(crate::export::offline::engine_err)?;
-        let tail = if spec.tail { self.tail_chunk() } else { 0 };
-        Ok(Stage::Render(Box::new(Capture::new(
-            renderer,
-            spec.frames + tail,
-        ))))
-    }
-
     fn new_setup(&mut self) -> Result<Stage, String> {
         self.prepare_sample();
-        self.pass_plugins = 0;
         let p = &*self.project;
         let spec = self.spec();
         let needed = needed_tracks(p, spec.track, spec.chain);
