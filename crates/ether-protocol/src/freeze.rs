@@ -117,9 +117,11 @@ pub enum FreezeCommand {
     /// has its level). Pitching is plain resampling (an octave up plays twice as fast),
     /// never pitch-preserving.
     ///
-    /// Each sample starts on the note's first frame: the device's latency is dropped, the
-    /// start is never trimmed, and the multisampler's amp attack is 0 (no added fade-in), so
-    /// a sampled key plays back sample for sample like the instrument.
+    /// Each sample's note starts `pre_roll_seconds` in: the device's latency is dropped, the
+    /// start is never trimmed, the multisampler's `Offset` skips the pre-roll and its amp
+    /// attack is 0 (no added fade-in), so a sampled key plays back sample for sample like the
+    /// instrument. Lowering the `Offset` a little keeps what the instrument plays just
+    /// before its note.
     ///
     /// Each sample is `device` alone (with what is nested in it): the track's other devices
     /// (the MIDI effects before it included, which stay in front of the sampler) and its
@@ -141,6 +143,10 @@ pub enum FreezeCommand {
         keys: Vec<u8>,
         /// Rendered velocities (1..=127, 1 to 16 of them).
         velocities: Vec<u8>,
+        /// Silence before each note: a render starts this long before its note (the
+        /// instrument runs, transport playing, before the note-on), and the multisampler's
+        /// `Offset` is set to it so playback starts on the note. 0..=2 s.
+        pre_roll_seconds: Seconds,
         /// How long each note is held before note-off.
         note_seconds: Seconds,
         /// Longest release tail kept after note-off (silence beyond is trimmed).

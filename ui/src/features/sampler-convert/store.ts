@@ -45,6 +45,8 @@ export interface ConvertOptions {
   keys: number[];
   /** Rendered velocities (1..=127). */
   velocities: number[];
+  /** Silence before each note (the sampler's `Offset` skips it). */
+  preRollSeconds: number;
   noteSeconds: number;
   tailSeconds: number;
 }
@@ -118,6 +120,7 @@ export function convertToSampler(transport: EngineTransport, device: Device, o: 
       seed_media: newId(),
       keys: sortedSet(o.keys),
       velocities: sortedSet(o.velocities),
+      pre_roll_seconds: o.preRollSeconds,
       note_seconds: o.noteSeconds,
       tail_seconds: o.tailSeconds,
     }),

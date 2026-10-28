@@ -2228,6 +2228,7 @@ fn converts_an_instrument_rack_to_a_multisampler() {
             seed_media: seed,
             keys: vec![60, 62, 64],
             velocities: vec![64, 127],
+            pre_roll_seconds: Seconds(0.0),
             note_seconds: Seconds(0.2),
             tail_seconds: Seconds(0.1),
         })),
@@ -2313,6 +2314,7 @@ fn convert_to_sampler_validates_the_target_and_the_count() {
             seed_media: MediaId::NIL,
             keys,
             velocities,
+            pre_roll_seconds: Seconds(0.0),
             note_seconds: Seconds(0.2),
             tail_seconds: Seconds(0.1),
         })
@@ -2441,6 +2443,11 @@ fn one_note(d: &mut Drive, track: TrackId, key: u8) {
 
 /// Convert `device` sampling key 60 only (one velocity layer); returns the render.
 fn sample_key_60(d: &mut Drive, device: DeviceId) -> Vec<Vec<f32>> {
+    sample_key_60_after(d, device, 0.0)
+}
+
+/// [`sample_key_60`] with `pre_roll` seconds before the note.
+fn sample_key_60_after(d: &mut Drive, device: DeviceId, pre_roll: f64) -> Vec<Vec<f32>> {
     let new_device: DeviceId = d.id();
     let seed: MediaId = d.id();
     let job = format!("sample{}", d.next);
@@ -2451,6 +2458,7 @@ fn sample_key_60(d: &mut Drive, device: DeviceId) -> Vec<Vec<f32>> {
         seed_media: seed,
         keys: vec![60],
         velocities: vec![127],
+        pre_roll_seconds: Seconds(pre_roll),
         note_seconds: Seconds(0.2),
         tail_seconds: Seconds(0.2),
     }));
@@ -2615,6 +2623,31 @@ fn converts_an_instrument_nested_in_a_rack() {
         p.devices_of(t).iter().map(|x| x.id).collect::<Vec<_>>(),
         vec![rack]
     );
+}
+
+/// A pre-roll: the render starts that long before its note (the instrument already running),
+/// and the multisampler's `Offset` skips it, so the converted track still plays the note
+/// bit-exact from its first frame.
+#[test]
+fn convert_to_sampler_pre_roll_is_skipped_by_the_offset() {
+    let mut d = Drive::new();
+    let (t, synth) = percussive(&mut d, 1.0, false);
+    one_note(&mut d, t, 60);
+    let n = SR as usize / 10;
+    let live = d.play(n);
+    let sample = sample_key_60_after(&mut d, synth, 0.2);
+    let pre = SR as usize / 5;
+    let after = d.play(n);
+    let dev = d.p().devices_of(t)[0].clone();
+    assert_eq!(
+        dev.params[&ether_devices::multisampler::multi_sampler::OFFSET],
+        200.0
+    );
+    for c in 0..2 {
+        assert_eq!(onset(&sample[c]), Some(pre + 1), "the note is 0.2 s in");
+        assert_eq!(&sample[c][pre..pre + n], &live[c][..], "then the live note");
+        assert_eq!(after[c], live[c], "played back from the note, bit-exact");
+    }
 }
 
 /// An instrument with latency (a rack with an oversampled saturator after the synth): the

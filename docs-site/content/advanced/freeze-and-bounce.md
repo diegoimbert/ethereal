@@ -68,6 +68,7 @@ The dialog chooses what to record:
 
 - **notes**: the keys to record. Pick a preset (every note, every few semitones, every octave), or click keys on the keyboard to add or remove them; drag across keys to add or remove several at once, or right-drag to remove them. A preset spans your lowest to highest picked key (C1 to C6 to start with), and editing the keys switches the preset to **custom**. Notes between recordings play the nearest one, pitched; notes outside them use the nearest edge recording. Every note gives the best quality; every third or fourth note is much faster.
 - **velocities**: how hard each note is played when recorded. A preset spreads them evenly up to 127; **configure…** lists them so you can change, add or remove one (up to 16), which switches the preset to **custom**. Each velocity you play uses the nearest recorded one. One velocity is fastest and keeps playing soft quieter; more keep the instrument's response to playing soft or hard.
+- **offset**: how long each recording runs before its note (0.2 s to start with), so the instrument is already running when the note plays. The multisampler's **offset** knob skips that much of every sample; lower it a little (to 0.19 s, say) to keep what the instrument plays just before the note.
 - **note length** and **release tail**: how long each note is held and how much of its decay is kept.
 
 The dialog shows how many samples the settings produce. Conversion runs like a freeze, one render at a time, and shows its progress in the track header. The result is one undo step.
