@@ -90,3 +90,43 @@ describe("selections follow the open project (#589)", () => {
     expect(hasClipboard()).toBe(true);
   });
 });
+
+describe("clip paste is the copy as it was (ux-session-4)", () => {
+  beforeEach(() => {
+    mock.onEvent((e) => {
+      if (e.type === "Patch") store().applyPatch(e.patch);
+    });
+  });
+
+  it("notes and bounds changed after the copy don't follow into the paste", async () => {
+    const clip = Object.values(a.clips).find((c) => c.content.type === "Midi" && Object.values(a.notes).some((n) => n.clip === c.id))!;
+    const notesOf = (id: string) =>
+      Object.values(store().project!.notes)
+        .filter((n) => n.clip === id)
+        .map((n) => [n.pitch, n.start, n.duration])
+        .sort();
+    const before = notesOf(clip.id);
+    itemSelection.getState().select("clip", [clip.id], "replace");
+    expect(copyClips()).toBe(1);
+    // Edited after the copy: a note goes, the clip gets shorter.
+    const note = Object.values(store().project!.notes).find((n) => n.clip === clip.id)!;
+    await mock.send({ domain: "Note", command: { type: "Remove", ids: [note.id] } });
+    await mock.send({ domain: "Clip", command: { type: "SetBounds", id: clip.id, start: clip.start, length: clip.length / 2, offset: clip.offset } });
+    const [pasted] = await pasteClips(mock, 1000);
+    expect(pasted).toBeDefined();
+    const copy = store().project!.clips[pasted!]!;
+    expect(copy.length).toBe(clip.length);
+    expect(notesOf(pasted!)).toEqual(before);
+  });
+
+  it("an unchanged clip pastes as an exact duplicate", async () => {
+    const clip = Object.values(a.clips)[0]!;
+    itemSelection.getState().select("clip", [clip.id], "replace");
+    copyClips();
+    const sent = vi.spyOn(mock, "send");
+    await pasteClips(mock, 1000);
+    const commands = JSON.stringify(sent.mock.calls);
+    expect(commands).toContain('"Duplicate"');
+    expect(commands).not.toContain('"CreateMidi"');
+  });
+});

@@ -6,9 +6,10 @@
  * a position (the insert marker, else the playhead, or where the lane was right-clicked),
  * keeping their relative timing, as one undo step, then selects the pasted clips and moves
  * the insert marker to their end (never the playhead), so pasting again continues the
- * pattern. A clip still in the
- * project is pasted with `Clip::Duplicate` (exact copy); after a cut, it is rebuilt from
- * the snapshot.
+ * pattern. What pastes is the clips as they were at the copy, not as they are now: a clip
+ * still in the project and unchanged since (with its notes, warp markers, envelopes and
+ * expressions) is pasted with `Clip::Duplicate` (exact copy); one edited since, or cut, is
+ * rebuilt from the snapshot.
  *
  * Tracks: clips go back to their own tracks; when they all come from one track and
  * `track` is given (the right-clicked lane, or the selected track), they go there instead
@@ -19,9 +20,22 @@
  * point into its own lane, in step with the clips, as one undo step.
  */
 
-import type { Beats, Clip, ClipId, Command, Note, ProjectId, TrackId, WarpMarker } from "@/generated";
+import type {
+  AutomationLane,
+  AutomationPoint,
+  Beats,
+  Clip,
+  ClipId,
+  Command,
+  ExpressionLane,
+  Note,
+  NoteExpression,
+  Project,
+  TrackId,
+  WarpMarker,
+} from "@/generated";
 import { notify } from "@/features/notifications";
-import { notesOfClip, useProjectStore, warpMarkersOfClip } from "@/state";
+import { lanesOfClip, notesOfClip, pointsOfLane, useProjectStore, warpMarkersOfClip } from "@/state";
 import { itemSelection } from "@/timeline";
 import { placeInsertMarker } from "@/features/time-edits/marker";
 import { useTimeSelection } from "@/features/time-edits/store";
@@ -35,15 +49,39 @@ import { arrangementView } from "./uiStore";
 import { multiLaneClipboard, pasteLanesCommand, type MultiLaneClipboard } from "@/features/automation/clipboard";
 import { flattenCommands, laneOf } from "@/features/automation/laneRegistry";
 
+/** A clip with its children, as copied. */
 interface Entry {
   clip: Clip;
   notes: Note[];
   markers: WarpMarker[];
+  envelopes: { lane: AutomationLane; points: AutomationPoint[] }[];
+  expressionLanes: ExpressionLane[];
+  noteExpressions: NoteExpression[];
+}
+
+/** Clip `clip` of `project` with its children. */
+function entryOf(project: Project, clip: Clip): Entry {
+  const notes = notesOfClip(project, clip.id);
+  const noteIds = new Set(notes.map((n) => n.id));
+  return {
+    clip,
+    notes,
+    markers: warpMarkersOfClip(project, clip.id),
+    envelopes: lanesOfClip(project, clip.id).map((lane) => ({ lane, points: pointsOfLane(project, lane.id) })),
+    expressionLanes: Object.values(project.expression_lanes).filter((l) => l.clip === clip.id),
+    noteExpressions: Object.values(project.note_expressions).filter((e) => noteIds.has(e.note)),
+  };
+}
+
+/** Clip `e` is in `project` as it was copied (with all its children). */
+function unchanged(project: Project, e: Entry): boolean {
+  const now = project.clips[e.clip.id];
+  return !!now && JSON.stringify(entryOf(project, now)) === JSON.stringify(e);
 }
 
 /** `project`: where the clips were copied; they paste only there (another project
  * has none of their tracks or media). */
-let clipboard: { project: ProjectId; entries: Entry[]; start: Beats; end: Beats; points?: CopiedPoints } | null = null;
+let clipboard: { project: Project["id"]; entries: Entry[]; start: Beats; end: Beats; points?: CopiedPoints } | null = null;
 
 /** Automation points copied with the clips: the multi-lane copy and its earliest point's time. */
 export interface CopiedPoints {
@@ -68,6 +106,8 @@ export function clipboardPoints(): CopiedPoints | null {
 export interface TrackClipboard {
   tracks: TrackId[];
   cutUndoId: number | null;
+  /** The project at the copy: a paste gives the copies the tracks' settings as they were then. */
+  snapshot?: Project | null;
 }
 let trackClipboard: TrackClipboard | null = null;
 
@@ -108,7 +148,7 @@ export function copyClips(points?: CopiedPoints): number {
   if (!project || clips.length === 0) return 0;
   clipboard = {
     project: project.id,
-    entries: clips.map((clip) => ({ clip, notes: notesOfClip(project, clip.id), markers: warpMarkersOfClip(project, clip.id) })),
+    entries: clips.map((clip) => entryOf(project, clip)),
     start: Math.min(...clips.map(startOf)),
     end: Math.max(...clips.map((c) => startOf(c) + c.length)),
     ...(points ? { points } : {}),
@@ -151,7 +191,7 @@ export async function pasteClips(transport: EngineTransport, at: Beats, track: T
     if (!project.tracks[target]) continue; // its track was deleted
     const id = newId();
     const clipStart = at + (startOf(e.clip) - origin);
-    commands.push(...(project.clips[e.clip.id] ? duplicate(e.clip, id, target, clipStart, park) : rebuild(e, id, target, clipStart)));
+    commands.push(...(unchanged(project, e) ? duplicate(e.clip, id, target, clipStart, park) : rebuild(e, id, target, clipStart, park)));
     pasted.push(id);
   }
   // Each copied lane's points into that lane, when it is shown.
@@ -181,14 +221,27 @@ function duplicate(clip: Clip, id: ClipId, track: TrackId, start: Beats, park: (
   return [cmd("Clip", { type: "Duplicate", id: clip.id, new_id: id, start: park(clip) }), cmd("Clip", { type: "Move", moves: [{ id, track, start }] })];
 }
 
-/** Recreate a clip that is no longer in the project (cut) from its snapshot. */
-function rebuild({ clip, notes, markers }: Entry, id: ClipId, track: TrackId, start: Beats): Command[] {
+/**
+ * Recreate a clip from its snapshot (cut, or edited since the copy). On another track it is
+ * made on its own track clear of the clips there, then moved (so its envelopes follow, as a
+ * duplicate's do).
+ */
+function rebuild(
+  { clip, notes, markers, envelopes, expressionLanes, noteExpressions }: Entry,
+  id: ClipId,
+  track: TrackId,
+  at: Beats,
+  park: (c: Clip) => Beats,
+): Command[] {
   const c = clip.content;
+  // Its own track (unless deleted since: then straight on the target).
+  const home = useProjectStore.getState().project?.tracks[clip.track] ? clip.track : track;
+  const start = track === home ? at : park(clip);
   const out: Command[] =
     c.type === "Midi"
-      ? [cmd("Clip", { type: "CreateMidi", id, track, start, length: clip.length, name: clip.name })]
+      ? [cmd("Clip", { type: "CreateMidi", id, track: home, start, length: clip.length, name: clip.name })]
       : [
-          cmd("Clip", { type: "CreateAudio", id, track, start, media: c.media }),
+          cmd("Clip", { type: "CreateAudio", id, track: home, start, media: c.media }),
           // Before the bounds: a transpose resizes an unwarped clip, and a reverse
           // mirrors the bounds (the snapshot's are already on the reversed file).
           cmd("Clip", { type: "SetTranspose", id, semitones: c.transpose }),
@@ -208,6 +261,16 @@ function rebuild({ clip, notes, markers }: Entry, id: ClipId, track: TrackId, st
         const edits = muted.map((s) => ({ id: s.id, pitch: null, velocity: null, start: null, duration: null, muted: true }));
         out.push(cmd("Note", { type: "Edit", edits }));
       }
+      const noteIds = new Map(notes.map((n, i) => [n.id, specs[i]!.id]));
+      for (const e of noteExpressions) {
+        const note = noteIds.get(e.note);
+        if (note) out.push(cmd("Expression", { type: "SetNoteExpression", id: newId(), note, kind: e.kind, points: e.points }));
+      }
+    }
+    for (const l of expressionLanes) {
+      const lane = newId();
+      out.push(cmd("Expression", { type: "CreateLane", id: lane, clip: id, kind: l.kind }));
+      out.push(cmd("Expression", { type: "SetPoints", lane, points: l.points }));
     }
   } else {
     out.push(cmd("Clip", { type: "SetGain", id, gain: c.gain }));
@@ -216,6 +279,19 @@ function rebuild({ clip, notes, markers }: Entry, id: ClipId, track: TrackId, st
     out.push(cmd("Warp", { type: "SetWarp", clip: id, warp: c.warp }));
     for (const m of markers) out.push(cmd("Warp", { type: "AddMarker", id: newId(), clip: id, beat: m.beat, source: m.source }));
   }
+  // Clip envelopes (their targets still there: a deleted device's lane is left out).
+  const project = useProjectStore.getState().project;
+  for (const { lane, points } of envelopes) {
+    const t = lane.target;
+    const device = t.type === "DeviceParam" || t.type === "DeviceEnabled" ? t.device : null;
+    if ((device && !project?.devices[device]) || (t.type === "SendLevel" && !project?.sends[t.send])) continue;
+    const l = newId();
+    out.push(cmd("Automation", { type: "CreateLane", id: l, owner: { type: "Clip", clip: id }, target: t }));
+    if (!lane.enabled) out.push(cmd("Automation", { type: "SetLaneEnabled", id: l, enabled: false }));
+    if (points.length)
+      out.push(cmd("Automation", { type: "AddPoints", lane: l, points: points.map((p) => ({ id: newId(), time: p.time, value: p.value, curve: p.curve })) }));
+  }
+  if (track !== home) out.push(cmd("Clip", { type: "Move", moves: [{ id, track, start: at }] }));
   return out;
 }
 

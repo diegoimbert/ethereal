@@ -95,11 +95,23 @@ export function duplicateTracksCommand(
   at: Placement,
   label: StepLabel,
   makeId: () => TrackId = newId,
+  snapshot: Project | null = null,
 ): { command: Command; copies: TrackId[] } | null {
   const live = sources.filter((id) => project.tracks[id] && project.tracks[id]!.kind !== "Master");
   if (live.length === 0) return null;
   const copies = live.map(() => makeId());
   const commands: Command[] = [...live.map((id, i) => cmd("Track", { type: "Duplicate", id, new_id: copies[i]! })), ...moveCommands(project, live, copies, at)];
+  // A paste: each copy gets its source's name, color, volume and pan as they were at the copy.
+  live.forEach((id, i) => {
+    const then = snapshot?.tracks[id];
+    const now = project.tracks[id]!;
+    const copy = copies[i]!;
+    if (!then || then === now) return;
+    if (then.name !== now.name) commands.push(cmd("Track", { type: "Rename", id: copy, name: then.name }));
+    if (then.color !== now.color) commands.push(cmd("Track", { type: "SetColor", id: copy, color: then.color }));
+    if (then.mixer.volume !== now.mixer.volume) commands.push(cmd("Mixer", { type: "SetVolume", track: copy, volume: then.mixer.volume }));
+    if (then.mixer.pan !== now.mixer.pan) commands.push(cmd("Mixer", { type: "SetPan", track: copy, pan: then.mixer.pan }));
+  });
   return { command: cmd("Edit", { type: "Batch", label: label.text, key: label.key, commands }), copies };
 }
 
@@ -132,7 +144,7 @@ export async function duplicateSelectedTracks(transport: EngineTransport): Promi
 /** Copy the selected tracks to the track clipboard. Returns how many were copied. */
 export function copySelectedTracks(): number {
   const ids = selectedTrackIds();
-  if (ids.length) setTrackClipboard({ tracks: ids, cutUndoId: null });
+  if (ids.length) setTrackClipboard({ tracks: ids, cutUndoId: null, snapshot: useProjectStore.getState().project });
   return ids.length;
 }
 
@@ -179,7 +191,14 @@ export async function pasteTracks(transport: EngineTransport): Promise<TrackId[]
   const sel = selectedTrackIds();
   const at = placementAfter(before, sel.at(-1) ?? null);
   if (cb.tracks.some((id) => before.tracks[id])) {
-    const edit = duplicateTracksCommand(before, cb.tracks, at, countedStep("undo.tracks.paste", cb.tracks.length, "paste track", "paste tracks"));
+    const edit = duplicateTracksCommand(
+      before,
+      cb.tracks,
+      at,
+      countedStep("undo.tracks.paste", cb.tracks.length, "paste track", "paste tracks"),
+      newId,
+      cb.snapshot ?? null,
+    );
     if (!edit) return [];
     await sendEdit(transport, edit.command);
     selectTracks(edit.copies);
@@ -192,7 +211,7 @@ export async function pasteTracks(transport: EngineTransport): Promise<TrackId[]
     console.warn("track paste failed", err);
     return [];
   }
-  setTrackClipboard({ tracks: cb.tracks, cutUndoId: null });
+  setTrackClipboard({ tracks: cb.tracks, cutUndoId: null, snapshot: useProjectStore.getState().project });
   const project = useProjectStore.getState().project;
   if (!project) return [];
   // The paste position was computed before the restore; recompute it on the restored tracks.

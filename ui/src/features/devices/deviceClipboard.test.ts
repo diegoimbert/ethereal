@@ -311,3 +311,34 @@ describe("on / off", () => {
     expect(enabled()).toEqual([true, false, true]);
   });
 });
+
+describe("device paste is the copy as it was (ux-session-4)", () => {
+  it("a param, on/off or name changed after the copy doesn't follow into the paste", async () => {
+    const audio = await track("Audio");
+    const eq = await insert(audio, "Eq");
+    // A param that takes both values (not clamped).
+    let param = -1;
+    for (const key of Object.keys(project().devices[eq]!.params)) {
+      await mock.send(cmd("Device", { type: "SetParam", device: eq, param: Number(key), value: 5 }));
+      if (project().devices[eq]!.params[Number(key)] !== 5) continue;
+      param = Number(key);
+      break;
+    }
+    expect(param).toBeGreaterThanOrEqual(0);
+    await mock.send(cmd("Device", { type: "SetParam", device: eq, param, value: 2 }));
+    const copied = project().devices[eq]!;
+    useDeviceClipboard.getState().copy(eq);
+    // Edited after the copy.
+    await mock.send(cmd("Device", { type: "SetParam", device: eq, param, value: 5 }));
+    await mock.send(cmd("Device", { type: "SetEnabled", id: eq, enabled: false }));
+    await mock.send(cmd("Device", { type: "Rename", id: eq, name: "edited" }));
+    await pasteDevice(mock, eq, categoryOf);
+    const copy = project().devices[useDeviceClipboard.getState().selected[0]!]!;
+    expect(copy.id).not.toBe(eq);
+    expect(copy.params[param]).toBe(copied.params[param]);
+    expect(copy.enabled).toBe(true);
+    expect(copy.name).toBe(copied.name);
+    // The source keeps its edits.
+    expect(project().devices[eq]!.params[param]).toBe(5);
+  });
+});
