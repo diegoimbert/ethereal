@@ -22,7 +22,7 @@ export interface SvfCoefs {
 }
 
 /** Analog prototype: `H(s) = m0 + (m1·s + m2)/(s² + k·s + 1)`, `s = j·f/fp`. */
-interface Prototype {
+export interface Prototype {
   fp: number;
   k: number;
   m0: number;
@@ -30,7 +30,7 @@ interface Prototype {
   m2: number;
 }
 
-function prototype(shape: EqShape, fc: number, gainDb: number, q: number): Prototype {
+export function prototype(shape: EqShape, fc: number, gainDb: number, q: number): Prototype {
   const qq = Math.max(q, 0.01);
   const k = 1 / qq;
   const a = Math.pow(10, gainDb / 40);
@@ -67,16 +67,28 @@ function protoAt(p: Prototype, f: number): [number, number] {
   return [p.m0 + (nr * dr + ni * di) / den, (ni * dr - nr * di) / den];
 }
 
-function protoMag2(p: Prototype, f: number): number {
+export function protoMag2(p: Prototype, f: number): number {
   const [re, im] = protoAt(p, f);
   return re * re + im * im;
 }
 
 /** Coefficients of one stage (cutoff clamped to `1..=0.49·fs`, `q >= 0.01`). */
 export function svfCoefs(shape: EqShape, freq: number, gainDb: number, q: number, sampleRate: number): SvfCoefs {
-  const fs = sampleRate;
-  const fc = Math.min(Math.max(freq, 1), fs * 0.49);
+  const fc = Math.min(Math.max(freq, 1), sampleRate * 0.49);
   const p = prototype(shape, fc, gainDb, q);
+  const flat = gainDb === 0 && (shape === "Bell" || shape === "LowShelf" || shape === "HighShelf");
+  return matched(p, sampleRate, shape === "Notch" ? { type: "Notch", fc } : { type: "Matched" }, flat);
+}
+
+/**
+ * How `matched` places a stage's zeros (Rust `Zeros`): matching `|H|` at DC, Nyquist and the
+ * centre; on the unit circle at `fc` (unity at DC); or both at DC, matching Nyquist (a true
+ * second-order high-pass).
+ */
+export type Zeros = { type: "Matched" } | { type: "Notch"; fc: number } | { type: "HighPass" };
+
+/** The matched design of one analog stage (Rust `matched`). `flat` = pass-through, same poles. */
+export function matched(p: Prototype, fs: number, zeros: Zeros, flat: boolean): SvfCoefs {
   const w0 = (2 * Math.PI * p.fp) / fs;
   const zeta = p.k * 0.5;
   const decay = Math.exp(-zeta * w0);
@@ -86,13 +98,16 @@ export function svfCoefs(shape: EqShape, freq: number, gainDb: number, q: number
   const hi = 1 - a1 + a2;
   const g = Math.sqrt(Math.max(lo / hi, 1e-30));
   const k = (2 * (1 - a2)) / (hi * g);
-  if (gainDb === 0 && (shape === "Bell" || shape === "LowShelf" || shape === "HighShelf")) return { g, k, m0: 1, m1: 0, m2: 0 };
+  if (flat) return { g, k, m0: 1, m1: 0, m2: 0 };
   const A = [lo * lo, hi * hi, -4 * a2] as const;
   let b0: number, b1: number, b2: number;
-  if (shape === "Notch") {
-    const c = -2 * Math.cos((2 * Math.PI * fc) / fs);
+  if (zeros.type === "Notch") {
+    const c = -2 * Math.cos((2 * Math.PI * zeros.fc) / fs);
     const scale = lo / (2 + c);
     [b0, b1, b2] = [scale, scale * c, scale];
+  } else if (zeros.type === "HighPass") {
+    const c = Math.sqrt(Math.max(protoMag2(p, fs * 0.5) * A[1], 0)) / 4;
+    [b0, b1, b2] = [c, -2 * c, c];
   } else {
     const wm = Math.min(w0, Math.PI * 0.5);
     const big0 = protoMag2(p, 0) * A[0];

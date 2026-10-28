@@ -24,3 +24,28 @@
 .eth-device.eth-device--window:hover {
   border-color: transparent;
 }
+
+/* A layout that fills its window (the graphic EQ): every level grows with the window, so a
+   taller or wider window gives the curve the room (content-sized windows keep its minimum). */
+.eth-device.eth-device--window.eth-device--fill {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.eth-device--fill > .eth-device__body.eth-layout {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.eth-device--fill .eth-layout__section {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+.eth-device--fill .eth-layout__section > .eth-device__params {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}

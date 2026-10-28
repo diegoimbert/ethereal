@@ -112,7 +112,7 @@ function factoryTemplate(
 
 const FACTORY: ReadonlyMap<string, Stored> = new Map([
   factoryTemplate("vocal-chain", "vocal chain", ["vocal"], "audio track with eq, compressor and reverb.", [
-    ["Audio", "vocal", 0xe8919d, ["Eq", "Compressor", "Reverb"], null],
+    ["Audio", "vocal", 0xe8919d, ["GraphicEq", "Compressor", "Reverb"], null],
   ]),
   factoryTemplate("synth-keys", "synth keys", ["keys", "synth"], "midi track with a poly synth, chorus and delay.", [
     ["Midi", "keys", 0x8fa8e6, ["PolySynth", "Chorus", "Delay"], null],

@@ -42,6 +42,8 @@ const FACTOR: Partial<Record<BuiltinDeviceType, number>> = {
   Utility: 1.15,
   // The spectrum is the device.
   SpectrumAnalyzer: 1.5,
+  // The curve is the device (it grows with the window).
+  GraphicEq: 1.6,
 };
 
 /** The default width (px) of `device`'s window. */

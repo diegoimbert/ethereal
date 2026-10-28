@@ -145,7 +145,10 @@ export function DeviceEditor({ device }: { device: Device }) {
   const picker = useAutoSamplePicker(device);
   return (
     <SamplePickerWindow.Provider value={picker}>
-      <div className={clsx("eth-device", "eth-device--stack", "eth-device--window", !on && "eth-device--bypassed")} data-device-editor={device.id}>
+      <div
+        className={clsx("eth-device", "eth-device--stack", "eth-device--window", fills(descriptor) && "eth-device--fill", !on && "eth-device--bypassed")}
+        data-device-editor={device.id}
+      >
         {!hasWaveform(descriptor) && !isDrumRack(device) && <SampleSlot device={device} />}
         {/* A drum rack's editor is its macro bank, then its pads and pad chains: its
             rack-level Volume/Pan params duplicate the track's fader (still automatable, just
@@ -192,6 +195,14 @@ function useAutoSamplePicker(device: Device) {
     return () => clearTimeout(t);
   }, [auto]);
   return useMemo(() => ({ device: device.id, open, setOpen }), [device.id, open]);
+}
+
+/** Widgets that fill the window (it grows them as it is resized). */
+const FILL_WIDGETS: ReadonlySet<string> = new Set(["GraphicEq"]);
+
+/** Does the device's layout fill its window (a graphic EQ's curve)? */
+function fills(descriptor: DeviceDescriptor | null): boolean {
+  return !!descriptor?.layout?.sections.some((s) => s.items.some((i) => FILL_WIDGETS.has(i.widget.type)));
 }
 
 /** Does the device's layout draw the sample waveform (with its own drop slot)? */

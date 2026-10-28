@@ -71,13 +71,13 @@ describe("chain helpers", () => {
       "Sampler",
       "Compressor",
       "Delay",
-      "EQ",
+      "Parametric EQ",
       "Reverb",
       "Limiter",
       "Utility",
       "Drum Rack",
     ]);
-    expect(insertableTypes(all, audio).map((d) => d.name)).toEqual(["Compressor", "Delay", "EQ", "Reverb", "Limiter", "Utility"]);
+    expect(insertableTypes(all, audio).map((d) => d.name)).toEqual(["Compressor", "Delay", "Parametric EQ", "Reverb", "Limiter", "Utility"]);
   });
 
   it("keeps leading whole groups as the main controls and folds the rest", () => {

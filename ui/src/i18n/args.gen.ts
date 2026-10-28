@@ -180,6 +180,11 @@ export interface MessageArgs {
   "devices.device.show_params_name": { name: string | number };
   "devices.eq.band": { n: string | number };
   "devices.eq.curve": { count: string | number; on: string | number };
+  "devices.graphic_eq.band": { n: string | number };
+  "devices.graphic_eq.curve": { count: string | number };
+  "devices.graphic_eq.range": { db: string | number };
+  "devices.graphic_eq.range_label": { db: string | number };
+  "devices.graphic_eq.range_next": { db: string | number };
   "devices.group.failed": { error: string | number };
   "devices.insert.add_failed": { error: string | number; name: string | number };
   "devices.insert.instrument_needs_midi": { name: string | number };
