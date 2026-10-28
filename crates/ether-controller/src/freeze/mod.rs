@@ -95,8 +95,6 @@ pub enum Finish {
         device: DeviceId,
         new_device: DeviceId,
         zones: Vec<SampleZone>,
-        /// The multisampler's `Offset` (the renders' pre-roll), ms.
-        offset_ms: f64,
     },
 }
 
@@ -386,7 +384,6 @@ where
                 seed_media,
                 keys,
                 velocities,
-                pre_roll_seconds,
                 note_seconds,
                 tail_seconds,
             } => {
@@ -434,9 +431,6 @@ where
                 if !(note_seconds.0.is_finite() && note_seconds.0 > 0.0) {
                     return Err(invalid("the note length must be finite and above 0"));
                 }
-                if !(pre_roll_seconds.0.is_finite() && (0.0..=2.0).contains(&pre_roll_seconds.0)) {
-                    return Err(invalid("the pre-roll must be 0 to 2 seconds"));
-                }
                 if !(tail_seconds.0.is_finite() && tail_seconds.0 >= 0.0) {
                     return Err(invalid("the tail must be finite and >= 0"));
                 }
@@ -444,16 +438,8 @@ where
                 for point in &plan.points {
                     new_media(p, point.media)?;
                 }
-                // The note starts after the pre-roll; the render from 0 to its note-off.
-                let tempo = p.tempo_map();
-                let note_start = tempo.seconds_to_beats(*pre_roll_seconds);
-                let note_end = tempo.seconds_to_beats(Seconds(pre_roll_seconds.0 + note_seconds.0));
-                let duration = Beats(note_end.0 - note_start.0);
-                let frames = RenderJob::frames_of(p, Beats::ZERO, note_end, rate);
-                // The sampler's `Offset`: exactly the note's frame.
-                let offset_ms = RenderJob::frames_of(p, Beats::ZERO, note_start, rate) as f64
-                    / f64::from(rate)
-                    * 1000.0;
+                let duration = p.tempo_map().seconds_to_beats(*note_seconds);
+                let frames = RenderJob::frames_of(p, Beats::ZERO, duration, rate);
                 if frames == 0 {
                     return Err(invalid("the note length is too short to render"));
                 }
@@ -476,7 +462,6 @@ where
                                 params: params.clone(),
                                 key: point.key,
                                 velocity: f32::from(point.velocity) / 127.0,
-                                start: note_start,
                                 duration,
                                 clip,
                                 note,
@@ -500,7 +485,6 @@ where
                         device: *device,
                         new_device: *new_device,
                         zones: plan.zones,
-                        offset_ms,
                     },
                     out,
                 )
@@ -1089,7 +1073,6 @@ where
                 device,
                 new_device,
                 zones,
-                offset_ms,
             } => (
                 "Convert to sampler",
                 self.edit_with(
@@ -1097,16 +1080,7 @@ where
                     None,
                     now,
                     out,
-                    |ctx| {
-                        edit::finish_convert_to_sampler(
-                            ctx,
-                            *device,
-                            *new_device,
-                            zones,
-                            *offset_ms,
-                            &media,
-                        )
-                    },
+                    |ctx| edit::finish_convert_to_sampler(ctx, *device, *new_device, zones, &media),
                 ),
             ),
             f @ Finish::Consolidate { .. } => (

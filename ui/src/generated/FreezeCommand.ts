@@ -17,12 +17,6 @@ keys: Array<number>,
  */
 velocities: Array<number>, 
 /**
- * Silence before each note: a render starts this long before its note (the
- * instrument runs, transport playing, before the note-on), and the multisampler's
- * `Offset` is set to it so playback starts on the note. 0..=2 s.
- */
-pre_roll_seconds: Seconds, 
-/**
  * How long each note is held before note-off.
  */
 note_seconds: Seconds, 

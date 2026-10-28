@@ -90,15 +90,6 @@
                 "param": 5,
                 "type": "Knob"
               }
-            },
-            {
-              "colspan": 1,
-              "label": null,
-              "size": "Small",
-              "widget": {
-                "param": 21,
-                "type": "Knob"
-              }
             }
           ],
           "span": 1,
@@ -715,21 +706,6 @@
           "type": "Linear"
         },
         "unit": "Pan"
-      },
-      {
-        "automatable": true,
-        "default": 0.0,
-        "group": "Voice",
-        "hidden": false,
-        "id": 21,
-        "labels": null,
-        "max": 2000.0,
-        "min": 0.0,
-        "name": "Offset",
-        "scale": {
-          "type": "Linear"
-        },
-        "unit": "Milliseconds"
       }
     ],
     "sidechain_inputs": 0

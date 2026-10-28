@@ -128,10 +128,9 @@ describe("convert to sampler dialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "convert" }));
     await flush();
     const c = sent.find((c) => c.domain === "Freeze");
-    expect(c?.domain === "Freeze" && c.command.type === "ConvertToSampler" && [c.command.keys, c.command.velocities, c.command.pre_roll_seconds]).toEqual([
+    expect(c?.domain === "Freeze" && c.command.type === "ConvertToSampler" && [c.command.keys, c.command.velocities]).toEqual([
       [36, 48, 60, 72, 84, 96],
       [127],
-      0.2,
     ]);
   });
 

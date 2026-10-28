@@ -43,7 +43,6 @@ function ConvertDialog({ device }: { device: Device }) {
   const [keyPreset, setKeyPreset] = useState<PresetValue>(String(DEFAULT_KEY_STEP));
   const [velocities, setVelocities] = useState(() => presetVelocities(DEFAULT_VELOCITIES));
   const [velocityPreset, setVelocityPreset] = useState<PresetValue>(String(DEFAULT_VELOCITIES));
-  const [preRollSeconds, setPreRollSeconds] = useState(0.2);
   const [noteSeconds, setNoteSeconds] = useState(4);
   const [tailSeconds, setTailSeconds] = useState(2);
   const count = sampleCount({ keys, velocities });
@@ -52,7 +51,7 @@ function ConvertDialog({ device }: { device: Device }) {
   const confirm = () => {
     if (blocked) return;
     close();
-    void convertToSampler(transport, device, { keys, velocities, preRollSeconds, noteSeconds, tailSeconds });
+    void convertToSampler(transport, device, { keys, velocities, noteSeconds, tailSeconds });
   };
   // A hand edit leaves the preset.
   const editKeys = (next: number[]) => {
@@ -132,19 +131,6 @@ function ConvertDialog({ device }: { device: Device }) {
         </p>
       </section>
       <div className="eth-sampler-convert__grid">
-        <label className="eth-sampler-convert__field" title={t("sampler.convert.pre_roll_hint")}>
-          <span>{t("sampler.convert.pre_roll")}</span>
-          <NumberField
-            aria-label={t("sampler.convert.pre_roll")}
-            value={preRollSeconds}
-            onChange={setPreRollSeconds}
-            min={0}
-            max={2}
-            step={0.01}
-            precision={2}
-            unit={t("sampler.convert.seconds")}
-          />
-        </label>
         <label className="eth-sampler-convert__field">
           <span>{t("sampler.convert.note_length")}</span>
           <NumberField

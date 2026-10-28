@@ -199,7 +199,6 @@ describe("MockTransport ConvertToSampler", () => {
         seed_media: newId(),
         keys: [64, 60, 62],
         velocities: [64, 127],
-        pre_roll_seconds: 0.2,
         note_seconds: 1,
         tail_seconds: 1,
       }),
@@ -211,7 +210,6 @@ describe("MockTransport ConvertToSampler", () => {
     expect(sampler.name).toBe(`${t.name} Sampler`);
     expect(sampler.params[0]).toBe(0);
     expect(sampler.params[5]).toBe(0);
-    expect(sampler.params[21]).toBe(200);
     if (sampler.kind.type !== "Builtin" || sampler.kind.device.type !== "MultiSampler") throw new Error("not a multisampler");
     expect(sampler.kind.device.zones).toHaveLength(6);
     expect(sampler.kind.device.zones.map((z) => [z.root_key, z.velocities.lo, z.velocities.hi])).toEqual([
@@ -250,7 +248,6 @@ describe("MockTransport ConvertToSampler", () => {
       seed_media: newId(),
       keys: [60],
       velocities: [127],
-      pre_roll_seconds: 0,
       note_seconds: 1,
       tail_seconds: 1,
     });

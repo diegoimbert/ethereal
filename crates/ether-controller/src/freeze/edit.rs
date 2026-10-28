@@ -256,7 +256,6 @@ pub fn finish_convert_to_sampler(
     device: DeviceId,
     new_device: DeviceId,
     zones: &[SampleZone],
-    offset_ms: f64,
     media: &[MediaRef],
 ) -> CmdResult<()> {
     let d = ctx.device(device)?.clone();
@@ -296,15 +295,10 @@ pub fn finish_convert_to_sampler(
         }),
     };
     doc::apply(ctx, &insert)?;
-    // The samples carry the instrument's own attack from their note's frame (the render is
-    // latency-compensated and never trimmed at the start): `Offset` starts playback there,
-    // and no amp attack on top, which would soften every onset (the default 1 ms ramp
-    // audibly dulled percussive sounds).
+    // The samples carry the instrument's own attack from their first frame (the render is
+    // latency-compensated and never trimmed at the start): no amp attack on top, which
+    // would soften every onset (the default 1 ms ramp audibly dulled percussive sounds).
     for (param, value) in [
-        (
-            ether_devices::multisampler::multi_sampler::OFFSET,
-            offset_ms,
-        ),
         (ether_devices::multisampler::multi_sampler::AMP_ATTACK, 0.0),
         (ether_devices::multisampler::multi_sampler::VOLUME, 0.0),
         (

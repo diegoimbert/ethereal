@@ -47,7 +47,7 @@ export interface FreezeHost extends MockHost {
 
 type Finish =
   | { type: "Freeze"; track: TrackId; upTo?: DeviceId }
-  | { type: "ConvertToSampler"; device: DeviceId; newDevice: DeviceId; zones: SampleZone[]; offsetMs: number }
+  | { type: "ConvertToSampler"; device: DeviceId; newDevice: DeviceId; zones: SampleZone[] }
   | { type: "Bounce"; track: TrackId; start: Beats; target: BounceTarget }
   | { type: "Consolidate"; tracks: TrackId[]; start: Beats; end: Beats }
   | { type: "BounceRange"; start: Beats; bounces: { track: TrackId; newTrack: TrackId; clip: ClipId; media: MediaId }[] };
@@ -252,7 +252,6 @@ export class MockFreeze {
         if (t.freeze) fail("InvalidState", `track "${t.name}" is frozen: unfreeze it first`);
         if (p.devices[c.new_device]) fail("InvalidArgument", `device ${c.new_device} already exists`);
         if (!(c.note_seconds > 0)) fail("InvalidArgument", "the note length must be above 0");
-        if (!(c.pre_roll_seconds >= 0 && c.pre_roll_seconds <= 2)) fail("InvalidArgument", "the pre-roll must be 0 to 2 seconds");
         const keys = sortedSet(c.keys);
         const velocities = sortedSet(c.velocities);
         if (!keys.length) fail("InvalidArgument", "pick at least one key to sample");
@@ -270,7 +269,7 @@ export class MockFreeze {
           for (const [vi, velocity] of velocities.entries()) {
             const [vlo, vhi] = velocityRanges[vi]!;
             const id = this.host.newId();
-            media.push(this.media(id, `${t.name} ${noteName(key)} v${velocity}`, c.pre_roll_seconds + c.note_seconds + c.tail_seconds));
+            media.push(this.media(id, `${t.name} ${noteName(key)} v${velocity}`, c.note_seconds + c.tail_seconds));
             zones.push({
               media: id,
               root_key: key,
@@ -289,7 +288,7 @@ export class MockFreeze {
             });
           }
         });
-        return this.start(c.job, media, { type: "ConvertToSampler", device: c.device, newDevice: c.new_device, zones, offsetMs: c.pre_roll_seconds * 1000 });
+        return this.start(c.job, media, { type: "ConvertToSampler", device: c.device, newDevice: c.new_device, zones });
       }
       case "Cancel":
         if (this.job?.job === c.job) {
@@ -401,8 +400,6 @@ export class MockFreeze {
           apply(cmd("Device", { type: "SetParam", device: f.newDevice, param: 0, value: 0 }));
           const layered = new Set(f.zones.map((z) => `${z.velocities.lo}:${z.velocities.hi}`)).size > 1;
           apply(cmd("Device", { type: "SetParam", device: f.newDevice, param: 5, value: layered ? 0 : 100 }));
-          // `Offset` (21) skips the renders' pre-roll.
-          apply(cmd("Device", { type: "SetParam", device: f.newDevice, param: 21, value: f.offsetMs }));
           apply(cmd("Device", { type: "Rename", id: f.newDevice, name: `${t.name} Sampler` }));
           apply(cmd("Device", { type: "Remove", id: f.device }));
         } else if (f.type === "Bounce") {
