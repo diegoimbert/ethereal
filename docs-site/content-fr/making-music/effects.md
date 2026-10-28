@@ -107,7 +107,7 @@ Un limiteur de mastering pour la sonie : baissez le **seuil** et le son devient
 
 Trois formes dessinées qui se répètent en rythme avec le morceau : une pour le **volume**, une pour la **coupure** d’un filtre et une pour le **panoramique**. Chaque piste a sa propre **vitesse** (1/64 à 8 mesures), sa **profondeur** et son interrupteur ; le volume est actif par défaut (un pompage façon sidechain), la coupure et le panoramique sont éteints.
 
-- Dessinez dans une piste comme dans le lfo de volume : double-cliquez pour ajouter ou supprimer un point, faites glisser les points (ils s’alignent sur la grille, maintenez alt pour ne pas aligner), alt-glissez un segment pour le courber, clic droit pour un segment en escalier, linéaire ou lissé. Une piste éteinte reste modifiable, en plus pâle.
+- Dessinez dans une piste comme dans le [modeleur de volume](#volume-shaper) : double-cliquez pour ajouter ou supprimer un point, faites glisser les points (ils s’alignent sur la grille, maintenez alt pour ne pas aligner), alt-glissez un segment pour le courber, clic droit pour un segment en escalier, linéaire ou lissé. Une piste éteinte reste modifiable, en plus pâle.
 - **coupure** balaie un filtre **passe-bas**, **passe-haut** ou **passe-bande** entre les coupures **bas** et **haut** (le bas et le haut de la piste), avec de la **résonance**.
 - **panoramique** déplace le son à gauche (en bas) et à droite (en haut) en baissant l’autre côté, jamais en le montant.
 - **lissage** adoucit les arêtes (1 ms par défaut ; augmentez-le si une coupe claque). **mix** mélange le son sec.
@@ -167,6 +167,15 @@ Ces effets font bouger le son avec un LFO. La plupart ont **sync** pour caler le
 - **phaser** : un son creux qui balaie, avec 2 à 12 étages.
 - **flanger** : un balayage façon avion à réaction. **passage par zéro** le rend plus spectaculaire.
 - **trémolo** : fait pulser le volume, ou avec **panoramique auto**, déplace le son de gauche à droite.
+
+### modeleur de volume {#volume-shaper}
+
+Dessine le volume sur un cycle qui se répète en rythme avec le morceau : un pompage façon sidechain sans sidechain, des gates, des hachures et des montées. Il démarre sur le classique effacement par le kick à chaque temps.
+
+- Le cycle dure une **vitesse synchro**, de 1/64 à 8 mesures avec les triolets (1/4 par défaut). Désactivez **synchro** pour régler une **vitesse** libre en hertz. Un cycle synchronisé suit la position dans le morceau, il tombe donc sur le temps où que démarre la lecture.
+- Dessinez la forme : double-cliquez pour ajouter ou supprimer un point, faites glisser les points (ils s’alignent sur la grille, maintenez alt pour ne pas aligner), alt-glissez un segment pour le courber, clic droit pour un segment en escalier, linéaire ou lissé. Le haut est le volume plein, le bas le silence.
+- **profondeur** dose toute la forme (0 % laisse le son intact), **phase** la décale dans le cycle, **phase stéréo** décale le côté droit, et **lissage** adoucit les arêtes pour que les marches ne claquent pas.
+- Les préréglages couvrent les pompages de kick en sidechain (1/4 doux, classique et dur, 1/8, 1/2, demi-temps, effacement à contretemps) et des gates trance, des hachures, des montées et du trémolo.
 
 ### décaleur {#shifter}
 

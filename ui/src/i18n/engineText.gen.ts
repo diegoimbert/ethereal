@@ -496,7 +496,7 @@ export const ENGINE_TEXT: Readonly<Record<string, MessageKey | readonly [Message
   Voice: "engine.voice",
   Voices: "engine.voices",
   Volume: "engine.volume",
-  "Volume LFO": "engine.volume_lfo",
+  "Volume Shaper": "engine.volume_shaper",
   Wave: "engine.wave",
   Waveform: "engine.waveform",
   Wavetable: "engine.wavetable",

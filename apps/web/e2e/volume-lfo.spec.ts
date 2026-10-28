@@ -46,9 +46,9 @@ test("volume lfo: a factory preset draws its curve, double-click adds a point", 
 
   // Load "trance gate 1/16" from the header's preset menu.
   const card = page.locator(`section[data-device="${id}"]`);
-  const trigger = card.getByRole("button", { name: "presets for volume lfo" });
+  const trigger = card.getByRole("button", { name: "presets for volume shaper" });
   await clickHeaderControl(trigger);
-  const panel = page.getByRole("dialog", { name: "presets for volume lfo" });
+  const panel = page.getByRole("dialog", { name: "presets for volume shaper" });
   await panel.getByRole("textbox", { name: "search presets" }).fill("trance");
   await panel.getByRole("button", { name: /trance gate 1\/16/ }).click();
   await expect.poll(() => points(page, id)).toBe(22);

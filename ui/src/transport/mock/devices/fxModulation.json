@@ -1736,7 +1736,7 @@
       ]
     },
     "midi_input": false,
-    "name": "Volume LFO",
+    "name": "Volume Shaper",
     "params": [
       {
         "automatable": true,

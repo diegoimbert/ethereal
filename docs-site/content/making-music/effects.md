@@ -107,7 +107,7 @@ A mastering limiter for loudness: lower the **threshold** and the sound gets tha
 
 Three drawn shapes that repeat in time with the song: one for the **volume**, one for a filter's **cutoff** and one for the **pan**. Each lane has its own **rate** (1/64 to 8 bars), **depth** and on/off switch; volume is on by default (a sidechain-style pump), cutoff and pan are off.
 
-- Draw in a lane like in the volume lfo: double-click to add or delete a point, drag points (they snap to the grid, hold alt for no snap), alt-drag a segment to bend it, right-click for step, linear or smooth segments. A lane that is off stays editable, drawn dim.
+- Draw in a lane like in the [volume shaper](#volume-shaper): double-click to add or delete a point, drag points (they snap to the grid, hold alt for no snap), alt-drag a segment to bend it, right-click for step, linear or smooth segments. A lane that is off stays editable, drawn dim.
 - **cutoff** sweeps a **low-pass**, **high-pass** or **band-pass** filter between the **bottom** and **top** cutoffs (the bottom and the top of the lane), with **resonance**.
 - **pan** moves the sound left (bottom) and right (top) by turning the other side down, never up.
 - **smoothing** softens hard edges (1 ms by default; raise it if a chop clicks). **mix** blends the dry sound back in.
@@ -167,6 +167,15 @@ These effects make the sound move with an LFO. Most have **sync** to lock their 
 - **phaser**: a sweeping, hollow sound, with 2 to 12 stages.
 - **flanger**: a jet-like sweep. **through zero** makes it more dramatic.
 - **tremolo**: makes the volume pulse, or with **auto-pan**, moves the sound from left to right.
+
+### volume shaper
+
+Draws the volume over a cycle that repeats in time with the song: sidechain pumping without a sidechain, gates, chops and swells. It starts on the classic kick duck at every beat.
+
+- The cycle lasts one **sync rate**, from 1/64 to 8 bars with triplets (1/4 by default). Turn **sync** off to set a free **rate** in hertz. A synced cycle follows the song position, so it lines up with the beat wherever playback starts.
+- Draw the shape: double-click to add or delete a point, drag points (they snap to the grid, hold alt for no snap), alt-drag a segment to bend it, right-click for step, linear or smooth segments. The top is full volume, the bottom is silence.
+- **depth** scales the whole shape (0 % leaves the sound untouched), **phase** shifts it in the cycle, **stereo phase** offsets the right side, and **smoothing** softens hard edges so steps don't click.
+- The presets cover kick sidechain pumps (1/4 soft, classic and hard, 1/8, 1/2, half-time, offbeat duck) and trance gates, chops, swells and tremolo.
 
 ### shifter
 

@@ -100,7 +100,7 @@
 //! | 8 | Output | `Mix` | 0 ..= 100 Percent, default 100 |
 //! | 9 | Output | `Output` | -24 ..= 24 Decibels, default 0 |
 //!
-//! # Volume LFO (`BuiltinDeviceType::VolumeLfo`)
+//! # Volume Shaper (`BuiltinDeviceType::VolumeLfo`)
 //!
 //! The gain follows a drawn LFO cycle (`BuiltinDevice::VolumeLfo { curve }`,
 //! `ether_model::lfo_curve`): sidechain pumping, gates, chops. Synced, the phase is the song
@@ -633,7 +633,7 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
         ),
         BuiltinDeviceType::VolumeLfo => build(
             BuiltinDeviceType::VolumeLfo,
-            "Volume LFO",
+            "Volume Shaper",
             DeviceCategory::AudioEffect,
             vec![
                 param(

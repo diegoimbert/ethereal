@@ -3786,7 +3786,7 @@
   "engine.voice": "voix",
   "engine.voices": "voix",
   "engine.volume": "volume",
-  "engine.volume_lfo": "lfo de volume",
+  "engine.volume_shaper": "modeleur de volume",
   "engine.wave": "onde",
   "engine.waveform": "forme d’onde",
   "engine.wavetable": "table d’ondes",
