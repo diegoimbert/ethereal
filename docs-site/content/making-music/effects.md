@@ -7,6 +7,7 @@ audience: everyone
 covers:
   - devices/compressor #compressor
   - devices/eq #eq
+  - devices/parametric-eq #parametric-eq
   - devices/delay #delay
   - devices/grain-delay #grain-delay
   - devices/reverb #reverb
@@ -36,7 +37,19 @@ These are the effects most songs use.
 
 ### eq
 
-An 8-band equalizer to cut or boost frequencies.
+An equalizer you draw on: cut or boost frequencies by placing points on its curve. It starts flat (a straight line, no band: the sound passes untouched) and can hold up to 24 bands. The window can be resized: the curve grows with it.
+
+- **Add a band**: double-click the line. A bell appears there; keep the second click held down and move to drag it right away.
+- **Drag a point** to change its frequency (left and right) and gain (up and down). Bands without a gain (cuts, notch, band-pass) change their Q when dragged up and down. [[key:Alt]]-drag or scroll the wheel over a point to change its width or resonance (Q); [[key:Shift]] makes any drag finer.
+- **Remove a band**: double-click its point, or press [[key:Delete]] on a focused point.
+- **Click a point** to open its panel: type, frequency, gain, Q, slope, on and delete. **Right-click** it for its type, slope and on/off; right-click the background to remove every band.
+- **Types**: bell, low shelf, low cut, high shelf, high cut, notch, band-pass, tilt shelf (lows down and highs up around the frequency, or the other way) and flat tilt (an even slope over the whole range, 0 dB at the frequency). Cuts and the band-pass have a **slope** from 6 to 96 dB/oct; their Q is the resonance at the cutoff (0.71 is flat).
+- The live spectrum behind the curve shows what goes in and comes out. The button above it switches the display range (±6, 12, 24 or 30 dB); **output** sets the level.
+- Every band is made of plain parameters, so you can automate them, map them to a MIDI controller or a macro, and undo any change. It adds no latency.
+
+### parametric eq
+
+The earlier eight-band equalizer, kept for its fixed layout: every band is always there with its own row of knobs.
 
 - Each band is a low cut, low shelf, bell, notch, high shelf or high cut. Bands 2 to 7 start on, bands 1 and 8 (a low cut and a high cut) start off.
 - **On the curve**: drag a band's handle to change its frequency (left and right) and gain (up and down). [[key:Alt]]-drag or scroll the wheel over it to change its width (Q). [[key:Shift]] makes any drag finer. Double-click a handle to turn the band on or off; right-click it to change its type or reset it.

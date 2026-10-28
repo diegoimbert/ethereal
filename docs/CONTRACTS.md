@@ -1103,7 +1103,7 @@ Small/Medium/Large, `colspan`, `label`). Widget catalog (append-only: a new widg
 widgets `Knob`, `Slider`, `Toggle`, `Choice`, `Number`; typed widgets `Envelope`,
 `FilterCurve`, `TransferCurve`, `Oscillator`, `Lfo`, `StepEditor`, `XyPad`, `Crossover`;
 data widgets `SampleWaveform`, `ZoneMap`, `Spectrum`, `Tuner`, `Meter`, `RackChains`,
-`Macros`, and `EqCurve` (§12.15, the EQ only for now). Appended by `DynamicsCurve` (compressor / gate / limiter transfer curve with a live detector-level dot from `Levels`), `DelayTaps` (delay echoes), `ReverbDecay` (reverb decay envelope) and `VelocityCurve` (MIDI velocity mapping). Appended by `fm-synth`: `FmAlgorithm` (an FM synth's algorithm picker: one routing diagram per choice of its `algorithm` param, from `FmRouting` modulator / carrier bit masks). Appended by `fx-modulation`: `LfoCurve` (the Volume LFO's curve editor: the kind's `LfoCurve` on a grid of the cycle's sixteenths, edited with `Device::SetLfoCurve`, with a playhead; binds sync, sync rate, rate, phase and depth). Appended by `fx-analysis`: `Loudness` (a loudness meter's readouts and momentary / short-term history from its `Levels` frame, with the `target` param's reference line). Appended by `adaptive-eq`: `AdaptiveEq` (the combined response of an adaptive EQ's band filters over its band levels relative to the reference, from its `Levels` frame; binds recover and tame). Appended by `pitch-correction`: `PitchCorrection` (detected and corrected pitch history on a keyboard grid with the key / scale notes, from its `Levels` frame; binds key and scale). Appended by `shaper`: `ShaperCurve` (one lane of a shaper's drawn cycles, written with `Device::SetShaperCurve`; binds on, rate, depth). Appended by `maximizer`: `Maximizer` (input, output and gain-reduction history and readouts from its `Levels` frame, with the `ceiling` line; binds threshold and ceiling). **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
+`Macros`, and `EqCurve` (§12.15, the EQ only for now). Appended by `DynamicsCurve` (compressor / gate / limiter transfer curve with a live detector-level dot from `Levels`), `DelayTaps` (delay echoes), `ReverbDecay` (reverb decay envelope) and `VelocityCurve` (MIDI velocity mapping). Appended by `fm-synth`: `FmAlgorithm` (an FM synth's algorithm picker: one routing diagram per choice of its `algorithm` param, from `FmRouting` modulator / carrier bit masks). Appended by `fx-modulation`: `LfoCurve` (the Volume LFO's curve editor: the kind's `LfoCurve` on a grid of the cycle's sixteenths, edited with `Device::SetLfoCurve`, with a playhead; binds sync, sync rate, rate, phase and depth). Appended by `fx-analysis`: `Loudness` (a loudness meter's readouts and momentary / short-term history from its `Levels` frame, with the `target` param's reference line). Appended by `adaptive-eq`: `AdaptiveEq` (the combined response of an adaptive EQ's band filters over its band levels relative to the reference, from its `Levels` frame; binds recover and tame). Appended by `graphic-eq`: `GraphicEq` (the default EQ's editor, filling its window: the used bands' response over the spectrum, points added by double-click, §12.15; binds every band's used, on, type, freq, gain, Q and slope, and the output). Appended by `pitch-correction`: `PitchCorrection` (detected and corrected pitch history on a keyboard grid with the key / scale notes, from its `Levels` frame; binds key and scale). Appended by `shaper`: `ShaperCurve` (one lane of a shaper's drawn cycles, written with `Device::SetShaperCurve`; binds on, rate, depth). Appended by `maximizer`: `Maximizer` (input, output and gain-reduction history and readouts from its `Levels` frame, with the `ceiling` line; binds threshold and ceiling). **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
 tokens only) renders every built-in; devices without a layout (plugins, v0.1 devices until
 they add one) get the generic layout grouped by `ParamInfo::group`. Devices write
 specs and widget data only, never bespoke panels. `ModulatorDescriptor::layout` uses the same
@@ -1492,6 +1492,24 @@ latency-aligned sidechain buffers (§11.10) through `Node::process_sidechain`.
 - `EqCurve` is for the EQ only in v0.2: the auto filter and the multiband compressor use
   standard controls (`FilterCurve`, `Crossover`, knobs). Other filters may adopt it later with
   an explicit param mapping (a change to this section).
+- `graphic-eq`: `BuiltinDeviceType::GraphicEq` is the default EQ ("EQ" in the library,
+  `eq` for the agent tools); the eight-band `Eq` above is the "Parametric EQ"
+  (`parametric-eq` for the agent tools; same type, ids and documents). `ether_devices::
+  graphic_eq`: 24 band slots of 7 params (`7·b + {Used, On, Type, Freq, Gain, Q, Slope}`),
+  then `Output` (168); every slot is unused by default (pass-through, bit-exact). Types
+  `GraphicEqShape` (Bell, Low Shelf, Low Cut, High Shelf, High Cut, Notch, Band-pass, Tilt
+  Shelf, Flat Tilt; plain value = index of `GraphicEqShape::ALL`), slopes
+  `GRAPHIC_EQ_SLOPES` (6..96 dB/oct, cuts and band-pass). A band's response is
+  `eq_response::graphic_eq_stages` (up to 8 matched SVF stages: Butterworth cuts with a true
+  second-order high-pass numerator, the highest-Q section scaled by `Q / √½`), mirrored in
+  `ui/src/features/devices/layout/graphicEq/response.ts` against
+  `crates/ether-protocol/tests/fixtures/graphic_eq_vectors.json` (1e-6 dB). Coefficients glide
+  per sample (≈15 ms); zero latency; `SpectrumPre` / `Spectrum` frames as the EQ.
+  Widget `GraphicEq { bands: [GraphicEqBandBinding { used, on, kind, freq, gain, q, slope }],
+  output, spectrum }`: a 10 Hz–30 kHz log axis; double-click = use the first free slot as a
+  bell at the pointer (the held second press drags it), drag = freq + gain (Q for shapes
+  without gain), Alt-drag / wheel = Q, double-click a point = `Used` off, context menu = type
+  / slope / on. One gesture per placement + drag, drag, wheel burst or removal.
 
 ## 13. v0.3 contracts
 
@@ -1575,6 +1593,8 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   `Recover` boosts (±`Range`, glided by `Speed`), applied by 32 bell SVFs (no latency) with
   `Auto Gain`; `Levels` frames carry 64 response points and the band levels and gains
   (`ether_devices::adaptive_eq::Frame`).
+  Then `GraphicEq` (`ether_devices::graphic_eq`, no kind data): the default EQ, 24 band
+  slots unused by default (§12.15).
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.

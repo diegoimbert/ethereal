@@ -7,6 +7,7 @@ audience: everyone
 covers:
   - devices/compressor #compressor
   - devices/eq #eq
+  - devices/parametric-eq #parametric-eq
   - devices/delay #delay
   - devices/grain-delay #grain-delay
   - devices/reverb #reverb
@@ -36,7 +37,19 @@ Ce sont les effets que la plupart des morceaux utilisent.
 
 ### eq {#eq}
 
-Un égaliseur 8 bandes pour couper ou accentuer des fréquences.
+Un égaliseur qui se dessine : coupez ou accentuez des fréquences en plaçant des points sur sa courbe. Il démarre à plat (une ligne droite, aucune bande : le son passe intact) et peut contenir jusqu’à 24 bandes. La fenêtre se redimensionne : la courbe grandit avec elle.
+
+- **Ajouter une bande** : double-cliquez sur la ligne. Une cloche y apparaît ; gardez le second clic enfoncé et bougez pour la faire glisser tout de suite.
+- **Faites glisser un point** pour changer sa fréquence (gauche et droite) et son gain (haut et bas). Les bandes sans gain (coupe-bas, coupe-haut, coupe-bande, passe-bande) changent leur Q quand on les fait glisser vers le haut ou le bas. Faites glisser avec [[key:Alt]] ou tournez la molette sur un point pour changer sa largeur ou sa résonance (Q) ; [[key:Shift]] rend tout glissement plus fin.
+- **Supprimer une bande** : double-cliquez sur son point, ou appuyez sur [[key:Delete]] sur un point qui a le focus.
+- **Cliquez sur un point** pour ouvrir son panneau : type, fréquence, gain, Q, pente, activation et suppression. **Faites un clic droit** dessus pour son type, sa pente et son activation ; un clic droit sur le fond supprime toutes les bandes.
+- **Types** : cloche, plateau grave, coupe-bas, plateau aigu, coupe-haut, coupe-bande, passe-bande, plateau incliné (les graves baissent et les aigus montent autour de la fréquence, ou l’inverse) et inclinaison globale (une pente régulière sur toute la plage, 0 dB à la fréquence). Les coupe-bas, coupe-haut et le passe-bande ont une **pente** de 6 à 96 dB/oct ; leur Q est la résonance à la coupure (0,71 est plat).
+- Le spectre en direct derrière la courbe montre ce qui entre et ce qui sort. Le bouton au-dessus change la plage affichée (±6, 12, 24 ou 30 dB) ; **sortie** règle le niveau.
+- Chaque bande est faite de paramètres ordinaires : vous pouvez les automatiser, les associer à un contrôleur MIDI ou à une macro, et annuler tout changement. Il n’ajoute aucune latence.
+
+### eq paramétrique {#parametric-eq}
+
+L’ancien égaliseur 8 bandes, gardé pour sa disposition fixe : chaque bande est toujours là, avec sa propre rangée de boutons.
 
 - Chaque bande est un coupe-bas, un shelf grave, une cloche, un coupe-bande, un shelf aigu ou un coupe-haut. Les bandes 2 à 7 démarrent activées, les bandes 1 et 8 (un coupe-bas et un coupe-haut) désactivées.
 - **Sur la courbe** : faites glisser la poignée d’une bande pour changer sa fréquence (gauche et droite) et son gain (haut et bas). Faites-la glisser avec [[key:Alt]] ou tournez la molette dessus pour changer sa largeur (Q). [[key:Shift]] rend tout glissement plus fin. Double-cliquez sur une poignée pour activer ou désactiver la bande ; faites un clic droit dessus pour changer son type ou la réinitialiser.

@@ -1729,7 +1729,15 @@
         {
           "id": "devices/eq",
           "title": "eq",
-          "what": "8-band parametric eq (low cut, low shelf, bell, notch, high shelf, high cut), channel stereo / left / right / mid / side, live spectrum. on the curve: drag a handle for frequency + gain, alt-drag or wheel for q, shift = fine, double-click toggles a band, right-click for type and reset; arrow keys on a focused handle.",
+          "what": "the default eq, drawn on its curve: starts flat with no band, double-click the line to add a band (hold the second click to drag it), drag = frequency + gain, alt-drag or wheel = q, double-click a point to remove it, click for its panel, right-click for type / slope / on; up to 24 bands: bell, low / high shelf, low / high cut (6..96 db/oct), notch, band-pass, tilt shelf, flat tilt; live spectrum, display range, output; resizes with its window; no latency.",
+          "priority": "should",
+          "audience": "everyone",
+          "platform": "all"
+        },
+        {
+          "id": "devices/parametric-eq",
+          "title": "parametric eq",
+          "what": "the earlier 8-band parametric eq (low cut, low shelf, bell, notch, high shelf, high cut), channel stereo / left / right / mid / side, live spectrum. on the curve: drag a handle for frequency + gain, alt-drag or wheel for q, shift = fine, double-click toggles a band, right-click for type and reset; arrow keys on a focused handle.",
           "priority": "should",
           "audience": "everyone",
           "platform": "all"
