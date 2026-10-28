@@ -335,10 +335,8 @@ where
                 device,
                 new_device,
                 seed_media,
-                first_key,
-                last_key,
-                key_step,
-                velocity_steps,
+                keys,
+                velocities,
                 note_seconds,
                 tail_seconds,
             } => {
@@ -385,13 +383,7 @@ where
                 if !(tail_seconds.0.is_finite() && tail_seconds.0 >= 0.0) {
                     return Err(invalid("the tail must be finite and >= 0"));
                 }
-                let plan = sample::plan(
-                    *first_key,
-                    *last_key,
-                    *key_step,
-                    *velocity_steps,
-                    *seed_media,
-                )?;
+                let plan = sample::plan(keys, velocities, *seed_media)?;
                 for point in &plan.points {
                     new_media(p, point.media)?;
                 }

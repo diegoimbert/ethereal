@@ -2226,10 +2226,8 @@ fn converts_an_instrument_rack_to_a_multisampler() {
             device: rack,
             new_device,
             seed_media: seed,
-            first_key: 60,
-            last_key: 64,
-            key_step: 2,
-            velocity_steps: 2,
+            keys: vec![60, 62, 64],
+            velocities: vec![64, 127],
             note_seconds: Seconds(0.2),
             tail_seconds: Seconds(0.1),
         })),
@@ -2267,7 +2265,7 @@ fn converts_an_instrument_rack_to_a_multisampler() {
                 .iter()
                 .map(|z| (z.velocities.lo, z.velocities.hi))
                 .collect::<BTreeSet<_>>(),
-            BTreeSet::from([(1, 63), (64, 127)])
+            BTreeSet::from([(1, 95), (96, 127)])
         );
         // Every key plays the nearest sample (one zone per velocity layer); the edges cover
         // the keyboard.
@@ -2307,41 +2305,34 @@ fn convert_to_sampler_validates_the_target_and_the_count() {
     let t = d.track(TrackKind::Midi, "Keys");
     let synth = d.device(t, BuiltinDevice::new(BuiltinDeviceType::Synth));
     let delay = d.device(t, BuiltinDevice::new(BuiltinDeviceType::Delay));
-    let cmd = |device: DeviceId, first: u8, last: u8, step: u8, velocities: u8| {
+    let cmd = |device: DeviceId, keys: Vec<u8>, velocities: Vec<u8>| {
         Command::Freeze(FreezeCommand::ConvertToSampler {
             job: "x".into(),
             device,
             new_device: DeviceId::NIL,
             seed_media: MediaId::NIL,
-            first_key: first,
-            last_key: last,
-            key_step: step,
-            velocity_steps: velocities,
+            keys,
+            velocities,
             note_seconds: Seconds(0.2),
             tail_seconds: Seconds(0.1),
         })
     };
+    let invalid = |d: &mut Drive, c: Command| {
+        assert_eq!(err(&d.send(c)).code, ErrorCode::InvalidArgument);
+    };
     // A delay is not an instrument.
-    assert_eq!(
-        err(&d.send(cmd(delay, 60, 64, 1, 1))).code,
-        ErrorCode::InvalidArgument
-    );
+    invalid(&mut d, cmd(delay, vec![60], vec![127]));
     // 128 keys × 5 layers is more than MAX_ZONES.
-    let out = d.send(cmd(synth, 0, 127, 1, 5));
-    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
-    // Bad ranges.
-    assert_eq!(
-        err(&d.send(cmd(synth, 64, 60, 1, 1))).code,
-        ErrorCode::InvalidArgument
+    invalid(
+        &mut d,
+        cmd(synth, (0..=127).collect(), vec![25, 50, 75, 100, 127]),
     );
-    assert_eq!(
-        err(&d.send(cmd(synth, 60, 64, 0, 1))).code,
-        ErrorCode::InvalidArgument
-    );
-    assert_eq!(
-        err(&d.send(cmd(synth, 60, 64, 1, 0))).code,
-        ErrorCode::InvalidArgument
-    );
+    // Bad lists: no key, a key past 127, no velocity, velocity 0, too many velocities.
+    invalid(&mut d, cmd(synth, vec![], vec![127]));
+    invalid(&mut d, cmd(synth, vec![128], vec![127]));
+    invalid(&mut d, cmd(synth, vec![60], vec![]));
+    invalid(&mut d, cmd(synth, vec![60], vec![0]));
+    invalid(&mut d, cmd(synth, vec![60], (1..=17).collect()));
 }
 
 /// Interleaved 32-bit float WAV (the renders) → channels.
@@ -2458,10 +2449,8 @@ fn sample_key_60(d: &mut Drive, device: DeviceId) -> Vec<Vec<f32>> {
         device,
         new_device,
         seed_media: seed,
-        first_key: 60,
-        last_key: 60,
-        key_step: 1,
-        velocity_steps: 1,
+        keys: vec![60],
+        velocities: vec![127],
         note_seconds: Seconds(0.2),
         tail_seconds: Seconds(0.2),
     }));

@@ -197,10 +197,8 @@ describe("MockTransport ConvertToSampler", () => {
         device: device.id,
         new_device: next,
         seed_media: newId(),
-        first_key: 60,
-        last_key: 64,
-        key_step: 2,
-        velocity_steps: 2,
+        keys: [64, 60, 62],
+        velocities: [64, 127],
         note_seconds: 1,
         tail_seconds: 1,
       }),
@@ -214,6 +212,14 @@ describe("MockTransport ConvertToSampler", () => {
     expect(sampler.params[5]).toBe(0);
     if (sampler.kind.type !== "Builtin" || sampler.kind.device.type !== "MultiSampler") throw new Error("not a multisampler");
     expect(sampler.kind.device.zones).toHaveLength(6);
+    expect(sampler.kind.device.zones.map((z) => [z.root_key, z.velocities.lo, z.velocities.hi])).toEqual([
+      [60, 1, 95],
+      [60, 96, 127],
+      [62, 1, 95],
+      [62, 96, 127],
+      [64, 1, 95],
+      [64, 96, 127],
+    ]);
     expect(Object.keys(h.project.media)).toHaveLength(mediaBefore + 6);
     expect(h.events.at(-1)).toEqual({ type: "Freeze", event: { type: "Done", job: "s" } });
     h.undo.pop()!();

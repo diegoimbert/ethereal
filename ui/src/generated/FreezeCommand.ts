@@ -7,15 +7,15 @@ import type { MediaId } from "./MediaId";
 import type { Seconds } from "./Seconds";
 import type { TrackId } from "./TrackId";
 
-export type FreezeCommand = { "type": "Freeze", job: string, track: TrackId, media: MediaId, up_to?: DeviceId, } | { "type": "Unfreeze", track: TrackId, } | { "type": "Flatten", track: TrackId, clip: ClipId, new_track: TrackId, } | { "type": "Bounce", job: string, track: TrackId, start: Beats, end: Beats, include_chain: boolean, media: MediaId, target: BounceTarget, } | { "type": "Consolidate", job: string, tracks: Array<TrackId>, start: Beats, end: Beats, seed_clips: ClipId, seed_notes: ClipId, seed_media: MediaId, } | { "type": "ConvertToSampler", job: string, device: DeviceId, new_device: DeviceId, seed_media: MediaId, first_key: number, last_key: number, 
+export type FreezeCommand = { "type": "Freeze", job: string, track: TrackId, media: MediaId, up_to?: DeviceId, } | { "type": "Unfreeze", track: TrackId, } | { "type": "Flatten", track: TrackId, clip: ClipId, new_track: TrackId, } | { "type": "Bounce", job: string, track: TrackId, start: Beats, end: Beats, include_chain: boolean, media: MediaId, target: BounceTarget, } | { "type": "Consolidate", job: string, tracks: Array<TrackId>, start: Beats, end: Beats, seed_clips: ClipId, seed_notes: ClipId, seed_media: MediaId, } | { "type": "ConvertToSampler", job: string, device: DeviceId, new_device: DeviceId, seed_media: MediaId, 
 /**
- * Semitones between sampled keys (1 = every note).
+ * Sampled keys (0..=127, at least one).
  */
-key_step: number, 
+keys: Array<number>, 
 /**
- * Velocity layers (1..=16).
+ * Rendered velocities (1..=127, 1 to 16 of them).
  */
-velocity_steps: number, 
+velocities: Array<number>, 
 /**
  * How long each note is held before note-off.
  */

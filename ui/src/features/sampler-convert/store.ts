@@ -41,23 +41,65 @@ export function convertToSamplerEntries(device: Device, categoryOf: (d: Device) 
 }
 
 export interface ConvertOptions {
-  firstKey: number;
-  lastKey: number;
-  keyStep: number;
-  velocitySteps: number;
+  /** Sampled keys (0..=127). */
+  keys: number[];
+  /** Rendered velocities (1..=127). */
+  velocities: number[];
   noteSeconds: number;
   tailSeconds: number;
 }
 
-/** Keys sampled for `[first, last]` by `step`, the last one included (like the engine). */
-export function sampledKeyCount(first: number, last: number, step: number): number {
-  if (last < first || step < 1) return 0;
-  const hit = Math.floor((last - first) / step) + 1;
-  return first + (hit - 1) * step === last ? hit : hit + 1;
+/** `sample::MAX_VELOCITIES`: the most velocities one conversion renders. */
+export const MAX_CONVERT_VELOCITIES = 16;
+
+/** Semitones between the keys of each key preset (12: every octave). */
+export const KEY_PRESET_STEPS = [1, 2, 3, 4, 6, 12] as const;
+/** Velocity counts of the velocity presets. */
+export const VELOCITY_PRESET_COUNTS = [1, 2, 3, 4, 5, 8, 16] as const;
+/** Keys a key preset spans when fewer than two keys are picked (C1–C6). */
+export const DEFAULT_KEY_SPAN: readonly [number, number] = [36, 96];
+
+/** Sorted, duplicates dropped. */
+export function sortedSet(values: Iterable<number>): number[] {
+  return [...new Set(values)].sort((a, b) => a - b);
 }
 
-export function sampleCount(o: Pick<ConvertOptions, "firstKey" | "lastKey" | "keyStep" | "velocitySteps">): number {
-  return sampledKeyCount(o.firstKey, o.lastKey, o.keyStep) * Math.max(1, o.velocitySteps);
+/**
+ * The keys of the "every `step` semitones" preset: from the lowest to the highest of `keys`
+ * (`DEFAULT_KEY_SPAN` with fewer than two), the highest included when the step misses it.
+ */
+export function presetKeys(step: number, keys: readonly number[] = []): number[] {
+  const sorted = sortedSet(keys);
+  const [lo, hi] = sorted.length >= 2 ? [sorted[0]!, sorted.at(-1)!] : DEFAULT_KEY_SPAN;
+  const out: number[] = [];
+  for (let k = lo; k <= hi; k += Math.max(1, step)) out.push(k);
+  if (out.at(-1) !== hi) out.push(hi);
+  return out;
+}
+
+/** The velocities of the `count`-velocity preset: evenly up to 127 (127 always rendered). */
+export function presetVelocities(count: number): number[] {
+  const n = Math.max(1, Math.round(count));
+  return Array.from({ length: n }, (_, i) => Math.max(1, Math.round((127 * (i + 1)) / n)));
+}
+
+/** A velocity to add to `velocities`: the middle of the widest gap in 1..=127 (null if none is left). */
+export function velocityToAdd(velocities: readonly number[]): number | null {
+  const v = sortedSet(velocities);
+  let best: number | null = null;
+  let width = 0;
+  const edges = [0, ...v, 128];
+  for (let i = 0; i + 1 < edges.length; i++) {
+    const [a, b] = [edges[i]!, edges[i + 1]!];
+    // Inside the gap (a, b), the edges 0 and 128 not being velocities.
+    const mid = b === 128 ? 127 : a === 0 ? Math.max(1, Math.floor(b / 2)) : Math.floor((a + b) / 2);
+    if (b - a > width && mid > a && mid < b && !v.includes(mid)) [best, width] = [mid, b - a];
+  }
+  return best;
+}
+
+export function sampleCount(o: Pick<ConvertOptions, "keys" | "velocities">): number {
+  return sortedSet(o.keys).length * sortedSet(o.velocities).length;
 }
 
 export function sampleNoteName(key: number): string {
@@ -74,10 +116,8 @@ export function convertToSampler(transport: EngineTransport, device: Device, o: 
       device: device.id,
       new_device: newId(),
       seed_media: newId(),
-      first_key: o.firstKey,
-      last_key: o.lastKey,
-      key_step: o.keyStep,
-      velocity_steps: o.velocitySteps,
+      keys: sortedSet(o.keys),
+      velocities: sortedSet(o.velocities),
       note_seconds: o.noteSeconds,
       tail_seconds: o.tailSeconds,
     }),

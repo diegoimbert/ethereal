@@ -108,14 +108,14 @@ pub enum FreezeCommand {
     /// its release tail (`tail_seconds`, trailing silence trimmed), and replace the device
     /// with a `MultiSampler` whose zones play those samples.
     ///
-    /// Sampled keys are `first_key`, `first_key + key_step`, ... up to `last_key` (the last
-    /// key is included when the step does not land on it); notes between them use the nearest
-    /// sample pitched (`root_key` = the sampled key). `velocity_steps` partitions 1..=127
-    /// into that many velocity layers, each rendered at the centre of its range; `1` renders
-    /// one layer at full velocity with the multisampler's velocity sensitivity on, so playing
-    /// soft stays soft. Zones cover 0..=127: notes outside `[first_key, last_key]` use the
-    /// nearest edge sample, pitched. Pitching is plain resampling (an octave up plays twice
-    /// as fast), never pitch-preserving.
+    /// `keys` are the sampled keys and `velocities` the velocities each is rendered at (any
+    /// order, duplicates ignored). Every key plays the nearest sampled key, pitched
+    /// (`root_key` = the sampled key; a tie goes to the lower one), and every velocity the
+    /// nearest rendered velocity (a tie goes to the lower one), so the zones cover 0..=127
+    /// keys and 1..=127 velocities. One velocity keeps the multisampler's velocity
+    /// sensitivity on (playing soft stays soft); several switch it off (each layer already
+    /// has its level). Pitching is plain resampling (an octave up plays twice as fast),
+    /// never pitch-preserving.
     ///
     /// Each sample starts on the note's first frame: the device's latency is dropped, the
     /// start is never trimmed, and the multisampler's amp attack is 0 (no added fade-in), so
@@ -131,12 +131,10 @@ pub enum FreezeCommand {
         device: DeviceId,
         new_device: DeviceId,
         seed_media: MediaId,
-        first_key: u8,
-        last_key: u8,
-        /// Semitones between sampled keys (1 = every note).
-        key_step: u8,
-        /// Velocity layers (1..=16).
-        velocity_steps: u8,
+        /// Sampled keys (0..=127, at least one).
+        keys: Vec<u8>,
+        /// Rendered velocities (1..=127, 1 to 16 of them).
+        velocities: Vec<u8>,
         /// How long each note is held before note-off.
         note_seconds: Seconds,
         /// Longest release tail kept after note-off (silence beyond is trimmed).

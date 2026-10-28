@@ -967,15 +967,15 @@ half-open ranges). `arrangement_clips_of` lists main-lane clips only.
   the render and stay editable (inserting or moving devices into the tail too). Clips stay
   locked; the track counts as frozen everywhere else. `Flatten` keeps the live tail (on the
   audio track, or moved to the new audio track).
-- **Convert to sampler** (`ConvertToSampler { device, new_device, seed_media, first_key,
-  last_key, key_step, velocity_steps, note_seconds, tail_seconds }`, additive): render a
-  track-chain instrument (an instrument rack, synth, ...) once per sampled key and velocity
-  layer and replace it with a `MultiSampler` (`new_device`, same place in the chain) whose
-  zones play the renders. Sampled keys are `first`, `first + key_step`, ... and `last`;
-  each owns the range up to the midpoint with its neighbours (edges cover 0..=127), so a
-  note between samples plays the nearest one pitched (`root_key`). `velocity_steps` equal
-  bands of 1..=127, rendered at their centres; one layer renders at 127 with the
-  multisampler's velocity sensitivity on, several layers switch it off. Each sample is the
+- **Convert to sampler** (`ConvertToSampler { device, new_device, seed_media, keys,
+  velocities, note_seconds, tail_seconds }`, additive): render a track-chain instrument
+  (an instrument rack, synth, ...) once per listed key and velocity and replace it with a
+  `MultiSampler` (`new_device`, same place in the chain) whose zones play the renders. The
+  lists are any set (sorted, duplicates dropped; at least one key, 1 to 16 velocities in
+  1..=127). Each key owns the range up to the midpoint with its neighbours (edges cover
+  0..=127), so a note between samples plays the nearest one pitched (`root_key`); each
+  velocity likewise owns the velocities nearest to it (edges cover 1..=127). One velocity
+  keeps the multisampler's velocity sensitivity on, several switch it off. Each sample is the
   instrument held for `note_seconds`, then its release tail (silence trimmed, at most
   `tail_seconds`). Media ids are `derive_id(seed_media, i)` in key-major order; at most
   `MAX_ZONES` samples. One job at a time like any render; at `Done` the media and the

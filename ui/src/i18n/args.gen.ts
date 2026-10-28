@@ -611,11 +611,14 @@ export interface MessageArgs {
   "resolver.where": { names: string | number };
   "resolver.where_more": { count: number; names: string | number };
   "reveal.failed": { error: string | number };
-  "sampler.convert.key_step_n": { count: number };
+  "sampler.convert.key_count": { count: number };
+  "sampler.convert.key_step_n": { count: string | number };
+  "sampler.convert.remove_velocity": { value: string | number };
   "sampler.convert.replaces": { name: string | number };
   "sampler.convert.summary": { count: number; keys: number; velocities: number };
   "sampler.convert.title": { name: string | number };
   "sampler.convert.too_many": { max: string | number };
+  "sampler.convert.velocity_n": { index: string | number };
   "sampler.convert.velocity_step_n": { count: number };
   "scale.name": { root: string | number; scale: string | number };
   "scale.select.root": { label: string | number };
