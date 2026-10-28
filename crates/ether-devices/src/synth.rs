@@ -1,4 +1,4 @@
-//! Basic-shape synth: sine/saw/square/triangle oscillator, ADSR, low-pass filter.
+//! Basic-shape synth: sine/saw/square/triangle/noise oscillator, ADSR, low-pass filter.
 //!
 //! The instruments pass appends `Fine` (cents), `Glide`, `Velocity` (sensitivity),
 //! and the filter's `Env Amount` (the amp envelope sweeps the cutoff, ±6 octaves at
@@ -87,8 +87,11 @@ const CTRL: usize = 16;
 /// jump).
 const DECLICK_MS: f32 = 0.5;
 
-/// Waveform labels, in plain-value order (0 = sine ... 3 = triangle).
-pub const WAVEFORMS: [&str; 4] = ["Sine", "Saw", "Square", "Triangle"];
+/// Waveform labels, in plain-value order (0 = sine ... 3 = triangle, 4 = white noise).
+pub const WAVEFORMS: [&str; 5] = ["Sine", "Saw", "Square", "Triangle", "Noise"];
+
+/// `WAVEFORM` plain value of the white-noise source (pitch doesn't change it; the filter shapes it).
+const NOISE: usize = 4;
 
 /// Parameter list (identical for every instance).
 pub fn param_infos() -> Vec<ParamInfo> {
@@ -345,6 +348,8 @@ struct Voice {
     ic2: f32,
     /// Own filter coefficients while the cutoff is modulated per voice.
     coefs: [f32; 3],
+    /// White-noise state (xorshift32, never 0), seeded per note so voices don't correlate.
+    noise: u32,
 }
 
 impl Voice {
@@ -363,7 +368,19 @@ impl Voice {
         ic1: 0.0,
         ic2: 0.0,
         coefs: [0.0; 3],
+        noise: 1,
     };
+
+    /// One white-noise sample in -1..1.
+    #[inline]
+    fn white(&mut self) -> f32 {
+        let mut x = self.noise;
+        x ^= x << 13;
+        x ^= x >> 17;
+        x ^= x << 5;
+        self.noise = x;
+        (x >> 8) as f32 / (1u32 << 23) as f32 - 1.0
+    }
 }
 
 #[inline]
@@ -599,6 +616,7 @@ impl Synth {
             velocity: velocity.clamp(0.0, 1.0),
             age: self.next_age,
             pitch,
+            noise: (self.next_age as u32).wrapping_mul(0x9E37_79B9) | 1,
             ..Voice::IDLE
         };
         v.env.trigger();
@@ -824,7 +842,11 @@ impl Synth {
                 }
                 let [b1, b2, b3] = if per_voice { v.coefs } else { [a1, a2, a3] };
                 let dt = v.dt;
-                let osc = oscillator(waveform, v.phase, dt);
+                let osc = if waveform == NOISE {
+                    v.white()
+                } else {
+                    oscillator(waveform, v.phase, dt)
+                };
                 v.phase += dt;
                 if v.phase >= 1.0 {
                     v.phase -= 1.0;

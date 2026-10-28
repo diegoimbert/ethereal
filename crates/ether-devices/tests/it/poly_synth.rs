@@ -276,6 +276,28 @@ fn pitch_bend_follows_the_bend_range() {
 }
 
 #[test]
+fn the_noise_type_plays_white_noise_whatever_the_key() {
+    let noise = |key: u8| {
+        let mut rig = Rig::new();
+        sine_patch(&mut rig);
+        rig.params(&[(p::OSC1_TYPE, 5.0)]);
+        let (l, _) = rig.run(24_000, &[At(0, on(key, 1))]);
+        l[2_400..].to_vec()
+    };
+    let (low, high) = (noise(36), noise(96));
+    let diff =
+        |x: &[f32]| rms(&x.windows(2).map(|w| w[1] - w[0]).collect::<Vec<_>>()) / rms(x).max(1e-9);
+    assert!(rms(&low) > 0.05, "{}", rms(&low));
+    assert!(diff(&low) > 1.0, "broadband: {}", diff(&low));
+    assert!(
+        (rms(&low) / rms(&high) - 1.0).abs() < 0.15,
+        "{} vs {}",
+        rms(&low),
+        rms(&high)
+    );
+}
+
+#[test]
 fn every_wavetable_sounds_across_its_positions_and_the_keyboard() {
     for table in 0..8 {
         for (pos, key) in [(0.0, 96), (37.0, 60), (100.0, 36), (100.0, 72)] {

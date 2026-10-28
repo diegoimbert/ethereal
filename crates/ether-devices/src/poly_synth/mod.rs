@@ -11,14 +11,14 @@
 //!
 //! | id | group | name | range |
 //! |----|-------|------|-------|
-//! | 0 | Osc 1 | `Type` | Saw / Square / Triangle / Sine / Wavetable (default Saw) |
+//! | 0 | Osc 1 | `Type` | Saw / Square / Triangle / Sine / Wavetable / Noise (default Saw) |
 //! | 1 | Osc 1 | `Position` | 0 ..= 100 Percent, default 0 |
 //! | 2 | Osc 1 | `Octave` | -3 ..= 3 (stepped), default 0 |
 //! | 3 | Osc 1 | `Semitones` | -12 ..= 12 (stepped), default 0 |
 //! | 4 | Osc 1 | `Fine` | -1 ..= 1 Semitones, default 0 |
 //! | 5 | Osc 1 | `Pulse Width` | 5 ..= 95 Percent, default 50 |
 //! | 6 | Osc 1 | `Level` | -70 ..= 6 dB (fader), default 0 |
-//! | 7 | Osc 2 | `Type` | Saw / Square / Triangle / Sine / Wavetable (default Saw) |
+//! | 7 | Osc 2 | `Type` | Saw / Square / Triangle / Sine / Wavetable / Noise (default Saw) |
 //! | 8 | Osc 2 | `Position` | 0 ..= 100 Percent, default 0 |
 //! | 9 | Osc 2 | `Octave` | -3 ..= 3 (stepped), default 0 |
 //! | 10 | Osc 2 | `Semitones` | -12 ..= 12 (stepped), default 0 |
@@ -216,7 +216,7 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                     0,
                     "Type",
                     "Osc 1",
-                    &["Saw", "Square", "Triangle", "Sine", "Wavetable"],
+                    &["Saw", "Square", "Triangle", "Sine", "Wavetable", "Noise"],
                     0,
                 ),
                 param(
@@ -257,7 +257,7 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                     7,
                     "Type",
                     "Osc 2",
-                    &["Saw", "Square", "Triangle", "Sine", "Wavetable"],
+                    &["Saw", "Square", "Triangle", "Sine", "Wavetable", "Noise"],
                     0,
                 ),
                 param(

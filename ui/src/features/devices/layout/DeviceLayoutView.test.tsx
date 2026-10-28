@@ -243,7 +243,7 @@ describe("DeviceLayoutView", () => {
   it("short enum label sets render as a segmented control", async () => {
     const descriptor = {
       ...SYNTH,
-      params: SYNTH.params.map((p) => (p.id === 0 ? { ...p, labels: ["Sin", "Saw", "Sqr", "Tri"] } : p)),
+      params: SYNTH.params.map((p) => (p.id === 0 ? { ...p, labels: ["Sin", "Saw", "Sqr", "Tri", "Noi"] } : p)),
     };
     const layout: DeviceLayout = { sections: [{ id: "s", title: null, span: 1, columns: 1, items: [it_({ type: "Choice", param: 0 })] }] };
     mock = await renderWithMock(<Panel descriptor={{ ...descriptor, layout }} />);

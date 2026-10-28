@@ -30,7 +30,7 @@ An instrument turns the notes of a MIDI track into sound. Each MIDI track has on
 
 A simple polyphonic synth (up to 16 notes at once) with one oscillator.
 
-- **waveform**: sine, saw, square or triangle. Saw and square sound bright, sine and triangle soft.
+- **waveform**: sine, saw, square, triangle or noise. Saw and square sound bright, sine and triangle soft. Noise is white noise, the same on every key: shape it with the filter (hi-hats, wind, risers).
 - **transpose** and **fine**: pitch in semitones and in cents. **bend range** sets how far a full pitch bend goes (2 semitones by default), from a MIDI keyboard's wheel or a clip's pitch-bend lane.
 - **attack**, **decay**, **sustain**, **release**: the volume envelope of each note.
 - **cutoff** and **resonance**: a low-pass filter. Lower the cutoff for a darker sound.
@@ -43,7 +43,7 @@ A simple polyphonic synth (up to 16 notes at once) with one oscillator.
 
 A fuller synth with two oscillators, a sub oscillator and noise.
 
-- **osc 1** and **osc 2**: saw, square, triangle, sine or **wavetable**. A wavetable oscillator uses one of 8 tables (basic shapes, harmonic sweep, PWM, formant, digital, organ, vocal, metallic), and **position** morphs through it. Each oscillator has octave, semitones, fine, pulse width and level. Osc 2 starts silent: raise its level to hear it.
+- **osc 1** and **osc 2**: saw, square, triangle, sine, **wavetable** or **noise** (white noise, the same on every key). A wavetable oscillator uses one of 8 tables (basic shapes, harmonic sweep, PWM, formant, digital, organ, vocal, metallic), and **position** morphs through it. Each oscillator has octave, semitones, fine, pulse width and level. Osc 2 starts silent: raise its level to hear it.
 - **sub / noise**: a sub oscillator one or two octaves down, and noise with a color control. Both start silent.
 - **filter**: low-pass 24 or 12, high-pass, band-pass or notch, with cutoff, resonance, drive, key tracking and env amount.
 - **amp**, **filter** and **mod envelopes**. The mod envelope can be sent to pitch, osc 2 pitch, wavetable position, pulse width or cutoff.

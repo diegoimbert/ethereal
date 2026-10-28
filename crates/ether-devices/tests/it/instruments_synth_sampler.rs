@@ -119,6 +119,32 @@ fn sine_synth(params: &[(ParamId, f64)]) -> Synth {
 }
 
 #[test]
+fn synth_noise_waveform_is_white_noise_whatever_the_key() {
+    let noise = |key: u8| {
+        let mut s = sine_synth(&[(synth::params::WAVEFORM, 4.0)]);
+        let [l, _] = render(&mut s, &[(0, on(key, 1, 1.0))], 24_000);
+        l[2_400..].to_vec()
+    };
+    let (low, high) = (noise(36), noise(96));
+    // Broadband (a sine at these keys is far darker) and as loud on any key.
+    assert!(brightness(&low) > 1.0, "{}", brightness(&low));
+    assert!(
+        (rms(&low) / rms(&high) - 1.0).abs() < 0.1,
+        "{} vs {}",
+        rms(&low),
+        rms(&high)
+    );
+    // Two voices of a chord don't play the same noise (they would add up coherently).
+    let mut s = sine_synth(&[(synth::params::WAVEFORM, 4.0)]);
+    let [chord, _] = render(&mut s, &[(0, on(60, 1, 1.0)), (0, on(64, 2, 1.0))], 24_000);
+    let ratio = rms(&chord[2_400..]) / rms(&low);
+    assert!(
+        ratio > 1.2 && ratio < 1.7,
+        "two voices: x{ratio} (√2 when uncorrelated)"
+    );
+}
+
+#[test]
 fn synth_fine_tunes_in_cents() {
     let mut s = sine_synth(&[(synth::params::FINE, 50.0)]);
     let [l, _] = render(&mut s, &[(0, on(69, 1, 1.0))], 48_000);

@@ -366,6 +366,8 @@ impl Voice {
 enum Source<'a> {
     Off,
     Va(Shape),
+    /// White noise (`Type = Noise`): the voice's own random source, not a cycle.
+    Noise,
     Table {
         a: Cycle<'a>,
         b: Cycle<'a>,
@@ -377,7 +379,7 @@ impl Source<'_> {
     #[inline]
     fn at(&self, phase: f32, dt: f32, pw: f32, sine: &SineTable) -> f32 {
         match self {
-            Source::Off => 0.0,
+            Source::Off | Source::Noise => 0.0,
             Source::Va(s) => dsp::va(*s, phase, dt, pw, sine),
             Source::Table { a, b, blend } => {
                 let x = a.at(phase);
@@ -1093,8 +1095,8 @@ impl PolySynth {
             uni_pan,
             uni_norm,
             stereo: unison > 1 && spread > 0.0,
-            type1: self.idx(id::OSC1_TYPE, 5),
-            type2: self.idx(id::OSC2_TYPE, 5),
+            type1: self.idx(id::OSC1_TYPE, 6),
+            type2: self.idx(id::OSC2_TYPE, 6),
             table1: self.idx(id::OSC1_TABLE, 8),
             table2: self.idx(id::OSC2_TABLE, 8),
             offset1: offset(self, id::OSC1_OCTAVE, id::OSC1_SEMITONES, id::OSC1_FINE),
@@ -1205,6 +1207,7 @@ fn source<'a>(
         1 => Source::Va(Shape::Square),
         2 => Source::Va(Shape::Triangle),
         3 => Source::Va(Shape::Sine),
+        5 => Source::Noise,
         _ => {
             let lvl = Wavetables::level_for(dt_max, sr);
             let x = pos.clamp(0.0, 1.0) * (FRAMES - 1) as f32;
@@ -1412,13 +1415,23 @@ fn render_voice(
             let mut s = 0.0;
             if !matches!(src1, Source::Off) {
                 let p = v.phase1[u];
-                s += src1.at(p, dts1[u], pw1, sine) * l1;
+                let x = if matches!(src1, Source::Noise) {
+                    v.rng.bipolar()
+                } else {
+                    src1.at(p, dts1[u], pw1, sine)
+                };
+                s += x * l1;
                 let p = p + dts1[u];
                 v.phase1[u] = if p >= 1.0 { p - 1.0 } else { p };
             }
             if !matches!(src2, Source::Off) {
                 let p = v.phase2[u];
-                s += src2.at(p, dts2[u], pw2, sine) * l2;
+                let x = if matches!(src2, Source::Noise) {
+                    v.rng.bipolar()
+                } else {
+                    src2.at(p, dts2[u], pw2, sine)
+                };
+                s += x * l2;
                 let p = p + dts2[u];
                 v.phase2[u] = if p >= 1.0 { p - 1.0 } else { p };
             }
