@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { act, createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import type { Clip, Command, Device, DeviceId, Track } from "@/generated";
 import { usePluginStore } from "@/features/plugins/pluginStore";
 import { devicesOfTrack, playheadStore, tracksOrdered, useEditorStore, useProjectStore, useSelectionStore } from "@/state";
 import { DEVICE_DRAG_TYPE } from "@/features/devices/chainUtils";
-import { itemSelection, wheelZoomFactor } from "@/timeline";
+import { itemSelection } from "@/timeline";
 import { cmd, newId, TransportProvider } from "@/transport";
 import { MockTransport } from "@/transport/mock";
 import { ContextMenuHost } from "@/kit";
@@ -18,7 +18,9 @@ import { BROWSER_DRAG_MIME, BROWSER_MIDI_DRAG_MIME } from "./browserDrop";
 import { clearClipboard } from "./clipboard";
 import { flushDraws } from "./drawQueue";
 import { resetTimeSelection, useTimeSelection } from "@/features/time-edits/store";
-import { AUTOMATION_BAR_HEIGHT, LANE_HEIGHT, resetAutomationUi } from "@/features/automation";
+import { AUTOMATION_BAR_HEIGHT, LANE_HEIGHT, resetAutomationUi, useAutomationUi } from "@/features/automation";
+import { laneUiKey, MAX_LANE_HEIGHT, MIN_LANE_HEIGHT } from "@/features/automation/uiStore";
+import { MOTION } from "@/timeline/motion";
 import { HEADER_WIDTH, MAX_TRACK_HEIGHT, MIN_TRACK_HEIGHT, TRACK_HEIGHT } from "./layout";
 import { glRenderer } from "./gl/active";
 import { resetMediaRefs, useMediaRefs } from "@/features/media-refs";
@@ -1623,21 +1625,35 @@ describe("ArrangementView: clip editing", () => {
     expect(beatAt()).toBeCloseTo(before, 6);
   });
 
-  it("scales every track with cmd+shift+wheel, within the limits", () => {
+  it("scales every track and its automation lanes with cmd+shift+wheel, within the limits", () => {
+    // Without motion the zoom lands at once (it eases over frames otherwise).
+    const was = MOTION.enabled;
+    MOTION.enabled = false;
+    onTestFinished(() => {
+      MOTION.enabled = was;
+    });
     const keys = trackByName("Keys");
     useArrangementUi.getState().setHeight(keys.id, 100);
+    useAutomationUi.getState().setLaneHeight(keys.id, "vol", 80);
     const scroll = document.querySelector<HTMLElement>(".eth-arr__scroll")!;
     act(() => {
       fireEvent.wheel(scroll, { deltaY: -100, metaKey: true, shiftKey: true });
     });
-    const f = wheelZoomFactor(-100);
-    expect(useArrangementUi.getState().defaultHeight).toBeCloseTo(TRACK_HEIGHT * f);
+    // The factor the zoom applied (wheel acceleration included): every height moved by it.
+    const f = useArrangementUi.getState().defaultHeight / TRACK_HEIGHT;
+    expect(f).not.toBeCloseTo(1);
     expect(useArrangementUi.getState().heights.get(keys.id)).toBeCloseTo(100 * f);
+    // Automation lanes too: the default height and the resized one.
+    expect(useAutomationUi.getState().defaultLaneHeight).toBeCloseTo(LANE_HEIGHT * f);
+    expect(useAutomationUi.getState().laneHeights[laneUiKey(keys.id, "vol")]).toBeCloseTo(80 * f);
     expect(arrangementView.getState().pxPerBeat).toBe(PX); // not a horizontal zoom
     act(() => {
-      for (let i = 0; i < 50; i++) fireEvent.wheel(scroll, { deltaY: -200, ctrlKey: true, shiftKey: true });
+      // Further the same way: every height stops at its limit.
+      for (let i = 0; i < 50; i++) fireEvent.wheel(scroll, { deltaY: -200, metaKey: true, shiftKey: true });
     });
-    expect(useArrangementUi.getState().heights.get(keys.id)).toBe(MAX_TRACK_HEIGHT);
+    const [track, lane] = f > 1 ? [MAX_TRACK_HEIGHT, MAX_LANE_HEIGHT] : [MIN_TRACK_HEIGHT, MIN_LANE_HEIGHT];
+    expect(useArrangementUi.getState().heights.get(keys.id)).toBe(track);
+    expect(useAutomationUi.getState().laneHeights[laneUiKey(keys.id, "vol")]).toBe(lane);
   });
 
   /** Double-press on `lane` at x, then (still holding) drag to `toX` and release. */

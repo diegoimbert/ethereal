@@ -84,7 +84,7 @@ With a mouse or trackpad, in the arrangement:
 | scroll up and down through the tracks | the wheel |
 | scroll sideways through time | [[key:Shift]] + wheel, or swipe sideways on a trackpad |
 | zoom in and out in time | [[key:Mod]] + wheel, or pinch on a trackpad |
-| make every track taller or shorter | [[key:Mod+Shift]] + wheel |
+| make every track and its automation lanes taller or shorter | [[key:Mod+Shift]] + wheel |
 | pan in any direction | drag with the middle mouse button |
 
 A pinch always zooms. On Windows the zoom direction is flipped by default, so pushing the wheel forward zooms in like on a Mac.

@@ -41,8 +41,10 @@ export interface AutomationUiState {
   open: ReadonlySet<TrackId>;
   /** Target keys (`targetKey`) of the lanes shown per track, top to bottom. */
   shown: Readonly<Record<TrackId, ReadonlyArray<string>>>;
-  /** Resized lane heights by `laneUiKey` (absent: `LANE_HEIGHT`). */
+  /** Resized lane heights by `laneUiKey` (absent: `defaultLaneHeight`). */
   laneHeights: Readonly<Record<string, number>>;
+  /** Height of a lane that wasn't resized (`LANE_HEIGHT`, scaled by the vertical zoom). */
+  defaultLaneHeight: number;
   /** Visible value window by `laneUiKey` (absent: the param's default window). */
   ranges: Readonly<Record<string, ValueRange>>;
   /**
@@ -59,14 +61,26 @@ export interface AutomationUiState {
   hide(track: TrackId, key: string): void;
   /** Replace the lane at `from` with `to` (the lane header's parameter chooser). */
   replace(track: TrackId, from: string, to: string): void;
-  /** Resize a lane (`null`: back to `LANE_HEIGHT`). */
+  /** Resize a lane (`null`: back to `defaultLaneHeight`). */
   setLaneHeight(track: TrackId, key: string, height: number | null): void;
+  /** Scale every lane height by `factor`, each within its limits (the arrangement's vertical zoom). */
+  scaleLaneHeights(factor: number): void;
   /** Set a lane's visible value window (`null`: the default). */
   setRange(track: TrackId, key: string, range: ValueRange | null): void;
   setDrawMode(on: boolean): void;
 }
 
-const INITIAL = { open: new Set<TrackId>() as ReadonlySet<TrackId>, shown: {}, laneHeights: {}, ranges: {}, drawMode: false };
+const INITIAL = {
+  open: new Set<TrackId>() as ReadonlySet<TrackId>,
+  shown: {},
+  laneHeights: {},
+  defaultLaneHeight: LANE_HEIGHT,
+  ranges: {},
+  drawMode: false,
+};
+
+/** A zoomed lane height: within the limits, not rounded (repeated small steps add up). */
+const clampZoomed = (h: number) => Math.min(MAX_LANE_HEIGHT, Math.max(MIN_LANE_HEIGHT, h));
 
 function without<T>(rec: Readonly<Record<string, T>>, key: string): Record<string, T> {
   const next = { ...rec };
@@ -112,6 +126,11 @@ export const useAutomationUi = create<AutomationUiState>()((set) => ({
       const h = clampLaneHeight(height);
       return s.laneHeights[k] === h ? s : { laneHeights: { ...s.laneHeights, [k]: h } };
     }),
+  scaleLaneHeights: (factor) =>
+    set((s) => ({
+      defaultLaneHeight: clampZoomed(s.defaultLaneHeight * factor),
+      laneHeights: Object.fromEntries(Object.entries(s.laneHeights).map(([k, h]) => [k, clampZoomed(h * factor)])),
+    })),
   setRange: (track, key, range) =>
     set((s) => {
       const k = laneUiKey(track, key);
@@ -123,7 +142,7 @@ export const useAutomationUi = create<AutomationUiState>()((set) => ({
 
 /** Reset (tests). */
 export function resetAutomationUi(): void {
-  useAutomationUi.setState({ open: new Set(), shown: {}, laneHeights: {}, ranges: {}, drawMode: false });
+  useAutomationUi.setState({ ...INITIAL, open: new Set() });
 }
 
 /** Keys of the lanes shown for `track` (empty when closed). */
@@ -134,11 +153,11 @@ export function shownKeys(state: Pick<AutomationUiState, "open" | "shown">, trac
 const EMPTY: ReadonlyArray<string> = [];
 
 /** The UI state heights depend on (`laneHeights` optional: default heights). */
-export type HeightState = Pick<AutomationUiState, "open" | "shown"> & Partial<Pick<AutomationUiState, "laneHeights">>;
+export type HeightState = Pick<AutomationUiState, "open" | "shown"> & Partial<Pick<AutomationUiState, "laneHeights" | "defaultLaneHeight">>;
 
-/** Height of one shown lane (resized, or `LANE_HEIGHT`). */
-export function laneHeightOf(state: Partial<Pick<AutomationUiState, "laneHeights">>, track: TrackId, key: string): number {
-  return state.laneHeights?.[laneUiKey(track, key)] ?? LANE_HEIGHT;
+/** Height of one shown lane (resized, or the default one). */
+export function laneHeightOf(state: Partial<Pick<AutomationUiState, "laneHeights" | "defaultLaneHeight">>, track: TrackId, key: string): number {
+  return state.laneHeights?.[laneUiKey(track, key)] ?? state.defaultLaneHeight ?? LANE_HEIGHT;
 }
 
 /** Total height of `<TrackAutomationLanes track>` for a UI state (pure). */

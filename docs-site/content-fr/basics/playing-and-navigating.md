@@ -84,7 +84,7 @@ Avec une souris ou un pavé tactile, dans l’arrangement :
 | faire défiler les pistes vers le haut et le bas | la molette |
 | faire défiler le temps sur le côté | [[key:Shift]] + molette, ou un balayage latéral sur le pavé tactile |
 | zoomer et dézoomer dans le temps | [[key:Mod]] + molette, ou un pincement sur le pavé tactile |
-| agrandir ou réduire la hauteur de toutes les pistes | [[key:Mod+Shift]] + molette |
+| agrandir ou réduire la hauteur de toutes les pistes et de leurs couloirs d’automation | [[key:Mod+Shift]] + molette |
 | se déplacer dans toutes les directions | faire glisser avec le bouton du milieu |
 
 Un pincement zoome toujours. Sous Windows, le sens du zoom est inversé par défaut, pour que pousser la molette vers l’avant zoome comme sur un Mac.
