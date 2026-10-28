@@ -3075,7 +3075,7 @@
   "sampler.convert.custom": "personnalisé",
   "sampler.convert.key_count": "{count, plural, one {# touche} other {# touches}}",
   "sampler.convert.keyboard": "touches à échantillonner",
-  "sampler.convert.keyboard_hint": "cliquez sur une touche pour l’ajouter ou la retirer, ou glissez sur plusieurs touches pour toutes les ajouter ou les retirer. un préréglage s’étend de votre touche la plus grave à la plus aiguë.",
+  "sampler.convert.keyboard_hint": "cliquez sur une touche pour l’ajouter ou la retirer, ou glissez sur plusieurs touches pour toutes les ajouter ou les retirer. un glisser avec le bouton droit retire. un préréglage s’étend de votre touche la plus grave à la plus aiguë.",
   "sampler.convert.velocities": "vélocités",
   "sampler.convert.velocities_preset": "vélocités à rendre",
   "sampler.convert.velocity_step_n": "{count, plural, one {# vélocité} other {# vélocités}}",

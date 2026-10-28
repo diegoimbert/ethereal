@@ -30,7 +30,8 @@ function swept(base: ReadonlySet<number>, a: number, b: number, add: boolean): n
 /**
  * The full MIDI keyboard (C-2 to G8) with the sampled keys lit. A click on a key adds or
  * removes it; a drag sweeps every key between the pressed one and the pointer, adding them
- * when the pressed key was off and removing them when it was on.
+ * when the pressed key was off and removing them when it was on. A right-button press or
+ * drag always removes.
  */
 export function SampleKeyboard({ keys, onChange }: { keys: readonly number[]; onChange: (keys: number[]) => void }) {
   const t = useT();
@@ -47,8 +48,8 @@ export function SampleKeyboard({ keys, onChange }: { keys: readonly number[]; on
     };
   }, [drag]);
 
-  const press = (key: number) => {
-    const d = { anchor: key, add: !selected.has(key), base: selected };
+  const press = (key: number, add: boolean) => {
+    const d = { anchor: key, add, base: selected };
     setDrag(d);
     onChange(swept(d.base, key, key, d.add));
   };
@@ -57,7 +58,17 @@ export function SampleKeyboard({ keys, onChange }: { keys: readonly number[]; on
   };
 
   return (
-    <div className="eth-sample-keys" role="group" aria-label={t("sampler.convert.keyboard")} data-dragging={drag ? "" : undefined}>
+    <div
+      className="eth-sample-keys"
+      role="group"
+      aria-label={t("sampler.convert.keyboard")}
+      data-dragging={drag ? "" : undefined}
+      // The right button sweeps keys off: no menu.
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+    >
       {KEYS.map((key) => {
         const black = isBlack(key);
         // A white key's left edge, or the line a black key is centred on.
@@ -73,10 +84,10 @@ export function SampleKeyboard({ keys, onChange }: { keys: readonly number[]; on
             className={black ? "eth-sample-keys__key eth-sample-keys__key--black" : "eth-sample-keys__key"}
             style={{ left: `${left}%` }}
             onPointerDown={(e) => {
-              if (e.button !== 0) return;
+              if (e.button !== 0 && e.button !== 2) return;
               // No text selection or focus change while sweeping.
               e.preventDefault();
-              press(key);
+              press(key, e.button === 0 && !selected.has(key));
             }}
             onPointerEnter={() => enter(key)}
           >

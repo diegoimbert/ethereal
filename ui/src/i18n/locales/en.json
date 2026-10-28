@@ -3075,7 +3075,7 @@
   "sampler.convert.custom": "custom",
   "sampler.convert.key_count": "{count, plural, one {# key} other {# keys}}",
   "sampler.convert.keyboard": "keys to sample",
-  "sampler.convert.keyboard_hint": "click a key to add or remove it, or drag across keys to add or remove them all. a preset spans your lowest to highest key.",
+  "sampler.convert.keyboard_hint": "click a key to add or remove it, or drag across keys to add or remove them all. right-drag removes. a preset spans your lowest to highest key.",
   "sampler.convert.velocities": "velocities",
   "sampler.convert.velocities_preset": "velocities to render",
   "sampler.convert.velocity_step_n": "{count, plural, one {# velocity} other {# velocities}}",

@@ -66,7 +66,7 @@ You can play a finished instrument without running it: right-click it on a track
 
 The dialog chooses what to record:
 
-- **notes**: the keys to record. Pick a preset (every note, every few semitones, every octave), or click keys on the keyboard to add or remove them; drag across keys to add or remove several at once. A preset spans your lowest to highest picked key (C1 to C6 to start with), and editing the keys switches the preset to **custom**. Notes between recordings play the nearest one, pitched; notes outside them use the nearest edge recording. Every note gives the best quality; every third or fourth note is much faster.
+- **notes**: the keys to record. Pick a preset (every note, every few semitones, every octave), or click keys on the keyboard to add or remove them; drag across keys to add or remove several at once, or right-drag to remove them. A preset spans your lowest to highest picked key (C1 to C6 to start with), and editing the keys switches the preset to **custom**. Notes between recordings play the nearest one, pitched; notes outside them use the nearest edge recording. Every note gives the best quality; every third or fourth note is much faster.
 - **velocities**: how hard each note is played when recorded. A preset spreads them evenly up to 127; **configure…** lists them so you can change, add or remove one (up to 16), which switches the preset to **custom**. Each velocity you play uses the nearest recorded one. One velocity is fastest and keeps playing soft quieter; more keep the instrument's response to playing soft or hard.
 - **note length** and **release tail**: how long each note is held and how much of its decay is kept.
 

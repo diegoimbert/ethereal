@@ -87,6 +87,19 @@ describe("convert to sampler dialog", () => {
     expect(checked("a1")).toBe("true");
   });
 
+  it("a right-button drag removes keys, whatever the pressed key was", () => {
+    setup();
+    // c#1 is off, c1 and d#1 are on: all of c1..d#1 end up off.
+    fireEvent.pointerDown(key("c#1"), { button: 2 });
+    fireEvent.pointerEnter(key("d#1"));
+    fireEvent.pointerEnter(key("c1"));
+    fireEvent.pointerUp(window);
+    expect(["c1", "c#1", "d1", "d#1"].map(checked)).toEqual(["false", "false", "false", "true"]);
+    fireEvent.pointerDown(key("d#1"), { button: 2 });
+    fireEvent.pointerUp(window);
+    expect(checked("d#1")).toBe("false");
+  });
+
   it("a preset spans the picked keys", () => {
     setup();
     pickOption(screen.getByRole("combobox", { name: "notes to sample" }), "every octave");
