@@ -188,7 +188,8 @@ Draws the volume over a cycle that repeats in time with the song: sidechain pump
 - The cycle lasts one **sync rate**, from 1/64 to 8 bars with triplets (1/4 by default). Turn **sync** off to set a free **rate** in hertz. A synced cycle follows the song position, so it lines up with the beat wherever playback starts.
 - Draw the shape: double-click to add or delete a point, drag points (they snap to the grid, hold alt for no snap), alt-drag a segment to bend it, right-click for step, linear or smooth segments. The top is full volume, the bottom is silence.
 - **depth** scales the whole shape (0 % leaves the sound untouched), **phase** shifts it in the cycle, **stereo phase** offsets the right side, and **smoothing** softens hard edges so steps don't click.
-- The presets cover kick sidechain pumps (1/4 soft, classic and hard, 1/8, 1/2, half-time, offbeat duck) and trance gates, chops, swells and tremolo.
+- **bands**: the strip above the shape shows the frequencies, from 20 Hz on the left to 20 kHz on the right. Pick **1**, **2** or **3** bands: with 2 or 3, each band (low, mid, high, each in its own colour) gets its own shape, so the lows can pump while the highs stay put. Drag the lines between the bands to move the crossovers (200 Hz and 15 kHz by default). Click a band, in the strip or its tab, to draw its shape; its **depth** and **speed** are under the shape (a speed of ×2 runs that band's cycle twice as fast, ÷2 half as fast). With every band at full volume the sound passes unchanged, and the split adds no latency. A band you haven't drawn yet stays at full volume.
+- The presets cover kick sidechain pumps (1/4 soft, classic and hard, 1/8, 1/2, half-time, offbeat duck), trance gates, chops, swells and tremolo, and multiband ones: **sidechain lows 1/4** (only the lows duck), **pump lows, light mids** and **lows pump, highs chop**.
 
 ### shifter
 

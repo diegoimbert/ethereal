@@ -1104,7 +1104,7 @@ Small/Medium/Large, `colspan`, `label`). Widget catalog (append-only: a new widg
 widgets `Knob`, `Slider`, `Toggle`, `Choice`, `Number`; typed widgets `Envelope`,
 `FilterCurve`, `TransferCurve`, `Oscillator`, `Lfo`, `StepEditor`, `XyPad`, `Crossover`;
 data widgets `SampleWaveform`, `ZoneMap`, `Spectrum`, `Tuner`, `Meter`, `RackChains`,
-`Macros`, and `EqCurve` (§12.15, the EQ only for now). Appended by `DynamicsCurve` (compressor / gate / limiter transfer curve with a live detector-level dot from `Levels`), `DelayTaps` (delay echoes), `ReverbDecay` (reverb decay envelope) and `VelocityCurve` (MIDI velocity mapping). Appended by `fm-synth`: `FmAlgorithm` (an FM synth's algorithm picker: one routing diagram per choice of its `algorithm` param, from `FmRouting` modulator / carrier bit masks). Appended by `fx-modulation`: `LfoCurve` (the Volume LFO's curve editor: the kind's `LfoCurve` on a grid of the cycle's sixteenths, edited with `Device::SetLfoCurve`, with a playhead; binds sync, sync rate, rate, phase and depth). Appended by `fx-analysis`: `Loudness` (a loudness meter's readouts and momentary / short-term history from its `Levels` frame, with the `target` param's reference line). Appended by `adaptive-eq`: `AdaptiveEq` (the combined response of an adaptive EQ's band filters over its band levels relative to the reference, from its `Levels` frame; binds recover and tame). Appended by `graphic-eq`: `GraphicEq` (the default EQ's editor, filling its window: the used bands' response over the spectrum, points added by double-click, §12.15; binds every band's used, on, type, freq, gain, Q and slope, and the output). Appended by `pitch-correction`: `PitchCorrection` (detected and corrected pitch history on a keyboard grid with the key / scale notes, from its `Levels` frame; binds key and scale). Appended by `shaper`: `ShaperCurve` (one lane of a shaper's drawn cycles, written with `Device::SetShaperCurve`; binds on, rate, depth). Appended by `maximizer`: `Maximizer` (input, output and gain-reduction history and readouts from its `Levels` frame, with the `ceiling` line; binds threshold and ceiling). **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
+`Macros`, and `EqCurve` (§12.15, the EQ only for now). Appended by `DynamicsCurve` (compressor / gate / limiter transfer curve with a live detector-level dot from `Levels`), `DelayTaps` (delay echoes), `ReverbDecay` (reverb decay envelope) and `VelocityCurve` (MIDI velocity mapping). Appended by `fm-synth`: `FmAlgorithm` (an FM synth's algorithm picker: one routing diagram per choice of its `algorithm` param, from `FmRouting` modulator / carrier bit masks). Appended by `fx-modulation`: `LfoCurve` (the Volume LFO's curve editor: the kind's `LfoCurve` on a grid of the cycle's sixteenths, edited with `Device::SetLfoCurve`, with a playhead; binds sync, sync rate, rate, phase and depth; with `bands: LfoCurveBands`, a log-Hz band strip above it with draggable crossovers and a band count picker selects the band it edits, and binds the count, the crossovers and each band's depth and speed). Appended by `fx-analysis`: `Loudness` (a loudness meter's readouts and momentary / short-term history from its `Levels` frame, with the `target` param's reference line). Appended by `adaptive-eq`: `AdaptiveEq` (the combined response of an adaptive EQ's band filters over its band levels relative to the reference, from its `Levels` frame; binds recover and tame). Appended by `graphic-eq`: `GraphicEq` (the default EQ's editor, filling its window: the used bands' response over the spectrum, points added by double-click, §12.15; binds every band's used, on, type, freq, gain, Q and slope, and the output). Appended by `pitch-correction`: `PitchCorrection` (detected and corrected pitch history on a keyboard grid with the key / scale notes, from its `Levels` frame; binds key and scale). Appended by `shaper`: `ShaperCurve` (one lane of a shaper's drawn cycles, written with `Device::SetShaperCurve`; binds on, rate, depth). Appended by `maximizer`: `Maximizer` (input, output and gain-reduction history and readouts from its `Levels` frame, with the `ceiling` line; binds threshold and ceiling). **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
 tokens only) renders every built-in; devices without a layout (plugins, v0.1 devices until
 they add one) get the generic layout grouped by `ParamInfo::group`. Devices write
 specs and widget data only, never bespoke panels. `ModulatorDescriptor::layout` uses the same
@@ -1544,12 +1544,21 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   lists a `Media` IR. After them (`fm-synth`): `FmSynth`, the four-operator FM instrument
   (`ether_devices::fm_synth`, no kind data), then `Vibrato`, the pitch-wobble audio effect
   (`ether_devices::fx_modulation::vibrato`, no kind data; it reports its centre delay as
-  latency), then `VolumeLfo { curve: LfoCurve }`, the drawn volume LFO (`fx-modulation`,
-  `ether_model::lfo_curve`: 1..=64 `LfoPoint { x, y, curve: CurveShape }` sorted by `x`,
-  one wrapping cycle; `curve` omitted in JSON = the default pump). `Device::SetLfoCurve
-  { device, curve }` replaces it (sanitized; one `DeviceChange::Kind`, one undo step); live
-  nodes take it through `EngineBridge::update_builtin` → `Node::set_data`. Its presets
-  carry the curve in `Preset::kind`. Then `NoteBlocker` (`midi-fx`, no kind data): drops
+  latency), then `VolumeLfo { curve: LfoCurve, bands: Vec<LfoCurve> }`, the drawn volume
+  LFO, "volume shaper" (`fx-modulation`, `ether_model::lfo_curve`: 1..=64
+  `LfoPoint { x, y, curve: CurveShape }` sorted by `x`, one wrapping cycle; `curve` omitted
+  in JSON = the default pump). Its `Bands` param (id 8, 1..=3, default 1) splits the signal
+  at `Crossover 1` / `Crossover 2` (LR4, phase-compensated: unity bands sum flat; zero
+  latency) into bands with their own cycle (`curve` = band 1, `bands[0..2]` = bands 2 and 3,
+  `VOLUME_SHAPER_BANDS = 3`; a band without a curve is flat at 1; `bands` omitted in JSON,
+  and when empty = none, so older projects load as one band), depth (`Depth`, `Band 2 /
+  3 Depth`) and speed (`Band 2 / 3 Speed`, a factor of the cycle rate). One band plays the
+  plain shaper, sample for sample. `Device::SetLfoCurve { device, band, curve }` replaces
+  band `band`'s cycle (`band` omitted = 0; `< VOLUME_SHAPER_BANDS`, else
+  `InvalidArgument`; bands in between without a curve get a flat one; sanitized; one
+  `DeviceChange::Kind`, one undo step); live nodes take it through
+  `EngineBridge::update_builtin` → `Node::set_data`. Its presets carry the curves in
+  `Preset::kind` (presets without the band params load them at their defaults: one band). Then `NoteBlocker` (`midi-fx`, no kind data): drops
   every note-on (and the note-offs / per-note expressions of the notes it dropped); param 0
   `Block Everything` (toggle, default off) drops every other MIDI message too. Note-offs of
   notes it never saw and `AllNotesOff` pass; the engine's `AllNotesOff` on a MIDI-effect
