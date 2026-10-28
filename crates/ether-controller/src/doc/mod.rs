@@ -33,6 +33,7 @@ pub use labels::{ExtLabels, set_ext_labels};
 pub use labels::{label_of, undo};
 pub use misc::{MAX_BPM, MIN_BPM};
 pub use reverse::reverse_envelopes;
+pub(crate) use tracks::order_at_end;
 
 /// What document commands need from the engine side.
 pub trait DocHost {

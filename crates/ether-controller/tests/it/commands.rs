@@ -1048,3 +1048,64 @@ fn notes_may_start_in_a_left_extended_clips_leading_gap() {
     assert!(notes.iter().any(|x| (x.start + 1.0).abs() < 1e-9));
     assert_eq!(cd.offset, -2.0);
 }
+
+/// `before: None` puts a track after the last regular track even when master's order key
+/// sorts first (the display ranks master last whatever its key).
+#[test]
+fn a_track_added_or_moved_to_the_end_goes_after_the_regular_tracks() {
+    let mut h = Harness::with_project();
+    let create = |h: &mut Harness, kind: TrackKind| -> TrackId {
+        let id: TrackId = h.id();
+        h.ok(Command::Track(TrackCommand::Create {
+            id,
+            kind,
+            name: None,
+            color: None,
+            parent: None,
+            before: None,
+        }));
+        id
+    };
+    let a = create(&mut h, TrackKind::Midi);
+    let b = create(&mut h, TrackKind::Audio);
+    let master = h
+        .project()
+        .tracks
+        .values()
+        .find(|t| t.kind == TrackKind::Master)
+        .unwrap()
+        .id;
+    // Master's key now sorts before every track.
+    h.ok(Command::Track(TrackCommand::Move {
+        id: master,
+        parent: None,
+        before: Some(a),
+    }));
+    let ret = create(&mut h, TrackKind::Return);
+    let regular = |h: &Harness| -> Vec<TrackId> {
+        h.project()
+            .tracks_ordered()
+            .iter()
+            .filter(|t| !matches!(t.kind, TrackKind::Master | TrackKind::Return))
+            .map(|t| t.id)
+            .collect()
+    };
+    let c = create(&mut h, TrackKind::Midi);
+    assert_eq!(regular(&h), vec![a, b, c], "added at the end");
+    h.ok(Command::Track(TrackCommand::Move {
+        id: a,
+        parent: None,
+        before: None,
+    }));
+    assert_eq!(regular(&h), vec![b, c, a], "moved to the end");
+    // Returns go after the returns.
+    let ret2 = create(&mut h, TrackKind::Return);
+    let returns: Vec<TrackId> = h
+        .project()
+        .tracks_ordered()
+        .iter()
+        .filter(|t| t.kind == TrackKind::Return)
+        .map(|t| t.id)
+        .collect();
+    assert_eq!(returns, vec![ret, ret2]);
+}
