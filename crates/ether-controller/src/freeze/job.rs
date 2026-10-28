@@ -41,6 +41,8 @@ pub struct SampleNote {
     pub key: u8,
     /// 0..=1.
     pub velocity: f32,
+    /// The note's start (after the pre-roll) and length.
+    pub start: Beats,
     pub duration: Beats,
     pub clip: ClipId,
     pub note: NoteId,
@@ -648,7 +650,7 @@ impl RenderJob {
                 name: "Sample".into(),
                 color: None,
                 muted: false,
-                length: sample.duration,
+                length: Beats(sample.start.0 + sample.duration.0),
                 offset: Beats::ZERO,
                 looping: ClipLoop::default(),
                 content: ClipContent::Midi,
@@ -663,7 +665,7 @@ impl RenderJob {
                 pitch: sample.key,
                 velocity: sample.velocity,
                 release_velocity: 0.0,
-                start: Beats::ZERO,
+                start: sample.start,
                 duration: sample.duration,
                 muted: false,
             },

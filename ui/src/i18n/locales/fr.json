@@ -3084,6 +3084,8 @@
   "sampler.convert.add_velocity": "ajouter une vélocité",
   "sampler.convert.remove_velocity": "retirer la vélocité {value}",
   "sampler.convert.velocities_hint": "chaque vélocité jouée utilise la vélocité rendue la plus proche.",
+  "sampler.convert.pre_roll": "décalage",
+  "sampler.convert.pre_roll_hint": "silence enregistré avant chaque note. le décalage de l’échantillonneur le saute ; baissez ce décalage pour garder un peu de ce qui précède la note.",
   "sampler.convert.note_length": "durée de la note",
   "sampler.convert.tail": "queue de relâchement",
   "sampler.convert.seconds": "s",

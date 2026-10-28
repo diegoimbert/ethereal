@@ -36,6 +36,11 @@
 //! | 18 | Filter Envelope | `Release` | 1 ..= 20000 Milliseconds, default 300 |
 //! | 19 | Voice | `Round Robin` | Cycle / Random (default Cycle) |
 //! | 20 | Output | `Pan` | -1 ..= 1 Pan, default 0 |
+//! | 21 | Voice | `Offset` | 0 ..= 2000 Milliseconds, default 0 |
+//!
+//! `Offset` skips that much of every sample on top of its zone's start (a converted
+//! instrument's samples begin with a pre-roll before their note: the offset starts them on
+//! it, or a little before).
 
 use ether_core::Device;
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, ParamScale, ParamUnit};
@@ -77,8 +82,9 @@ pub mod multi_sampler {
     pub const FILTER_RELEASE: ParamId = ParamId(18);
     pub const ROUND_ROBIN: ParamId = ParamId(19);
     pub const PAN: ParamId = ParamId(20);
+    pub const OFFSET: ParamId = ParamId(21);
     /// Number of params.
-    pub const COUNT: usize = 21;
+    pub const COUNT: usize = 22;
 }
 
 /// Descriptor of a type of this group.
@@ -246,6 +252,14 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                         (-1.0, 1.0, 0.0),
                         ParamScale::Linear,
                     ),
+                    param(
+                        21,
+                        "Offset",
+                        "Voice",
+                        ParamUnit::Milliseconds,
+                        (0.0, 2000.0, 0.0),
+                        ParamScale::Linear,
+                    ),
                 ],
                 0,
                 2,
@@ -317,6 +331,7 @@ pub fn layout() -> DeviceLayout {
                 ),
                 knob(p::GLIDE, Small),
                 knob(p::VELOCITY, Small),
+                knob(p::OFFSET, Small),
             ],
         ),
         env(

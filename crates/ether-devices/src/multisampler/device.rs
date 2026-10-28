@@ -378,7 +378,8 @@ impl MultiSampler {
             let (media, source) = (&self.set.sources[src].0, &self.set.sources[src].1);
             let z = &zr.zone;
             let len = source.frames() as f64;
-            let start = (z.start.0 * sr).clamp(0.0, len);
+            // The zone's start, plus the global `Offset`.
+            let start = ((z.start.0 + self.value(p::OFFSET) * 0.001) * sr).clamp(0.0, len);
             let end = z.end.map_or(len, |e| (e.0 * sr).clamp(0.0, len));
             if end.is_nan() || end <= start {
                 continue;

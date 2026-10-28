@@ -3084,6 +3084,8 @@
   "sampler.convert.add_velocity": "add a velocity",
   "sampler.convert.remove_velocity": "remove velocity {value}",
   "sampler.convert.velocities_hint": "each velocity you play uses the nearest rendered one.",
+  "sampler.convert.pre_roll": "offset",
+  "sampler.convert.pre_roll_hint": "silence recorded before each note. the sampler's offset skips it; lower that offset to keep a little of what comes before the note.",
   "sampler.convert.note_length": "note length",
   "sampler.convert.tail": "release tail",
   "sampler.convert.seconds": "s",
