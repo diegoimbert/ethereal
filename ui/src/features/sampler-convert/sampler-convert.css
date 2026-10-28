@@ -38,7 +38,7 @@
   gap: var(--eth-space-sm);
 }
 .eth-sampler-convert__label {
-  min-width: 6em;
+  min-width: var(--eth-size-beat-name-width);
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);
 }
@@ -66,14 +66,14 @@
   flex-direction: column;
   gap: var(--eth-space-xs);
   padding: var(--eth-space-sm);
-  max-width: 16em;
+  max-width: var(--eth-size-device-card-min-width);
 }
 
 /* The 128-key picker: 75 white keys across the dialog, the black keys over their gaps. */
 .eth-sample-keys {
   position: relative;
-  height: 3.2em;
-  margin-bottom: 1.1em;
+  height: calc(var(--eth-size-control-md) * 2);
+  margin-bottom: var(--eth-space-lg);
   user-select: none;
   touch-action: none;
   cursor: pointer;
@@ -85,7 +85,7 @@
   height: 100%;
   box-sizing: border-box;
   border: var(--eth-border-width) solid var(--eth-color-piano-white-key-border);
-  border-radius: 0 0 2px 2px;
+  border-radius: 0 0 var(--eth-radius-2xs) var(--eth-radius-2xs);
   background: var(--eth-color-piano-white-key);
 }
 .eth-sample-keys__key--black {
@@ -106,7 +106,7 @@
   position: absolute;
   top: 100%;
   left: 0;
-  margin-top: 2px;
+  margin-top: var(--eth-space-hair);
   color: var(--eth-color-text-dim);
   font-size: var(--eth-fs-xs);
   pointer-events: none;
