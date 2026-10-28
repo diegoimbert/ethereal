@@ -17,7 +17,7 @@ use ether_controller::{
 };
 use ether_core::protocol::automation::{AutomationCommand, PointSpec};
 use ether_core::protocol::clips::ClipCommand;
-use ether_core::protocol::devices::{DeviceCommand, DeviceDescriptor, DeviceSpec};
+use ether_core::protocol::devices::{DeviceCategory, DeviceCommand, DeviceDescriptor, DeviceSpec};
 use ether_core::protocol::freeze::{BounceTarget, FreezeCommand, FreezeEvent};
 use ether_core::protocol::media::{BrowseLocation, MediaCommand, MediaSource};
 use ether_core::protocol::mixer::MixerCommand;
@@ -56,6 +56,65 @@ struct RealBridge {
     nodes: BTreeMap<NodeKey, DeviceId>,
     /// The last published graph.
     last_graph: Option<RenderGraphDesc>,
+    /// Plugin devices: all [`Loading`] instruments.
+    plugins: BTreeSet<DeviceId>,
+}
+
+/// Fake plugin instrument (`plugin_id: "loading"`): a held note plays a constant 0.5 on both
+/// sides, but only once [`LOADING_MS`] of real time have passed since the instance was
+/// created; before that it is silent, like a sample player still loading its sound on a
+/// thread of its own after its state was set.
+struct Loading {
+    since: std::time::Instant,
+    held: bool,
+}
+const LOADING_MS: u64 = 100;
+impl ether_core::Node for Loading {
+    fn prepare(&mut self, _: &ether_core::PrepareConfig) {}
+    fn reset(&mut self) {
+        self.held = false;
+    }
+    fn channels(&self) -> (u16, u16) {
+        (0, 2)
+    }
+    fn process(
+        &mut self,
+        ctx: &mut ether_core::ProcessContext<'_>,
+        audio: &mut ether_core::AudioBuffers<'_, '_>,
+    ) -> ether_core::ProcessStatus {
+        let ready = self.since.elapsed() >= std::time::Duration::from_millis(LOADING_MS);
+        let mut events = ctx.events.iter().peekable();
+        for i in 0..ctx.frames {
+            while let Some(e) = events.next_if(|e| e.offset as usize <= i) {
+                match e.kind {
+                    ether_core::EventKind::NoteOn { .. } => self.held = true,
+                    ether_core::EventKind::NoteOff { .. } | ether_core::EventKind::AllNotesOff => {
+                        self.held = false
+                    }
+                    _ => {}
+                }
+            }
+            let v = if self.held && ready { 0.5 } else { 0.0 };
+            for o in audio.outputs.iter_mut() {
+                o[i] = v;
+            }
+        }
+        ether_core::ProcessStatus::Continue
+    }
+}
+
+fn loading_descriptor() -> DeviceDescriptor {
+    let mut d = plugin_descriptor("Loading", DeviceCategory::Instrument);
+    d.audio_inputs = 0;
+    d.midi_input = true;
+    d
+}
+
+fn loading_node() -> Box<dyn ether_core::Node> {
+    Box::new(Loading {
+        since: std::time::Instant::now(),
+        held: false,
+    })
 }
 
 impl RealBridge {
@@ -73,6 +132,7 @@ impl RealBridge {
             devices: BTreeMap::new(),
             nodes: BTreeMap::new(),
             last_graph: None,
+            plugins: BTreeSet::new(),
         }
     }
 
@@ -114,11 +174,29 @@ impl EngineBridge for RealBridge {
     }
     fn create_plugin(
         &mut self,
+        device: DeviceId,
+        plugin: &PluginInstance,
+        _: Option<&Base64Bytes>,
+    ) -> Result<NodeKey, BridgeError> {
+        if plugin.plugin_id != "loading" {
+            return Err(BridgeError::Unsupported("no plugins".into()));
+        }
+        self.plugins.insert(device);
+        let key = self
+            .handle
+            .add_node(loading_node())
+            .map_err(|e| BridgeError::Other(e.to_string()))?;
+        self.nodes.insert(key, device);
+        Ok(key)
+    }
+    fn create_offline_plugin(
+        &mut self,
         _: DeviceId,
         _: &PluginInstance,
         _: Option<&Base64Bytes>,
-    ) -> Result<NodeKey, BridgeError> {
-        Err(BridgeError::Unsupported("no plugins".into()))
+        _: u32,
+    ) -> Result<Box<dyn ether_core::Node>, BridgeError> {
+        Ok(loading_node())
     }
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError> {
         self.nodes.remove(&key);
@@ -163,6 +241,9 @@ impl EngineBridge for RealBridge {
         self.handle.poll(out);
     }
     fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor> {
+        if self.plugins.contains(&device) {
+            return Some(loading_descriptor());
+        }
         self.devices
             .get(&device)
             .map(|t| ether_devices::descriptor(*t))
@@ -2648,6 +2729,69 @@ fn convert_to_sampler_pre_roll_is_skipped_by_the_offset() {
         assert_eq!(&sample[c][pre..pre + n], &live[c][..], "then the live note");
         assert_eq!(after[c], live[c], "played back from the note, bit-exact");
     }
+}
+
+/// A plugin still loading its sound for a while after it is created ([`Loading`]: silent
+/// for its first 100 ms of real time) gets the offset as real time before its note: the
+/// render holds before the note until then, so the sample has the note from its first
+/// frame. Without an offset there's no wait, and the note is rendered silent.
+#[test]
+fn convert_to_sampler_offset_waits_for_plugins_in_real_time() {
+    let mut d = Drive::new();
+    let t = d.track(TrackKind::Midi, "Plug");
+    let plug: DeviceId = d.id();
+    d.ok(Command::Device(DeviceCommand::Insert {
+        id: plug,
+        track: t,
+        device: DeviceSpec::Plugin {
+            plugin_id: "loading".into(),
+            sandboxed: None,
+            format: None,
+            name: None,
+        },
+        before: None,
+    }));
+    d.settle();
+    let started = std::time::Instant::now();
+    let sample = sample_key_60_after(&mut d, plug, 0.2);
+    assert!(
+        started.elapsed() >= std::time::Duration::from_millis(200),
+        "it waited"
+    );
+    let pre = SR as usize / 5;
+    for (c, ch) in sample.iter().enumerate() {
+        assert_eq!(
+            onset(ch),
+            Some(pre),
+            "ch{c}: the note, at full level, on its frame"
+        );
+        assert!(
+            ch[pre..pre + SR as usize / 10]
+                .iter()
+                .all(|s| (s - 0.5).abs() < 1e-6)
+        );
+    }
+    // The same plugin without an offset: no wait, the note comes before it is ready.
+    let mut d = Drive::new();
+    let t = d.track(TrackKind::Midi, "Plug");
+    let plug: DeviceId = d.id();
+    d.ok(Command::Device(DeviceCommand::Insert {
+        id: plug,
+        track: t,
+        device: DeviceSpec::Plugin {
+            plugin_id: "loading".into(),
+            sandboxed: None,
+            format: None,
+            name: None,
+        },
+        before: None,
+    }));
+    d.settle();
+    let sample = sample_key_60_after(&mut d, plug, 0.0);
+    assert!(
+        onset(&sample[0]).is_none(),
+        "rendered before the plugin was ready"
+    );
 }
 
 /// An instrument with latency (a rack with an oversampled saturator after the synth): the

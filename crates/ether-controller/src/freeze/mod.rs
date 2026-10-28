@@ -451,9 +451,8 @@ where
                 let duration = Beats(note_end.0 - note_start.0);
                 let frames = RenderJob::frames_of(p, Beats::ZERO, note_end, rate);
                 // The sampler's `Offset`: exactly the note's frame.
-                let offset_ms = RenderJob::frames_of(p, Beats::ZERO, note_start, rate) as f64
-                    / f64::from(rate)
-                    * 1000.0;
+                let note_frame = RenderJob::frames_of(p, Beats::ZERO, note_start, rate);
+                let offset_ms = note_frame as f64 / f64::from(rate) * 1000.0;
                 if frames == 0 {
                     return Err(invalid("the note length is too short to render"));
                 }
@@ -478,6 +477,8 @@ where
                                 velocity: f32::from(point.velocity) / 127.0,
                                 start: note_start,
                                 duration,
+                                note_frame,
+                                wait_ms: (pre_roll_seconds.0 * 1000.0).round() as u64,
                                 clip,
                                 note,
                             }),

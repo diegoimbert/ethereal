@@ -3096,7 +3096,7 @@
   "sampler.convert.remove_velocity": "retirer la vélocité {value}",
   "sampler.convert.velocities_hint": "chaque vélocité jouée utilise la vélocité rendue la plus proche.",
   "sampler.convert.pre_roll": "décalage",
-  "sampler.convert.pre_roll_hint": "silence enregistré avant chaque note. le décalage de l’échantillonneur le saute ; baissez ce décalage pour garder un peu de ce qui précède la note.",
+  "sampler.convert.pre_roll_hint": "chaque note est enregistrée sur un instrument fraîchement chargé, après ce temps réel : un plugin qui continue de charger son son une fois ouvert est prêt pour la note. le décalage de l’échantillonneur saute ce début ; baissez-le pour garder un peu de ce qui précède la note.",
   "sampler.convert.note_length": "durée de la note",
   "sampler.convert.tail": "queue de relâchement",
   "sampler.convert.seconds": "s",

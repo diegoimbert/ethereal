@@ -44,6 +44,12 @@ pub struct SampleNote {
     /// The note's start (after the pre-roll) and length.
     pub start: Beats,
     pub duration: Beats,
+    /// The note's frame in the render, and the real time (ms) the pass's plugins get from
+    /// their load to the note: the render holds before that frame until it has passed (a
+    /// fresh plugin often keeps loading its sound on a thread of its own after its state is
+    /// set, and an offline render reaches the note far sooner than real time would).
+    pub note_frame: usize,
+    pub wait_ms: u64,
     pub clip: ClipId,
     pub note: NoteId,
 }
@@ -110,6 +116,10 @@ pub struct RenderJob {
     pub results: Vec<Rendered>,
     /// User-facing warnings not reported yet.
     pub warnings: Vec<crate::text::Msg>,
+    /// Plugins created for the current pass, and when its render started (they were all
+    /// loaded then).
+    pass_plugins: usize,
+    render_started: Option<std::time::Instant>,
 }
 
 /// Tracks a pass needs besides `target`: the sources of its devices' sidechains
@@ -435,6 +445,8 @@ impl RenderJob {
             stage: Stage::Media,
             results: Vec::new(),
             warnings: Vec::new(),
+            pass_plugins: 0,
+            render_started: None,
         }
     }
 
@@ -496,8 +508,10 @@ impl RenderJob {
                     &mut devices,
                     &mut plugins,
                 )? {
+                    self.pass_plugins += plugins;
                     return Ok(Step::Working);
                 }
+                self.pass_plugins += plugins;
                 let Stage::Setup(setup) = std::mem::replace(&mut self.stage, Stage::Media) else {
                     unreachable!()
                 };
@@ -508,9 +522,21 @@ impl RenderJob {
                 })?;
                 let tail = if spec.tail { self.tail_chunk() } else { 0 };
                 self.stage = Stage::Render(Box::new(Capture::new(renderer, spec.frames + tail)));
+                // The plugins are loaded: their real-time wait starts now (none without
+                // plugins: built-ins are ready at once).
+                self.render_started = (self.pass_plugins > 0).then(std::time::Instant::now);
                 Ok(Step::Working)
             }
             Stage::Render(r) => {
+                // Sampling with plugins: hold right before the note's block until the
+                // plugins have had `wait_ms` of real time since they were loaded.
+                if let (Some(started), Some(sample)) =
+                    (self.render_started, &self.passes[self.pass].sample)
+                    && r.captured() + ether_core::offline::OFFLINE_MAX_BLOCK > sample.note_frame
+                    && started.elapsed() < std::time::Duration::from_millis(sample.wait_ms)
+                {
+                    return Ok(Step::Working);
+                }
                 let mut frames = 0;
                 if !r.step(&mut frames) {
                     return Ok(Step::Working);
@@ -674,6 +700,8 @@ impl RenderJob {
 
     fn new_setup(&mut self) -> Result<Stage, String> {
         self.prepare_sample();
+        self.pass_plugins = 0;
+        self.render_started = None;
         let p = &*self.project;
         let spec = self.spec();
         let needed = needed_tracks(p, spec.track, spec.chain);

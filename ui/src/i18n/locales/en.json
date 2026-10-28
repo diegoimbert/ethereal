@@ -3096,7 +3096,7 @@
   "sampler.convert.remove_velocity": "remove velocity {value}",
   "sampler.convert.velocities_hint": "each velocity you play uses the nearest rendered one.",
   "sampler.convert.pre_roll": "offset",
-  "sampler.convert.pre_roll_hint": "silence recorded before each note. the sampler's offset skips it; lower that offset to keep a little of what comes before the note.",
+  "sampler.convert.pre_roll_hint": "each note is recorded on a freshly loaded instrument, after this much real time: a plugin that keeps loading its sound once it opens is ready by the note. the sampler's offset skips this lead-in; lower it to keep a little of what comes before the note.",
   "sampler.convert.note_length": "note length",
   "sampler.convert.tail": "release tail",
   "sampler.convert.seconds": "s",
