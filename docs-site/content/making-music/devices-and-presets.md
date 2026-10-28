@@ -34,7 +34,7 @@ Each section of the chain has its own add button: the **+** next to the section'
 
 - type in the search field to filter, then press [[key:Enter]] or click a row to add it;
 - the **all**, **factory** and **plugins** chips choose between the built-in devices and your plugins (plugins are desktop only);
-- the star filters your favourites, and the sort menu orders the list by name, most used or most recent;
+- the star filters your favourites, and the sort menu orders the list by most used (the default), name or most recent;
 - drag a row onto the chain to put the device at a place in its section: before a device, or at the section's end.
 
 A device you add opens its window right away, so you can start playing with it. You can also add a device from the command palette ([[action:palette.open]]).
