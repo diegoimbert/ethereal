@@ -1,5 +1,6 @@
-//! Drawn LFO cycles (owned by the `fx-modulation` node): the curve of the Volume LFO
-//! (`BuiltinDevice::VolumeLfo { curve }`).
+//! Drawn LFO cycles (owned by the `fx-modulation` node): the curves of the Volume LFO
+//! (`BuiltinDevice::VolumeLfo { curve, bands }`, one per frequency band) and the shaper's
+//! lanes.
 //!
 //! A curve is one LFO cycle drawn as breakpoints: `x` is the position in the cycle (0..=1),
 //! `y` the value (0..=1; the Volume LFO's linear gain). Each point's [`CurveShape`] shapes
@@ -72,6 +73,52 @@ impl Default for LfoCurve {
     }
 }
 
+/// Most frequency bands of a volume shaper (`BuiltinDevice::VolumeLfo`): its `curve` is
+/// band 1 (the lowest, or the only one), its `bands` the curves of bands 2 and 3.
+pub const VOLUME_SHAPER_BANDS: usize = 3;
+
+/// The curve of band `band` (0 = the lowest) of a volume shaper whose band 1 is `curve` and
+/// whose upper bands are `bands` (`bands[0]` = band 2); a band without a curve is flat at 1
+/// (passes through untouched).
+pub fn volume_shaper_band(curve: &LfoCurve, bands: &[LfoCurve], band: usize) -> LfoCurve {
+    match band {
+        0 => curve.clone(),
+        b => bands.get(b - 1).cloned().unwrap_or_else(LfoCurve::flat),
+    }
+}
+
+/// `Err` when a volume shaper's upper bands aren't valid: at most
+/// `VOLUME_SHAPER_BANDS - 1` curves, each valid ([`LfoCurve::check`]).
+pub fn check_volume_shaper_bands(bands: &[LfoCurve]) -> Result<(), String> {
+    if bands.len() >= VOLUME_SHAPER_BANDS {
+        return Err(format!(
+            "a volume shaper has at most {} upper band curves",
+            VOLUME_SHAPER_BANDS - 1
+        ));
+    }
+    bands.iter().try_for_each(LfoCurve::check)
+}
+
+/// `bands` (a volume shaper's upper band curves) with band `band` (1 or 2; 0 is the
+/// device's `curve`) replaced by `curve` (sanitized); bands in between that had no curve
+/// get a flat one. `None` for a band out of range.
+pub fn with_volume_shaper_band(
+    bands: &[LfoCurve],
+    band: usize,
+    curve: &LfoCurve,
+) -> Option<Vec<LfoCurve>> {
+    if band == 0 || band >= VOLUME_SHAPER_BANDS {
+        return None;
+    }
+    let mut out = bands.to_vec();
+    out.truncate(VOLUME_SHAPER_BANDS - 1);
+    while out.len() < band {
+        out.push(LfoCurve::flat());
+    }
+    out[band - 1] = curve.sanitized();
+    Some(out)
+}
+
 /// `x^(4^tension)` on a 0..1 segment fraction (the automation law, see
 /// `ether_core::automation::curve_fraction`).
 #[inline]
@@ -81,6 +128,13 @@ pub fn curve_fraction(x: f64, tension: f32) -> f64 {
 }
 
 impl LfoCurve {
+    /// A flat line at `1` (unity gain: a volume shaper band that is left alone).
+    pub fn flat() -> Self {
+        Self {
+            points: vec![LfoPoint::linear(0.0, 1.0)],
+        }
+    }
+
     /// `Err` with the reason when the curve isn't valid: 1..=64 points, finite, `x` and `y`
     /// in 0..=1, sorted by `x`, tensions in -1..=1.
     pub fn check(&self) -> Result<(), String> {
@@ -276,6 +330,20 @@ mod tests {
         assert_eq!(d.pan.points, vec![LfoPoint::linear(0.0, 1.0)]);
         assert_eq!(d.volume, c.volume);
         assert_eq!(d.cutoff, c.cutoff);
+    }
+
+    #[test]
+    fn volume_shaper_bands_default_flat_and_replace() {
+        let pump = LfoCurve::default();
+        assert_eq!(volume_shaper_band(&pump, &[], 0), pump);
+        assert_eq!(volume_shaper_band(&pump, &[], 2), LfoCurve::flat());
+        let b = with_volume_shaper_band(&[], 2, &pump).unwrap();
+        assert_eq!(b, vec![LfoCurve::flat(), pump.clone()]);
+        assert!(check_volume_shaper_bands(&b).is_ok());
+        assert_eq!(volume_shaper_band(&LfoCurve::flat(), &b, 2), pump);
+        assert!(with_volume_shaper_band(&b, 0, &pump).is_none());
+        assert!(with_volume_shaper_band(&b, 3, &pump).is_none());
+        assert!(check_volume_shaper_bands(&[pump.clone(), pump.clone(), pump]).is_err());
     }
 
     #[test]

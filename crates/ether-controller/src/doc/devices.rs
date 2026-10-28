@@ -368,23 +368,41 @@ fn apply_inner(ctx: &mut DocCtx, c: &DeviceCommand) -> CmdResult<()> {
         DeviceCommand::SetZones { device, zones } => {
             crate::multisampler::set_zones(ctx, *device, zones)
         }
-        // `fx-modulation`: the Volume LFO's drawn cycle (one `Kind` change, one undo step).
-        DeviceCommand::SetLfoCurve { device, curve } => {
+        // `fx-modulation`: one band's drawn cycle of a Volume LFO (one `Kind` change, one
+        // undo step).
+        DeviceCommand::SetLfoCurve {
+            device,
+            band,
+            curve,
+        } => {
             let d = ctx.device(*device)?;
-            if !matches!(
-                d.kind,
-                DeviceKind::Builtin {
-                    device: BuiltinDevice::VolumeLfo { .. }
-                }
-            ) {
+            let DeviceKind::Builtin {
+                device:
+                    BuiltinDevice::VolumeLfo {
+                        curve: old,
+                        bands: old_bands,
+                    },
+            } = &d.kind
+            else {
                 return Err(invalid(format!("device {} is not a volume lfo", d.id)));
-            }
+            };
+            let band = usize::from(*band);
+            let (curve, bands) = if band == 0 {
+                (curve.sanitized(), old_bands.clone())
+            } else {
+                let bands = ether_model::with_volume_shaper_band(old_bands, band, curve)
+                    .ok_or_else(|| {
+                        invalid(format!(
+                            "a volume lfo band is < {}",
+                            ether_model::VOLUME_SHAPER_BANDS
+                        ))
+                    })?;
+                (old.clone(), bands)
+            };
             ctx.set_device(
                 d.id,
                 DeviceChange::Kind(DeviceKind::Builtin {
-                    device: BuiltinDevice::VolumeLfo {
-                        curve: curve.sanitized(),
-                    },
+                    device: BuiltinDevice::VolumeLfo { curve, bands },
                 }),
             )
         }

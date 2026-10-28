@@ -1625,14 +1625,40 @@
     "layout": {
       "sections": [
         {
-          "columns": 2,
+          "columns": 3,
           "id": "lfo",
           "items": [
             {
-              "colspan": 2,
+              "colspan": 3,
               "label": null,
               "size": "Large",
               "widget": {
+                "bands": {
+                  "count": 8,
+                  "crossovers": [
+                    9,
+                    10
+                  ],
+                  "depths": [
+                    3,
+                    11,
+                    12
+                  ],
+                  "speed_factors": [
+                    0.25,
+                    0.5,
+                    1.0,
+                    2.0,
+                    3.0,
+                    4.0,
+                    8.0
+                  ],
+                  "speeds": [
+                    null,
+                    13,
+                    14
+                  ]
+                },
                 "depth": 3,
                 "phase": 4,
                 "rate": 0,
@@ -1665,15 +1691,6 @@
               "size": "Medium",
               "widget": {
                 "param": 0,
-                "type": "Knob"
-              }
-            },
-            {
-              "colspan": 1,
-              "label": null,
-              "size": "Medium",
-              "widget": {
-                "param": 3,
                 "type": "Knob"
               }
             }
@@ -1878,6 +1895,134 @@
           "type": "Linear"
         },
         "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Bands",
+        "hidden": false,
+        "id": 8,
+        "labels": [
+          "1",
+          "2",
+          "3"
+        ],
+        "max": 2.0,
+        "min": 0.0,
+        "name": "Bands",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 200.0,
+        "group": "Bands",
+        "hidden": false,
+        "id": 9,
+        "labels": null,
+        "max": 20000.0,
+        "min": 20.0,
+        "name": "Crossover 1",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 15000.0,
+        "group": "Bands",
+        "hidden": false,
+        "id": 10,
+        "labels": null,
+        "max": 20000.0,
+        "min": 20.0,
+        "name": "Crossover 2",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Bands",
+        "hidden": false,
+        "id": 11,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Band 2 Depth",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 100.0,
+        "group": "Bands",
+        "hidden": false,
+        "id": 12,
+        "labels": null,
+        "max": 100.0,
+        "min": 0.0,
+        "name": "Band 3 Depth",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Percent"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "Bands",
+        "hidden": false,
+        "id": 13,
+        "labels": [
+          "÷4",
+          "÷2",
+          "×1",
+          "×2",
+          "×3",
+          "×4",
+          "×8"
+        ],
+        "max": 6.0,
+        "min": 0.0,
+        "name": "Band 2 Speed",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "Bands",
+        "hidden": false,
+        "id": 14,
+        "labels": [
+          "÷4",
+          "÷2",
+          "×1",
+          "×2",
+          "×3",
+          "×4",
+          "×8"
+        ],
+        "max": 6.0,
+        "min": 0.0,
+        "name": "Band 3 Speed",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
       }
     ],
     "sidechain_inputs": 0

@@ -163,6 +163,7 @@ export type * from "./KitPadInfo";
 export type * from "./LayoutItem";
 export type * from "./LayoutSection";
 export type * from "./LfoCurve";
+export type * from "./LfoCurveBands";
 export type * from "./LfoPoint";
 export type * from "./LibraryItem";
 export type * from "./LibraryItemKind";

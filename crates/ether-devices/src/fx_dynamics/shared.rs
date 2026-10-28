@@ -1,4 +1,5 @@
-//! Building blocks shared by the dynamics devices: a fixed-size param store, a Butterworth
+//! Building blocks shared by the dynamics devices (the crossovers also by the volume
+//! shaper's band split): a fixed-size param store, a Butterworth
 //! TPT state-variable section (Linkwitz-Riley crossovers, detector high-pass) and the
 //! sample-accurate gain ramp.
 
@@ -60,7 +61,7 @@ impl<const N: usize> Params<N> {
 
 /// Coefficients of a Butterworth (Q = 1/√2) TPT state-variable section at one frequency.
 #[derive(Clone, Copy, Debug)]
-pub(super) struct SvfCoefs {
+pub(crate) struct SvfCoefs {
     k: f64,
     a1: f64,
     a2: f64,
@@ -71,7 +72,7 @@ impl SvfCoefs {
     /// Damping of a Butterworth section (`1/Q`).
     const K: f64 = std::f64::consts::SQRT_2;
 
-    pub(super) fn new(freq: f64, sample_rate: f64) -> Self {
+    pub(crate) fn new(freq: f64, sample_rate: f64) -> Self {
         // Keep the prewarp away from Nyquist (tan blows up).
         let f = freq.clamp(1.0, sample_rate * 0.49);
         let g = (std::f64::consts::PI * f / sample_rate).tan();
@@ -89,7 +90,7 @@ impl SvfCoefs {
 
 /// Outputs of one SVF tick.
 #[derive(Clone, Copy, Debug)]
-pub(super) struct SvfOut {
+pub(crate) struct SvfOut {
     pub lp: f64,
     pub bp: f64,
     pub hp: f64,
@@ -97,7 +98,7 @@ pub(super) struct SvfOut {
 
 /// State of one SVF section (Simper's trapezoidal SVF), per channel.
 #[derive(Clone, Copy, Debug, Default)]
-pub(super) struct Svf {
+pub(crate) struct Svf {
     ic1: f64,
     ic2: f64,
 }
@@ -110,7 +111,7 @@ fn flush(x: f64) -> f64 {
 
 impl Svf {
     #[inline]
-    pub(super) fn tick(&mut self, x: f64, c: &SvfCoefs) -> SvfOut {
+    pub(crate) fn tick(&mut self, x: f64, c: &SvfCoefs) -> SvfOut {
         let v3 = x - self.ic2;
         let v1 = c.a1 * self.ic1 + c.a2 * v3;
         let v2 = self.ic2 + c.a2 * self.ic1 + c.a3 * v3;
@@ -126,7 +127,7 @@ impl Svf {
     /// Second-order allpass with the same poles: `x - 2k·bp`. With `k = √2` this is exactly
     /// the sum of the 4th-order Linkwitz-Riley low and high pass at that frequency.
     #[inline]
-    pub(super) fn allpass(&mut self, x: f64, c: &SvfCoefs) -> f64 {
+    pub(crate) fn allpass(&mut self, x: f64, c: &SvfCoefs) -> f64 {
         let o = self.tick(x, c);
         x - 2.0 * c.k * o.bp
     }
@@ -135,7 +136,7 @@ impl Svf {
 /// One Linkwitz-Riley (24 dB/oct) band split, per channel: two cascaded Butterworth low
 /// passes and two cascaded high passes. `low + high` is an allpass (flat magnitude).
 #[derive(Clone, Copy, Debug, Default)]
-pub(super) struct LrSplit {
+pub(crate) struct LrSplit {
     lp: [Svf; 2],
     hp: [Svf; 2],
 }
@@ -143,7 +144,7 @@ pub(super) struct LrSplit {
 impl LrSplit {
     /// `(low, high)`.
     #[inline]
-    pub(super) fn tick(&mut self, x: f64, c: &SvfCoefs) -> (f64, f64) {
+    pub(crate) fn tick(&mut self, x: f64, c: &SvfCoefs) -> (f64, f64) {
         let l = self.lp[0].tick(x, c).lp;
         let l = self.lp[1].tick(l, c).lp;
         let h = self.hp[0].tick(x, c).hp;

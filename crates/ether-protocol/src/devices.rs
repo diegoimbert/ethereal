@@ -106,11 +106,17 @@ pub enum DeviceCommand {
     },
     /// v0.3 (`fx-space`): replies `FactoryIrs` (the IRs shipped with the convolution reverb).
     ListFactoryIrs,
-    /// `fx-modulation`: replace a Volume LFO's drawn cycle (`ether_model::lfo_curve`;
-    /// sanitized: sorted, clamped, at most 64 points). One undo step (send with a gesture id
-    /// while dragging); the live node swaps it in place (`EngineBridge::update_builtin`).
+    /// `fx-modulation`: replace the drawn cycle of band `band` of a Volume LFO
+    /// (`ether_model::lfo_curve`; sanitized: sorted, clamped, at most 64 points). Band 0 (the
+    /// default when omitted) is `BuiltinDevice::VolumeLfo::curve` (the lowest band, or the
+    /// whole signal with one band), bands 1 and 2 its `bands` (`< VOLUME_SHAPER_BANDS`;
+    /// editing a band whose curve is still implicit fills the ones under it with flat
+    /// curves). One undo step (send with a gesture id while dragging); the live node swaps
+    /// it in place (`EngineBridge::update_builtin`).
     SetLfoCurve {
         device: DeviceId,
+        #[serde(default)]
+        band: u8,
         curve: LfoCurve,
     },
     /// `shaper`: replace one lane's drawn cycle of a shaper (`ether_model::ShaperCurves`;

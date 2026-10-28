@@ -251,13 +251,18 @@ pub enum Widget {
     /// Editor of a Volume LFO's drawn cycle (`BuiltinDevice::VolumeLfo::curve`, written with
     /// `Device::SetLfoCurve`): breakpoints on a grid of the cycle's divisions and a playhead.
     /// `sync` / `sync_rate` / `rate` set the grid and the playhead's speed, `phase` its
-    /// offset; `depth` scales the drawn gain.
+    /// offset; `depth` scales the drawn gain. With `bands`, a frequency strip above it shows
+    /// the band split (draggable crossovers, a band count picker) and selects the band whose
+    /// cycle the editor draws (`BuiltinDevice::VolumeLfo::bands`).
     LfoCurve {
         sync: ParamId,
         sync_rate: ParamId,
         rate: ParamId,
         phase: ParamId,
         depth: ParamId,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        bands: Option<LfoCurveBands>,
     },
     // --- fx-analysis ---
     /// A loudness meter's readouts and history (`AnalysisData::Levels` of a `Loudness`:
@@ -317,6 +322,22 @@ pub enum Widget {
         output: ParamId,
         spectrum: SpectrumOverlay,
     },
+}
+
+/// The band split of a [`Widget::LfoCurve`] (the multiband volume shaper).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct LfoCurveBands {
+    /// The band count: a choice whose plain value `i` means `i + 1` bands.
+    pub count: ParamId,
+    /// Crossover frequencies (Hz), lowest first: `crossovers[i]` splits band `i` from band
+    /// `i + 1` (with fewer bands, only the first ones are used).
+    pub crossovers: Vec<ParamId>,
+    /// Per band (lowest first), its depth (`depths[0]` is the widget's `depth`).
+    pub depths: Vec<ParamId>,
+    /// Per band, its speed: a choice of a factor of the cycle rate (`speed_factors[i]` for
+    /// plain value `i`); `None` = the cycle's rate.
+    pub speeds: Vec<Option<ParamId>>,
+    pub speed_factors: Vec<f64>,
 }
 
 /// One band slot of a [`Widget::GraphicEq`] (all params required).

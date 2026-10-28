@@ -1150,7 +1150,10 @@ impl Project {
                     match device {
                         BuiltinDevice::Sampler { slices, .. } => check_slices(slices)?,
                         BuiltinDevice::MultiSampler { zones } => check_sample_zones(zones)?,
-                        BuiltinDevice::VolumeLfo { curve } => curve.check().map_err(invalid)?,
+                        BuiltinDevice::VolumeLfo { curve, bands } => {
+                            curve.check().map_err(invalid)?;
+                            crate::lfo_curve::check_volume_shaper_bands(bands).map_err(invalid)?;
+                        }
                         BuiltinDevice::Shaper { curves } => curves.check().map_err(invalid)?,
                         BuiltinDevice::ConvolutionReverb {
                             ir: Some(IrSource::Factory { id }),

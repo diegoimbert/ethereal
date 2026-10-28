@@ -41,9 +41,16 @@ macros?: RackMacros, } | { "type": "MidiEffectRack",
  */
 macros?: RackMacros, } | { "type": "ConvolutionReverb", ir: IrSource | null, } | { "type": "ExternalInstrument", routing: ExternalRouting, } | { "type": "ExternalAudioEffect", routing: ExternalRouting, } | { "type": "FmSynth" } | { "type": "Vibrato" } | { "type": "VolumeLfo", 
 /**
- * Omitted (an agent's `{"type": "VolumeLfo"}`) = the default pump.
+ * The cycle of band 1 (the lowest, or the whole signal with one band). Omitted (an
+ * agent's `{"type": "VolumeLfo"}`) = the default pump.
  */
-curve: LfoCurve, } | { "type": "NoteBlocker" } | { "type": "Erosion" } | { "type": "Pedal" } | { "type": "GrainDelay" } | { "type": "Shifter" } | { "type": "Loudness" } | { "type": "Maximizer" } | { "type": "Shaper", 
+curve: LfoCurve, 
+/**
+ * The cycles of bands 2 and 3 (`bands[0]` = band 2), used when the `Bands` param
+ * splits the signal; a band without a curve is flat at 1 (untouched). Omitted =
+ * none (older projects).
+ */
+bands?: Array<LfoCurve>, } | { "type": "NoteBlocker" } | { "type": "Erosion" } | { "type": "Pedal" } | { "type": "GrainDelay" } | { "type": "Shifter" } | { "type": "Loudness" } | { "type": "Maximizer" } | { "type": "Shaper", 
 /**
  * Omitted (an agent's `{"type": "Shaper"}`) = the defaults.
  */
