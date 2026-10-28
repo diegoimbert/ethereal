@@ -20,9 +20,9 @@ Toute modification de votre morceau peut être annulée. Cette page explique ce 
 
 Les boutons **annuler** et **rétablir** de la barre du haut font la même chose. Survolez-les pour voir quelle étape ils annuleraient ou rétabliraient, par exemple « annuler déplacer 3 clips ».
 
-Toute modification du morceau peut être annulée : notes, clips, pistes, appareils et leurs réglages, automation, zone de boucle, tempo et signature rythmique, muet et solo. Un glissement ou un tour de bouton est une seule étape, quelle que soit sa durée.
+Toute modification du morceau peut être annulée : notes, clips, pistes, appareils et leurs réglages, automation, zone de boucle, tempo et signature rythmique. Un glissement ou un tour de bouton est une seule étape, quelle que soit sa durée.
 
-Certaines choses ne sont pas des modifications du morceau, et ne figurent donc pas dans l’historique d’annulation : armer une piste pour l’enregistrement, lancer et arrêter la lecture, déplacer la tête de lecture, ouvrir les fenêtres de plug-ins, les réglages audio, et les actions sur les projets comme ouvrir, supprimer ou dupliquer un projet.
+Certaines choses ne sont pas des modifications du morceau, et ne figurent donc pas dans l’historique d’annulation : couper ou mettre en solo une piste ou un pad (annuler ne change jamais ce que vous entendez), armer une piste pour l’enregistrement, lancer et arrêter la lecture, déplacer la tête de lecture, ouvrir les fenêtres de plug-ins, les réglages audio, et les actions sur les projets comme ouvrir, supprimer ou dupliquer un projet.
 
 ## le panneau d’historique {#the-history-panel}
 

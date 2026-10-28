@@ -20,9 +20,9 @@ Every change you make to your song can be undone. This page explains what undo c
 
 The **undo** and **redo** buttons in the top bar do the same. Hover them to see which step they would undo or redo, for example "undo move 3 clips".
 
-Every edit to the song can be undone: notes, clips, tracks, devices and their settings, automation, the loop region, the tempo and time signature, mute and solo. A drag or a knob turn is a single step, however long it lasts.
+Every edit to the song can be undone: notes, clips, tracks, devices and their settings, automation, the loop region, the tempo and time signature. A drag or a knob turn is a single step, however long it lasts.
 
-Some things are not edits to the song, so they aren't in the undo history: arming a track for recording, playing, stopping and moving the playhead, opening plugin windows, the audio settings, and project actions such as opening, deleting or duplicating a project.
+Some things are not edits to the song, so they aren't in the undo history: muting or soloing a track or a drum pad (undo never changes what you hear), arming a track for recording, playing, stopping and moving the playhead, opening plugin windows, the audio settings, and project actions such as opening, deleting or duplicating a project.
 
 ## the history panel
 
