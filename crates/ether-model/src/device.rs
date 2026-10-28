@@ -259,7 +259,8 @@ pub enum BuiltinDevice {
     },
     Compressor,
     Delay,
-    /// Parametric EQ with a fixed number of bands.
+    /// Parametric EQ with eight fixed bands ("Parametric EQ" in the library; the default
+    /// EQ is [`Self::GraphicEq`]).
     Eq,
     /// Algorithmic reverb.
     Reverb,
@@ -404,6 +405,10 @@ pub enum BuiltinDevice {
     /// An EQ that keeps rebalancing the sound: cuts what sticks out, lifts what is buried
     /// (`adaptive-eq`).
     AdaptiveEq,
+    /// The default EQ ("EQ" in the library): a graphic curve editor over 24 band slots,
+    /// each unused until a point is placed (`graphic-eq`, params in
+    /// `ether_devices::graphic_eq`).
+    GraphicEq,
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -460,11 +465,12 @@ pub enum BuiltinDeviceType {
     Shaper,
     PitchCorrection,
     AdaptiveEq,
+    GraphicEq,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 49] = [
+    pub const ALL: [BuiltinDeviceType; 50] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -514,6 +520,7 @@ impl BuiltinDeviceType {
         Self::Shaper,
         Self::PitchCorrection,
         Self::AdaptiveEq,
+        Self::GraphicEq,
     ];
 
     /// Rack types ([`crate::rack`]).
@@ -595,6 +602,7 @@ impl BuiltinDevice {
             Self::Shaper { .. } => BuiltinDeviceType::Shaper,
             Self::PitchCorrection => BuiltinDeviceType::PitchCorrection,
             Self::AdaptiveEq => BuiltinDeviceType::AdaptiveEq,
+            Self::GraphicEq => BuiltinDeviceType::GraphicEq,
         }
     }
 
@@ -691,6 +699,7 @@ impl BuiltinDevice {
             },
             BuiltinDeviceType::PitchCorrection => Self::PitchCorrection,
             BuiltinDeviceType::AdaptiveEq => Self::AdaptiveEq,
+            BuiltinDeviceType::GraphicEq => Self::GraphicEq,
         }
     }
 

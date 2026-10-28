@@ -545,7 +545,7 @@
     ]
   },
   "midi_input": false,
-  "name": "EQ",
+  "name": "Parametric EQ",
   "params": [
     {
       "automatable": true,

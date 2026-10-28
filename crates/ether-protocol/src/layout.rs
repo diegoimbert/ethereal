@@ -303,6 +303,34 @@ pub enum Widget {
         recover: ParamId,
         tame: ParamId,
     },
+    // --- graphic-eq ---
+    /// The graphic EQ's editor (`BuiltinDevice::GraphicEq`), filling its container: the
+    /// combined response of the used bands (`ether_protocol::eq_response::graphic_eq_stages`,
+    /// mirrored in TS) on a log-frequency (10 Hz..30 kHz) / dB grid over the `spectrum`, one
+    /// point per used band. Double-click on the curve = use a free band there (Bell at that
+    /// frequency and gain; the press can keep dragging it), drag = freq + gain, wheel = Q,
+    /// double-click on a point = free its band, context menu = type, slope, on/off. Each
+    /// gesture is one undo step. A band's `kind` plain value `i` is
+    /// `GraphicEqShape::ALL[i]`, its `slope` plain value `GRAPHIC_EQ_SLOPES[i]` dB/oct.
+    GraphicEq {
+        bands: Vec<GraphicEqBandBinding>,
+        output: ParamId,
+        spectrum: SpectrumOverlay,
+    },
+}
+
+/// One band slot of a [`Widget::GraphicEq`] (all params required).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+pub struct GraphicEqBandBinding {
+    /// The slot holds a point (off = unused: not drawn, pass-through).
+    pub used: ParamId,
+    /// A used band's bypass (off = drawn dimmed, pass-through).
+    pub on: ParamId,
+    pub kind: ParamId,
+    pub freq: ParamId,
+    pub gain: ParamId,
+    pub q: ParamId,
+    pub slope: ParamId,
 }
 
 /// Operator routing of one algorithm of a [`Widget::FmAlgorithm`]. Operators are numbered

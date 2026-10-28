@@ -83,6 +83,11 @@ fn bound(w: &Widget) -> Vec<ParamId> {
         W::Maximizer { threshold, ceiling } => vec![*threshold, *ceiling],
         W::PitchCorrection { key, scale } => vec![*key, *scale],
         W::AdaptiveEq { recover, tame } => vec![*recover, *tame],
+        W::GraphicEq { bands, output, .. } => bands
+            .iter()
+            .flat_map(|b| [b.used, b.on, b.kind, b.freq, b.gain, b.q, b.slope])
+            .chain([*output])
+            .collect(),
         W::ShaperCurve {
             on, rate, depth, ..
         } => vec![*on, *rate, *depth],

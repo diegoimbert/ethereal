@@ -100,7 +100,7 @@ impl NewDevice {
 
     fn describe(&self) -> Value {
         match self {
-            NewDevice::Builtin(t) => json!({ "type": t.key() }),
+            NewDevice::Builtin(t) => json!({ "type": super::edit::type_key(*t) }),
             NewDevice::Plugin(p) => json!({
                 "type": format!("plugin:{}:{}", format_key(p.format), p.id),
                 "plugin": p.name,
@@ -604,7 +604,7 @@ pub(super) fn builtin_by_name(text: &str) -> Option<BuiltinDeviceType> {
         let s = resolve::score_name(text, &q, &d.name).max(resolve::score_name(
             text,
             &q,
-            &device.key().replace('-', " "),
+            &super::edit::type_key(device).replace('-', " "),
         ));
         if s >= 0.85 && best.is_none_or(|(_, b)| s > b) {
             best = Some((device, s));

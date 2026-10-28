@@ -376,7 +376,12 @@ fn devices_and_params() {
     let offered: Vec<String> = BuiltinDeviceType::ALL
         .into_iter()
         .filter(|t| ether_devices::implemented(*t))
-        .map(|t| t.key())
+        // `eq` is the default (graphic) EQ, the eight-band one `parametric-eq`.
+        .map(|t| match t {
+            BuiltinDeviceType::GraphicEq => "eq".to_owned(),
+            BuiltinDeviceType::Eq => "parametric-eq".to_owned(),
+            _ => t.key(),
+        })
         .collect();
     assert_eq!(listed, offered);
     for t in ether_devices::UNIMPLEMENTED {

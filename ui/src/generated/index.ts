@@ -131,6 +131,8 @@ export type * from "./ForkOrigin";
 export type * from "./FreezeCommand";
 export type * from "./FreezeEvent";
 export type * from "./GestureId";
+export type * from "./GraphicEqBandBinding";
+export type * from "./GraphicEqShape";
 export type * from "./GrooveCommand";
 export type * from "./HardwarePorts";
 export type * from "./HelloRejection";

@@ -5,9 +5,12 @@
 //! The check is "same inputs, `db` within [`DB_TOLERANCE`]" rather than bit-equality:
 //! `magnitude_db` goes through `tan`, `powf` and `log10`, which are not correctly rounded and
 //! differ by an ULP or so between platform libms (Apple libm vs glibc). The tolerance is the
-//! same 1e-6 dB contract the TS mirror is held to.
+//! same 1e-6 dB contract the TS mirror is held to. `graphic_eq_vectors.json` holds the graphic
+//! EQ's bands (`graphic_eq_db`), same contract.
 
-use ether_protocol::eq_response::{EqShape, magnitude_db};
+use ether_protocol::eq_response::{
+    EqShape, GRAPHIC_EQ_SLOPES, GraphicEqShape, graphic_eq_db, magnitude_db,
+};
 
 /// Max allowed |stored - computed| in dB (the TS mirror's contract, far below audibility).
 const DB_TOLERANCE: f64 = 1e-6;
@@ -48,9 +51,43 @@ fn vectors_are_current() {
             }
         }
     }
+    check(vectors, "eq_response_vectors.json");
+}
+
+/// The graphic EQ's bands: every shape, every slope of the shapes that have one.
+#[test]
+fn graphic_vectors_are_current() {
+    let mut vectors = Vec::new();
+    for shape in GraphicEqShape::ALL {
+        for (freq, gain, q) in [
+            (80.0, 6.0, 0.707),
+            (1000.0, -12.0, 2.0),
+            (12_000.0, 9.0, 0.5),
+        ] {
+            for slope in 0..GRAPHIC_EQ_SLOPES.len() {
+                if slope != 1 && !shape.uses_slope() {
+                    continue;
+                }
+                for sr in [44_100.0, 48_000.0] {
+                    for at in [20.0, 100.0, 700.0, 1000.0, 5000.0, 15_000.0, 20_000.0] {
+                        let db = graphic_eq_db(shape, freq, gain, q, slope, at, sr);
+                        vectors.push(serde_json::json!({
+                            "shape": shape, "freq": freq, "gain_db": gain, "q": q,
+                            "slope": slope, "at_hz": at, "sample_rate": sr, "db": db,
+                        }));
+                    }
+                }
+            }
+        }
+    }
+    check(vectors, "graphic_eq_vectors.json");
+}
+
+fn check(vectors: Vec<serde_json::Value>, file: &str) {
     let expected = serde_json::Value::Array(vectors);
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/eq_response_vectors.json");
+        .join("tests/fixtures")
+        .join(file);
     if std::env::var_os("UPDATE_EQ_VECTORS").is_some() {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(

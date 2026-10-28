@@ -108,7 +108,7 @@ impl Builder {
 fn vocal_chain() -> Template {
     let mut b = Builder::new(0xE7_01);
     let t = b.track(TrackKind::Audio, "vocal", 0xe8919d, None);
-    b.device(t, BuiltinDeviceType::Eq);
+    b.device(t, BuiltinDeviceType::GraphicEq);
     b.device(t, BuiltinDeviceType::Compressor);
     b.device(t, BuiltinDeviceType::Reverb);
     b.finish(

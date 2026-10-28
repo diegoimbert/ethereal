@@ -2,7 +2,7 @@
 //! compressor, delay, EQ, reverb, limiter, utility and drum rack; [`poly_synth`],
 //! [`fm_synth`] (four-operator FM), [`multisampler`]; the effect groups [`fx_color`],
 //! [`fx_modulation`], [`fx_dynamics`], [`fx_analysis`], [`fx_space`] (convolution reverb),
-//! [`grain_delay`], [`shifter`], [`maximizer`], [`shaper`], [`pitch_correction`], [`adaptive_eq`] and [`midi_fx`]; [`racks`] and [`modulators`]; [`external`] (external instruments and
+//! [`grain_delay`], [`shifter`], [`maximizer`], [`shaper`], [`pitch_correction`], [`adaptive_eq`], [`graphic_eq`] (the default EQ) and [`midi_fx`]; [`racks`] and [`modulators`]; [`external`] (external instruments and
 //! effects). Shared scaffolding is in [`contract`]; factory presets come from
 //! [`factory_presets`] ([`factory`] holds the older types).
 //!
@@ -31,6 +31,7 @@ pub mod fx_dynamics;
 pub mod fx_modulation;
 pub mod fx_space;
 pub mod grain_delay;
+pub mod graphic_eq;
 pub mod limiter;
 pub mod maximizer;
 pub mod midi_fx;
@@ -133,6 +134,7 @@ fn type_descriptor(device: BuiltinDeviceType) -> DeviceDescriptor {
         BuiltinDeviceType::Shaper => shaper::descriptor(device),
         BuiltinDeviceType::PitchCorrection => pitch_correction::descriptor(device),
         BuiltinDeviceType::AdaptiveEq => adaptive_eq::descriptor(device),
+        BuiltinDeviceType::GraphicEq => graphic_eq::descriptor(device),
     }
 }
 
@@ -190,6 +192,7 @@ pub fn factory_presets(device: BuiltinDeviceType) -> &'static [contract::Factory
         BuiltinDeviceType::Shaper => shaper::factory_presets(device),
         BuiltinDeviceType::PitchCorrection => pitch_correction::factory_presets(device),
         BuiltinDeviceType::AdaptiveEq => adaptive_eq::factory_presets(device),
+        BuiltinDeviceType::GraphicEq => graphic_eq::factory_presets(device),
     }
 }
 
@@ -275,6 +278,7 @@ pub fn create(device: &BuiltinDevice, samples: &dyn SampleResolver) -> Box<dyn D
         BuiltinDevice::Shaper { .. } => shaper::create(device),
         BuiltinDevice::PitchCorrection => pitch_correction::create(device),
         BuiltinDevice::AdaptiveEq => adaptive_eq::create(device),
+        BuiltinDevice::GraphicEq => graphic_eq::create(device),
     }
 }
 

@@ -28,9 +28,20 @@ use crate::store::{Library, ProjectStore};
 use crate::tx::{internal, not_found};
 use crate::{EngineBridge, EtherController, HostServices, MessageSink};
 
+/// The key the agent tools use for a built-in type: [`BuiltinDeviceType::key`], except that
+/// `eq` is the default (graphic) EQ and the eight-band one is `parametric-eq`.
+pub(super) fn type_key(t: BuiltinDeviceType) -> String {
+    match t {
+        BuiltinDeviceType::GraphicEq => "eq".into(),
+        BuiltinDeviceType::Eq => "parametric-eq".into(),
+        _ => t.key(),
+    }
+}
+
 /// A built-in device type from a key such as `poly-synth` (also accepts `Poly Synth`,
-/// `poly_synth`, `PolySynth`). Types without a working node (`ether_devices::implemented`)
-/// are not offered: they are rejected like unknown keys.
+/// `poly_synth`, `PolySynth`; [`type_key`]s, and `eq` / `equalizer` / `graphic-eq` for the
+/// default EQ). Types without a working node (`ether_devices::implemented`) are not offered:
+/// they are rejected like unknown keys.
 pub(super) fn builtin_type(key: &str) -> Result<BuiltinDeviceType, ToolError> {
     let norm = |s: &str| {
         s.chars()
@@ -39,18 +50,27 @@ pub(super) fn builtin_type(key: &str) -> Result<BuiltinDeviceType, ToolError> {
             .to_ascii_lowercase()
     };
     let wanted = norm(key);
+    if matches!(
+        wanted.as_str(),
+        "eq" | "equalizer" | "equaliser" | "graphiceq"
+    ) && ether_devices::implemented(BuiltinDeviceType::GraphicEq)
+    {
+        return Ok(BuiltinDeviceType::GraphicEq);
+    }
     let offered = || {
         BuiltinDeviceType::ALL
             .into_iter()
             .filter(|t| ether_devices::implemented(*t))
     };
-    offered().find(|t| norm(&t.key()) == wanted).ok_or_else(|| {
-        let keys: Vec<String> = offered().map(|t| t.key()).collect();
-        ToolError::input(format!(
-            "unknown device type `{key}`. Built-in types: {}",
-            keys.join(", ")
-        ))
-    })
+    offered()
+        .find(|t| norm(&type_key(*t)) == wanted)
+        .ok_or_else(|| {
+            let keys: Vec<String> = offered().map(type_key).collect();
+            ToolError::input(format!(
+                "unknown device type `{key}`. Built-in types: {}",
+                keys.join(", ")
+            ))
+        })
 }
 
 fn parse_color(s: &str) -> Result<Color, ToolError> {
@@ -1226,7 +1246,7 @@ where
                 out,
             )?;
             return Ok(
-                json!({ "device_id": device.to_string(), "preset": item.name, "type": ty.key() }),
+                json!({ "device_id": device.to_string(), "preset": item.name, "type": type_key(ty) }),
             );
         }
         let Some(source) = item.source.clone() else {
@@ -1392,6 +1412,19 @@ mod tests {
             BuiltinDeviceType::DrumRack
         );
         assert!(matches!(builtin_type("kazoo"), Err(ToolError::Input(_))));
+        // `eq` is the default (graphic) EQ; the eight-band one is `parametric-eq`.
+        for k in ["eq", "EQ", "equalizer", "graphic-eq"] {
+            assert_eq!(
+                builtin_type(k).unwrap(),
+                BuiltinDeviceType::GraphicEq,
+                "{k}"
+            );
+        }
+        assert_eq!(
+            builtin_type("parametric-eq").unwrap(),
+            BuiltinDeviceType::Eq
+        );
+        assert_eq!(type_key(BuiltinDeviceType::GraphicEq), "eq");
         assert_eq!(parse_color("#FF8800").unwrap(), Color(0xff8800));
         assert!(parse_color("red").is_err());
     }

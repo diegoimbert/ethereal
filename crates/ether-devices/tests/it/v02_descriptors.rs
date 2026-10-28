@@ -77,6 +77,7 @@ const GROUPS: &[(&str, &[BuiltinDeviceType])] = &[
     ("shaper", &[BuiltinDeviceType::Shaper]),
     ("pitchCorrection", &[BuiltinDeviceType::PitchCorrection]),
     ("adaptiveEq", &[BuiltinDeviceType::AdaptiveEq]),
+    ("graphicEq", &[BuiltinDeviceType::GraphicEq]),
     (
         "racks",
         &[
@@ -127,7 +128,7 @@ fn mock_descriptors_match_rust() {
     }
     // Every v0.2 type belongs to exactly one group (the 9 earlier ones are in
     // `builtinDevices.ts`, the 3 v0.3 ones in `v03_descriptors.rs`, the FM Synth in
-    // `fm_synth.rs`; the later Vibrato and Volume LFO are in the fxModulation group, Erosion and Pedal in fxColor, Grain Delay, Shifter, Maximizer, Shaper, Pitch Correction and Adaptive EQ in their own, Loudness in fxAnalysis).
+    // `fm_synth.rs`; the later Vibrato and Volume LFO are in the fxModulation group, Erosion and Pedal in fxColor, Grain Delay, Shifter, Maximizer, Shaper, Pitch Correction, Adaptive EQ and the graphic EQ in their own, Loudness in fxAnalysis).
     assert_eq!(covered, BuiltinDeviceType::ALL.len() - 9 - 3 - 1);
     // The EQ carries the v0.2 `EqCurve` layout: generated too.
     check_file(
