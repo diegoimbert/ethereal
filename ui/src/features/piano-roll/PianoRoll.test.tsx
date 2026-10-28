@@ -972,6 +972,25 @@ describe("PianoRoll sections and note clipboard (section-edit)", () => {
     expect(screen.queryByTestId("piano-roll-section")).toBeNull();
   });
 
+  it("⌘E splits the notes crossing the section at both edges, one undo step", async () => {
+    const { clip } = await setup();
+    await send(cmd("Note", { type: "Remove", ids: notesOf(clip).map((n) => n.id) }));
+    await send(cmd("Note", { type: "Add", clip, notes: [{ id: "01SECTIONSPLIT0000000000000", pitch: 60, velocity: 0.8, start: 0, duration: 4 }] }));
+    await drag(strip(), [x(1), 2], [x(3), 2]);
+    await press("e");
+    const parts = () =>
+      notesOf(clip)
+        .map((n) => [n.start, n.duration])
+        .sort((a, b) => a[0]! - b[0]!);
+    expect(parts()).toEqual([
+      [0, 1],
+      [1, 2],
+      [3, 1],
+    ]);
+    await undo();
+    expect(parts()).toEqual([[0, 4]]);
+  });
+
   it("⌘A selects every note like a plain marquee over them all: no section, the old one goes", async () => {
     const { clip, a, b } = await setup();
     // A plain (no Shift) marquee over both notes.

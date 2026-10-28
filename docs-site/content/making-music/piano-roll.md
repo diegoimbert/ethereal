@@ -141,6 +141,7 @@ Pressing a note, or [[action:edit.deselect]], leaves the section.
 When a section exists:
 
 - [[action:edit.copy]], [[action:edit.cut]], [[action:edit.paste]] and [[action:edit.duplicate]] work on the section's exact time span, including empty space. Notes that cross the section's edges are cut at the edges. Duplicate places the copy right after the section, so it can leave silence after the last note.
+- [[action:edit.split]] splits the notes that cross the section's edges, at both edges. With only the insert marker, it splits the notes that cross the marker (the selected ones, if any).
 - [[action:edit.delete]] clears what is inside the section.
 
 Without a section, these keys act on the selected notes.

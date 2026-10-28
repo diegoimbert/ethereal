@@ -2938,6 +2938,7 @@
   "piano_roll.band_focus": "{name} ({track}): click to focus",
   "undo.note.cut": "cut notes",
   "undo.note.delete_section": "delete notes",
+  "undo.note.split": "split notes",
   "undo.note.paste": "paste notes",
   "undo.note.duplicate_selection": "duplicate notes",
   "piano_roll.grid_option.adaptive_narrow": "adaptive (narrow)",

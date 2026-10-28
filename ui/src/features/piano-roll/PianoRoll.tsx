@@ -94,6 +94,7 @@ import {
   pasteCommand,
   rangeOfSection,
   sectionOf,
+  splitCommands,
   type NoteClipboard,
   usePianoRollSection,
 } from "./section";
@@ -150,6 +151,7 @@ const PIANO_ROLL_ACTIONS = [
   "edit.cut",
   "edit.paste",
   "edit.duplicate",
+  "edit.split",
   "pianoRoll.drawMode",
   "edit.deselect",
   "nudge.up",
@@ -510,6 +512,14 @@ function Editor({ space, view: injectedView }: { space: RollSpace; view?: Timeli
       command = reverseNotes();
     } else if (action === "edit.copy" || action === "edit.cut" || action === "edit.paste" || action === "edit.duplicate") {
       void sectionEdit(action === "edit.copy" ? "copy" : action === "edit.cut" ? "cut" : action === "edit.paste" ? "paste" : "duplicate");
+    } else if (action === "edit.split") {
+      // A section: its notes crossing its edges, cut at both. The insert marker: at it.
+      const sec = usePianoRollSection.getState().section;
+      const marker = sec?.clip === space.key && isSectionMarker(sec) ? sec : null;
+      const source = range ? editSource(shownNotes, itemSelection.getState().selected.note, range, null) : null;
+      const picked = selected.length ? selected : shownNotes;
+      const commands = source ? splitCommands(source.notes, [source.start, source.end]) : marker ? splitCommands(picked, [marker.start]) : [];
+      if (commands.length) command = cmd("Edit", { type: "Batch", label: "split notes", key: { id: "undo.note.split", args: {} }, commands }); // i18n-ignore
     } else if (action === "pianoRoll.drawMode") {
       setDrawMode((d) => !d);
     } else if (action === "edit.deselect") {
