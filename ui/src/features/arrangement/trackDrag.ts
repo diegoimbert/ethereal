@@ -3,7 +3,8 @@
  *
  * Releasing between two rows moves the track before the row below (into that row's
  * group); over the middle of a group's header it moves the track into the group (at its
- * end). Groups move with their children, and a group can't go inside itself. Master stays
+ * end). Where a gap could be inside or outside a group (after a group's last child, or the
+ * last of nested groups), the pointer's x picks the level (`trackDropTarget`). Groups move with their children, and a group can't go inside itself. Master stays
  * where it is. Return tracks reorder among the returns only (the engine keeps them between
  * the regular tracks and master): over the regular tracks a dragged return shows the zone
  * it can't go in. The view scrolls near its top / bottom edge, and Escape cancels.
@@ -12,6 +13,7 @@
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { Track, TrackId, TrackKind } from "@/generated";
 import { setDragCursor } from "@/kit";
+import { size } from "@/theme";
 import { setEditActivity as setActivity } from "@/ext/surfaces";
 import { cmd } from "@/transport";
 import { sendEdit, type ArrangementContextValue } from "./context";
@@ -31,6 +33,8 @@ export interface TrackDropTarget {
   /** Indicator: a line at `y` (content px), or the group row the track goes into. */
   y: number;
   into: TrackId | null;
+  /** The nesting depth it lands at (the line starts at that depth's indent). */
+  depth: number;
 }
 
 const movable = (t: Track) => t.kind !== "Master";
@@ -68,17 +72,38 @@ function returnDropTarget(rows: ReadonlyArray<Row>, y: number, dragged: TrackId)
   // Right above or below itself: no move.
   if (returns[i]?.track.id === dragged) i++;
   const below = returns[i];
-  if (below) return { parent: null, before: below.track.id, y: below.y, into: null };
+  if (below) return { parent: null, before: below.track.id, y: below.y, into: null, depth: 0 };
   // After the last return (the engine keeps it above master).
   const last = returns[returns.length - 1];
-  return { parent: null, before: null, y: last ? last.y + last.height : top.y, into: null };
+  return { parent: null, before: null, y: last ? last.y + last.height : top.y, into: null, depth: 0 };
+}
+
+/** Header card left inset (px) and the width (px) of one nesting level when picking it with the pointer's x. */
+const CARD_INSET_PX = parseFloat(size.trackCardInsetLeft);
+const INDENT_PX = parseFloat(size.trackIndent);
+const DEPTH_STEP_PX = 2 * INDENT_PX;
+
+/** The nesting depth the pointer's x (content px from the header column's left) points at. */
+export function depthAtX(x: number): number {
+  return Math.max(0, Math.floor((x - CARD_INSET_PX) / DEPTH_STEP_PX));
+}
+
+/** Left (content px) of the drop line at `depth`: where a header card at that depth starts. */
+export function dropLineLeft(depth: number): number {
+  return CARD_INSET_PX + depth * INDENT_PX;
 }
 
 /**
  * Where dropping `dragged` at content y lands, or null where it can't go. `kind`: the dragged
  * track's kind when it isn't one of the rows (a track being added from the Add track menu).
+ *
+ * In a gap where several nesting levels fit (after the last child of a group, possibly the
+ * last of several nested groups; right under a group with no visible children), the
+ * pointer's `x` (content px from the header column's left) picks one, like a layers panel:
+ * further left leaves groups, further right stays inside (one level per `DEPTH_STEP_PX`).
+ * Without `x`, the shallowest (the row below's level).
  */
-export function trackDropTarget(rows: ReadonlyArray<Row>, y: number, dragged: TrackId, kind?: TrackKind): TrackDropTarget | null {
+export function trackDropTarget(rows: ReadonlyArray<Row>, y: number, dragged: TrackId, kind?: TrackKind, x?: number): TrackDropTarget | null {
   const draggedKind = kind ?? rows.find((r) => r.track.id === dragged)?.track.kind;
   if (draggedKind === "Return") return returnDropTarget(rows, y, dragged);
   const self = (t: Track) => t.id === dragged || isInside(rows, t.id, dragged);
@@ -88,22 +113,42 @@ export function trackDropTarget(rows: ReadonlyArray<Row>, y: number, dragged: Tr
   const over = rows.find((r) => y >= r.y && y < r.y + r.laneHeight);
   if (over && over.track.kind === "Group" && !self(over.track) && !topOnly) {
     const q = (y - over.y) / over.laneHeight;
-    if (q > 0.25 && q < 0.75) return { parent: over.track.id, before: null, y: over.y, into: over.track.id };
+    if (q > 0.25 && q < 0.75) return { parent: over.track.id, before: null, y: over.y, into: over.track.id, depth: over.depth + 1 };
   }
   // Otherwise the gap nearest to the pointer: before the first row whose middle is below it.
   let i = rows.findIndex((r) => y < r.y + r.laneHeight / 2);
   if (i < 0) i = rows.length;
   if (topOnly) while (i < rows.length && rows[i]!.track.parent !== null) i++;
-  // Skip the dragged track (and its children): dropping inside them means "no move".
+  // Skip the dragged track's children: dropping inside them means "no move".
   while (i < rows.length && self(rows[i]!.track) && rows[i]!.track.id !== dragged) i++;
-  const below = rows[i];
-  if (below && self(below.track)) return null;
-  if (!below || below.track.kind === "Return" || below.track.kind === "Master") {
-    // After the last regular track: end of the top level (the engine keeps it above returns).
-    const last = [...rows].reverse().find((r) => r.track.kind !== "Return" && r.track.kind !== "Master");
-    return { parent: null, before: null, y: last ? last.y + last.height : 0, into: null };
-  }
-  return { parent: below.track.parent, before: below.track.id, y: below.y, into: null };
+  // Right above itself: the gap it sits in (only another level there is a move).
+  const at = rows[i]?.track.id === dragged ? rows[i] : undefined;
+  while (at && i < rows.length && self(rows[i]!.track)) i++;
+  const next = rows[i];
+  const regular = (r: Row | undefined) => (r && r.track.kind !== "Return" && r.track.kind !== "Master" ? r : undefined);
+  // Returns and master show last: a gap above them is the end of the regular tracks.
+  const below = regular(next);
+  // The row above the gap, the dragged track (and its children) left out.
+  let a = i - 1;
+  while (a >= 0 && self(rows[a]!.track)) a--;
+  const above = regular(rows[a]);
+  // The levels that fit: from the row below's (a sibling of it) to the row above's, or one
+  // deeper when the row above is a group (into it, at its end).
+  const minDepth = below?.depth ?? 0;
+  const maxDepth = topOnly || !above ? minDepth : Math.max(minDepth, above.depth + (above.track.kind === "Group" ? 1 : 0));
+  const depth = x === undefined ? minDepth : Math.min(maxDepth, Math.max(minDepth, depthAtX(x)));
+  if (at && (minDepth === maxDepth || depth === at.depth)) return null;
+  if (below && depth === below.depth) return { parent: below.track.parent, before: below.track.id, y: below.y, into: null, depth };
+  // After the last regular track: end of the top level (the engine keeps it above returns).
+  const last = [...rows].reverse().find((r) => regular(r));
+  const lineY = below ? below.y : last ? last.y + last.height : 0;
+  // Deeper than the row below: at the end of the group at `depth - 1` holding the row above
+  // (the row above itself when it's that group).
+  const byId = new Map(rows.map((r) => [r.track.id, r]));
+  let group: Row | undefined = depth > 0 ? above : undefined;
+  while (group && group.depth > depth - 1) group = group.track.parent !== null ? byId.get(group.track.parent) : undefined;
+  if (!group || group.track.kind !== "Group") return { parent: null, before: null, y: lineY, into: null, depth: 0 };
+  return { parent: group.track.id, before: null, y: lineY, into: null, depth };
 }
 
 /** Scroll speed (px per frame, negative = up) for a pointer at client y in a view spanning [top, bottom]. */
@@ -155,10 +200,12 @@ export function startTrackDrag(o: TrackDragOptions): void {
       return;
     }
     const rows = o.ctx.rowsRef.current;
-    target = trackDropTarget(rows, last.y - (box?.top ?? 0), o.id, o.kind);
+    target = trackDropTarget(rows, last.y - (box?.top ?? 0), o.id, o.kind, last.x - (box?.left ?? 0));
     const blocked = !target && o.kind === "Return" ? returnBlockedZone(rows) : undefined;
     setDragCursor(blocked ? "not-allowed" : "grabbing");
-    ui().setTrackDrag(target ? { track: o.id, y: target.y, into: target.into } : { track: o.id, y: null, into: null, ...(blocked ? { blocked } : {}) });
+    ui().setTrackDrag(
+      target ? { track: o.id, y: target.y, into: target.into, depth: target.depth } : { track: o.id, y: null, into: null, ...(blocked ? { blocked } : {}) },
+    );
   };
   // Near the view's top / bottom edge the view scrolls (and the target follows).
   const tick = () => {

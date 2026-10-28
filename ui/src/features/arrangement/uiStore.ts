@@ -52,7 +52,8 @@ export interface ArrangementUiState {
    * A track header being dragged: the drop indicator (a line at `y`, or a group to go into).
    * `blocked`: a return over the regular tracks, the zone (content px) it can't be dropped in.
    */
-  trackDrag: { track: TrackId; y: number | null; into: TrackId | null; blocked?: { top: number; height: number } } | null;
+  /** `depth`: the nesting level the drop line is at (it starts at that depth's indent). */
+  trackDrag: { track: TrackId; y: number | null; into: TrackId | null; depth?: number; blocked?: { top: number; height: number } } | null;
   /** A MIDI track just dragged into place from Add track: its header offers the instruments. */
   instrumentPick: TrackId | null;
   /** A group whose header is hovered: its tracks (at any depth) look hovered too, not selected. */
