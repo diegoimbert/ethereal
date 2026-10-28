@@ -978,7 +978,11 @@ half-open ranges). `arrangement_clips_of` lists main-lane clips only.
   keeps the multisampler's velocity sensitivity on, several switch it off. Each sample is the
   instrument held for `note_seconds`, then its release tail (silence trimmed, at most
   `tail_seconds`). Media ids are `derive_id(seed_media, i)` in key-major order; at most
-  `MAX_ZONES` samples. One job at a time like any render; at `Done` the media and the
+  `MAX_ZONES` samples. Every render pass with plugins (freeze, bounce and sampling alike)
+  first runs them on silence with the transport stopped (`PLUGIN_WARMUP_SECONDS`, and at
+  least `PLUGIN_WARMUP_WALL_MS` of wall time; dropped): a fresh instance restoring its patch
+  or gliding its params over its first blocks would otherwise soften a note on frame 0. One
+  job at a time like any render; at `Done` the media and the
   replaced device are one undo step.
 - Engine: `TrackDesc::frozen: Option<FrozenDesc>` (+ empty clips/chain, or the live tail in
   `chain`), rendered by `ether_core::freeze::render_frozen` where clips render (pre-wired).

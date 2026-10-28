@@ -17,7 +17,7 @@ use ether_controller::{
 };
 use ether_core::protocol::automation::{AutomationCommand, PointSpec};
 use ether_core::protocol::clips::ClipCommand;
-use ether_core::protocol::devices::{DeviceCommand, DeviceDescriptor, DeviceSpec};
+use ether_core::protocol::devices::{DeviceCategory, DeviceCommand, DeviceDescriptor, DeviceSpec};
 use ether_core::protocol::freeze::{BounceTarget, FreezeCommand, FreezeEvent};
 use ether_core::protocol::media::{BrowseLocation, MediaCommand, MediaSource};
 use ether_core::protocol::mixer::MixerCommand;
@@ -56,6 +56,58 @@ struct RealBridge {
     nodes: BTreeMap<NodeKey, DeviceId>,
     /// The last published graph.
     last_graph: Option<RenderGraphDesc>,
+    /// Plugin devices: all [`Warming`] instruments.
+    plugins: BTreeSet<DeviceId>,
+}
+
+/// Fake plugin instrument (`plugin_id: "warming"`): a held note plays a constant 0.5 on both
+/// sides, scaled by a level that glides from 0 to 1 over its first [`WARMING_FRAMES`]
+/// processed frames, like a plugin restoring its patch from its defaults once created.
+struct Warming {
+    age: usize,
+    held: bool,
+}
+const WARMING_FRAMES: usize = 4_800;
+impl ether_core::Node for Warming {
+    fn prepare(&mut self, _: &ether_core::PrepareConfig) {}
+    fn reset(&mut self) {
+        self.held = false;
+    }
+    fn channels(&self) -> (u16, u16) {
+        (0, 2)
+    }
+    fn process(
+        &mut self,
+        ctx: &mut ether_core::ProcessContext<'_>,
+        audio: &mut ether_core::AudioBuffers<'_, '_>,
+    ) -> ether_core::ProcessStatus {
+        let mut events = ctx.events.iter().peekable();
+        for i in 0..ctx.frames {
+            while let Some(e) = events.next_if(|e| e.offset as usize <= i) {
+                match e.kind {
+                    ether_core::EventKind::NoteOn { .. } => self.held = true,
+                    ether_core::EventKind::NoteOff { .. } | ether_core::EventKind::AllNotesOff => {
+                        self.held = false
+                    }
+                    _ => {}
+                }
+            }
+            let level = (self.age as f32 / WARMING_FRAMES as f32).min(1.0);
+            self.age += 1;
+            let v = if self.held { 0.5 * level } else { 0.0 };
+            for o in audio.outputs.iter_mut() {
+                o[i] = v;
+            }
+        }
+        ether_core::ProcessStatus::Continue
+    }
+}
+
+fn warming_descriptor() -> DeviceDescriptor {
+    let mut d = plugin_descriptor("Warming", DeviceCategory::Instrument);
+    d.audio_inputs = 0;
+    d.midi_input = true;
+    d
 }
 
 impl RealBridge {
@@ -73,6 +125,7 @@ impl RealBridge {
             devices: BTreeMap::new(),
             nodes: BTreeMap::new(),
             last_graph: None,
+            plugins: BTreeSet::new(),
         }
     }
 
@@ -114,11 +167,35 @@ impl EngineBridge for RealBridge {
     }
     fn create_plugin(
         &mut self,
+        device: DeviceId,
+        plugin: &PluginInstance,
+        _: Option<&Base64Bytes>,
+    ) -> Result<NodeKey, BridgeError> {
+        if plugin.plugin_id != "warming" {
+            return Err(BridgeError::Unsupported("no plugins".into()));
+        }
+        self.plugins.insert(device);
+        let key = self
+            .handle
+            .add_node(Box::new(Warming {
+                age: 0,
+                held: false,
+            }))
+            .map_err(|e| BridgeError::Other(e.to_string()))?;
+        self.nodes.insert(key, device);
+        Ok(key)
+    }
+    fn create_offline_plugin(
+        &mut self,
         _: DeviceId,
         _: &PluginInstance,
         _: Option<&Base64Bytes>,
-    ) -> Result<NodeKey, BridgeError> {
-        Err(BridgeError::Unsupported("no plugins".into()))
+        _: u32,
+    ) -> Result<Box<dyn ether_core::Node>, BridgeError> {
+        Ok(Box::new(Warming {
+            age: 0,
+            held: false,
+        }))
     }
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError> {
         self.nodes.remove(&key);
@@ -163,6 +240,9 @@ impl EngineBridge for RealBridge {
         self.handle.poll(out);
     }
     fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor> {
+        if self.plugins.contains(&device) {
+            return Some(warming_descriptor());
+        }
         self.devices
             .get(&device)
             .map(|t| ether_devices::descriptor(*t))
@@ -2491,6 +2571,41 @@ fn convert_to_sampler_keeps_the_attack() {
         assert_eq!(onset(&sample[c]), onset(&live[c]), "not trimmed, not late");
         assert_eq!(&sample[c][..n], &live[c][..], "the render is the live note");
         assert_eq!(after[c], live[c], "the sampler plays it back bit-exact");
+    }
+}
+
+/// A plugin settles on silence before a sample's note: a fresh instance that glides into its
+/// patch over its first blocks ([`Warming`]) is sampled at its full level from the first
+/// frame, like the warmed-up live one, instead of with that glide on its attack.
+#[test]
+fn convert_to_sampler_warms_plugins_up_before_the_note() {
+    let mut d = Drive::new();
+    let t = d.track(TrackKind::Midi, "Plug");
+    let plug: DeviceId = d.id();
+    d.ok(Command::Device(DeviceCommand::Insert {
+        id: plug,
+        track: t,
+        device: DeviceSpec::Plugin {
+            plugin_id: "warming".into(),
+            sandboxed: None,
+            format: None,
+            name: None,
+        },
+        before: None,
+    }));
+    d.settle();
+    // The live instance has long warmed up.
+    let _ = d.play(SR as usize / 2);
+    let sample = sample_key_60(&mut d, plug);
+    for (c, ch) in sample.iter().enumerate() {
+        assert_eq!(onset(ch), Some(0), "the note starts on frame 0");
+        let first = &ch[..WARMING_FRAMES];
+        assert!(
+            first.iter().all(|s| (s - 0.5).abs() < 1e-6),
+            "ch{c}: full level from the first frame (first {}, at 100: {})",
+            first[0],
+            first[100]
+        );
     }
 }
 
