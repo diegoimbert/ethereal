@@ -38,3 +38,138 @@
 .eth-lfo-curve--off .eth-lfo-curve__point {
   opacity: var(--eth-opacity-muted);
 }
+
+/* ---- The volume shaper's bands (`BandStrip`): one colour per band, in the strip, the tabs and the editor ---- */
+.eth-lfo-band--0 {
+  --lfo-band: var(--eth-track-1);
+}
+.eth-lfo-band--1 {
+  --lfo-band: var(--eth-track-4);
+}
+.eth-lfo-band--2 {
+  --lfo-band: var(--eth-track-8);
+}
+.eth-lfo-bands {
+  display: flex;
+  flex-direction: column;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+}
+.eth-lfo-bands__head {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+}
+.eth-lfo-bands__count {
+  display: inline-flex;
+  flex: none;
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  overflow: hidden;
+}
+.eth-lfo-bands__count-option {
+  min-width: var(--eth-space-lg);
+  padding: 0 var(--eth-space-xs);
+  border: none;
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text-dim);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-xs);
+  cursor: pointer;
+}
+.eth-lfo-bands__count-option:hover {
+  background: var(--eth-color-bg-hover);
+}
+.eth-lfo-bands__count-option--on {
+  background: var(--eth-color-accent-subtle);
+  color: var(--eth-color-text);
+}
+.eth-lfo-bands__count-option:focus-visible,
+.eth-lfo-bands__tab:focus-visible {
+  outline: var(--eth-border-width-strong) solid var(--eth-color-focus);
+  outline-offset: calc(var(--eth-border-width-strong) * -1);
+}
+.eth-lfo-bands__tabs {
+  display: flex;
+  flex: 1;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+}
+.eth-lfo-bands__tab {
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+  padding: 0 var(--eth-space-xs);
+  border: var(--eth-border-width) solid var(--eth-color-border-light);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.eth-lfo-bands__tab--on {
+  border-color: var(--lfo-band);
+  background: color-mix(in srgb, var(--lfo-band) 18%, var(--eth-color-bg-inset));
+  color: var(--eth-color-text);
+}
+.eth-lfo-bands__swatch {
+  flex: none;
+  width: var(--eth-space-sm);
+  height: var(--eth-space-sm);
+  border-radius: var(--eth-radius-round);
+  background: var(--lfo-band);
+}
+.eth-lfo-bands__name {
+  flex: none;
+}
+.eth-lfo-bands__range {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-2xs);
+}
+.eth-lfo-bands__strip.eth-plot {
+  height: calc(var(--eth-size-row-height-lg) * 1.5);
+}
+.eth-lfo-bands__band {
+  fill: color-mix(in srgb, var(--lfo-band) 22%, transparent);
+  cursor: pointer;
+}
+.eth-lfo-bands__band--on {
+  fill: color-mix(in srgb, var(--lfo-band) 50%, transparent);
+}
+.eth-lfo-bands__strip .eth-plot__grid line {
+  opacity: var(--eth-opacity-muted);
+}
+.eth-lfo-bands__tick,
+.eth-lfo-bands__freq {
+  fill: var(--eth-color-text-dim);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-2xs);
+  pointer-events: none;
+}
+.eth-lfo-bands__freq {
+  fill: var(--eth-color-text);
+}
+.eth-lfo-bands__split line {
+  stroke: var(--eth-color-text);
+  stroke-width: var(--eth-border-width-strong);
+}
+.eth-lfo-bands__split {
+  cursor: ew-resize;
+}
+/* The editor in its band's colour. */
+.eth-lfo-curve--band .eth-plot__line {
+  stroke: var(--lfo-band);
+}
+.eth-lfo-curve--band .eth-plot__fill {
+  fill: color-mix(in srgb, var(--lfo-band) 20%, transparent);
+}
+.eth-lfo-curve--band .eth-plot__handle {
+  stroke: var(--lfo-band);
+}

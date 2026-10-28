@@ -197,6 +197,11 @@ export interface MessageArgs {
   "devices.layout.fewer_label": { name: string | number };
   "devices.layout.more": { count: string | number };
   "devices.layout.more_label": { name: string | number };
+  "devices.lfo_curve.bands.count_option": { count: number };
+  "devices.lfo_curve.bands.range_above": { freq: string | number };
+  "devices.lfo_curve.bands.range_below": { freq: string | number };
+  "devices.lfo_curve.bands.range_between": { from: string | number; to: string | number };
+  "devices.lfo_curve.bands.strip": { bands: string | number };
   "devices.lfo_curve.label": { count: number };
   "devices.lfo_curve.point": { n: string | number; x: string | number; y: string | number };
   "devices.library.add": { name: string | number };
@@ -266,6 +271,7 @@ export interface MessageArgs {
   "drum_rack.slices.play": { n: string | number };
   "engine.band_n": { n: string | number };
   "engine.band_pass_n": { n: string | number };
+  "engine.crossover_n": { n: string | number };
   "engine.high_pass_n": { n: string | number };
   "engine.lfo_n": { n: string | number };
   "engine.low_pass_n": { n: string | number };

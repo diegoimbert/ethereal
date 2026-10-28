@@ -1,7 +1,10 @@
 /**
  * The Volume LFO's curve editor (`Widget::LfoCurve`): the drawn cycle
  * (`BuiltinDevice::VolumeLfo::curve`) on a grid of the cycle's sixteenth notes, the gain the
- * device plays (depth applied) under it, and a playhead while the transport plays.
+ * device plays (depth applied) under it, and a playhead while the transport plays. With
+ * `bands` (the multiband volume shaper), the band strip above it (`BandStrip`) selects the
+ * band whose cycle it draws (`curve` or `bands[i - 1]`), in that band's colour, at that
+ * band's speed, with the band's depth and speed knobs under it.
  *
  * - double-click empty space: add a point there (snapped to the grid);
  * - drag a point: move it between its neighbours (x snapped to the grid);
@@ -16,16 +19,17 @@
 
 import clsx from "clsx";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type PointerEvent } from "react";
-import type { CurveShape, Device, LfoCurve, Widget, WidgetSize } from "@/generated";
+import type { CurveShape, Device, LfoCurve, ParamId, Widget, WidgetSize } from "@/generated";
 import { openContextMenu, type ContextMenuEntry } from "@/kit";
 import { useT } from "@/i18n";
 import { playheadStore } from "@/state/playhead";
 import { cmd } from "@/transport";
 import { createDoublePress } from "@/timeline/doublePress";
 import { bendTension, tensionOf } from "@/features/automation/edit";
-import { useLayoutContext, useParam } from "../context";
+import { bindParam, useLayoutContext, useParam, type ParamBinding } from "../context";
 import { useBoxSize } from "../useBoxSize";
-import { TypedFrame } from "../widgets/typed";
+import { ControlsRow, TypedFrame } from "../widgets/typed";
+import { BandStrip } from "./BandStrip";
 import {
   DEFAULT_LFO_CURVE,
   addPoint,
@@ -36,6 +40,7 @@ import {
   removePoint,
   sameCurve,
   segmentAt,
+  volumeShaperBand,
   segmentRises,
   setSegmentCurve,
   snapX,
@@ -50,32 +55,86 @@ const HIT = 9;
 
 type Grab = { type: "point"; i: number } | { type: "bend"; i: number; t0: number; y0: number; rising: boolean };
 
-/** The curve of a Volume LFO (the default pump when absent). */
-function curveOf(device: Device): LfoCurve {
+/** The curve of band `band` of a Volume LFO (the default pump / flat when absent). */
+function curveOf(device: Device, band: number): LfoCurve {
   const k = device.kind;
-  return k.type === "Builtin" && k.device.type === "VolumeLfo" && k.device.curve ? k.device.curve : DEFAULT_LFO_CURVE;
+  if (k.type !== "Builtin" || k.device.type !== "VolumeLfo") return DEFAULT_LFO_CURVE;
+  return volumeShaperBand(k.device.curve ?? DEFAULT_LFO_CURVE, k.device.bands, band);
 }
 
+type Bands = NonNullable<Spec["bands"]>;
+
 export function LfoCurveWidget({ widget: w, size, label }: { widget: Spec; size: WidgetSize; label: string | null }) {
-  const { sender, device } = useLayoutContext();
+  return w.bands ? <BandedLfoCurve widget={w} bands={w.bands} size={size} label={label} /> : <SingleLfoCurve widget={w} size={size} label={label} />;
+}
+
+/** Cycle timing of the widget's params: synced cycle length (beats) or `null`, the free rate and the phase offset. */
+function useTiming(w: Spec) {
   const sync = useParam(w.sync);
   const syncRate = useParam(w.sync_rate);
   const rate = useParam(w.rate);
   const phase = useParam(w.phase);
-  const depth = useParam(w.depth);
   const cycleBeats = sync && sync.plain >= 0.5 && syncRate ? (SYNC_RATE_BEATS[Math.round(syncRate.plain)] ?? 1) : null;
+  return { cycleBeats, hz: rate?.plain ?? 1, offset: (phase?.plain ?? 0) / 360 };
+}
+
+const playedAt = (depth: ParamBinding | null) => {
   const d = depth ? depth.plain / 100 : 1;
+  return d < 1 ? (y: number) => 1 - d * (1 - y) : null;
+};
+
+function SingleLfoCurve({ widget: w, size, label }: { widget: Spec; size: WidgetSize; label: string | null }) {
+  const { sender, device } = useLayoutContext();
+  const timing = useTiming(w);
+  const depth = useParam(w.depth);
   return (
     <TypedFrame type="lfo-curve" size={size} label={label}>
       <CurveEditor
-        curve={curveOf(device)}
-        send={(curve) => void sender.send(cmd("Device", { type: "SetLfoCurve", device: device.id, curve }))}
-        cycleBeats={cycleBeats}
-        hz={rate?.plain ?? 1}
-        offset={(phase?.plain ?? 0) / 360}
-        played={d < 1 ? (y) => 1 - d * (1 - y) : null}
+        curve={curveOf(device, 0)}
+        send={(curve) => void sender.send(cmd("Device", { type: "SetLfoCurve", device: device.id, band: 0, curve }))}
+        {...timing}
+        played={playedAt(depth)}
         testId="widget-lfo-curve"
       />
+    </TypedFrame>
+  );
+}
+
+/** The multiband volume shaper: band strip, the selected band's curve, its depth and speed. */
+function BandedLfoCurve({ widget: w, bands: spec, size, label }: { widget: Spec; bands: Bands; size: WidgetSize; label: string | null }) {
+  const ctx = useLayoutContext();
+  const { sender, device } = ctx;
+  const timing = useTiming(w);
+  const countParam = useParam(spec.count);
+  const count = Math.min(spec.depths.length, Math.max(1, Math.round(countParam?.plain ?? 0) + 1));
+  const [picked, setPicked] = useState(0);
+  const band = Math.min(picked, count - 1);
+  const bind = (id: ParamId | null | undefined) => {
+    const info = id == null ? undefined : ctx.params.get(id);
+    return info ? bindParam(ctx, info) : null;
+  };
+  const crossovers = spec.crossovers.flatMap((id) => {
+    const b = bind(id);
+    return b ? [b] : [];
+  });
+  const speed = bind(spec.speeds[band]);
+  const factor = speed ? (spec.speed_factors[Math.round(speed.plain)] ?? 1) : 1;
+  const controls = [spec.depths[band], spec.speeds[band], ...spec.crossovers.slice(0, count - 1)];
+  return (
+    <TypedFrame type="lfo-curve" size={size} label={label}>
+      <BandStrip count={count} countParam={countParam} crossovers={crossovers} selected={band} onSelect={setPicked} begin={sender.begin} end={sender.end} />
+      <CurveEditor
+        key={band}
+        curve={curveOf(device, band)}
+        send={(curve) => void sender.send(cmd("Device", { type: "SetLfoCurve", device: device.id, band, curve }))}
+        cycleBeats={timing.cycleBeats === null ? null : timing.cycleBeats / factor}
+        hz={timing.hz * factor}
+        offset={timing.offset}
+        played={playedAt(bind(spec.depths[band]))}
+        band={count > 1 ? band : undefined}
+        testId="widget-lfo-curve"
+      />
+      <ControlsRow ids={controls} size={size === "Large" ? "Medium" : "Small"} />
     </TypedFrame>
   );
 }
@@ -94,11 +153,13 @@ export interface CurveEditorProps {
   played: ((y: number) => number) | null;
   /** Dimmed (the lane is off). */
   off?: boolean;
+  /** Drawn in this volume shaper band's colour. */
+  band?: number;
   testId: string;
 }
 
 /** The drawn-cycle editor shared by the Volume LFO and the shaper's lanes. */
-export function CurveEditor({ curve: doc, send, cycleBeats, hz, offset, played, off, testId }: CurveEditorProps) {
+export function CurveEditor({ curve: doc, send, cycleBeats, hz, offset, played, off, band, testId }: CurveEditorProps) {
   const t = useT();
   const { sender } = useLayoutContext();
   const divisions = gridDivisions(cycleBeats);
@@ -258,8 +319,14 @@ export function CurveEditor({ curve: doc, send, cycleBeats, hz, offset, played, 
   return (
     <div
       ref={ref}
-      className={clsx("eth-plot eth-plot--interactive eth-lfo-curve", draft && "eth-lfo-curve--dragging", off && "eth-lfo-curve--off")}
+      className={clsx(
+        "eth-plot eth-plot--interactive eth-lfo-curve",
+        draft && "eth-lfo-curve--dragging",
+        off && "eth-lfo-curve--off",
+        band !== undefined && `eth-lfo-curve--band eth-lfo-band--${band}`,
+      )}
       data-testid={testId}
+      data-band={band}
     >
       <svg
         className="eth-plot__svg"
