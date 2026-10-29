@@ -397,6 +397,31 @@ fn check_rack_preset(id: &str, rack_type: BuiltinDeviceType, rack: &PresetRack) 
     }
 }
 
+/// Every built-in instrument that plays pitched notes follows the pitch bend (MIDI, a clip's
+/// bend lane) over a stepped `Bend Range` in semitones, default 2 (appended where it was
+/// missing: Synth 15, Sampler 21, Multisampler 22).
+#[test]
+fn pitched_instruments_have_a_bend_range() {
+    use ether_core::protocol::devices::ParamUnit;
+    for t in [
+        BuiltinDeviceType::Synth,
+        BuiltinDeviceType::Sampler,
+        BuiltinDeviceType::MultiSampler,
+        BuiltinDeviceType::PolySynth,
+        BuiltinDeviceType::FmSynth,
+    ] {
+        let d = ether_devices::descriptor(t);
+        let b = d
+            .params
+            .iter()
+            .find(|p| p.name == "Bend Range")
+            .unwrap_or_else(|| panic!("{t:?}: no Bend Range"));
+        assert_eq!(b.unit, ParamUnit::Semitones, "{t:?}");
+        assert_eq!(b.default, 2.0, "{t:?}");
+        assert!(b.step.is_some(), "{t:?}: stepped");
+    }
+}
+
 /// The native synths share a `Mode` (Poly / Mono / Legato) voice choice and a global
 /// `Transpose` (semitones) + `Fine` (cents), each appended after the existing ids (never
 /// renumbered): Synth 14 (Transpose 1 / Fine 9 already there), Poly Synth 65/66 (Mode 22
@@ -406,7 +431,7 @@ fn native_synths_have_a_voice_mode_and_global_pitch() {
     use ether_core::protocol::devices::ParamUnit;
     use ether_core::protocol::model::ParamId;
     let cases = [
-        (BuiltinDeviceType::Synth, 15, 14, 1, 9, (-24.0, 24.0)),
+        (BuiltinDeviceType::Synth, 16, 14, 1, 9, (-24.0, 24.0)),
         (BuiltinDeviceType::PolySynth, 67, 22, 65, 66, (-48.0, 48.0)),
         (BuiltinDeviceType::FmSynth, 77, 76, 53, 54, (-48.0, 48.0)),
     ];

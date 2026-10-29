@@ -293,6 +293,41 @@ fn zone_pitch_follows_root_key_and_tune() {
     assert!((step - 2f32.powf(1.0 / 12.0)).abs() < 1e-2, "{step}");
 }
 
+/// A pitch bend message, `v` in -1..=1.
+fn bend(v: f32) -> EventKind {
+    let raw = (8192.0 + v * 8191.0).round() as u16;
+    EventKind::Midi {
+        data: [0xE0, (raw & 0x7F) as u8, (raw >> 7) as u8],
+    }
+}
+
+#[test]
+fn pitch_bend_follows_the_bend_range() {
+    let s = sources(&[(1, src(48_000, |i| i as f32 / 48_000.0))]);
+    // Frames read per output frame (over 100 frames: one frame's step is too noisy).
+    let rate = |out: &[Vec<f32>; 2], at: usize| (out[0][at + 100] - out[0][at]) * 480.0;
+    // Bent before the note (nothing sounding): the note starts bent, 2 semitones up.
+    let mut d = device(vec![zone(1, (0, 127), (1, 127))], &s);
+    let out = render(&mut d, 2000, &[(0, bend(1.0)), (0, on(60, 1.0))]);
+    let up2 = 2f32.powf(2.0 / 12.0);
+    assert!((rate(&out, 10) - up2).abs() < 2e-3, "{}", rate(&out, 10));
+    // During a note, at a 12-semitone range, full down: it glides to an octave down.
+    let mut d = device(vec![zone(1, (0, 127), (1, 127))], &s);
+    d.set_param(p::BEND_RANGE, 12.0);
+    let out = render(&mut d, 6000, &[(0, on(60, 1.0)), (1000, bend(-1.0))]);
+    assert!((rate(&out, 500) - 1.0).abs() < 1e-3, "unbent before");
+    assert!(
+        (rate(&out, 5000) - 0.5).abs() < 2e-3,
+        "{}",
+        rate(&out, 5000)
+    );
+    // Centred again: back to the key's pitch. Range 0: no bend.
+    let mut d = device(vec![zone(1, (0, 127), (1, 127))], &s);
+    d.set_param(p::BEND_RANGE, 0.0);
+    let out = render(&mut d, 2000, &[(0, bend(1.0)), (0, on(60, 1.0))]);
+    assert!((rate(&out, 1000) - 1.0).abs() < 1e-3);
+}
+
 fn sine(i: usize) -> f32 {
     (i as f32 * std::f32::consts::TAU / 97.3).sin() * 0.5
 }

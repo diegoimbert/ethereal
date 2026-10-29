@@ -37,6 +37,7 @@
 //! | 19 | Voice | `Round Robin` | Cycle / Random (default Cycle) |
 //! | 20 | Output | `Pan` | -1 ..= 1 Pan, default 0 |
 //! | 21 | Voice | `Offset` | 0 ..= 2000 Milliseconds, default 0 |
+//! | 22 | Pitch | `Bend Range` | 0 ..= 24 Semitones (stepped), default 2 |
 //!
 //! `Offset` skips that much of every sample on top of its zone's start (a converted
 //! instrument's samples begin with a pre-roll before their note: the offset starts them on
@@ -83,8 +84,10 @@ pub mod multi_sampler {
     pub const ROUND_ROBIN: ParamId = ParamId(19);
     pub const PAN: ParamId = ParamId(20);
     pub const OFFSET: ParamId = ParamId(21);
+    /// Semitones of a full pitch bend (MIDI, a clip's bend lane).
+    pub const BEND_RANGE: ParamId = ParamId(22);
     /// Number of params.
-    pub const COUNT: usize = 22;
+    pub const COUNT: usize = 23;
 }
 
 /// Descriptor of a type of this group.
@@ -260,6 +263,7 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                         (0.0, 2000.0, 0.0),
                         ParamScale::Linear,
                     ),
+                    stepped(22, "Bend Range", "Pitch", ParamUnit::Semitones, 0, 24, 2),
                 ],
                 0,
                 2,
@@ -314,7 +318,16 @@ pub fn layout() -> DeviceLayout {
             Some("Pitch"),
             1,
             2,
-            vec![knob(p::TRANSPOSE, Medium), knob(p::FINE, Medium)],
+            vec![
+                knob(p::TRANSPOSE, Medium),
+                knob(p::FINE, Medium),
+                item(
+                    Widget::Number {
+                        param: p::BEND_RANGE,
+                    },
+                    Small,
+                ),
+            ],
         ),
         section(
             "voice",

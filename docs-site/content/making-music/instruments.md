@@ -31,7 +31,7 @@ An instrument turns the notes of a MIDI track into sound. Each MIDI track has on
 A simple polyphonic synth (up to 16 notes at once) with one oscillator.
 
 - **waveform**: sine, saw, square or triangle. Saw and square sound bright, sine and triangle soft.
-- **transpose** and **fine**: pitch in semitones and in cents.
+- **transpose** and **fine**: pitch in semitones and in cents. **bend range** sets how far a full pitch bend goes (2 semitones by default), from a MIDI keyboard's wheel or a clip's pitch-bend lane.
 - **attack**, **decay**, **sustain**, **release**: the volume envelope of each note.
 - **cutoff** and **resonance**: a low-pass filter. Lower the cutoff for a darker sound.
 - **env amount**: lets the volume envelope sweep the cutoff (up to six octaves either way), for plucks and wah-like attacks. **key tracking** opens the filter more on higher notes.
@@ -69,6 +69,7 @@ Plays one audio file.
 - **start** and **end** choose the part of the sample that plays; **reverse** plays it backwards.
 - **loop** (pitched mode): forward or ping-pong between loop start and loop end, with a **crossfade** to hide the click at the loop point.
 - a **filter** (low-pass, high-pass or band-pass), an envelope, velocity sensitivity and up to 32 voices.
+- **bend range**: how far a full pitch bend moves the sample (2 semitones by default), in both modes.
 
 ### slice mode
 
@@ -90,7 +91,7 @@ Plays different samples on different keys and velocities, like a sampled piano.
 - **Drop several audio files** from your computer onto a key: they become zones spread across the keyboard. Root notes are read from file names such as `C3` or `60`. A single sample can also come from the browser.
 - Click a zone to select it and edit it in the zone inspector, where you can type values. Drag a zone's body to move it, or its edges to change its key or velocity range. [[key:Delete]] removes the selected zone.
 - **round robin**: when several zones cover the same note, **cycle** plays them in turn and **random** picks one, so repeated notes don't sound identical.
-- The rest is shared by all zones: volume, pan, transpose, an amp envelope, a filter with its own envelope, glide and up to 64 voices.
+- The rest is shared by all zones: volume, pan, transpose, **bend range** (how far a full pitch bend goes, 2 semitones by default), an amp envelope, a filter with its own envelope, glide and up to 64 voices. So an instrument converted to a sampler still follows a clip's pitch-bend lane.
 
 ## external instrument
 

@@ -8,7 +8,9 @@
 //! voice, every note retriggers the envelope, glides when `Glide` > 0) or `Legato` (one
 //! voice; an overlapping note takes over without retriggering and glides, a detached one
 //! retriggers without gliding). Mono/legato use last-note priority: releasing the newest
-//! key returns to the most recent key still held. Pitch is `Transpose` + `Fine` (global).
+//! key returns to the most recent key still held. Pitch is `Transpose` + `Fine` (global),
+//! plus the pitch bend (MIDI, a clip's bend lane) times `Bend Range` (id 15, appended,
+//! semitones), gliding over [`BEND_GLIDE_MS`].
 //!
 //! Polyphonic (fixed [`MAX_VOICES`], oldest-voice stealing). Saw, square and triangle are
 //! band-limited with 4-point polyBLEP / polyBLAMP ([`crate::dsp::blep`]); the filter is a per-voice TPT state-variable low-pass
@@ -54,9 +56,23 @@ pub mod params {
     pub const KEY_TRACKING: ParamId = ParamId(13);
     /// Voice mode: Poly / Mono / Legato ([`super::VOICE_MODES`]).
     pub const VOICE_MODE: ParamId = ParamId(14);
+    /// Semitones of a full pitch bend.
+    pub const BEND_RANGE: ParamId = ParamId(15);
 }
 
-const NUM_PARAMS: usize = 15;
+const NUM_PARAMS: usize = 16;
+
+/// Time constant of the pitch following a bend change (ms): smooth, but under a 14-bit
+/// bend's step it doesn't lag a performance.
+pub const BEND_GLIDE_MS: f32 = 5.0;
+
+/// A MIDI pitch bend message's value, -1..=1 (`None`: not a bend).
+pub(crate) fn bend_of(data: [u8; 3]) -> Option<f32> {
+    (data[0] & 0xF0 == 0xE0).then(|| {
+        let raw = (i32::from(data[2] & 0x7F) << 7) | i32::from(data[1] & 0x7F);
+        ((raw - 8192) as f32 / 8192.0).clamp(-1.0, 1.0)
+    })
+}
 /// Held keys remembered in mono/legato modes (last-note priority).
 const STACK: usize = 16;
 
@@ -186,6 +202,15 @@ pub fn param_infos() -> Vec<ParamInfo> {
             ParamScale::Linear,
         ),
         choice(14, "Mode", "Voice", ParamUnit::None, &VOICE_MODES, 0),
+        crate::contract::stepped(
+            15,
+            "Bend Range",
+            "Oscillator",
+            ParamUnit::Semitones,
+            0,
+            24,
+            2,
+        ),
     ]
 }
 
@@ -252,6 +277,12 @@ pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
                 osc,
                 knob(params::TRANSPOSE, Small),
                 knob(params::FINE, Small),
+                item(
+                    Widget::Number {
+                        param: params::BEND_RANGE,
+                    },
+                    Small,
+                ),
             ],
         ),
         section(
@@ -391,6 +422,9 @@ pub struct Synth {
     coef_res: f32,
     /// Pitch of the last note played (glide start).
     last_pitch: Option<f32>,
+    /// Pitch bend (-1..=1): the last bend message, and the value gliding to it.
+    bend_target: f32,
+    bend: f32,
     /// Mono/legato: held keys (last = most recent) and the sounding slot.
     stack: [u8; STACK],
     stack_len: usize,
@@ -434,6 +468,8 @@ impl Synth {
             coef_cutoff: -1.0,
             coef_res: -1.0,
             last_pitch: None,
+            bend_target: 0.0,
+            bend: 0.0,
             stack: [0; STACK],
             stack_len: 0,
             mono: None,
@@ -700,7 +736,16 @@ impl Synth {
                 }
             }
             EventKind::Param { param, value, step } => self.apply_param(param, value, !step),
-            EventKind::Midi { .. } | EventKind::NoteExpression { .. } => {}
+            EventKind::Midi { data } => {
+                if let Some(b) = bend_of(data) {
+                    self.bend_target = b;
+                    // Nothing sounding: the next note starts at the bend (no slide into it).
+                    if !self.voices.iter().any(|v| v.env.is_active()) {
+                        self.bend = b;
+                    }
+                }
+            }
+            EventKind::NoteExpression { .. } => {}
         }
     }
 
@@ -716,9 +761,14 @@ impl Synth {
     #[inline(always)]
     fn render_generic(&mut self, outputs: &mut [&mut [f32]], start: usize, end: usize) {
         let waveform = util::index(self.value(params::WAVEFORM), WAVEFORMS.len());
-        let transpose = self.value(params::TRANSPOSE) as f32;
-        let fine = self.value(params::FINE) as f32 * 0.01;
         let sr = self.sample_rate;
+        // The bend glides toward its target over this render.
+        let n = (end - start) as f32;
+        self.bend = self.bend_target
+            + (self.bend - self.bend_target) * (-n / (BEND_GLIDE_MS * 0.001 * sr)).exp();
+        let bend = self.bend * self.value(params::BEND_RANGE) as f32;
+        let transpose = self.value(params::TRANSPOSE) as f32 + bend;
+        let fine = self.value(params::FINE) as f32 * 0.01;
         let glide_ms = self.value(params::GLIDE) as f32;
         // Per CTRL samples: ~95 % of the way in the glide time.
         let glide_coef = if glide_ms > 0.0 {
@@ -816,6 +866,8 @@ impl Node for Synth {
         self.voices = [Voice::IDLE; MAX_VOICES];
         self.stack_len = 0;
         self.mono = None;
+        self.bend_target = 0.0;
+        self.bend = 0.0;
     }
 
     fn process(

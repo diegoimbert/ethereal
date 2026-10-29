@@ -31,7 +31,7 @@ Un instrument transforme les notes d’une piste MIDI en son. Chaque piste MIDI 
 Un synthé polyphonique simple (jusqu’à 16 notes à la fois) avec un oscillateur.
 
 - **forme d’onde** : sinus, dent de scie, carré ou triangle. La dent de scie et le carré sonnent brillants, le sinus et le triangle doux.
-- **transposition** et **fin** : la hauteur en demi-tons et en cents.
+- **transposition** et **fin** : la hauteur en demi-tons et en cents. **plage de bend** règle jusqu’où va un pitch bend complet (2 demi-tons par défaut), depuis la molette d’un clavier MIDI ou le couloir de pitch bend d’un clip.
 - **attaque**, **déclin**, **maintien**, **relâchement** : l’enveloppe de volume de chaque note.
 - **coupure** et **résonance** : un filtre passe-bas. Baissez la coupure pour un son plus sombre.
 - **quantité d’env.** : laisse l’enveloppe de volume balayer la coupure (jusqu’à six octaves dans un sens ou dans l’autre), pour des sons pincés et des attaques façon wah. **suivi de clavier** ouvre davantage le filtre sur les notes aiguës.
@@ -69,6 +69,7 @@ Joue un fichier audio.
 - **début** et **fin** choisissent la partie de l’échantillon qui est jouée ; **inverser** le joue à l’envers.
 - **boucle** (mode chromatique) : en avant ou en aller-retour entre le début et la fin de la boucle, avec un **fondu enchaîné** pour masquer le clic au point de bouclage.
 - un **filtre** (passe-bas, passe-haut ou passe-bande), une enveloppe, une sensibilité à la vélocité et jusqu’à 32 voix.
+- **plage de bend** : jusqu’où un pitch bend complet déplace l’échantillon (2 demi-tons par défaut), dans les deux modes.
 
 ### mode tranches {#slice-mode}
 
@@ -90,7 +91,7 @@ Joue des échantillons différents selon les touches et les vélocités, comme u
 - **Déposez plusieurs fichiers audio** de votre ordinateur sur une touche : ils deviennent des zones réparties sur le clavier. Les notes fondamentales sont lues dans les noms de fichiers, comme `C3` ou `60`. Un échantillon seul peut aussi venir du navigateur.
 - Cliquez sur une zone pour la sélectionner et la modifier dans l’inspecteur de zone, où vous pouvez saisir des valeurs. Faites glisser le corps d’une zone pour la déplacer, ou ses bords pour changer sa plage de touches ou de vélocité. [[key:Delete]] supprime la zone sélectionnée.
 - **round robin** : quand plusieurs zones couvrent la même note, **cycle** les joue à tour de rôle et **aléatoire** en choisit une, pour que les notes répétées ne sonnent pas identiques.
-- Le reste est commun à toutes les zones : volume, panoramique, transposition, une enveloppe d’amplitude, un filtre avec sa propre enveloppe, le glissé et jusqu’à 64 voix.
+- Le reste est commun à toutes les zones : volume, panoramique, transposition, **plage de bend** (jusqu’où va un pitch bend complet, 2 demi-tons par défaut), une enveloppe d’amplitude, un filtre avec sa propre enveloppe, le glissé et jusqu’à 64 voix. Un instrument converti en échantillonneur suit donc toujours le couloir de pitch bend d’un clip.
 
 ## instrument externe {#external-instrument}
 

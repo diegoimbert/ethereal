@@ -1086,6 +1086,13 @@ fingerprints recorded on `main`). The import model's `Sampler` gains `loop_range
 `ping_pong`, `reverse`, `decay_ms`, `sustain`; Ableton's Simpler maps its sustain loop,
 reverse and ADSR onto them.
 
+Pitch bend on every pitched built-in instrument: MIDI pitch bend (a live keyboard, a clip's
+`PitchBend` lane) moves the pitch by up to `Bend Range` semitones (stepped 0..=24, default
+2), gliding over `synth::BEND_GLIDE_MS` (the Multisampler through its 10 ms pitch smoother);
+a bend while nothing sounds applies at once. The `Synth` appends it (15), the `Sampler`
+(21, every mode) and the `MultiSampler` (22); the `PolySynth` (24) and `FmSynth` (57) had
+it. Centred, every instrument renders as before.
+
 Voice mode and global pitch on every native synth: the `Synth` appends `Mode` (14), the
 `FmSynth` appends `Mode` (76), both `Poly | Mono | Legato` (default `Poly`, group `Voice`),
 as the `PolySynth`'s existing `Mode` (22). `Mono`: one voice, every note retriggers the

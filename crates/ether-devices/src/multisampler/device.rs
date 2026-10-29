@@ -152,8 +152,10 @@ pub struct MultiSampler {
     filter_rates: AdsrRates,
     volume: Smoother,
     pan: Smoother,
-    /// Transpose + Fine, semitones.
+    /// Transpose + Fine + the bend, semitones.
     pitch: Smoother,
+    /// The last pitch bend (-1..=1).
+    bend: f32,
     /// log2(cutoff Hz).
     cutoff: Smoother,
     resonance: Smoother,
@@ -202,6 +204,7 @@ impl MultiSampler {
             volume: Smoother::new(1.0, 20.0, sr),
             pan: Smoother::new(0.0, 20.0, sr),
             pitch: Smoother::new(0.0, 10.0, sr),
+            bend: 0.0,
             cutoff: Smoother::new(20000f32.log2(), 20.0, sr),
             resonance: Smoother::new(0.0, 20.0, sr),
             scratch: [
@@ -250,8 +253,10 @@ impl MultiSampler {
         }
     }
 
+    /// Transpose + fine + the pitch bend, in semitones (the pitch smoother glides to it).
     fn pitch_target(&self) -> f32 {
         (self.value(p::TRANSPOSE).round() + self.value(p::FINE)) as f32
+            + self.bend * self.value(p::BEND_RANGE) as f32
     }
 
     fn update_rates(&mut self) {
@@ -295,7 +300,7 @@ impl MultiSampler {
                 set(&mut self.volume, t)
             }
             p::PAN => set(&mut self.pan, v as f32),
-            p::TRANSPOSE | p::FINE => {
+            p::TRANSPOSE | p::FINE | p::BEND_RANGE => {
                 let t = self.pitch_target();
                 set(&mut self.pitch, t)
             }
@@ -471,7 +476,19 @@ impl MultiSampler {
             }
             EventKind::Param { param, value, step } => self.apply_param(param, value, !step),
             // Per-note expression (MPE) is ignored until the v0.3 expression nodes wire it in.
-            EventKind::Midi { .. } | EventKind::NoteExpression { .. } => {}
+            EventKind::Midi { data } => {
+                if let Some(b) = crate::synth::bend_of(data) {
+                    self.bend = b;
+                    let t = self.pitch_target();
+                    // Nothing sounding: the next note starts at the bend (no slide into it).
+                    if self.voices.iter().any(|v| v.active()) {
+                        self.pitch.set_target(t);
+                    } else {
+                        self.pitch.set_immediate(t);
+                    }
+                }
+            }
+            EventKind::NoteExpression { .. } => {}
         }
     }
 
@@ -767,6 +784,9 @@ impl Node for MultiSampler {
         *self.voices = [Voice::IDLE; MAX_VOICES];
         self.rr.reset();
         self.last_key = None;
+        self.bend = 0.0;
+        let t = self.pitch_target();
+        self.pitch.set_immediate(t);
     }
 
     fn process(

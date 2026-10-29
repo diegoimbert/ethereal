@@ -46,6 +46,15 @@
                 "param": 2,
                 "type": "Knob"
               }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 22,
+                "type": "Number"
+              }
             }
           ],
           "span": 1,
@@ -730,6 +739,48 @@
           "type": "Linear"
         },
         "unit": "Milliseconds"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "Pitch",
+        "hidden": false,
+        "id": 22,
+        "labels": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24"
+        ],
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Bend Range",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Semitones"
       }
     ],
     "sidechain_inputs": 0

@@ -2834,6 +2834,68 @@ fn convert_to_sampler_plays_a_warm_up_note_in_the_pre_roll() {
     }
 }
 
+/// A clip's pitch-bend lane bends a built-in instrument like a plugin: through an
+/// instrument rack and a MIDI effect in front of the synth, a full bend up plays the note
+/// 2 semitones up (the default `Bend Range`).
+#[test]
+fn a_clip_bend_lane_bends_a_builtin_inside_a_rack() {
+    use ether_core::protocol::expression::ExpressionCommand;
+    use ether_devices::synth::params as sp;
+    let mut d = Drive::new();
+    let t = d.track(TrackKind::Midi, "Bend");
+    let (_rack, synth) = instrument_rack(&mut d, t);
+    let chain = d.p().devices[&synth].chain.unwrap();
+    let pitch: DeviceId = d.id();
+    d.ok(Command::Rack(RackCommand::InsertDevice {
+        id: pitch,
+        chain,
+        device: DeviceSpec::Builtin {
+            device: BuiltinDevice::new(BuiltinDeviceType::Pitch),
+        },
+        before: Some(synth),
+    }));
+    for (param, value) in [
+        (sp::WAVEFORM, 0.0),
+        (sp::CUTOFF, 20_000.0),
+        (sp::SUSTAIN, 100.0),
+    ] {
+        d.ok(Command::Device(DeviceCommand::SetParam {
+            device: synth,
+            param,
+            value,
+        }));
+    }
+    let clip = d.midi_clip(t, 0.0, &[69]);
+    let hz = |d: &mut Drive| {
+        d.settle();
+        let out = d.play(SR as usize / 4);
+        let x = &out[0][SR as usize / 20..];
+        let ups: Vec<usize> = (1..x.len())
+            .filter(|&i| x[i - 1] < 0.0 && x[i] >= 0.0)
+            .collect();
+        (ups.len() - 1) as f32 * SR as f32 / (ups[ups.len() - 1] - ups[0]) as f32
+    };
+    let plain = hz(&mut d);
+    assert!((plain - 440.0).abs() < 2.0, "unbent: {plain}");
+    let lane: ExpressionLaneId = d.id();
+    d.ok(Command::Expression(ExpressionCommand::CreateLane {
+        id: lane,
+        clip,
+        kind: ExpressionKind::PitchBend,
+    }));
+    d.ok(Command::Expression(ExpressionCommand::SetPoints {
+        lane,
+        points: vec![ExpressionPoint {
+            time: Beats(0.0),
+            value: 1.0,
+            curve: CurveShape::Step,
+        }],
+    }));
+    let bent = hz(&mut d);
+    let up2 = 440.0 * 2f32.powf(2.0 / 12.0);
+    assert!((bent - up2).abs() < 2.0, "bent: {bent} (expected {up2})");
+}
+
 /// An instrument with latency (a rack with an oversampled saturator after the synth): the
 /// render drops it, so the sample starts on the note's frame like an unlatent one.
 #[test]

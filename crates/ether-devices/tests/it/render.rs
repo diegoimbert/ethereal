@@ -241,6 +241,44 @@ fn synth_transpose_shifts_pitch() {
     assert!((hz - 440.0).abs() < 2.0, "{hz}");
 }
 
+/// A pitch bend message, `v` in -1..=1.
+fn bend(v: f32) -> EventKind {
+    let raw = (8192.0 + v * 8191.0).round() as u16;
+    EventKind::Midi {
+        data: [0xE0, (raw & 0x7F) as u8, (raw >> 7) as u8],
+    }
+}
+
+#[test]
+fn synth_pitch_bend_follows_the_bend_range() {
+    // Full up at the default 2 semitones, from the note's start.
+    let mut s = synth_with(0.0);
+    let out = render(
+        &mut s,
+        &silence(0),
+        &[(0, bend(1.0)), (0, note_on(1, 69))],
+        24_000,
+        120.0,
+    );
+    let hz = zero_crossing_hz(&out[0][4800..]);
+    let up2 = 440.0 * 2f32.powf(2.0 / 12.0);
+    assert!((hz - up2).abs() < 2.0, "{hz}");
+    // During the note, 12 semitones: it glides up an octave.
+    let mut s = synth_with(0.0);
+    s.set_param(synth::params::BEND_RANGE, 12.0);
+    let out = render(
+        &mut s,
+        &silence(0),
+        &[(0, note_on(1, 57)), (4800, bend(1.0))],
+        24_000,
+        120.0,
+    );
+    let before = zero_crossing_hz(&out[0][1000..4800]);
+    let after = zero_crossing_hz(&out[0][9600..]);
+    assert!((before - 220.0).abs() < 2.0, "{before}");
+    assert!((after - 440.0).abs() < 2.0, "{after}");
+}
+
 #[test]
 fn synth_note_off_releases_to_silence() {
     let mut s = synth_with(1.0);
@@ -402,6 +440,36 @@ fn sampler_pitched_follows_root_key() {
     let out = render(&mut s, &silence(0), &[(0, note_on(1, 48))], 9000, 120.0);
     assert!((out[0][1001] - 500.5 / len as f32).abs() < 1e-5);
     assert!((last_nonzero(&out[0]) as i64 - 8000).abs() <= 2);
+}
+
+#[test]
+fn sampler_pitch_bend_follows_the_bend_range() {
+    // An octave of bend range, full up: twice as fast, in pitched and one-shot mode alike.
+    for mode in [1.0, 0.0] {
+        let len = 4000;
+        let mut s = ramp_sampler(len, 1, mode);
+        s.set_param(sampler::params::ROOT_KEY, 60.0);
+        s.set_param(sampler::params::BEND_RANGE, 12.0);
+        let out = render(
+            &mut s,
+            &silence(0),
+            &[(0, bend(1.0)), (0, note_on(1, 60))],
+            8000,
+            120.0,
+        );
+        let end = last_nonzero(&out[0]);
+        assert!((end as i64 - 2000).abs() <= 2, "mode {mode}: {end}");
+    }
+    // Centred: the original speed (bit-exact, as without a bend).
+    let mut s = ramp_sampler(3000, 1, 0.0);
+    let out = render(
+        &mut s,
+        &silence(0),
+        &[(0, bend(0.0)), (0, note_on(1, 60))],
+        4000,
+        120.0,
+    );
+    assert!((out[0][500] - 500.0 / 3000.0).abs() < 1e-6);
 }
 
 #[test]
