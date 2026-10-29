@@ -16,3 +16,9 @@ rustflags = ["-C", "link-arg=-Wl,-weak_framework,ScreenCaptureKit"]
 # Safari 16.4); the host already needs SharedArrayBuffer and AudioWorklet.
 [target.wasm32-unknown-unknown]
 rustflags = ["-C", "target-feature=+simd128"]
+
+# Native x86-64 builds target x86-64-v2 (SSE4.2, SSSE3, POPCNT: every x86-64 CPU since 2009;
+# Windows 11 24H2 requires it): the DSP gets SSE4.1 rounding and blends instead of library
+# calls and scalar fallbacks. Overridden by a `RUSTFLAGS` environment variable.
+[target.'cfg(target_arch = "x86_64")']
+rustflags = ["-C", "target-cpu=x86-64-v2"]
