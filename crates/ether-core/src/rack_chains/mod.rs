@@ -843,6 +843,8 @@ fn run_chain(
         }
         chain.out_events.clear();
         let runs = entry.runs();
+        // Back on: its state (and its chains', for a rack) starts clean.
+        let reset = reset || entry.resumes();
         // A nested rack: its chains feed its node's input first.
         let nested = runs && nest.as_ref().is_some_and(|x| x.racks.is_rack(entry.key));
         if nested && let Some(x) = nest.as_mut() {

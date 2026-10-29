@@ -2344,6 +2344,8 @@ impl JobCtx<'_> {
             // Sidechain PDC: delay the main signal before this entry if planned.
             rt_sidechain.align_main(key, a, n);
             let runs = entry.runs();
+            // Back on: its state (and its chains', for a rack) starts clean.
+            let reset = flags.reset_nodes || entry.resumes();
             // MIDI sidechain: its source's notes replace the chain's (every sub-block, so
             // the delay stays in time while the device is off).
             *overflow |=
@@ -2358,7 +2360,7 @@ impl JobCtx<'_> {
                     sr as f32,
                     a,
                     n,
-                    flags.reset_nodes,
+                    reset,
                     &mut ScIo {
                         taps: rt_sidechain,
                         points: sc_points,
@@ -2377,7 +2379,7 @@ impl JobCtx<'_> {
                     sr as f32,
                     a,
                     n,
-                    flags.reset_nodes,
+                    reset,
                     &mut ScIo {
                         taps: rt_sidechain,
                         points: sc_points,
@@ -2392,7 +2394,7 @@ impl JobCtx<'_> {
                 sc_points.write(ScPoint::After(key), a, n);
                 continue;
             };
-            if flags.reset_nodes {
+            if reset {
                 node.reset();
                 node_rt.asleep = false;
             }

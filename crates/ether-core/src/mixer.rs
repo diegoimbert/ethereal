@@ -136,6 +136,14 @@ impl ChainRt {
         self.is_enabled() || self.auto_switch_at.is_some() || (self.dry.active() && self.fade > 0.0)
     }
 
+    /// Whether the node runs again this sub-block after it was bypassed: switched back on
+    /// (statically or by automation, past its fade-out). Its state is reset first, so a
+    /// reverb or delay resumes without the tail it had when it was switched off.
+    #[inline]
+    pub(crate) fn resumes(&self) -> bool {
+        !self.ran && self.runs()
+    }
+
     /// Whether the device is off at `offset` of this sub-block (an automated switch flips
     /// at [`Self::auto_switch_at`]).
     #[inline]
