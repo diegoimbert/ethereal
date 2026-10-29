@@ -66,6 +66,12 @@ runs:
         mkdir -p "$OUT/site"
         cp -R ee/app/web/dist/. "$OUT/site/"
         cp scripts/release/web/_headers "$OUT/site/_headers"
+        # Cloudflare Pages refuses a file over 25 MiB (and only says so deep in its upload).
+        big="$(find "$OUT/site" -type f -size +25M)"
+        if [ -n "$big" ]; then
+          echo "::error::Over Cloudflare Pages' 25 MiB per-file limit: $(ls -l $big)"
+          exit 1
+        fi
         # The full product's Pages Functions (/signal, /static): wrangler bundles `functions/`
         # from next to the deployed folder.
         if [ -d ee/scripts/release/web/functions ]; then cp -R ee/scripts/release/web/functions "$OUT/functions"; fi
