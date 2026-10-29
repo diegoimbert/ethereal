@@ -197,10 +197,10 @@ describe("MockTransport ConvertToSampler", () => {
         device: device.id,
         new_device: next,
         seed_media: newId(),
-        first_key: 60,
-        last_key: 64,
-        key_step: 2,
-        velocity_steps: 2,
+        keys: [64, 60, 62],
+        velocities: [64, 127],
+        pre_roll_seconds: 0.2,
+        warm_up_note: false,
         note_seconds: 1,
         tail_seconds: 1,
       }),
@@ -212,12 +212,53 @@ describe("MockTransport ConvertToSampler", () => {
     expect(sampler.name).toBe(`${t.name} Sampler`);
     expect(sampler.params[0]).toBe(0);
     expect(sampler.params[5]).toBe(0);
+    expect(sampler.params[21]).toBe(200);
     if (sampler.kind.type !== "Builtin" || sampler.kind.device.type !== "MultiSampler") throw new Error("not a multisampler");
     expect(sampler.kind.device.zones).toHaveLength(6);
+    expect(sampler.kind.device.zones.map((z) => [z.root_key, z.velocities.lo, z.velocities.hi])).toEqual([
+      [60, 1, 95],
+      [60, 96, 127],
+      [62, 1, 95],
+      [62, 96, 127],
+      [64, 1, 95],
+      [64, 96, 127],
+    ]);
     expect(Object.keys(h.project.media)).toHaveLength(mediaBefore + 6);
     expect(h.events.at(-1)).toEqual({ type: "Freeze", event: { type: "Done", job: "s" } });
     h.undo.pop()!();
     expect(h.project.devices[device.id]).toEqual(device);
     expect(h.project.devices[next]).toBeUndefined();
+  });
+
+  it("converts an instrument nested in a rack in its rack chain", () => {
+    const h = harness();
+    const synth = Object.values(h.project.devices).find((d) => !d.pad && !d.chain && h.project.tracks[d.track]?.kind === "Midi")!;
+    const [rack, chain] = [newId(), newId()];
+    const ctx = { tx: new Tx(h.project), newId, position: 0 };
+    reduceDocumentCommand(
+      ctx,
+      cmd("Device", { type: "Insert", id: rack, track: synth.track, device: { type: "Builtin", device: { type: "InstrumentRack" } }, before: null }),
+    );
+    reduceDocumentCommand(ctx, cmd("Rack", { type: "AddChain", id: chain, rack, name: null, before: null }));
+    reduceDocumentCommand(ctx, cmd("Rack", { type: "MoveDevice", id: synth.id, chain, before: null }));
+    expect(h.project.devices[synth.id]!.chain).toBe(chain);
+    const next = newId();
+    h.send({
+      type: "ConvertToSampler",
+      job: "n",
+      device: synth.id,
+      new_device: next,
+      seed_media: newId(),
+      keys: [60],
+      velocities: [127],
+      pre_roll_seconds: 0,
+      warm_up_note: false,
+      note_seconds: 1,
+      tail_seconds: 1,
+    });
+    h.freeze.step();
+    h.freeze.step();
+    expect(h.project.devices[synth.id]).toBeUndefined();
+    expect(h.project.devices[next]!.chain).toBe(chain);
   });
 });

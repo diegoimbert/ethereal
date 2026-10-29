@@ -8,6 +8,7 @@ use ether_core::protocol::freeze::BounceTarget;
 use ether_core::protocol::mixer::MixerCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::notes::{NoteCommand, NoteEdit, NoteSpec};
+use ether_core::protocol::racks::RackCommand;
 use ether_core::protocol::tracks::TrackCommand;
 use ether_model::derive_id;
 
@@ -255,6 +256,7 @@ pub fn finish_convert_to_sampler(
     device: DeviceId,
     new_device: DeviceId,
     zones: &[SampleZone],
+    offset_ms: f64,
     media: &[MediaRef],
 ) -> CmdResult<()> {
     let d = ctx.device(device)?.clone();
@@ -273,23 +275,36 @@ pub fn finish_convert_to_sampler(
         .collect::<std::collections::BTreeSet<_>>()
         .len()
         > 1;
-    doc::apply(
-        ctx,
-        &Command::Device(DeviceCommand::Insert {
+    let spec = DeviceSpec::Builtin {
+        device: BuiltinDevice::MultiSampler {
+            zones: zones.to_vec(),
+        },
+    };
+    // In its place: on the track chain, or on its rack chain.
+    let insert = match d.chain {
+        None => Command::Device(DeviceCommand::Insert {
             id: new_device,
             track: d.track,
-            device: DeviceSpec::Builtin {
-                device: BuiltinDevice::MultiSampler {
-                    zones: zones.to_vec(),
-                },
-            },
+            device: spec,
             before: Some(device),
         }),
-    )?;
-    // The samples carry the instrument's own attack from their first frame (the render is
-    // latency-compensated and never trimmed at the start): no amp attack on top, which
-    // would soften every onset (the default 1 ms ramp audibly dulled percussive sounds).
+        Some(chain) => Command::Rack(RackCommand::InsertDevice {
+            id: new_device,
+            chain,
+            device: spec,
+            before: Some(device),
+        }),
+    };
+    doc::apply(ctx, &insert)?;
+    // The samples carry the instrument's own attack from their note's frame (the render is
+    // latency-compensated and never trimmed at the start): `Offset` starts playback there,
+    // and no amp attack on top, which would soften every onset (the default 1 ms ramp
+    // audibly dulled percussive sounds).
     for (param, value) in [
+        (
+            ether_devices::multisampler::multi_sampler::OFFSET,
+            offset_ms,
+        ),
         (ether_devices::multisampler::multi_sampler::AMP_ATTACK, 0.0),
         (ether_devices::multisampler::multi_sampler::VOLUME, 0.0),
         (

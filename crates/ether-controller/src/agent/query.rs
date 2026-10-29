@@ -241,7 +241,7 @@ where
                 else {
                     continue;
                 };
-                let key = device.key();
+                let key = super::edit::type_key(device);
                 let s = resolve::score_name(&query, &q, &d.name).max(resolve::score_name(
                     &query,
                     &q,

@@ -37,7 +37,7 @@ import { CHAIN_SECTIONS } from "./chainUtils";
 import { canHost } from "./libraryInsert";
 import { cannotHostMessage } from "./userInsert";
 import { matchesAction } from "@/features/keymap";
-import { groupDevices } from "@/features/racks/group";
+import { groupDevices, ungroupRacks, ungroupTargets } from "@/features/racks/group";
 
 /** How a click changes the selection: plain, ⌘ / Ctrl (toggle), Shift (range). */
 export type DeviceSelectMode = "replace" | "toggle" | "range";
@@ -336,6 +336,13 @@ export function focusedDevice(): DeviceId | null {
   return el.closest<HTMLElement>(".eth-device[data-device]")?.dataset.device ?? null;
 }
 
+/** The devices a shortcut on focused card `id` acts on: the selection, else `id`. */
+function actedOn(project: Project, id: DeviceId): DeviceId[] {
+  const { selected } = useDeviceClipboard.getState();
+  const live = selected.filter((x) => project.devices[x]);
+  return live.length > 0 ? live : [id];
+}
+
 /** What the document listeners paste with (the latest mounted card's transport and categories). */
 const current: { transport: EngineTransport | null; categoryOf: ((d: Device) => DeviceCategory) | null } = { transport: null, categoryOf: null };
 let bound = false;
@@ -383,18 +390,31 @@ export function useDeviceClipboardKeys(transport: EngineTransport, categoryOf: (
     const { selected } = useDeviceClipboard.getState();
     void deleteDevices(current.transport, selected.includes(id) ? selected : [id]);
   });
-  // ⌘G / Ctrl+G (keymap `device.group`): the selection (or the focused card) into a rack.
+  // ⌘G / Ctrl+G (keymap `device.group`): the selected cards into a rack. The highlighted
+  // selection, even when the focus is on a card outside it (a control of another card);
+  // the focused card when nothing is selected.
   document.addEventListener("keydown", (e) => {
     if (e.defaultPrevented || !matchesAction("device.group", e) || isTextEntry(e.target)) return;
     const id = focusedDevice();
     const project = useProjectStore.getState().project;
     if (!id || !project || !current.transport || !current.categoryOf) return;
     e.preventDefault();
-    const { selected } = useDeviceClipboard.getState();
     const transport = current.transport;
-    void groupDevices((c) => transport.send(c), project, selected.includes(id) ? selected : [id], current.categoryOf).then(
+    void groupDevices((c) => transport.send(c), project, actedOn(project, id), current.categoryOf).then(
       (rack) => rack && useDeviceClipboard.setState({ selected: [rack], anchor: rack }),
     );
+  });
+  // ⌘⇧G / Ctrl+Shift+G (keymap `device.ungroup`): the selected racks (or the focused card's
+  // rack, or the rack it is in) flattened into their place.
+  document.addEventListener("keydown", (e) => {
+    if (e.defaultPrevented || !matchesAction("device.ungroup", e) || isTextEntry(e.target)) return;
+    const id = focusedDevice();
+    const project = useProjectStore.getState().project;
+    if (!id || !project || !current.transport) return;
+    const racks = ungroupTargets(project, actedOn(project, id));
+    if (racks.length === 0) return;
+    e.preventDefault();
+    void ungroupRacks((c) => current.transport!.send(c), racks);
   });
   document.addEventListener("paste", (e) => {
     const to = pasteTarget() ?? fallbackPasteTarget();

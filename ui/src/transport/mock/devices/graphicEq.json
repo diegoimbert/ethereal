@@ -1,0 +1,3487 @@
+{
+  "GraphicEq": {
+    "audio_inputs": 2,
+    "audio_outputs": 2,
+    "category": "AudioEffect",
+    "device_type": {
+      "device": "GraphicEq",
+      "type": "Builtin"
+    },
+    "layout": {
+      "sections": [
+        {
+          "columns": 1,
+          "id": "editor",
+          "items": [
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Large",
+              "widget": {
+                "bands": [
+                  {
+                    "freq": 3,
+                    "gain": 4,
+                    "kind": 2,
+                    "on": 1,
+                    "q": 5,
+                    "slope": 6,
+                    "used": 0
+                  },
+                  {
+                    "freq": 10,
+                    "gain": 11,
+                    "kind": 9,
+                    "on": 8,
+                    "q": 12,
+                    "slope": 13,
+                    "used": 7
+                  },
+                  {
+                    "freq": 17,
+                    "gain": 18,
+                    "kind": 16,
+                    "on": 15,
+                    "q": 19,
+                    "slope": 20,
+                    "used": 14
+                  },
+                  {
+                    "freq": 24,
+                    "gain": 25,
+                    "kind": 23,
+                    "on": 22,
+                    "q": 26,
+                    "slope": 27,
+                    "used": 21
+                  },
+                  {
+                    "freq": 31,
+                    "gain": 32,
+                    "kind": 30,
+                    "on": 29,
+                    "q": 33,
+                    "slope": 34,
+                    "used": 28
+                  },
+                  {
+                    "freq": 38,
+                    "gain": 39,
+                    "kind": 37,
+                    "on": 36,
+                    "q": 40,
+                    "slope": 41,
+                    "used": 35
+                  },
+                  {
+                    "freq": 45,
+                    "gain": 46,
+                    "kind": 44,
+                    "on": 43,
+                    "q": 47,
+                    "slope": 48,
+                    "used": 42
+                  },
+                  {
+                    "freq": 52,
+                    "gain": 53,
+                    "kind": 51,
+                    "on": 50,
+                    "q": 54,
+                    "slope": 55,
+                    "used": 49
+                  },
+                  {
+                    "freq": 59,
+                    "gain": 60,
+                    "kind": 58,
+                    "on": 57,
+                    "q": 61,
+                    "slope": 62,
+                    "used": 56
+                  },
+                  {
+                    "freq": 66,
+                    "gain": 67,
+                    "kind": 65,
+                    "on": 64,
+                    "q": 68,
+                    "slope": 69,
+                    "used": 63
+                  },
+                  {
+                    "freq": 73,
+                    "gain": 74,
+                    "kind": 72,
+                    "on": 71,
+                    "q": 75,
+                    "slope": 76,
+                    "used": 70
+                  },
+                  {
+                    "freq": 80,
+                    "gain": 81,
+                    "kind": 79,
+                    "on": 78,
+                    "q": 82,
+                    "slope": 83,
+                    "used": 77
+                  },
+                  {
+                    "freq": 87,
+                    "gain": 88,
+                    "kind": 86,
+                    "on": 85,
+                    "q": 89,
+                    "slope": 90,
+                    "used": 84
+                  },
+                  {
+                    "freq": 94,
+                    "gain": 95,
+                    "kind": 93,
+                    "on": 92,
+                    "q": 96,
+                    "slope": 97,
+                    "used": 91
+                  },
+                  {
+                    "freq": 101,
+                    "gain": 102,
+                    "kind": 100,
+                    "on": 99,
+                    "q": 103,
+                    "slope": 104,
+                    "used": 98
+                  },
+                  {
+                    "freq": 108,
+                    "gain": 109,
+                    "kind": 107,
+                    "on": 106,
+                    "q": 110,
+                    "slope": 111,
+                    "used": 105
+                  },
+                  {
+                    "freq": 115,
+                    "gain": 116,
+                    "kind": 114,
+                    "on": 113,
+                    "q": 117,
+                    "slope": 118,
+                    "used": 112
+                  },
+                  {
+                    "freq": 122,
+                    "gain": 123,
+                    "kind": 121,
+                    "on": 120,
+                    "q": 124,
+                    "slope": 125,
+                    "used": 119
+                  },
+                  {
+                    "freq": 129,
+                    "gain": 130,
+                    "kind": 128,
+                    "on": 127,
+                    "q": 131,
+                    "slope": 132,
+                    "used": 126
+                  },
+                  {
+                    "freq": 136,
+                    "gain": 137,
+                    "kind": 135,
+                    "on": 134,
+                    "q": 138,
+                    "slope": 139,
+                    "used": 133
+                  },
+                  {
+                    "freq": 143,
+                    "gain": 144,
+                    "kind": 142,
+                    "on": 141,
+                    "q": 145,
+                    "slope": 146,
+                    "used": 140
+                  },
+                  {
+                    "freq": 150,
+                    "gain": 151,
+                    "kind": 149,
+                    "on": 148,
+                    "q": 152,
+                    "slope": 153,
+                    "used": 147
+                  },
+                  {
+                    "freq": 157,
+                    "gain": 158,
+                    "kind": 156,
+                    "on": 155,
+                    "q": 159,
+                    "slope": 160,
+                    "used": 154
+                  },
+                  {
+                    "freq": 164,
+                    "gain": 165,
+                    "kind": 163,
+                    "on": 162,
+                    "q": 166,
+                    "slope": 167,
+                    "used": 161
+                  }
+                ],
+                "output": 168,
+                "spectrum": "PrePost",
+                "type": "GraphicEq"
+              }
+            }
+          ],
+          "span": 4,
+          "title": null
+        }
+      ]
+    },
+    "midi_input": false,
+    "name": "EQ",
+    "params": [
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 1",
+        "hidden": false,
+        "id": 0,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 1",
+        "hidden": false,
+        "id": 1,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 1",
+        "hidden": false,
+        "id": 2,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 1",
+        "hidden": false,
+        "id": 3,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 1",
+        "hidden": false,
+        "id": 4,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 1",
+        "hidden": false,
+        "id": 5,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 1",
+        "hidden": false,
+        "id": 6,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 2",
+        "hidden": false,
+        "id": 7,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 2",
+        "hidden": false,
+        "id": 8,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 2",
+        "hidden": false,
+        "id": 9,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 2",
+        "hidden": false,
+        "id": 10,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 2",
+        "hidden": false,
+        "id": 11,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 2",
+        "hidden": false,
+        "id": 12,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 2",
+        "hidden": false,
+        "id": 13,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 3",
+        "hidden": false,
+        "id": 14,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 3",
+        "hidden": false,
+        "id": 15,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 3",
+        "hidden": false,
+        "id": 16,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 3",
+        "hidden": false,
+        "id": 17,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 3",
+        "hidden": false,
+        "id": 18,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 3",
+        "hidden": false,
+        "id": 19,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 3",
+        "hidden": false,
+        "id": 20,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 4",
+        "hidden": false,
+        "id": 21,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 4",
+        "hidden": false,
+        "id": 22,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 4",
+        "hidden": false,
+        "id": 23,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 4",
+        "hidden": false,
+        "id": 24,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 4",
+        "hidden": false,
+        "id": 25,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 4",
+        "hidden": false,
+        "id": 26,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 4",
+        "hidden": false,
+        "id": 27,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 5",
+        "hidden": false,
+        "id": 28,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 5",
+        "hidden": false,
+        "id": 29,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 5",
+        "hidden": false,
+        "id": 30,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 5",
+        "hidden": false,
+        "id": 31,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 5",
+        "hidden": false,
+        "id": 32,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 5",
+        "hidden": false,
+        "id": 33,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 5",
+        "hidden": false,
+        "id": 34,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 6",
+        "hidden": false,
+        "id": 35,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 6",
+        "hidden": false,
+        "id": 36,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 6",
+        "hidden": false,
+        "id": 37,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 6",
+        "hidden": false,
+        "id": 38,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 6",
+        "hidden": false,
+        "id": 39,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 6",
+        "hidden": false,
+        "id": 40,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 6",
+        "hidden": false,
+        "id": 41,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 7",
+        "hidden": false,
+        "id": 42,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 7",
+        "hidden": false,
+        "id": 43,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 7",
+        "hidden": false,
+        "id": 44,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 7",
+        "hidden": false,
+        "id": 45,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 7",
+        "hidden": false,
+        "id": 46,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 7",
+        "hidden": false,
+        "id": 47,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 7",
+        "hidden": false,
+        "id": 48,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 8",
+        "hidden": false,
+        "id": 49,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 8",
+        "hidden": false,
+        "id": 50,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 8",
+        "hidden": false,
+        "id": 51,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 8",
+        "hidden": false,
+        "id": 52,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 8",
+        "hidden": false,
+        "id": 53,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 8",
+        "hidden": false,
+        "id": 54,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 8",
+        "hidden": false,
+        "id": 55,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 9",
+        "hidden": false,
+        "id": 56,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 9",
+        "hidden": false,
+        "id": 57,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 9",
+        "hidden": false,
+        "id": 58,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 9",
+        "hidden": false,
+        "id": 59,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 9",
+        "hidden": false,
+        "id": 60,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 9",
+        "hidden": false,
+        "id": 61,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 9",
+        "hidden": false,
+        "id": 62,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 10",
+        "hidden": false,
+        "id": 63,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 10",
+        "hidden": false,
+        "id": 64,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 10",
+        "hidden": false,
+        "id": 65,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 10",
+        "hidden": false,
+        "id": 66,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 10",
+        "hidden": false,
+        "id": 67,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 10",
+        "hidden": false,
+        "id": 68,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 10",
+        "hidden": false,
+        "id": 69,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 11",
+        "hidden": false,
+        "id": 70,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 11",
+        "hidden": false,
+        "id": 71,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 11",
+        "hidden": false,
+        "id": 72,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 11",
+        "hidden": false,
+        "id": 73,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 11",
+        "hidden": false,
+        "id": 74,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 11",
+        "hidden": false,
+        "id": 75,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 11",
+        "hidden": false,
+        "id": 76,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 12",
+        "hidden": false,
+        "id": 77,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 12",
+        "hidden": false,
+        "id": 78,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 12",
+        "hidden": false,
+        "id": 79,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 12",
+        "hidden": false,
+        "id": 80,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 12",
+        "hidden": false,
+        "id": 81,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 12",
+        "hidden": false,
+        "id": 82,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 12",
+        "hidden": false,
+        "id": 83,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 13",
+        "hidden": false,
+        "id": 84,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 13",
+        "hidden": false,
+        "id": 85,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 13",
+        "hidden": false,
+        "id": 86,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 13",
+        "hidden": false,
+        "id": 87,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 13",
+        "hidden": false,
+        "id": 88,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 13",
+        "hidden": false,
+        "id": 89,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 13",
+        "hidden": false,
+        "id": 90,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 14",
+        "hidden": false,
+        "id": 91,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 14",
+        "hidden": false,
+        "id": 92,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 14",
+        "hidden": false,
+        "id": 93,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 14",
+        "hidden": false,
+        "id": 94,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 14",
+        "hidden": false,
+        "id": 95,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 14",
+        "hidden": false,
+        "id": 96,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 14",
+        "hidden": false,
+        "id": 97,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 15",
+        "hidden": false,
+        "id": 98,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 15",
+        "hidden": false,
+        "id": 99,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 15",
+        "hidden": false,
+        "id": 100,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 15",
+        "hidden": false,
+        "id": 101,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 15",
+        "hidden": false,
+        "id": 102,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 15",
+        "hidden": false,
+        "id": 103,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 15",
+        "hidden": false,
+        "id": 104,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 16",
+        "hidden": false,
+        "id": 105,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 16",
+        "hidden": false,
+        "id": 106,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 16",
+        "hidden": false,
+        "id": 107,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 16",
+        "hidden": false,
+        "id": 108,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 16",
+        "hidden": false,
+        "id": 109,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 16",
+        "hidden": false,
+        "id": 110,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 16",
+        "hidden": false,
+        "id": 111,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 17",
+        "hidden": false,
+        "id": 112,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 17",
+        "hidden": false,
+        "id": 113,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 17",
+        "hidden": false,
+        "id": 114,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 17",
+        "hidden": false,
+        "id": 115,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 17",
+        "hidden": false,
+        "id": 116,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 17",
+        "hidden": false,
+        "id": 117,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 17",
+        "hidden": false,
+        "id": 118,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 18",
+        "hidden": false,
+        "id": 119,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 18",
+        "hidden": false,
+        "id": 120,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 18",
+        "hidden": false,
+        "id": 121,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 18",
+        "hidden": false,
+        "id": 122,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 18",
+        "hidden": false,
+        "id": 123,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 18",
+        "hidden": false,
+        "id": 124,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 18",
+        "hidden": false,
+        "id": 125,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 19",
+        "hidden": false,
+        "id": 126,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 19",
+        "hidden": false,
+        "id": 127,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 19",
+        "hidden": false,
+        "id": 128,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 19",
+        "hidden": false,
+        "id": 129,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 19",
+        "hidden": false,
+        "id": 130,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 19",
+        "hidden": false,
+        "id": 131,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 19",
+        "hidden": false,
+        "id": 132,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 20",
+        "hidden": false,
+        "id": 133,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 20",
+        "hidden": false,
+        "id": 134,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 20",
+        "hidden": false,
+        "id": 135,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 20",
+        "hidden": false,
+        "id": 136,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 20",
+        "hidden": false,
+        "id": 137,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 20",
+        "hidden": false,
+        "id": 138,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 20",
+        "hidden": false,
+        "id": 139,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 21",
+        "hidden": false,
+        "id": 140,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 21",
+        "hidden": false,
+        "id": 141,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 21",
+        "hidden": false,
+        "id": 142,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 21",
+        "hidden": false,
+        "id": 143,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 21",
+        "hidden": false,
+        "id": 144,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 21",
+        "hidden": false,
+        "id": 145,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 21",
+        "hidden": false,
+        "id": 146,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 22",
+        "hidden": false,
+        "id": 147,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 22",
+        "hidden": false,
+        "id": 148,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 22",
+        "hidden": false,
+        "id": 149,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 22",
+        "hidden": false,
+        "id": 150,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 22",
+        "hidden": false,
+        "id": 151,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 22",
+        "hidden": false,
+        "id": 152,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 22",
+        "hidden": false,
+        "id": 153,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 23",
+        "hidden": false,
+        "id": 154,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 23",
+        "hidden": false,
+        "id": 155,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 23",
+        "hidden": false,
+        "id": 156,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 23",
+        "hidden": false,
+        "id": 157,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 23",
+        "hidden": false,
+        "id": 158,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 23",
+        "hidden": false,
+        "id": 159,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 23",
+        "hidden": false,
+        "id": 160,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 24",
+        "hidden": false,
+        "id": 161,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Used",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 24",
+        "hidden": false,
+        "id": 162,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "On",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 24",
+        "hidden": false,
+        "id": 163,
+        "labels": [
+          "Bell",
+          "Low Shelf",
+          "Low Cut",
+          "High Shelf",
+          "High Cut",
+          "Notch",
+          "Band-pass",
+          "Tilt Shelf",
+          "Flat Tilt"
+        ],
+        "max": 8.0,
+        "min": 0.0,
+        "name": "Type",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1000.0,
+        "group": "Band 24",
+        "hidden": false,
+        "id": 164,
+        "labels": null,
+        "max": 30000.0,
+        "min": 10.0,
+        "name": "Freq",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "Hertz"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Band 24",
+        "hidden": false,
+        "id": 165,
+        "labels": null,
+        "max": 30.0,
+        "min": -30.0,
+        "name": "Gain",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 24",
+        "hidden": false,
+        "id": 166,
+        "labels": null,
+        "max": 40.0,
+        "min": 0.025,
+        "name": "Q",
+        "scale": {
+          "type": "Log"
+        },
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 1.0,
+        "group": "Band 24",
+        "hidden": false,
+        "id": 167,
+        "labels": [
+          "6 dB/oct",
+          "12 dB/oct",
+          "18 dB/oct",
+          "24 dB/oct",
+          "36 dB/oct",
+          "48 dB/oct",
+          "72 dB/oct",
+          "96 dB/oct"
+        ],
+        "max": 7.0,
+        "min": 0.0,
+        "name": "Slope",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Output",
+        "hidden": false,
+        "id": 168,
+        "labels": null,
+        "max": 24.0,
+        "min": -24.0,
+        "name": "Output",
+        "scale": {
+          "type": "Linear"
+        },
+        "unit": "Decibels"
+      }
+    ],
+    "sidechain_inputs": 0
+  }
+}

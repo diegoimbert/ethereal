@@ -17,7 +17,7 @@ use ether_controller::{
 };
 use ether_core::protocol::automation::{AutomationCommand, PointSpec};
 use ether_core::protocol::clips::ClipCommand;
-use ether_core::protocol::devices::{DeviceCommand, DeviceDescriptor, DeviceSpec};
+use ether_core::protocol::devices::{DeviceCategory, DeviceCommand, DeviceDescriptor, DeviceSpec};
 use ether_core::protocol::freeze::{BounceTarget, FreezeCommand, FreezeEvent};
 use ether_core::protocol::media::{BrowseLocation, MediaCommand, MediaSource};
 use ether_core::protocol::mixer::MixerCommand;
@@ -56,6 +56,65 @@ struct RealBridge {
     nodes: BTreeMap<NodeKey, DeviceId>,
     /// The last published graph.
     last_graph: Option<RenderGraphDesc>,
+    /// Plugin devices: all [`Loading`] instruments.
+    plugins: BTreeSet<DeviceId>,
+}
+
+/// Fake plugin instrument (`plugin_id: "loading"`): a held note plays a constant 0.5 on both
+/// sides, but only once [`LOADING_MS`] of real time have passed since the instance was
+/// created; before that it is silent, like a sample player still loading its sound on a
+/// thread of its own after its state was set.
+struct Loading {
+    since: std::time::Instant,
+    held: bool,
+}
+const LOADING_MS: u64 = 100;
+impl ether_core::Node for Loading {
+    fn prepare(&mut self, _: &ether_core::PrepareConfig) {}
+    fn reset(&mut self) {
+        self.held = false;
+    }
+    fn channels(&self) -> (u16, u16) {
+        (0, 2)
+    }
+    fn process(
+        &mut self,
+        ctx: &mut ether_core::ProcessContext<'_>,
+        audio: &mut ether_core::AudioBuffers<'_, '_>,
+    ) -> ether_core::ProcessStatus {
+        let ready = self.since.elapsed() >= std::time::Duration::from_millis(LOADING_MS);
+        let mut events = ctx.events.iter().peekable();
+        for i in 0..ctx.frames {
+            while let Some(e) = events.next_if(|e| e.offset as usize <= i) {
+                match e.kind {
+                    ether_core::EventKind::NoteOn { .. } => self.held = true,
+                    ether_core::EventKind::NoteOff { .. } | ether_core::EventKind::AllNotesOff => {
+                        self.held = false
+                    }
+                    _ => {}
+                }
+            }
+            let v = if self.held && ready { 0.5 } else { 0.0 };
+            for o in audio.outputs.iter_mut() {
+                o[i] = v;
+            }
+        }
+        ether_core::ProcessStatus::Continue
+    }
+}
+
+fn loading_descriptor() -> DeviceDescriptor {
+    let mut d = plugin_descriptor("Loading", DeviceCategory::Instrument);
+    d.audio_inputs = 0;
+    d.midi_input = true;
+    d
+}
+
+fn loading_node() -> Box<dyn ether_core::Node> {
+    Box::new(Loading {
+        since: std::time::Instant::now(),
+        held: false,
+    })
 }
 
 impl RealBridge {
@@ -73,6 +132,7 @@ impl RealBridge {
             devices: BTreeMap::new(),
             nodes: BTreeMap::new(),
             last_graph: None,
+            plugins: BTreeSet::new(),
         }
     }
 
@@ -114,11 +174,29 @@ impl EngineBridge for RealBridge {
     }
     fn create_plugin(
         &mut self,
+        device: DeviceId,
+        plugin: &PluginInstance,
+        _: Option<&Base64Bytes>,
+    ) -> Result<NodeKey, BridgeError> {
+        if plugin.plugin_id != "loading" {
+            return Err(BridgeError::Unsupported("no plugins".into()));
+        }
+        self.plugins.insert(device);
+        let key = self
+            .handle
+            .add_node(loading_node())
+            .map_err(|e| BridgeError::Other(e.to_string()))?;
+        self.nodes.insert(key, device);
+        Ok(key)
+    }
+    fn create_offline_plugin(
+        &mut self,
         _: DeviceId,
         _: &PluginInstance,
         _: Option<&Base64Bytes>,
-    ) -> Result<NodeKey, BridgeError> {
-        Err(BridgeError::Unsupported("no plugins".into()))
+        _: u32,
+    ) -> Result<Box<dyn ether_core::Node>, BridgeError> {
+        Ok(loading_node())
     }
     fn destroy_node(&mut self, key: NodeKey) -> Result<(), BridgeError> {
         self.nodes.remove(&key);
@@ -163,6 +241,9 @@ impl EngineBridge for RealBridge {
         self.handle.poll(out);
     }
     fn descriptor(&mut self, device: DeviceId) -> Option<DeviceDescriptor> {
+        if self.plugins.contains(&device) {
+            return Some(loading_descriptor());
+        }
         self.devices
             .get(&device)
             .map(|t| ether_devices::descriptor(*t))
@@ -2226,10 +2307,10 @@ fn converts_an_instrument_rack_to_a_multisampler() {
             device: rack,
             new_device,
             seed_media: seed,
-            first_key: 60,
-            last_key: 64,
-            key_step: 2,
-            velocity_steps: 2,
+            keys: vec![60, 62, 64],
+            velocities: vec![64, 127],
+            pre_roll_seconds: Seconds(0.0),
+            warm_up_note: false,
             note_seconds: Seconds(0.2),
             tail_seconds: Seconds(0.1),
         })),
@@ -2267,7 +2348,7 @@ fn converts_an_instrument_rack_to_a_multisampler() {
                 .iter()
                 .map(|z| (z.velocities.lo, z.velocities.hi))
                 .collect::<BTreeSet<_>>(),
-            BTreeSet::from([(1, 63), (64, 127)])
+            BTreeSet::from([(1, 95), (96, 127)])
         );
         // Every key plays the nearest sample (one zone per velocity layer); the edges cover
         // the keyboard.
@@ -2307,41 +2388,36 @@ fn convert_to_sampler_validates_the_target_and_the_count() {
     let t = d.track(TrackKind::Midi, "Keys");
     let synth = d.device(t, BuiltinDevice::new(BuiltinDeviceType::Synth));
     let delay = d.device(t, BuiltinDevice::new(BuiltinDeviceType::Delay));
-    let cmd = |device: DeviceId, first: u8, last: u8, step: u8, velocities: u8| {
+    let cmd = |device: DeviceId, keys: Vec<u8>, velocities: Vec<u8>| {
         Command::Freeze(FreezeCommand::ConvertToSampler {
             job: "x".into(),
             device,
             new_device: DeviceId::NIL,
             seed_media: MediaId::NIL,
-            first_key: first,
-            last_key: last,
-            key_step: step,
-            velocity_steps: velocities,
+            keys,
+            velocities,
+            pre_roll_seconds: Seconds(0.0),
+            warm_up_note: false,
             note_seconds: Seconds(0.2),
             tail_seconds: Seconds(0.1),
         })
     };
+    let invalid = |d: &mut Drive, c: Command| {
+        assert_eq!(err(&d.send(c)).code, ErrorCode::InvalidArgument);
+    };
     // A delay is not an instrument.
-    assert_eq!(
-        err(&d.send(cmd(delay, 60, 64, 1, 1))).code,
-        ErrorCode::InvalidArgument
-    );
+    invalid(&mut d, cmd(delay, vec![60], vec![127]));
     // 128 keys × 5 layers is more than MAX_ZONES.
-    let out = d.send(cmd(synth, 0, 127, 1, 5));
-    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
-    // Bad ranges.
-    assert_eq!(
-        err(&d.send(cmd(synth, 64, 60, 1, 1))).code,
-        ErrorCode::InvalidArgument
+    invalid(
+        &mut d,
+        cmd(synth, (0..=127).collect(), vec![25, 50, 75, 100, 127]),
     );
-    assert_eq!(
-        err(&d.send(cmd(synth, 60, 64, 0, 1))).code,
-        ErrorCode::InvalidArgument
-    );
-    assert_eq!(
-        err(&d.send(cmd(synth, 60, 64, 1, 0))).code,
-        ErrorCode::InvalidArgument
-    );
+    // Bad lists: no key, a key past 127, no velocity, velocity 0, too many velocities.
+    invalid(&mut d, cmd(synth, vec![], vec![127]));
+    invalid(&mut d, cmd(synth, vec![128], vec![127]));
+    invalid(&mut d, cmd(synth, vec![60], vec![]));
+    invalid(&mut d, cmd(synth, vec![60], vec![0]));
+    invalid(&mut d, cmd(synth, vec![60], (1..=17).collect()));
 }
 
 /// Interleaved 32-bit float WAV (the renders) → channels.
@@ -2450,6 +2526,21 @@ fn one_note(d: &mut Drive, track: TrackId, key: u8) {
 
 /// Convert `device` sampling key 60 only (one velocity layer); returns the render.
 fn sample_key_60(d: &mut Drive, device: DeviceId) -> Vec<Vec<f32>> {
+    sample_key_60_after(d, device, 0.0)
+}
+
+/// [`sample_key_60`] with `pre_roll` seconds before the note.
+fn sample_key_60_after(d: &mut Drive, device: DeviceId, pre_roll: f64) -> Vec<Vec<f32>> {
+    sample_key_60_with(d, device, pre_roll, false)
+}
+
+/// [`sample_key_60_after`], with a warm-up note when `warm_up_note`.
+fn sample_key_60_with(
+    d: &mut Drive,
+    device: DeviceId,
+    pre_roll: f64,
+    warm_up_note: bool,
+) -> Vec<Vec<f32>> {
     let new_device: DeviceId = d.id();
     let seed: MediaId = d.id();
     let job = format!("sample{}", d.next);
@@ -2458,10 +2549,10 @@ fn sample_key_60(d: &mut Drive, device: DeviceId) -> Vec<Vec<f32>> {
         device,
         new_device,
         seed_media: seed,
-        first_key: 60,
-        last_key: 60,
-        key_step: 1,
-        velocity_steps: 1,
+        keys: vec![60],
+        velocities: vec![127],
+        pre_roll_seconds: Seconds(pre_roll),
+        warm_up_note,
         note_seconds: Seconds(0.2),
         tail_seconds: Seconds(0.2),
     }));
@@ -2503,6 +2594,325 @@ fn convert_to_sampler_keeps_the_attack() {
         assert_eq!(&sample[c][..n], &live[c][..], "the render is the live note");
         assert_eq!(after[c], live[c], "the sampler plays it back bit-exact");
     }
+}
+
+/// A bypassed instrument still converts: it is sampled switched on, not as the silence it
+/// plays while off.
+#[test]
+fn converts_a_bypassed_instrument() {
+    let mut d = Drive::new();
+    let (t, synth) = percussive(&mut d, 1.0, false);
+    one_note(&mut d, t, 60);
+    let n = SR as usize / 10;
+    let live = d.play(n);
+    d.ok(Command::Device(DeviceCommand::SetEnabled {
+        id: synth,
+        enabled: false,
+    }));
+    let sample = sample_key_60(&mut d, synth);
+    for c in 0..2 {
+        assert_eq!(&sample[c][..n], &live[c][..], "the instrument, switched on");
+    }
+}
+
+/// An instrument nested in an instrument rack converts in its rack chain. Its sample is the
+/// instrument alone: not the rack's other chain, not its chain's volume (still applied after
+/// the sampler), but with the rack macro that moves one of its params baked in.
+#[test]
+fn converts_an_instrument_nested_in_a_rack() {
+    use ether_core::protocol::racks::ModulationCommand;
+    use ether_devices::synth::params as sp;
+    let mut d = Drive::new();
+    let (t, _) = percussive(&mut d, 1.0, false);
+    // Replace the plain synth by a rack holding a percussive synth (chain A) and a square
+    // synth (chain B).
+    let plain = d.p().devices_of(t)[0].id;
+    d.ok(Command::Device(DeviceCommand::Remove { id: plain }));
+    let (rack, synth) = instrument_rack(&mut d, t);
+    for (param, value) in [
+        (sp::WAVEFORM, 1.0),
+        (sp::ATTACK, 0.0),
+        (sp::DECAY, 40.0),
+        (sp::SUSTAIN, 0.0),
+        (sp::RELEASE, 20.0),
+        (sp::CUTOFF, 20_000.0),
+    ] {
+        d.ok(Command::Device(DeviceCommand::SetParam {
+            device: synth,
+            param,
+            value,
+        }));
+    }
+    let chain_a = d.p().devices[&synth].chain.unwrap();
+    let chain_b: RackChainId = d.id();
+    d.ok(Command::Rack(RackCommand::AddChain {
+        id: chain_b,
+        rack,
+        name: None,
+        before: None,
+    }));
+    let other: DeviceId = d.id();
+    d.ok(Command::Rack(RackCommand::InsertDevice {
+        id: other,
+        chain: chain_b,
+        device: DeviceSpec::Builtin {
+            device: BuiltinDevice::new(BuiltinDeviceType::Synth),
+        },
+        before: None,
+    }));
+    // Macro 1 at 0.8 turns the synth's volume down (depth -0.5).
+    let mapping: ModMappingId = d.id();
+    d.ok(Command::Modulation(ModulationCommand::Map {
+        id: mapping,
+        source: ModSource::Macro { rack, index: 0 },
+        device: synth,
+        param: sp::VOLUME,
+        depth: -0.5,
+    }));
+    d.ok(Command::Device(DeviceCommand::SetParam {
+        device: rack,
+        param: ether_model::rack_macro_param(0),
+        value: 0.8,
+    }));
+    // The reference: chain A alone, at unity, as it plays live (macro included).
+    let mute_b = |d: &mut Drive, mute: bool| {
+        d.ok(Command::Rack(RackCommand::SetChainMix {
+            id: chain_b,
+            volume: None,
+            pan: None,
+            mute: Some(mute),
+            solo: None,
+        }))
+    };
+    mute_b(&mut d, true);
+    one_note(&mut d, t, 60);
+    let n = SR as usize / 10;
+    let live = d.play(n);
+    // Chain B playing, chain A turned down: neither is in the sample.
+    mute_b(&mut d, false);
+    d.ok(Command::Rack(RackCommand::SetChainMix {
+        id: chain_a,
+        volume: Some(Decibels(-6.0)),
+        pan: None,
+        mute: None,
+        solo: None,
+    }));
+    d.settle();
+    let sample = sample_key_60(&mut d, synth);
+    // Live playback glides the synth's volume from its unmodulated value to the macro's
+    // when it starts; the sample has the macro's value from its first frame. Past that glide
+    // they match.
+    let from = SR as usize / 50;
+    for c in 0..2 {
+        let level = peak(std::slice::from_ref(&live[c]));
+        assert!(level > 0.01, "a sound");
+        let diff = live[c][from..]
+            .iter()
+            .zip(&sample[c][from..])
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0f32, f32::max);
+        assert!(
+            diff < 0.01 * level,
+            "ch{c}: the synth alone, macro baked in ({diff} of {level})"
+        );
+    }
+    // The sampler took the synth's place in chain A; chain B and the rack are untouched.
+    let p = d.p();
+    assert!(!p.devices.contains_key(&synth));
+    let in_a: Vec<&Device> = p
+        .devices
+        .values()
+        .filter(|x| x.chain == Some(chain_a))
+        .collect();
+    assert_eq!(in_a.len(), 1);
+    assert!(matches!(
+        &in_a[0].kind,
+        DeviceKind::Builtin {
+            device: BuiltinDevice::MultiSampler { .. }
+        }
+    ));
+    assert_eq!(p.devices[&other].chain, Some(chain_b));
+    assert_eq!(
+        p.devices_of(t).iter().map(|x| x.id).collect::<Vec<_>>(),
+        vec![rack]
+    );
+}
+
+/// A pre-roll: the render starts that long before its note (the instrument already running),
+/// and the multisampler's `Offset` skips it, so the converted track still plays the note
+/// bit-exact from its first frame.
+#[test]
+fn convert_to_sampler_pre_roll_is_skipped_by_the_offset() {
+    let mut d = Drive::new();
+    let (t, synth) = percussive(&mut d, 1.0, false);
+    one_note(&mut d, t, 60);
+    let n = SR as usize / 10;
+    let live = d.play(n);
+    let sample = sample_key_60_after(&mut d, synth, 0.2);
+    let pre = SR as usize / 5;
+    let after = d.play(n);
+    let dev = d.p().devices_of(t)[0].clone();
+    assert_eq!(
+        dev.params[&ether_devices::multisampler::multi_sampler::OFFSET],
+        200.0
+    );
+    for c in 0..2 {
+        assert_eq!(onset(&sample[c]), Some(pre + 1), "the note is 0.2 s in");
+        assert_eq!(&sample[c][pre..pre + n], &live[c][..], "then the live note");
+        assert_eq!(after[c], live[c], "played back from the note, bit-exact");
+    }
+}
+
+/// A plugin still loading its sound for a while after it is created ([`Loading`]: silent
+/// for its first 100 ms of real time) gets the offset as real time before its note: the
+/// render holds before the note until then, so the sample has the note from its first
+/// frame. Without an offset there's no wait, and the note is rendered silent.
+#[test]
+fn convert_to_sampler_offset_waits_for_plugins_in_real_time() {
+    let mut d = Drive::new();
+    let t = d.track(TrackKind::Midi, "Plug");
+    let plug: DeviceId = d.id();
+    d.ok(Command::Device(DeviceCommand::Insert {
+        id: plug,
+        track: t,
+        device: DeviceSpec::Plugin {
+            plugin_id: "loading".into(),
+            sandboxed: None,
+            format: None,
+            name: None,
+        },
+        before: None,
+    }));
+    d.settle();
+    let started = std::time::Instant::now();
+    let sample = sample_key_60_after(&mut d, plug, 0.2);
+    assert!(
+        started.elapsed() >= std::time::Duration::from_millis(200),
+        "it waited"
+    );
+    let pre = SR as usize / 5;
+    for (c, ch) in sample.iter().enumerate() {
+        assert_eq!(
+            onset(ch),
+            Some(pre),
+            "ch{c}: the note, at full level, on its frame"
+        );
+        assert!(
+            ch[pre..pre + SR as usize / 10]
+                .iter()
+                .all(|s| (s - 0.5).abs() < 1e-6)
+        );
+    }
+    // The same plugin without an offset: no wait, the note comes before it is ready.
+    let mut d = Drive::new();
+    let t = d.track(TrackKind::Midi, "Plug");
+    let plug: DeviceId = d.id();
+    d.ok(Command::Device(DeviceCommand::Insert {
+        id: plug,
+        track: t,
+        device: DeviceSpec::Plugin {
+            plugin_id: "loading".into(),
+            sandboxed: None,
+            format: None,
+            name: None,
+        },
+        before: None,
+    }));
+    d.settle();
+    let sample = sample_key_60_after(&mut d, plug, 0.0);
+    assert!(
+        onset(&sample[0]).is_none(),
+        "rendered before the plugin was ready"
+    );
+}
+
+/// The warm-up note: with a pre-roll, the key also plays for 5 ms at the render's start (in
+/// the lead-in the sampler's `Offset` skips), and the note still plays on its frame.
+#[test]
+fn convert_to_sampler_plays_a_warm_up_note_in_the_pre_roll() {
+    let mut d = Drive::new();
+    let (t, synth) = percussive(&mut d, 1.0, false);
+    one_note(&mut d, t, 60);
+    let n = SR as usize / 10;
+    let live = d.play(n);
+    let sample = sample_key_60_with(&mut d, synth, 0.2, true);
+    let pre = SR as usize / 5;
+    for c in 0..2 {
+        // The warm-up from the start, then (decayed: 40 ms) silence before the note.
+        assert_eq!(onset(&sample[c]), Some(1), "the warm-up note at the start");
+        assert!(
+            peak(&[sample[c][pre - SR as usize / 50..pre].to_vec()]) < 1e-3,
+            "silent before the note"
+        );
+        let diff = live[c]
+            .iter()
+            .zip(&sample[c][pre..pre + n])
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0f32, f32::max);
+        assert!(diff < 1e-6, "ch{c}: then the note, as live ({diff})");
+    }
+}
+
+/// A clip's pitch-bend lane bends a built-in instrument like a plugin: through an
+/// instrument rack and a MIDI effect in front of the synth, a full bend up plays the note
+/// 2 semitones up (the default `Bend Range`).
+#[test]
+fn a_clip_bend_lane_bends_a_builtin_inside_a_rack() {
+    use ether_core::protocol::expression::ExpressionCommand;
+    use ether_devices::synth::params as sp;
+    let mut d = Drive::new();
+    let t = d.track(TrackKind::Midi, "Bend");
+    let (_rack, synth) = instrument_rack(&mut d, t);
+    let chain = d.p().devices[&synth].chain.unwrap();
+    let pitch: DeviceId = d.id();
+    d.ok(Command::Rack(RackCommand::InsertDevice {
+        id: pitch,
+        chain,
+        device: DeviceSpec::Builtin {
+            device: BuiltinDevice::new(BuiltinDeviceType::Pitch),
+        },
+        before: Some(synth),
+    }));
+    for (param, value) in [
+        (sp::WAVEFORM, 0.0),
+        (sp::CUTOFF, 20_000.0),
+        (sp::SUSTAIN, 100.0),
+    ] {
+        d.ok(Command::Device(DeviceCommand::SetParam {
+            device: synth,
+            param,
+            value,
+        }));
+    }
+    let clip = d.midi_clip(t, 0.0, &[69]);
+    let hz = |d: &mut Drive| {
+        d.settle();
+        let out = d.play(SR as usize / 4);
+        let x = &out[0][SR as usize / 20..];
+        let ups: Vec<usize> = (1..x.len())
+            .filter(|&i| x[i - 1] < 0.0 && x[i] >= 0.0)
+            .collect();
+        (ups.len() - 1) as f32 * SR as f32 / (ups[ups.len() - 1] - ups[0]) as f32
+    };
+    let plain = hz(&mut d);
+    assert!((plain - 440.0).abs() < 2.0, "unbent: {plain}");
+    let lane: ExpressionLaneId = d.id();
+    d.ok(Command::Expression(ExpressionCommand::CreateLane {
+        id: lane,
+        clip,
+        kind: ExpressionKind::PitchBend,
+    }));
+    d.ok(Command::Expression(ExpressionCommand::SetPoints {
+        lane,
+        points: vec![ExpressionPoint {
+            time: Beats(0.0),
+            value: 1.0,
+            curve: CurveShape::Step,
+        }],
+    }));
+    let bent = hz(&mut d);
+    let up2 = 440.0 * 2f32.powf(2.0 / 12.0);
+    assert!((bent - up2).abs() < 2.0, "bent: {bent} (expected {up2})");
 }
 
 /// An instrument with latency (a rack with an oversampled saturator after the synth): the

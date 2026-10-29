@@ -12,6 +12,7 @@ import { LfoCurveWidget } from "./lfoCurve";
 import { LoudnessWidget } from "./loudness";
 import { MaximizerWidget } from "./maximizer";
 import { AdaptiveEqWidget } from "./adaptiveEq";
+import { GraphicEqWidget } from "./graphicEq";
 import { PitchCorrectionWidget } from "./pitchCorrection";
 import { ShaperCurveWidget } from "./shaper";
 import { MacrosWidget, MeterWidget, RackChainsWidget, SampleWaveformWidget, SpectrumWidget, TunerWidget } from "./widgets/data";
@@ -138,5 +139,8 @@ export function WidgetView({ widget, size, label }: WidgetViewProps) {
     // adaptive-eq.
     case "AdaptiveEq":
       return <AdaptiveEqWidget widget={widget} size={size} label={label} />;
+    // graphic-eq.
+    case "GraphicEq":
+      return <GraphicEqWidget widget={widget} size={size} label={label} />;
   }
 }

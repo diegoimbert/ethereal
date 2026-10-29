@@ -69,6 +69,7 @@ import {
   PRECISION_RATIO,
   resolveGrid,
   selectModeFromEvent,
+  snapDelta,
   snapToGrid,
   stepLength,
   createTimelineViewStore,
@@ -650,8 +651,11 @@ export function AutomationLaneView({
       const lockValue = lock && !lockTime;
       const g = geomNow();
       let dt = lockTime ? 0 : dx / g.vp.pxPerBeat;
-      const snap = snapFn(ev.altKey);
-      if (!lockTime && snap) dt = snap(point.time + dt) - point.time;
+      // Relative snapping, like clips: the move goes by whole grid steps, so a point off the
+      // grid keeps its offset and a mostly vertical drag (zoomed out, a step is wide in
+      // beats) keeps its time instead of jumping to the nearest grid line.
+      const step = ev.altKey ? null : gridStep();
+      if (!lockTime && step) dt = snapDelta(point.time + (g.offset ?? 0), dt, step, live.current.tempo, true);
       dt = Math.max(dt, -minT);
       const mods: DragMods = { increments: ev.shiftKey, lockTime, lockValue };
       const edits = groups.flatMap((gr, i) => gr.lane.dragEdits(gr.points, i === 0 && gr.points.includes(point) ? point : gr.points[0]!, dt, dy, mods));

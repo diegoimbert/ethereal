@@ -12,6 +12,7 @@ import { errorMessage } from "@/features/transport-bar/engine";
 import { t, type MessageKey } from "@/i18n";
 import type { ContextMenuEntry } from "@/kit";
 import { cmd, newId } from "@/transport";
+import { isChainRack } from "./model";
 
 /** The rack type that can hold a device of this category. */
 export function rackTypeFor(category: DeviceDescriptor["category"]): BuiltinDeviceType {
@@ -78,6 +79,50 @@ export async function groupDevices(
     notify("Error", t("devices.group.failed", { error: errorMessage(e) }));
     return null;
   }
+}
+
+/**
+ * The chain racks "ungroup" flattens for `ids`: each rack among them, or the rack a device is
+ * in; none nested in another (flattening the outer one flattens it too).
+ */
+export function ungroupTargets(project: Project, ids: ReadonlyArray<DeviceId>): DeviceId[] {
+  const rackOf = (d: Device): DeviceId | null => {
+    if (isChainRack(d)) return d.id;
+    const host = d.chain != null ? project.rack_chains[d.chain]?.rack : undefined;
+    return host ?? null;
+  };
+  const racks = new Set<DeviceId>();
+  for (const id of ids) {
+    const d = project.devices[id];
+    const r = d ? rackOf(d) : null;
+    if (r) racks.add(r);
+  }
+  const inside = (id: DeviceId, outer: DeviceId): boolean => {
+    for (let d = project.devices[id]; d?.chain != null; ) {
+      const up = project.rack_chains[d.chain]?.rack;
+      if (!up) return false;
+      if (up === outer) return true;
+      d = project.devices[up];
+    }
+    return false;
+  };
+  return [...racks].filter((r) => ![...racks].some((o) => o !== r && inside(r, o)));
+}
+
+/** Flattens `racks` (`Rack::Ungroup`, one undo step); says why it can't. */
+export async function ungroupRacks(send: (c: Command) => Promise<unknown>, racks: ReadonlyArray<DeviceId>): Promise<void> {
+  const commands = racks.map((rack) => cmd("Rack", { type: "Ungroup", rack }));
+  try {
+    await send(commands.length === 1 ? commands[0]! : cmd("Edit", { type: "Batch", label: "ungroup racks", commands })); // i18n-ignore
+  } catch (e) {
+    notify("Error", t("devices.ungroup.failed", { error: errorMessage(e) }));
+  }
+}
+
+/** The "ungroup rack (flatten)" menu entry of a chain rack. */
+export function ungroupEntries(device: Device, send: (c: Command) => Promise<unknown>, shortcut?: string): ContextMenuEntry[] {
+  if (!isChainRack(device)) return [];
+  return [{ label: t("racks.ungroup"), shortcut, onSelect: () => void ungroupRacks(send, [device.id]) }];
 }
 
 /**

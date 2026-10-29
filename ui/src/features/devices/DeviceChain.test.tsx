@@ -71,13 +71,13 @@ describe("chain helpers", () => {
       "Sampler",
       "Compressor",
       "Delay",
-      "EQ",
+      "Parametric EQ",
       "Reverb",
       "Limiter",
       "Utility",
       "Drum Rack",
     ]);
-    expect(insertableTypes(all, audio).map((d) => d.name)).toEqual(["Compressor", "Delay", "EQ", "Reverb", "Limiter", "Utility"]);
+    expect(insertableTypes(all, audio).map((d) => d.name)).toEqual(["Compressor", "Delay", "Parametric EQ", "Reverb", "Limiter", "Utility"]);
   });
 
   it("keeps leading whole groups as the main controls and folds the rest", () => {
@@ -501,6 +501,38 @@ describe("DeviceChain: stacked layout (inspector)", () => {
     expect(useDeviceClipboard.getState().selected).toEqual([rack.id]);
     await act(() => mock!.send(cmd("Edit", { type: "Undo" })));
     expect(chainNames("Keys")).toEqual(["Synth", "Compressor"]);
+  });
+
+  it("⌘G groups the highlighted selection even when the focus is on a control of another card", async () => {
+    await renderStack();
+    const press = (name: string, mods: { shiftKey?: boolean } = {}) => fireEvent.pointerDown(deviceEl(name).querySelector("header")!, { button: 0, ...mods });
+    press("Compressor");
+    // The focus moves to a card outside the selection without changing it (a knob, a menu).
+    const other = deviceEl("Synth");
+    act(() => other.focus());
+    expect(useDeviceClipboard.getState().selected).toEqual([deviceOf("Keys", "Compressor").id]);
+    fireEvent.keyDown(other, { key: "g", code: "KeyG", ctrlKey: true });
+    await flush();
+    const top = devicesOfTrack(store().project!, trackByName("Keys").id);
+    expect(top.map((d) => d.kind.type === "Builtin" && d.kind.device.type)).toEqual(["Synth", "AudioEffectRack"]);
+  });
+
+  it("⌘⇧G / Ctrl+Shift+G flattens the rack back into the chain, one undo step", async () => {
+    await renderStack();
+    const press = (name: string, mods: { shiftKey?: boolean } = {}) => fireEvent.pointerDown(deviceEl(name).querySelector("header")!, { button: 0, ...mods });
+    press("Synth");
+    press("Compressor", { shiftKey: true });
+    fireEvent.keyDown(deviceEl("Compressor"), { key: "g", code: "KeyG", ctrlKey: true });
+    await flush();
+    const rack = devicesOfTrack(store().project!, trackByName("Keys").id)[0]!;
+    const card = document.querySelector<HTMLElement>(`.eth-device[data-device="${rack.id}"]`)!;
+    act(() => card.focus());
+    fireEvent.keyDown(card, { key: "G", code: "KeyG", ctrlKey: true, shiftKey: true });
+    await flush();
+    expect(chainNames("Keys")).toEqual(["Synth", "Compressor"]);
+    expect(store().project!.devices[rack.id]).toBeUndefined();
+    await act(() => mock!.send(cmd("Edit", { type: "Undo" })));
+    expect(devicesOfTrack(store().project!, trackByName("Keys").id).map((d) => d.id)).toEqual([rack.id]);
   });
 
   it("on/off and delete on a card of a multi-selection act on all of it; a plain click on the card then selects it alone", async () => {

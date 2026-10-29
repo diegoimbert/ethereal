@@ -662,6 +662,8 @@ impl RacksRt {
                 entry.push_dry(&pad.a, n);
                 sc.taps.align_main(entry.key, &mut pad.a, n);
                 let runs = entry.runs();
+                // Back on: its state (and its chains', for a rack) starts clean.
+                let reset = reset || entry.resumes();
                 // MIDI sidechain (`crate::midi_sidechain`): its notes replace the pad's.
                 overflow |=
                     sc.taps

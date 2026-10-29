@@ -16,9 +16,11 @@
 //!   that stops pumping messages would then freeze the main window's input. So ownership is
 //!   only used when the editor is created on the main window's own thread (the default
 //!   host). An editor made on another thread (a dedicated plugin UI thread) gets the
-//!   fallback instead: [`owner_activated`] (called when the main window is activated) puts
-//!   it back above the main window with an asynchronous `SetWindowPos`, which never waits
-//!   on the plugin thread.
+//!   fallback instead: [`owner_activated`] puts it back above the main window with an
+//!   asynchronous `SetWindowPos`, which never waits on the plugin thread. It runs whenever
+//!   the main window becomes the foreground window: [`set_owner`] installs a system
+//!   foreground hook (`SetWinEventHook(EVENT_SYSTEM_FOREGROUND)`, out of context, on the
+//!   main thread), because the webview's own focus event misses clicks into the page.
 //! - **macOS**: the editor `NSWindow` is a child window of the main `NSWindow`
 //!   (`addChildWindow:ordered:NSWindowAbove`, [`EditorLink::macos_attach`]): kept just
 //!   above the main window, hidden with it when it is minimized, below other apps' windows.
@@ -80,6 +82,10 @@ pub fn set_owner(owner: Option<OwnerWindow>) {
         macos::retain_view(view);
     }
     *OWNER.lock().unwrap_or_else(|e| e.into_inner()) = owner;
+    #[cfg(windows)]
+    if owner.is_some() {
+        win32::watch_foreground();
+    }
 }
 
 /// The registered main window.
@@ -263,10 +269,12 @@ pub mod win32 {
 
     use windows_sys::Win32::Foundation::HWND;
     use windows_sys::Win32::System::Threading::{GetCurrentProcessId, GetCurrentThreadId};
+    use windows_sys::Win32::UI::Accessibility::{HWINEVENTHOOK, SetWinEventHook};
     use windows_sys::Win32::UI::WindowsAndMessaging::{
+        EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_MINIMIZEEND, GA_ROOT, GetAncestor,
         GetWindowThreadProcessId, HWND_TOP, IsIconic, IsWindow, IsWindowVisible,
         SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE,
-        SetWindowPos,
+        SetWindowPos, WINEVENT_OUTOFCONTEXT,
     };
 
     use super::{EditorLink, OwnerWindow, Relation, owner, win32_relation};
@@ -331,6 +339,55 @@ pub mod win32 {
         let hwnd = hwnd as HWND;
         // SAFETY: plain queries on a window handle (a stale one is not hidden).
         unsafe { IsWindow(hwnd) != 0 && (IsIconic(hwnd) != 0 || IsWindowVisible(hwnd) == 0) }
+    }
+
+    /// Raise the [`Relation::Raised`] editors whenever the main window comes to the
+    /// foreground (or back from minimized). Once, on the main window's thread (it pumps the
+    /// hook's messages).
+    pub(super) fn watch_foreground() {
+        static ONCE: std::sync::Once = std::sync::Once::new();
+        ONCE.call_once(|| {
+            // SAFETY: an out-of-context hook with a plain `extern "system"` callback; it
+            // lives for the life of the process.
+            unsafe {
+                SetWinEventHook(
+                    EVENT_SYSTEM_FOREGROUND,
+                    EVENT_SYSTEM_FOREGROUND,
+                    std::ptr::null_mut(),
+                    Some(on_event),
+                    0,
+                    0,
+                    WINEVENT_OUTOFCONTEXT,
+                );
+                SetWinEventHook(
+                    EVENT_SYSTEM_MINIMIZEEND,
+                    EVENT_SYSTEM_MINIMIZEEND,
+                    std::ptr::null_mut(),
+                    Some(on_event),
+                    0,
+                    0,
+                    WINEVENT_OUTOFCONTEXT,
+                );
+            }
+        });
+    }
+
+    unsafe extern "system" fn on_event(
+        _: HWINEVENTHOOK,
+        _: u32,
+        hwnd: HWND,
+        _: i32,
+        _: i32,
+        _: u32,
+        _: u32,
+    ) {
+        let Some(OwnerWindow::Win32(main)) = owner() else {
+            return;
+        };
+        // SAFETY: a plain query; a stale handle yields null.
+        if !hwnd.is_null() && unsafe { GetAncestor(hwnd, GA_ROOT) } == main as HWND {
+            super::owner_activated();
+        }
     }
 
     /// Put `editor` above the other windows of the app (no activation; asynchronous when

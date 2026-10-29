@@ -60,6 +60,8 @@ export function boundParams(w: Widget): ParamId[] {
       return [w.key, w.scale];
     case "AdaptiveEq":
       return [w.recover, w.tame];
+    case "GraphicEq":
+      return [...w.bands.flatMap((b) => [b.used, b.on, b.kind, b.freq, b.gain, b.q, b.slope]), w.output];
     case "Macros":
       return macrosWidgetParams(w);
     case "ZoneMap":

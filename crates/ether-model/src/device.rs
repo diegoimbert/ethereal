@@ -259,7 +259,8 @@ pub enum BuiltinDevice {
     },
     Compressor,
     Delay,
-    /// Parametric EQ with a fixed number of bands.
+    /// Parametric EQ with eight fixed bands ("Parametric EQ" in the library; the default
+    /// EQ is [`Self::GraphicEq`]).
     Eq,
     /// Algorithmic reverb.
     Reverb,
@@ -365,11 +366,19 @@ pub enum BuiltinDevice {
     /// Pitch wobble: LFO-modulated delay line (vibrato, wow and flutter; `fx-modulation`).
     Vibrato,
     /// Volume shaped by a drawn LFO cycle, tempo-synced (sidechain pumping, gates,
-    /// tremolo; `fx-modulation`, [`crate::lfo_curve`]).
+    /// tremolo; `fx-modulation`, [`crate::lfo_curve`]), optionally split into up to
+    /// [`crate::VOLUME_SHAPER_BANDS`] frequency bands, each with its own cycle.
     VolumeLfo {
-        /// Omitted (an agent's `{"type": "VolumeLfo"}`) = the default pump.
+        /// The cycle of band 1 (the lowest, or the whole signal with one band). Omitted (an
+        /// agent's `{"type": "VolumeLfo"}`) = the default pump.
         #[serde(default)]
         curve: LfoCurve,
+        /// The cycles of bands 2 and 3 (`bands[0]` = band 2), used when the `Bands` param
+        /// splits the signal; a band without a curve is flat at 1 (untouched). Omitted =
+        /// none (older projects).
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[ts(as = "Option<Vec<LfoCurve>>", optional)]
+        bands: Vec<LfoCurve>,
     },
     /// Drops every note (and, with `Block Everything`, all other MIDI), MIDI effect
     /// (`midi-fx`).
@@ -404,6 +413,10 @@ pub enum BuiltinDevice {
     /// An EQ that keeps rebalancing the sound: cuts what sticks out, lifts what is buried
     /// (`adaptive-eq`).
     AdaptiveEq,
+    /// The default EQ ("EQ" in the library): a graphic curve editor over 24 band slots,
+    /// each unused until a point is placed (`graphic-eq`, params in
+    /// `ether_devices::graphic_eq`).
+    GraphicEq,
 }
 
 /// Data-less discriminant of [`BuiltinDevice`] (used in descriptors and factories).
@@ -460,11 +473,12 @@ pub enum BuiltinDeviceType {
     Shaper,
     PitchCorrection,
     AdaptiveEq,
+    GraphicEq,
 }
 
 impl BuiltinDeviceType {
     /// Every built-in type, in `DeviceCommand::ListBuiltin` order.
-    pub const ALL: [BuiltinDeviceType; 49] = [
+    pub const ALL: [BuiltinDeviceType; 50] = [
         Self::Synth,
         Self::Sampler,
         Self::Compressor,
@@ -514,6 +528,7 @@ impl BuiltinDeviceType {
         Self::Shaper,
         Self::PitchCorrection,
         Self::AdaptiveEq,
+        Self::GraphicEq,
     ];
 
     /// Rack types ([`crate::rack`]).
@@ -595,6 +610,7 @@ impl BuiltinDevice {
             Self::Shaper { .. } => BuiltinDeviceType::Shaper,
             Self::PitchCorrection => BuiltinDeviceType::PitchCorrection,
             Self::AdaptiveEq => BuiltinDeviceType::AdaptiveEq,
+            Self::GraphicEq => BuiltinDeviceType::GraphicEq,
         }
     }
 
@@ -678,6 +694,7 @@ impl BuiltinDevice {
             BuiltinDeviceType::Vibrato => Self::Vibrato,
             BuiltinDeviceType::VolumeLfo => Self::VolumeLfo {
                 curve: LfoCurve::default(),
+                bands: Vec::new(),
             },
             BuiltinDeviceType::NoteBlocker => Self::NoteBlocker,
             BuiltinDeviceType::Erosion => Self::Erosion,
@@ -691,6 +708,7 @@ impl BuiltinDevice {
             },
             BuiltinDeviceType::PitchCorrection => Self::PitchCorrection,
             BuiltinDeviceType::AdaptiveEq => Self::AdaptiveEq,
+            BuiltinDeviceType::GraphicEq => Self::GraphicEq,
         }
     }
 

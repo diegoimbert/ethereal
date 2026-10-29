@@ -108,21 +108,29 @@ pub enum FreezeCommand {
     /// its release tail (`tail_seconds`, trailing silence trimmed), and replace the device
     /// with a `MultiSampler` whose zones play those samples.
     ///
-    /// Sampled keys are `first_key`, `first_key + key_step`, ... up to `last_key` (the last
-    /// key is included when the step does not land on it); notes between them use the nearest
-    /// sample pitched (`root_key` = the sampled key). `velocity_steps` partitions 1..=127
-    /// into that many velocity layers, each rendered at the centre of its range; `1` renders
-    /// one layer at full velocity with the multisampler's velocity sensitivity on, so playing
-    /// soft stays soft. Zones cover 0..=127: notes outside `[first_key, last_key]` use the
-    /// nearest edge sample, pitched. Pitching is plain resampling (an octave up plays twice
-    /// as fast), never pitch-preserving.
+    /// `keys` are the sampled keys and `velocities` the velocities each is rendered at (any
+    /// order, duplicates ignored). Every key plays the nearest sampled key, pitched
+    /// (`root_key` = the sampled key; a tie goes to the lower one), and every velocity the
+    /// nearest rendered velocity (a tie goes to the lower one), so the zones cover 0..=127
+    /// keys and 1..=127 velocities. One velocity keeps the multisampler's velocity
+    /// sensitivity on (playing soft stays soft); several switch it off (each layer already
+    /// has its level). Pitching is plain resampling (an octave up plays twice as fast),
+    /// never pitch-preserving.
     ///
-    /// Each sample starts on the note's first frame: the device's latency is dropped, the
-    /// start is never trimmed, and the multisampler's amp attack is 0 (no added fade-in), so
-    /// a sampled key plays back sample for sample like the instrument.
+    /// Each sample's note starts `pre_roll_seconds` in: the device's latency is dropped, the
+    /// start is never trimmed, the multisampler's `Offset` skips the pre-roll and its amp
+    /// attack is 0 (no added fade-in), so a sampled key plays back sample for sample like the
+    /// instrument. Lowering the `Offset` a little keeps what the instrument plays just
+    /// before its note.
     ///
-    /// `device` must be a track-chain device of category `Instrument` on a MIDI track (not
-    /// a device inside a rack or drum pad, not on a frozen track). `new_device` and the
+    /// Each sample is `device` alone (with what is nested in it): the track's other devices
+    /// (the MIDI effects before it included, which stay in front of the sampler) and its
+    /// racks' other chains don't play, its chain's mix isn't applied, and the macros of its
+    /// racks that move its params are baked in at their current values.
+    ///
+    /// `device` must be a device of category `Instrument` on a MIDI track, on its chain or
+    /// nested in racks there (not in a drum pad, not on a frozen track); the sampler takes
+    /// its place (on the track chain or its rack chain). `new_device` and the
     /// media (`derive_id(seed_media, i)`) must not exist. At most `MAX_ZONES` samples are
     /// allowed (`InvalidArgument` otherwise). Replies `RenderStarted`; at `Done` the media
     /// and the replaced device are one undo step.
@@ -131,12 +139,20 @@ pub enum FreezeCommand {
         device: DeviceId,
         new_device: DeviceId,
         seed_media: MediaId,
-        first_key: u8,
-        last_key: u8,
-        /// Semitones between sampled keys (1 = every note).
-        key_step: u8,
-        /// Velocity layers (1..=16).
-        velocity_steps: u8,
+        /// Sampled keys (0..=127, at least one).
+        keys: Vec<u8>,
+        /// Rendered velocities (1..=127, 1 to 16 of them).
+        velocities: Vec<u8>,
+        /// Silence before each note: a render starts this long before its note (the
+        /// instrument runs, transport playing, before the note-on), and the multisampler's
+        /// `Offset` is set to it so playback starts on the note. A pass with plugins also
+        /// holds before the note until this much real time has passed since they were
+        /// loaded (each pass loads fresh instances). 0..=2 s.
+        pre_roll_seconds: Seconds,
+        /// With a pre-roll: also play the note very briefly
+        /// ([`CONVERT_WARM_UP_NOTE_SECONDS`]) at the render's start, in the pre-roll the
+        /// sampler skips (some plugins only finish loading a sound once it has played).
+        warm_up_note: bool,
         /// How long each note is held before note-off.
         note_seconds: Seconds,
         /// Longest release tail kept after note-off (silence beyond is trimmed).
@@ -161,6 +177,9 @@ pub enum FreezeCommand {
         seed_media: MediaId,
     },
 }
+
+/// Length of `ConvertToSampler`'s warm-up note (seconds).
+pub const CONVERT_WARM_UP_NOTE_SECONDS: f64 = 0.005;
 
 /// Where a bounce goes.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

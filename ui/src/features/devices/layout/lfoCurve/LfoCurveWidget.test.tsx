@@ -167,3 +167,108 @@ describe("LfoCurveWidget", () => {
     expect(line.style.visibility).toBe("hidden");
   });
 });
+
+// Volume shaper param ids (`ether_devices::fx_modulation::volume_lfo`).
+const BANDS = 8;
+const CROSSOVER_1 = 9;
+const CROSSOVER_2 = 10;
+
+describe("LfoCurveWidget bands", () => {
+  const params = () => store().project!.devices[devId]!.params;
+  const bands = () => {
+    const k = store().project!.devices[devId]!.kind;
+    if (k.type !== "Builtin" || k.device.type !== "VolumeLfo") throw new Error("not a volume lfo");
+    return k.device.bands ?? [];
+  };
+  const editor = () => within(screen.getByTestId("widget-lfo-curve")).getByRole("img") as unknown as SVGSVGElement;
+  const strip = () => within(screen.getByTestId("lfo-bands-strip")).getByRole("img") as unknown as SVGSVGElement;
+  const setCount = async (name: string) => {
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name }));
+    });
+    await flush();
+  };
+  const stripDrag = async (from: number, to: number) => {
+    const svg = strip();
+    await act(async () => {
+      fireEvent.pointerDown(svg, { button: 0, pointerId: 2, clientX: from, clientY: 10 });
+    });
+    await act(async () => {
+      fireEvent.pointerMove(svg, { pointerId: 2, clientX: to, clientY: 10 });
+    });
+    await act(async () => {
+      fireEvent.pointerUp(svg, { pointerId: 2, clientX: to, clientY: 10 });
+    });
+    await flush();
+  };
+
+  it("one band by default; the count picker splits it into tabs in the band colours", async () => {
+    await setup();
+    expect(screen.getAllByRole("tab")).toHaveLength(1);
+    expect(strip().querySelectorAll("[data-handle]")).toHaveLength(0);
+    await setCount("3 bands");
+    expect(params()[BANDS]).toBe(2);
+    const tabs = screen.getAllByRole("tab");
+    expect(tabs.map((t) => t.querySelector(".eth-lfo-bands__name")!.textContent)).toEqual(["low", "mid", "high"]);
+    expect(tabs.map((t) => /eth-lfo-band--\d/.exec(t.className)![0])).toEqual(["eth-lfo-band--0", "eth-lfo-band--1", "eth-lfo-band--2"]);
+    expect(strip().querySelectorAll("[data-handle]")).toHaveLength(2);
+    expect(screen.getByTestId("widget-lfo-curve")).toHaveAttribute("data-band", "0");
+  });
+
+  it("edits only the selected band's curve, each edit one undo step", async () => {
+    await setup();
+    await setCount("3 bands");
+    fireEvent.click(screen.getByRole("tab", { name: /^mid/ }));
+    await flush();
+    expect(screen.getByTestId("widget-lfo-curve")).toHaveAttribute("data-band", "1");
+    // A band without a curve is flat.
+    expect(editor().getAttribute("data-points")).toBe("1");
+    await press(editor(), 0.5, 0.25);
+    await press(editor(), 0.5, 0.25);
+    expect(bands()).toHaveLength(1);
+    expect(bands()[0]!.points.map((p) => p.x)).toEqual([0, 0.5]);
+    expect(curve()).toEqual(DEFAULT_LFO_CURVE);
+    // The high band: the mid one is kept.
+    fireEvent.click(screen.getByRole("tab", { name: /^high/ }));
+    await flush();
+    await press(editor(), 0.25, 0.5);
+    await press(editor(), 0.25, 0.5);
+    expect(bands()).toHaveLength(2);
+    expect(bands()[0]!.points).toHaveLength(2);
+    await undo();
+    expect(bands()).toHaveLength(1);
+    await undo();
+    expect(bands()).toEqual([]);
+  });
+
+  it("clicking a band in the strip selects it", async () => {
+    await setup();
+    await setCount("3 bands");
+    // 200 Hz sits at 1/3 of the log axis, 15 kHz at ~0.96.
+    await stripDrag(0.6 * W, 0.6 * W);
+    expect(screen.getByTestId("widget-lfo-curve")).toHaveAttribute("data-band", "1");
+    expect(screen.getByRole("tab", { name: /^mid/ })).toHaveAttribute("aria-selected", "true");
+    await stripDrag(0.1 * W, 0.1 * W);
+    expect(screen.getByTestId("widget-lfo-curve")).toHaveAttribute("data-band", "0");
+    // Back to one band: the editor draws the whole signal's curve.
+    fireEvent.click(screen.getByRole("tab", { name: /^high/ }));
+    await setCount("1 band");
+    expect(screen.getByTestId("widget-lfo-curve")).not.toHaveAttribute("data-band");
+    expect(editor().getAttribute("data-points")).toBe("3");
+  });
+
+  it("drags a crossover in one undo step, kept under the next one", async () => {
+    await setup();
+    await setCount("3 bands");
+    await stripDrag(W / 3, W / 2);
+    // Half way along 20 Hz..20 kHz: ~632 Hz.
+    expect(params()[CROSSOVER_1]).toBeCloseTo(20 * Math.sqrt(1000), 0);
+    await stripDrag(W / 2, W);
+    // Stopped at crossover 2.
+    expect(params()[CROSSOVER_1]).toBeCloseTo(params()[CROSSOVER_2] ?? 15000, -1);
+    await undo();
+    expect(params()[CROSSOVER_1]).toBeCloseTo(20 * Math.sqrt(1000), 0);
+    await undo();
+    expect(params()[CROSSOVER_1] ?? 200).toBeCloseTo(200, 0);
+  });
+});

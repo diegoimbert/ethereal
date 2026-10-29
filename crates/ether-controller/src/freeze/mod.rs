@@ -37,7 +37,7 @@ mod editable;
 mod job;
 mod sample;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use ether_core::freeze::FrozenDesc;
 use ether_core::protocol::devices::DeviceCategory;
@@ -95,7 +95,56 @@ pub enum Finish {
         device: DeviceId,
         new_device: DeviceId,
         zones: Vec<SampleZone>,
+        /// The multisampler's `Offset` (the renders' pre-roll), ms.
+        offset_ms: f64,
     },
+}
+
+/// The params of `device` (and of what is nested in it) that the macros of its ancestor
+/// racks (`ancestors`, innermost first) move, as plain values with those macros' current
+/// offsets added (`clamp(base + Σ depth · macro, 0, 1)` normalized, like the engine): a
+/// sampling pass renders the instrument without its racks, so it bakes them in.
+fn macro_baked_params(
+    p: &Project,
+    engine: &crate::engine::EngineState,
+    device: DeviceId,
+    ancestors: &[DeviceId],
+) -> Vec<(DeviceId, ParamId, f64)> {
+    let inside =
+        |id: DeviceId| id == device || p.device_path(id).is_some_and(|path| path.contains(&device));
+    let mut sums: BTreeMap<(DeviceId, ParamId), f64> = BTreeMap::new();
+    for m in p.mod_mappings.values() {
+        let ModSource::Macro { rack, index } = m.source else {
+            continue;
+        };
+        if !ancestors.contains(&rack) || !inside(m.device) {
+            continue;
+        }
+        let Some(r) = p.devices.get(&rack) else {
+            continue;
+        };
+        let DeviceKind::Builtin { device: kind } = &r.kind else {
+            continue;
+        };
+        let Some(param) = ether_model::macro_param(kind.device_type(), index) else {
+            continue;
+        };
+        let value = r.params.get(&param).copied().unwrap_or(0.0).clamp(0.0, 1.0);
+        *sums.entry((m.device, m.param)).or_default() += m.depth * value;
+    }
+    sums.into_iter()
+        .filter_map(|((id, param), offset)| {
+            let d = p.devices.get(&id)?;
+            let info = engine
+                .descriptor(d)?
+                .params
+                .into_iter()
+                .find(|x| x.id == param)?;
+            let base = d.params.get(&param).copied().unwrap_or(info.default);
+            let n = (info.to_normalized(base) + offset).clamp(0.0, 1.0);
+            Some((id, param, info.to_plain(n)))
+        })
+        .collect()
 }
 
 struct Running {
@@ -335,10 +384,10 @@ where
                 device,
                 new_device,
                 seed_media,
-                first_key,
-                last_key,
-                key_step,
-                velocity_steps,
+                keys,
+                velocities,
+                pre_roll_seconds,
+                warm_up_note,
                 note_seconds,
                 tail_seconds,
             } => {
@@ -348,10 +397,8 @@ where
                     .devices
                     .get(device)
                     .ok_or_else(|| not_found(format!("device {device}")))?;
-                if d.pad.is_some() || d.chain.is_some() {
-                    return Err(invalid(
-                        "only an instrument on a track's own chain can be converted",
-                    ));
+                if d.pad.is_some() {
+                    return Err(invalid("an instrument on a drum pad can't be converted"));
                 }
                 let t = p
                     .tracks
@@ -371,32 +418,48 @@ where
                 if descriptor.map(|d| d.category) != Some(DeviceCategory::Instrument) {
                     return Err(invalid(format!("\"{}\" is not an instrument", d.name)));
                 }
-                if !p.devices_of(t.id).iter().any(|x| x.id == *device) {
-                    return Err(invalid(format!(
-                        "device {device} is not on the track's chain"
-                    )));
+                // On the track's chain, or nested in racks on it (not in a drum pad).
+                let Some(path) = p.device_path(*device) else {
+                    return Err(invalid(format!("device {device} is not on a device chain")));
+                };
+                if path
+                    .iter()
+                    .any(|a| p.devices.get(a).is_none_or(|x| x.pad.is_some()))
+                {
+                    return Err(invalid("an instrument in a drum pad can't be converted"));
                 }
+                let params = macro_baked_params(p, &self.engine, *device, &path[1..]);
                 if p.devices.contains_key(new_device) {
                     return Err(invalid(format!("device {new_device} already exists")));
                 }
                 if !(note_seconds.0.is_finite() && note_seconds.0 > 0.0) {
                     return Err(invalid("the note length must be finite and above 0"));
                 }
+                if !(pre_roll_seconds.0.is_finite() && (0.0..=2.0).contains(&pre_roll_seconds.0)) {
+                    return Err(invalid("the pre-roll must be 0 to 2 seconds"));
+                }
                 if !(tail_seconds.0.is_finite() && tail_seconds.0 >= 0.0) {
                     return Err(invalid("the tail must be finite and >= 0"));
                 }
-                let plan = sample::plan(
-                    *first_key,
-                    *last_key,
-                    *key_step,
-                    *velocity_steps,
-                    *seed_media,
-                )?;
+                let plan = sample::plan(keys, velocities, *seed_media)?;
                 for point in &plan.points {
                     new_media(p, point.media)?;
                 }
-                let duration = p.tempo_map().seconds_to_beats(*note_seconds);
-                let frames = RenderJob::frames_of(p, Beats::ZERO, duration, rate);
+                // The note starts after the pre-roll; the render from 0 to its note-off.
+                let tempo = p.tempo_map();
+                let note_start = tempo.seconds_to_beats(*pre_roll_seconds);
+                let note_end = tempo.seconds_to_beats(Seconds(pre_roll_seconds.0 + note_seconds.0));
+                let duration = Beats(note_end.0 - note_start.0);
+                // The warm-up note at 0, ending well before the note (a pre-roll only).
+                let warm_up = (*warm_up_note && pre_roll_seconds.0 > 0.0).then(|| {
+                    let secs = ether_core::protocol::freeze::CONVERT_WARM_UP_NOTE_SECONDS
+                        .min(pre_roll_seconds.0 / 2.0);
+                    tempo.seconds_to_beats(Seconds(secs))
+                });
+                let frames = RenderJob::frames_of(p, Beats::ZERO, note_end, rate);
+                // The sampler's `Offset`: exactly the note's frame.
+                let note_frame = RenderJob::frames_of(p, Beats::ZERO, note_start, rate);
+                let offset_ms = note_frame as f64 / f64::from(rate) * 1000.0;
                 if frames == 0 {
                     return Err(invalid("the note length is too short to render"));
                 }
@@ -415,9 +478,15 @@ where
                             chain: true,
                             up_to: Some(*device),
                             sample: Some(job::SampleNote {
+                                device: *device,
+                                params: params.clone(),
                                 key: point.key,
                                 velocity: f32::from(point.velocity) / 127.0,
+                                start: note_start,
                                 duration,
+                                note_frame,
+                                wait_ms: (pre_roll_seconds.0 * 1000.0).round() as u64,
+                                warm_up,
                                 clip,
                                 note,
                             }),
@@ -440,6 +509,7 @@ where
                         device: *device,
                         new_device: *new_device,
                         zones: plan.zones,
+                        offset_ms,
                     },
                     out,
                 )
@@ -1028,6 +1098,7 @@ where
                 device,
                 new_device,
                 zones,
+                offset_ms,
             } => (
                 "Convert to sampler",
                 self.edit_with(
@@ -1035,7 +1106,16 @@ where
                     None,
                     now,
                     out,
-                    |ctx| edit::finish_convert_to_sampler(ctx, *device, *new_device, zones, &media),
+                    |ctx| {
+                        edit::finish_convert_to_sampler(
+                            ctx,
+                            *device,
+                            *new_device,
+                            zones,
+                            *offset_ms,
+                            &media,
+                        )
+                    },
                 ),
             ),
             f @ Finish::Consolidate { .. } => (

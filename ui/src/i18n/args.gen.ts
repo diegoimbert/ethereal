@@ -52,6 +52,8 @@ export interface MessageArgs {
   "arrangement.clip.rename_named": { name: string | number };
   "arrangement.clip.selected_many": { count: number };
   "arrangement.clip.selected_one": { name: string | number };
+  "arrangement.clip_menu.change_color": { count: number };
+  "arrangement.clip_menu.color_named": { count: number };
   "arrangement.clip_menu.delete": { count: number };
   "arrangement.clip_menu.edit_in_piano_roll": { count: string | number };
   "arrangement.clip_menu.rename": { count: number };
@@ -178,6 +180,11 @@ export interface MessageArgs {
   "devices.device.show_params_name": { name: string | number };
   "devices.eq.band": { n: string | number };
   "devices.eq.curve": { count: string | number; on: string | number };
+  "devices.graphic_eq.band": { n: string | number };
+  "devices.graphic_eq.curve": { count: string | number };
+  "devices.graphic_eq.range": { db: string | number };
+  "devices.graphic_eq.range_label": { db: string | number };
+  "devices.graphic_eq.range_next": { db: string | number };
   "devices.group.failed": { error: string | number };
   "devices.insert.add_failed": { error: string | number; name: string | number };
   "devices.insert.instrument_needs_midi": { name: string | number };
@@ -190,6 +197,11 @@ export interface MessageArgs {
   "devices.layout.fewer_label": { name: string | number };
   "devices.layout.more": { count: string | number };
   "devices.layout.more_label": { name: string | number };
+  "devices.lfo_curve.bands.count_option": { count: number };
+  "devices.lfo_curve.bands.range_above": { freq: string | number };
+  "devices.lfo_curve.bands.range_below": { freq: string | number };
+  "devices.lfo_curve.bands.range_between": { from: string | number; to: string | number };
+  "devices.lfo_curve.bands.strip": { bands: string | number };
   "devices.lfo_curve.label": { count: number };
   "devices.lfo_curve.point": { n: string | number; x: string | number; y: string | number };
   "devices.library.add": { name: string | number };
@@ -221,6 +233,7 @@ export interface MessageArgs {
   "devices.samples.preview": { name: string | number };
   "devices.samples.replace": { name: string | number };
   "devices.samples.stop_preview": { name: string | number };
+  "devices.ungroup.failed": { error: string | number };
   "devices.widget.crossover": { freqs: string | number };
   "devices.widget.delay": { feedback: string | number; frozen: string; ping: string; time: string | number };
   "devices.widget.dynamics": { has_ratio: string; mode: string; ratio: string | number; threshold: string | number };
@@ -259,6 +272,7 @@ export interface MessageArgs {
   "drum_rack.slices.play": { n: string | number };
   "engine.band_n": { n: string | number };
   "engine.band_pass_n": { n: string | number };
+  "engine.crossover_n": { n: string | number };
   "engine.high_pass_n": { n: string | number };
   "engine.lfo_n": { n: string | number };
   "engine.low_pass_n": { n: string | number };
@@ -611,11 +625,14 @@ export interface MessageArgs {
   "resolver.where": { names: string | number };
   "resolver.where_more": { count: number; names: string | number };
   "reveal.failed": { error: string | number };
-  "sampler.convert.key_step_n": { count: number };
+  "sampler.convert.key_count": { count: number };
+  "sampler.convert.key_step_n": { count: string | number };
+  "sampler.convert.remove_velocity": { value: string | number };
   "sampler.convert.replaces": { name: string | number };
   "sampler.convert.summary": { count: number; keys: number; velocities: number };
   "sampler.convert.title": { name: string | number };
   "sampler.convert.too_many": { max: string | number };
+  "sampler.convert.velocity_n": { index: string | number };
   "sampler.convert.velocity_step_n": { count: number };
   "scale.name": { root: string | number; scale: string | number };
   "scale.select.root": { label: string | number };
@@ -786,6 +803,7 @@ export interface MessageArgs {
   "undo.plugin.set_device_params": { count: number; device: string | number };
   "undo.plugin.set_params": { count: number };
   "undo.rack.group": { count: number };
+  "undo.rack.ungroup": { device: string | number };
   "undo.slice.add": { count: number };
   "undo.slice.delete": { count: number };
   "undo.take.move": { count: number };

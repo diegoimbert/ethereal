@@ -50,7 +50,7 @@ pub(super) fn category_name(c: DeviceCategory) -> &'static str {
 
 pub(super) fn device_type(d: &Device) -> String {
     match &d.kind {
-        DeviceKind::Builtin { device } => device.device_type().key(),
+        DeviceKind::Builtin { device } => super::edit::type_key(device.device_type()),
         DeviceKind::Plugin { plugin } => {
             format!("plugin:{}:{}", plugin.format.as_str(), plugin.plugin_id)
         }
@@ -510,7 +510,7 @@ where
                 if only.is_some_and(|o| o != category) {
                     return None;
                 }
-                Some(json!({ "type": device.key(), "name": d.name, "category": category }))
+                Some(json!({ "type": super::edit::type_key(device), "name": d.name, "category": category }))
             })
             .collect();
         Ok(json!({ "device_types": types }))

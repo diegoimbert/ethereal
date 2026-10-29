@@ -1,4 +1,5 @@
-//! Built-in `Eq` device (roadmap v2).
+//! Built-in `Eq` device (roadmap v2): the "Parametric EQ" (the default EQ is
+//! [`crate::graphic_eq`]).
 //!
 //! Eight-band parametric EQ. Every band has the same five params (on, type, frequency,
 //! gain, Q) and can be any of: low cut, low shelf, bell, notch, high shelf, high cut
@@ -195,7 +196,7 @@ pub fn descriptor() -> DeviceDescriptor {
         device_type: DeviceTypeRef::Builtin {
             device: BuiltinDeviceType::Eq,
         },
-        name: "EQ".to_owned(),
+        name: "Parametric EQ".to_owned(),
         category: DeviceCategory::AudioEffect,
         params: param_infos(),
         audio_inputs: 2,

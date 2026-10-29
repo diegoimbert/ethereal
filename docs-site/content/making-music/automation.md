@@ -39,7 +39,7 @@ There is no pencil or freehand drawing: you build the line from points.
 ## editing points
 
 - **Select**: click a point. [[key:Shift]]-click adds points to the selection, [[key:Mod]]-click toggles one. [[key:Mod]]-drag on empty space draws a selection box.
-- **Move**: drag the selected points. Time snaps to the grid; hold [[key:Alt]] for precise placement, and hold [[key:Mod]] to lock the move to one direction (time or value). A tooltip shows the value and these keys while you drag.
+- **Move**: drag the selected points. Time moves by whole grid steps, so a point between grid lines keeps its place relative to them, and dragging mostly up or down never shifts it in time; hold [[key:Alt]] for precise placement, and hold [[key:Mod]] to lock the move to one direction (time or value). A tooltip shows the value and these keys while you drag.
 - **Delete**: double-click a point, or select points and press [[action:edit.delete]].
 - **Select all** the points of the focused lane: [[action:edit.selectAll]].
 - **Nudge** with the arrow keys: up and down change the value (one step, or 1 %), left and right move by one grid step. With [[key:Shift]], up and down jump to the next whole value (such as 1 dB) and left and right move by a quarter step. [[action:automation.preciseUp]] and [[action:automation.preciseDown]] change the value by a tenth of the normal step.

@@ -100,12 +100,18 @@
 //! | 8 | Output | `Mix` | 0 ..= 100 Percent, default 100 |
 //! | 9 | Output | `Output` | -24 ..= 24 Decibels, default 0 |
 //!
-//! # Volume LFO (`BuiltinDeviceType::VolumeLfo`)
+//! # Volume Shaper (`BuiltinDeviceType::VolumeLfo`)
 //!
-//! The gain follows a drawn LFO cycle (`BuiltinDevice::VolumeLfo { curve }`,
+//! The gain follows a drawn LFO cycle (`BuiltinDevice::VolumeLfo { curve, bands }`,
 //! `ether_model::lfo_curve`): sidechain pumping, gates, chops. Synced, the phase is the song
 //! position (phase 0 on every multiple of the cycle from beat 0). No `Mix`: on a gain-only
 //! effect it would be the same blend as `Depth`. Zero latency.
+//!
+//! `Bands` splits the signal into 2 or 3 frequency bands (Linkwitz-Riley 24 dB/oct
+//! crossovers at `Crossover 1` / `Crossover 2`, phase-compensated: they sum flat), each
+//! shaped by its own cycle (`curve` for band 1, `bands[0]` / `bands[1]` for bands 2 and 3),
+//! depth and speed (a factor of the cycle rate). One band (the default) is the plain
+//! full-band shaper, sample for sample.
 //!
 //! | id | group | name | range |
 //! |----|-------|------|-------|
@@ -117,6 +123,13 @@
 //! | 5 | LFO | `Stereo Phase` | 0 ..= 180 None, default 0 |
 //! | 6 | Output | `Smoothing` | 0 ..= 20 Milliseconds (power 2), default 1 |
 //! | 7 | Output | `Output` | -24 ..= 24 Decibels, default 0 |
+//! | 8 | Bands | `Bands` | 1 / 2 / 3 (default 1) |
+//! | 9 | Bands | `Crossover 1` | 20 ..= 20000 Hertz (log), default 200 |
+//! | 10 | Bands | `Crossover 2` | 20 ..= 20000 Hertz (log), default 15000 (kept at or above `Crossover 1`) |
+//! | 11 | Bands | `Band 2 Depth` | 0 ..= 100 Percent, default 100 |
+//! | 12 | Bands | `Band 3 Depth` | 0 ..= 100 Percent, default 100 |
+//! | 13 | Bands | `Band 2 Speed` | ÷4 / ÷2 / ×1 / ×2 / ×3 / ×4 / ×8 (default ×1) |
+//! | 14 | Bands | `Band 3 Speed` | as `Band 2 Speed` |
 
 mod chorus_device;
 mod flanger_device;
@@ -131,11 +144,13 @@ pub use vibrato_device::{
     MAX_EXCURSION_MS as VIBRATO_MAX_EXCURSION_MS, SHAPES as VIBRATO_SHAPES,
     contour as vibrato_contour,
 };
-pub use volume_lfo_device::{CurveData as VolumeLfoCurve, curve_data as volume_lfo_curve};
+pub use volume_lfo_device::{
+    BandCurves as VolumeLfoCurves, CurveData as VolumeLfoCurve, curve_data as volume_lfo_curve,
+};
 
 use ether_core::Device;
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, ParamScale, ParamUnit};
-use ether_core::protocol::layout::{DeviceLayout, Widget, WidgetSize};
+use ether_core::protocol::layout::{DeviceLayout, LfoCurveBands, Widget, WidgetSize};
 use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType, ParamId};
 
 use crate::contract::{
@@ -251,19 +266,35 @@ pub mod volume_lfo {
     pub const STEREO_PHASE: ParamId = ParamId(5);
     pub const SMOOTHING: ParamId = ParamId(6);
     pub const OUTPUT: ParamId = ParamId(7);
+    /// Appended: the band split.
+    pub const BANDS: ParamId = ParamId(8);
+    pub const CROSSOVER_1: ParamId = ParamId(9);
+    pub const CROSSOVER_2: ParamId = ParamId(10);
+    pub const BAND_2_DEPTH: ParamId = ParamId(11);
+    pub const BAND_3_DEPTH: ParamId = ParamId(12);
+    pub const BAND_2_SPEED: ParamId = ParamId(13);
+    pub const BAND_3_SPEED: ParamId = ParamId(14);
     /// Number of params.
-    pub const COUNT: usize = 8;
+    pub const COUNT: usize = 15;
+    /// Depth of each band (band 1's is `Depth`).
+    pub const DEPTHS: [ParamId; 3] = [DEPTH, BAND_2_DEPTH, BAND_3_DEPTH];
+    /// Speed of each band (band 1 runs at the cycle rate).
+    pub const SPEEDS: [Option<ParamId>; 3] = [None, Some(BAND_2_SPEED), Some(BAND_3_SPEED)];
 }
 
+/// Labels of a volume shaper band's `Speed` (factors in [`VOLUME_LFO_SPEED_FACTORS`]).
+pub const VOLUME_LFO_SPEEDS: [&str; 7] = ["÷4", "÷2", "×1", "×2", "×3", "×4", "×8"];
+/// Factor of the cycle rate of each [`VOLUME_LFO_SPEEDS`] label.
+pub const VOLUME_LFO_SPEED_FACTORS: [f64; 7] = [0.25, 0.5, 1.0, 2.0, 3.0, 4.0, 8.0];
+/// Index of "×1" in [`VOLUME_LFO_SPEEDS`].
+const SPEED_X1: usize = 2;
+
 /// Whether a live node built from `old` takes `new` in place (`Node::set_data` with
-/// [`volume_lfo_curve`]): only the curve of a Volume LFO changed.
+/// [`volume_lfo_curve`]): only the curves of a Volume LFO changed.
 pub fn updatable_in_place(old: &BuiltinDevice, new: &BuiltinDevice) -> bool {
     matches!(
         (old, new),
-        (
-            BuiltinDevice::VolumeLfo { curve: a },
-            BuiltinDevice::VolumeLfo { curve: b },
-        ) if a != b
+        (BuiltinDevice::VolumeLfo { .. }, BuiltinDevice::VolumeLfo { .. }) if old != new
     )
 }
 
@@ -633,7 +664,7 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
         ),
         BuiltinDeviceType::VolumeLfo => build(
             BuiltinDeviceType::VolumeLfo,
-            "Volume LFO",
+            "Volume Shaper",
             DeviceCategory::AudioEffect,
             vec![
                 param(
@@ -686,6 +717,41 @@ fn params_descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                     (-24.0, 24.0, 0.0),
                     ParamScale::Linear,
                 ),
+                choice(8, "Bands", "Bands", &["1", "2", "3"], 0),
+                param(
+                    9,
+                    "Crossover 1",
+                    "Bands",
+                    ParamUnit::Hertz,
+                    (20.0, 20_000.0, 200.0),
+                    ParamScale::Log,
+                ),
+                param(
+                    10,
+                    "Crossover 2",
+                    "Bands",
+                    ParamUnit::Hertz,
+                    (20.0, 20_000.0, 15_000.0),
+                    ParamScale::Log,
+                ),
+                param(
+                    11,
+                    "Band 2 Depth",
+                    "Bands",
+                    ParamUnit::Percent,
+                    (0.0, 100.0, 100.0),
+                    ParamScale::Linear,
+                ),
+                param(
+                    12,
+                    "Band 3 Depth",
+                    "Bands",
+                    ParamUnit::Percent,
+                    (0.0, 100.0, 100.0),
+                    ParamScale::Linear,
+                ),
+                choice(13, "Band 2 Speed", "Bands", &VOLUME_LFO_SPEEDS, SPEED_X1),
+                choice(14, "Band 3 Speed", "Bands", &VOLUME_LFO_SPEEDS, SPEED_X1),
             ],
             2,
             2,
@@ -903,14 +969,15 @@ fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
             ),
         ]),
         BuiltinDeviceType::VolumeLfo => layout(vec![
+            // The editor carries the band strip and the selected band's depth / speed.
             section(
                 "lfo",
                 Some("LFO"),
                 2,
-                2,
+                3,
                 vec![
                     ether_core::protocol::layout::LayoutItem {
-                        colspan: 2,
+                        colspan: 3,
                         ..item(
                             Widget::LfoCurve {
                                 sync: volume_lfo::SYNC,
@@ -918,6 +985,16 @@ fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
                                 rate: volume_lfo::RATE,
                                 phase: volume_lfo::PHASE,
                                 depth: volume_lfo::DEPTH,
+                                bands: Some(LfoCurveBands {
+                                    count: volume_lfo::BANDS,
+                                    crossovers: vec![
+                                        volume_lfo::CROSSOVER_1,
+                                        volume_lfo::CROSSOVER_2,
+                                    ],
+                                    depths: volume_lfo::DEPTHS.to_vec(),
+                                    speeds: volume_lfo::SPEEDS.to_vec(),
+                                    speed_factors: VOLUME_LFO_SPEED_FACTORS.to_vec(),
+                                }),
                             },
                             Large,
                         )
@@ -925,7 +1002,6 @@ fn device_layout(ty: BuiltinDeviceType) -> DeviceLayout {
                     toggle_item(volume_lfo::SYNC),
                     choice_item(volume_lfo::SYNC_RATE),
                     knob(volume_lfo::RATE, Medium),
-                    knob(volume_lfo::DEPTH, Medium),
                 ],
             ),
             section(
@@ -967,10 +1043,10 @@ pub fn create(device: &BuiltinDevice) -> Box<dyn Device> {
         BuiltinDeviceType::Tremolo => Box::new(tremolo_device::Tremolo::new(&desc)),
         BuiltinDeviceType::Vibrato => Box::new(vibrato_device::Vibrato::new(&desc)),
         BuiltinDeviceType::VolumeLfo => {
-            let BuiltinDevice::VolumeLfo { curve } = device else {
+            let BuiltinDevice::VolumeLfo { curve, bands } = device else {
                 unreachable!("checked by the type")
             };
-            Box::new(volume_lfo_device::VolumeLfo::new(&desc, curve))
+            Box::new(volume_lfo_device::VolumeLfo::new(&desc, curve, bands))
         }
         other => unreachable!("{other:?} is not a `fx-modulation` device"),
     }
@@ -998,7 +1074,7 @@ const VIBRATO_PRESETS: &[FactoryPreset] =
 const VOLUME_LFO_PRESETS: &[FactoryPreset] = presets!("volume-lfo":
     "pump-1-4", "pump-1-4-soft", "pump-1-4-hard", "pump-1-8", "pump-1-2", "offbeat-duck",
     "half-time-pump", "trance-gate-1-16", "chopper-1-8", "swell", "tremolo-1-8",
-    "fade-in-1-bar");
+    "fade-in-1-bar", "sidechain-lows-1-4", "pump-lows-light-mids", "lows-pump-highs-chop");
 
 /// Factory presets of a type of this group (embedded).
 pub fn factory_presets(ty: BuiltinDeviceType) -> &'static [FactoryPreset] {

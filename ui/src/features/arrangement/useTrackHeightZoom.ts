@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { ScaleFollower } from "@/timeline";
+import { useAutomationUi } from "@/features/automation";
 import { MAX_TRACK_HEIGHT, MIN_TRACK_HEIGHT, rowIndexAt, type Row } from "./layout";
 import { useArrangementUi } from "./uiStore";
 
@@ -12,7 +13,8 @@ function heightBounds(): { min: number; max: number } {
 
 /**
  * Vertical zoom of the arrangement (cmd/ctrl + shift + wheel, via `useTimelineWheel`'s
- * `onVerticalZoom`): scales every lane height by the same factor (clamped per lane), animated
+ * `onVerticalZoom`): scales every lane height, the tracks' and their automation lanes', by
+ * the same factor (clamped per lane), animated
  * like the horizontal zoom (`ScaleFollower`: wheel steps move a goal the heights ease to),
  * keeping the track under the pointer in place on every frame. A step re-renders no track
  * header (they are memoized on what they show: TrackRow), so it stays smooth with many rows.
@@ -53,6 +55,7 @@ export function useTrackHeightZoom(scrollRef: RefObject<HTMLElement | null>, row
         if (g === 1) return;
         scaled.current = true;
         useArrangementUi.getState().scaleHeights(g);
+        useAutomationUi.getState().scaleLaneHeights(g);
       });
       follower.current.push(factor, heightBounds());
     },

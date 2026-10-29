@@ -24,6 +24,20 @@ export const DEFAULT_LFO_CURVE: LfoCurve = {
   ],
 };
 
+/** A flat line at 1 (Rust `LfoCurve::flat`): a volume shaper band left alone. */
+export const FLAT_LFO_CURVE: LfoCurve = { points: [{ x: 0, y: 1, curve: { type: "Linear" } }] };
+
+/** `ether_model::VOLUME_SHAPER_BANDS`. */
+export const VOLUME_SHAPER_BANDS = 3;
+
+/**
+ * The curve of band `band` (0 = the lowest) of a volume shaper whose band 1 is `curve` and
+ * bands 2 and 3 `bands` (Rust `volume_shaper_band`): a band without a curve is flat.
+ */
+export function volumeShaperBand(curve: LfoCurve, bands: ReadonlyArray<LfoCurve> | undefined, band: number): LfoCurve {
+  return band === 0 ? curve : (bands?.[band - 1] ?? FLAT_LFO_CURVE);
+}
+
 /** The shaper's default curves (Rust `ShaperCurves::default`). */
 export const DEFAULT_SHAPER_CURVES: ShaperCurves = {
   volume: DEFAULT_LFO_CURVE,

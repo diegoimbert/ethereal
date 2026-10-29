@@ -43,6 +43,13 @@ export const useContextMenuStore = create<MenuState>()((set) => ({
 }));
 
 let nextId = 1;
+/** Where the last menu opened (kept after it closes: an entry can open a panel there). */
+let lastPoint: { x: number; y: number } | null = null;
+
+/** Where the last context menu opened (viewport px), null before any. */
+export function lastContextMenuPoint(): { x: number; y: number } | null {
+  return lastPoint;
+}
 
 /** Open the menu at the pointer. With no items it only suppresses the native menu. */
 export function openContextMenu(
@@ -52,6 +59,7 @@ export function openContextMenu(
   e.preventDefault();
   e.stopPropagation();
   if (!items.some((i) => i !== "separator")) return;
+  lastPoint = { x: e.clientX, y: e.clientY };
   useContextMenuStore.setState({ menu: { id: nextId++, x: e.clientX, y: e.clientY, items } });
 }
 

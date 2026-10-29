@@ -7,7 +7,7 @@ import { MissingDeviceControls, ReplacePopover, replaceDeviceEntries, resolvePlu
 import { PresetMenu } from "@/features/presets";
 import { MidiSidechainSelector, SidechainSelector } from "@/features/sidechain";
 import { AddModulatorButton, addModulatorEntries, ModulatorsPanel, SwitchModulation, switchMenuEntries, useModulatorKinds } from "@/features/modulation";
-import { groupEntries, isChainRack, RackPanel } from "@/features/racks";
+import { groupEntries, isChainRack, RackPanel, ungroupEntries } from "@/features/racks";
 import { freezeDeviceEntries, useDeviceFrozen } from "@/features/freeze";
 import { convertToSamplerEntries } from "@/features/sampler-convert";
 import { ChevronLeft, ChevronRight, Power, SlidersHorizontal, Snowflake, X } from "lucide-react";
@@ -197,7 +197,7 @@ export function DeviceView({ device, prev, moveRightBefore, onDropBefore, accept
                   categoryOf,
                   shortcut: shortcutLabel("device.group"),
                   onGrouped: (rack) => useDeviceClipboard.setState({ selected: [rack], anchor: rack }),
-                }),
+                }).concat(ungroupEntries(device, (c) => transport.send(c), shortcutLabel("device.ungroup"))),
                 freezeDeviceEntries(transport, device, categoryOf),
                 convertToSamplerEntries(device, categoryOf),
                 device.pad === null && device.chain == null ? addModulatorEntries(modulatorKinds, device, send) : [],

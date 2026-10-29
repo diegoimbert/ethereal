@@ -1618,6 +1618,15 @@
                 "param": 10,
                 "type": "Knob"
               }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 21,
+                "type": "Number"
+              }
             }
           ],
           "span": 1,
@@ -2080,6 +2089,48 @@
         },
         "step": 1.0,
         "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "Playback",
+        "hidden": false,
+        "id": 21,
+        "labels": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24"
+        ],
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Bend Range",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Semitones"
       }
     ],
     "sidechain_inputs": 0
@@ -2124,6 +2175,15 @@
               "widget": {
                 "param": 9,
                 "type": "Knob"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
+                "param": 15,
+                "type": "Number"
               }
             }
           ],
@@ -2488,6 +2548,48 @@
         },
         "step": 1.0,
         "unit": "None"
+      },
+      {
+        "automatable": true,
+        "default": 2.0,
+        "group": "Oscillator",
+        "hidden": false,
+        "id": 15,
+        "labels": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20",
+          "21",
+          "22",
+          "23",
+          "24"
+        ],
+        "max": 24.0,
+        "min": 0.0,
+        "name": "Bend Range",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Semitones"
       }
     ],
     "sidechain_inputs": 0

@@ -257,3 +257,134 @@ fn switching_a_latency_device_keeps_time_in_racks() {
         (t, vec![switch(delay, 1.0, 2.0)])
     });
 }
+
+/// An endless tail (an infinite reverb): once it heard a signal it keeps playing it, until
+/// it is reset.
+struct Hold(f32);
+
+impl Node for Hold {
+    fn prepare(&mut self, _: &PrepareConfig) {}
+    fn reset(&mut self) {
+        self.0 = 0.0;
+    }
+    fn process(
+        &mut self,
+        _: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+    ) -> ProcessStatus {
+        for i in 0..audio.outputs[0].len() {
+            self.0 = self.0.max(audio.inputs[0][i]);
+            for ch in audio.outputs.iter_mut() {
+                ch[i] = self.0;
+            }
+        }
+        ProcessStatus::Continue
+    }
+}
+
+/// A signal for the first beat only (a note and its release).
+struct Burst;
+
+impl Node for Burst {
+    fn prepare(&mut self, _: &PrepareConfig) {}
+    fn reset(&mut self) {}
+    fn process(
+        &mut self,
+        ctx: &mut ProcessContext<'_>,
+        audio: &mut AudioBuffers<'_, '_>,
+    ) -> ProcessStatus {
+        let t0 = ctx.transport.sample_time as usize;
+        for ch in audio.outputs.iter_mut() {
+            for (i, s) in ch.iter_mut().enumerate() {
+                *s = if t0 + i < BEAT { 0.5 } else { 0.0 };
+            }
+        }
+        ProcessStatus::Continue
+    }
+    fn channels(&self) -> (u16, u16) {
+        (0, 2)
+    }
+}
+
+/// Renders 3 beats where the tail device `build` places (`Burst` → … → `Hold`) is switched
+/// off at beat 1.5 and on at beat 2: its tail plays until it is switched off and doesn't
+/// come back with it.
+fn tail_is_cut(
+    build: impl Fn(&mut dyn FnMut(Box<dyn Node>) -> NodeKey) -> (TrackDesc, Vec<AutomationDesc>),
+) {
+    let mut p = create(config());
+    let (t, lanes) = build(&mut |n| p.handle.add_node(n).unwrap());
+    let t = TrackDesc {
+        automation: lanes,
+        ..t
+    };
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    let (l, _) = render(&mut p.engine, 3 * BEAT, ODD_BLOCK);
+    assert!((l[BEAT + BEAT / 4] - 0.5).abs() < 1e-6, "the tail plays: {}", l[BEAT + BEAT / 4]);
+    assert!(l[2 * BEAT + 2 * FADE..].iter().all(|&s| s == 0.0), "the tail is gone once back on");
+}
+
+#[test]
+fn switching_a_device_back_on_cuts_its_tail() {
+    // On a track chain.
+    tail_is_cut(|add| {
+        let src = add(Box::new(Burst));
+        let tail = add(Box::new(Hold(0.0)));
+        let t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[src, tail]);
+        (t, vec![switch(tail, 1.5, 2.0)])
+    });
+    // In an audio effect rack: switching the rack resets what its chains hold too.
+    tail_is_cut(|add| {
+        let src = add(Box::new(Burst));
+        let rack = add(Box::new(Thru));
+        let tail = add(Box::new(Hold(0.0)));
+        let mut t = with_chain(track(tid(2), TrackKind::Audio, Some(tid(1))), &[src, rack]);
+        t.chain_racks = vec![ChainRackDesc {
+            rack,
+            kind: ChainRackKind::AudioEffect,
+            chains: vec![rack_chain(1, &[tail])],
+            selector: 0,
+        }];
+        (t, vec![switch(rack, 1.5, 2.0)])
+    });
+    // On a drum pad's chain.
+    tail_is_cut(|add| {
+        let drums = add(Box::new(Thru));
+        let src = add(Box::new(Burst));
+        let tail = add(Box::new(Hold(0.0)));
+        let mut t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[drums]);
+        t.racks = vec![RackDesc {
+            rack: drums,
+            pads: vec![PadDesc {
+                pad: DrumPadId(Ulid(7)),
+                note: 36,
+                choke_group: None,
+                chain: rack_chain(0, &[src, tail]).chain,
+                volume: 1.0,
+                pan: 0.0,
+                mute: false,
+            }],
+        }];
+        (t, vec![switch(tail, 1.5, 2.0)])
+    });
+}
+
+#[test]
+fn a_static_switch_back_on_cuts_the_tail_too() {
+    let mut p = create(config());
+    let src = p.handle.add_node(Box::new(Burst)).unwrap();
+    let tail = p.handle.add_node(Box::new(Hold(0.0))).unwrap();
+    let mut t = with_chain(track(tid(2), TrackKind::Midi, Some(tid(1))), &[src, tail]);
+    p.handle.publish(desc(vec![master(), t.clone()])).unwrap();
+    p.handle.transport(TransportControl::Play).unwrap();
+    let (l, _) = render(&mut p.engine, BEAT + 2048, BLOCK);
+    assert_eq!(l[BEAT + 2047], 0.5, "the tail plays");
+    t.chain[1].enabled = false;
+    p.handle.publish(desc(vec![master(), t.clone()])).unwrap();
+    render(&mut p.engine, 2048, BLOCK);
+    t.chain[1].enabled = true;
+    p.handle.publish(desc(vec![master(), t])).unwrap();
+    let (l, _) = render(&mut p.engine, 2048, BLOCK);
+    assert!(l.iter().all(|&s| s == 0.0), "{:?}", &l[..8]);
+}

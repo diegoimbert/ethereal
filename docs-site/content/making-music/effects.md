@@ -7,6 +7,7 @@ audience: everyone
 covers:
   - devices/compressor #compressor
   - devices/eq #eq
+  - devices/parametric-eq #parametric-eq
   - devices/delay #delay
   - devices/grain-delay #grain-delay
   - devices/reverb #reverb
@@ -36,7 +37,19 @@ These are the effects most songs use.
 
 ### eq
 
-An 8-band equalizer to cut or boost frequencies.
+An equalizer you draw on: cut or boost frequencies by placing points on its curve. It starts flat (a straight line, no band: the sound passes untouched) and can hold up to 24 bands. The window can be resized: the curve grows with it.
+
+- **Add a band**: double-click the line. A bell appears there; keep the second click held down and move to drag it right away.
+- **Drag a point** to change its frequency (left and right) and gain (up and down). Bands without a gain (cuts, notch, band-pass) change their Q when dragged up and down. [[key:Alt]]-drag or scroll the wheel over a point to change its width or resonance (Q); [[key:Shift]] makes any drag finer.
+- **Remove a band**: double-click its point, or press [[key:Delete]] on a focused point.
+- **Click a point** to open its panel: type, frequency, gain, Q, slope, on and delete. **Right-click** it for its type, slope and on/off; right-click the background to remove every band.
+- **Types**: bell, low shelf, low cut, high shelf, high cut, notch, band-pass, tilt shelf (lows down and highs up around the frequency, or the other way) and flat tilt (an even slope over the whole range, 0 dB at the frequency). Cuts and the band-pass have a **slope** from 6 to 96 dB/oct; their Q is the resonance at the cutoff (0.71 is flat).
+- The live spectrum behind the curve shows what goes in and comes out. The button above it switches the display range (±6, 12, 24 or 30 dB); **output** sets the level.
+- Every band is made of plain parameters, so you can automate them, map them to a MIDI controller or a macro, and undo any change. It adds no latency.
+
+### parametric eq
+
+The earlier eight-band equalizer, kept for its fixed layout: every band is always there with its own row of knobs.
 
 - Each band is a low cut, low shelf, bell, notch, high shelf or high cut. Bands 2 to 7 start on, bands 1 and 8 (a low cut and a high cut) start off.
 - **On the curve**: drag a band's handle to change its frequency (left and right) and gain (up and down). [[key:Alt]]-drag or scroll the wheel over it to change its width (Q). [[key:Shift]] makes any drag finer. Double-click a handle to turn the band on or off; right-click it to change its type or reset it.
@@ -107,7 +120,7 @@ A mastering limiter for loudness: lower the **threshold** and the sound gets tha
 
 Three drawn shapes that repeat in time with the song: one for the **volume**, one for a filter's **cutoff** and one for the **pan**. Each lane has its own **rate** (1/64 to 8 bars), **depth** and on/off switch; volume is on by default (a sidechain-style pump), cutoff and pan are off.
 
-- Draw in a lane like in the volume lfo: double-click to add or delete a point, drag points (they snap to the grid, hold alt for no snap), alt-drag a segment to bend it, right-click for step, linear or smooth segments. A lane that is off stays editable, drawn dim.
+- Draw in a lane like in the [volume shaper](#volume-shaper): double-click to add or delete a point, drag points (they snap to the grid, hold alt for no snap), alt-drag a segment to bend it, right-click for step, linear or smooth segments. A lane that is off stays editable, drawn dim.
 - **cutoff** sweeps a **low-pass**, **high-pass** or **band-pass** filter between the **bottom** and **top** cutoffs (the bottom and the top of the lane), with **resonance**.
 - **pan** moves the sound left (bottom) and right (top) by turning the other side down, never up.
 - **smoothing** softens hard edges (1 ms by default; raise it if a chop clicks). **mix** blends the dry sound back in.
@@ -167,6 +180,16 @@ These effects make the sound move with an LFO. Most have **sync** to lock their 
 - **phaser**: a sweeping, hollow sound, with 2 to 12 stages.
 - **flanger**: a jet-like sweep. **through zero** makes it more dramatic.
 - **tremolo**: makes the volume pulse, or with **auto-pan**, moves the sound from left to right.
+
+### volume shaper
+
+Draws the volume over a cycle that repeats in time with the song: sidechain pumping without a sidechain, gates, chops and swells. It starts on the classic kick duck at every beat.
+
+- The cycle lasts one **sync rate**, from 1/64 to 8 bars with triplets (1/4 by default). Turn **sync** off to set a free **rate** in hertz. A synced cycle follows the song position, so it lines up with the beat wherever playback starts.
+- Draw the shape: double-click to add or delete a point, drag points (they snap to the grid, hold alt for no snap), alt-drag a segment to bend it, right-click for step, linear or smooth segments. The top is full volume, the bottom is silence.
+- **depth** scales the whole shape (0 % leaves the sound untouched), **phase** shifts it in the cycle, **stereo phase** offsets the right side, and **smoothing** softens hard edges so steps don't click.
+- **bands**: the strip above the shape shows the frequencies, from 20 Hz on the left to 20 kHz on the right. Pick **1**, **2** or **3** bands: with 2 or 3, each band (low, mid, high, each in its own colour) gets its own shape, so the lows can pump while the highs stay put. Drag the lines between the bands to move the crossovers (200 Hz and 15 kHz by default). Click a band, in the strip or its tab, to draw its shape; its **depth** and **speed** are under the shape (a speed of ×2 runs that band's cycle twice as fast, ÷2 half as fast). With every band at full volume the sound passes unchanged, and the split adds no latency. A band you haven't drawn yet stays at full volume.
+- The presets cover kick sidechain pumps (1/4 soft, classic and hard, 1/8, 1/2, half-time, offbeat duck), trance gates, chops, swells and tremolo, and multiband ones: **sidechain lows 1/4** (only the lows duck), **pump lows, light mids** and **lows pump, highs chop**.
 
 ### shifter
 

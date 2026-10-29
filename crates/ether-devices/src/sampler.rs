@@ -6,6 +6,8 @@
 //!   `Transpose`); note-offs are ignored, the voice ends with the sample.
 //! - **Pitched**: playback rate follows `key - Root Key` (+ `Transpose`, `Fine`); note-off
 //!   starts the release.
+//! - **Pitch bend** (MIDI, a clip's bend lane) moves every mode by up to `Bend Range`
+//!   semitones (id 21, appended), gliding over `synth::BEND_GLIDE_MS`.
 //!
 //! - **Sample range**: `Start`/`End` (percent of the sample) bound what every note plays
 //!   (slice pads of a drum rack use this, `SliceCommand::ToDrumRack`).
@@ -91,9 +93,11 @@ pub mod params {
     pub const RESONANCE: ParamId = ParamId(19);
     /// Polyphony (1..=[`super::MAX_VOICES`]).
     pub const VOICES: ParamId = ParamId(20);
+    /// Semitones of a full pitch bend (MIDI, a clip's bend lane), on top of `Transpose`.
+    pub const BEND_RANGE: ParamId = ParamId(21);
 }
 
-const NUM_PARAMS: usize = 21;
+const NUM_PARAMS: usize = 22;
 /// Fade at a range/slice end that is not the end of the sample (declick), in ms.
 const END_FADE_MS: f64 = 2.0;
 /// Extra voice slots where a stolen voice fades out over [`END_FADE_MS`] while the new note
@@ -221,6 +225,7 @@ pub fn param_infos() -> Vec<ParamInfo> {
             ParamScale::Linear,
         )
         .with_step(1.0),
+        crate::contract::stepped(21, "Bend Range", "Playback", ParamUnit::Semitones, 0, 24, 2),
     ]
 }
 
@@ -283,6 +288,7 @@ pub fn layout() -> ether_core::protocol::layout::DeviceLayout {
                 number(params::VOICES),
                 knob(params::TRANSPOSE, Small),
                 knob(params::FINE, Small),
+                number(params::BEND_RANGE),
             ],
         ),
         section(
@@ -478,6 +484,9 @@ pub struct Sampler {
     rates: AdsrRates,
     volume: Smoother,
     cutoff: Smoother,
+    /// Pitch bend (-1..=1): the last bend message, and the value gliding to it.
+    bend_target: f32,
+    bend: f32,
     /// Per source channel (max 2) read scratch, and the loop crossfade's second read.
     scratch: [Vec<f32>; 2],
     scratch_xf: [Vec<f32>; 2],
@@ -530,6 +539,8 @@ impl Sampler {
             rates: AdsrRates::new(1.0, 1.0, 1.0, 100.0, 48_000.0),
             volume: Smoother::new(1.0, 20.0, 48_000.0),
             cutoff: Smoother::new(20_000.0, 20.0, 48_000.0),
+            bend_target: 0.0,
+            bend: 0.0,
             scratch: [vec![0.0; SCRATCH], vec![0.0; SCRATCH]],
             scratch_xf: [vec![0.0; SCRATCH], vec![0.0; SCRATCH]],
             gains: [0.0; CHUNK],
@@ -735,7 +746,16 @@ impl Sampler {
                 }
             }
             EventKind::Param { param, value, step } => self.apply_param(param, value, !step),
-            EventKind::Midi { .. } | EventKind::NoteExpression { .. } => {}
+            EventKind::Midi { data } => {
+                if let Some(b) = crate::synth::bend_of(data) {
+                    self.bend_target = b;
+                    // Nothing sounding: the next note starts at the bend (no slide into it).
+                    if !self.voices.iter().any(|v| v.env.is_active()) {
+                        self.bend = b;
+                    }
+                }
+            }
+            EventKind::NoteExpression { .. } => {}
         }
     }
 
@@ -761,6 +781,10 @@ impl Sampler {
             for g in &mut self.gains[..n] {
                 *g = self.volume.tick();
             }
+            // The bend glides toward its target, per chunk.
+            let k = (-(n as f32) / (crate::synth::BEND_GLIDE_MS * 0.001 * self.sample_rate)).exp();
+            self.bend = self.bend_target + (self.bend - self.bend_target) * k;
+            let bend = f64::from(self.bend) * self.value(params::BEND_RANGE);
             if filter_mode != 0 {
                 if self.cutoff.is_smoothing() {
                     for f in &mut self.filters[..n] {
@@ -781,7 +805,7 @@ impl Sampler {
                 if !v.env.is_active() {
                     continue;
                 }
-                let rate = rate_of(&self.values, v.key, v.tracks_key);
+                let rate = rate_of(&self.values, v.key, v.tracks_key, bend);
                 let looped = loop_of(&self.values, v, source.frames());
                 let chunk = Chunk {
                     c0,
@@ -834,9 +858,9 @@ fn value(values: &[f64; NUM_PARAMS], id: ParamId) -> f64 {
     values[id.0 as usize]
 }
 
-/// Playback rate of a voice on `key`.
-fn rate_of(values: &[f64; NUM_PARAMS], key: u8, tracks_key: bool) -> f64 {
-    let mut semis = value(values, params::TRANSPOSE);
+/// Playback rate of a voice on `key`, `bend` semitones bent.
+fn rate_of(values: &[f64; NUM_PARAMS], key: u8, tracks_key: bool, bend: f64) -> f64 {
+    let mut semis = value(values, params::TRANSPOSE) + bend;
     if tracks_key {
         semis += key as f64 - value(values, params::ROOT_KEY).round();
     }
@@ -1150,6 +1174,8 @@ impl Node for Sampler {
 
     fn reset(&mut self) {
         self.voices = [Voice::IDLE; SLOTS];
+        self.bend_target = 0.0;
+        self.bend = 0.0;
     }
 
     fn process(

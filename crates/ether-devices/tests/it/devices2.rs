@@ -154,6 +154,7 @@ fn new_builtins_are_real_devices() {
 fn random_automation_is_rt_safe_and_bounded() {
     for ty in [
         BuiltinDeviceType::Eq,
+        BuiltinDeviceType::GraphicEq,
         BuiltinDeviceType::Reverb,
         BuiltinDeviceType::Limiter,
         BuiltinDeviceType::Utility,

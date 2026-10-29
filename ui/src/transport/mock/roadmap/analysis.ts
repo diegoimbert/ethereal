@@ -5,7 +5,7 @@
  *
  * - `SpectrumAnalyzer`: a moving pink-ish mix spectrum (256 log bins, 20 Hz – 20 kHz) with a
  *   bass line and a few partials, tilted by the device's `Slope` and smoothed by `Averaging`;
- * - `Eq`: the same as `Pre` + `Post` frames (for the EQ overlay);
+ * - `Eq`, `GraphicEq`: the same as `Pre` + `Post` frames (for the EQ overlay);
  * - `Tuner`: an A2 string drifting a few cents around pitch, relative to `Reference`;
  * - `Loudness`: a song-like loudness curve around -14 LUFS (verses and choruses), its
  *   history at 10 points per second and the readouts, in the engine's `Levels` layout;
@@ -73,6 +73,7 @@ export class MockAnalysis {
         return [this.spectrum(device.id, slope, averaging, "Post")];
       }
       case "Eq":
+      case "GraphicEq":
         return [this.spectrum(device.id, 0, 0.6, "Pre", 2), this.spectrum(device.id, 0, 0.6, "Post")];
       case "Tuner":
         return [this.tuner(device.params[0] ?? 440)];

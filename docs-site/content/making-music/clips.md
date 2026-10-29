@@ -128,7 +128,7 @@ Right-click a clip and choose **rename**. Type in its title bar, then press [[ke
 
 ## clip colors
 
-Select one or more clips and pick a color in the inspector. The first swatch, **use the track color**, makes the clips follow their track's color again. To change a track's color, see [tracks](/docs/making-music/tracks#colors).
+Select one or more clips and pick a color in the inspector, or right-click them and choose **change color…** to pick it right there (every selected clip changes, as one undo step). The first swatch, **use the track color**, makes the clips follow their track's color again. To change a track's color, see [tracks](/docs/making-music/tracks#colors).
 
 ## editing several clips at once
 

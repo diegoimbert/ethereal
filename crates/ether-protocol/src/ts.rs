@@ -46,6 +46,8 @@ pub fn export_types(cfg: &Config) -> Result<(), Box<dyn std::error::Error>> {
     ServerHello::export_all(cfg)?;
     BinaryKind::export_all(cfg)?;
     MidiInputEvent::export_all(cfg)?;
+    // The graphic EQ's band types (the UI's response mirror).
+    crate::eq_response::GraphicEqShape::export_all(cfg)?;
     Ok(())
 }
 

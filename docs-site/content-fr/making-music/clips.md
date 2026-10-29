@@ -128,7 +128,7 @@ Faites un clic droit sur un clip et choisissez **renommer**. Tapez dans sa barre
 
 ## couleurs des clips {#clip-colors}
 
-Sélectionnez un ou plusieurs clips et choisissez une couleur dans l’inspecteur. La première pastille, **utiliser la couleur de la piste**, fait de nouveau suivre aux clips la couleur de leur piste. Pour changer la couleur d’une piste, voir [pistes](/docs/making-music/tracks#colors).
+Sélectionnez un ou plusieurs clips et choisissez une couleur dans l’inspecteur, ou faites un clic droit dessus et choisissez **changer la couleur…** pour la choisir sur place (tous les clips sélectionnés changent, en une seule étape d’annulation). La première pastille, **utiliser la couleur de la piste**, fait de nouveau suivre aux clips la couleur de leur piste. Pour changer la couleur d’une piste, voir [pistes](/docs/making-music/tracks#colors).
 
 ## modifier plusieurs clips à la fois {#editing-several-clips-at-once}
 

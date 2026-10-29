@@ -1,7 +1,7 @@
 {
-  "total": 384,
+  "total": 385,
   "removed": 1,
-  "covered": 383,
+  "covered": 384,
   "pending": 0,
   "percent": 100,
   "items": {
@@ -634,6 +634,9 @@
     ],
     "devices/eq": [
       "making-music/effects#eq"
+    ],
+    "devices/parametric-eq": [
+      "making-music/effects#parametric-eq"
     ],
     "devices/delay": [
       "making-music/effects#delay"

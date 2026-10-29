@@ -461,6 +461,40 @@ export function rackCommand(ctx: ReducerContext, c: RackCommand): void {
       }
       return;
     }
+    case "Ungroup": {
+      const r = rack(ctx, c.rack);
+      const p = () => ctx.tx.project;
+      // The leaves in signal order (nested chain racks flattened), with whether they play.
+      const leaves: Array<{ d: Device; on: boolean }> = [];
+      const walk = (id: DeviceId, on: boolean) => {
+        for (const ch of rackChainsOf(p(), id))
+          for (const d of chainDevicesOf(p(), ch.id)) {
+            const live = on && !ch.mute && d.enabled;
+            if (isChainRack(d)) walk(d.id, live);
+            else leaves.push({ d, on: live });
+          }
+      };
+      walk(r.id, r.enabled);
+      const section = (d: Device) => {
+        const cat = d.kind.type === "Builtin" ? builtinDescriptor(d.kind.device).category : "AudioEffect";
+        return cat === "NoteEffect" ? 0 : cat === "Instrument" ? 1 : 2;
+      };
+      const sorted = leaves.map((l, i) => ({ ...l, i })).sort((a, b) => section(a.d) - section(b.d) || a.i - b.i);
+      const host = r.chain != null ? chainDevicesOf(p(), r.chain, r.id) : trackChainOf(p(), r.track, r.id);
+      const instruments = sorted.filter((l) => section(l.d) === 1).length;
+      if (instruments > 0 && instruments + host.filter((d) => section(d) === 1).length > 1) {
+        fail("InvalidArgument", "a rack with several instruments can't be flattened into one chain");
+      }
+      for (const { d, on } of sorted) {
+        const siblings = r.chain != null ? chainDevicesOf(p(), r.chain, d.id) : trackChainOf(p(), r.track, d.id);
+        dropOutOfScope(ctx, d, r.chain != null ? chain(ctx, r.chain).rack : null);
+        const moved = onChain(tx.get("Device", d.id)!, r.chain ?? null, keyForInsert(siblings, r.id));
+        tx.upsert("Device", on ? moved : { ...moved, enabled: false });
+      }
+      deleteChainDevice(ctx, r.id);
+      checkChainOrder(p(), r.track);
+      return;
+    }
   }
 }
 

@@ -80,7 +80,7 @@ fn device_type_schema() -> Value {
     json!({
         "type": "string",
         "minLength": 1,
-        "description": "Built-in device type key from list_device_types, e.g. \"synth\", \"poly-synth\", \"drum-rack\", \"sampler\", \"reverb\", \"delay\", \"compressor\", \"eq\"."
+        "description": "Built-in device type key from list_device_types, e.g. \"synth\", \"poly-synth\", \"drum-rack\", \"sampler\", \"reverb\", \"delay\", \"compressor\", \"eq\" (\"parametric-eq\": the eight-band one)."
     })
 }
 

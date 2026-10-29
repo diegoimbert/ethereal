@@ -41,7 +41,7 @@ describe("a device the user adds", () => {
   it("a factory device from the library opens its window", async () => {
     mock = await renderWithMock(<DeviceWindowsRoot />);
     const track = trackOfKind("Audio");
-    await act(() => insertFromLibrary(mock!, track, { name: "EQ", category: "AudioEffect", device: { type: "Builtin", builtin: "Eq" } }));
+    await act(() => insertFromLibrary(mock!, track, { name: "EQ", category: "AudioEffect", device: { type: "Builtin", builtin: "GraphicEq" } }));
     await flush();
     expect(await screen.findByRole("dialog", { name: "eq window" })).toBeInTheDocument();
     expect(messages()).toEqual([]);

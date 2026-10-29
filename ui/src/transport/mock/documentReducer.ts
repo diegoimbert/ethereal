@@ -700,12 +700,24 @@ function deviceCommandInner(ctx: ReducerContext, c: DeviceCommand): ReplyValue {
       setIr(ctx, c.device, c.ir);
       break;
     case "SetLfoCurve": {
-      // `fx-modulation`: the Volume LFO's drawn cycle, sanitized like Rust `LfoCurve::sanitized`.
+      // `fx-modulation`: one band's drawn cycle of a Volume LFO, sanitized like Rust
+      // `LfoCurve::sanitized`; band 0 is `curve`, bands 1 and 2 `bands` (Rust
+      // `with_volume_shaper_band`: bands in between without a curve get a flat one).
       const d = device(ctx, c.device);
       if (d.kind.type !== "Builtin" || d.kind.device.type !== "VolumeLfo") {
         fail("InvalidArgument", `device ${d.id} is not a volume lfo`);
       }
-      tx.upsert("Device", { ...d, kind: { type: "Builtin", device: { type: "VolumeLfo", curve: sanitizeLfoCurve(c.curve) } } });
+      const band = c.band;
+      if (!Number.isInteger(band) || band < 0 || band >= VOLUME_SHAPER_BANDS) fail("InvalidArgument", `a volume lfo band is < ${VOLUME_SHAPER_BANDS}`);
+      const prev = d.kind.device;
+      const curve = band === 0 ? sanitizeLfoCurve(c.curve) : prev.curve;
+      const bands = (prev.bands ?? []).slice(0, VOLUME_SHAPER_BANDS - 1);
+      if (band > 0) {
+        while (bands.length < band) bands.push({ points: [{ x: 0, y: 1, curve: { type: "Linear" } }] });
+        bands[band - 1] = sanitizeLfoCurve(c.curve);
+      }
+      const next = bands.length > 0 ? { type: "VolumeLfo" as const, curve, bands } : { type: "VolumeLfo" as const, curve };
+      tx.upsert("Device", { ...d, kind: { type: "Builtin", device: next } });
       break;
     }
     case "SetShaperCurve": {
@@ -1394,6 +1406,9 @@ export function labelOf(command: Command): string {
     .map((w) => w.toLowerCase())
     .join(" ");
 }
+
+/** `ether_model::VOLUME_SHAPER_BANDS`. */
+const VOLUME_SHAPER_BANDS = 3;
 
 /** A drawn cycle made valid, like Rust `LfoCurve::sanitized`. */
 function sanitizeLfoCurve(curve: LfoCurve): LfoCurve {

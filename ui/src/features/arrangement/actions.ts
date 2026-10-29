@@ -11,6 +11,7 @@ import { itemSelection, type SelectMode } from "@/timeline";
 import { insertPoint, pasteTarget } from "@/features/time-edits/marker";
 import { copyClips, cutClips, hasClipboard, pasteClips } from "./clipboard";
 import { renameClipInPlace } from "./clipRename";
+import { openClipColorPicker } from "./clipColor";
 import { isArrangementClip } from "./clipTime";
 import { arrangementTracks } from "./layout";
 import { selectedClips, sendEdit } from "./context";
@@ -415,6 +416,11 @@ export function clipMenu(transport: EngineTransport, clip: Clip): ContextMenuEnt
           clip.id,
           clips.map((c) => c.id),
         ),
+    },
+    // The palette where the menu was, for every selected clip.
+    {
+      label: t("arrangement.clip_menu.change_color", { count: Math.max(1, clips.length) }),
+      onSelect: () => openClipColorPicker(clips.length ? clips.map((c) => c.id) : [clip.id]),
     },
     // Desktop: the clip's audio file in the OS file manager.
     ...(clip.content.type === "Audio" && canReveal(transport)

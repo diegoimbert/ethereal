@@ -1,0 +1,236 @@
+/*
+ * The graphic EQ editor. Tokens only: band colours from the track palette (`--eth-track-*`),
+ * everything else from `--eth-color-*`, sizes from spacing / row tokens. It fills its
+ * container: the device window grows it (window.css `.eth-device--fill`).
+ */
+
+.eth-widget.eth-widget--graphic-eq {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+.eth-geq {
+  --geq-plot-min-height: calc(var(--eth-size-row-height-lg) * 8);
+  --geq-handle-r: calc(var(--eth-space-sm) - var(--eth-space-hair));
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  gap: var(--eth-space-xs);
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+}
+
+/* ---- Bar: readout / hint, display range, output ---- */
+.eth-geq__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  min-width: 0;
+}
+.eth-geq__info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.eth-geq__hint {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-xs);
+}
+.eth-geq__readout {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--eth-space-xs);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-2xs);
+  color: var(--eth-color-text);
+}
+.eth-geq__readout::before {
+  content: "";
+  width: var(--eth-space-sm);
+  height: var(--eth-space-sm);
+  border-radius: var(--eth-radius-round);
+  background: var(--geq-band);
+}
+.eth-geq__range {
+  flex: none;
+  font-family: var(--eth-font-mono);
+}
+.eth-geq__output {
+  flex: none;
+}
+
+/* ---- Plot: fills what is left ---- */
+.eth-geq__plot {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: var(--geq-plot-min-height);
+  border-radius: var(--eth-radius-sm);
+  background: var(--eth-color-bg-inset);
+  overflow: hidden;
+}
+.eth-geq__svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+}
+.eth-geq--over-handle .eth-geq__svg {
+  cursor: grab;
+}
+.eth-geq--dragging .eth-geq__svg {
+  cursor: grabbing;
+}
+
+/* ---- Grid and captions ---- */
+.eth-geq__grid line {
+  stroke: var(--eth-color-border-light);
+  stroke-width: var(--eth-border-width);
+  opacity: var(--eth-opacity-muted);
+}
+.eth-geq__grid line.eth-geq__grid--major {
+  opacity: 1;
+}
+.eth-geq__grid line.eth-geq__grid--zero {
+  stroke: var(--eth-color-border-strong);
+  opacity: 1;
+}
+.eth-geq__label {
+  fill: var(--eth-color-text-dim);
+  font-family: var(--eth-font-mono);
+  font-size: var(--eth-fs-2xs);
+  pointer-events: none;
+}
+.eth-geq__label--freq {
+  text-anchor: middle;
+  dominant-baseline: text-after-edge;
+}
+.eth-geq__label--db {
+  text-anchor: start;
+  dominant-baseline: middle;
+}
+
+/* ---- Spectrum (input dim, output brighter) ---- */
+.eth-geq__spectrum-pre {
+  fill: color-mix(in srgb, var(--eth-color-text-dim) 12%, transparent);
+  stroke: none;
+}
+.eth-geq__spectrum-post-fill {
+  fill: color-mix(in srgb, var(--eth-color-accent) 7%, transparent);
+  stroke: none;
+}
+.eth-geq__spectrum-post {
+  fill: none;
+  stroke: color-mix(in srgb, var(--eth-color-accent) 55%, transparent);
+  stroke-width: var(--eth-border-width);
+  stroke-linejoin: round;
+}
+
+/* ---- Response ---- */
+.eth-geq__sum {
+  fill: none;
+  stroke: var(--eth-color-accent);
+  stroke-width: var(--eth-border-width-strong);
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.eth-geq__band-fill {
+  fill: color-mix(in srgb, var(--geq-band) 24%, transparent);
+  stroke: var(--geq-band);
+  stroke-width: var(--eth-border-width);
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+/* ---- Band colours (cycled) ---- */
+.eth-geq__band--0 {
+  --geq-band: var(--eth-track-0);
+}
+.eth-geq__band--1 {
+  --geq-band: var(--eth-track-2);
+}
+.eth-geq__band--2 {
+  --geq-band: var(--eth-track-4);
+}
+.eth-geq__band--3 {
+  --geq-band: var(--eth-track-6);
+}
+.eth-geq__band--4 {
+  --geq-band: var(--eth-track-7);
+}
+.eth-geq__band--5 {
+  --geq-band: var(--eth-track-9);
+}
+.eth-geq__band--6 {
+  --geq-band: var(--eth-track-10);
+}
+.eth-geq__band--7 {
+  --geq-band: var(--eth-track-12);
+}
+
+/* ---- Handles ---- */
+.eth-geq__handle {
+  outline: none;
+}
+.eth-geq__handle-dot {
+  r: var(--geq-handle-r);
+  fill: var(--geq-band);
+  stroke: var(--eth-color-bg-inset);
+  stroke-width: var(--eth-border-width-strong);
+  transition: r var(--eth-duration-fast) var(--eth-ease-out);
+}
+.eth-geq__handle-num {
+  fill: var(--eth-color-text-inverse);
+  font-size: var(--eth-fs-2xs);
+  font-weight: var(--eth-fw-bold);
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+.eth-geq__handle--off .eth-geq__handle-dot {
+  fill: var(--eth-color-bg-inset);
+  stroke: var(--geq-band);
+  stroke-dasharray: var(--eth-space-xs) var(--eth-space-hair);
+}
+.eth-geq__handle--off .eth-geq__handle-num {
+  fill: var(--geq-band);
+}
+.eth-geq__handle--selected .eth-geq__handle-dot {
+  stroke: var(--eth-color-text);
+}
+.eth-geq__handle:focus-visible .eth-geq__handle-dot {
+  stroke: var(--eth-color-focus);
+}
+
+/* ---- The selected band's panel ---- */
+.eth-geq__panel {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--eth-space-sm);
+  max-width: calc(100% - 2 * var(--eth-space-sm));
+  padding: var(--eth-space-xs) var(--eth-space-sm);
+  border: var(--eth-border-width) solid var(--geq-band);
+  border-radius: var(--eth-radius-md);
+  background: var(--eth-color-bg-overlay);
+  box-shadow: var(--eth-shadow-md);
+  /* Its anchor slides along it with the point (inline transform), so it stays inside. */
+}
+.eth-geq__panel--below {
+  margin-top: calc(var(--eth-space-lg) + var(--eth-space-xs));
+}
+.eth-geq__panel--above {
+  margin-top: calc(-1 * (var(--eth-space-lg) + var(--eth-space-xs)));
+  translate: 0 -100%;
+}
+.eth-geq__panel .eth-param {
+  width: auto;
+}

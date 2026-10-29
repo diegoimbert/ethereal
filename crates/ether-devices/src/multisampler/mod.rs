@@ -36,6 +36,19 @@
 //! | 18 | Filter Envelope | `Release` | 1 ..= 20000 Milliseconds, default 300 |
 //! | 19 | Voice | `Round Robin` | Cycle / Random (default Cycle) |
 //! | 20 | Output | `Pan` | -1 ..= 1 Pan, default 0 |
+//! | 21 | Voice | `Offset` | 0 ..= 2000 Milliseconds, default 0 |
+//! | 22 | Pitch | `Bend Range` | 0 ..= 24 Semitones (stepped), default 2 |
+//! | 23 | Voice | `Legato` | Off / On (default Off) |
+//!
+//! `Offset` skips that much of every sample on top of its zone's start (a converted
+//! instrument's samples begin with a pre-roll before their note: the offset starts them on
+//! it, or a little before).
+//!
+//! `Legato`: a note played while another is held doesn't retrigger. The sounding sample is
+//! retuned to it when the new key plays the same sample, otherwise the new key's sample
+//! crossfades in at the same point of the note (no new attack; the envelopes carry on), with
+//! `Glide` between the two pitches. Releasing it goes back to the key still held (last-note
+//! priority).
 
 use ether_core::Device;
 use ether_core::protocol::devices::{DeviceCategory, DeviceDescriptor, ParamScale, ParamUnit};
@@ -44,7 +57,7 @@ use ether_core::protocol::model::{BuiltinDevice, BuiltinDeviceType};
 
 use crate::SampleResolver;
 use crate::contract::{
-    FactoryPreset, choice, descriptor as build, item, knob, param, section, stepped,
+    FactoryPreset, choice, descriptor as build, item, knob, param, section, stepped, toggle,
 };
 
 pub mod device;
@@ -77,8 +90,13 @@ pub mod multi_sampler {
     pub const FILTER_RELEASE: ParamId = ParamId(18);
     pub const ROUND_ROBIN: ParamId = ParamId(19);
     pub const PAN: ParamId = ParamId(20);
+    pub const OFFSET: ParamId = ParamId(21);
+    /// Semitones of a full pitch bend (MIDI, a clip's bend lane).
+    pub const BEND_RANGE: ParamId = ParamId(22);
+    /// Held notes slide into each other (see the module docs).
+    pub const LEGATO: ParamId = ParamId(23);
     /// Number of params.
-    pub const COUNT: usize = 21;
+    pub const COUNT: usize = 24;
 }
 
 /// Descriptor of a type of this group.
@@ -246,6 +264,16 @@ pub fn descriptor(ty: BuiltinDeviceType) -> DeviceDescriptor {
                         (-1.0, 1.0, 0.0),
                         ParamScale::Linear,
                     ),
+                    param(
+                        21,
+                        "Offset",
+                        "Voice",
+                        ParamUnit::Milliseconds,
+                        (0.0, 2000.0, 0.0),
+                        ParamScale::Linear,
+                    ),
+                    stepped(22, "Bend Range", "Pitch", ParamUnit::Semitones, 0, 24, 2),
+                    toggle(23, "Legato", "Voice", false),
                 ],
                 0,
                 2,
@@ -300,7 +328,16 @@ pub fn layout() -> DeviceLayout {
             Some("Pitch"),
             1,
             2,
-            vec![knob(p::TRANSPOSE, Medium), knob(p::FINE, Medium)],
+            vec![
+                knob(p::TRANSPOSE, Medium),
+                knob(p::FINE, Medium),
+                item(
+                    Widget::Number {
+                        param: p::BEND_RANGE,
+                    },
+                    Small,
+                ),
+            ],
         ),
         section(
             "voice",
@@ -316,7 +353,9 @@ pub fn layout() -> DeviceLayout {
                     Small,
                 ),
                 knob(p::GLIDE, Small),
+                item(Widget::Toggle { param: p::LEGATO }, Small),
                 knob(p::VELOCITY, Small),
+                knob(p::OFFSET, Small),
             ],
         ),
         env(

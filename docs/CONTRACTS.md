@@ -967,15 +967,22 @@ half-open ranges). `arrangement_clips_of` lists main-lane clips only.
   the render and stay editable (inserting or moving devices into the tail too). Clips stay
   locked; the track counts as frozen everywhere else. `Flatten` keeps the live tail (on the
   audio track, or moved to the new audio track).
-- **Convert to sampler** (`ConvertToSampler { device, new_device, seed_media, first_key,
-  last_key, key_step, velocity_steps, note_seconds, tail_seconds }`, additive): render a
-  track-chain instrument (an instrument rack, synth, ...) once per sampled key and velocity
-  layer and replace it with a `MultiSampler` (`new_device`, same place in the chain) whose
-  zones play the renders. Sampled keys are `first`, `first + key_step`, ... and `last`;
-  each owns the range up to the midpoint with its neighbours (edges cover 0..=127), so a
-  note between samples plays the nearest one pitched (`root_key`). `velocity_steps` equal
-  bands of 1..=127, rendered at their centres; one layer renders at 127 with the
-  multisampler's velocity sensitivity on, several layers switch it off. Each sample is the
+- **Convert to sampler** (`ConvertToSampler { device, new_device, seed_media, keys,
+  velocities, pre_roll_seconds, note_seconds, tail_seconds }`, additive; each render
+  starts `pre_roll_seconds` before its note, skipped by the multisampler's `Offset` param,
+  set to the note's exact frame; a pass with plugins holds before its note until that much
+  real time has passed since its fresh instances were loaded; `warm_up_note` also plays the
+  key for `CONVERT_WARM_UP_NOTE_SECONDS` at 0, in the pre-roll): render an instrument (an
+  instrument rack, synth, ...) on a track chain or nested in racks there (not in a drum
+  pad) once per listed key and velocity and replace it with a `MultiSampler`
+  (`new_device`, same place: track chain or rack chain) whose zones play the renders. Each
+  pass renders the instrument alone (its project copy has it as the track's only device,
+  out of its racks, the macros of those racks that move its params baked in). The
+  lists are any set (sorted, duplicates dropped; at least one key, 1 to 16 velocities in
+  1..=127). Each key owns the range up to the midpoint with its neighbours (edges cover
+  0..=127), so a note between samples plays the nearest one pitched (`root_key`); each
+  velocity likewise owns the velocities nearest to it (edges cover 1..=127). One velocity
+  keeps the multisampler's velocity sensitivity on, several switch it off. Each sample is the
   instrument held for `note_seconds`, then its release tail (silence trimmed, at most
   `tail_seconds`). Media ids are `derive_id(seed_media, i)` in key-major order; at most
   `MAX_ZONES` samples. One job at a time like any render; at `Done` the media and the
@@ -1079,6 +1086,29 @@ fingerprints recorded on `main`). The import model's `Sampler` gains `loop_range
 `ping_pong`, `reverse`, `decay_ms`, `sustain`; Ableton's Simpler maps its sustain loop,
 reverse and ADSR onto them.
 
+Pitch bend on every pitched built-in instrument: MIDI pitch bend (a live keyboard, a clip's
+`PitchBend` lane) moves the pitch by up to `Bend Range` semitones (stepped 0..=24, default
+2), gliding over `synth::BEND_GLIDE_MS` (the Multisampler through its 10 ms pitch smoother);
+a bend while nothing sounds applies at once. The `Synth` appends it (15), the `Sampler`
+(21, every mode) and the `MultiSampler` (22); the `PolySynth` (24) and `FmSynth` (57) had
+it. Centred, every instrument renders as before.
+
+`MultiSampler` legato: it appends `Legato` (23, toggle, default off). On, a note-on while a
+note is held moves that note's voices instead of starting new ones: a voice whose sample the
+new key selects is retuned, the others fade out over `LEGATO_FADE_MS` (20 ms) while the new
+key's other samples fade in at the same point of the note (`pos - start` in source frames),
+with the lead's envelopes and filter state; `Glide` slides between the two pitches. The
+note-off of the latest held key moves back to the one held before it (last-note priority,
+16 held keys). Off, nothing changes.
+
+`Rack::Ungroup { rack }` (⌘⇧G, keymap `device.ungroup`): flattens a chain rack into the chain
+holding it (track chain or rack chain). The leaves of its chains (nested chain racks walked,
+drum racks kept whole) take its place in chain order, stably sorted into sections (MIDI
+effects, instrument, audio effects); a leaf under a switched-off rack, a muted chain or a
+switched-off nested rack comes out `enabled: false`. The rack is then deleted with its
+macros, mappings and chains. `InvalidArgument` when the chain would hold more than one
+instrument, or for a device that isn't a chain rack. One undo step.
+
 Voice mode and global pitch on every native synth: the `Synth` appends `Mode` (14), the
 `FmSynth` appends `Mode` (76), both `Poly | Mono | Legato` (default `Poly`, group `Voice`),
 as the `PolySynth`'s existing `Mode` (22). `Mono`: one voice, every note retriggers the
@@ -1098,7 +1128,7 @@ Small/Medium/Large, `colspan`, `label`). Widget catalog (append-only: a new widg
 widgets `Knob`, `Slider`, `Toggle`, `Choice`, `Number`; typed widgets `Envelope`,
 `FilterCurve`, `TransferCurve`, `Oscillator`, `Lfo`, `StepEditor`, `XyPad`, `Crossover`;
 data widgets `SampleWaveform`, `ZoneMap`, `Spectrum`, `Tuner`, `Meter`, `RackChains`,
-`Macros`, and `EqCurve` (§12.15, the EQ only for now). Appended by `DynamicsCurve` (compressor / gate / limiter transfer curve with a live detector-level dot from `Levels`), `DelayTaps` (delay echoes), `ReverbDecay` (reverb decay envelope) and `VelocityCurve` (MIDI velocity mapping). Appended by `fm-synth`: `FmAlgorithm` (an FM synth's algorithm picker: one routing diagram per choice of its `algorithm` param, from `FmRouting` modulator / carrier bit masks). Appended by `fx-modulation`: `LfoCurve` (the Volume LFO's curve editor: the kind's `LfoCurve` on a grid of the cycle's sixteenths, edited with `Device::SetLfoCurve`, with a playhead; binds sync, sync rate, rate, phase and depth). Appended by `fx-analysis`: `Loudness` (a loudness meter's readouts and momentary / short-term history from its `Levels` frame, with the `target` param's reference line). Appended by `adaptive-eq`: `AdaptiveEq` (the combined response of an adaptive EQ's band filters over its band levels relative to the reference, from its `Levels` frame; binds recover and tame). Appended by `pitch-correction`: `PitchCorrection` (detected and corrected pitch history on a keyboard grid with the key / scale notes, from its `Levels` frame; binds key and scale). Appended by `shaper`: `ShaperCurve` (one lane of a shaper's drawn cycles, written with `Device::SetShaperCurve`; binds on, rate, depth). Appended by `maximizer`: `Maximizer` (input, output and gain-reduction history and readouts from its `Levels` frame, with the `ceiling` line; binds threshold and ceiling). **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
+`Macros`, and `EqCurve` (§12.15, the EQ only for now). Appended by `DynamicsCurve` (compressor / gate / limiter transfer curve with a live detector-level dot from `Levels`), `DelayTaps` (delay echoes), `ReverbDecay` (reverb decay envelope) and `VelocityCurve` (MIDI velocity mapping). Appended by `fm-synth`: `FmAlgorithm` (an FM synth's algorithm picker: one routing diagram per choice of its `algorithm` param, from `FmRouting` modulator / carrier bit masks). Appended by `fx-modulation`: `LfoCurve` (the Volume LFO's curve editor: the kind's `LfoCurve` on a grid of the cycle's sixteenths, edited with `Device::SetLfoCurve`, with a playhead; binds sync, sync rate, rate, phase and depth; with `bands: LfoCurveBands`, a log-Hz band strip above it with draggable crossovers and a band count picker selects the band it edits, and binds the count, the crossovers and each band's depth and speed). Appended by `fx-analysis`: `Loudness` (a loudness meter's readouts and momentary / short-term history from its `Levels` frame, with the `target` param's reference line). Appended by `adaptive-eq`: `AdaptiveEq` (the combined response of an adaptive EQ's band filters over its band levels relative to the reference, from its `Levels` frame; binds recover and tame). Appended by `graphic-eq`: `GraphicEq` (the default EQ's editor, filling its window: the used bands' response over the spectrum, points added by double-click, §12.15; binds every band's used, on, type, freq, gain, Q and slope, and the output). Appended by `pitch-correction`: `PitchCorrection` (detected and corrected pitch history on a keyboard grid with the key / scale notes, from its `Levels` frame; binds key and scale). Appended by `shaper`: `ShaperCurve` (one lane of a shaper's drawn cycles, written with `Device::SetShaperCurve`; binds on, rate, depth). Appended by `maximizer`: `Maximizer` (input, output and gain-reduction history and readouts from its `Levels` frame, with the `ceiling` line; binds threshold and ceiling). **One shared renderer** (`ui/src/features/devices/layout/`, kit components and
 tokens only) renders every built-in; devices without a layout (plugins, v0.1 devices until
 they add one) get the generic layout grouped by `ParamInfo::group`. Devices write
 specs and widget data only, never bespoke panels. `ModulatorDescriptor::layout` uses the same
@@ -1487,6 +1517,24 @@ latency-aligned sidechain buffers (§11.10) through `Node::process_sidechain`.
 - `EqCurve` is for the EQ only in v0.2: the auto filter and the multiband compressor use
   standard controls (`FilterCurve`, `Crossover`, knobs). Other filters may adopt it later with
   an explicit param mapping (a change to this section).
+- `graphic-eq`: `BuiltinDeviceType::GraphicEq` is the default EQ ("EQ" in the library,
+  `eq` for the agent tools); the eight-band `Eq` above is the "Parametric EQ"
+  (`parametric-eq` for the agent tools; same type, ids and documents). `ether_devices::
+  graphic_eq`: 24 band slots of 7 params (`7·b + {Used, On, Type, Freq, Gain, Q, Slope}`),
+  then `Output` (168); every slot is unused by default (pass-through, bit-exact). Types
+  `GraphicEqShape` (Bell, Low Shelf, Low Cut, High Shelf, High Cut, Notch, Band-pass, Tilt
+  Shelf, Flat Tilt; plain value = index of `GraphicEqShape::ALL`), slopes
+  `GRAPHIC_EQ_SLOPES` (6..96 dB/oct, cuts and band-pass). A band's response is
+  `eq_response::graphic_eq_stages` (up to 8 matched SVF stages: Butterworth cuts with a true
+  second-order high-pass numerator, the highest-Q section scaled by `Q / √½`), mirrored in
+  `ui/src/features/devices/layout/graphicEq/response.ts` against
+  `crates/ether-protocol/tests/fixtures/graphic_eq_vectors.json` (1e-6 dB). Coefficients glide
+  per sample (≈15 ms); zero latency; `SpectrumPre` / `Spectrum` frames as the EQ.
+  Widget `GraphicEq { bands: [GraphicEqBandBinding { used, on, kind, freq, gain, q, slope }],
+  output, spectrum }`: a 10 Hz–30 kHz log axis; double-click = use the first free slot as a
+  bell at the pointer (the held second press drags it), drag = freq + gain (Q for shapes
+  without gain), Alt-drag / wheel = Q, double-click a point = `Used` off, context menu = type
+  / slope / on. One gesture per placement + drag, drag, wheel burst or removal.
 
 ## 13. v0.3 contracts
 
@@ -1520,12 +1568,21 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   lists a `Media` IR. After them (`fm-synth`): `FmSynth`, the four-operator FM instrument
   (`ether_devices::fm_synth`, no kind data), then `Vibrato`, the pitch-wobble audio effect
   (`ether_devices::fx_modulation::vibrato`, no kind data; it reports its centre delay as
-  latency), then `VolumeLfo { curve: LfoCurve }`, the drawn volume LFO (`fx-modulation`,
-  `ether_model::lfo_curve`: 1..=64 `LfoPoint { x, y, curve: CurveShape }` sorted by `x`,
-  one wrapping cycle; `curve` omitted in JSON = the default pump). `Device::SetLfoCurve
-  { device, curve }` replaces it (sanitized; one `DeviceChange::Kind`, one undo step); live
-  nodes take it through `EngineBridge::update_builtin` → `Node::set_data`. Its presets
-  carry the curve in `Preset::kind`. Then `NoteBlocker` (`midi-fx`, no kind data): drops
+  latency), then `VolumeLfo { curve: LfoCurve, bands: Vec<LfoCurve> }`, the drawn volume
+  LFO, "volume shaper" (`fx-modulation`, `ether_model::lfo_curve`: 1..=64
+  `LfoPoint { x, y, curve: CurveShape }` sorted by `x`, one wrapping cycle; `curve` omitted
+  in JSON = the default pump). Its `Bands` param (id 8, 1..=3, default 1) splits the signal
+  at `Crossover 1` / `Crossover 2` (LR4, phase-compensated: unity bands sum flat; zero
+  latency) into bands with their own cycle (`curve` = band 1, `bands[0..2]` = bands 2 and 3,
+  `VOLUME_SHAPER_BANDS = 3`; a band without a curve is flat at 1; `bands` omitted in JSON,
+  and when empty = none, so older projects load as one band), depth (`Depth`, `Band 2 /
+  3 Depth`) and speed (`Band 2 / 3 Speed`, a factor of the cycle rate). One band plays the
+  plain shaper, sample for sample. `Device::SetLfoCurve { device, band, curve }` replaces
+  band `band`'s cycle (`band` omitted = 0; `< VOLUME_SHAPER_BANDS`, else
+  `InvalidArgument`; bands in between without a curve get a flat one; sanitized; one
+  `DeviceChange::Kind`, one undo step); live nodes take it through
+  `EngineBridge::update_builtin` → `Node::set_data`. Its presets carry the curves in
+  `Preset::kind` (presets without the band params load them at their defaults: one band). Then `NoteBlocker` (`midi-fx`, no kind data): drops
   every note-on (and the note-offs / per-note expressions of the notes it dropped); param 0
   `Block Everything` (toggle, default off) drops every other MIDI message too. Note-offs of
   notes it never saw and `AllNotesOff` pass; the engine's `AllNotesOff` on a MIDI-effect
@@ -1570,6 +1627,8 @@ edit themselves but are not document commands: `Capture::Capture`, the end of an
   `Recover` boosts (±`Range`, glided by `Speed`), applied by 32 bell SVFs (no latency) with
   `Auto Gain`; `Levels` frames carry 64 response points and the band levels and gains
   (`ether_devices::adaptive_eq::Frame`).
+  Then `GraphicEq` (`ether_devices::graphic_eq`, no kind data): the default EQ, 24 band
+  slots unused by default (§12.15).
 - `Project::entities()` order: … pinned notes, expression lanes, note expressions (each after
   its clip / note). Cascades are done: deleting a clip removes its lanes, deleting a note its
   expressions; `DocCtx::copy_clip` copies both.

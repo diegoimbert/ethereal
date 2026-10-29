@@ -28,6 +28,8 @@ Deux façons :
 - Ajoutez **rack d’instruments**, **rack d’effets audio** ou **rack d’effets MIDI** depuis la bibliothèque d’appareils, comme n’importe quel appareil.
 - Faites un clic droit sur l’en-tête d’un appareil sur une piste et choisissez **grouper dans un rack d’instruments** (ou **rack d’effets audio**, **rack d’effets MIDI**, selon l’appareil). L’appareil passe dans un nouveau rack, sur sa première chaîne. Ce n’est pas proposé pour les drum racks, ni pour les appareils qui sont déjà dans un rack ou sur un pad de batterie.
 
+Pour défaire un rack, faites un clic droit sur son en-tête et choisissez **dégrouper le rack (aplatir)**, ou sélectionnez-le et appuyez sur [[key:Mod+Shift+G]]. Ça marche aussi avec un appareil d’une chaîne du rack sélectionné : son rack est dégroupé. Chaque appareil de chaque chaîne prend la place du rack, y compris les racks imbriqués, rangé dans les sections de la chaîne (effets MIDI, instrument, effets audio). Les macros du rack, les volumes, panoramiques et zones de ses chaînes disparaissent avec lui. Un appareil qui n’était pas entendu (sur une chaîne muette ou dans un rack éteint) ressort éteint. Un rack avec un instrument sur plusieurs chaînes ne peut pas être aplati : une chaîne n’a qu’un instrument. Une annulation remet le rack.
+
 Un rack n’a pas de fenêtre : ses chaînes et ses macros sont sur sa carte.
 
 ## chaînes {#chains}

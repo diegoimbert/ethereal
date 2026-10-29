@@ -7,15 +7,29 @@ import type { MediaId } from "./MediaId";
 import type { Seconds } from "./Seconds";
 import type { TrackId } from "./TrackId";
 
-export type FreezeCommand = { "type": "Freeze", job: string, track: TrackId, media: MediaId, up_to?: DeviceId, } | { "type": "Unfreeze", track: TrackId, } | { "type": "Flatten", track: TrackId, clip: ClipId, new_track: TrackId, } | { "type": "Bounce", job: string, track: TrackId, start: Beats, end: Beats, include_chain: boolean, media: MediaId, target: BounceTarget, } | { "type": "Consolidate", job: string, tracks: Array<TrackId>, start: Beats, end: Beats, seed_clips: ClipId, seed_notes: ClipId, seed_media: MediaId, } | { "type": "ConvertToSampler", job: string, device: DeviceId, new_device: DeviceId, seed_media: MediaId, first_key: number, last_key: number, 
+export type FreezeCommand = { "type": "Freeze", job: string, track: TrackId, media: MediaId, up_to?: DeviceId, } | { "type": "Unfreeze", track: TrackId, } | { "type": "Flatten", track: TrackId, clip: ClipId, new_track: TrackId, } | { "type": "Bounce", job: string, track: TrackId, start: Beats, end: Beats, include_chain: boolean, media: MediaId, target: BounceTarget, } | { "type": "Consolidate", job: string, tracks: Array<TrackId>, start: Beats, end: Beats, seed_clips: ClipId, seed_notes: ClipId, seed_media: MediaId, } | { "type": "ConvertToSampler", job: string, device: DeviceId, new_device: DeviceId, seed_media: MediaId, 
 /**
- * Semitones between sampled keys (1 = every note).
+ * Sampled keys (0..=127, at least one).
  */
-key_step: number, 
+keys: Array<number>, 
 /**
- * Velocity layers (1..=16).
+ * Rendered velocities (1..=127, 1 to 16 of them).
  */
-velocity_steps: number, 
+velocities: Array<number>, 
+/**
+ * Silence before each note: a render starts this long before its note (the
+ * instrument runs, transport playing, before the note-on), and the multisampler's
+ * `Offset` is set to it so playback starts on the note. A pass with plugins also
+ * holds before the note until this much real time has passed since they were
+ * loaded (each pass loads fresh instances). 0..=2 s.
+ */
+pre_roll_seconds: Seconds, 
+/**
+ * With a pre-roll: also play the note very briefly
+ * ([`CONVERT_WARM_UP_NOTE_SECONDS`]) at the render's start, in the pre-roll the
+ * sampler skips (some plugins only finish loading a sound once it has played).
+ */
+warm_up_note: boolean, 
 /**
  * How long each note is held before note-off.
  */

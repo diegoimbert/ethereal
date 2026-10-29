@@ -47,7 +47,7 @@ export interface FreezeHost extends MockHost {
 
 type Finish =
   | { type: "Freeze"; track: TrackId; upTo?: DeviceId }
-  | { type: "ConvertToSampler"; device: DeviceId; newDevice: DeviceId; zones: SampleZone[] }
+  | { type: "ConvertToSampler"; device: DeviceId; newDevice: DeviceId; zones: SampleZone[]; offsetMs: number }
   | { type: "Bounce"; track: TrackId; start: Beats; target: BounceTarget }
   | { type: "Consolidate"; tracks: TrackId[]; start: Beats; end: Beats }
   | { type: "BounceRange"; start: Beats; bounces: { track: TrackId; newTrack: TrackId; clip: ClipId; media: MediaId }[] };
@@ -245,25 +245,32 @@ export class MockFreeze {
       case "ConvertToSampler": {
         this.checkCanStart(c.job);
         const d = p.devices[c.device] ?? fail("NotFound", `device ${c.device} not found`);
-        if (d.pad != null || d.chain != null) fail("InvalidArgument", "only an instrument on a track's own chain can be converted");
+        // On the track chain or nested in racks (not in a drum pad).
+        if (d.pad != null) fail("InvalidArgument", "an instrument on a drum pad can't be converted");
         const t = p.tracks[d.track] ?? fail("NotFound", `track ${d.track} not found`);
         if (t.kind !== "Midi") fail("InvalidArgument", "only instruments on MIDI tracks can be converted");
         if (t.freeze) fail("InvalidState", `track "${t.name}" is frozen: unfreeze it first`);
         if (p.devices[c.new_device]) fail("InvalidArgument", `device ${c.new_device} already exists`);
         if (!(c.note_seconds > 0)) fail("InvalidArgument", "the note length must be above 0");
-        const keys = sampledKeys(c.first_key, c.last_key, c.key_step);
-        const bands = velocityBands(c.velocity_steps);
-        const count = keys.length * bands.length;
-        if (!keys.length || !bands.length) fail("InvalidArgument", "invalid sampling range");
+        if (!(c.pre_roll_seconds >= 0 && c.pre_roll_seconds <= 2)) fail("InvalidArgument", "the pre-roll must be 0 to 2 seconds");
+        const keys = sortedSet(c.keys);
+        const velocities = sortedSet(c.velocities);
+        if (!keys.length) fail("InvalidArgument", "pick at least one key to sample");
+        if (keys.some((k) => !(k >= 0 && k <= 127))) fail("InvalidArgument", "keys must be 0..=127");
+        if (!velocities.length || velocities.length > 16) fail("InvalidArgument", "render 1 to 16 velocities");
+        if (velocities.some((v) => !(v >= 1 && v <= 127))) fail("InvalidArgument", "velocities must be 1..=127");
+        const count = keys.length * velocities.length;
         if (count > 512) fail("InvalidArgument", "too many samples (at most 512 zones)");
         const zones: SampleZone[] = [];
         const media: MediaRef[] = [];
+        const keyRanges = nearestRanges(keys, 0);
+        const velocityRanges = nearestRanges(velocities, 1);
         keys.forEach((key, ki) => {
-          const lo = ki === 0 ? 0 : Math.floor((keys[ki - 1]! + key) / 2) + 1;
-          const hi = ki + 1 === keys.length ? 127 : Math.floor((key + keys[ki + 1]!) / 2);
-          for (const [vlo, vhi, velocity] of bands) {
+          const [lo, hi] = keyRanges[ki]!;
+          for (const [vi, velocity] of velocities.entries()) {
+            const [vlo, vhi] = velocityRanges[vi]!;
             const id = this.host.newId();
-            media.push(this.media(id, `${t.name} ${noteName(key)} v${velocity}`, c.note_seconds + c.tail_seconds));
+            media.push(this.media(id, `${t.name} ${noteName(key)} v${velocity}`, c.pre_roll_seconds + c.note_seconds + c.tail_seconds));
             zones.push({
               media: id,
               root_key: key,
@@ -282,7 +289,7 @@ export class MockFreeze {
             });
           }
         });
-        return this.start(c.job, media, { type: "ConvertToSampler", device: c.device, newDevice: c.new_device, zones });
+        return this.start(c.job, media, { type: "ConvertToSampler", device: c.device, newDevice: c.new_device, zones, offsetMs: c.pre_roll_seconds * 1000 });
       }
       case "Cancel":
         if (this.job?.job === c.job) {
@@ -384,18 +391,18 @@ export class MockFreeze {
           const d = p.devices[f.device] ?? fail("InvalidState", "the device was deleted during the render");
           const t = p.tracks[d.track] ?? fail("InvalidState", "the track was deleted during the render");
           for (const m of job.media) tx.upsert("Media", m);
+          const device = { type: "Builtin", device: { type: "MultiSampler", zones: f.zones } } as const;
+          // In its place: on the track chain, or on its rack chain.
           apply(
-            cmd("Device", {
-              type: "Insert",
-              id: f.newDevice,
-              track: d.track,
-              device: { type: "Builtin", device: { type: "MultiSampler", zones: f.zones } },
-              before: f.device,
-            }),
+            d.chain != null
+              ? cmd("Rack", { type: "InsertDevice", id: f.newDevice, chain: d.chain, device, before: f.device })
+              : cmd("Device", { type: "Insert", id: f.newDevice, track: d.track, device, before: f.device }),
           );
           apply(cmd("Device", { type: "SetParam", device: f.newDevice, param: 0, value: 0 }));
           const layered = new Set(f.zones.map((z) => `${z.velocities.lo}:${z.velocities.hi}`)).size > 1;
           apply(cmd("Device", { type: "SetParam", device: f.newDevice, param: 5, value: layered ? 0 : 100 }));
+          // `Offset` (21) skips the renders' pre-roll.
+          apply(cmd("Device", { type: "SetParam", device: f.newDevice, param: 21, value: f.offsetMs }));
           apply(cmd("Device", { type: "Rename", id: f.newDevice, name: `${t.name} Sampler` }));
           apply(cmd("Device", { type: "Remove", id: f.device }));
         } else if (f.type === "Bounce") {
@@ -431,24 +438,14 @@ export class MockFreeze {
   }
 }
 
-/** Sampled keys of `FreezeCommand::ConvertToSampler` (the last key included). */
-function sampledKeys(first: number, last: number, step: number): number[] {
-  if (last < first || step < 1) return [];
-  const keys: number[] = [];
-  for (let k = first; k <= last; k += step) keys.push(k);
-  if (keys.at(-1) !== last) keys.push(last);
-  return keys;
+/** Sorted, duplicates dropped. */
+function sortedSet(values: number[]): number[] {
+  return [...new Set(values)].sort((a, b) => a - b);
 }
 
-/** Velocity bands `(lo, hi, rendered velocity)` of `steps` layers over 1..=127. */
-function velocityBands(steps: number): [number, number, number][] {
-  if (!(steps >= 1 && steps <= 16)) return [];
-  if (steps === 1) return [[1, 127, 127]];
-  return Array.from({ length: steps }, (_, i) => {
-    const lo = Math.floor((i * 127) / steps) + 1;
-    const hi = Math.floor(((i + 1) * 127) / steps);
-    return [lo, hi, Math.max(1, Math.floor((lo + hi) / 2))] as [number, number, number];
-  });
+/** The ranges of `min..=127` nearest to each of `values` (sorted, distinct; a tie goes to the lower one). */
+function nearestRanges(values: number[], min: number): [number, number][] {
+  return values.map((v, i) => [i === 0 ? min : Math.floor((values[i - 1]! + v) / 2) + 1, i + 1 === values.length ? 127 : Math.floor((v + values[i + 1]!) / 2)]);
 }
 
 function noteName(key: number): string {

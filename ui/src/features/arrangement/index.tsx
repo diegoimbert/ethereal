@@ -2,4 +2,5 @@
 
 /** Arrangement view: tracks, clips (move/resize/split/loop), canvas waveforms. */
 export { ArrangementView } from "./ArrangementView";
+export { ClipColorPicker } from "./ClipColorPicker";
 export { useKeepTrackHeights } from "./keptHeights";

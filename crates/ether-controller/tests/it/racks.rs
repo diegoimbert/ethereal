@@ -882,3 +882,75 @@ fn a_device_paste_is_all_or_nothing_and_racks_paste_across_tracks() {
     undo(&mut h);
     assert!(!h.project().devices.contains_key(&copy));
 }
+
+fn ids(v: Vec<&Device>) -> Vec<DeviceId> {
+    v.iter().map(|d| d.id).collect()
+}
+
+/// Ungroup (⌘⇧G) flattens every level of a rack into its place, sorted into the chain's
+/// sections; what played muted or switched off comes out off; one undo step.
+#[test]
+fn ungroup_flattens_every_level_into_the_racks_place() {
+    let mut h = Harness::with_project();
+    let t = track(&mut h, TrackKind::Midi);
+    let first = insert(&mut h, t, BuiltinDeviceType::Utility);
+    let rack = insert(&mut h, t, BuiltinDeviceType::InstrumentRack);
+    let last = insert(&mut h, t, BuiltinDeviceType::Compressor);
+    let a = add_chain(&mut h, rack);
+    let synth = chain_insert(&mut h, a, BuiltinDeviceType::Synth);
+    let eq = chain_insert(&mut h, a, BuiltinDeviceType::Eq);
+    let fx = chain_insert(&mut h, a, BuiltinDeviceType::AudioEffectRack);
+    let b = add_chain(&mut h, rack);
+    // A MIDI effect on the second chain: it goes before the instrument.
+    let arp = chain_insert(&mut h, b, BuiltinDeviceType::Arpeggiator);
+    let inner = add_chain(&mut h, fx);
+    let delay = chain_insert(&mut h, inner, BuiltinDeviceType::Delay);
+    let muted = add_chain(&mut h, fx);
+    let reverb = chain_insert(&mut h, muted, BuiltinDeviceType::Reverb);
+    rack_cmd(
+        &mut h,
+        RackCommand::SetChainMix {
+            id: muted,
+            volume: None,
+            pan: None,
+            mute: Some(true),
+            solo: None,
+        },
+    );
+    let before = h.project().clone();
+    rack_cmd(&mut h, RackCommand::Ungroup { rack });
+    let p = h.project();
+    assert_eq!(
+        ids(p.devices_of(t)),
+        vec![first, arp, synth, eq, delay, reverb, last]
+    );
+    assert!(!p.devices.contains_key(&rack) && !p.devices.contains_key(&fx));
+    assert!(p.rack_chains.is_empty());
+    assert!(!p.devices[&reverb].enabled, "it was on a muted chain");
+    assert!(p.devices[&delay].enabled);
+    undo(&mut h);
+    assert_eq!(h.project(), &before);
+}
+
+#[test]
+fn ungroup_inside_a_rack_chain_and_refusals() {
+    let mut h = Harness::with_project();
+    let t = track(&mut h, TrackKind::Midi);
+    let outer = insert(&mut h, t, BuiltinDeviceType::InstrumentRack);
+    let c = add_chain(&mut h, outer);
+    let synth = chain_insert(&mut h, c, BuiltinDeviceType::Synth);
+    let fx = chain_insert(&mut h, c, BuiltinDeviceType::AudioEffectRack);
+    let inner = add_chain(&mut h, fx);
+    let eq = chain_insert(&mut h, inner, BuiltinDeviceType::Eq);
+    let delay = chain_insert(&mut h, inner, BuiltinDeviceType::Delay);
+    rack_cmd(&mut h, RackCommand::Ungroup { rack: fx });
+    assert_eq!(ids(h.project().chain_devices_of(c)), vec![synth, eq, delay]);
+    // Two chains with an instrument each: one chain can't hold both.
+    let d = add_chain(&mut h, outer);
+    chain_insert(&mut h, d, BuiltinDeviceType::Synth);
+    let out = h.send(Command::Rack(RackCommand::Ungroup { rack: outer }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    // Not a rack.
+    let out = h.send(Command::Rack(RackCommand::Ungroup { rack: synth }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+}

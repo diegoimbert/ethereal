@@ -26,11 +26,12 @@ import polySynth from "./polySynth.json";
 import racks from "./racks.json";
 import maximizer from "./maximizer.json";
 import adaptiveEq from "./adaptiveEq.json";
+import graphicEq from "./graphicEq.json";
 import pitchCorrection from "./pitchCorrection.json";
 import shaper from "./shaper.json";
 import shifter from "./shifter.json";
 
-/** The v0.2 built-in types (after `DrumRack` in `BuiltinDeviceType::ALL`), the later fx-modulation `Vibrato` and fx-color `Erosion` and `Pedal`, `GrainDelay`, `Shifter`, fx-analysis `Loudness`, `Maximizer`, `Shaper`, `PitchCorrection` and `AdaptiveEq`. */
+/** The v0.2 built-in types (after `DrumRack` in `BuiltinDeviceType::ALL`), the later fx-modulation `Vibrato` and fx-color `Erosion` and `Pedal`, `GrainDelay`, `Shifter`, fx-analysis `Loudness`, `Maximizer`, `Shaper`, `PitchCorrection`, `AdaptiveEq` and `GraphicEq` (the default EQ). */
 export type V02DeviceType =
   | "PolySynth"
   | "MultiSampler"
@@ -57,6 +58,7 @@ export type V02DeviceType =
   | "Shaper"
   | "PitchCorrection"
   | "AdaptiveEq"
+  | "GraphicEq"
   | "Arpeggiator"
   | "Chord"
   | "ScaleQuantize"
@@ -86,6 +88,7 @@ const groups = [
   shaper,
   pitchCorrection,
   adaptiveEq,
+  graphicEq,
 ];
 const typed = groups as unknown as Record<V02DeviceType, DeviceDescriptor>[];
 

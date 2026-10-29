@@ -84,7 +84,7 @@ use crate::contract::{
 mod gate_device;
 mod multiband_device;
 mod shaper_device;
-mod shared;
+pub(crate) mod shared;
 
 pub use gate_device::Gate;
 pub use multiband_device::MultibandCompressor;

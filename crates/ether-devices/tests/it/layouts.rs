@@ -78,11 +78,25 @@ fn bound(w: &Widget) -> Vec<ParamId> {
             rate,
             phase,
             depth,
-        } => vec![*sync, *sync_rate, *rate, *phase, *depth],
+            bands,
+        } => [*sync, *sync_rate, *rate, *phase, *depth]
+            .into_iter()
+            .chain(bands.iter().flat_map(|b| {
+                std::iter::once(b.count)
+                    .chain(b.crossovers.iter().copied())
+                    .chain(b.depths.iter().copied())
+                    .chain(b.speeds.iter().flatten().copied())
+            }))
+            .collect(),
         W::Loudness { target } => vec![*target],
         W::Maximizer { threshold, ceiling } => vec![*threshold, *ceiling],
         W::PitchCorrection { key, scale } => vec![*key, *scale],
         W::AdaptiveEq { recover, tame } => vec![*recover, *tame],
+        W::GraphicEq { bands, output, .. } => bands
+            .iter()
+            .flat_map(|b| [b.used, b.on, b.kind, b.freq, b.gain, b.q, b.slope])
+            .chain([*output])
+            .collect(),
         W::ShaperCurve {
             on, rate, depth, ..
         } => vec![*on, *rate, *depth],

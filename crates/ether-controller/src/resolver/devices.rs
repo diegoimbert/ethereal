@@ -36,9 +36,10 @@ const KEYWORDS: &[(&[&str], T, &str)] = &[
             "ducker",
             "sidechain",
             "trancegate",
+            "volumeshaper",
         ],
         T::VolumeLfo,
-        "volume lfo",
+        "volume shaper",
     ),
     (&["filter", "wah"], T::AutoFilter, "filter"),
     (&["pedal", "overdrive", "fuzz"], T::Pedal, "pedal"),
@@ -80,7 +81,13 @@ const KEYWORDS: &[(&[&str], T, &str)] = &[
         T::PitchCorrection,
         "pitch correction",
     ),
-    (&["eq", "equalizer"], T::Eq, "EQ"),
+    // The graphic EQ first (the default EQ), the parametric one as the second choice.
+    (&["eq", "equalizer", "equaliser"], T::GraphicEq, "EQ"),
+    (
+        &["eq", "equalizer", "equaliser", "parametric"],
+        T::Eq,
+        "parametric EQ",
+    ),
     (&["utility", "gain", "width"], T::Utility, "utility"),
     (&["transient"], T::TransientShaper, "transient shaper"),
     (&["shaper", "volumeshaper"], T::Shaper, "shaper"),
@@ -235,6 +242,14 @@ mod tests {
             MissingRole::Instrument,
         );
         assert_eq!(first(&op), T::PolySynth);
+        // An EQ: the graphic EQ, then the parametric one.
+        let eq = missing("Live's EQ Eight", "ableton:Eq8", MissingRole::AudioEffect);
+        let c = candidates(&eq);
+        assert_eq!(first(&eq), T::GraphicEq);
+        assert!(matches!(
+            c[1].replacement,
+            Replacement::Builtin { device: T::Eq }
+        ));
         // Nothing known: the role's generic choice, low confidence.
         let odd = missing("Bitwig Polymer", "Bitwig Polymer", MissingRole::Instrument);
         assert_eq!(first(&odd), T::PolySynth);
