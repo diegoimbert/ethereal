@@ -563,7 +563,90 @@ pub fn rack_command(ctx: &mut DocCtx, command: &RackCommand) -> CmdResult<()> {
             chain: chain_id,
             devices,
         } => group(ctx, *rack_id, *rack_type, *chain_id, devices),
+        RackCommand::Ungroup { rack } => ungroup(ctx, *rack),
     }
+}
+
+/// `Rack::Ungroup`: flatten rack `rack_id` into the chain that holds it. Every device of its
+/// chains (nested chain racks flattened too; drum racks stay whole) takes the rack's place,
+/// chain after chain, sorted into the chain's sections (MIDI effects, the instrument, audio
+/// effects). What only the racks held goes with them: macros and their mappings, chain
+/// volume, pan and zones. A device under a switched-off rack or a muted chain comes out
+/// switched off, so the sound doesn't change for it. Several instruments (an instrument
+/// rack with parallel instruments) can't be flattened into one chain.
+fn ungroup(ctx: &mut DocCtx, rack_id: DeviceId) -> CmdResult<()> {
+    let r = rack(ctx, rack_id)?;
+    // The leaves in signal order, with whether they still play.
+    fn leaves(p: &Project, rack: DeviceId, on: bool, out: &mut Vec<(DeviceId, bool)>) {
+        for c in p.chains_of(rack) {
+            for d in p.chain_devices_of(c.id) {
+                let on = on && !c.mute && d.enabled;
+                if is_chain_rack(d) {
+                    leaves(p, d.id, on, out);
+                } else {
+                    out.push((d.id, on));
+                }
+            }
+        }
+    }
+    let mut out = Vec::new();
+    leaves(ctx.p(), r.id, r.enabled, &mut out);
+    let section = |ctx: &mut DocCtx, id: DeviceId| {
+        let d = ctx.p().devices[&id].clone();
+        match ctx.host.descriptor(d.id, &d.kind).map(|x| x.category) {
+            Some(DeviceCategory::NoteEffect) => 0,
+            Some(DeviceCategory::Instrument) => 1,
+            _ => 2,
+        }
+    };
+    let mut keyed: Vec<(u8, DeviceId, bool)> = Vec::with_capacity(out.len());
+    for (id, on) in out {
+        keyed.push((section(ctx, id), id, on));
+    }
+    // Stable: each section keeps the chains' order.
+    keyed.sort_by_key(|k| k.0);
+    let host: Vec<DeviceId> = match r.chain {
+        None => ctx.p().devices_of(r.track),
+        Some(c) => ctx.p().chain_devices_of(c),
+    }
+    .iter()
+    .map(|d| d.id)
+    .filter(|&id| id != r.id)
+    .collect();
+    let mut instruments = keyed.iter().filter(|k| k.0 == 1).count();
+    for id in host {
+        instruments += usize::from(section(ctx, id) == 1);
+    }
+    if instruments > 1 && keyed.iter().any(|k| k.0 == 1) {
+        return Err(invalid(
+            "a rack with several instruments can't be flattened into one chain",
+        ));
+    }
+    for (_, id, on) in keyed {
+        let d = ctx.device(id)?;
+        if !ctx.p().modulators_of(id).is_empty() && r.chain.is_some() {
+            return Err(invalid(
+                "devices with modulators stay on the track chain (put the modulators on the rack)",
+            ));
+        }
+        match r.chain {
+            None => {
+                let order = order_before(&track_siblings(ctx.p(), r.track, id), Some(r.id))?;
+                drop_out_of_scope_mappings(ctx, id, None)?;
+                ctx.set_device(id, DeviceChange::Chain(None))?;
+                ctx.set_device(id, DeviceChange::Order(order))?;
+            }
+            Some(c) => {
+                let order = order_before(&chain_device_siblings(ctx.p(), c, Some(id)), Some(r.id))?;
+                onto_chain(ctx, &d, c, order)?;
+            }
+        }
+        if d.enabled && !on {
+            ctx.set_device(id, DeviceChange::Enabled(false))?;
+        }
+    }
+    ctx.delete_device(r.id)?;
+    crate::midi_fx::check_chain_order(ctx.p(), r.track)
 }
 
 /// Rack presets (CONTRACTS.md §13.9): append a device of `kind` to the end

@@ -1101,6 +1101,14 @@ with the lead's envelopes and filter state; `Glide` slides between the two pitch
 note-off of the latest held key moves back to the one held before it (last-note priority,
 16 held keys). Off, nothing changes.
 
+`Rack::Ungroup { rack }` (⌘⇧G, keymap `device.ungroup`): flattens a chain rack into the chain
+holding it (track chain or rack chain). The leaves of its chains (nested chain racks walked,
+drum racks kept whole) take its place in chain order, stably sorted into sections (MIDI
+effects, instrument, audio effects); a leaf under a switched-off rack, a muted chain or a
+switched-off nested rack comes out `enabled: false`. The rack is then deleted with its
+macros, mappings and chains. `InvalidArgument` when the chain would hold more than one
+instrument, or for a device that isn't a chain rack. One undo step.
+
 Voice mode and global pitch on every native synth: the `Synth` appends `Mode` (14), the
 `FmSynth` appends `Mode` (76), both `Poly | Mono | Legato` (default `Poly`, group `Voice`),
 as the `PolySynth`'s existing `Mode` (22). `Mono`: one voice, every note retriggers the

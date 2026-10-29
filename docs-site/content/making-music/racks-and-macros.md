@@ -28,6 +28,8 @@ Two ways:
 - Add **instrument rack**, **audio effect rack** or **MIDI effect rack** from the device library, like any device.
 - Right-click the header of a device on a track and choose **group into instrument rack** (or **audio effect rack**, **MIDI effect rack**, depending on the device). The device moves into a new rack, on its first chain. This isn't offered for drum racks, or for devices that are already inside a rack or a drum pad.
 
+To take a rack apart, right-click its header and choose **ungroup rack (flatten)**, or select it and press [[key:Mod+Shift+G]]. A device of a rack chain selected works too: its rack is ungrouped. Every device of every chain takes the rack's place, racks nested inside it included, sorted into the chain's sections (MIDI effects, the instrument, audio effects). The rack's macros, chain volumes, pans and zones go with it. A device that was silent there (on a muted chain or inside a rack that was off) comes out off. A rack with an instrument on several chains can't be flattened: one chain holds one instrument. One undo puts the rack back.
+
 A rack has no window: its chains and macros are on its card.
 
 ## chains

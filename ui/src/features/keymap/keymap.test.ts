@@ -110,6 +110,7 @@ describe("registry and presets", () => {
       "track.group": ["Mod+G"],
       "track.ungroup": ["Mod+Shift+G"],
       "device.group": ["Mod+G"],
+      "device.ungroup": ["Mod+Shift+G"],
       "take.previous": ["ArrowUp"],
       "take.next": ["ArrowDown"],
       "time.cut": ["Mod+Shift+X"],

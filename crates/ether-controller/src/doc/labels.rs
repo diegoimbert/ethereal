@@ -510,6 +510,7 @@ pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
             R::InsertDevice { device, .. } => ka("undo.device.add", "device", spec_arg(device)),
             R::MoveDevice { id, .. } => ka("undo.device.move", "device", device_arg(project, *id)),
             R::Group { devices, .. } => kn("undo.rack.group", devices.len()),
+            R::Ungroup { rack } => ka("undo.rack.ungroup", "device", device_arg(project, *rack)),
         },
         Command::Modulation(c) => match c {
             Mo::AddModulator { kind, .. } => {

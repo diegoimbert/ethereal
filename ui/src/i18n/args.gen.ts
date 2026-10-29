@@ -233,6 +233,7 @@ export interface MessageArgs {
   "devices.samples.preview": { name: string | number };
   "devices.samples.replace": { name: string | number };
   "devices.samples.stop_preview": { name: string | number };
+  "devices.ungroup.failed": { error: string | number };
   "devices.widget.crossover": { freqs: string | number };
   "devices.widget.delay": { feedback: string | number; frozen: string; ping: string; time: string | number };
   "devices.widget.dynamics": { has_ratio: string; mode: string; ratio: string | number; threshold: string | number };
@@ -802,6 +803,7 @@ export interface MessageArgs {
   "undo.plugin.set_device_params": { count: number; device: string | number };
   "undo.plugin.set_params": { count: number };
   "undo.rack.group": { count: number };
+  "undo.rack.ungroup": { device: string | number };
   "undo.slice.add": { count: number };
   "undo.slice.delete": { count: number };
   "undo.take.move": { count: number };

@@ -97,6 +97,12 @@ pub enum RackCommand {
         chain: RackChainId,
         devices: Vec<DeviceId>,
     },
+    /// Flatten chain rack `rack` into the chain holding it (Ableton "Ungroup", all levels):
+    /// the devices of its chains (nested chain racks flattened too, drum racks kept) take its
+    /// place, sorted into the chain's sections. Its macros, chain mix and zones go with it;
+    /// devices under a switched-off rack or a muted chain come out switched off. Refused when
+    /// that would put several instruments on one chain.
+    Ungroup { rack: DeviceId },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
