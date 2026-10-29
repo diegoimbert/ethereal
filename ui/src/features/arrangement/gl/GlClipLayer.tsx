@@ -283,7 +283,7 @@ export function GlClipLayer({ ctx, scrollRef, backend }: GlClipLayerProps) {
     };
     const onDoubleClick = (e: MouseEvent) => {
       // A second press held and dragged elsewhere (onto a clip) isn't a double-click there.
-      if (!lastPress || Math.hypot(e.clientX - lastPress.x, e.clientY - lastPress.y) > DOUBLE_CLICK_SLOP_PX) return;
+      if (lastPress && Math.hypot(e.clientX - lastPress.x, e.clientY - lastPress.y) > DOUBLE_CLICK_SLOP_PX) return;
       const hit = hitForDoubleClick(e);
       if (hit?.part === "layer") {
         if (isReadOnly()) return;
