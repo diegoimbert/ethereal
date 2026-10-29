@@ -83,6 +83,7 @@ const NOT_LABELS: Record<string, string[]> = {
   "reference/troubleshooting.md": ["microphone"],
   "sharing/live-sessions.md": ["share"],
   "sharing/overview.md": ["share"],
+  "sharing/share-a-copy.md": ["share"],
   "sharing/static-links.md": ["share"],
   "welcome/what-is-ethereal.md": ["plugins", "recording"],
 };
