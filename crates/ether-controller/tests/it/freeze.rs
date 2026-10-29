@@ -2596,6 +2596,25 @@ fn convert_to_sampler_keeps_the_attack() {
     }
 }
 
+/// A bypassed instrument still converts: it is sampled switched on, not as the silence it
+/// plays while off.
+#[test]
+fn converts_a_bypassed_instrument() {
+    let mut d = Drive::new();
+    let (t, synth) = percussive(&mut d, 1.0, false);
+    one_note(&mut d, t, 60);
+    let n = SR as usize / 10;
+    let live = d.play(n);
+    d.ok(Command::Device(DeviceCommand::SetEnabled {
+        id: synth,
+        enabled: false,
+    }));
+    let sample = sample_key_60(&mut d, synth);
+    for c in 0..2 {
+        assert_eq!(&sample[c][..n], &live[c][..], "the instrument, switched on");
+    }
+}
+
 /// An instrument nested in an instrument rack converts in its rack chain. Its sample is the
 /// instrument alone: not the rack's other chain, not its chain's volume (still applied after
 /// the sampler), but with the rack macro that moves one of its params baked in.

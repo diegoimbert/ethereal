@@ -221,15 +221,22 @@ pub fn live_tail(p: &Project, track: TrackId, up_to: DeviceId) -> BTreeSet<Devic
 
 /// Leave `device` (with what is nested in it) as the only device of `track`, on its chain:
 /// out of its racks, the track's other devices (and their chains, pads, modulators and
-/// mappings) dropped, and `params` (plain values, the racks' macro offsets baked in) set. A
-/// sample is then the instrument alone: the MIDI effects before it stay in front of the
-/// sampler that replaces it, and its rack's other chains don't play.
+/// mappings) dropped, `device` switched on and `params` (plain values, the racks' macro
+/// offsets baked in) set. A sample is then the instrument alone: the MIDI effects before it
+/// stay in front of the sampler that replaces it, and its rack's other chains don't play.
 fn isolate_device(
     p: &mut Project,
     track: TrackId,
     device: DeviceId,
     params: &[(DeviceId, ParamId, f64)],
 ) {
+    // Sampled even when bypassed in the project (or switched off by its automation): an
+    // off device renders silence.
+    if let Some(d) = p.devices.get_mut(&device) {
+        d.enabled = true;
+    }
+    p.automation_lanes
+        .retain(|_, l| l.target != AutomationTarget::DeviceEnabled { device });
     let keep: BTreeSet<DeviceId> = p
         .devices
         .values()
