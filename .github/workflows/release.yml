@@ -425,7 +425,7 @@ jobs:
           cd pages
           out="$(npx --yes "wrangler@$WRANGLER_VERSION" pages deploy site \
             --project-name "$PAGES_PROJECT" --branch main \
-            --commit-hash "$SHA" --commit-message "v$VERSION" 2>&1)"
+            --commit-hash "$SHA" --commit-message "v$VERSION" 2>&1)" || { echo "$out"; exit 1; }
           echo "$out"
           url="$(echo "$out" | grep -Eo 'https://[a-zA-Z0-9.-]+\.pages\.dev' | tail -1)"
           echo "url=${url:-https://$PAGES_PROJECT.pages.dev}" >> "$GITHUB_OUTPUT"

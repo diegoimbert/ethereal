@@ -61,5 +61,8 @@ run("cargo", ["build", "-p", pkg, "--target", "wasm32-unknown-unknown", "--profi
 const targetDir = JSON.parse(execFileSync("cargo", ["metadata", "--format-version", "1", "--no-deps"], { cwd: workspace, encoding: "utf8" })).target_directory;
 const dir = profile === "dev" ? "debug" : "release";
 const wasm = join(targetDir, "wasm32-unknown-unknown", dir, `${pkg.replaceAll("-", "_")}.wasm`);
-run("wasm-bindgen", ["--target", "web", "--out-dir", outDir, "--out-name", "ether_wasm", wasm]);
+// A release drops the function-name section (~6 MB of the full engine): Cloudflare Pages
+// refuses any file over 25 MiB. Panics then show offsets instead of Rust names; a dev build keeps them.
+const strip = profile === "release" ? ["--remove-name-section"] : [];
+run("wasm-bindgen", ["--target", "web", ...strip, "--out-dir", outDir, "--out-name", "ether_wasm", wasm]);
 console.log(`ether-wasm: built ${pkg} (${profile}) → ${outDir}`);
