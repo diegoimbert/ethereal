@@ -25,6 +25,12 @@ velocities: Array<number>,
  */
 pre_roll_seconds: Seconds, 
 /**
+ * With a pre-roll: also play the note very briefly
+ * ([`CONVERT_WARM_UP_NOTE_SECONDS`]) at the render's start, in the pre-roll the
+ * sampler skips (some plugins only finish loading a sound once it has played).
+ */
+warm_up_note: boolean, 
+/**
  * How long each note is held before note-off.
  */
 note_seconds: Seconds, 

@@ -135,6 +135,26 @@ describe("convert to sampler dialog", () => {
     ]);
   });
 
+  it("the warm-up note: explained, sent when on, unavailable without an offset", async () => {
+    setup();
+    // Both niche options say what they do.
+    expect(screen.getByRole("button", { name: /lead-in; lower it/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /only finish loading a sound once it has played/ })).toBeTruthy();
+    const toggle = screen.getByRole("switch", { name: "play warm-up note" });
+    fireEvent.click(toggle);
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    // Offset 0: off and disabled.
+    const offset = screen.getByRole("spinbutton", { name: "offset" });
+    fireEvent.change(offset, { target: { value: "0" } });
+    fireEvent.keyDown(offset, { key: "Enter" });
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    expect(toggle).toHaveProperty("disabled", true);
+    fireEvent.click(screen.getByRole("button", { name: "convert" }));
+    await flush();
+    const c = sent.find((c) => c.domain === "Freeze");
+    expect(c?.domain === "Freeze" && c.command.type === "ConvertToSampler" && [c.command.pre_roll_seconds, c.command.warm_up_note]).toEqual([0, false]);
+  });
+
   it("can't convert with no key", () => {
     setup();
     fireEvent.pointerDown(key("c1"), { button: 0 });

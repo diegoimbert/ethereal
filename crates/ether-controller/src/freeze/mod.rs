@@ -387,6 +387,7 @@ where
                 keys,
                 velocities,
                 pre_roll_seconds,
+                warm_up_note,
                 note_seconds,
                 tail_seconds,
             } => {
@@ -449,6 +450,12 @@ where
                 let note_start = tempo.seconds_to_beats(*pre_roll_seconds);
                 let note_end = tempo.seconds_to_beats(Seconds(pre_roll_seconds.0 + note_seconds.0));
                 let duration = Beats(note_end.0 - note_start.0);
+                // The warm-up note at 0, ending well before the note (a pre-roll only).
+                let warm_up = (*warm_up_note && pre_roll_seconds.0 > 0.0).then(|| {
+                    let secs = ether_core::protocol::freeze::CONVERT_WARM_UP_NOTE_SECONDS
+                        .min(pre_roll_seconds.0 / 2.0);
+                    tempo.seconds_to_beats(Seconds(secs))
+                });
                 let frames = RenderJob::frames_of(p, Beats::ZERO, note_end, rate);
                 // The sampler's `Offset`: exactly the note's frame.
                 let note_frame = RenderJob::frames_of(p, Beats::ZERO, note_start, rate);
@@ -479,6 +486,7 @@ where
                                 duration,
                                 note_frame,
                                 wait_ms: (pre_roll_seconds.0 * 1000.0).round() as u64,
+                                warm_up,
                                 clip,
                                 note,
                             }),

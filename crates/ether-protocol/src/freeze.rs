@@ -149,6 +149,10 @@ pub enum FreezeCommand {
         /// holds before the note until this much real time has passed since they were
         /// loaded (each pass loads fresh instances). 0..=2 s.
         pre_roll_seconds: Seconds,
+        /// With a pre-roll: also play the note very briefly
+        /// ([`CONVERT_WARM_UP_NOTE_SECONDS`]) at the render's start, in the pre-roll the
+        /// sampler skips (some plugins only finish loading a sound once it has played).
+        warm_up_note: bool,
         /// How long each note is held before note-off.
         note_seconds: Seconds,
         /// Longest release tail kept after note-off (silence beyond is trimmed).
@@ -173,6 +177,9 @@ pub enum FreezeCommand {
         seed_media: MediaId,
     },
 }
+
+/// Length of `ConvertToSampler`'s warm-up note (seconds).
+pub const CONVERT_WARM_UP_NOTE_SECONDS: f64 = 0.005;
 
 /// Where a bounce goes.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

@@ -200,6 +200,7 @@ describe("MockTransport ConvertToSampler", () => {
         keys: [64, 60, 62],
         velocities: [64, 127],
         pre_roll_seconds: 0.2,
+        warm_up_note: false,
         note_seconds: 1,
         tail_seconds: 1,
       }),
@@ -251,6 +252,7 @@ describe("MockTransport ConvertToSampler", () => {
       keys: [60],
       velocities: [127],
       pre_roll_seconds: 0,
+      warm_up_note: false,
       note_seconds: 1,
       tail_seconds: 1,
     });

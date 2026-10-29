@@ -50,6 +50,9 @@ pub struct SampleNote {
     /// set, and an offline render reaches the note far sooner than real time would).
     pub note_frame: usize,
     pub wait_ms: u64,
+    /// A warm-up note's length: the same key and velocity, played at the render's start (in
+    /// the pre-roll), before the note.
+    pub warm_up: Option<Beats>,
     pub clip: ClipId,
     pub note: NoteId,
 }
@@ -696,6 +699,22 @@ impl RenderJob {
                 muted: false,
             },
         );
+        if let Some(len) = sample.warm_up {
+            let id: NoteId = ether_model::derive_id(sample.clip, 2);
+            p.notes.insert(
+                id,
+                Note {
+                    id,
+                    clip: sample.clip,
+                    pitch: sample.key,
+                    velocity: sample.velocity,
+                    release_velocity: 0.0,
+                    start: Beats::ZERO,
+                    duration: len,
+                    muted: false,
+                },
+            );
+        }
     }
 
     fn new_setup(&mut self) -> Result<Stage, String> {

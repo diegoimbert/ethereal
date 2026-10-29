@@ -47,6 +47,8 @@ export interface ConvertOptions {
   velocities: number[];
   /** Silence before each note (the sampler's `Offset` skips it). */
   preRollSeconds: number;
+  /** With a pre-roll: play the note very briefly at the start first (warms some plugins up). */
+  warmUpNote: boolean;
   noteSeconds: number;
   tailSeconds: number;
 }
@@ -121,6 +123,7 @@ export function convertToSampler(transport: EngineTransport, device: Device, o: 
       keys: sortedSet(o.keys),
       velocities: sortedSet(o.velocities),
       pre_roll_seconds: o.preRollSeconds,
+      warm_up_note: o.warmUpNote,
       note_seconds: o.noteSeconds,
       tail_seconds: o.tailSeconds,
     }),

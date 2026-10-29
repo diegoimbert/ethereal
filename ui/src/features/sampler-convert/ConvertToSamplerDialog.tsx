@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { AudioLines, Plus, X } from "lucide-react";
+import { AudioLines, Info, Plus, X } from "lucide-react";
 import type { Device } from "@/generated";
-import { Button, Dialog, IconButton, NumberField, Popover, Select } from "@/kit";
+import { Button, Dialog, IconButton, NumberField, Popover, Select, Toggle, Tooltip } from "@/kit";
 import { useTransport } from "@/transport";
 import { useT } from "@/i18n";
 import { SampleKeyboard } from "./SampleKeyboard";
@@ -44,6 +44,7 @@ function ConvertDialog({ device }: { device: Device }) {
   const [velocities, setVelocities] = useState(() => presetVelocities(DEFAULT_VELOCITIES));
   const [velocityPreset, setVelocityPreset] = useState<PresetValue>(String(DEFAULT_VELOCITIES));
   const [preRollSeconds, setPreRollSeconds] = useState(0.2);
+  const [warmUpNote, setWarmUpNote] = useState(false);
   const [noteSeconds, setNoteSeconds] = useState(4);
   const [tailSeconds, setTailSeconds] = useState(2);
   const count = sampleCount({ keys, velocities });
@@ -52,7 +53,7 @@ function ConvertDialog({ device }: { device: Device }) {
   const confirm = () => {
     if (blocked) return;
     close();
-    void convertToSampler(transport, device, { keys, velocities, preRollSeconds, noteSeconds, tailSeconds });
+    void convertToSampler(transport, device, { keys, velocities, preRollSeconds, warmUpNote: warmUpNote && preRollSeconds > 0, noteSeconds, tailSeconds });
   };
   // A hand edit leaves the preset.
   const editKeys = (next: number[]) => {
@@ -132,8 +133,11 @@ function ConvertDialog({ device }: { device: Device }) {
         </p>
       </section>
       <div className="eth-sampler-convert__grid">
-        <label className="eth-sampler-convert__field" title={t("sampler.convert.pre_roll_hint")}>
-          <span>{t("sampler.convert.pre_roll")}</span>
+        <label className="eth-sampler-convert__field">
+          <span className="eth-sampler-convert__hinted">
+            {t("sampler.convert.pre_roll")}
+            <Hint text={t("sampler.convert.pre_roll_hint")} />
+          </span>
           <NumberField
             aria-label={t("sampler.convert.pre_roll")}
             value={preRollSeconds}
@@ -145,6 +149,18 @@ function ConvertDialog({ device }: { device: Device }) {
             unit={t("sampler.convert.seconds")}
           />
         </label>
+        <div className="eth-sampler-convert__field eth-sampler-convert__warm-up">
+          <span className="eth-sampler-convert__hinted">
+            <Toggle
+              size="sm"
+              checked={warmUpNote && preRollSeconds > 0}
+              onChange={setWarmUpNote}
+              disabled={preRollSeconds <= 0}
+              label={t("sampler.convert.warm_up_note")}
+            />
+            <Hint text={t("sampler.convert.warm_up_note_hint")} />
+          </span>
+        </div>
         <label className="eth-sampler-convert__field">
           <span>{t("sampler.convert.note_length")}</span>
           <NumberField
@@ -185,6 +201,17 @@ function ConvertDialog({ device }: { device: Device }) {
       )}
       <p className="eth-sampler-convert__note">{t("sampler.convert.replaces", { name: device.name })}</p>
     </Dialog>
+  );
+}
+
+/** An info button whose tooltip explains a setting (focusable: the keyboard reads it too). */
+function Hint({ text }: { text: string }) {
+  return (
+    <Tooltip content={<span className="eth-sampler-convert__hint-text">{text}</span>}>
+      <button type="button" className="eth-sampler-convert__hint" aria-label={text}>
+        <Info aria-hidden />
+      </button>
+    </Tooltip>
   );
 }
 

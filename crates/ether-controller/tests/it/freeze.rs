@@ -2310,6 +2310,7 @@ fn converts_an_instrument_rack_to_a_multisampler() {
             keys: vec![60, 62, 64],
             velocities: vec![64, 127],
             pre_roll_seconds: Seconds(0.0),
+            warm_up_note: false,
             note_seconds: Seconds(0.2),
             tail_seconds: Seconds(0.1),
         })),
@@ -2396,6 +2397,7 @@ fn convert_to_sampler_validates_the_target_and_the_count() {
             keys,
             velocities,
             pre_roll_seconds: Seconds(0.0),
+            warm_up_note: false,
             note_seconds: Seconds(0.2),
             tail_seconds: Seconds(0.1),
         })
@@ -2529,6 +2531,16 @@ fn sample_key_60(d: &mut Drive, device: DeviceId) -> Vec<Vec<f32>> {
 
 /// [`sample_key_60`] with `pre_roll` seconds before the note.
 fn sample_key_60_after(d: &mut Drive, device: DeviceId, pre_roll: f64) -> Vec<Vec<f32>> {
+    sample_key_60_with(d, device, pre_roll, false)
+}
+
+/// [`sample_key_60_after`], with a warm-up note when `warm_up_note`.
+fn sample_key_60_with(
+    d: &mut Drive,
+    device: DeviceId,
+    pre_roll: f64,
+    warm_up_note: bool,
+) -> Vec<Vec<f32>> {
     let new_device: DeviceId = d.id();
     let seed: MediaId = d.id();
     let job = format!("sample{}", d.next);
@@ -2540,6 +2552,7 @@ fn sample_key_60_after(d: &mut Drive, device: DeviceId, pre_roll: f64) -> Vec<Ve
         keys: vec![60],
         velocities: vec![127],
         pre_roll_seconds: Seconds(pre_roll),
+        warm_up_note,
         note_seconds: Seconds(0.2),
         tail_seconds: Seconds(0.2),
     }));
@@ -2792,6 +2805,33 @@ fn convert_to_sampler_offset_waits_for_plugins_in_real_time() {
         onset(&sample[0]).is_none(),
         "rendered before the plugin was ready"
     );
+}
+
+/// The warm-up note: with a pre-roll, the key also plays for 5 ms at the render's start (in
+/// the lead-in the sampler's `Offset` skips), and the note still plays on its frame.
+#[test]
+fn convert_to_sampler_plays_a_warm_up_note_in_the_pre_roll() {
+    let mut d = Drive::new();
+    let (t, synth) = percussive(&mut d, 1.0, false);
+    one_note(&mut d, t, 60);
+    let n = SR as usize / 10;
+    let live = d.play(n);
+    let sample = sample_key_60_with(&mut d, synth, 0.2, true);
+    let pre = SR as usize / 5;
+    for c in 0..2 {
+        // The warm-up from the start, then (decayed: 40 ms) silence before the note.
+        assert_eq!(onset(&sample[c]), Some(1), "the warm-up note at the start");
+        assert!(
+            peak(&[sample[c][pre - SR as usize / 50..pre].to_vec()]) < 1e-3,
+            "silent before the note"
+        );
+        let diff = live[c]
+            .iter()
+            .zip(&sample[c][pre..pre + n])
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0f32, f32::max);
+        assert!(diff < 1e-6, "ch{c}: then the note, as live ({diff})");
+    }
 }
 
 /// An instrument with latency (a rack with an oversampled saturator after the synth): the

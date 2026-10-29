@@ -971,7 +971,8 @@ half-open ranges). `arrangement_clips_of` lists main-lane clips only.
   velocities, pre_roll_seconds, note_seconds, tail_seconds }`, additive; each render
   starts `pre_roll_seconds` before its note, skipped by the multisampler's `Offset` param,
   set to the note's exact frame; a pass with plugins holds before its note until that much
-  real time has passed since its fresh instances were loaded): render an instrument (an
+  real time has passed since its fresh instances were loaded; `warm_up_note` also plays the
+  key for `CONVERT_WARM_UP_NOTE_SECONDS` at 0, in the pre-roll): render an instrument (an
   instrument rack, synth, ...) on a track chain or nested in racks there (not in a drum
   pad) once per listed key and velocity and replace it with a `MultiSampler`
   (`new_device`, same place: track chain or rack chain) whose zones play the renders. Each
