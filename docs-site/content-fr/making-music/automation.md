@@ -39,7 +39,7 @@ Il n’y a ni crayon ni dessin à main levée : vous construisez la ligne point
 ## modifier des points {#editing-points}
 
 - **Sélectionner** : cliquez sur un point. [[key:Shift]]-clic ajoute des points à la sélection, [[key:Mod]]-clic en ajoute ou en retire un. [[key:Mod]]-glisser dans un espace vide trace un rectangle de sélection.
-- **Déplacer** : faites glisser les points sélectionnés. Le temps est aimanté à la grille ; maintenez [[key:Alt]] pour un placement précis, et [[key:Mod]] pour limiter le déplacement à une seule direction (temps ou valeur). Une infobulle affiche la valeur et ces touches pendant le glissement.
+- **Déplacer** : faites glisser les points sélectionnés. Le temps avance par pas de grille entiers, donc un point entre deux lignes de la grille garde sa place par rapport à elles, et un glissement surtout vers le haut ou le bas ne le décale jamais dans le temps ; maintenez [[key:Alt]] pour un placement précis, et [[key:Mod]] pour limiter le déplacement à une seule direction (temps ou valeur). Une infobulle affiche la valeur et ces touches pendant le glissement.
 - **Supprimer** : double-cliquez sur un point, ou sélectionnez des points et appuyez sur [[action:edit.delete]].
 - **Tout sélectionner** dans le couloir actif : [[action:edit.selectAll]].
 - **Décaler** avec les flèches : haut et bas changent la valeur (d’un cran, ou de 1 %), gauche et droite déplacent d’un pas de grille. Avec [[key:Shift]], haut et bas sautent à la valeur entière suivante (par exemple 1 dB) et gauche et droite déplacent d’un quart de pas. [[action:automation.preciseUp]] et [[action:automation.preciseDown]] changent la valeur d’un dixième du pas normal.

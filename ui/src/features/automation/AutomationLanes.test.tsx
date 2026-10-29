@@ -213,6 +213,33 @@ describe("TrackAutomationLanes", () => {
     expect(store().history.can_undo).toBe(false);
   });
 
+  it("snapping is relative: an off-grid point dragged mostly up or down keeps its time", async () => {
+    const track = await renderLanes();
+    openTrack();
+    await flush();
+    const [, mid] = lanePoints(volumeLane(track).id);
+    const circle = () => document.querySelector(`circle[data-point="${mid!.id}"]`)!;
+    // Separate drags, never a double press (which would delete the point).
+    let clock = performance.now();
+    vi.spyOn(performance, "now").mockImplementation(() => clock);
+    const later = () => (clock += 10_000);
+    // Off the grid first (⌥ drag to 8.03).
+    await drag(circle(), [80, y(0.9)], [83, y(0.9)], { altKey: true });
+    expect(project().automation_points[mid!.id]!.time).toBeCloseTo(8.03, 6);
+    later();
+    // Down to 0.5 with 3 px of sideways jitter: less than half a grid step, so the time
+    // stays (it used to jump onto the nearest grid line).
+    await drag(circle(), [80.3, y(0.9)], [83.3, y(0.5)]);
+    expect(project().automation_points[mid!.id]!.time).toBeCloseTo(8.03, 6);
+    expect(project().automation_points[mid!.id]!.value).toBeCloseTo(0.5, 6);
+    // A real sideways move goes by whole grid steps, keeping the offset.
+    const step = resolveGrid(DEFAULT_GRID, PX_PER_BEAT, TempoMap.constant().signatureAt(0));
+    const len = step!.kind === "beats" ? step!.beats : step!.bars * 4;
+    later();
+    await drag(circle(), [80.3, y(0.5)], [80.3 + len * PX_PER_BEAT, y(0.5)]);
+    expect(project().automation_points[mid!.id]!.time).toBeCloseTo(8.03 + len, 6);
+  });
+
   it("alt bypasses snapping", async () => {
     const track = await renderLanes();
     openTrack();
