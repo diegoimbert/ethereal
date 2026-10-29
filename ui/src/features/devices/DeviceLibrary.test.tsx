@@ -143,7 +143,7 @@ describe("DeviceLibrary", () => {
     expect(names(list).slice(0, 2)).toEqual(["reverb", "limiter"]);
     pickOption(screen.getByRole("combobox", { name: "sort" }), { value: "Recent" });
     expect(names(list)[0]).toBe("limiter");
-    expect(JSON.parse(localStorage.getItem("eth-device-library")!)).toMatchObject({ sort: "Recent", favourites: ["builtin:Delay"] });
+    expect(JSON.parse(localStorage.getItem("eth-device-library")!)).toMatchObject({ librarySort: "Recent", favourites: ["builtin:Delay"] });
   });
 
   it("picks with a click (stars don't pick)", async () => {

@@ -2318,9 +2318,10 @@
           "Sine",
           "Saw",
           "Square",
-          "Triangle"
+          "Triangle",
+          "Noise"
         ],
-        "max": 3.0,
+        "max": 4.0,
         "min": 0.0,
         "name": "Waveform",
         "scale": {

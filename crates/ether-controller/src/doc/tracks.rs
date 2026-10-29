@@ -58,25 +58,41 @@ pub fn siblings(
         .collect()
 }
 
-/// Ableton layout for `before: None` at the top level: regular tracks go before the first
-/// return/master track, returns before master.
-fn default_before(
+/// Display rank at the top level: regular tracks, then returns, then master, whatever
+/// their order keys (the UI and the engine sort them so).
+fn rank(kind: TrackKind) -> u8 {
+    match kind {
+        TrackKind::Master => 2,
+        TrackKind::Return => 1,
+        _ => 0,
+    }
+}
+
+/// Order key for `before: None` (Ableton layout): at the end of `parent`'s children; at the
+/// top level, right after the last track of the same rank (regular tracks after the last
+/// regular track, returns after the last return). Not "before master" by key: master's key
+/// can sort before the others (an older or imported project), and the new track would then
+/// show first.
+pub(crate) fn order_at_end(
     p: &Project,
     kind: TrackKind,
     parent: Option<TrackId>,
     except: Option<TrackId>,
-) -> Option<TrackId> {
+) -> CmdResult<OrderKey> {
+    let sibs = siblings(p, parent, except);
     if parent.is_some() || kind == TrackKind::Master {
-        return None;
+        return order_before(&sibs, None);
     }
-    p.tracks_ordered()
-        .into_iter()
-        .filter(|t| Some(t.id) != except)
-        .find(|t| {
-            t.kind == TrackKind::Master
-                || (kind != TrackKind::Return && t.kind == TrackKind::Return)
-        })
-        .map(|t| t.id)
+    let rank_of = |id: &TrackId| p.tracks.get(id).map_or(0, |t| rank(t.kind));
+    if let Some(last) = sibs.iter().rev().find(|s| rank_of(&s.1) == rank(kind)) {
+        return order_after(&sibs, last.1);
+    }
+    // None of its rank yet: before the first track that shows after it.
+    let next = sibs
+        .iter()
+        .find(|s| rank_of(&s.1) > rank(kind))
+        .map(|s| s.1);
+    order_before(&sibs, next)
 }
 
 fn validate_parent(
@@ -155,8 +171,10 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &TrackCommand) -> CmdResult<()> {
             }
             validate_parent(ctx, *kind, *parent, None)?;
             validate_return_before(ctx, *kind, *before)?;
-            let before = before.or_else(|| default_before(ctx.p(), *kind, *parent, None));
-            let order = order_before(&siblings(ctx.p(), *parent, None), before)?;
+            let order = match before {
+                Some(b) => order_before(&siblings(ctx.p(), *parent, None), Some(*b))?,
+                None => order_at_end(ctx.p(), *kind, *parent, None)?,
+            };
             let same_kind = ctx.p().tracks.values().filter(|t| t.kind == *kind).count();
             let n_tracks = ctx.p().tracks.len();
             let track = Track {
@@ -223,8 +241,10 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &TrackCommand) -> CmdResult<()> {
                 return Ok(());
             }
             validate_return_before(ctx, t.kind, *before)?;
-            let before = before.or_else(|| default_before(ctx.p(), t.kind, *parent, Some(t.id)));
-            let order = order_before(&siblings(ctx.p(), *parent, Some(t.id)), before)?;
+            let order = match before {
+                Some(b) => order_before(&siblings(ctx.p(), *parent, Some(t.id)), Some(*b))?,
+                None => order_at_end(ctx.p(), t.kind, *parent, Some(t.id))?,
+            };
             if t.parent != *parent {
                 ctx.set_track(t.id, TrackChange::Parent(*parent))?;
             }

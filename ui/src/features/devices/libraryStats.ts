@@ -19,7 +19,10 @@ interface Usage {
 interface Saved {
   favourites: string[];
   usage: Record<string, Usage>;
-  sort: LibrarySort;
+  /** The chosen sort (default "MostUsed"). */
+  librarySort: LibrarySort;
+  /** The sort before "MostUsed" became the default: "Name" was the default then, so only a different one was chosen. */
+  sort?: LibrarySort;
   /** Plugin formats toggled off in the library (every format is shown by default). */
   hiddenFormats: PluginFormat[];
 }
@@ -48,15 +51,18 @@ export function libraryKey(p: Pick<LibraryDevicePayload, "device">): string {
   return p.device.shared ? `${key}:${p.device.name ?? ""}` : key;
 }
 
-const EMPTY: Saved = { favourites: [], usage: {}, sort: "Name", hiddenFormats: [] };
+const SORTS: ReadonlySet<string> = new Set<LibrarySort>(["Name", "MostUsed", "Recent"]);
 
-function load(): Saved {
+const EMPTY: Saved = { favourites: [], usage: {}, librarySort: "MostUsed", hiddenFormats: [] };
+
+/** The saved library state (exported for tests). */
+export function load(): Saved {
   try {
     const v = JSON.parse(localStorage.getItem(KEY) ?? "{}") as Partial<Saved>;
     return {
       favourites: Array.isArray(v.favourites) ? v.favourites.filter((x) => typeof x === "string") : [],
       usage: v.usage && typeof v.usage === "object" ? v.usage : {},
-      sort: v.sort === "MostUsed" || v.sort === "Recent" ? v.sort : "Name",
+      librarySort: v.librarySort && SORTS.has(v.librarySort) ? v.librarySort : v.sort === "Recent" ? "Recent" : "MostUsed",
       hiddenFormats: Array.isArray(v.hiddenFormats) ? v.hiddenFormats.filter((f) => FORMATS.has(f)) : [],
     };
   } catch {
@@ -66,7 +72,7 @@ function load(): Saved {
 
 function save(s: Pick<LibraryStats, "favourites" | "usage" | "sort" | "hiddenFormats">): void {
   try {
-    const saved: Saved = { favourites: [...s.favourites], usage: s.usage, sort: s.sort, hiddenFormats: [...s.hiddenFormats] };
+    const saved: Saved = { favourites: [...s.favourites], usage: s.usage, librarySort: s.sort, hiddenFormats: [...s.hiddenFormats] };
     localStorage.setItem(KEY, JSON.stringify(saved));
   } catch {
     // Storage unavailable: this session only.
@@ -78,7 +84,7 @@ const initial = load();
 export const useLibraryStats = create<LibraryStats>()((set, get) => ({
   favourites: new Set(initial.favourites),
   usage: initial.usage,
-  sort: initial.sort,
+  sort: initial.librarySort,
   hiddenFormats: new Set(initial.hiddenFormats),
   toggleFavourite: (key) => {
     const next = new Set(get().favourites);

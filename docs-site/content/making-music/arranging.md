@@ -47,16 +47,17 @@ Without a time selection, the same keys act on the selected clips (or tracks). [
 
 These act on the time selection. Right-click inside it for the same list as a menu.
 
-| edit | shortcut | what it does |
-|---|---|---|
-| cut time | [[action:edit.cut]] or [[action:time.cut]] | Copies the section, then removes it. Later material moves left. |
-| copy time | [[action:edit.copy]] or [[action:time.copy]] | Copies the section. |
-| paste after selection | [[action:edit.paste]] | Pastes the copied section right after the selection, over what is there. |
-| paste time | [[action:time.paste]] | Inserts the copied section at the start of the selection and pushes what follows to the right. |
-| split at selection | [[action:edit.split]] | Splits the clips at both edges of the selection. |
-| duplicate time | [[action:edit.duplicate]] or [[action:time.duplicate]] | Puts a copy of the section right after it, over what is there. |
-| insert silence | [[action:time.insertSilence]] | Inserts empty time as long as the selection at its start. Everything after it moves right. |
-| delete time | [[action:edit.delete]] or [[action:time.delete]] | Removes the section. Later material moves left. |
+| edit                  | shortcut                                               | what it does                                                                                                                            |
+| --------------------- | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| cut time              | [[action:edit.cut]] or [[action:time.cut]]             | Copies the section, then removes it. Later material moves left.                                                                         |
+| copy time             | [[action:edit.copy]] or [[action:time.copy]]           | Copies the section.                                                                                                                     |
+| paste after selection | [[action:edit.paste]]                                  | Pastes the copied section right after the selection, over what is there.                                                                |
+| paste time            | [[action:time.paste]]                                  | Inserts the copied section at the start of the selection and pushes what follows to the right.                                          |
+| split at selection    | [[action:edit.split]]                                  | Splits the clips at both edges of the selection.                                                                                        |
+| mute selection        | [[action:track.toggleMute]]                            | Mutes the clips in the section. A clip that crosses an edge is split there, so only its part inside is muted. Press it again to unmute. |
+| duplicate time        | [[action:edit.duplicate]] or [[action:time.duplicate]] | Puts a copy of the section right after it, over what is there.                                                                          |
+| insert silence        | [[action:time.insertSilence]]                          | Inserts empty time as long as the selection at its start. Everything after it moves right.                                              |
+| delete time           | [[action:edit.delete]] or [[action:time.delete]]       | Removes the section. Later material moves left.                                                                                         |
 
 The menu also has **paste over selection** and the bounce commands (see [freeze, flatten and bounce](/docs/advanced/freeze-and-bounce)). Each time edit is one undo step.
 

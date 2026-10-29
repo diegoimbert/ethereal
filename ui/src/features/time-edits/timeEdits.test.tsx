@@ -190,6 +190,40 @@ describe("time selection", () => {
     expect(clipsOf("Bass")).toEqual([[16, 16, 0]]);
   });
 
+  it("0 mutes the section: clips crossing an edge are split there, only the part inside is muted", async () => {
+    await selectTime(4, 20);
+    fireEvent.keyDown(view(), { key: "0" });
+    await flush();
+    const muted = (name: string) =>
+      Object.values(project().clips)
+        .filter((c) => c.track === track(name).id)
+        .sort((a, b) => a.start - b.start)
+        .map((c) => [c.start, c.length, c.muted]);
+    expect(muted("Keys")).toEqual([
+      [0, 4, false],
+      [4, 12, true],
+    ]);
+    expect(muted("Bass")).toEqual([
+      [16, 4, true],
+      [20, 12, false],
+    ]);
+    // Again: all muted inside, so they are unmuted (no further split).
+    fireEvent.keyDown(view(), { key: "0" });
+    await flush();
+    expect(muted("Keys")).toEqual([
+      [0, 4, false],
+      [4, 12, false],
+    ]);
+  });
+
+  it("0 without a section mutes the selected clips", async () => {
+    const keys = Object.values(project().clips).find((c) => c.track === track("Keys").id)!;
+    act(() => itemSelection.getState().select("clip", [keys.id], "replace"));
+    fireEvent.keyDown(view(), { key: "0" });
+    await flush();
+    expect(project().clips[keys.id]!.muted).toBe(true);
+  });
+
   it("⇧⌘⌫ deletes the selected time and ⇧⌘I inserts silence (plain ⌘I is left to import)", async () => {
     await selectTime(4, 20);
     // Plain ⌘I is not taken (nor default-prevented), so the import shortcut still sees it.

@@ -83,7 +83,7 @@ Double-cliquez sur le nom d’une piste, tapez, puis appuyez sur [[key:Enter]] o
 
 ## déplacer des pistes {#moving-tracks}
 
-Faites glisser un en-tête vers le haut ou le bas. Une ligne montre où ira la piste : relâchez entre deux rangées pour l’y placer. Relâchez au milieu de l’en-tête d’un groupe pour mettre la piste dans le groupe. Un groupe se déplace avec les pistes qu’il contient. Près du bord haut ou bas de l’arrangement, la vue défile. Appuyez sur [[key:Escape]] pour annuler le glissement. Chaque déplacement compte pour une étape d’annulation.
+Faites glisser un en-tête vers le haut ou le bas. Une ligne montre où ira la piste : relâchez entre deux rangées pour l’y placer. Relâchez au milieu de l’en-tête d’un groupe pour mettre la piste dans le groupe. Juste après la dernière piste d’un groupe, la ligne peut vouloir dire dans le groupe ou hors du groupe (ou l’un de plusieurs groupes imbriqués) : déplacez le pointeur vers la gauche pour sortir la piste, ou vers la droite pour la garder dedans. La ligne commence au retrait de l’endroit où ira la piste. Un groupe se déplace avec les pistes qu’il contient. Près du bord haut ou bas de l’arrangement, la vue défile. Appuyez sur [[key:Escape]] pour annuler le glissement. Chaque déplacement compte pour une étape d’annulation.
 
 Les pistes de retour restent ensemble en bas, au-dessus du master, et vous pouvez les réordonner de la même façon : faites glisser l’en-tête d’un retour entre deux autres retours. Au-dessus des pistes ordinaires, celles-ci passent au rouge et le pointeur indique que le retour ne peut pas aller là. Les envois continuent d’aller vers le même retour, où qu’il aille. Le master ne bouge jamais.
 

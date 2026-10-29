@@ -121,7 +121,8 @@ export const BUILTIN_ACTIONS: ReadonlyArray<KeymapAction> = [
     handled: true,
     keywords: "escape clear dismiss",
   },
-  { id: "edit.split", labelKey: "shell.action.edit_split", group: "Edit", scopes: ["arrangement"], chords: ["Mod+E"], handled: true },
+  // The piano roll splits notes (its section's edges, or at its insert marker).
+  { id: "edit.split", labelKey: "shell.action.edit_split", group: "Edit", scopes: ["arrangement", "pianoRoll"], chords: ["Mod+E"], handled: true },
   // Arrangement
   { id: "clip.toggleLoop", labelKey: "shell.action.clip_toggle_loop", group: "Arrangement", scopes: ["arrangement"], chords: ["Mod+Shift+L"], handled: true },
   {

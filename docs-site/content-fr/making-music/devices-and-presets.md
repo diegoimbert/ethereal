@@ -34,7 +34,7 @@ Chaque section de la chaîne a son propre bouton d’ajout : le **+** à côté
 
 - tapez dans le champ de recherche pour filtrer, puis appuyez sur [[key:Enter]] ou cliquez sur une ligne pour l’ajouter ;
 - les puces **tous**, **usine** et **plug-ins** choisissent entre les appareils intégrés et vos plug-ins (les plug-ins sont réservés à l’application de bureau) ;
-- l’étoile filtre vos favoris, et le menu de tri classe la liste par nom, par les plus utilisés ou par les plus récents ;
+- l’étoile filtre vos favoris, et le menu de tri classe la liste par les plus utilisés (par défaut), par nom ou par les plus récents ;
 - faites glisser une ligne dans la chaîne pour placer l’appareil à un endroit de sa section : avant un appareil, ou à la fin de la section.
 
 Un appareil que vous ajoutez ouvre aussitôt sa fenêtre, pour que vous puissiez commencer à jouer avec. Vous pouvez aussi ajouter un appareil depuis la palette de commandes ([[action:palette.open]]).

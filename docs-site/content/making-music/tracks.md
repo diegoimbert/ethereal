@@ -83,7 +83,7 @@ Double-click a track's name, type, then press [[key:Enter]] or click away. [[key
 
 ## moving tracks
 
-Drag a header up or down. A line shows where the track will go: release between two rows to place it there. Release over the middle of a group's header to put the track inside the group. A group moves together with the tracks inside it. Near the top or bottom edge of the arrangement, the view scrolls. Press [[key:Escape]] to cancel the drag. Each move is one undo step.
+Drag a header up or down. A line shows where the track will go: release between two rows to place it there. Release over the middle of a group's header to put the track inside the group. Right after a group's last track, the line can mean inside or outside the group (or one of several nested groups): move the pointer left to take the track out, or right to keep it in. The line starts at the indent of where the track will go. A group moves together with the tracks inside it. Near the top or bottom edge of the arrangement, the view scrolls. Press [[key:Escape]] to cancel the drag. Each move is one undo step.
 
 Return tracks stay together at the bottom, above the master, and you can reorder them the same way: drag a return's header between two other returns. Over the regular tracks, they turn red and the pointer shows that the return can't go there. Sends keep going to the same return, wherever it moves. The master never moves.
 

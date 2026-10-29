@@ -569,9 +569,10 @@
           "Square",
           "Triangle",
           "Sine",
-          "Wavetable"
+          "Wavetable",
+          "Noise"
         ],
-        "max": 4.0,
+        "max": 5.0,
         "min": 0.0,
         "name": "Type",
         "scale": {
@@ -717,9 +718,10 @@
           "Square",
           "Triangle",
           "Sine",
-          "Wavetable"
+          "Wavetable",
+          "Noise"
         ],
-        "max": 4.0,
+        "max": 5.0,
         "min": 0.0,
         "name": "Type",
         "scale": {

@@ -143,6 +143,9 @@ describe("clip fades", () => {
     hover(drumClip());
     const mid = partAt(drumClip(), "fade-in-curve");
     await act(async () => {
+      // The double-click's second press, where it's released.
+      fireEvent.pointerDown(lanes(), { button: 0, pointerId: 1, clientX: mid.x, clientY: mid.y });
+      fireEvent.pointerUp(window, { pointerId: 1, clientX: mid.x, clientY: mid.y });
       fireEvent.doubleClick(lanes(), { clientX: mid.x, clientY: mid.y });
     });
     await flush();

@@ -6,7 +6,7 @@ import type { EngineTransport } from "@/transport";
 import { actionForKey } from "./actions";
 import { smallClipAt } from "./smallClips";
 import { contrastRatio, DARK_INK, inkOn, LIGHT_INK, luminance } from "./helpers";
-import { edgeScrollSpeed, returnBlockedZone, trackDropTarget } from "./trackDrag";
+import { dropLineLeft, edgeScrollSpeed, returnBlockedZone, trackDropTarget } from "./trackDrag";
 import { BROWSER_DRAG_MIME, readBrowserDrag } from "./browserDrop";
 import { drumRows, noteRects, pitchRange } from "./clipDraw";
 import { contentBeatAt, contentSegments, mediaLengthInBeats, sourceSecondsMapper } from "./clipTime";
@@ -560,20 +560,72 @@ describe("trackDropTarget", () => {
   const H = TRACK_HEIGHT;
 
   it("drops before the row below the nearest gap, in that row's group", () => {
-    expect(trackDropTarget(rs, 2 * H + 5, "m2")).toEqual({ parent: null, before: "m1", y: 2 * H, into: null });
-    expect(trackDropTarget(rs, H + 5, "m2")).toEqual({ parent: "g", before: "g1", y: H, into: null });
+    expect(trackDropTarget(rs, 2 * H + 5, "m2")).toEqual({ parent: null, before: "m1", y: 2 * H, into: null, depth: 0 });
+    expect(trackDropTarget(rs, H + 5, "m2")).toEqual({ parent: "g", before: "g1", y: H, into: null, depth: 1 });
   });
 
   it("drops into a group over the middle of its header, never into itself", () => {
-    expect(trackDropTarget(rs, H / 2, "m1")).toEqual({ parent: "g", before: null, y: 0, into: "g" });
+    expect(trackDropTarget(rs, H / 2, "m1")).toEqual({ parent: "g", before: null, y: 0, into: "g", depth: 1 });
     expect(trackDropTarget(rs, H / 2, "g")?.into).toBeNull();
     // Over its own child: lands after itself (no move), never inside itself.
-    expect(trackDropTarget(rs, H + 5, "g")).toEqual({ parent: null, before: "m1", y: 2 * H, into: null });
+    expect(trackDropTarget(rs, H + 5, "g")).toEqual({ parent: null, before: "m1", y: 2 * H, into: null, depth: 0 });
     expect(trackDropTarget(rs, 5, "g")).toBeNull(); // right where it is
   });
 
   it("drops after the last regular track instead of among returns and master", () => {
-    expect(trackDropTarget(rs, 5 * H, "m1")).toEqual({ parent: null, before: null, y: 4 * H, into: null });
+    expect(trackDropTarget(rs, 5 * H, "m1")).toEqual({ parent: null, before: null, y: 4 * H, into: null, depth: 0 });
+  });
+});
+
+describe("trackDropTarget: in and out of nested groups (pointer x)", () => {
+  // A > [B > [b1]], m, E (empty group), x, M; every row TRACK_HEIGHT tall.
+  const ordered = [
+    track("A", "Group", "a"),
+    track("B", "Group", "a", "A"),
+    track("b1", "Midi", "a", "B"),
+    track("m", "Midi", "b"),
+    track("E", "Group", "c"),
+    track("x", "Midi", "d"),
+    track("M", "Master", "e"),
+  ];
+  const rs = layoutRows(ordered, new Set());
+  const H = TRACK_HEIGHT;
+  // A pointer x over the header column at each nesting level.
+  const at = (depth: number) => 6 + depth * 24 + 1;
+
+  it("picks among the groups a gap closes with the pointer's x", () => {
+    const gap = 3 * H + 2; // after b1, the last child of B (itself the last child of A)
+    expect(trackDropTarget(rs, gap, "x", undefined, at(0))).toEqual({ parent: null, before: "m", y: 3 * H, into: null, depth: 0 });
+    expect(trackDropTarget(rs, gap, "x", undefined, at(1))).toEqual({ parent: "A", before: null, y: 3 * H, into: null, depth: 1 });
+    expect(trackDropTarget(rs, gap, "x", undefined, at(2))).toEqual({ parent: "B", before: null, y: 3 * H, into: null, depth: 2 });
+    // Further right than the deepest level: the deepest.
+    expect(trackDropTarget(rs, gap, "x", undefined, 400)).toMatchObject({ parent: "B", depth: 2 });
+    // Without x: the row below's level (as before).
+    expect(trackDropTarget(rs, gap, "x")).toMatchObject({ parent: null, before: "m", depth: 0 });
+  });
+
+  it("drops into an empty group from the gap under it", () => {
+    expect(trackDropTarget(rs, 5 * H + 2, "m", undefined, at(1))).toEqual({ parent: "E", before: null, y: 5 * H, into: null, depth: 1 });
+    expect(trackDropTarget(rs, 5 * H + 2, "m", undefined, at(0))).toEqual({ parent: null, before: "x", y: 5 * H, into: null, depth: 0 });
+  });
+
+  it("moves a group's last child out by dragging it left, in place", () => {
+    const gap = 2 * H + 3; // b1's own row: the gap it sits in
+    expect(trackDropTarget(rs, gap, "b1", undefined, at(0))).toEqual({ parent: null, before: "m", y: 3 * H, into: null, depth: 0 });
+    expect(trackDropTarget(rs, gap, "b1", undefined, at(1))).toMatchObject({ parent: "A", before: null, depth: 1 });
+    // Its own level: where it is.
+    expect(trackDropTarget(rs, gap, "b1", undefined, at(2))).toBeNull();
+  });
+
+  it("never nests a group in itself, and keeps a VCA top-level", () => {
+    // Dragging A: the gap after its subtree has only the top level.
+    expect(trackDropTarget(rs, 3 * H + 2, "A", undefined, at(2))).toEqual({ parent: null, before: "m", y: 3 * H, into: null, depth: 0 });
+    expect(trackDropTarget(rs, 3 * H + 2, "__v__", "Vca", at(2))).toMatchObject({ parent: null, before: "m", depth: 0 });
+  });
+
+  it("indents the drop line to its level", () => {
+    expect(dropLineLeft(0)).toBe(6);
+    expect(dropLineLeft(2)).toBe(6 + 2 * 12);
   });
 });
 
@@ -591,30 +643,30 @@ describe("trackDropTarget: returns (#791)", () => {
   const H = TRACK_HEIGHT;
 
   it("drops a return between the other returns", () => {
-    expect(trackDropTarget(rs, 3 * H + 3, "rc")).toEqual({ parent: null, before: "rb", y: 3 * H, into: null });
-    expect(trackDropTarget(rs, 2 * H + 3, "rc")).toEqual({ parent: null, before: "ra", y: 2 * H, into: null });
+    expect(trackDropTarget(rs, 3 * H + 3, "rc")).toEqual({ parent: null, before: "rb", y: 3 * H, into: null, depth: 0 });
+    expect(trackDropTarget(rs, 2 * H + 3, "rc")).toEqual({ parent: null, before: "ra", y: 2 * H, into: null, depth: 0 });
     // After the last return: before master.
-    expect(trackDropTarget(rs, 5 * H - 3, "ra")).toEqual({ parent: null, before: null, y: 5 * H, into: null });
+    expect(trackDropTarget(rs, 5 * H - 3, "ra")).toEqual({ parent: null, before: null, y: 5 * H, into: null, depth: 0 });
     // Right above itself: before the next one (no move).
-    expect(trackDropTarget(rs, 2 * H + 3, "ra")).toEqual({ parent: null, before: "rb", y: 3 * H, into: null });
+    expect(trackDropTarget(rs, 2 * H + 3, "ra")).toEqual({ parent: null, before: "rb", y: 3 * H, into: null, depth: 0 });
   });
 
   it("never among the regular tracks (just above the first return still snaps to it)", () => {
     expect(trackDropTarget(rs, H, "rb")).toBeNull();
     expect(trackDropTarget(rs, 5, "rb")).toBeNull();
-    expect(trackDropTarget(rs, 2 * H - 3, "rb")).toEqual({ parent: null, before: "ra", y: 2 * H, into: null });
+    expect(trackDropTarget(rs, 2 * H - 3, "rb")).toEqual({ parent: null, before: "ra", y: 2 * H, into: null, depth: 0 });
     expect(returnBlockedZone(rs)).toEqual({ top: 0, height: 2 * H });
   });
 
   it("a return being added (not a row) drops among the returns too", () => {
-    expect(trackDropTarget(rs, 4 * H + 3, "__new__", "Return")).toEqual({ parent: null, before: "rc", y: 4 * H, into: null });
+    expect(trackDropTarget(rs, 4 * H + 3, "__new__", "Return")).toEqual({ parent: null, before: "rc", y: 4 * H, into: null, depth: 0 });
     expect(trackDropTarget(rs, H, "__new__", "Return")).toBeNull();
     // A regular track being added still goes before the returns.
-    expect(trackDropTarget(rs, 4 * H + 3, "__new__", "Midi")).toEqual({ parent: null, before: null, y: 2 * H, into: null });
+    expect(trackDropTarget(rs, 4 * H + 3, "__new__", "Midi")).toEqual({ parent: null, before: null, y: 2 * H, into: null, depth: 0 });
   });
 
   it("a regular track can't land among the returns", () => {
-    expect(trackDropTarget(rs, 4 * H, "m1")).toEqual({ parent: null, before: null, y: 2 * H, into: null });
+    expect(trackDropTarget(rs, 4 * H, "m1")).toEqual({ parent: null, before: null, y: 2 * H, into: null, depth: 0 });
   });
 });
 

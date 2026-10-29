@@ -93,6 +93,12 @@ const EPS = BEATS_EPSILON;
 const SILENCE_DB = -144;
 const MAX_DB = 6;
 
+/** A mute / solo click (track, drum pad): applied but not an undo step (like the controller's `is_toggle`). */
+export function isToggle(command: Command): boolean {
+  const c = command.command;
+  return (command.domain === "Mixer" && (c.type === "SetMute" || c.type === "SetSolo")) || (command.domain === "DrumRack" && c.type === "SetPadMute");
+}
+
 /** `true` if the command changes the document (and so is undoable / allowed in a Batch). */
 export function isDocumentCommand(command: Command): boolean {
   const c = command.command;
@@ -292,16 +298,19 @@ function copyLane(ctx: ReducerContext, src: AutomationLane, lane: AutomationLane
 
 // ─── Tracks ─────────────────────────────────────────────────────────────────────────────
 
+const rank = (kind: Track["kind"]) => (kind === "Master" ? 2 : kind === "Return" ? 1 : 0);
+
 /**
- * Default placement for `before: null`: at the end of the siblings, except that top-level
- * regular tracks go before the first return/master track and returns go before master
- * (Ableton's layout).
+ * Order key for `before: null` (Ableton's layout, like the engine's `order_at_end`): at the end
+ * of the siblings; at the top level, right after the last track of the same rank (regular
+ * tracks, then returns, then master: the display order whatever the keys).
  */
-function defaultBefore(ctx: ReducerContext, kind: Track["kind"], parent: TrackId | null, except?: TrackId): TrackId | null {
-  if (parent !== null) return null;
-  const sibs = childTracksOf(ctx.tx.project, null, except);
-  const stop = sibs.find((t) => t.kind === "Master" || (kind !== "Return" && t.kind === "Return"));
-  return stop?.id ?? null;
+function endKey(ctx: ReducerContext, kind: Track["kind"], parent: TrackId | null, except?: TrackId): string {
+  const sibs = childTracksOf(ctx.tx.project, parent, except);
+  if (parent !== null || kind === "Master") return keyForInsert(sibs, null);
+  const i = sibs.findLastIndex((t) => rank(t.kind) === rank(kind));
+  if (i >= 0) return keyBetween(sibs[i]!.order, sibs[i + 1]?.order ?? null);
+  return keyForInsert(sibs, sibs.find((t) => rank(t.kind) > rank(kind))?.id ?? null);
 }
 
 function validateParent(ctx: ReducerContext, kind: Track["kind"], parent: TrackId | null, self?: TrackId): void {
@@ -344,7 +353,6 @@ function trackCommand(ctx: ReducerContext, c: TrackCommand): void {
       if (c.kind === "Master") fail("InvalidArgument", "there is exactly one master track");
       validateParent(ctx, c.kind, c.parent);
       validateReturnBefore(ctx, c.kind, c.before);
-      const before = c.before ?? defaultBefore(ctx, c.kind, c.parent);
       const all = tx.all("Track");
       const sameKind = all.filter((t) => t.kind === c.kind).length;
       tx.upsert(
@@ -354,7 +362,7 @@ function trackCommand(ctx: ReducerContext, c: TrackCommand): void {
           kind: c.kind,
           name: c.name?.trim() ? c.name : defaultTrackName(c.kind, sameKind + 1),
           color: c.color ?? MOCK_TRACK_COLORS[all.length % MOCK_TRACK_COLORS.length]!,
-          order: keyForInsert(childTracksOf(ctx.tx.project, c.parent), before),
+          order: c.before !== null ? keyForInsert(childTracksOf(ctx.tx.project, c.parent), c.before) : endKey(ctx, c.kind, c.parent),
           parent: c.parent,
         }),
       );
@@ -388,8 +396,8 @@ function trackCommand(ctx: ReducerContext, c: TrackCommand): void {
       if (t.kind === "Master" && c.parent !== null) fail("InvalidArgument", "master must be top-level");
       if (c.before === t.id) break;
       validateReturnBefore(ctx, t.kind, c.before);
-      const before = c.before ?? (t.kind === "Master" ? null : defaultBefore(ctx, t.kind, c.parent, t.id));
-      tx.upsert("Track", { ...t, parent: c.parent, order: keyForInsert(childTracksOf(ctx.tx.project, c.parent, t.id), before) });
+      const order = c.before !== null ? keyForInsert(childTracksOf(ctx.tx.project, c.parent, t.id), c.before) : endKey(ctx, t.kind, c.parent, t.id);
+      tx.upsert("Track", { ...t, parent: c.parent, order });
       break;
     }
   }

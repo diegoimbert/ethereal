@@ -49,6 +49,8 @@ interface DeviceClipboardState {
   anchor: DeviceId | null;
   /** The copied devices (pasting duplicates them, so they must still exist). */
   copied: DeviceId[];
+  /** The project when they were copied: a paste restores their settings as they were then. */
+  snapshot: Project | null;
   /** They were cut: the next paste moves them (the copies land, the originals go). */
   cut: boolean;
   select(id: DeviceId | null, mode?: DeviceSelectMode): void;
@@ -59,6 +61,7 @@ export const useDeviceClipboard = create<DeviceClipboardState>((set, get) => ({
   selected: [],
   anchor: null,
   copied: [],
+  snapshot: null,
   cut: false,
   select: (id, mode = "replace") => {
     if (id === null) return set({ selected: [], anchor: null });
@@ -70,7 +73,7 @@ export const useDeviceClipboard = create<DeviceClipboardState>((set, get) => ({
     }
     set({ selected: [id], anchor: id });
   },
-  copy: (ids, cut = false) => set({ copied: typeof ids === "string" ? [ids] : [...ids], cut }),
+  copy: (ids, cut = false) => set({ copied: typeof ids === "string" ? [ids] : [...ids], cut, snapshot: useProjectStore.getState().project }),
 }));
 
 /** The selection mode of a click on a card. */
@@ -152,9 +155,17 @@ const SECTION_ORDER = CHAIN_SECTIONS.map((s) => s.id);
  * copies become the selection.
  */
 export async function pasteDevice(transport: EngineTransport, to: DeviceId | PasteChain, categoryOf: (d: Device) => DeviceCategory): Promise<void> {
-  const { copied, cut } = useDeviceClipboard.getState();
+  const { copied, cut, snapshot } = useDeviceClipboard.getState();
   // Moved: the next paste copies what landed.
-  await placeDevices(transport, copied, to, categoryOf, cut, (ids) => cut && useDeviceClipboard.setState({ copied: ids, cut: false }));
+  await placeDevices(
+    transport,
+    copied,
+    to,
+    categoryOf,
+    cut,
+    (ids) => cut && useDeviceClipboard.setState({ copied: ids, cut: false, snapshot: useProjectStore.getState().project }),
+    snapshot,
+  );
 }
 
 /**
@@ -162,7 +173,8 @@ export async function pasteDevice(transport: EngineTransport, to: DeviceId | Pas
  * `to`, each in its own section (one undo step): the paste, and devices dropped on a track in
  * the arranger. Says why when it can't; a placed instrument where the chain has one replaces
  * it, once confirmed (it resolves once asked). `onPlaced` gets the new devices' ids, which
- * become the selection.
+ * become the selection. With `snapshot` (the project at the copy), each copy gets the
+ * source's name, on/off and params as they were then, not as edited since.
  */
 export async function placeDevices(
   transport: EngineTransport,
@@ -171,6 +183,7 @@ export async function placeDevices(
   categoryOf: (d: Device) => DeviceCategory,
   move = false,
   onPlaced?: (ids: DeviceId[]) => void,
+  snapshot: Project | null = null,
 ): Promise<void> {
   const project = useProjectStore.getState().project;
   if (!project) return;
@@ -207,6 +220,7 @@ export async function placeDevices(
     const before = source === instrument && replaced ? replaced.id : pastePlace(devices, target, categoryOf(source), categoryOf);
     // The copy is made on the target's track (a rack with its chains can't move tracks).
     commands.push(cmd("Device", { type: "Duplicate", id: source.id, new_id: id, ...(track !== source.track ? { track } : {}) }));
+    if (!move) commands.push(...restoreCommands(id, source, snapshot?.devices[source.id]));
     commands.push(
       chain.type === "Pad"
         ? cmd("DrumRack", { type: "MoveDevice", id, pad: chain.pad, before })
@@ -238,6 +252,18 @@ export async function placeDevices(
     danger: true,
     run: () => void run(),
   });
+}
+
+/** Commands giving copy `id` of `now` the settings `then` had (the device at the copy). */
+function restoreCommands(id: DeviceId, now: Device, then: Device | undefined): Command[] {
+  if (!then || then === now) return [];
+  const out: Command[] = [];
+  if (then.name !== now.name) out.push(cmd("Device", { type: "Rename", id, name: then.name }));
+  if (then.enabled !== now.enabled) out.push(cmd("Device", { type: "SetEnabled", id, enabled: then.enabled }));
+  for (const [param, value] of Object.entries(then.params)) {
+    if (now.params[Number(param)] !== value) out.push(cmd("Device", { type: "SetParam", device: id, param: Number(param), value }));
+  }
+  return out;
 }
 
 /**

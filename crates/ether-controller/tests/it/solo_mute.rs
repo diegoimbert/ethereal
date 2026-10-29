@@ -152,3 +152,23 @@ fn a_soloed_muted_vca_is_heard_but_its_tracks_keep_their_own_mute() {
     let graph = h.ctl.bridge.last_graph();
     assert!(graph.vcas.iter().find(|x| x.id == v).unwrap().mute);
 }
+
+#[test]
+fn mute_and_solo_clicks_are_not_undo_steps() {
+    use ether_core::protocol::project::EditCommand;
+    let mut h = Harness::with_project();
+    let t = create(&mut h, TrackKind::Audio, None);
+    mute(&mut h, t, true);
+    solo(&mut h, t, true);
+    // Undo skips the toggles: it removes the track created before them.
+    h.ok(Command::Edit(EditCommand::Undo));
+    assert!(!h.project().tracks.contains_key(&t));
+    h.ok(Command::Edit(EditCommand::Redo));
+    let t2 = create(&mut h, TrackKind::Midi, None);
+    // A toggle keeps the redo stack.
+    h.ok(Command::Edit(EditCommand::Undo));
+    mute(&mut h, t, false);
+    h.ok(Command::Edit(EditCommand::Redo));
+    assert!(h.project().tracks.contains_key(&t2));
+    assert!(!h.project().tracks[&t].mixer.mute);
+}

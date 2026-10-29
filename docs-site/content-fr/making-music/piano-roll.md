@@ -141,6 +141,7 @@ Appuyer sur une note, ou [[action:edit.deselect]], quitte la section.
 Quand une section existe :
 
 - [[action:edit.copy]], [[action:edit.cut]], [[action:edit.paste]] et [[action:edit.duplicate]] agissent sur la plage de temps exacte de la section, espace vide compris. Les notes qui dépassent les bords de la section sont coupées aux bords. Dupliquer place la copie juste après la section, ce qui peut laisser du silence après la dernière note.
+- [[action:edit.split]] scinde les notes qui dépassent les bords de la section, aux deux bords. Avec seulement le marqueur d’insertion, il scinde les notes qui traversent le marqueur (celles sélectionnées, s’il y en a).
 - [[action:edit.delete]] vide le contenu de la section.
 
 Sans section, ces raccourcis agissent sur les notes sélectionnées.

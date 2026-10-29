@@ -79,6 +79,7 @@ import { ClipHandles } from "@/features/mobile/ClipHandles";
 import { RangeHandles } from "@/features/mobile/RangeHandles";
 import { useMobileUi } from "@/features/mobile/mode";
 import { t, useT } from "@/i18n";
+import { dropLineLeft } from "./trackDrag";
 
 function isTextEntry(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -758,11 +759,15 @@ function HeaderColumnResizer() {
  */
 function TrackDropLine() {
   const y = useArrangementUi((s) => (s.trackDrag && !s.trackDrag.into ? s.trackDrag.y : null));
+  const depth = useArrangementUi((s) => s.trackDrag?.depth ?? 0);
   const blockedTop = useArrangementUi((s) => s.trackDrag?.blocked?.top ?? null);
   const blockedHeight = useArrangementUi((s) => s.trackDrag?.blocked?.height ?? 0);
   if (blockedTop !== null)
     return <div className="eth-arr__track-drop-blocked" style={{ top: blockedTop, height: blockedHeight }} data-testid="track-drop-blocked" />;
-  return y === null ? null : <div className="eth-arr__track-drop" style={{ top: y }} data-testid="track-drop-line" />;
+  // Indented to the level it lands at (in / out of groups).
+  return y === null ? null : (
+    <div className="eth-arr__track-drop" style={{ top: y, left: dropLineLeft(depth) }} data-depth={depth} data-testid="track-drop-line" />
+  );
 }
 
 /**

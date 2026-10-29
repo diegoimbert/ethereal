@@ -44,6 +44,9 @@ const TITLE_GAP_PX = parseFloat(space.xs);
 import { mountClipEditLayers } from "./layers/index";
 import { mountLaneLayers } from "./layers/lanes";
 
+/** How far (px) a double-click's release may be from its second press. */
+const DOUBLE_CLICK_SLOP_PX = 5;
+
 export interface GlClipLayerProps {
   ctx: ArrangementContextValue;
   scrollRef: React.RefObject<HTMLDivElement | null>;
@@ -214,8 +217,11 @@ export function GlClipLayer({ ctx, scrollRef, backend }: GlClipLayerProps) {
     const clipOf = (id: ClipId): Clip | undefined => useProjectStore.getState().project?.clips[id];
     const isClipPart = (h: Hit | null): h is Hit => !!h && (h.part === "header" || h.part === "small" || h.part === "resize-start" || h.part === "resize-end");
 
+    // Where the last press was: a double-click counts only released where its second press was.
+    let lastPress: { x: number; y: number } | null = null;
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
+      lastPress = { x: e.clientX, y: e.clientY };
       const hit = hitAt(e);
       // A shared project's viewer: clip presses select; fades, gain lines and slips don't start.
       if (isReadOnly() && (hit?.part === "layer" || hit?.part === "body")) return;
@@ -276,6 +282,8 @@ export function GlClipLayer({ ctx, scrollRef, backend }: GlClipLayerProps) {
       setHover(null);
     };
     const onDoubleClick = (e: MouseEvent) => {
+      // A second press held and dragged elsewhere (onto a clip) isn't a double-click there.
+      if (lastPress && Math.hypot(e.clientX - lastPress.x, e.clientY - lastPress.y) > DOUBLE_CLICK_SLOP_PX) return;
       const hit = hitForDoubleClick(e);
       if (hit?.part === "layer") {
         if (isReadOnly()) return;

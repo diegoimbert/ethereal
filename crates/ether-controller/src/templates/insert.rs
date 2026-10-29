@@ -10,8 +10,8 @@
 //!   that could not be imported are cleared. Entity kinds a track template doesn't carry
 //!   (clips, notes, media, markers, ...) are ignored.
 //! - Top-level template tracks go under `parent` before `before` in template order
-//!   (`before: None` at the top level: like `Track::Create`, regular tracks before the
-//!   first return/master track, returns before master).
+//!   (`before: None` at the top level: like `Track::Create`, after the last track of
+//!   the same rank: regular tracks after the regular tracks, returns after the returns).
 //! - Idempotent: if `derive_id(seed, 0)` is already a track, nothing changes.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -100,17 +100,6 @@ pub fn remap(prepared: &Prepared, seed: TrackId) -> CmdResult<Vec<Entity>> {
         .collect()
 }
 
-/// Ableton layout for `before: None` at the top level (as `Track::Create`).
-fn default_before(p: &Project, kind: TrackKind) -> Option<TrackId> {
-    p.tracks_ordered()
-        .into_iter()
-        .find(|t| {
-            t.kind == TrackKind::Master
-                || (kind != TrackKind::Return && t.kind == TrackKind::Return)
-        })
-        .map(|t| t.id)
-}
-
 fn siblings(p: &Project, parent: Option<TrackId>) -> Vec<(OrderKey, TrackId)> {
     let tracks = match parent {
         None => p.tracks_ordered(),
@@ -193,13 +182,11 @@ pub fn insert(
                         return Err(invalid("return tracks must be top-level"));
                     }
                     t.parent = parent;
-                    let before = before.or_else(|| {
-                        parent
-                            .is_none()
-                            .then(|| default_before(ctx.p(), t.kind))
-                            .flatten()
-                    });
-                    t.order = order_before(&siblings(ctx.p(), parent), before)?;
+                    // `before: None`: as `Track::Create` (after the last track of its rank).
+                    t.order = match before {
+                        Some(b) => order_before(&siblings(ctx.p(), parent), Some(b))?,
+                        None => crate::doc::order_at_end(ctx.p(), t.kind, parent, None)?,
+                    };
                 }
                 if matches!(t.output, TrackOutput::Track { track } if !tracks.contains(&track)) {
                     t.output = TrackOutput::Default;

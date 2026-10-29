@@ -168,8 +168,8 @@ describe("DrumRackView", () => {
     await flush();
     expect(screen.getByTestId("pad-settings").getAttribute("aria-label")).toBe("pad Big Kick");
 
-    // Undo the D1 drop step by step: mute, choke, device, then the whole drop at once.
-    for (let i = 0; i < 3; i++) await act(() => mock!.send(cmd("Edit", { type: "Undo" })));
+    // Undo the D1 drop step by step: choke, device (the mute is a toggle, not a step), then the whole drop at once.
+    for (let i = 0; i < 2; i++) await act(() => mock!.send(cmd("Edit", { type: "Undo" })));
     expect(pads()).toHaveLength(2);
     await act(() => mock!.send(cmd("Edit", { type: "Undo" })));
     expect(pads().map((p) => p.note)).toEqual([36]);

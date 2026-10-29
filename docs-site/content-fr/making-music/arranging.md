@@ -47,16 +47,17 @@ Sans sélection temporelle, les mêmes raccourcis agissent sur les clips (ou les
 
 Elles agissent sur la sélection temporelle. Faites un clic droit à l’intérieur pour obtenir la même liste sous forme de menu.
 
-| modification | raccourci | ce qu’elle fait |
-|---|---|---|
-| couper la durée | [[action:edit.cut]] ou [[action:time.cut]] | Copie la section, puis la supprime. La suite se décale vers la gauche. |
-| copier la durée | [[action:edit.copy]] ou [[action:time.copy]] | Copie la section. |
-| coller après la sélection | [[action:edit.paste]] | Colle la section copiée juste après la sélection, par-dessus ce qui s’y trouve. |
-| coller la durée | [[action:time.paste]] | Insère la section copiée au début de la sélection et pousse la suite vers la droite. |
-| scinder à la sélection | [[action:edit.split]] | Scinde les clips aux deux bords de la sélection. |
-| dupliquer la durée | [[action:edit.duplicate]] ou [[action:time.duplicate]] | Place une copie de la section juste après elle, par-dessus ce qui s’y trouve. |
-| insérer un silence | [[action:time.insertSilence]] | Insère au début de la sélection un temps vide aussi long qu’elle. Tout ce qui suit se décale vers la droite. |
-| supprimer la durée | [[action:edit.delete]] ou [[action:time.delete]] | Supprime la section. La suite se décale vers la gauche. |
+| modification               | raccourci                                              | ce qu’elle fait                                                                                                                                                              |
+| -------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| couper la durée            | [[action:edit.cut]] ou [[action:time.cut]]             | Copie la section, puis la supprime. La suite se décale vers la gauche.                                                                                                       |
+| copier la durée            | [[action:edit.copy]] ou [[action:time.copy]]           | Copie la section.                                                                                                                                                            |
+| coller après la sélection  | [[action:edit.paste]]                                  | Colle la section copiée juste après la sélection, par-dessus ce qui s’y trouve.                                                                                              |
+| coller la durée            | [[action:time.paste]]                                  | Insère la section copiée au début de la sélection et pousse la suite vers la droite.                                                                                         |
+| scinder à la sélection     | [[action:edit.split]]                                  | Scinde les clips aux deux bords de la sélection.                                                                                                                             |
+| rendre muette la sélection | [[action:track.toggleMute]]                            | Rend muets les clips de la section. Un clip qui dépasse un bord y est scindé, si bien que seule sa partie intérieure devient muette. Appuyez à nouveau pour rétablir le son. |
+| dupliquer la durée         | [[action:edit.duplicate]] ou [[action:time.duplicate]] | Place une copie de la section juste après elle, par-dessus ce qui s’y trouve.                                                                                                |
+| insérer un silence         | [[action:time.insertSilence]]                          | Insère au début de la sélection un temps vide aussi long qu’elle. Tout ce qui suit se décale vers la droite.                                                                 |
+| supprimer la durée         | [[action:edit.delete]] ou [[action:time.delete]]       | Supprime la section. La suite se décale vers la gauche.                                                                                                                      |
 
 Le menu propose aussi **coller par-dessus la sélection** et les commandes de rendu (voir [geler, aplatir et faire un rendu](/docs/advanced/freeze-and-bounce)). Chaque modification temporelle est une seule étape d’annulation.
 

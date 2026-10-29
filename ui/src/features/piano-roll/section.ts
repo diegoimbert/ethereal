@@ -16,6 +16,9 @@
  * Without a section, the selected notes, over their exact span (⌘D lands right at its end).
  *
  * - ⌘C copies; ⌘X copies then removes the source notes (no time shift).
+ * - ⌘E splits the notes crossing the section's edges at both edges (its selected ones if
+ *   any); with only the insert marker, the notes crossing the marker (the selected ones if
+ *   any) at the marker.
  * - ⌘V pastes right after the section, else at the insert marker, else at the selection
  *   cursor (`time-edits/marker.ts`, in the clip; never the playhead), merging with
  *   the notes there; ⌘D pastes a copy right after the section without touching the
@@ -221,6 +224,33 @@ export function clearCommands(source: { start: Beats; end: Beats; notes: Readonl
   if (edits.length) commands.push(cmd("Note", { type: "Edit", edits }));
   for (const [clip, notes] of tails) commands.push(cmd("Note", { type: "Add", clip, notes }));
   if (mutedTails.length) commands.push(cmd("Note", { type: "Edit", edits: mutedTails.map((id) => noteEdit(id, { muted: true })) }));
+  return commands;
+}
+
+/**
+ * Commands splitting `notes` at each of `points` that falls inside one (⌘E: a section's two
+ * edges, or the insert marker): the note keeps its first part, each other part is a new note
+ * (same pitch, velocity and mute). Empty when no point cuts a note.
+ */
+export function splitCommands(notes: ReadonlyArray<Note>, points: ReadonlyArray<Beats>): Command[] {
+  const edits: ReturnType<typeof noteEdit>[] = [];
+  const parts = new Map<ClipId, NoteSpec[]>();
+  const muted: NoteId[] = [];
+  for (const n of notes) {
+    const end = n.start + n.duration;
+    const cuts = [...new Set(points)].filter((p) => p > n.start + EPS && p < end - EPS).sort((a, b) => a - b);
+    if (!cuts.length) continue;
+    edits.push(noteEdit(n.id, { duration: cuts[0]! - n.start }));
+    cuts.forEach((at, i) => {
+      const spec: NoteSpec = { id: newId(), pitch: n.pitch, velocity: n.velocity, start: at, duration: (cuts[i + 1] ?? end) - at };
+      parts.set(n.clip, [...(parts.get(n.clip) ?? []), spec]);
+      if (n.muted) muted.push(spec.id);
+    });
+  }
+  const commands: Command[] = [];
+  if (edits.length) commands.push(cmd("Note", { type: "Edit", edits }));
+  for (const [clip, specs] of parts) commands.push(cmd("Note", { type: "Add", clip, notes: specs }));
+  if (muted.length) commands.push(cmd("Note", { type: "Edit", edits: muted.map((id) => noteEdit(id, { muted: true })) }));
   return commands;
 }
 

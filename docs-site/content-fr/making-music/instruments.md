@@ -30,7 +30,7 @@ Un instrument transforme les notes d’une piste MIDI en son. Chaque piste MIDI 
 
 Un synthé polyphonique simple (jusqu’à 16 notes à la fois) avec un oscillateur.
 
-- **forme d’onde** : sinus, dent de scie, carré ou triangle. La dent de scie et le carré sonnent brillants, le sinus et le triangle doux.
+- **forme d’onde** : sinus, dent de scie, carré, triangle ou bruit. La dent de scie et le carré sonnent brillants, le sinus et le triangle doux. Le bruit est un bruit blanc, le même sur toutes les touches : façonnez-le avec le filtre (charleys, vent, montées).
 - **transposition** et **fin** : la hauteur en demi-tons et en cents. **plage de bend** règle jusqu’où va un pitch bend complet (2 demi-tons par défaut), depuis la molette d’un clavier MIDI ou le couloir de pitch bend d’un clip.
 - **attaque**, **déclin**, **maintien**, **relâchement** : l’enveloppe de volume de chaque note.
 - **coupure** et **résonance** : un filtre passe-bas. Baissez la coupure pour un son plus sombre.
@@ -43,7 +43,7 @@ Un synthé polyphonique simple (jusqu’à 16 notes à la fois) avec un oscillat
 
 Un synthé plus complet avec deux oscillateurs, un sous-oscillateur et du bruit.
 
-- **osc 1** et **osc 2** : dent de scie, carré, triangle, sinus ou **table d’ondes**. Un oscillateur à table d’ondes utilise l’une des 8 tables (formes de base, balayage harmonique, PWM, formant, numérique, orgue, voix, métallique), et **position** la parcourt en fondu. Chaque oscillateur a une octave, des demi-tons, un réglage fin, une largeur d’impulsion et un niveau. L’osc 2 démarre muet : montez son niveau pour l’entendre.
+- **osc 1** et **osc 2** : dent de scie, carré, triangle, sinus, **table d’ondes** ou **bruit** (bruit blanc, le même sur toutes les touches). Un oscillateur à table d’ondes utilise l’une des 8 tables (formes de base, balayage harmonique, PWM, formant, numérique, orgue, voix, métallique), et **position** la parcourt en fondu. Chaque oscillateur a une octave, des demi-tons, un réglage fin, une largeur d’impulsion et un niveau. L’osc 2 démarre muet : montez son niveau pour l’entendre.
 - **sub / bruit** : un sous-oscillateur une ou deux octaves plus bas, et un bruit avec un réglage de couleur. Les deux démarrent muets.
 - **filtre** : passe-bas 24 ou 12, passe-haut, passe-bande ou coupe-bande, avec coupure, résonance, drive, suivi de clavier et quantité d’enveloppe.
 - les enveloppes d’**ampli**, de **filtre** et de **mod**. L’enveloppe de modulation peut être envoyée vers la hauteur, la hauteur de l’osc 2, la position dans la table d’ondes, la largeur d’impulsion ou la coupure.

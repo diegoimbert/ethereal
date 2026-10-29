@@ -1,7 +1,7 @@
 /**
  * The device library of one category (Instruments, Effects, MIDI Effects): the built-in
  * ("Factory") devices and the scanned plugins (desktop), filtered by a search and a source
- * chip (All / Factory / Plugins) or favourites (each row's star), sorted by name, most used
+ * chip (All / Factory / Plugins) or favourites (each row's star), sorted by most used (the default), name
  * or most recent (`./libraryStats.ts`), with the scan status and "Plugin settings" in its
  * footer. It is the chain sections' add popover: a click on a row, or Enter on the active
  * one (↑ ↓ from the search field), picks it.
