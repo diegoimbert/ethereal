@@ -8,6 +8,11 @@
 //!   the previous note), read band-limited ([`crate::dsp::resample`]: a windowed sinc whose
 //!   cutoff follows the rate, so a zone pitched up doesn't alias; rate capped at 4
 //!   octaves up).
+//! - **Legato** (`Legato` on): a note-on while a note is held moves that note's voices to
+//!   the new key instead of starting new ones ([`MultiSampler::legato`]): a voice playing
+//!   the sample the new key selects is retuned, the others fade out while the new key's other
+//!   samples fade in at the same point of the note ([`LEGATO_FADE_MS`]), with the lead's
+//!   envelopes. A note-off of the latest held key goes back to the one held before it.
 //! - **Loops**: while held and `looping`, a voice wraps `[loop_start, loop_end)`; with a
 //!   crossfade `X` the last `X` frames before `loop_end` blend linearly into the `X` frames
 //!   before `loop_start`, so the wrap is continuous (`X` is clamped to the loop length and to
@@ -42,6 +47,19 @@ const CHUNK: usize = 32;
 const SCRATCH: usize = CHUNK * MAX_RATE as usize + 2 * (MAX_HALF + 1) + 2;
 /// Fade for a zone end inside the sample and for voices dropped by a zone edit, in ms.
 const FADE_MS: f64 = 2.0;
+/// Crossfade between the samples of two keys a legato slide changes, in ms.
+pub const LEGATO_FADE_MS: f64 = 20.0;
+/// Held keys remembered for legato (beyond that, the oldest is forgotten).
+const MAX_HELD: usize = 16;
+
+/// A held note (legato's last-note priority).
+#[derive(Clone, Copy, Debug, Default)]
+struct Held {
+    note_id: u32,
+    channel: u8,
+    key: u8,
+    velocity: f32,
+}
 
 #[derive(Clone, Copy, Debug)]
 struct Voice {
@@ -54,6 +72,9 @@ struct Voice {
     source: usize,
     /// Read position in source frames.
     pos: f64,
+    /// Where playback started (the zone's start plus `Offset`), source frames: `pos - start`
+    /// is how far into the note it is (legato starts another key's sample there).
+    start: f64,
     /// Playback limits in source frames.
     end: f64,
     looping: bool,
@@ -71,8 +92,12 @@ struct Voice {
     pan: [f32; 2],
     env: Adsr,
     fenv: Adsr,
-    /// Forced fade-out (dropped by a zone edit): remaining frames, 0 = none.
+    /// Forced fade-out (stolen, dropped by a zone edit, left by a legato slide): remaining
+    /// frames, 0 = none, out of `fade_len`.
     dying: u32,
+    fade_len: u32,
+    /// Fade-in of a legato slide's new sample: remaining frames, 0 = none.
+    rise: u32,
     filter: [[Svf; 2]; 2],
     /// The filter's `g` at the end of the last chunk (negative: none yet); each chunk ramps
     /// from it per sample (per-chunk coefficients stepped a cutoff jump audibly).
@@ -90,6 +115,7 @@ impl Voice {
         media: MediaId(ether_core::protocol::model::Ulid(0)),
         source: 0,
         pos: 0.0,
+        start: 0.0,
         end: 0.0,
         looping: false,
         loop_start: 0.0,
@@ -103,6 +129,8 @@ impl Voice {
         env: Adsr::IDLE,
         fenv: Adsr::IDLE,
         dying: 0,
+        fade_len: 1,
+        rise: 0,
         filter: [[Svf::ZERO; 2]; 2],
         g: -1.0,
         from_prev: false,
@@ -110,6 +138,17 @@ impl Voice {
 
     fn active(&self) -> bool {
         self.env.is_active()
+    }
+
+    /// Held and not fading out: a voice a legato slide moves.
+    fn leads(&self, note_id: u32) -> bool {
+        self.active() && !self.env.is_releasing() && self.dying == 0 && self.note_id == note_id
+    }
+
+    /// Fade out over `frames` (then free).
+    fn fade_out(&mut self, frames: u32) {
+        self.dying = frames.max(1);
+        self.fade_len = self.dying;
     }
 }
 
@@ -165,6 +204,9 @@ pub struct MultiSampler {
     frames: [[[f32; CHUNK]; 2]; 2],
     gains: [[f32; CHUNK]; 2],
     hits: [Hit; MAX_LAYERS],
+    /// Held notes, oldest first (legato).
+    held: [Held; MAX_HELD],
+    held_len: usize,
 }
 
 impl std::fmt::Debug for MultiSampler {
@@ -214,6 +256,8 @@ impl MultiSampler {
             frames: [[[0.0; CHUNK]; 2]; 2],
             gains: [[0.0; CHUNK]; 2],
             hits: [Hit::default(); MAX_LAYERS],
+            held: [Held::default(); MAX_HELD],
+            held_len: 0,
         };
         s.sync_all();
         s
@@ -356,77 +400,242 @@ impl MultiSampler {
             .map_or(0, |(i, _)| i);
         if let Some(spare) = free {
             let fade = (FADE_MS * 0.001 * self.sample_rate as f64).max(1.0) as u32;
-            self.voices[spare] = Voice {
-                dying: fade,
-                ..self.voices[slot]
-            };
+            self.voices[spare] = self.voices[slot];
+            self.voices[spare].fade_out(fade);
         }
         slot
     }
 
-    fn note_on(&mut self, note_id: u32, channel: u8, key: u8, velocity: f32) {
-        let n = self.set.select(key, velocity, &mut self.rr, &mut self.hits);
+    /// The voice `hit` starts for `key` (its envelopes untriggered), or `None` for a zone
+    /// without a sample or with nothing to play.
+    fn zone_voice(
+        &self,
+        hit: Hit,
+        note_id: u32,
+        channel: u8,
+        key: u8,
+        vel_amp: f32,
+    ) -> Option<Voice> {
         let sr = self.sample_rate as f64;
+        let zr = &self.set.zones[hit.zone as usize];
+        let src = zr.source?;
+        let (media, source) = (&self.set.sources[src].0, &self.set.sources[src].1);
+        let z = &zr.zone;
+        let len = source.frames() as f64;
+        // The zone's start, plus the global `Offset`.
+        let start = ((z.start.0 + self.value(p::OFFSET) * 0.001) * sr).clamp(0.0, len);
+        let end = z.end.map_or(len, |e| (e.0 * sr).clamp(0.0, len));
+        if end.is_nan() || end <= start {
+            return None;
+        }
+        let loop_start = (z.loop_start.0 * sr).clamp(start, end);
+        let loop_end = (z.loop_end.0 * sr).clamp(loop_start, end);
+        let loop_len = loop_end - loop_start;
+        let looping = z.looping && loop_len >= 1.0;
+        Some(Voice {
+            note_id,
+            channel,
+            key,
+            media: *media,
+            source: src,
+            pos: start,
+            start,
+            end,
+            looping,
+            loop_start,
+            loop_end,
+            xfade: (z.loop_crossfade.0 * sr).clamp(0.0, loop_len.min(loop_start)),
+            semis: key as f64 - z.root_key as f64 + z.tune_cents as f64 / 100.0,
+            amp: vel_amp * util::db_to_amp(z.gain.0) * hit.gain,
+            pan: balance(z.pan.0 as f64),
+            ..Voice::IDLE
+        })
+    }
+
+    fn vel_amp(&self, velocity: f32) -> f32 {
         let sens = (self.value(p::VELOCITY) * 0.01) as f32;
-        let vel_amp = 1.0 - sens + sens * velocity.clamp(0.0, 1.0);
+        1.0 - sens + sens * velocity.clamp(0.0, 1.0)
+    }
+
+    /// Glide offset (semitones) and its per-frame step from pitch `from` (a key, fractional
+    /// mid-glide) to `key`; none with `Glide` at 0.
+    fn glide(&self, from: f64, key: u8) -> (f64, f64) {
         let glide_ms = self.value(p::GLIDE);
+        if glide_ms <= 0.0 {
+            return (0.0, 0.0);
+        }
+        let glide = from - key as f64;
+        (
+            glide,
+            glide / (glide_ms * 0.001 * self.sample_rate as f64).max(1.0),
+        )
+    }
+
+    fn legato_on(&self) -> bool {
+        self.value(p::LEGATO) >= 0.5
+    }
+
+    /// The latest held note.
+    fn lead(&self) -> Option<Held> {
+        self.held[..self.held_len].last().copied()
+    }
+
+    fn hold(&mut self, h: Held) {
+        self.unhold(h.note_id, h.channel, h.key);
+        if self.held_len == MAX_HELD {
+            self.held.copy_within(1.., 0);
+            self.held_len -= 1;
+        }
+        self.held[self.held_len] = h;
+        self.held_len += 1;
+    }
+
+    /// Forget a held note (by id, or by key and channel when either has no id).
+    fn unhold(&mut self, note_id: u32, channel: u8, key: u8) {
+        let mut n = 0;
+        for i in 0..self.held_len {
+            let h = self.held[i];
+            let same = if note_id != 0 && h.note_id != 0 {
+                h.note_id == note_id
+            } else {
+                h.key == key && h.channel == channel
+            };
+            if !same {
+                self.held[n] = h;
+                n += 1;
+            }
+        }
+        self.held_len = n;
+    }
+
+    fn note_on(&mut self, note_id: u32, channel: u8, key: u8, velocity: f32) {
+        let lead = self.lead();
+        self.hold(Held {
+            note_id,
+            channel,
+            key,
+            velocity,
+        });
+        if self.legato_on()
+            && let Some(lead) = lead
+            && self.legato(lead.note_id, note_id, channel, key, velocity)
+        {
+            return;
+        }
+        let n = self.set.select(key, velocity, &mut self.rr, &mut self.hits);
+        let vel_amp = self.vel_amp(velocity);
         let glide_from = self
             .last_key
-            .filter(|_| glide_ms > 0.0 && self.voices.iter().any(|v| v.active()));
+            .filter(|_| self.voices.iter().any(|v| v.active()));
         self.last_key = Some(key);
         for h in 0..n {
-            let hit = self.hits[h];
-            let zr = &self.set.zones[hit.zone as usize];
-            let Some(src) = zr.source else {
+            let Some(mut voice) = self.zone_voice(self.hits[h], note_id, channel, key, vel_amp)
+            else {
                 continue;
             };
-            let (media, source) = (&self.set.sources[src].0, &self.set.sources[src].1);
-            let z = &zr.zone;
-            let len = source.frames() as f64;
-            // The zone's start, plus the global `Offset`.
-            let start = ((z.start.0 + self.value(p::OFFSET) * 0.001) * sr).clamp(0.0, len);
-            let end = z.end.map_or(len, |e| (e.0 * sr).clamp(0.0, len));
-            if end.is_nan() || end <= start {
-                continue;
+            if let Some((_, source)) = self.set.sources.get(voice.source) {
+                source.prefetch_hint(voice.pos as u64);
             }
-            let loop_start = (z.loop_start.0 * sr).clamp(start, end);
-            let loop_end = (z.loop_end.0 * sr).clamp(loop_start, end);
-            let loop_len = loop_end - loop_start;
-            let looping = z.looping && loop_len >= 1.0;
-            let xfade = (z.loop_crossfade.0 * sr).clamp(0.0, loop_len.min(loop_start));
-            let semis = key as f64 - z.root_key as f64 + z.tune_cents as f64 / 100.0;
-            let pan = balance(z.pan.0 as f64);
-            let amp = vel_amp * util::db_to_amp(z.gain.0) * hit.gain;
-            source.prefetch_hint(start as u64);
-            let media = *media;
+            (voice.glide, voice.glide_step) =
+                glide_from.map_or((0.0, 0.0), |k| self.glide(k as f64, key));
             let slot = self.free_slot();
             self.next_age += 1;
-            let glide = glide_from.map_or(0.0, |k| k as f64 - key as f64);
-            let glide_frames = (glide_ms * 0.001 * sr).max(1.0);
+            voice.age = self.next_age;
             let v = &mut self.voices[slot];
-            *v = Voice {
-                note_id,
-                channel,
-                key,
-                age: self.next_age,
-                media,
-                source: src,
-                pos: start,
-                end,
-                looping,
-                loop_start,
-                loop_end,
-                xfade,
-                semis,
-                glide,
-                glide_step: glide / glide_frames,
-                amp,
-                pan,
-                ..Voice::IDLE
-            };
+            *v = voice;
             v.env.trigger();
             v.fenv.trigger();
         }
+    }
+
+    /// Legato: move the held voices of note `from` to `key` (as note `note_id`) without a new
+    /// attack. A voice already playing a sample the new key selects is retuned; the others
+    /// fade out while the new key's other samples fade in at the same point of the note,
+    /// with the lead voice's envelopes and filter state. Returns `false` (nothing moved) when
+    /// `from` has no held voice.
+    fn legato(&mut self, from: u32, note_id: u32, channel: u8, key: u8, velocity: f32) -> bool {
+        let Some(lead) = self.voices.iter().position(|v| v.leads(from)) else {
+            return false;
+        };
+        let r = self.voices[lead];
+        let elapsed = r.pos - r.start;
+        let (glide, glide_step) = self.glide(r.key as f64 + r.glide, key);
+        self.last_key = Some(key);
+        let n = self.set.select(key, velocity, &mut self.rr, &mut self.hits);
+        let hits = self.hits;
+        let vel_amp = self.vel_amp(velocity);
+        // 1. Retune the voices whose sample the new key plays too.
+        let mut moved = [false; MAX_VOICES];
+        let mut retuned = [false; MAX_LAYERS];
+        for (h, hit) in hits[..n].iter().enumerate() {
+            let Some(zr) = self.set.zones.get(hit.zone as usize) else {
+                continue;
+            };
+            let Some(media) = zr.source.map(|s| self.set.sources[s].0) else {
+                continue;
+            };
+            let semis = key as f64 - zr.zone.root_key as f64 + zr.zone.tune_cents as f64 / 100.0;
+            let found = (0..MAX_VOICES).find(|&i| {
+                !moved[i] && self.voices[i].leads(from) && self.voices[i].media == media
+            });
+            if let Some(i) = found {
+                let v = &mut self.voices[i];
+                (v.note_id, v.channel, v.key, v.semis) = (note_id, channel, key, semis);
+                (v.glide, v.glide_step) = (glide, glide_step);
+                moved[i] = true;
+                retuned[h] = true;
+            }
+        }
+        // 2. The others fade out (before new voices take slots, so none is stolen).
+        let xfade = (LEGATO_FADE_MS * 0.001 * self.sample_rate as f64).max(1.0) as u32;
+        for (i, v) in self.voices.iter_mut().enumerate() {
+            if !moved[i] && v.leads(from) {
+                v.fade_out(xfade);
+            }
+        }
+        // 3. The new key's other samples fade in where the note is.
+        for (&hit, _) in hits[..n].iter().zip(retuned).filter(|(_, r)| !r) {
+            let Some(mut voice) = self.zone_voice(hit, note_id, channel, key, vel_amp) else {
+                continue;
+            };
+            voice.pos = voice.start + elapsed;
+            if voice.looping && voice.pos >= voice.loop_end {
+                voice.pos = voice.loop_start
+                    + (voice.pos - voice.loop_start) % (voice.loop_end - voice.loop_start);
+            }
+            if voice.pos >= voice.end {
+                continue;
+            }
+            if let Some((_, source)) = self.set.sources.get(voice.source) {
+                source.prefetch_hint(voice.pos as u64);
+            }
+            (voice.glide, voice.glide_step) = (glide, glide_step);
+            (voice.env, voice.fenv, voice.filter, voice.g) = (r.env, r.fenv, r.filter, r.g);
+            voice.rise = xfade;
+            let slot = self.free_slot();
+            self.next_age += 1;
+            voice.age = self.next_age;
+            self.voices[slot] = voice;
+        }
+        true
+    }
+
+    fn note_off(&mut self, note_id: u32, channel: u8, key: u8) {
+        let lead = self.lead();
+        self.unhold(note_id, channel, key);
+        // Legato: letting go of the latest held key goes back to the one held before it.
+        if self.legato_on()
+            && let (Some(lead), Some(back)) = (lead, self.lead())
+            && lead.note_id == note_id
+            && lead.key == key
+            && self.legato(note_id, back.note_id, back.channel, back.key, back.velocity)
+        {
+            return;
+        }
+        self.for_matching(note_id, channel, key, |v| {
+            v.env.release();
+            v.fenv.release();
+        });
     }
 
     fn for_matching(&mut self, note_id: u32, channel: u8, key: u8, f: impl Fn(&mut Voice)) {
@@ -459,16 +668,17 @@ impl MultiSampler {
                 channel,
                 key,
                 ..
-            } => self.for_matching(note_id, channel, key, |v| {
-                v.env.release();
-                v.fenv.release();
-            }),
+            } => self.note_off(note_id, channel, key),
             EventKind::NoteChoke {
                 note_id,
                 channel,
                 key,
-            } => self.for_matching(note_id, channel, key, |v| v.env.kill()),
+            } => {
+                self.unhold(note_id, channel, key);
+                self.for_matching(note_id, channel, key, |v| v.env.kill())
+            }
             EventKind::AllNotesOff => {
+                self.held_len = 0;
                 for v in self.voices.iter_mut() {
                     v.env.release();
                     v.fenv.release();
@@ -498,6 +708,7 @@ impl MultiSampler {
         }
         let sr = self.sample_rate as f64;
         let fade = (FADE_MS * 0.001 * sr).max(1.0);
+        let legato_fade = (LEGATO_FADE_MS * 0.001 * sr).max(1.0);
         let mode = FilterMode::from_index(util::index(self.value(p::FILTER_TYPE), 5));
         let key_track = self.value(p::KEY_TRACKING) as f32 * 0.01;
         let env_amt = self.value(p::FILTER_ENV_AMOUNT) as f32 * 0.01;
@@ -628,8 +839,12 @@ impl MultiSampler {
                         if !looping && v.pos > end_fade_from {
                             a *= ((v.end - v.pos) / (v.end - end_fade_from)).clamp(0.0, 1.0) as f32;
                         }
+                        if v.rise > 0 {
+                            a *= 1.0 - v.rise as f32 / legato_fade as f32;
+                            v.rise -= 1;
+                        }
                         if v.dying > 0 {
-                            a *= v.dying as f32 / fade as f32;
+                            a *= v.dying as f32 / v.fade_len as f32;
                             v.dying -= 1;
                             if v.dying == 0 {
                                 v.env.kill();
@@ -784,6 +999,7 @@ impl Node for MultiSampler {
         *self.voices = [Voice::IDLE; MAX_VOICES];
         self.rr.reset();
         self.last_key = None;
+        self.held_len = 0;
         self.bend = 0.0;
         let t = self.pitch_target();
         self.pitch.set_immediate(t);
@@ -837,7 +1053,7 @@ impl Node for MultiSampler {
                         Some(i) => v.source = i,
                         None => {
                             v.from_prev = true;
-                            v.dying = fade;
+                            v.fade_out(fade);
                         }
                     }
                 }

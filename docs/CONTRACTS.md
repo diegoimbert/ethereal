@@ -1093,6 +1093,14 @@ a bend while nothing sounds applies at once. The `Synth` appends it (15), the `S
 (21, every mode) and the `MultiSampler` (22); the `PolySynth` (24) and `FmSynth` (57) had
 it. Centred, every instrument renders as before.
 
+`MultiSampler` legato: it appends `Legato` (23, toggle, default off). On, a note-on while a
+note is held moves that note's voices instead of starting new ones: a voice whose sample the
+new key selects is retuned, the others fade out over `LEGATO_FADE_MS` (20 ms) while the new
+key's other samples fade in at the same point of the note (`pos - start` in source frames),
+with the lead's envelopes and filter state; `Glide` slides between the two pitches. The
+note-off of the latest held key moves back to the one held before it (last-note priority,
+16 held keys). Off, nothing changes.
+
 Voice mode and global pitch on every native synth: the `Synth` appends `Mode` (14), the
 `FmSynth` appends `Mode` (76), both `Poly | Mono | Legato` (default `Poly`, group `Voice`),
 as the `PolySynth`'s existing `Mode` (22). `Mono`: one voice, every note retriggers the

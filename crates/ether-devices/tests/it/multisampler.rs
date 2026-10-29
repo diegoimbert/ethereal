@@ -527,3 +527,73 @@ fn silent_without_notes() {
     assert_eq!(status, ProcessStatus::Silent);
     assert!(l.iter().all(|x| *x == 0.0));
 }
+
+/// Frames read per output frame around `at` (a ramp source: its value is its position).
+fn rate_at(out: &[Vec<f32>; 2], at: usize) -> f32 {
+    (out[0][at + 100] - out[0][at]) * 480.0
+}
+
+#[test]
+fn legato_retunes_the_held_sample_and_goes_back() {
+    let s = sources(&[(1, src(48_000, |i| i as f32 / 48_000.0))]);
+    let events = [
+        (0, on(60, 1.0)),
+        (1000, on(62, 1.0)),
+        (3000, off(62)),
+        (5000, off(60)),
+    ];
+    let mut d = device(vec![zone(1, (0, 127), (1, 127))], &s);
+    d.set_param(p::LEGATO, 1.0);
+    let out = render(&mut d, 4000, &events[..3]);
+    let up2 = 2f32.powf(2.0 / 12.0);
+    // No restart: the sample plays on from where the first note was, a tone up.
+    assert!((out[0][999] - 999.0 / 48_000.0).abs() < 1e-3);
+    assert!((out[0][1001] - out[0][999]).abs() < 1e-4, "no jump");
+    assert!(
+        (rate_at(&out, 1500) - up2).abs() < 2e-3,
+        "{}",
+        rate_at(&out, 1500)
+    );
+    assert_eq!(d.active_voices(), 1);
+    // Letting go of the second key goes back to the first, still without a new attack.
+    assert!(
+        (rate_at(&out, 3500) - 1.0).abs() < 2e-3,
+        "{}",
+        rate_at(&out, 3500)
+    );
+    assert!(out[0][3500] > out[0][2999]);
+    // Off: the second note restarts the sample in a voice of its own.
+    let mut d = device(vec![zone(1, (0, 127), (1, 127))], &s);
+    let out = render(&mut d, 1200, &events[..2]);
+    assert_eq!(d.active_voices(), 2);
+    assert!(
+        out[0][1100] > out[0][999] + 50.0 / 48_000.0,
+        "two voices add up"
+    );
+}
+
+#[test]
+fn legato_crossfades_into_another_sample_at_the_same_point() {
+    let s = sources(&[
+        (1, src(48_000, |i| i as f32 / 48_000.0)),
+        (2, src(48_000, |i| 1.0 + i as f32 / 48_000.0)),
+    ]);
+    let zones = vec![zone(1, (0, 61), (1, 127)), zone(2, (62, 127), (1, 127))];
+    let mut d = device(zones, &s);
+    d.set_param(p::LEGATO, 1.0);
+    let out = render(&mut d, 4000, &[(0, on(60, 1.0)), (1000, on(64, 1.0))]);
+    // Past the crossfade, the second sample only, from where the note was (1000 frames in)
+    // on, 4 semitones up.
+    let fade = (multisampler::device::LEGATO_FADE_MS * 48.0) as usize;
+    let rate = 2f64.powf(4.0 / 12.0);
+    let at = 1000 + fade + 500;
+    let want = 1.0 + (1000.0 + (at - 1000) as f64 * rate) / 48_000.0;
+    assert!(
+        (out[0][at] as f64 - want).abs() < 2e-3,
+        "{} != {want}",
+        out[0][at]
+    );
+    assert_eq!(d.active_voices(), 1, "the first sample faded out");
+    // Continuous through the crossfade (no click, no restart).
+    assert!(max_step(&out[0][990..1000 + fade + 10]) < 1.0 / fade as f32 * 1.5);
+}

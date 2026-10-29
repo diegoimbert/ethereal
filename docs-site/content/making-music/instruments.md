@@ -92,6 +92,7 @@ Plays different samples on different keys and velocities, like a sampled piano.
 - Click a zone to select it and edit it in the zone inspector, where you can type values. Drag a zone's body to move it, or its edges to change its key or velocity range. [[key:Delete]] removes the selected zone.
 - **round robin**: when several zones cover the same note, **cycle** plays them in turn and **random** picks one, so repeated notes don't sound identical.
 - The rest is shared by all zones: volume, pan, transpose, **bend range** (how far a full pitch bend goes, 2 semitones by default), an amp envelope, a filter with its own envelope, glide and up to 64 voices. So an instrument converted to a sampler still follows a clip's pitch-bend lane.
+- **legato**: a note played while another is held doesn't start again: the sound slides to the new pitch, without a new attack, and goes back to the first note when you let go of the second (with **glide**, the slide takes that long). When the new note uses another sample, that sample takes over at the same point of the note. Handy for leads and basses, converted instruments included.
 
 ## external instrument
 

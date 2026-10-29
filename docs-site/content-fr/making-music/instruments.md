@@ -92,6 +92,7 @@ Joue des échantillons différents selon les touches et les vélocités, comme u
 - Cliquez sur une zone pour la sélectionner et la modifier dans l’inspecteur de zone, où vous pouvez saisir des valeurs. Faites glisser le corps d’une zone pour la déplacer, ou ses bords pour changer sa plage de touches ou de vélocité. [[key:Delete]] supprime la zone sélectionnée.
 - **round robin** : quand plusieurs zones couvrent la même note, **cycle** les joue à tour de rôle et **aléatoire** en choisit une, pour que les notes répétées ne sonnent pas identiques.
 - Le reste est commun à toutes les zones : volume, panoramique, transposition, **plage de bend** (jusqu’où va un pitch bend complet, 2 demi-tons par défaut), une enveloppe d’amplitude, un filtre avec sa propre enveloppe, le glissé et jusqu’à 64 voix. Un instrument converti en échantillonneur suit donc toujours le couloir de pitch bend d’un clip.
+- **legato** : une note jouée pendant qu’une autre est tenue ne repart pas de zéro : le son glisse vers la nouvelle hauteur, sans nouvelle attaque, et revient à la première note quand vous relâchez la seconde (avec le **glissé**, le glissement prend ce temps). Quand la nouvelle note utilise un autre échantillon, celui-ci prend le relais au même moment de la note. Pratique pour les leads et les basses, instruments convertis compris.
 
 ## instrument externe {#external-instrument}
 

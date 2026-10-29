@@ -96,6 +96,15 @@
               "label": null,
               "size": "Small",
               "widget": {
+                "param": 23,
+                "type": "Toggle"
+              }
+            },
+            {
+              "colspan": 1,
+              "label": null,
+              "size": "Small",
+              "widget": {
                 "param": 5,
                 "type": "Knob"
               }
@@ -781,6 +790,25 @@
         },
         "step": 1.0,
         "unit": "Semitones"
+      },
+      {
+        "automatable": true,
+        "default": 0.0,
+        "group": "Voice",
+        "hidden": false,
+        "id": 23,
+        "labels": [
+          "Off",
+          "On"
+        ],
+        "max": 1.0,
+        "min": 0.0,
+        "name": "Legato",
+        "scale": {
+          "type": "Linear"
+        },
+        "step": 1.0,
+        "unit": "Toggle"
       }
     ],
     "sidechain_inputs": 0
