@@ -31,8 +31,10 @@ pub struct HeadlessBackend {
     project: ProjectId,
     /// The store's root (the project's folder in it: `project_dirs::dir`).
     projects_root: PathBuf,
-    /// Standalone mode: the user's file (written on save) and the work dir (removed).
-    standalone: Option<(PathBuf, PathBuf)>,
+    /// Standalone mode: the user's file (written on save).
+    standalone: Option<PathBuf>,
+    /// Removed after the engine stops (fields drop after `drop`).
+    _work: WorkDir,
 }
 
 impl Drop for HeadlessBackend {
@@ -41,9 +43,35 @@ impl Drop for HeadlessBackend {
             host.unsubscribe();
             host.shutdown();
         }
-        if let Some((_, work)) = &self.standalone {
-            let _ = std::fs::remove_dir_all(work);
+    }
+}
+
+/// The engine's scratch folder (its data dir, and the store of a standalone document), in
+/// the temp dir: a new folder of this process's own, readable by this user only (`/tmp` is
+/// shared on Linux), never one that already exists. Removed on drop.
+struct WorkDir(PathBuf);
+
+impl WorkDir {
+    fn create() -> Result<Self, String> {
+        let base = std::env::temp_dir();
+        let mut builder = std::fs::DirBuilder::new();
+        #[cfg(unix)]
+        std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+        for _ in 0..8 {
+            let dir = base.join(format!("ether-mcp-{}-{:016x}", std::process::id(), seed()));
+            match builder.create(&dir) {
+                Ok(()) => return Ok(Self(dir)),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(format!("work dir {}: {e}", dir.display())),
+            }
         }
+        Err(format!("work dir: no free name in {}", base.display()))
+    }
+}
+
+impl Drop for WorkDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
     }
 }
 
@@ -121,12 +149,8 @@ impl HeadlessBackend {
                 .map_err(|e| e.to_string())?
                 .join(path)
         };
-        let work = std::env::temp_dir().join(format!(
-            "ether-mcp-{}-{:x}",
-            std::process::id(),
-            seed() as u32
-        ));
-        std::fs::create_dir_all(&work).map_err(|e| format!("work dir: {e}"))?;
+        let work_dir = WorkDir::create()?;
+        let work = work_dir.0.clone();
         let mut ids = IdGen::new(seed());
         let created = !path.exists();
         // What to open, and how.
@@ -153,7 +177,7 @@ impl HeadlessBackend {
                         name,
                     })
                 };
-                (root, open, Some((path.clone(), work.clone())))
+                (root, open, Some(path.clone()))
             }
         };
         let data_dir = work.join("data");
@@ -194,6 +218,7 @@ impl HeadlessBackend {
             project,
             projects_root: projects_root.clone(),
             standalone,
+            _work: work_dir,
         };
         if me.standalone.is_some() && created {
             // A new document exists on disk from the start (an empty song is a fine file).
@@ -235,7 +260,7 @@ impl Backend for HeadlessBackend {
     }
 
     fn after_save(&self) -> Result<Option<String>, String> {
-        let Some((file, _)) = &self.standalone else {
+        let Some(file) = &self.standalone else {
             return Ok(Some(format!("saved to {}", self.store_file().display())));
         };
         let json = std::fs::read(self.store_file())
@@ -249,12 +274,35 @@ impl Backend for HeadlessBackend {
 
     fn describe(&self) -> String {
         let file = match &self.standalone {
-            Some((f, _)) => f.clone(),
+            Some(f) => f.clone(),
             None => self.store_file(),
         };
         format!(
             "a headless Ethereal engine (no audio output) on {}; call save_project to write it",
             file.display()
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WorkDir;
+
+    #[test]
+    fn work_dir_is_new_private_and_removed() {
+        let a = WorkDir::create().unwrap();
+        let b = WorkDir::create().unwrap();
+        assert_ne!(a.0, b.0);
+        assert!(a.0.is_dir());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&a.0).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o700);
+        }
+        std::fs::write(a.0.join("f"), b"x").unwrap();
+        let path = a.0.clone();
+        drop(a);
+        assert!(!path.exists());
     }
 }
