@@ -1,0 +1,7 @@
+{"domain":"Agent","command":{"type":"ListTools"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"get_project_overview","input":"{}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"create_track","input":"{\"kind\":\"midi\",\"name\":\"a\"}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"add_notes","input":"{\"clip\":\"@c1\",\"notes\":[{\"pitch\":60,\"start\":0,\"duration\":1}]}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"set_tempo","input":"{\"bpm\":100}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"list_clips","input":"{\"offset\":0,\"limit\":10}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"undo","input":"{}"}}

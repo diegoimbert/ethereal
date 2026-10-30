@@ -1,0 +1,9 @@
+{"domain":"Warp","command":{"type":"SetWarp","clip":"@c0","warp":{"enabled":true,"mode":"Complex","source_bpm":120}}}
+{"domain":"Warp","command":{"type":"AddMarker","id":"@new","clip":"@c0","beat":0.25,"source":0.1}}
+{"domain":"Warp","command":{"type":"MoveMarker","id":"@w0","beat":0.4,"source":0.12}}
+{"domain":"Warp","command":{"type":"DetectTempo","clip":"@c0"}}
+tick 5
+{"domain":"Take","command":{"type":"CreateLane","id":"@new","track":"@t1","name":null,"before":null}}
+{"domain":"Take","command":{"type":"MoveToLane","clips":["@c0"],"lane":"@y0"}}
+{"domain":"Take","command":{"type":"SetComp","id":"@new","split_id":"@new","track":"@t1","lane":"@y0","start":0,"end":1}}
+{"domain":"Take","command":{"type":"Flatten","track":"@t1","seed":"@new","seed_notes":"@new","keep_lanes":false}}

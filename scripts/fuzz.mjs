@@ -38,6 +38,7 @@ const SEEDS = {
       Buffer.from("4d546864000000060000000100604d54726b0000000d00903c40600080 3c4000ff2f00".replace(/ /g, ""), "hex"),
     ],
   },
+  commands: { dirs: ["fuzz/seeds/commands"] },
   server_frames: {
     inline: [Buffer.from('{"type":"Command","id":1,"command":{"type":"Transport","command":{"type":"Play"}}}')],
   },

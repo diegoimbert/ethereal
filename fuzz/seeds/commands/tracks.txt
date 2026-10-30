@@ -1,0 +1,11 @@
+{"domain":"Track","command":{"type":"Create","id":"@new","kind":"Group","name":"g","color":null,"parent":null,"before":null}}
+{"domain":"Track","command":{"type":"Move","id":"@t2","parent":"@t3","before":null}}
+{"domain":"Track","command":{"type":"Duplicate","id":"@t1","new_id":"@new"}}
+{"domain":"Track","command":{"type":"GroupSelected","ids":["@t1","@t2"],"group":"@new","name":null}}
+{"domain":"Track","command":{"type":"Ungroup","group":"@t4","force":true}}
+{"domain":"Track","command":{"type":"Create","id":"@new","kind":"Vca","name":null,"color":null,"parent":null,"before":null}}
+{"domain":"Track","command":{"type":"SetVca","id":"@t1","vca":"@t5"}}
+{"domain":"Track","command":{"type":"Rename","id":"@t1","name":"x"}}
+{"domain":"Track","command":{"type":"Delete","id":"@t2"}}
+{"domain":"Edit","command":{"type":"Undo"}}
+{"domain":"Edit","command":{"type":"Redo"}}

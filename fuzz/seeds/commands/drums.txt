@@ -1,0 +1,10 @@
+{"domain":"Track","command":{"type":"Create","id":"@new","kind":"Midi","name":null,"color":null,"parent":null,"before":null}}
+{"domain":"Device","command":{"type":"Insert","id":"@new","track":"@t4","device":{"type":"Builtin","device":{"type":"DrumRack"}},"before":null}}
+{"domain":"DrumRack","command":{"type":"AddSamplePad","pad":"@new","device":"@new","rack":"@d2","note":36,"media":"@m0"}}
+{"domain":"DrumRack","command":{"type":"AddPad","id":"@new","rack":"@d2","note":38,"name":"snare"}}
+{"domain":"DrumRack","command":{"type":"InsertDevice","id":"@new","pad":"@q1","device":{"type":"Builtin","device":{"type":"Compressor"}},"before":null}}
+{"domain":"DrumRack","command":{"type":"SetChokeGroup","id":"@q0","group":1}}
+{"domain":"DrumRack","command":{"type":"SetPadNote","id":"@q1","note":36}}
+{"domain":"Slice","command":{"type":"SampleToPads","rack":"@d2","media":"@m0","mode":{"type":"Grid","beats":0.25},"base_note":36,"pads":[]}}
+{"domain":"DrumRack","command":{"type":"RemovePad","id":"@q0"}}
+tick 3
