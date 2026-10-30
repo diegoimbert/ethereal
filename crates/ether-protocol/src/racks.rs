@@ -102,7 +102,9 @@ pub enum RackCommand {
     /// place, sorted into the chain's sections. Its macros, chain mix and zones go with it;
     /// devices under a switched-off rack or a muted chain come out switched off. Refused when
     /// that would put several instruments on one chain.
-    Ungroup { rack: DeviceId },
+    Ungroup {
+        rack: DeviceId,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

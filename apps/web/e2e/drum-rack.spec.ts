@@ -93,13 +93,9 @@ test("drum rack: build a 2-pad kit from the browser", async ({ page }) => {
   await grid.getByRole("gridcell", { name: /^C1 / }).click();
   await expect(settings).toHaveAttribute("aria-label", "pad Kick");
 
-  // --- Undo: unmute, mute and choke are single steps; the D1 drop is one step -------------
+  // --- Undo: the choke is a single step (a mute is a toggle, not a step); the D1 drop is one step
   const undo = page.getByRole("button", { name: "undo" });
   const snarePad = async () => (await doc(page)).drum_pads[snare!.id];
-  await undo.click();
-  await expect.poll(async () => (await snarePad())?.mute).toBe(true);
-  await undo.click();
-  await expect.poll(async () => (await snarePad())?.mute).toBe(false);
   await undo.click();
   await expect.poll(async () => (await snarePad())?.choke_group).toBe(null);
   await undo.click();

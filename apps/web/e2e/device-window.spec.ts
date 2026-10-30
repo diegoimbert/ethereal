@@ -68,8 +68,8 @@ test("a factory device: its window and its inline parameters, independent", asyn
   const id = await insertEq(page, "dark");
   const card = deviceCard(page, id);
   const header = card.locator(":scope > header");
-  const windowToggle = header.getByRole("button", { name: "open EQ window" });
-  const paramsToggle = header.getByRole("button", { name: "show EQ parameters" });
+  const windowToggle = header.getByRole("button", { name: "open Parametric EQ window" });
+  const paramsToggle = header.getByRole("button", { name: "show Parametric EQ parameters" });
   const win = page.locator(`[data-device-window="${id}"]`);
 
   // The card is its header: no chevron, both toggles off, the EQ's UI nowhere inline.
@@ -118,11 +118,11 @@ test("a factory device: its window and its inline parameters, independent", asyn
   await expect(paramsToggle).toHaveAttribute("title", "hide parameters");
   await expect(windowToggle).toHaveAttribute("aria-pressed", "true");
   expect((await params.boundingBox())!.height).toBeLessThanOrEqual(PARAMS_MAX_PX + 1);
-  const list = params.getByRole("list", { name: "EQ parameters" });
+  const list = params.getByRole("list", { name: "Parametric EQ parameters" });
   expect(await list.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
   // Output from the inline list: the engine follows, and the window shows the same value.
   const row = params.locator(`[data-param-row="${OUTPUT}"]`);
-  await params.getByRole("searchbox", { name: "search EQ parameters" }).fill("output");
+  await params.getByRole("searchbox", { name: "search Parametric EQ parameters" }).fill("output");
   await expect(row).toBeVisible();
   const inline = row.getByRole("slider");
   await inline.focus();
@@ -149,7 +149,7 @@ test("a factory device: its window and its inline parameters, independent", asyn
   }
 
   // Deleting the device closes its window.
-  await header.getByRole("button", { name: "remove EQ" }).click();
+  await header.getByRole("button", { name: "remove Parametric EQ" }).click();
   await expect(win).toHaveCount(0);
   expect(errors).toEqual([]);
 });
@@ -165,7 +165,7 @@ test("a factory device added from the library opens its window", async ({ page }
   await win.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
   const bar = (await page.getByRole("toolbar", { name: "transport" }).boundingBox())!;
   expect((await win.boundingBox())!.y).toBeGreaterThanOrEqual(bar.y + bar.height);
-  const toggle = deviceCard(page, id).locator(":scope > header").getByRole("button", { name: "open EQ window" });
+  const toggle = deviceCard(page, id).locator(":scope > header").getByRole("button", { name: "open Parametric EQ window" });
   await expect(toggle).toHaveAttribute("aria-pressed", "true");
   // It moves and closes like any device window.
   await moveDeviceWindow(page, id, { x: 200, y: 140 });
@@ -180,12 +180,12 @@ test("a click on a factory device's card selects it; its window opens from its b
   const id = await insertEq(page, "dark");
   const card = deviceCard(page, id);
   const header = card.locator(":scope > header");
-  const toggle = header.getByRole("button", { name: "open EQ window" });
+  const toggle = header.getByRole("button", { name: "open Parametric EQ window" });
   const win = page.locator(`[data-device-window="${id}"]`);
   // The card's controls: the power button bypasses, no window.
-  await header.getByRole("button", { name: "bypass EQ" }).click();
+  await header.getByRole("button", { name: "bypass Parametric EQ" }).click();
   await expect(win).toHaveCount(0);
-  await header.getByRole("button", { name: "enable EQ" }).click();
+  await header.getByRole("button", { name: "enable Parametric EQ" }).click();
   // The name: selects the card (and focuses it, for ⌘C), no window, also once a
   // double-click's wait is over.
   await card.locator(".eth-device__name").click();
@@ -213,7 +213,7 @@ test("a click on a factory device's card selects it; its window opens from its b
   await expect(win).toHaveCount(0);
   // A double-click on the name renames, no window.
   await card.locator(".eth-device__name").dblclick();
-  await expect(card.getByRole("textbox", { name: "rename EQ" })).toBeVisible();
+  await expect(card.getByRole("textbox", { name: "rename Parametric EQ" })).toBeVisible();
   await page.waitForTimeout(400);
   await expect(win).toHaveCount(0);
   await page.keyboard.press("Escape");

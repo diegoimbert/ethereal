@@ -93,7 +93,7 @@ test("EQ, reverb, limiter and utility on an audio track", async ({ page }) => {
   // The EQ's declared layout shows every band under its curve: nothing
   // folds under "More … controls".
   await expect((await panel(eq.id)).getByRole("img", { name: /^eq curve/ })).toBeVisible();
-  await expect((await panel(eq.id)).getByRole("button", { name: "more EQ controls" })).toHaveCount(0);
+  await expect((await panel(eq.id)).getByRole("button", { name: "more Parametric EQ controls" })).toHaveCount(0);
   await expect((await panel(eq.id)).getByRole("slider", { name: "freq" })).toHaveCount(8);
   await expect((await panel(eq.id)).getByRole("slider", { name: "output" })).toHaveCount(1);
   for (const name of ["Pre-Delay", "Size", "Decay", "Damping", "Width", "Mix"]) {

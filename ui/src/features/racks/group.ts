@@ -98,7 +98,7 @@ export function ungroupTargets(project: Project, ids: ReadonlyArray<DeviceId>): 
     if (r) racks.add(r);
   }
   const inside = (id: DeviceId, outer: DeviceId): boolean => {
-    for (let d = project.devices[id]; d?.chain != null; ) {
+    for (let d = project.devices[id]; d?.chain != null;) {
       const up = project.rack_chains[d.chain]?.rack;
       if (!up) return false;
       if (up === outer) return true;
