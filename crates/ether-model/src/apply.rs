@@ -1857,6 +1857,11 @@ impl Project {
                 if a.warp.source_bpm.is_some_and(|b| check_bpm(b).is_err()) {
                     return Err(invalid("invalid source bpm"));
                 }
+                // In range (and finite): an infinity would be saved as `null`, which no longer
+                // loads.
+                if a.warp.formants.clamped() != Some(a.warp.formants) {
+                    return Err(invalid("warp formants out of range"));
+                }
             }
             (ClipContent::Midi, TrackKind::Midi) => {}
             _ => return Err(invariant("clip content does not match its track kind")),
