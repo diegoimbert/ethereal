@@ -59,7 +59,14 @@ pub fn parse<I: IntoIterator<Item = String>>(
     let mode = match (server, project) {
         (Some(_), Some(_)) => return Err("--server and --project are exclusive".into()),
         (Some(url), None) => {
-            if !(url.starts_with("ws://") || url.starts_with("wss://")) {
+            if url.starts_with("wss://") {
+                return Err(format!(
+                    "--server: wss:// is not supported ({url:?}); ether-server serves ws:// \
+                     only. For a server on another machine, forward its port over SSH \
+                     (ssh -L PORT:127.0.0.1:PORT HOST) and use ws://127.0.0.1:PORT"
+                ));
+            }
+            if !url.starts_with("ws://") {
                 return Err(format!("--server must be a ws:// URL, got {url:?}"));
             }
             Mode::Server {
@@ -78,6 +85,17 @@ pub fn parse<I: IntoIterator<Item = String>>(
         }
     };
     Ok(Args { mode, help })
+}
+
+/// Whether `url` (`ws://...`) reaches a host other than this machine: its token and
+/// traffic then cross the network in clear text.
+pub fn is_cleartext_remote(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("ws://") else {
+        return false;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    let host = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
+    !ether_server::is_loopback_host(host)
 }
 
 #[cfg(test)]
@@ -116,10 +134,31 @@ mod tests {
             }
         );
         assert!(p(&["--server", "http://x"]).is_err());
+        assert!(p(&["--server", "wss://x:1"]).is_err());
         assert!(p(&["--server", "ws://x", "--project", "a"]).is_err());
         assert!(p(&["--token", "t"]).is_err());
         assert!(p(&["--project", "a", "--runtime-file", "f"]).is_err());
         assert!(p(&["--nope"]).is_err());
         assert!(p(&["--help"]).unwrap().help);
+    }
+
+    #[test]
+    fn cleartext_remote_servers() {
+        for local in [
+            "ws://127.0.0.1:9000/",
+            "ws://localhost:9000",
+            "ws://[::1]:9000/x",
+            "ws://u@127.0.0.1:1",
+        ] {
+            assert!(!is_cleartext_remote(local), "{local}");
+        }
+        for remote in [
+            "ws://192.168.1.4:9000/",
+            "ws://studio.example:9000",
+            "ws://127.0.0.1.example:1",
+            "ws://127.0.0.1@evil:1",
+        ] {
+            assert!(is_cleartext_remote(remote), "{remote}");
+        }
     }
 }

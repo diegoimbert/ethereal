@@ -163,6 +163,9 @@ claude mcp add ethereal-remote -- /path/to/ether-mcp --server ws://127.0.0.1:POR
 ```
 
 (`ETHER_SERVER_TOKEN` also works.) A wrong token fails at start with `refused (BadToken)`.
+The connection is plain `ws://` (not encrypted): for a server on another machine, forward
+its port over SSH (`ssh -L PORT:127.0.0.1:PORT HOST`) and connect to `ws://127.0.0.1:PORT`;
+`ether-mcp` warns when the URL names another host. `wss://` is refused.
 
 During development, `just mcp [args]` runs `ether-mcp` from source for this checkout's dev
 instance. For example, `claude mcp add ethereal-dev -- just -f $PWD/justfile mcp` attaches
