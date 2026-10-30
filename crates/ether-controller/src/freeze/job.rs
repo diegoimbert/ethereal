@@ -418,6 +418,15 @@ fn cut_content(p: &mut Project, track: TrackId, end: Beats) {
             c.length = Beats(end.0 - c.start.0);
         }
     }
+    reindex(p);
+}
+
+/// Rebuild `p`'s parent → children indexes after rows were removed or inserted directly in
+/// its tables. The index only checks table sizes, so a pass that swaps one clip and note for
+/// another would otherwise keep answering for the removed rows (the sampling passes do).
+fn reindex(p: &mut Project) {
+    p.invalidate_index();
+    p.ensure_index();
 }
 
 /// `name` made safe as a file-name segment of `media/<id>-<name>`.
@@ -725,6 +734,7 @@ impl RenderJob {
                 },
             );
         }
+        reindex(p);
     }
 
     fn new_setup(&mut self) -> Result<Stage, String> {
@@ -760,6 +770,75 @@ mod tests {
         let mut ch = vec![vec![0.0; 6]];
         trim_tail(&mut ch, 0);
         assert_eq!(ch[0].len(), 1);
+    }
+
+    /// A sampling pass swaps the track's one clip and note for its own: same table sizes,
+    /// so the copied index must be rebuilt, not trusted.
+    #[test]
+    fn a_sampling_pass_reindexes_its_project() {
+        let mut ids = IdGen::new(7);
+        let mut p = Project::new(&mut ids, 0);
+        let track = *p.tracks.keys().next().expect("master");
+        let clip = |id, length| Clip {
+            id,
+            track,
+            start: Beats::ZERO,
+            name: "c".into(),
+            color: None,
+            muted: false,
+            length: Beats(length),
+            offset: Beats::ZERO,
+            looping: ClipLoop::default(),
+            content: ClipContent::Midi,
+            lane: None,
+        };
+        let note = |id, clip| Note {
+            id,
+            clip,
+            pitch: 60,
+            velocity: 0.8,
+            release_velocity: 0.0,
+            start: Beats::ZERO,
+            duration: Beats(1.0),
+            muted: false,
+        };
+        let (old_clip, old_note): (ClipId, NoteId) = (ids.next(0), ids.next(0));
+        p.clips.insert(old_clip, clip(old_clip, 4.0));
+        p.notes.insert(old_note, note(old_note, old_clip));
+        p.ensure_index();
+        assert_eq!(p.notes_of(old_clip).len(), 1);
+
+        let (new_clip, new_note): (ClipId, NoteId) = (ids.next(0), ids.next(0));
+        let spec = PassSpec {
+            track,
+            start: Beats::ZERO,
+            frames: 100,
+            tail: true,
+            cut: None,
+            chain: true,
+            up_to: None,
+            sample: Some(SampleNote {
+                device: ids.next(0),
+                params: Vec::new(),
+                key: 64,
+                velocity: 1.0,
+                start: Beats::ZERO,
+                duration: Beats(1.0),
+                note_frame: 0,
+                wait_ms: 0,
+                warm_up: None,
+                clip: new_clip,
+                note: new_note,
+            }),
+            max_tail_seconds: None,
+            media: ids.next(0),
+            name: "s".into(),
+        };
+        let mut job = RenderJob::new("j".into(), &p, 48_000, vec![spec]);
+        job.prepare_sample();
+        let notes = job.project.notes_of(new_clip);
+        assert_eq!(notes.iter().map(|n| n.id).collect::<Vec<_>>(), [new_note]);
+        assert!(job.project.notes_of(old_clip).is_empty());
     }
 
     #[test]

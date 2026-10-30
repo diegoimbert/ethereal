@@ -576,6 +576,10 @@ pub fn rack_command(ctx: &mut DocCtx, command: &RackCommand) -> CmdResult<()> {
 /// rack with parallel instruments) can't be flattened into one chain.
 fn ungroup(ctx: &mut DocCtx, rack_id: DeviceId) -> CmdResult<()> {
     let r = rack(ctx, rack_id)?;
+    if r.pad.is_some() {
+        // Its devices would land on the track chain, out of the pad.
+        return Err(invalid("a rack on a drum pad can't be ungrouped"));
+    }
     // The leaves in signal order, with whether they still play.
     fn leaves(p: &Project, rack: DeviceId, on: bool, out: &mut Vec<(DeviceId, bool)>) {
         for c in p.chains_of(rack) {
