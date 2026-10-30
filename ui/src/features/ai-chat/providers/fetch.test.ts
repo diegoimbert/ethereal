@@ -70,7 +70,7 @@ describe("provider fetch", () => {
     await expect(client.models.retrieve("claude-sonnet-5-5")).resolves.toMatchObject({ id: "claude-sonnet-5-5" });
     expect(browserFetch).not.toHaveBeenCalled();
     expect(String(tauriFetch.mock.calls[0]![0])).toBe("https://api.anthropic.com/v1/models/claude-sonnet-5-5");
-    expect(headersOf(tauriFetch.mock.calls[0]!).get("x-api-key")).toBe(KEY);
+    expect(headersOf(tauriFetch.mock.calls[0]!).get("authorization")).toBe(`Bearer ${KEY}`);
     expect(invoke).toHaveBeenCalledWith("ai_http_allow", { baseUrl: "https://api.anthropic.com" });
   });
 

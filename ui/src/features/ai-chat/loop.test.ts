@@ -66,7 +66,8 @@ describe("runTurn", () => {
     expect(first.cache_control).toEqual({ type: "ephemeral" });
     // Browser access header + key header (the key goes only to the API).
     expect(api.headers[0]!["anthropic-dangerous-direct-browser-access"]).toBe("true");
-    expect(api.headers[0]!["x-api-key"]).toMatch(/^sk-ant-/);
+    // SDK 1.0 sends the key as a bearer token (0.x used `x-api-key`).
+    expect(api.headers[0]!["authorization"]).toMatch(/^Bearer sk-ant-/);
 
     // The second request carries the assistant's tool_use and our tool_result.
     const second = api.requests[1]!.messages as BetaMessageParam[];
