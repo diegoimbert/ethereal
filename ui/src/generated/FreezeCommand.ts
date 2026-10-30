@@ -31,10 +31,12 @@ pre_roll_seconds: Seconds,
  */
 warm_up_note: boolean, 
 /**
- * How long each note is held before note-off.
+ * How long each note is held before note-off (above 0, at most
+ * [`CONVERT_MAX_SECONDS`]).
  */
 note_seconds: Seconds, 
 /**
- * Longest release tail kept after note-off (silence beyond is trimmed).
+ * Longest release tail kept after note-off (silence beyond is trimmed; 0 to
+ * [`CONVERT_MAX_SECONDS`]).
  */
 tail_seconds: Seconds, } | { "type": "Cancel", job: string, } | { "type": "BounceRange", job: string, tracks: Array<TrackId>, start: Beats, end: Beats, seed_tracks: TrackId, seed_clips: ClipId, seed_media: MediaId, };
