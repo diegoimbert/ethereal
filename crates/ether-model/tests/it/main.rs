@@ -5,6 +5,7 @@
 // of tests/.
 mod format_fixtures;
 mod index;
+mod media_priority;
 mod model_rules;
 mod nested_sidechain;
 mod ops_proptest;
