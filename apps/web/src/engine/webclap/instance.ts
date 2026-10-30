@@ -58,6 +58,13 @@ import { wasiImports } from "./wasi";
 
 /** Where the plugin believes it lives (`clap_entry.init`): its bundle has no files here. */
 export const PLUGIN_PATH = "/plugin";
+
+/**
+ * The biggest message between a plugin and its web UI, either way (bigger ones are dropped):
+ * the UI's land in the plugin's memory on the audio thread, the plugin's on the page.
+ */
+export const MAX_UI_MESSAGE_BYTES = 4 * 1024 * 1024;
+
 /** Events per block into the plugin (all-notes-off expands to two). */
 const IN_EVENT_SLOTS = 2048;
 /** Default ceiling of an imported memory without a declared maximum (64 KiB pages). */
@@ -512,7 +519,7 @@ export class ClapInstance {
       () => (this.phase === "main" ? 1 : 0),
       () => (this.phase === "audio" ? 1 : 0),
       (_host: number, buf: number, size: number) => {
-        if (!this.uiOpen || !this.opts.ui) return 0;
+        if (!this.uiOpen || !this.opts.ui || size > MAX_UI_MESSAGE_BYTES) return 0;
         this.m.views();
         return this.opts.ui(this.m.u8.slice(buf, buf + size)) ? 1 : 0;
       },
@@ -1095,15 +1102,14 @@ export class ClapInstance {
     return { mime: this.m.cstring(mime, 256), bytes };
   }
 
-  /** A message from the UI (`receive`). */
+  /** A message from the UI (`receive`); over `MAX_UI_MESSAGE_BYTES`, dropped. */
   receive(bytes: Uint8Array): boolean {
-    if (!this.ext.webview || !this.uiOpen || this.failed) return false;
-    if (bytes.length > this.msg.cap) {
-      this.msg = { ptr: this.m.alloc(bytes.length), cap: bytes.length };
-    }
-    this.m.views();
-    this.m.u8.set(bytes, this.msg.ptr);
+    if (!this.ext.webview || !this.uiOpen || this.failed || bytes.length > MAX_UI_MESSAGE_BYTES) return false;
     try {
+      // The buffer only grows (the plugin's memory has no `free` we can count on): bounded by the cap.
+      if (bytes.length > this.msg.cap) this.msg = { ptr: this.m.alloc(bytes.length), cap: bytes.length };
+      this.m.views();
+      this.m.u8.set(bytes, this.msg.ptr);
       return this.extFn(this.ext.webview, WEBVIEW_EXT.receive)(this.plugin, this.msg.ptr, bytes.length) !== 0;
     } catch (e) {
       this.fail(e);

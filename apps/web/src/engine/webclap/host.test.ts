@@ -9,6 +9,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { buildFixture } from "../../../scripts/build-webclap-fixture.mjs";
 import { readBundle } from "./bundle";
 import { WebclapHost } from "./host";
+import { MAX_UI_MESSAGE_BYTES } from "./instance";
 import { EXCHANGE, KIND, NOTE, REC, STATUS, XFLAGS } from "./layout";
 import { scanModule } from "./scan";
 import { moduleInfo, type ModuleInfo } from "./wasm";
@@ -209,6 +210,8 @@ describe("the test plugin", () => {
     expect(notes.map((n) => n[1])).toEqual([NOTE.dirty, NOTE.begin, NOTE.param, NOTE.end]);
     expect(notes[2]!.slice(2, 4)).toEqual([1, 0.5]);
     expect(host.takeNotifications()).toBeUndefined();
+    // Over the cap: dropped, the plugin never sees it.
+    expect(inst.receive(new Uint8Array(MAX_UI_MESSAGE_BYTES + 1))).toBe(false);
     inst.closeUi();
     expect(inst.receive(new TextEncoder().encode("ready"))).toBe(false);
   });
