@@ -310,7 +310,7 @@ fn allowed_origins_limit_browser_pages() {
         &tmp,
         ServerConfig {
             token: Some(TOKEN.into()),
-            allowed_origins: vec!["https://app.ethereal.ws".into()],
+            allowed_origins: vec!["https://ethereal.ws".into()],
             ..ServerConfig::default()
         },
     );
@@ -332,7 +332,7 @@ fn allowed_origins_limit_browser_pages() {
         },
         Ok(_) => panic!("another page was accepted"),
     }
-    for ok in [Some("https://app.ethereal.ws"), None] {
+    for ok in [Some("https://ethereal.ws"), None] {
         let mut ws = attempt(ok).unwrap_or_else(|e| panic!("{ok:?}: {e}"));
         assert!(matches!(
             hello(&mut ws, Some(TOKEN)),
