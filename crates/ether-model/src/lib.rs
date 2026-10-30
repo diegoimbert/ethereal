@@ -8,6 +8,7 @@
 //! - v0.2 entities (pre-release `.ether` v4): [`take`] (take lanes, comp regions), [`rack`]
 //!   (rack chains), [`modulation`] (modulators, mappings); plus [`multisampler`] zones,
 //!   track freeze, external media references and the [`preset`] file format.
+//! - [`media_priority`]: which media matter most (load order over the network).
 //! - Chat journal and pinned notes (pre-release `.ether` v4): [`social`].
 //! - v0.3 (pre-release `.ether` v5): [`expression`] (clip expression lanes, per-note
 //!   expressions, MPE settings), [`external`] (hardware I/O routing, convolution IR source),
@@ -36,6 +37,7 @@ mod index;
 pub mod lfo_curve;
 pub mod marker;
 pub mod media;
+pub mod media_priority;
 pub mod midi_map;
 pub mod mixer;
 pub mod modulation;
