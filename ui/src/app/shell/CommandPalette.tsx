@@ -145,8 +145,13 @@ function Palette({ closing, onClose, onClosed }: { closing: boolean; onClose(): 
 
   useEffect(() => {
     restoreFocus.current = document.activeElement;
+    const card = input.current?.closest(".eth-palette");
     input.current?.focus();
     return () => {
+      // Unmounted after the exit animation: give the focus back only if nothing took it
+      // meanwhile (it was the palette's or fell to <body>), e.g. not from a dialog a command opened.
+      const now = document.activeElement;
+      if (now && now !== document.body && !card?.contains(now)) return;
       if (restoreFocus.current instanceof HTMLElement) restoreFocus.current.focus({ preventScroll: true });
     };
   }, []);

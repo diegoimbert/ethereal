@@ -65,6 +65,31 @@ describe("CommandPalette", () => {
     expect(useShellStore.getState().paletteOpen).toBe(false);
   });
 
+  it("gives the focus back when it closes, unless something else took it meanwhile", async () => {
+    await renderWithMock(
+      <>
+        <button>before</button>
+        <button>other</button>
+        <CommandPalette />
+      </>,
+    );
+    const before = screen.getByRole("button", { name: "before" });
+    const other = screen.getByRole("button", { name: "other" });
+    // Nothing else takes it: back where it was.
+    before.focus();
+    act(openPalette);
+    expect(search()).toHaveFocus();
+    fireEvent.keyDown(search(), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "command palette" })).toBeNull());
+    expect(before).toHaveFocus();
+    // A command focuses something (e.g. a dialog it opened) during the exit animation: it keeps it.
+    act(openPalette);
+    fireEvent.keyDown(search(), { key: "Escape" });
+    other.focus();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "command palette" })).toBeNull());
+    expect(other).toHaveFocus();
+  });
+
   it("arrows move the active command; recent commands come first next time", async () => {
     await renderWithMock(<CommandPalette />);
     act(openPalette);
