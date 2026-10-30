@@ -9,7 +9,7 @@
 import type { WebclapApi, WebclapModuleView } from "@/features/webclap/api";
 import type { WebclapModuleMsg, WebclapPortMsg } from "../protocol";
 import { MAX_BUNDLE_BYTES, contentId, readBundle } from "./bundle";
-import { PLUGIN_PATH } from "./instance";
+import { MAX_UI_MESSAGE_BYTES, PLUGIN_PATH } from "./instance";
 import type { ScanResult } from "./scan";
 import { type InstalledModule, store } from "./store";
 import { collectUiPage, dataPage, splitUri, type UiPage } from "./uiPage";
@@ -289,6 +289,8 @@ export class WebclapManager implements WebclapApi {
         return;
       }
       let data: ArrayBuffer | null = null;
+      // Too big for the plugin (`receive` would drop it): not copied nor sent.
+      if ((d instanceof ArrayBuffer || ArrayBuffer.isView(d)) && d.byteLength > MAX_UI_MESSAGE_BYTES) return;
       if (d instanceof ArrayBuffer) data = d;
       else if (ArrayBuffer.isView(d)) data = new Uint8Array(d.buffer, d.byteOffset, d.byteLength).slice().buffer;
       if (data) this.link?.worklet.postMessage({ type: "webclap:ui", device, data } satisfies WebclapPortMsg, [data]);
