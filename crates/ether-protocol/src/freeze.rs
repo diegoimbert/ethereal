@@ -153,9 +153,11 @@ pub enum FreezeCommand {
         /// ([`CONVERT_WARM_UP_NOTE_SECONDS`]) at the render's start, in the pre-roll the
         /// sampler skips (some plugins only finish loading a sound once it has played).
         warm_up_note: bool,
-        /// How long each note is held before note-off.
+        /// How long each note is held before note-off (above 0, at most
+        /// [`CONVERT_MAX_SECONDS`]).
         note_seconds: Seconds,
-        /// Longest release tail kept after note-off (silence beyond is trimmed).
+        /// Longest release tail kept after note-off (silence beyond is trimmed; 0 to
+        /// [`CONVERT_MAX_SECONDS`]).
         tail_seconds: Seconds,
     },
     /// Cancel a running render (`Cancelled` follows). No-op if finished.
@@ -180,6 +182,9 @@ pub enum FreezeCommand {
 
 /// Length of `ConvertToSampler`'s warm-up note (seconds).
 pub const CONVERT_WARM_UP_NOTE_SECONDS: f64 = 0.005;
+
+/// Longest `ConvertToSampler` note and tail (seconds, each).
+pub const CONVERT_MAX_SECONDS: f64 = 60.0;
 
 /// Where a bounce goes.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

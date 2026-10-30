@@ -432,14 +432,17 @@ where
                 if p.devices.contains_key(new_device) {
                     return Err(invalid(format!("device {new_device} already exists")));
                 }
-                if !(note_seconds.0.is_finite() && note_seconds.0 > 0.0) {
-                    return Err(invalid("the note length must be finite and above 0"));
+                let max = ether_core::protocol::freeze::CONVERT_MAX_SECONDS;
+                if !(note_seconds.0.is_finite() && note_seconds.0 > 0.0 && note_seconds.0 <= max) {
+                    return Err(invalid(format!(
+                        "the note length must be above 0 and at most {max} seconds"
+                    )));
                 }
                 if !(pre_roll_seconds.0.is_finite() && (0.0..=2.0).contains(&pre_roll_seconds.0)) {
                     return Err(invalid("the pre-roll must be 0 to 2 seconds"));
                 }
-                if !(tail_seconds.0.is_finite() && tail_seconds.0 >= 0.0) {
-                    return Err(invalid("the tail must be finite and >= 0"));
+                if !(tail_seconds.0.is_finite() && (0.0..=max).contains(&tail_seconds.0)) {
+                    return Err(invalid(format!("the tail must be 0 to {max} seconds")));
                 }
                 let plan = sample::plan(keys, velocities, *seed_media)?;
                 for point in &plan.points {

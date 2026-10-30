@@ -2418,6 +2418,33 @@ fn convert_to_sampler_validates_the_target_and_the_count() {
     invalid(&mut d, cmd(synth, vec![60], vec![]));
     invalid(&mut d, cmd(synth, vec![60], vec![0]));
     invalid(&mut d, cmd(synth, vec![60], (1..=17).collect()));
+    // Note and tail lengths: above 0 (the note), finite, at most a minute each.
+    let timed = |note: f64, tail: f64| {
+        Command::Freeze(FreezeCommand::ConvertToSampler {
+            job: "x".into(),
+            device: synth,
+            new_device: DeviceId::NIL,
+            seed_media: MediaId::NIL,
+            keys: vec![60],
+            velocities: vec![127],
+            pre_roll_seconds: Seconds(0.0),
+            warm_up_note: false,
+            note_seconds: Seconds(note),
+            tail_seconds: Seconds(tail),
+        })
+    };
+    for (note, tail) in [
+        (0.0, 0.1),
+        (61.0, 0.1),
+        (1e10, 0.1),
+        (f64::INFINITY, 0.1),
+        (0.2, -1.0),
+        (0.2, 61.0),
+        (0.2, 1e9),
+        (0.2, f64::NAN),
+    ] {
+        invalid(&mut d, timed(note, tail));
+    }
 }
 
 /// Interleaved 32-bit float WAV (the renders) → channels.
