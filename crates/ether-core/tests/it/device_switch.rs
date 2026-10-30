@@ -321,8 +321,15 @@ fn tail_is_cut(
     p.handle.publish(desc(vec![master(), t])).unwrap();
     p.handle.transport(TransportControl::Play).unwrap();
     let (l, _) = render(&mut p.engine, 3 * BEAT, ODD_BLOCK);
-    assert!((l[BEAT + BEAT / 4] - 0.5).abs() < 1e-6, "the tail plays: {}", l[BEAT + BEAT / 4]);
-    assert!(l[2 * BEAT + 2 * FADE..].iter().all(|&s| s == 0.0), "the tail is gone once back on");
+    assert!(
+        (l[BEAT + BEAT / 4] - 0.5).abs() < 1e-6,
+        "the tail plays: {}",
+        l[BEAT + BEAT / 4]
+    );
+    assert!(
+        l[2 * BEAT + 2 * FADE..].iter().all(|&s| s == 0.0),
+        "the tail is gone once back on"
+    );
 }
 
 #[test]

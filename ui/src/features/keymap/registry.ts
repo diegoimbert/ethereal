@@ -167,7 +167,15 @@ export const BUILTIN_ACTIONS: ReadonlyArray<KeymapAction> = [
   { id: "track.ungroup", labelKey: "shell.action.track_ungroup", group: "Arrangement", scopes: ["arrangement"], chords: ["Mod+Shift+G"], handled: true },
   // The selected device cards (a device card focused: features/devices/deviceClipboard.ts).
   { id: "device.group", labelKey: "shell.action.device_group", group: "Devices", scopes: ["devices"], chords: ["Mod+G"], handled: true, keywords: "rack" },
-  { id: "device.ungroup", labelKey: "shell.action.device_ungroup", group: "Devices", scopes: ["devices"], chords: ["Mod+Shift+G"], handled: true, keywords: "rack flatten" },
+  {
+    id: "device.ungroup",
+    labelKey: "shell.action.device_ungroup",
+    group: "Devices",
+    scopes: ["devices"],
+    chords: ["Mod+Shift+G"],
+    handled: true,
+    keywords: "rack flatten",
+  },
   { id: "track.addAudio", labelKey: "shell.action.track_add_audio", group: "Arrangement", scopes: G, chords: [], ableton: ["Mod+T"], palette: "track:audio" },
   {
     id: "track.addMidi",
