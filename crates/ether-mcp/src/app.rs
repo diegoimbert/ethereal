@@ -40,6 +40,12 @@ fn backend(mode: Mode) -> Result<Arc<dyn Backend>, String> {
             Arc::new(RemoteBackend::new(Target::Desktop { candidates }))
         }
         Mode::Server { url, token } => {
+            if cli::is_cleartext_remote(&url) {
+                tracing::warn!(
+                    "{url} is not on this machine: the token and the project travel unencrypted \
+                     (forward the port over SSH and use ws://127.0.0.1:PORT)"
+                );
+            }
             let b = RemoteBackend::new(Target::Fixed { url, token });
             b.connect()?;
             Arc::new(b)
