@@ -1551,3 +1551,31 @@ fn fresh_effect_racks_come_with_a_first_chain() {
         .unwrap();
     assert!(r.chains.is_empty());
 }
+
+/// Ungrouping a rack on a pad chain is refused clearly and changes nothing (its devices
+/// would otherwise land on the track chain, out of the pad).
+#[test]
+fn a_pad_rack_is_not_ungrouped() {
+    let Kit { mut h, rack, .. } = kit();
+    let pad: DrumPadId = h.id();
+    rack_cmd(
+        &mut h,
+        DrumRackCommand::AddPad {
+            id: pad,
+            rack,
+            note: 36,
+            name: None,
+        },
+    );
+    ok(&pad_insert(&mut h, pad, BuiltinDeviceType::AudioEffectRack));
+    let fx = inserted(&h, pad);
+    let fc = first_chain(&h, fx);
+    chain_insert(&mut h, fc, BuiltinDeviceType::Delay);
+    let before = h.project().clone();
+    let out = h.send(Command::Rack(RackCommand::Ungroup { rack: fx }));
+    let e = err(&out);
+    assert_eq!(e.code, ErrorCode::InvalidArgument);
+    assert!(e.message.contains("drum pad"), "{}", e.message);
+    assert!(patches(&out).is_empty());
+    assert_eq!(h.project(), &before);
+}
