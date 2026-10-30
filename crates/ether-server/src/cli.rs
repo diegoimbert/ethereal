@@ -31,7 +31,7 @@ OPTIONS:
                     samples plus $ETHER_LIBRARY).
   --allow-origin <ORIGIN>
                     Only browser pages from this origin may connect (repeatable, e.g.
-                    https://app.ethereal.ws). Default: any page with the token. Clients
+                    https://ethereal.ws). Default: any page with the token. Clients
                     that send no Origin (the desktop app, scripts) are not affected.
   --allow-os-paths  Honour commands that name files and folders of this machine by path
                     (file import, save dialogs, user and plugin folders), like the

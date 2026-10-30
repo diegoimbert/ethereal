@@ -101,7 +101,7 @@ pub struct ServerConfig {
     pub ping_interval: Duration,
     /// Drop a client after this long without an inbound frame (pongs count; default 60 s).
     pub idle_timeout: Duration,
-    /// Browser pages allowed to connect (`Origin` values, e.g. `https://app.ethereal.ws`).
+    /// Browser pages allowed to connect (`Origin` values, e.g. `https://ethereal.ws`).
     /// Empty (the default): any page that has the token (with no token, loopback pages
     /// only). Clients that send no `Origin` (the desktop app, scripts) are not affected.
     pub allowed_origins: Vec<String>,
