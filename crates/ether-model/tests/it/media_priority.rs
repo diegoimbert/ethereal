@@ -654,3 +654,33 @@ fn time_to_first_playable() {
         assert!(after.0 <= after.1 * 1.1 + 0.5, "{results:?}");
     }
 }
+
+/// A crafted project (a shared copy or a session ranks someone else's project): many notes
+/// in a tiny content loop, heard by a sampler with many zones. The ranking stays bounded.
+#[test]
+fn crafted_loops_and_zones_stay_cheap() {
+    let mut f = Fx::new();
+    let media: Vec<MediaId> = (0..512).map(|i| f.media(&format!("z{i}"), 1.0)).collect();
+    let zones = media.iter().map(|m| zone(*m, (0, 127), (1, 127))).collect();
+    let t = f.track(TrackKind::Midi);
+    f.device(t, BuiltinDevice::MultiSampler { zones });
+    let c = f.clip(t, 0.0, 100_000.0, ClipContent::Midi);
+    let clip = f.p.clips.get_mut(&c).unwrap();
+    clip.looping = ClipLoop {
+        enabled: true,
+        start: Beats::ZERO,
+        end: Beats(1.0),
+    };
+    for i in 0..20_000 {
+        f.note(c, i as f64 / 20_000.0, 60, 0.9);
+    }
+    f.p.invalidate_index();
+    let t0 = std::time::Instant::now();
+    let ranks = media_priority(&f.p, &Listening::of(&f.p, Beats(0.0)), &HashMap::new());
+    let took = t0.elapsed();
+    println!("crafted: {} media ranked in {took:?}", ranks.len());
+    assert_eq!(ranks.len(), 512);
+    assert!(ranks.iter().all(|r| r.tier == MediaTier::Heard));
+    // ~0.1 s here; one hit per note, loop pass and zone took minutes.
+    assert!(took.as_secs() < 20, "ranking took {took:?}");
+}

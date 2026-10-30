@@ -157,17 +157,19 @@ fn bucket(score: f64) -> i64 {
     }
 }
 
-/// A note as heard on the timeline.
+/// The notes of one key and velocity as heard on the timeline, summed: every zone, pad or
+/// chain a note reaches takes the same use of it, so a stream carries at most one entry per
+/// key, velocity and silence (not one per note and loop pass, which a crafted project makes
+/// millions of, times every zone they reach).
 #[derive(Clone, Copy, Debug)]
 struct Hit {
-    /// Timeline beats.
-    start: f64,
-    end: f64,
     key: u8,
     /// 1..=127.
     velocity: u8,
     /// From a muted clip, a take lane or a muted track: it plays nothing now.
     silent: bool,
+    /// The notes' weighted time, soonest start and heard time (see [`Ranker::add`]).
+    used: Use,
 }
 
 /// The notes reaching a device.
@@ -178,11 +180,31 @@ struct Stream {
     exact: bool,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 struct Use {
     score: f64,
     soonest: Option<f64>,
     heard: f64,
+}
+
+impl Use {
+    /// Add the timeline span `[a, b)` (`clock`: how soon and how much it weighs).
+    fn span(&mut self, clock: &Clock, a: f64, b: f64) {
+        let (score, soonest) = clock.weigh(a, b);
+        self.merge(&Use {
+            score,
+            soonest: soonest.is_finite().then_some(soonest),
+            heard: (b - a).max(0.0),
+        });
+    }
+
+    fn merge(&mut self, other: &Use) {
+        self.score += other.score;
+        self.heard += other.heard;
+        if let Some(s) = other.soonest {
+            self.soonest = Some(self.soonest.map_or(s, |x| x.min(s)));
+        }
+    }
 }
 
 /// Per media, its uses per tier.
@@ -234,18 +256,28 @@ impl Clock {
         if b.partial_cmp(&a) != Some(std::cmp::Ordering::Greater) {
             return (0.0, f64::INFINITY);
         }
-        let mut cuts = vec![a, b, self.at];
+        // No allocation: this runs once per note and loop pass.
+        let mut all = [a, b, self.at, a, a];
         if let Some((ls, le)) = self.looping {
-            cuts.extend([ls, le]);
+            all[3] = ls;
+            all[4] = le;
         }
-        cuts.retain(|x| *x >= a && *x <= b);
+        let mut cuts = [0.0; 5];
+        let mut n = 0;
+        for x in all {
+            if x >= a && x <= b {
+                cuts[n] = x;
+                n += 1;
+            }
+        }
+        let cuts = &mut cuts[..n];
         cuts.sort_by(f64::total_cmp);
-        cuts.dedup();
         let h = HORIZON_BEATS;
         let (mut score, mut soonest) = (0.0, f64::INFINITY);
         for w in cuts.windows(2) {
             let (x, y) = (w[0], w[1]);
             let len = y - x;
+            // (Equal cuts: an empty piece.)
             if len <= 0.0 {
                 continue;
             }
@@ -298,12 +330,21 @@ impl<'a> Ranker<'a> {
         } else {
             self.clock.weigh(a, b)
         };
-        let u = self.acc.entry(media).or_default().tiers[tier as usize].get_or_insert_default();
-        u.score += score;
-        u.heard += (b - a).max(0.0);
-        if soonest.is_finite() {
-            u.soonest = Some(u.soonest.map_or(soonest, |s| s.min(soonest)));
-        }
+        self.add_use(
+            media,
+            tier,
+            &Use {
+                score,
+                soonest: soonest.is_finite().then_some(soonest),
+                heard: (b - a).max(0.0),
+            },
+        );
+    }
+
+    fn add_use(&mut self, media: MediaId, tier: MediaTier, used: &Use) {
+        self.acc.entry(media).or_default().tiers[tier as usize]
+            .get_or_insert_default()
+            .merge(used);
     }
 
     fn idle(&mut self, media: MediaId) {
@@ -402,7 +443,7 @@ impl<'a> Ranker<'a> {
         }
         let p = self.p;
         let track_silent = !self.track_live(track);
-        let mut hits = Vec::new();
+        let mut classes: BTreeMap<(u8, u8, bool), Use> = BTreeMap::new();
         for c in p.clips.values().filter(|c| c.track == track) {
             if !matches!(c.content, ClipContent::Midi) {
                 continue;
@@ -415,16 +456,23 @@ impl<'a> Ranker<'a> {
             for n in notes {
                 for (a, b) in note_spans(c, n) {
                     let heard = spans.iter().any(|(x, y)| a < *y && a >= *x);
-                    hits.push(Hit {
-                        start: a,
-                        end: b,
-                        key: n.pitch,
-                        velocity: velocity(n.velocity),
-                        silent: clip_silent || n.muted || !heard,
-                    });
+                    let silent = clip_silent || n.muted || !heard;
+                    classes
+                        .entry((n.pitch, velocity(n.velocity), silent))
+                        .or_default()
+                        .span(&self.clock, a, b);
                 }
             }
         }
+        let hits: Vec<Hit> = classes
+            .into_iter()
+            .map(|((key, velocity, silent), used)| Hit {
+                key,
+                velocity,
+                silent,
+                used,
+            })
+            .collect();
         self.track_hits.insert(track, hits.clone());
         hits
     }
@@ -569,7 +617,7 @@ impl<'a> Ranker<'a> {
             return;
         }
         for h in hits {
-            self.add(media, tier(off || h.silent), h.start, h.end);
+            self.add_use(media, tier(off || h.silent), &h.used);
         }
     }
 
