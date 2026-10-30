@@ -374,6 +374,17 @@ export interface MessageArgs {
   "keyboard_midi.title_on_key": { keys: string | number; low: string | number; octave: string | number; shortcut: string | number; vel: string | number };
   "keyboard_midi.velocity_presets": { keys: string | number };
   "kit.select.search_named": { name: string | number };
+  "media_manager.format": { channels: number; duration: string | number; rate: string | number };
+  "media_manager.remove.body_many": { count: string | number };
+  "media_manager.remove.body_one": { name: string | number };
+  "media_manager.remove.clips": { count: number };
+  "media_manager.remove.devices": { count: number };
+  "media_manager.remove.title_many": { count: string | number };
+  "media_manager.remove_unused": { count: number };
+  "media_manager.summary": { count: number; unused: string | number };
+  "media_manager.uses.clips": { count: number };
+  "media_manager.uses.devices": { count: number };
+  "media_manager.uses.freezes": { count: number };
   "media_refs.collecting": { done: string | number; total: string | number };
   "media_refs.notice.missing": { count: number };
   "media_refs.source.library": { path: string | number };
@@ -793,6 +804,7 @@ export interface MessageArgs {
   "undo.expression.edit_lane": { lane: string | number };
   "undo.freeze.consolidate_tracks": { count: number };
   "undo.marker.delete": { count: number };
+  "undo.media_ref.remove": { count: number };
   "undo.midi_map.delete": { count: number };
   "undo.modulation.add": { kind: string };
   "undo.modulation.map_param": { param: string | number };

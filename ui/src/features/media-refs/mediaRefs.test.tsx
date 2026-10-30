@@ -96,12 +96,13 @@ describe("missing media state", () => {
 
   it("offers palette entries only when they apply", () => {
     const t = new FakeTransport() as unknown as EngineTransport;
-    expect(mediaRefCommands(t, project).map((c) => c.label)).toEqual(["collect all and save"]);
+    expect(mediaRefCommands(t, project).filter((c) => c.id !== "media:manager").map((c) => c.label)).toEqual(["collect all and save"]);
     applyMediaRefEvent({ type: "Media", event: { type: "Missing", media: media.id } });
-    expect(mediaRefCommands(t, project).map((c) => c.label)).toEqual(["relink missing samples…", "collect all and save"]);
+    expect(mediaRefCommands(t, project).filter((c) => c.id !== "media:manager").map((c) => c.label)).toEqual(["relink missing samples…", "collect all and save"]);
     const local = { ...project, media: { [media.id]: { ...media, location: { type: "Project" as const } } } };
     resetMediaRefs();
-    expect(mediaRefCommands(t, local)).toEqual([]);
+    // Only the media manager, which is always there.
+    expect(mediaRefCommands(t, local).map((c) => c.id)).toEqual(["media:manager"]);
   });
 });
 

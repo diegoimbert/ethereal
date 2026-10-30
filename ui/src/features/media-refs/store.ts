@@ -31,9 +31,11 @@ interface MediaRefsState {
   dialog: { media: MediaId | null } | null;
   /** Last failure shown in the dialog. */
   error: string | null;
+  /** The media manager is open. */
+  manager: boolean;
 }
 
-const INITIAL: MediaRefsState = { missing: new Set(), candidates: {}, search: null, collect: null, dialog: null, error: null };
+const INITIAL: MediaRefsState = { missing: new Set(), candidates: {}, search: null, collect: null, dialog: null, error: null, manager: false };
 
 export const useMediaRefs = create<MediaRefsState>()(() => ({ ...INITIAL }));
 
@@ -143,6 +145,22 @@ export async function collectAll(transport: EngineTransport): Promise<boolean> {
   const ok = await run(() => transport.send(cmd("MediaRef", { type: "CollectAll" })));
   useMediaRefs.setState({ collect: null });
   return ok;
+}
+
+export function openMediaManager(): void {
+  useMediaRefs.setState({ manager: true, error: null });
+}
+
+export function closeMediaManager(): void {
+  useMediaRefs.setState({ manager: false, error: null });
+}
+
+/**
+ * Remove `media` from the project (one undo step): their audio clips are deleted, samplers
+ * and convolution reverbs unloaded, multisampler zones emptied. The files stay on disk.
+ */
+export function removeMedia(transport: EngineTransport, media: MediaId[]): Promise<boolean> {
+  return run(() => transport.send(cmd("MediaRef", { type: "Remove", media })));
 }
 
 /** Test helper. */

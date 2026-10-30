@@ -126,7 +126,7 @@ import { cmd } from "../cmd";
 import { CommandFailedError, Emitter, type EngineTransport, type SendOptions, type Unsubscribe } from "../EngineTransport";
 import { newId as defaultNewId } from "../ids";
 import { createDemoProjects, createEmptyProject, createStarterProject } from "./demoProject";
-import { fail, isDocumentCommand, isToggle, labelOf, reduceDocumentCommand } from "./documentReducer";
+import { deleteClipCascade, fail, isDocumentCommand, isToggle, labelOf, reduceDocumentCommand } from "./documentReducer";
 import { findLibraryFile, LIBRARY_ID, listLibraryFolder, MOCK_LOCATIONS, normalize, wavSize } from "./library";
 import { synthesizePeaks } from "./peaks";
 import { mockParamText } from "./plugins";
@@ -144,7 +144,7 @@ import { readMockMidiFile, writeMockMidiFile } from "./roadmap/midiFile";
 import { MockAnalysis } from "./roadmap/analysis";
 import { MockBrowser } from "./roadmap/browserV2";
 import { MockFreeze } from "./roadmap/freezeBounce";
-import { libraryPath, MockMediaRefs } from "./roadmap/mediaReferences";
+import { libraryPath, MockMediaRefs, unlinkMedia } from "./roadmap/mediaReferences";
 import { MOCK_INSTALLED_PLUGINS, MockResolver } from "./roadmap/resolver";
 import { MockPresets } from "./roadmap/presets";
 import { listModulatorKinds } from "./roadmap/racksModulation";
@@ -357,6 +357,17 @@ export class MockTransport implements EngineTransport {
       if (this.discarded !== this.project.id) this.saveCurrent();
     },
     libraryHash: (rel) => hashHex(`library:${normalize(rel)}`),
+    removeMedia: (label, media) =>
+      void this.transact(label, null, true, (tx) => {
+        const gone = new Set(media);
+        for (const c of tx.all("Clip")) if (c.content.type === "Audio" && gone.has(c.content.media)) deleteClipCascade(tx, c.id);
+        for (const d of tx.all("Device")) {
+          const device = d.kind.type === "Builtin" ? unlinkMedia(d.kind.device, gone) : null;
+          if (device) tx.upsert("Device", { ...d, kind: { type: "Builtin", device } });
+        }
+        for (const id of media) tx.remove("Media", id);
+        return UNIT;
+      }),
   });
   /** Missing plugins / audio files (`roadmap/resolver.ts`). */
   readonly resolver = new MockResolver({

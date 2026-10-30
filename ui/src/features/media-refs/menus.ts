@@ -2,14 +2,14 @@
  * Media-reference entries of the app's menus, following the owner's patterns (like the
  * freeze entries): the clip menu gets "Relink Sample…" when its sample is missing, inserted
  * before the menu's last group (the destructive "Delete" entries); the command palette gets
- * "Relink missing samples…" and "Collect All and Save".
+ * "Media manager…", "Relink missing samples…" and "Collect All and Save".
  */
 
 import type { Clip, Project } from "@/generated";
 import type { ContextMenuEntry } from "@/kit";
 import type { EngineTransport } from "@/transport";
 import { t } from "@/i18n";
-import { collectAll, openRelink, useMediaRefs } from "./store";
+import { collectAll, openMediaManager, openRelink, useMediaRefs } from "./store";
 
 function insertBeforeLastGroup(entries: ReadonlyArray<ContextMenuEntry>, extra: ContextMenuEntry[]): ContextMenuEntry[] {
   if (extra.length === 0) return [...entries];
@@ -41,7 +41,15 @@ export interface MediaRefPaletteCommand {
 
 /** Palette entries for the open project. */
 export function mediaRefCommands(transport: EngineTransport, project: Project): MediaRefPaletteCommand[] {
-  const out: MediaRefPaletteCommand[] = [];
+  const out: MediaRefPaletteCommand[] = [
+    {
+      id: "media:manager",
+      group: "Project",
+      label: t("media_manager.open"),
+      keywords: "media manager samples audio files used unused pool remove delete clean",
+      run: () => openMediaManager(),
+    },
+  ];
   const missing = useMediaRefs.getState().missing.size;
   if (missing > 0) {
     out.push({

@@ -41,6 +41,7 @@ mod keymap;
 mod latency_republish;
 mod load_perf;
 mod media;
+mod media_manager;
 mod media_preview;
 mod media_refs;
 mod media_stream;

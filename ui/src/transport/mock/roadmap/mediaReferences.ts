@@ -10,7 +10,7 @@
  * `Path` and `Search { folder }` reply `Unsupported`.
  */
 
-import type { Event, MediaId, MediaRef, MediaRefCommand, MediaSource, Project, ReplyValue } from "@/generated";
+import type { BuiltinDevice, Event, MediaId, MediaRef, MediaRefCommand, MediaSource, Project, ReplyValue } from "@/generated";
 import { fail } from "../documentReducer";
 import { findLibraryFile, LIBRARY_FILES, LIBRARY_ID, normalize } from "../library";
 
@@ -28,6 +28,17 @@ function relOf(path: string): string | null {
   return path.startsWith(prefix) ? path.slice(prefix.length) : null;
 }
 
+/** `device` without the media in `gone` (`null` = it uses none): a sampler or convolution
+ * reverb unloaded, multisampler zones emptied. */
+export function unlinkMedia(device: BuiltinDevice, gone: ReadonlySet<MediaId>): BuiltinDevice | null {
+  if (device.type === "Sampler" && device.sample && gone.has(device.sample)) return { ...device, sample: null };
+  if (device.type === "MultiSampler" && device.zones.some((z) => z.media && gone.has(z.media))) {
+    return { ...device, zones: device.zones.map((z) => (z.media && gone.has(z.media) ? { ...z, media: null } : z)) };
+  }
+  if (device.type === "ConvolutionReverb" && device.ir?.type === "Media" && gone.has(device.ir.media)) return { ...device, ir: null };
+  return null;
+}
+
 const baseName = (p: string) => p.slice(p.lastIndexOf("/") + 1).toLowerCase();
 
 export interface MediaRefsHost {
@@ -39,6 +50,8 @@ export interface MediaRefsHost {
   save(): void;
   /** Mock content hash of a library file (what an import of it records). */
   libraryHash(rel: string): string;
+  /** `Remove`: unlink what uses `media`, then remove them, one undo step. */
+  removeMedia(label: string, media: MediaId[]): void;
 }
 
 export class MockMediaRefs {
@@ -112,6 +125,18 @@ export class MockMediaRefs {
       case "CollectAll":
         this.collectAll();
         return { type: "Unit" };
+      case "Remove": {
+        if (c.media.length === 0) fail("InvalidArgument", "no media to remove");
+        const tracks = Object.values(this.host.project().tracks);
+        for (const id of c.media) {
+          const m = this.media(id);
+          if (tracks.some((t) => t.freeze?.media === id)) {
+            fail("InvalidArgument", `"${m.name}" is a frozen track's render: unfreeze the track to remove it`);
+          }
+        }
+        this.host.removeMedia(c.media.length === 1 ? "remove sample" : `remove ${c.media.length} samples`, c.media);
+        return { type: "Unit" };
+      }
     }
   }
 

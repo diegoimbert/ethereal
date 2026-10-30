@@ -41,6 +41,11 @@ pub enum MediaRefCommand {
     /// `MediaLocation::Project`, one undo step), then save. Progress:
     /// `MediaRefEvent::CollectProgress`, then `ProjectEvent::Saved`.
     CollectAll,
+    /// Media manager: remove `media` from the project (one undo step). What uses them is
+    /// unlinked first: their audio clips are deleted, samplers and convolution reverbs
+    /// unloaded, multisampler zones emptied. The files stay on disk (undo puts the media
+    /// back). A freeze render can't be removed (unfreeze its track): `InvalidArgument`.
+    Remove { media: Vec<MediaId> },
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]

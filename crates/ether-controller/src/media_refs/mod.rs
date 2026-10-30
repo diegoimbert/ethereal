@@ -27,7 +27,8 @@ use ether_core::protocol::media::{BrowseLocation, FileKind, MediaSource};
 use ether_core::protocol::media_refs::{MediaRefCommand, MediaRefEvent};
 use ether_core::protocol::model::file::MEDIA_DIR;
 use ether_core::protocol::model::{
-    EntityUpdate, MediaChange, MediaId, MediaLocation, MediaRef, ProjectId,
+    BuiltinDevice, DeviceChange, DeviceKind, EntityKey, EntityUpdate, IrSource, MediaChange,
+    MediaId, MediaLocation, MediaRef, ProjectId,
 };
 use ether_core::protocol::{ErrorCode, Event, NotificationLevel, ReplyValue};
 
@@ -239,6 +240,21 @@ impl Search {
 /// Header check for a relink: the new file must have the same sample rate and channel
 /// count (clip timing and routing depend on them). The length may differ (the document's
 /// length stays the reference, like any decode).
+/// A device without `media`: a sampler or convolution reverb unloaded, multisampler zones
+/// emptied (kept, with their key and velocity ranges).
+fn unlink_media(kind: &mut BuiltinDevice, media: MediaId) {
+    match kind {
+        BuiltinDevice::Sampler { sample, .. } if *sample == Some(media) => *sample = None,
+        BuiltinDevice::MultiSampler { zones } => {
+            for z in zones.iter_mut().filter(|z| z.media == Some(media)) {
+                z.media = None;
+            }
+        }
+        BuiltinDevice::ConvolutionReverb { ir } if *ir == Some(IrSource::Media { media }) => *ir = None,
+        _ => {}
+    }
+}
+
 fn check_format(m: &MediaRef, bytes: Vec<u8>, ext_of: &str) -> CmdResult<Vec<u8>> {
     let bytes: Arc<[u8]> = bytes.into();
     let mut decoder = IncrementalDecoder::new(bytes.clone(), extension_of(ext_of))
@@ -336,6 +352,10 @@ where
             }
             MediaRefCommand::CollectAll => {
                 self.collect_all(now, out)?;
+                Ok(ReplyValue::Unit)
+            }
+            MediaRefCommand::Remove { media } => {
+                self.remove_media(command, media, now, out)?;
                 Ok(ReplyValue::Unit)
             }
         }
@@ -572,6 +592,58 @@ where
             // The same file at the same place (restored): load it again.
             self.recheck(&BTreeSet::from([id]));
         }
+        Ok(())
+    }
+
+    /// `Remove`: unlink what uses `media` (audio clips deleted, samplers and convolution
+    /// reverbs unloaded, multisampler zones emptied), then remove the media, one undo step.
+    /// The files stay where they are (undo needs them).
+    fn remove_media(
+        &mut self,
+        command: &MediaRefCommand,
+        media: &[MediaId],
+        now: u64,
+        out: &mut dyn MessageSink,
+    ) -> CmdResult<()> {
+        let doc = self.doc.as_ref().ok_or_else(no_project)?;
+        let ids: BTreeSet<MediaId> = media.iter().copied().collect();
+        if ids.is_empty() {
+            return Err(invalid("no media to remove"));
+        }
+        for id in &ids {
+            let m = doc
+                .project
+                .media
+                .get(id)
+                .ok_or_else(|| not_found(format!("media {id}")))?;
+            if !doc.project.media_users(*id).freezes.is_empty() {
+                return Err(invalid(format!(
+                    "\"{}\" is a frozen track's render: unfreeze the track to remove it",
+                    m.name
+                )));
+            }
+        }
+        let label = crate::doc::label_of(&ether_core::protocol::Command::MediaRef(command.clone()), None);
+        self.edit_with(label, None, now, out, |ctx| {
+            for id in &ids {
+                let users = ctx.p().media_users(*id);
+                for clip in users.clips {
+                    if ctx.p().clips.contains_key(&clip) {
+                        ctx.delete_clip(clip)?;
+                    }
+                }
+                for device in users.devices {
+                    let d = ctx.device(device)?;
+                    let DeviceKind::Builtin { device: mut kind } = d.kind else {
+                        continue;
+                    };
+                    unlink_media(&mut kind, *id);
+                    ctx.set_device(device, DeviceChange::Kind(DeviceKind::Builtin { device: kind }))?;
+                }
+                ctx.tx.remove(EntityKey::Media(*id))?;
+            }
+            Ok(())
+        })?;
         Ok(())
     }
 

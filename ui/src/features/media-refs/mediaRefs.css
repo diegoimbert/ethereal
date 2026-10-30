@@ -124,3 +124,28 @@
   font-size: var(--eth-fs-xs);
   overflow-wrap: anywhere;
 }
+
+/* ── Media manager ────────────────────────────────────────────────── */
+
+.eth-media-manager__filter {
+  margin-bottom: var(--eth-space-sm);
+}
+
+.eth-media-manager__row {
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+}
+
+/* Nothing uses it: "remove unused" takes it. */
+.eth-media-manager__row--unused {
+  opacity: 0.7;
+}
+
+.eth-media-manager__meta,
+.eth-media-manager__usage {
+  color: var(--eth-color-text-dim);
+  font-size: var(--eth-fs-sm);
+}
+
+.eth-media-manager__usage {
+  white-space: nowrap;
+}

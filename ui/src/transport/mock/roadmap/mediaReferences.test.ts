@@ -5,7 +5,7 @@ import { cmd } from "../../cmd";
 import { newId } from "../../ids";
 import { LIBRARY_ID } from "../library";
 import { libraryPath } from "./mediaReferences";
-import { project, undo, useMock } from "./testUtils";
+import { createTrack, project, undo, useMock } from "./testUtils";
 
 const lib = (path: string): MediaSource => ({ type: "Location", location: { type: "Library", id: LIBRARY_ID }, path });
 
@@ -88,5 +88,31 @@ describe("MockTransport MediaRef (media-references)", () => {
     f.mock.mediaRefs.setOffline(libraryPath("Drums/Kick.wav"));
     await reopen();
     expect(missingEvents().map((e) => e.type === "Media" && e.event.type === "Missing" && e.event.media)).toEqual([gone.id]);
+  });
+
+  it("Remove unlinks clips and samplers, then removes the media (one undo step)", async () => {
+    const m = await importLib("Drums/Kick.wav");
+    const keep = await importLib("Drums/Snare.wav");
+    const track = await createTrack(f, "Audio");
+    const clip = newId();
+    await f.mock.send(cmd("Clip", { type: "CreateAudio", id: clip, track, start: 0, media: m.id }));
+    const midi = await createTrack(f, "Midi");
+    const sampler = newId();
+    await f.mock.send(
+      cmd("Device", { type: "Insert", id: sampler, track: midi, device: { type: "Builtin", device: { type: "Sampler", sample: m.id } }, before: null }),
+    );
+    const before = project(f);
+    await f.mock.send(cmd("MediaRef", { type: "Remove", media: [m.id] }));
+    const after = project(f);
+    expect(after.media[m.id]).toBeUndefined();
+    expect(after.media[keep.id]).toBeDefined();
+    expect(after.clips[clip]).toBeUndefined();
+    const kind = after.devices[sampler]!.kind;
+    expect(kind.type === "Builtin" && kind.device.type === "Sampler" && kind.device.sample).toBeNull();
+    await undo(f);
+    expect(project(f).media).toEqual(before.media);
+    expect(project(f).clips[clip]).toEqual(before.clips[clip]);
+    expect(project(f).devices[sampler]).toEqual(before.devices[sampler]);
+    await expect(f.mock.send(cmd("MediaRef", { type: "Remove", media: [] }))).rejects.toMatchObject({ error: { code: "InvalidArgument" } });
   });
 });

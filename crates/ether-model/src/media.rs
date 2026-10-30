@@ -10,7 +10,10 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::ids::MediaId;
+use crate::clip::ClipContent;
+use crate::device::DeviceKind;
+use crate::ids::{ClipId, DeviceId, MediaId, TrackId};
+use crate::project::Project;
 
 /// An imported audio file. Decoded data and peak mipmaps live in the store's per-project
 /// cache (keyed by `MediaId` + `hash`), never in the document.
@@ -52,4 +55,53 @@ pub enum MediaLocation {
     /// folder). `MediaRef::file` is still a valid `media/...` path: where "collect all"
     /// copies it and where collaborators store their copy.
     External { path: String },
+}
+
+/// What uses a media of the project (the media manager, `MediaRef::Remove`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct MediaUsers {
+    /// Audio clips playing it (arrangement, takes and the clip launcher alike).
+    pub clips: Vec<ClipId>,
+    /// Built-in devices loading it: samplers, multisampler zones, convolution IRs.
+    pub devices: Vec<DeviceId>,
+    /// Frozen tracks whose render it is.
+    pub freezes: Vec<TrackId>,
+}
+
+impl MediaUsers {
+    pub fn is_empty(&self) -> bool {
+        self.clips.is_empty() && self.devices.is_empty() && self.freezes.is_empty()
+    }
+}
+
+impl Project {
+    /// Everything that uses `media`.
+    pub fn media_users(&self, media: MediaId) -> MediaUsers {
+        let clips = self
+            .clips
+            .values()
+            .filter(|c| matches!(&c.content, ClipContent::Audio(a) if a.media == media))
+            .map(|c| c.id)
+            .collect();
+        let devices = self
+            .devices
+            .values()
+            .filter(|d| match &d.kind {
+                DeviceKind::Builtin { device } => device.media().contains(&media),
+                _ => false,
+            })
+            .map(|d| d.id)
+            .collect();
+        let freezes = self
+            .tracks
+            .values()
+            .filter(|t| t.freeze.as_ref().is_some_and(|f| f.media == media))
+            .map(|t| t.id)
+            .collect();
+        MediaUsers {
+            clips,
+            devices,
+            freezes,
+        }
+    }
 }

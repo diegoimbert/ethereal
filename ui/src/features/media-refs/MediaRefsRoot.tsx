@@ -7,6 +7,7 @@ import { resolveLabel } from "@/features/import-resolver/menus";
 import { useT } from "@/i18n";
 import { useProjectStore } from "@/state";
 import { TransportContext, type EngineTransport } from "@/transport";
+import { MediaManagerDialog } from "./MediaManagerDialog";
 import { RelinkDialog } from "./RelinkDialog";
 import { applyMediaRefEvent, openRelink, refreshMissing, useMediaRefs } from "./store";
 
@@ -42,8 +43,8 @@ function Sync({ transport }: { transport: EngineTransport }) {
 }
 
 /**
- * Mounted once by the app shell: mirrors missing media from the engine and shows the Relink
- * dialog (the status bar shows what is missing). Renders nothing without an engine connection.
+ * Mounted once by the app shell: mirrors missing media from the engine and shows the media
+ * manager and the Relink dialog (the status bar shows what is missing). Renders nothing without an engine connection.
  */
 export function MediaRefsRoot() {
   const transport = useContext(TransportContext)?.transport;
@@ -51,6 +52,7 @@ export function MediaRefsRoot() {
   return (
     <>
       <Sync transport={transport} />
+      <MediaManagerDialog transport={transport} />
       <RelinkDialog transport={transport} />
     </>
   );

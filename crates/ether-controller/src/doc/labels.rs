@@ -652,6 +652,7 @@ pub fn label_of(command: &Command, project: Option<&Project>) -> UndoLabel {
             Mr::Search { .. } => k("undo.media_ref.search"),
             Mr::Relink { .. } => k("undo.media_ref.relink"),
             Mr::CollectAll => k("undo.media_ref.collect_all"),
+            Mr::Remove { media } => kn("undo.media_ref.remove", media.len()),
         },
         Command::Capture(c) => match c {
             CaptureCommand::Capture { .. } => k("undo.capture.capture"),
