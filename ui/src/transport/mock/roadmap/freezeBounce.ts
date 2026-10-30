@@ -251,7 +251,8 @@ export class MockFreeze {
         if (t.kind !== "Midi") fail("InvalidArgument", "only instruments on MIDI tracks can be converted");
         if (t.freeze) fail("InvalidState", `track "${t.name}" is frozen: unfreeze it first`);
         if (p.devices[c.new_device]) fail("InvalidArgument", `device ${c.new_device} already exists`);
-        if (!(c.note_seconds > 0)) fail("InvalidArgument", "the note length must be above 0");
+        if (!(c.note_seconds > 0 && c.note_seconds <= 60)) fail("InvalidArgument", "the note length must be above 0 and at most 60 seconds");
+        if (!(c.tail_seconds >= 0 && c.tail_seconds <= 60)) fail("InvalidArgument", "the tail must be 0 to 60 seconds");
         if (!(c.pre_roll_seconds >= 0 && c.pre_roll_seconds <= 2)) fail("InvalidArgument", "the pre-roll must be 0 to 2 seconds");
         const keys = sortedSet(c.keys);
         const velocities = sortedSet(c.velocities);

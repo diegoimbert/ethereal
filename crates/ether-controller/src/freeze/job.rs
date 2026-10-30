@@ -531,7 +531,10 @@ impl RenderJob {
                     isolate(desc, spec.track, &needed, spec.chain)
                 })?;
                 let tail = if spec.tail { self.tail_chunk() } else { 0 };
-                self.stage = Stage::Render(Box::new(Capture::new(renderer, spec.frames + tail)));
+                self.stage = Stage::Render(Box::new(Capture::new(
+                    renderer,
+                    spec.frames.saturating_add(tail),
+                )));
                 // The plugins are loaded: their real-time wait starts now (none without
                 // plugins: built-ins are ready at once).
                 self.render_started = (self.pass_plugins > 0).then(std::time::Instant::now);

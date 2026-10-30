@@ -985,7 +985,7 @@ half-open ranges). `arrangement_clips_of` lists main-lane clips only.
   velocity likewise owns the velocities nearest to it (edges cover 1..=127). One velocity
   keeps the multisampler's velocity sensitivity on, several switch it off. Each sample is the
   instrument held for `note_seconds`, then its release tail (silence trimmed, at most
-  `tail_seconds`). Media ids are `derive_id(seed_media, i)` in key-major order; at most
+  `tail_seconds`); each is at most `CONVERT_MAX_SECONDS` (60 s), else `InvalidArgument`. Media ids are `derive_id(seed_media, i)` in key-major order; at most
   `MAX_ZONES` samples. One job at a time like any render; at `Done` the media and the
   replaced device are one undo step.
 - Engine: `TrackDesc::frozen: Option<FrozenDesc>` (+ empty clips/chain, or the live tail in
