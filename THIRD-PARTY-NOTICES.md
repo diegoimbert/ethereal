@@ -361,7 +361,7 @@ Components: 597 (Rust crates, npm packages and vendored source).
 | `reqwest` | 0.13.5 | MIT OR Apache-2.0 | https://github.com/seanmonstar/reqwest |
 | `rfd` | 0.16.0 | MIT | https://github.com/PolyMeilex/rfd |
 | `ring` | 0.17.14 | Apache-2.0 AND ISC | https://github.com/briansmith/ring |
-| `rmcp` | 3.5.1 | Apache-2.0 | https://github.com/modelcontextprotocol/rust-sdk/ |
+| `rmcp` | 3.7.0 | Apache-2.0 | https://github.com/modelcontextprotocol/rust-sdk/ |
 | `rtrb` | 0.4.0 | MIT OR Apache-2.0 | https://github.com/mgeier/rtrb |
 | `rubato` | 5.0.1 | MIT OR Apache-2.0 | https://github.com/HEnquist/rubato |
 | `rustc-hash` | 2.1.3 | Apache-2.0 OR MIT | https://github.com/rust-lang/rustc-hash |
@@ -370,7 +370,7 @@ Components: 597 (Rust crates, npm packages and vendored source).
 | `rustls-pki-types` | 1.15.1 | MIT OR Apache-2.0 | https://github.com/rustls/pki-types |
 | `rustls-webpki` | 0.103.16 | ISC | https://github.com/rustls/webpki |
 | `rustversion` | 1.0.23 | MIT OR Apache-2.0 | https://github.com/dtolnay/rustversion |
-| `rusty_mp3` | 1.0.0 | Apache-2.0 | https://github.com/Remade-With-Rust/remade_ffmpeg_rs |
+| `rusty_mp3` | 1.0.5 | Apache-2.0 | https://github.com/Remade-With-Rust/remade_ffmpeg_rs |
 | `ryu` | 1.0.23 | Apache-2.0 OR BSL-1.0 | https://github.com/dtolnay/ryu |
 | `same-file` | 1.0.6 | Unlicense/MIT | https://github.com/BurntSushi/same-file |
 | `scheduler` | 0.28.0 | MIT | https://react.dev/ |
