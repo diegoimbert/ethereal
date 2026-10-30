@@ -1,0 +1,13 @@
+{"domain":"Clip","command":{"type":"Split","id":"@c0","at":0.5,"new_id":"@new"}}
+{"domain":"Clip","command":{"type":"SetBounds","id":"@c1","start":1,"length":3,"offset":0.25}}
+{"domain":"Clip","command":{"type":"SetLoop","id":"@c1","looping":{"enabled":true,"start":0,"end":2}}}
+{"domain":"Clip","command":{"type":"Duplicate","id":"@c1","new_id":"@new","start":8}}
+{"domain":"Clip","command":{"type":"SetFades","id":"@c0","fade_in":0.1,"fade_out":0.1}}
+{"domain":"Clip","command":{"type":"SetGain","id":"@c0","gain":-3}}
+{"domain":"Clip","command":{"type":"SetTranspose","id":"@c0","semitones":7}}
+{"domain":"Clip","command":{"type":"SetReversed","id":"@c0","reversed":true}}
+{"domain":"Clip","command":{"type":"Stretch","id":"@c1","start":0,"length":8}}
+{"domain":"Clip","command":{"type":"Move","moves":[{"id":"@c0","track":"@t1","start":2}]}}
+{"domain":"Clip","command":{"type":"Delete","ids":["@c2"]}}
+tick 5
+{"domain":"Edit","command":{"type":"Undo"}}

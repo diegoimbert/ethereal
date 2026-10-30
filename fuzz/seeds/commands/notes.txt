@@ -1,0 +1,11 @@
+{"domain":"Note","command":{"type":"Add","clip":"@c1","notes":[{"id":"@new","pitch":64,"velocity":90,"start":0.25,"duration":1}]}}
+{"domain":"Note","command":{"type":"Edit","edits":[{"id":"@n0","pitch":65,"velocity":null,"start":null,"duration":2}]}}
+{"domain":"Note","command":{"type":"Quantize","clip":"@c1","notes":null,"grid":0.25,"strength":1,"ends":true,"swing":0.2}}
+{"domain":"Note","command":{"type":"Reverse","clip":"@c1","notes":null}}
+{"domain":"Note","command":{"type":"Duplicate","copies":[{"from":"@n1","new_id":"@new"}],"offset":4,"transpose":12}}
+{"domain":"Groove","command":{"type":"Humanize","clip":"@c1","notes":null,"timing":0.05,"velocity":10,"seed":3}}
+{"domain":"Groove","command":{"type":"SetSwing","amount":0.5,"grid":0.5}}
+{"domain":"Note","command":{"type":"Remove","ids":["@n2"]}}
+{"domain":"Expression","command":{"type":"CreateLane","id":"@new","clip":"@c1","kind":{"type":"PitchBend"}}}
+{"domain":"Expression","command":{"type":"SetPoints","lane":"@e0","points":[{"time":0,"value":0.5,"curve":{"type":"Linear"}},{"time":1,"value":1,"curve":{"type":"Linear"}}]}}
+{"domain":"Expression","command":{"type":"SetNoteExpression","id":"@new","note":"@n0","kind":"Pitch","points":[{"time":0,"value":0,"curve":{"type":"Linear"}},{"time":0.5,"value":2,"curve":{"type":"Linear"}}]}}

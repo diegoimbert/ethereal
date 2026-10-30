@@ -1,0 +1,11 @@
+{"domain":"Device","command":{"type":"Insert","id":"@new","track":"@t1","device":{"type":"Builtin","device":{"type":"Reverb"}},"before":null}}
+{"domain":"Device","command":{"type":"SetParam","device":"@d0","param":0,"value":0.5}}
+{"domain":"Device","command":{"type":"SetParam","device":"@d1","param":1,"value":1e300}}
+{"domain":"Device","command":{"type":"Move","id":"@d0","track":"@t1","before":null}}
+{"domain":"Device","command":{"type":"Duplicate","id":"@d1","new_id":"@new"}}
+{"domain":"Device","command":{"type":"SetEnabled","id":"@d2","enabled":false}}
+{"domain":"Device","command":{"type":"Insert","id":"@new","track":"@t0","device":{"type":"Plugin","plugin_id":"com.test.Fx","sandboxed":null},"before":null}}
+{"domain":"Device","command":{"type":"SetMacroCount","device":"@d0","count":16}}
+{"domain":"Device","command":{"type":"GetDescriptor","device":"@d3"}}
+{"domain":"Device","command":{"type":"Remove","id":"@d1"}}
+{"domain":"Edit","command":{"type":"Undo"}}

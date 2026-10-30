@@ -1,0 +1,9 @@
+{"domain":"Freeze","command":{"type":"Freeze","job":"f1","track":"@t2","media":"@new"}}
+tick 20
+{"domain":"Freeze","command":{"type":"Unfreeze","track":"@t2"}}
+{"domain":"Freeze","command":{"type":"ConvertToSampler","job":"cs","device":"@d1","new_device":"@new","seed_media":"@new","keys":[60,64],"velocities":[100],"pre_roll_seconds":0,"warm_up_note":false,"note_seconds":0.5,"tail_seconds":0.5}}
+tick 30
+{"domain":"Freeze","command":{"type":"Bounce","job":"b1","track":"@t2","start":0,"end":2,"include_chain":true,"media":"@new","target":{"type":"NewTrack","track":"@new","clip":"@new"}}}
+tick 30
+{"domain":"Freeze","command":{"type":"Consolidate","job":"c1","tracks":["@t2"],"start":0,"end":4,"seed_clips":"@new","seed_notes":"@new","seed_media":"@new"}}
+tick 30

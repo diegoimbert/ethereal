@@ -1,0 +1,13 @@
+{"domain":"Automation","command":{"type":"CreateLane","id":"@new","owner":{"type":"Track","track":"@t1"},"target":{"type":"TrackVolume","track":"@t1"}}}
+{"domain":"Automation","command":{"type":"AddPoints","lane":"@l0","points":[{"id":"@new","time":0,"value":0.2,"curve":{"type":"Linear"}},{"id":"@new","time":4,"value":0.9,"curve":{"type":"Linear"}}]}}
+{"domain":"Automation","command":{"type":"ClearRange","lane":"@l0","start":1,"end":3}}
+{"domain":"Tempo","command":{"type":"AddTempoPoint","id":"@new","time":4,"bpm":90,"curve":"Linear"}}
+{"domain":"Tempo","command":{"type":"AddTimeSignature","id":"@new","time":8,"signature":{"numerator":7,"denominator":8}}}
+{"domain":"Marker","command":{"type":"Add","id":"@new","position":2,"name":"m","color":null}}
+{"domain":"Transport","command":{"type":"SetLoopRegion","region":{"start":0,"end":8}}}
+{"domain":"Transport","command":{"type":"Play"}}
+tick 10
+{"domain":"Transport","command":{"type":"Stop"}}
+{"domain":"TimeEdit","command":{"type":"InsertSilence","tracks":[],"at":1,"length":2,"global":true,"seed":"@new"}}
+{"domain":"TimeEdit","command":{"type":"DeleteTime","selection":{"start":0,"end":1,"tracks":[],"global":true},"seed":"@new"}}
+{"domain":"TimeEdit","command":{"type":"DuplicateTime","selection":{"start":0,"end":2,"tracks":[],"global":false},"seed":"@new"}}

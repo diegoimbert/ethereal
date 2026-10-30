@@ -1,0 +1,11 @@
+{"domain":"Rack","command":{"type":"Group","rack":"@new","rack_type":"AudioEffectRack","chain":"@new","devices":["@d0"]}}
+{"domain":"Rack","command":{"type":"AddChain","id":"@new","rack":"@d2","name":null,"before":null}}
+{"domain":"Rack","command":{"type":"InsertDevice","id":"@new","chain":"@h0","device":{"type":"Builtin","device":{"type":"Delay"}},"before":null}}
+{"domain":"Rack","command":{"type":"SetChainMix","id":"@h0","volume":-3,"pan":0.5,"mute":null,"solo":true}}
+{"domain":"Rack","command":{"type":"CopyChain","id":"@h0","new_id":"@new","rack":"@d2","before":null,"cut":false}}
+{"domain":"Rack","command":{"type":"MoveDevice","id":"@d1","chain":"@h1","before":null}}
+{"domain":"Modulation","command":{"type":"AddModulator","id":"@new","device":"@d1","kind":"Lfo","name":null}}
+{"domain":"Modulation","command":{"type":"Map","id":"@new","source":{"type":"Modulator","modulator":"@o0"},"device":"@d0","param":0,"depth":0.5}}
+{"domain":"Modulation","command":{"type":"Map","id":"@new","source":{"type":"Macro","rack":"@d2","index":3},"device":"@d1","param":0,"depth":-1}}
+{"domain":"Rack","command":{"type":"Ungroup","rack":"@d2"}}
+{"domain":"Edit","command":{"type":"Undo"}}
