@@ -1,0 +1,9 @@
+{"domain":"MidiMap","command":{"type":"Map","mapping":{"id":"@new","source":{"port":null,"channel":1,"control":{"type":"Cc","number":7}},"target":{"type":"Param","target":{"type":"DeviceParam","device":"@d0","param":0}},"min":0,"max":1,"mode":{"type":"Absolute"}}}}
+{"domain":"MidiMap","command":{"type":"Map","mapping":{"id":"@new","source":{"port":"p","channel":null,"control":{"type":"Note","key":36}},"target":{"type":"TrackMute","track":"@t1"},"min":0,"max":1,"mode":{"type":"Toggle"}}}}
+{"domain":"MidiMap","command":{"type":"Edit","id":"@i0","min":0.2,"max":0.8,"mode":{"type":"Relative","encoding":"TwosComplement"}}}
+{"domain":"MidiMap","command":{"type":"Learn","target":{"type":"TrackSolo","track":"@t2"}}}
+{"domain":"MidiMap","command":{"type":"List"}}
+{"domain":"Device","command":{"type":"Remove","id":"@d0"}}
+{"domain":"MidiMap","command":{"type":"Unmap","ids":["@i1"]}}
+{"domain":"Edit","command":{"type":"Undo"}}
+{"domain":"Edit","command":{"type":"Undo"}}

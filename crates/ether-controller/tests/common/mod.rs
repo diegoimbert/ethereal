@@ -632,7 +632,7 @@ impl<X> Harness<X> {
         assert_eq!(replies.len(), 1, "exactly one reply: {out:#?}");
         assert!(
             matches!(out.last(), Some(ServerMessage::Reply(r)) if r.id == id),
-            "reply comes last"
+            "reply comes last: {out:#?}"
         );
         out
     }

@@ -1,0 +1,8 @@
+{"domain":"Template","command":{"type":"SaveTracks","tracks":["@t1","@t2"],"name":"tt","meta":{},"overwrite":false}}
+{"domain":"Template","command":{"type":"SaveProject","name":"tp","meta":{},"overwrite":false}}
+{"domain":"Template","command":{"type":"List","kind":null}}
+{"domain":"Template","command":{"type":"Insert","template":"@T0","seed":"@new","parent":null,"before":"@t1"}}
+{"domain":"Template","command":{"type":"Rename","template":"@T0","name":"x"}}
+{"domain":"Template","command":{"type":"SetDefault","template":"@T1"}}
+{"domain":"Template","command":{"type":"NewProject","id":"@Pnew","name":"n","template":"@T1"}}
+{"domain":"Template","command":{"type":"Delete","template":"@T0"}}

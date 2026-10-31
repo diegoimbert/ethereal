@@ -1,0 +1,9 @@
+{"domain":"Device","command":{"type":"Insert","id":"@new","track":"@t1","device":{"type":"Plugin","plugin_id":"com.test.Fx","sandboxed":null},"before":null}}
+{"domain":"Resolve","command":{"type":"Propose","installed":[]}}
+{"domain":"Resolve","command":{"type":"SearchMedia","media":null,"folder":null}}
+tick 5
+{"domain":"Resolve","command":{"type":"CancelSearch"}}
+{"domain":"Resolve","command":{"type":"Apply","plugins":[{"devices":["@d2"],"format":"Clap","plugin_id":"com.test.Other","name":"o","vendor":"v","version":"1","plan":{"type":"Map","map":[{"from":0,"to":1}]}}],"media":[{"media":"@m0","source":{"type":"Location","location":{"type":"Library","id":"lib"},"path":"loop.wav"}}],"devices":[{"devices":["@d1"],"replacement":{"type":"Builtin","device":"Reverb"}}]}}
+{"domain":"Resolve","command":{"type":"Replace","device":"@d0","builtin":"Compressor","retain":true,"preview":true}}
+{"domain":"Resolve","command":{"type":"Replace","device":"@d0","plugin":{"format":"Clap","plugin_id":"com.test.Fx","name":"Fx","vendor":"v","version":"1"},"retain":false}}
+{"domain":"Edit","command":{"type":"Undo"}}
