@@ -22,7 +22,7 @@ jobs:
           persist-credentials: false
       - name: Toolchain (from rust-toolchain.toml)
         run: rustup show active-toolchain || rustup toolchain install
-      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
           tool: cargo-deny@0.20.2
       - name: cargo-deny (advisories, yanked crates)
@@ -51,7 +51,7 @@ jobs:
       - name: Toolchain (from rust-toolchain.toml)
         if: steps.r.outputs.enabled == 'true'
         run: rustup show active-toolchain || rustup toolchain install
-      - uses: taiki-e/install-action@8cca0918f8471c33515202b73f56ab27f2bed283 # v2.87.29
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         if: steps.r.outputs.enabled == 'true'
         with:
           tool: cargo-deny@0.20.2
