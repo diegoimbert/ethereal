@@ -137,14 +137,15 @@ export class WebclapHost {
     e?.instance?.destroy();
   }
 
-  saveState(handle: number): Uint8Array | null {
+  /** The instance's state (`null`: it has none); throws past `maxBytes` ([`MAX_STATE_BYTES`]). */
+  saveState(handle: number, maxBytes?: number): Uint8Array | null {
     const e = this.entries.get(handle);
     if (!e) throw new Error("no such instance");
     if (!e.instance) {
       if (e.error) throw new Error(e.error);
       throw new Error("not instantiated yet");
     }
-    return e.instance.saveState();
+    return e.instance.saveState(maxBytes);
   }
 
   paramValues(handle: number): Float64Array | null {

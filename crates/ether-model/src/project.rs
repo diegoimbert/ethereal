@@ -318,6 +318,25 @@ impl Project {
         self.apply_all_checked(ops)
     }
 
+    /// Apply one op with only its own checks (as each op of [`Self::apply_all`]); returns its
+    /// inverse. The document-wide invariants it may break (routing cycles, sidechains, tempo
+    /// at 0, ...) are left to [`Self::check_deferred`], once per kind of table recorded in
+    /// `kinds`, so a long run of structural ops doesn't re-check the whole project after
+    /// each one. The caller must run that check before the document is used, and undo the
+    /// ops (their inverses, last first) if it fails. On error the project is unchanged.
+    pub fn apply_deferred(
+        &mut self,
+        op: &Op,
+        kinds: &mut Vec<EntityKey>,
+    ) -> Result<Op, ModelError> {
+        self.apply_deferred_checked(op, kinds)
+    }
+
+    /// The document-wide checks left by [`Self::apply_deferred`].
+    pub fn check_deferred(&self, kinds: &[EntityKey]) -> Result<(), ModelError> {
+        self.check_deferred_globals(kinds)
+    }
+
     /// Check all invariants (used after load/migration and in property tests). Exactly the
     /// checks `apply` enforces, over the whole document.
     pub fn validate(&self) -> Result<(), ModelError> {

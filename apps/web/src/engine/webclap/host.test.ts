@@ -154,6 +154,9 @@ describe("the test plugin", () => {
     expect([...a.host.paramValues(a.handle)!]).toEqual([1, 1.5, 2, 2]);
     const state = a.host.saveState(a.handle)!;
     expect(state.length).toBe(16);
+    // Past the cap the plugin's writes are refused and the save fails; the next one is whole.
+    expect(() => a.host.saveState(a.handle, 8)).toThrow(/larger than 8 bytes/);
+    expect(a.host.saveState(a.handle, 16)).toEqual(state);
     const b = setup("ether.test.gain", state);
     expect([...b.host.paramValues(b.handle)!]).toEqual([1, 1.5, 2, 2]);
     b.engine.block(16, () => 1);

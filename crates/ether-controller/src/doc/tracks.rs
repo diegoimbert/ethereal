@@ -220,10 +220,12 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &TrackCommand) -> CmdResult<()> {
             if t.kind == TrackKind::Master {
                 return Err(invalid("the master track cannot be deleted"));
             }
-            for d in descendants(ctx.p(), t.id).into_iter().rev() {
-                ctx.delete_track_only(d)?;
-            }
-            ctx.delete_track_only(t.id)
+            ctx.deferring_checks(|ctx| {
+                for d in descendants(ctx.p(), t.id).into_iter().rev() {
+                    ctx.delete_track_only(d)?;
+                }
+                ctx.delete_track_only(t.id)
+            })
         }
         TrackCommand::Duplicate { id, new_id } => {
             if ctx.p().tracks.contains_key(new_id) {
@@ -234,7 +236,7 @@ pub(super) fn apply(ctx: &mut DocCtx, c: &TrackCommand) -> CmdResult<()> {
                 return Err(invalid("the master track cannot be duplicated"));
             }
             let order = order_after(&siblings(ctx.p(), t.parent, None), t.id)?;
-            duplicate(ctx, &t, *new_id, order, t.parent)
+            ctx.deferring_checks(|ctx| duplicate(ctx, &t, *new_id, order, t.parent))
         }
         TrackCommand::Rename { id, name } => {
             ctx.track(*id)?;
@@ -320,12 +322,12 @@ fn duplicate(
         send_ids.insert(s.id, ns.id);
         ctx.tx.insert(Entity::Send(ns))?;
     }
+    // Indexed: a group's copy runs this per child track.
     let clips: Vec<Clip> = ctx
         .p()
-        .clips
-        .values()
-        .filter(|c| c.track == t.id)
-        .cloned()
+        .clip_ids_of(t.id)
+        .into_iter()
+        .filter_map(|c| ctx.p().clips.get(&c).cloned())
         .collect();
     let remap = |target: AutomationTarget| -> Option<AutomationTarget> {
         Some(match target {
@@ -388,10 +390,9 @@ fn duplicate(
     }
     let lanes: Vec<AutomationLane> = ctx
         .p()
-        .automation_lanes
-        .values()
-        .filter(|l| matches!(l.owner, AutomationOwner::Track { track } if track == t.id))
-        .cloned()
+        .lane_ids_owned_by(AutomationOwner::Track { track: t.id })
+        .into_iter()
+        .filter_map(|l| ctx.p().automation_lanes.get(&l).cloned())
         .collect();
     for l in lanes {
         let Some(target) = remap(l.target) else {
