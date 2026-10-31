@@ -761,3 +761,32 @@ fn batches_check_routing_once_at_the_end() {
     );
     f.p.validate().unwrap();
 }
+
+/// `tracks_depth_first`: groups then their children, at every level, in display order; the
+/// same as walking `child_tracks` from the top-level tracks.
+#[test]
+fn tracks_depth_first_is_the_display_order() {
+    let mut f = Fx::new();
+    let g1 = f.add_track(TrackKind::Group, None);
+    let a = f.add_track(TrackKind::Audio, Some(g1));
+    let g2 = f.add_track(TrackKind::Group, Some(g1));
+    let b = f.add_track(TrackKind::Midi, Some(g2));
+    let c = f.add_track(TrackKind::Audio, None);
+    let r = f.add_track(TrackKind::Return, None);
+    fn walk<'a>(p: &'a Project, t: &'a Track, out: &mut Vec<TrackId>) {
+        out.push(t.id);
+        for c in p.child_tracks(t.id) {
+            walk(p, c, out);
+        }
+    }
+    let mut expected = Vec::new();
+    for t in f.p.tracks_ordered() {
+        walk(&f.p, t, &mut expected);
+    }
+    let got: Vec<TrackId> = f.p.tracks_depth_first().iter().map(|t| t.id).collect();
+    assert_eq!(got, expected);
+    let pos = |id| got.iter().position(|t| *t == id).unwrap();
+    assert!(pos(g1) < pos(a) && pos(a) < pos(g2) && pos(g2) < pos(b) && pos(b) < pos(c));
+    assert!(got.contains(&r));
+    assert_eq!(got.len(), f.p.tracks.len());
+}

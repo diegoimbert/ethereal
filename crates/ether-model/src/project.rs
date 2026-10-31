@@ -1,6 +1,6 @@
 //! The project document: normalized entity tables + project settings.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -447,6 +447,38 @@ impl Project {
             .collect();
         v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
         v
+    }
+
+    /// Every track in display order, depth first (a group, then its children), from one pass
+    /// over the tracks (a [`Self::child_tracks`] call per track is quadratic). Tracks no walk
+    /// reaches (impossible in a valid project) come last.
+    pub fn tracks_depth_first(&self) -> Vec<&Track> {
+        let mut children: BTreeMap<Option<TrackId>, Vec<&Track>> = BTreeMap::new();
+        for t in self.tracks.values() {
+            children.entry(t.parent).or_default().push(t);
+        }
+        for v in children.values_mut() {
+            v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
+        }
+        let mut out = Vec::with_capacity(self.tracks.len());
+        let mut seen: BTreeSet<TrackId> = BTreeSet::new();
+        let mut stack: Vec<&Track> = children
+            .get(&None)
+            .map(|v| v.iter().rev().copied().collect())
+            .unwrap_or_default();
+        while let Some(t) = stack.pop() {
+            if !seen.insert(t.id) {
+                continue;
+            }
+            out.push(t);
+            if let Some(kids) = children.get(&Some(t.id)) {
+                stack.extend(kids.iter().rev().copied());
+            }
+        }
+        if out.len() != self.tracks.len() {
+            out.extend(self.tracks.values().filter(|t| !seen.contains(&t.id)));
+        }
+        out
     }
 
     /// Direct children of a group track, sorted by `order`.

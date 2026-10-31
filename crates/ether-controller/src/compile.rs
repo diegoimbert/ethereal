@@ -179,25 +179,7 @@ fn mapping_of(desc: &DeviceDescriptor, param: ParamId) -> Option<ParamMapping> {
 
 /// Tracks in display order (depth-first), so descs are deterministic.
 fn tracks_in_order(p: &Project) -> Vec<&Track> {
-    fn walk<'a>(p: &'a Project, t: &'a Track, out: &mut Vec<&'a Track>) {
-        out.push(t);
-        for c in p.child_tracks(t.id) {
-            walk(p, c, out);
-        }
-    }
-    let mut out = Vec::with_capacity(p.tracks.len());
-    for t in p.tracks_ordered() {
-        walk(p, t, &mut out);
-    }
-    // Orphans (cannot happen in a validated project) still get compiled.
-    if out.len() != p.tracks.len() {
-        for t in p.tracks.values() {
-            if !out.iter().any(|o| o.id == t.id) {
-                out.push(t);
-            }
-        }
-    }
-    out
+    p.tracks_depth_first()
 }
 
 /// Resolved output bus of a track.
