@@ -29,7 +29,7 @@ use crate::automation::{AutomationOwner, AutomationTarget};
 use crate::device::SidechainChain;
 use crate::entity::{Entity, EntityKey};
 use crate::ids::*;
-use crate::midi_map::MidiMapTarget;
+use crate::midi_map::{MidiMapTarget, MidiSource};
 use crate::modulation::ModSource;
 use crate::project::Project;
 use crate::track::{TrackInput, TrackOutput};
@@ -47,6 +47,18 @@ pub(crate) enum Link {
     Point(AutomationLaneId, AutomationPointId),
     ExpressionLane(ClipId, ExpressionLaneId),
     NoteExpression(NoteId, NoteExpressionId),
+    /// A MIDI mapping by the hash of its source ([`source_hash`]): the one-mapping-per-source
+    /// check looks up a source instead of scanning every mapping.
+    MidiSource(u64, MidiMappingId),
+}
+
+/// The index key of a MIDI mapping's source (collisions are told apart by the caller,
+/// against the table).
+pub(crate) fn source_hash(s: &MidiSource) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::hash::DefaultHasher::new();
+    s.hash(&mut h);
+    h.finish()
 }
 
 impl Link {
@@ -62,6 +74,7 @@ impl Link {
             Entity::AutomationPoint(p) => Link::Point(p.lane, p.id),
             Entity::ExpressionLane(l) => Link::ExpressionLane(l.clip, l.id),
             Entity::NoteExpression(e) => Link::NoteExpression(e.note, e.id),
+            Entity::MidiMapping(m) => Link::MidiSource(source_hash(&m.source), m.id),
             _ => Link::None,
         }
     }
@@ -102,6 +115,10 @@ impl Link {
                 .note_expressions
                 .get(&id)
                 .map_or(Link::None, |e| Link::NoteExpression(e.note, id)),
+            EntityKey::MidiMapping(id) => p
+                .midi_mappings
+                .get(&id)
+                .map_or(Link::None, |m| Link::MidiSource(source_hash(&m.source), id)),
             _ => Link::None,
         }
     }
@@ -353,6 +370,7 @@ pub(crate) struct ProjectIndex {
     points: BTreeSet<(AutomationLaneId, AutomationPointId)>,
     expression_lanes: BTreeSet<(ClipId, ExpressionLaneId)>,
     note_expressions: BTreeSet<(NoteId, NoteExpressionId)>,
+    midi_sources: BTreeSet<(u64, MidiMappingId)>,
     /// `(target, from)`: `from` references `target` ([`Refs`]).
     refs: BTreeSet<(EntityKey, EntityKey)>,
     /// Rows behind `refs` (one per entity of a covered kind, with or without references).
@@ -418,6 +436,11 @@ impl ProjectIndex {
                 .values()
                 .map(|e| (e.note, e.id))
                 .collect(),
+            midi_sources: p
+                .midi_mappings
+                .values()
+                .map(|m| (source_hash(&m.source), m.id))
+                .collect(),
             ..Default::default()
         };
         for l in p.automation_lanes.values() {
@@ -443,6 +466,7 @@ impl ProjectIndex {
             && self.points.len() == p.automation_points.len()
             && self.expression_lanes.len() == p.expression_lanes.len()
             && self.note_expressions.len() == p.note_expressions.len()
+            && self.midi_sources.len() == p.midi_mappings.len()
             && self.ref_rows == Refs::rows(p)
     }
 
@@ -491,6 +515,9 @@ impl ProjectIndex {
             Link::NoteExpression(p, c) => {
                 self.note_expressions.insert((p, c));
             }
+            Link::MidiSource(h, m) => {
+                self.midi_sources.insert((h, m));
+            }
         }
     }
 
@@ -521,6 +548,9 @@ impl ProjectIndex {
             }
             Link::NoteExpression(p, c) => {
                 self.note_expressions.remove(&(p, c));
+            }
+            Link::MidiSource(h, m) => {
+                self.midi_sources.remove(&(h, m));
             }
         }
     }
@@ -582,8 +612,22 @@ impl ProjectIndex {
             && self.points == other.points
             && self.expression_lanes == other.expression_lanes
             && self.note_expressions == other.note_expressions
+            && self.midi_sources == other.midi_sources
             && self.refs == other.refs
             && self.ref_rows == other.ref_rows
+    }
+
+    /// MIDI mappings whose source hashes to `hash` ([`source_hash`]).
+    pub(crate) fn mappings_with_source(
+        &self,
+        hash: u64,
+    ) -> impl DoubleEndedIterator<Item = MidiMappingId> + '_ {
+        self.midi_sources
+            .range(
+                (hash, MidiMappingId::from_ulid(Ulid(0)))
+                    ..=(hash, MidiMappingId::from_ulid(Ulid(u128::MAX))),
+            )
+            .map(|(_, m)| *m)
     }
 
     pub(crate) fn notes_of(&self, clip: ClipId) -> impl DoubleEndedIterator<Item = NoteId> + '_ {

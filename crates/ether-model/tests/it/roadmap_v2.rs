@@ -239,7 +239,7 @@ fn midi_mappings_validate_sources_and_targets() {
         target: MidiMapTarget::TrackMute { track: t },
         ..m.clone()
     };
-    assert!(f.insert(Entity::MidiMapping(dup)).is_err());
+    assert!(f.insert(Entity::MidiMapping(dup.clone())).is_err());
     // Bad channel / range.
     let bad = MidiMapping {
         id: f.id(),
@@ -283,8 +283,32 @@ fn midi_mappings_validate_sources_and_targets() {
             encoding: RelativeEncoding::BinaryOffset,
         },
     };
-    f.insert(Entity::MidiMapping(relative)).unwrap();
+    f.insert(Entity::MidiMapping(relative.clone())).unwrap();
     f.p.validate().unwrap();
+    // Moving a mapping onto a mapped source is refused; elsewhere is fine (the source index
+    // follows).
+    let move_to = |p: &mut Project, s: &MidiSource| {
+        p.apply(&Op::Update {
+            update: EntityUpdate::MidiMapping {
+                id: relative.id,
+                change: MidiMappingChange::Source(s.clone()),
+            },
+        })
+    };
+    assert!(move_to(&mut f.p, &source).is_err());
+    let free = MidiSource {
+        channel: Some(3),
+        ..source.clone()
+    };
+    move_to(&mut f.p, &free).unwrap();
+    assert_eq!(f.p.midi_mappings_with_source(&free), [relative.id]);
+    assert!(f.p.index_is_consistent());
+    // A duplicate written behind the model's back fails validation, indexed or not.
+    let mut q = f.p.clone();
+    q.midi_mappings.insert(dup.id, dup);
+    assert!(q.validate().is_err());
+    q.ensure_index();
+    assert!(q.validate().is_err());
 }
 
 #[test]

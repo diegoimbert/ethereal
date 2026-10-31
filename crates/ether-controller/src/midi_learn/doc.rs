@@ -74,7 +74,11 @@ fn map(ctx: &mut DocCtx, mapping: MidiMapping) -> CmdResult<()> {
         }
         ctx.tx.remove(EntityKey::MidiMapping(mapping.id))?;
     }
-    remove_where(ctx, |m| m.id != mapping.id && m.source == mapping.source)?;
+    for id in ctx.p().midi_mappings_with_source(&mapping.source) {
+        if id != mapping.id {
+            ctx.tx.remove(EntityKey::MidiMapping(id))?;
+        }
+    }
     ctx.tx.insert(Entity::MidiMapping(mapping))
 }
 
