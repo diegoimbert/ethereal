@@ -65,6 +65,13 @@ export const PLUGIN_PATH = "/plugin";
  */
 export const MAX_UI_MESSAGE_BYTES = 4 * 1024 * 1024;
 
+/**
+ * The biggest plugin state saved (`clap_plugin_state.save`): past it the plugin's writes are
+ * refused and the save fails. The save runs on the audio thread (the instance lives there),
+ * and the state is copied a few times on its way to the document.
+ */
+export const MAX_STATE_BYTES = 32 * 1024 * 1024;
+
 /** Events per block into the plugin (all-notes-off expands to two). */
 const IN_EVENT_SLOTS = 2048;
 /** Default ceiling of an imported memory without a declared maximum (64 KiB pages). */
@@ -372,6 +379,8 @@ export class ClapInstance {
   private streamData: Uint8Array = new Uint8Array(0);
   private streamPos = 0;
   private streamOut: Uint8Array[] = [];
+  /** Bytes the output stream still takes (writes past it fail). */
+  private streamRoom = Infinity;
   private scratch = 0;
   private msg = { ptr: 0, cap: 0 };
   // The exchange of the block being processed (engine memory), for output events.
@@ -498,9 +507,15 @@ export class ClapInstance {
       },
       (_stream: number, buf: number, size: bigint) => {
         const n = Number(size);
+        if (!(n >= 0) || n > this.streamRoom) {
+          this.streamRoom = -1;
+          return -1n;
+        }
         this.m.views();
-        this.streamOut.push(this.m.u8.slice(buf, buf + n));
-        return size;
+        const part = this.m.u8.slice(buf, buf + n);
+        this.streamRoom -= part.length;
+        this.streamOut.push(part);
+        return BigInt(part.length);
       },
       () => notify(NOTE_KIND.params),
       () => undefined,
@@ -926,15 +941,24 @@ export class ClapInstance {
   }
 
   /** `clap_plugin_state.save`; `null` without the extension. */
-  saveState(): Uint8Array | null {
+  saveState(maxBytes = MAX_STATE_BYTES): Uint8Array | null {
     if (this.failed) throw new Error(this.failed);
     if (!this.ext.state) return null;
     this.streamOut = [];
-    const ok = this.extFn(this.ext.state, STATE_EXT.save)(this.plugin, this.stream.out);
+    this.streamRoom = maxBytes;
+    let ok: unknown;
+    let refused: boolean;
+    try {
+      ok = this.extFn(this.ext.state, STATE_EXT.save)(this.plugin, this.stream.out);
+    } finally {
+      refused = this.streamRoom < 0;
+      this.streamRoom = Infinity;
+    }
     const parts = this.streamOut;
     this.streamOut = [];
-    if (!ok) throw new Error(`${this.desc.id} failed to save its state`);
+    if (refused) throw new Error(`${this.desc.id}'s state is larger than ${maxBytes} bytes`);
     const total = parts.reduce((n, p) => n + p.length, 0);
+    if (!ok) throw new Error(`${this.desc.id} failed to save its state`);
     const out = new Uint8Array(total);
     let at = 0;
     for (const p of parts) {
