@@ -233,6 +233,13 @@ export async function showDeviceParams(page: Page, id: string): Promise<Locator>
 }
 
 /**
+ * The device library (a section's picker). Not `.eth-devlib`: a Sampler's sample picker shares
+ * that look and opens by itself shortly after an empty Sampler's window does, so on a slow run
+ * `afterAdd` could see it instead and wait for good.
+ */
+const DEVICE_LIBRARY = '[data-feature="device-library"]';
+
+/**
  * Inserts a built-in device (by its type, e.g. "Compressor") from the inspector chain's
  * section pickers (each section's "+" opens the device library of its kind; a row's
  * `data-key` is `builtin:<Type>`). An instrument on a track that already has one replaces it:
@@ -247,7 +254,7 @@ export async function addDevice(page: Page, type: string, opts: { keepWindow?: b
     const add = inspector.getByRole("group", { name: section }).locator(".eth-devices__section-add");
     if (!(await add.count())) return false;
     await add.first().click();
-    await expect(page.locator(".eth-devlib__row").first()).toBeVisible();
+    await expect(page.locator(`${DEVICE_LIBRARY} .eth-devlib__row`).first()).toBeVisible();
     if (await row.count()) return true;
     await page.keyboard.press("Escape");
     return false;
@@ -282,7 +289,7 @@ const NO_WINDOW = new Set(["InstrumentRack", "AudioEffectRack", "MidiEffectRack"
  * rack has no window: only the picker closing is waited for (callers wait for the device).
  */
 async function afterAdd(page: Page, windowsBefore: string[], type: string, keepWindow = false): Promise<void> {
-  await expect(page.locator(".eth-devlib")).toHaveCount(0);
+  await expect(page.locator(DEVICE_LIBRARY)).toHaveCount(0);
   if (NO_WINDOW.has(type)) return;
   // A new window (by device id): adding an instrument can replace one whose window was open,
   // so the count alone doesn't say whether the new device's window opened.
