@@ -20,6 +20,8 @@ use crate::store::{Library, StoreError, check_relative_path};
 /// Most user template files read by one listing (a runaway folder can't stall the
 /// controller).
 const MAX_FILES: usize = 1024;
+/// Larger template files are left out of listings (every listing reads every template).
+pub const MAX_TEMPLATE_BYTES: u64 = 256 << 20;
 /// Longest file stem derived from a template name (characters).
 const MAX_STEM: usize = 80;
 /// The default project template's file, relative to the user root.
@@ -183,6 +185,7 @@ pub fn user_templates<L: Library>(
             !e.name.starts_with('.')
                 && e.kind != ether_core::protocol::media::FileKind::Directory
                 && e.name.ends_with(&ext)
+                && e.size <= MAX_TEMPLATE_BYTES as f64
         })
         .take(MAX_FILES)
         .filter_map(|e| {
