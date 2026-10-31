@@ -51,12 +51,27 @@ where
 {
     /// `Media::ReadMidiFile`.
     pub fn read_midi_file(&mut self, source: &MediaSource) -> CmdResult<ReplyValue> {
+        // The name and size are checked before anything is read.
+        let midi = |name: &str| {
+            if file_kind(name) == FileKind::Midi {
+                Ok(())
+            } else {
+                Err(invalid(format!("not a MIDI file: {name}")))
+            }
+        };
+        let too_large = |name: &str| {
+            invalid(format!(
+                "{name} is larger than {} MiB",
+                MAX_MIDI_FILE_BYTES >> 20
+            ))
+        };
         let (bytes, name) = match source {
             MediaSource::Location { location, path } => {
                 check_relative_path(path).map_err(store_err)?;
                 if path.is_empty() {
                     return Err(invalid("path must name a file"));
                 }
+                midi(basename(path))?;
                 let bytes = match location {
                     BrowseLocation::Library { id } => self.library.read(id, path),
                     BrowseLocation::ProjectMedia => {
@@ -79,20 +94,21 @@ where
                 return Err(invalid("project media are audio, not MIDI files"));
             }
             MediaSource::Upload { upload } => {
+                if let Some((name, size)) = crate::upload::upload_info(&self.uploads, upload) {
+                    midi(name)?;
+                    if size > MAX_MIDI_FILE_BYTES as u64 {
+                        return Err(too_large(name));
+                    }
+                }
                 crate::upload::take_upload(&mut self.uploads, &mut self.store, upload)?
             }
             MediaSource::Path { path } => {
                 crate::file_import::read_path_of(&mut self.library, path, FileKind::Midi)?
             }
         };
-        if file_kind(&name) != FileKind::Midi {
-            return Err(invalid(format!("not a MIDI file: {name}")));
-        }
+        midi(&name)?;
         if bytes.len() > MAX_MIDI_FILE_BYTES {
-            return Err(invalid(format!(
-                "{name} is larger than {} MiB",
-                MAX_MIDI_FILE_BYTES >> 20
-            )));
+            return Err(too_large(&name));
         }
         let file =
             smf::read(&bytes, &name).map_err(|e| cmd_err(ErrorCode::Decode, e.to_string()))?;
