@@ -254,6 +254,56 @@ fn routed_fields_are_checked_document_wide_and_faders_locally() {
     f.p.validate().unwrap();
 }
 
+/// `apply_deferred` keeps an op's own rules but leaves the document-wide ones to
+/// `check_deferred`: a loop goes in, the deferred check finds it, and the inverses put the
+/// document back.
+#[test]
+fn deferred_checks_find_what_each_op_left_unchecked() {
+    let mut f = Fx::new();
+    let a = f.add_track(TrackKind::Audio, None);
+    let r = f.add_track(TrackKind::Return, None);
+    let before = f.p.clone();
+    let mut kinds = Vec::new();
+    let mut inverses = vec![
+        f.p.apply_deferred(
+            &upd_track(a, TrackChange::Output(TrackOutput::Track { track: r })),
+            &mut kinds,
+        )
+        .unwrap(),
+    ];
+    f.p.check_deferred(&kinds).unwrap();
+    inverses.push(
+        f.p.apply_deferred(
+            &upd_track(
+                a,
+                TrackChange::Input(TrackInput::Track {
+                    track: r,
+                    tap: InputTap::PostFader,
+                }),
+            ),
+            &mut kinds,
+        )
+        .unwrap(),
+    );
+    assert_eq!(kinds.len(), 1, "one check per kind of table");
+    assert!(matches!(
+        f.p.check_deferred(&kinds),
+        Err(ModelError::Invariant(_))
+    ));
+    assert!(
+        f.p.apply_deferred(
+            &upd_track(a, TrackChange::Volume(Decibels(f32::NAN))),
+            &mut kinds
+        )
+        .is_err(),
+        "an op's own rules still apply"
+    );
+    for inv in inverses.iter().rev() {
+        f.p.apply(inv).unwrap();
+    }
+    assert_eq!(f.p, before);
+}
+
 #[test]
 fn tempo_and_signature_at_zero_are_required() {
     let mut f = Fx::new();

@@ -1034,27 +1034,44 @@ impl Project {
             }
         };
         for op in ops {
-            match self.apply_one(op, false) {
+            match self.apply_deferred_checked(op, &mut kinds) {
                 Ok(inv) => inverses.push(inv),
                 Err(e) => {
                     rollback(self, &inverses);
                     return Err(e);
                 }
             }
-            if let Some(key) = global_key(op)
-                && !kinds
-                    .iter()
-                    .any(|k| std::mem::discriminant(k) == std::mem::discriminant(&key))
-            {
-                kinds.push(key);
-            }
         }
-        if let Some(e) = kinds.iter().find_map(|&k| self.check_globals(k).err()) {
+        if let Err(e) = self.check_deferred_globals(&kinds) {
             rollback(self, &inverses);
             return Err(e);
         }
         inverses.reverse();
         Ok(inverses)
+    }
+
+    /// One op with its own checks only; the kind of table whose document-wide invariants
+    /// it may break is added to `kinds` (once per kind) for [`Self::check_deferred_globals`].
+    pub(crate) fn apply_deferred_checked(
+        &mut self,
+        op: &Op,
+        kinds: &mut Vec<EntityKey>,
+    ) -> Result<Op, ModelError> {
+        let inverse = self.apply_one(op, false)?;
+        if let Some(key) = global_key(op)
+            && !kinds
+                .iter()
+                .any(|k| std::mem::discriminant(k) == std::mem::discriminant(&key))
+        {
+            kinds.push(key);
+        }
+        Ok(inverse)
+    }
+
+    /// The document-wide checks of each kind of table in `kinds` (see
+    /// [`Self::apply_deferred_checked`]).
+    pub(crate) fn check_deferred_globals(&self, kinds: &[EntityKey]) -> Result<(), ModelError> {
+        kinds.iter().try_for_each(|&k| self.check_globals(k))
     }
 
     /// The op's own rules (the entity it leaves, or the settings).
