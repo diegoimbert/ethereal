@@ -53,3 +53,45 @@ pub enum MediaLocation {
     /// copies it and where collaborators store their copy.
     External { path: String },
 }
+
+/// A path that names another machine: it starts with two separators, `/` and `\` in any mix
+/// (`\\host\share`, `//host/share`, `/\host\share`, `\\?\UNC\...`, `\\.\pipe\...`). Windows
+/// reads all of these as UNC or device paths, and merely looking at one authenticates to the
+/// host, so a path that came with a document (an imported project or bundle) is never opened
+/// when this holds.
+pub fn is_network_path(path: &str) -> bool {
+    let mut chars = path.chars();
+    matches!(
+        (chars.next(), chars.next()),
+        (Some('/' | '\\'), Some('/' | '\\'))
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_network_path;
+
+    #[test]
+    fn network_paths() {
+        for p in [
+            r"\\host\share\a.wav",
+            "//host/share/a.wav",
+            r"/\host\share\a.wav",
+            r"\/host/share/a.wav",
+            r"\\?\UNC\host\share\a.wav",
+            r"\\.\pipe\a.wav",
+        ] {
+            assert!(is_network_path(p), "{p}");
+        }
+        for p in [
+            "/home/a.wav",
+            r"C:\a.wav",
+            "C:/a.wav",
+            r"\a.wav",
+            "a.wav",
+            "",
+        ] {
+            assert!(!is_network_path(p), "{p}");
+        }
+    }
+}

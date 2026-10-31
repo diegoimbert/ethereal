@@ -435,6 +435,8 @@ fn bundle_import_limits_in_place_references() {
         ("/samples/b.wav", Some("ab".repeat(32))),
         ("\\\\host\\share\\c.wav", Some("ab".repeat(32))),
         ("//host/share/d.wav", Some("ab".repeat(32))),
+        ("/\\host\\share\\e.wav", Some("ab".repeat(32))),
+        ("\\/host/share/f.wav", Some("ab".repeat(32))),
     ]
     .into_iter()
     .enumerate()
@@ -462,7 +464,7 @@ fn bundle_import_limits_in_place_references() {
         .iter()
         .map(|id| matches!(stored.media[id].location, MediaLocation::External { .. }))
         .collect();
-    assert_eq!(kept, [false, true, false, false]);
+    assert_eq!(kept, [false, true, false, false, false, false]);
 }
 
 #[test]
