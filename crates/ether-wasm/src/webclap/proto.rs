@@ -153,6 +153,24 @@ fn head(kind: u8, key: NodeKey, extra: usize) -> Vec<u8> {
     v
 }
 
+/// A [`PluginReport::State`] frame, straight from its chunk (no intermediate copy).
+fn encode_state(
+    key: NodeKey,
+    seq: u32,
+    has_state: bool,
+    total: u32,
+    offset: u32,
+    bytes: &[u8],
+) -> Vec<u8> {
+    let mut v = head(K_STATE, key, 13 + bytes.len());
+    v.extend_from_slice(&seq.to_le_bytes());
+    v.push(u8::from(has_state));
+    v.extend_from_slice(&total.to_le_bytes());
+    v.extend_from_slice(&offset.to_le_bytes());
+    v.extend_from_slice(bytes);
+    v
+}
+
 impl PluginReport {
     pub fn encode(&self) -> Vec<u8> {
         match self {
@@ -186,15 +204,7 @@ impl PluginReport {
                 total,
                 offset,
                 bytes,
-            } => {
-                let mut v = head(K_STATE, *key, 13 + bytes.len());
-                v.extend_from_slice(&seq.to_le_bytes());
-                v.push(u8::from(*has_state));
-                v.extend_from_slice(&total.to_le_bytes());
-                v.extend_from_slice(&offset.to_le_bytes());
-                v.extend_from_slice(bytes);
-                v
-            }
+            } => encode_state(*key, *seq, *has_state, *total, *offset, bytes),
             PluginReport::Values { key, seq, values } => {
                 let mut v = head(K_VALUES, *key, 4 + 12 * values.len());
                 v.extend_from_slice(&seq.to_le_bytes());
@@ -232,17 +242,7 @@ impl PluginReport {
         let mut out: Vec<Vec<u8>> = bytes
             .chunks(STATE_CHUNK)
             .enumerate()
-            .map(|(i, c)| {
-                PluginReport::State {
-                    key,
-                    seq,
-                    has_state: true,
-                    total,
-                    offset: (i * STATE_CHUNK) as u32,
-                    bytes: c.to_vec(),
-                }
-                .encode()
-            })
+            .map(|(i, c)| encode_state(key, seq, true, total, (i * STATE_CHUNK) as u32, c))
             .collect();
         if out.is_empty() {
             out.push(

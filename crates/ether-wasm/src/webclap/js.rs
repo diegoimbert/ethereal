@@ -107,7 +107,17 @@ impl Guest for JsGuest {
     fn save_state(&self, handle: u32) -> Result<Option<Vec<u8>>, String> {
         match self.0.save_state(handle) {
             Ok(v) if v.is_null() || v.is_undefined() => Ok(None),
-            Ok(v) => Ok(Some(js_sys::Uint8Array::new(&v).to_vec())),
+            Ok(v) => {
+                let bytes = js_sys::Uint8Array::new(&v);
+                // Checked before the copy into this memory.
+                if bytes.length() as usize > super::worklet::MAX_STATE_BYTES {
+                    return Err(format!(
+                        "state larger than {} bytes",
+                        super::worklet::MAX_STATE_BYTES
+                    ));
+                }
+                Ok(Some(bytes.to_vec()))
+            }
             Err(e) => Err(e
                 .as_string()
                 .or_else(|| {

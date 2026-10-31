@@ -21,6 +21,8 @@ const FLUSH_BUDGET: usize = 64 * 1024;
 /// A parameter values reply bigger than this (12 bytes a parameter: about 10 900) is
 /// answered `Failed`: it could not share the report ring (256 KiB) with anything else.
 const MAX_VALUES_BYTES: usize = 128 * 1024;
+/// The biggest plugin state passed on (the host's `MAX_STATE_BYTES`, apps/web webclap).
+pub const MAX_STATE_BYTES: usize = 32 * 1024 * 1024;
 
 struct Live {
     handle: u32,
@@ -119,6 +121,14 @@ impl WorkletWebclap {
             match request {
                 WebclapRequest::State => {
                     match with_guest(|g| g.save_state(handle)).unwrap_or(Err("no host".into())) {
+                        Ok(Some(state)) if state.len() > MAX_STATE_BYTES => self.outbox.push_back(
+                            PluginReport::Failed {
+                                key,
+                                seq,
+                                message: format!("state larger than {MAX_STATE_BYTES} bytes"),
+                            }
+                            .encode(),
+                        ),
                         Ok(state) => self.outbox.extend(PluginReport::state_frames(
                             key,
                             seq,

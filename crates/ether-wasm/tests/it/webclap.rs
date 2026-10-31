@@ -153,6 +153,12 @@ impl Guest for FakeGuest {
     fn save_state(&self, handle: u32) -> Result<Option<Vec<u8>>, String> {
         let f = self.0.borrow();
         let inst = f.insts.get(&handle).ok_or("gone")?;
+        if inst.plugin == "test.huge" {
+            return Ok(Some(vec![
+                0;
+                ether_wasm::webclap::worklet::MAX_STATE_BYTES + 1
+            ]));
+        }
         Ok(Some(inst.gain.to_le_bytes().to_vec()))
     }
 
@@ -187,6 +193,8 @@ const CATALOG: &str = r#"[{ "module": "m1", "plugins": [
   { "id": "test.gain", "name": "Test Gain", "vendor": "Ethereal", "features": ["audio-effect"],
     "params": [{ "id": 1, "flags": 32, "name": "gain", "min": 0, "max": 2, "default": 1 }] },
   { "id": "test.delay", "name": "Test Delay", "features": ["audio-effect"],
+    "params": [{ "id": 1, "flags": 32, "name": "gain", "min": 0, "max": 2, "default": 1 }] },
+  { "id": "test.huge", "name": "Test Huge State", "features": ["audio-effect"],
     "params": [{ "id": 1, "flags": 32, "name": "gain", "min": 0, "max": 2, "default": 1 }] }
 ]}]"#;
 
@@ -487,6 +495,20 @@ fn state_is_read_from_the_worklet_and_restored_on_reopen() {
     let created = d.guest.0.borrow().insts[&h].created_with.clone();
     assert_eq!(created, Some(0.25f64.to_le_bytes().to_vec()));
     assert_eq!(d.device(fx).params.get(&ParamId(GAIN)), Some(&0.25));
+}
+
+/// A state over the cap isn't passed on: the save fails (the worklet answers `Failed`)
+/// and later requests still get answered.
+#[test]
+fn a_state_over_the_cap_fails_the_save() {
+    let mut d = Drive::new();
+    let huge = d.insert("test.huge", PluginFormat::Webclap).unwrap();
+    let fx = d.insert("test.gain", PluginFormat::Webclap).unwrap();
+    d.idle();
+    let err = d.ctl.bridge.plugin_state(huge).unwrap_err();
+    assert!(format!("{err:?}").contains("larger than"), "{err:?}");
+    let state = d.ctl.bridge.plugin_state(fx).unwrap().expect("a state");
+    assert_eq!(state.0, 1.0f64.to_le_bytes().to_vec());
 }
 
 #[test]
