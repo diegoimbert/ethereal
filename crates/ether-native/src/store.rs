@@ -1279,8 +1279,18 @@ pub(crate) fn open_regular_file(path: &Path) -> std::io::Result<fs::File> {
             .custom_flags(libc::O_NONBLOCK)
             .open(path)?
     };
+    // Windows opens no folder without backup semantics ("access denied"): a folder is told
+    // apart first, as "not a regular file". FIFOs don't exist there.
     #[cfg(not(unix))]
-    let file = fs::File::open(path)?;
+    let file = {
+        if fs::metadata(path)?.is_dir() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "not a regular file",
+            ));
+        }
+        fs::File::open(path)?
+    };
     if !file.metadata()?.is_file() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
