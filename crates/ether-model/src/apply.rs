@@ -1800,13 +1800,30 @@ impl Project {
             MidiMapTarget::Transport { .. } => {}
         }
         if self
-            .midi_mappings
-            .values()
-            .any(|o| o.id != m.id && o.source == m.source)
+            .midi_mappings_with_source(&m.source)
+            .iter()
+            .any(|id| *id != m.id)
         {
             return Err(invariant("two MIDI mappings share a source"));
         }
         Ok(())
+    }
+
+    /// The MIDI mappings listening to `source` (at most one in a valid document), in id
+    /// order. From the index when usable, else a scan.
+    pub fn midi_mappings_with_source(&self, source: &MidiSource) -> Vec<MidiMappingId> {
+        let listens = |id: &MidiMappingId| {
+            self.midi_mappings
+                .get(id)
+                .is_some_and(|m| m.source == *source)
+        };
+        match self.index() {
+            Some(ix) => ix
+                .mappings_with_source(crate::index::source_hash(source))
+                .filter(listens)
+                .collect(),
+            None => self.midi_mappings.keys().copied().filter(listens).collect(),
+        }
     }
 
     fn check_target(&self, key: EntityKey, target: &AutomationTarget) -> Result<(), ModelError> {
