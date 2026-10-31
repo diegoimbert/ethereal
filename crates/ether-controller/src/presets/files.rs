@@ -15,6 +15,9 @@ use crate::store::{Library, StoreError, check_relative_path};
 const MAX_DEPTH: usize = 4;
 /// Most user preset files read by one `List` (a runaway folder can't stall the controller).
 const MAX_FILES: usize = 4096;
+/// Larger preset files are left out of listings (a plugin state is a few MiB at most; every
+/// listing reads every preset).
+pub const MAX_PRESET_BYTES: u64 = 64 << 20;
 /// Longest file stem derived from a preset name (characters).
 const MAX_STEM: usize = 80;
 
@@ -218,7 +221,10 @@ fn walk<L: Library>(library: &mut L, root: &str, dir: &str, depth: usize, out: &
         };
         if e.kind == ether_core::protocol::media::FileKind::Directory {
             walk(library, root, &rel, depth + 1, out);
-        } else if e.name.ends_with(&ext) && out.len() < MAX_FILES {
+        } else if e.name.ends_with(&ext)
+            && e.size <= MAX_PRESET_BYTES as f64
+            && out.len() < MAX_FILES
+        {
             out.push(rel);
         }
     }
@@ -271,6 +277,26 @@ mod tests {
         assert!(matches_text("X", &m, Some("BASS")));
         assert!(!matches_text("X", &m, Some("lead")));
         assert!(matches_text("X", &m, Some("  ")));
+    }
+
+    /// Oversized preset files are left out of listings (every listing reads every preset).
+    #[test]
+    fn oversized_presets_unlisted() {
+        let mut lib = crate::memory::MemoryLibrary::new().with_user_root("user");
+        lib.add_file(
+            "user",
+            &format!("{PRESETS_DIR}/a/small.{PRESET_EXTENSION}"),
+            b"{}".to_vec(),
+        );
+        let big = vec![b' '; MAX_PRESET_BYTES as usize + 1];
+        lib.add_file(
+            "user",
+            &format!("{PRESETS_DIR}/a/big.{PRESET_EXTENSION}"),
+            big,
+        );
+        let mut found = Vec::new();
+        walk(&mut lib, "user", "", 0, &mut found);
+        assert_eq!(found, [format!("a/small.{PRESET_EXTENSION}")]);
     }
 
     #[test]

@@ -191,7 +191,7 @@ impl<'de> serde::de::Visitor<'de> for HeadSeed<'_> {
 
 /// The head of the document in `dir`.
 pub fn head_of(dir: &Path) -> Option<Head> {
-    let file = fs::File::open(dir.join(PROJECT_FILE)).ok()?;
+    let file = crate::store::open_regular_file(&dir.join(PROJECT_FILE)).ok()?;
     Some(read_head(std::io::BufReader::new(file)))
 }
 
