@@ -1,0 +1,12 @@
+{"domain":"Version","command":{"type":"Create","name":"v1"}}
+{"domain":"Track","command":{"type":"Delete","id":"@t1"}}
+{"domain":"Version","command":{"type":"Create","name":null}}
+{"domain":"Version","command":{"type":"Compare","version":"@V0","against":"@V1"}}
+{"domain":"Version","command":{"type":"Rename","version":"@V0","name":"first"}}
+{"domain":"Version","command":{"type":"Restore","version":"@V0"}}
+{"domain":"Edit","command":{"type":"Undo"}}
+{"domain":"Version","command":{"type":"Delete","version":"@V1"}}
+{"domain":"Version","command":{"type":"ListRecoverable"}}
+{"domain":"Version","command":{"type":"SessionStatus"}}
+{"domain":"Version","command":{"type":"Recover","project":"@P0"}}
+{"domain":"Version","command":{"type":"DiscardRecovery","project":"@P0"}}

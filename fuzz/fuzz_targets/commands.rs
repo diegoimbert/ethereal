@@ -12,8 +12,8 @@
 //!   regions, `h` rack chains, `o` modulators, `x` modulation mappings, `e` expression lanes,
 //!   `v` note expressions), `"@new"` a fresh id, `"@proj"` the open project's, `"@Pnew"` a
 //!   fresh project id and `"@P<n>"` the `n`th project id seen (the seeded one, then each
-//!   `"@Pnew"`), `"@R<n>"`/`"@T<n>"`/`"@K<n>"` the `n`th preset id, template id or export
-//!   download token a reply or an event named, so mutations keep hitting real entities;
+//!   `"@Pnew"`), `"@R<n>"`/`"@T<n>"`/`"@K<n>"`/`"@V<n>"` the `n`th preset id, template id,
+//!   export download token or version id a reply or an event named, so mutations keep hitting real entities;
 //! - `tick` (or `tick <n>`, at most 50): the clock moves 20 ms and the controller ticks (media
 //!   and render jobs, autosave);
 //! - empty or `#...`: ignored.
@@ -22,7 +22,8 @@
 //! graph references a dead node, no live node destroyed twice), and the open document saves and
 //! loads back. At the end, when the seeded project is still open and its own history is intact,
 //! undoing every step the script made gives the seeded document back, and redoing them the
-//! edited one (but for mute and solo, never undo steps).
+//! edited one; after each command that made one undo step, undoing it and redoing it gives the
+//! documents before and after it (mute and solo aside: never undo steps).
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 
@@ -179,6 +180,7 @@ struct State {
     presets: Vec<String>,
     templates: Vec<String>,
     tokens: Vec<String>,
+    versions: Vec<String>,
 }
 
 fn nth(v: &[String], n: usize) -> Option<String> {
@@ -207,6 +209,9 @@ impl State {
                     }
                     if let (Some(Value::String(id)), Some(_)) = (o.get("id"), o.get("factory")) {
                         add(&mut s.templates, id);
+                    }
+                    if let (Some(Value::String(id)), Some(_)) = (o.get("id"), o.get("created_ms")) {
+                        add(&mut s.versions, id);
                     }
                     o.values().for_each(|v| walk(s, v));
                 }
@@ -246,6 +251,7 @@ fn substitute(st: &mut State, line: &str) -> String {
             .or_else(|| token.strip_prefix('R').map(|n| (&st.presets, n)))
             .or_else(|| token.strip_prefix('T').map(|n| (&st.templates, n)))
             .or_else(|| token.strip_prefix('K').map(|n| (&st.tokens, n)))
+            .or_else(|| token.strip_prefix('V').map(|n| (&st.versions, n)))
         {
             table.1.parse().ok().and_then(|n| nth(table.0, n))
         } else {
@@ -402,6 +408,44 @@ fn check_undo_all(st: &mut State, seeded: &Value, seed_steps: &[u32]) {
     panic!("undo doesn't go back through the history");
 }
 
+/// The open project before a command: its id, undoable state and applied steps.
+struct Snapshot {
+    project: ProjectId,
+    doc: Value,
+    steps: Vec<u32>,
+}
+
+impl Snapshot {
+    fn take(h: &mut Harness) -> Option<Self> {
+        let project = h.ctl.project()?.id;
+        let doc = undoable_state(h.project());
+        let steps = applied_steps(h)?;
+        Some(Self {
+            project,
+            doc,
+            steps,
+        })
+    }
+}
+
+/// When the command made one new undo step in the same project: undoing it gives `before`
+/// back, and redoing it the edited document.
+fn check_step(h: &mut Harness, before: Snapshot, line: &str) {
+    let Some(after) = Snapshot::take(h) else {
+        return;
+    };
+    if after.project != before.project
+        || after.steps.len() != before.steps.len() + 1
+        || !after.steps.starts_with(&before.steps)
+    {
+        return;
+    }
+    send(h, Command::Edit(EditCommand::Undo));
+    same(&before.doc, h.project(), &format!("undoing `{line}`"));
+    send(h, Command::Edit(EditCommand::Redo));
+    same(&after.doc, h.project(), &format!("redoing `{line}`"));
+}
+
 fn same(expected: &Value, p: &Project, after: &str) {
     let mut diffs = Vec::new();
     diff("", expected, &undoable_state(p), &mut diffs);
@@ -435,6 +479,7 @@ fuzz_target!(|data: &[u8]| {
         presets: Vec::new(),
         templates: Vec::new(),
         tokens: Vec::new(),
+        versions: Vec::new(),
     };
     for line in text.lines().take(MAX_LINES) {
         let line = line.trim();
@@ -460,6 +505,7 @@ fuzz_target!(|data: &[u8]| {
                 continue;
             }
         };
+        let before = Snapshot::take(&mut st.h);
         let out = send(&mut st.h, command);
         if debug {
             if let Some(ServerMessage::Reply(r)) = out.last() {
@@ -468,6 +514,9 @@ fuzz_target!(|data: &[u8]| {
         }
         st.harvest(&out);
         check_document(&st.h, line);
+        if let Some(before) = before {
+            check_step(&mut st.h, before, line);
+        }
     }
     check_undo_all(&mut st, &seeded, &seed_steps);
 });
