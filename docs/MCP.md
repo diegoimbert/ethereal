@@ -160,10 +160,13 @@ played. The `--project` argument can be:
 ### Against `ether-server`
 
 ```sh
-claude mcp add ethereal-remote -- /path/to/ether-mcp --server ws://127.0.0.1:PORT --token TOKEN
+claude mcp add ethereal-remote -e ETHER_SERVER_TOKEN=TOKEN -- /path/to/ether-mcp --server ws://127.0.0.1:PORT
 ```
 
-(`ETHER_SERVER_TOKEN` also works.) A wrong token fails at start with `refused (BadToken)`.
+(`--token TOKEN` also works, but other local users can read a process's arguments.) A wrong
+token fails at start with `refused (BadToken)`. The tools the server lists are passed on
+within limits (at most 512, plain names, bounded descriptions and schemas; others are left
+out with a warning).
 The connection is plain `ws://` (not encrypted): for a server on another machine, forward
 its port over SSH (`ssh -L PORT:127.0.0.1:PORT HOST`) and connect to `ws://127.0.0.1:PORT`;
 `ether-mcp` warns when the URL names another host. `wss://` is refused.

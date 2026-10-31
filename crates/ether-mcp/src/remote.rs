@@ -313,7 +313,8 @@ fn pump(ws: &mut Ws, rx: &Receiver<ClientMessage>, pending: &Pending) -> String 
 
 /// Whether `pid` is a running process this user may signal (the app that wrote a runtime
 /// file). Unix: `kill(pid, 0)` (another user's process, after a pid reuse, is not ours).
-/// Elsewhere: assumed running.
+/// Windows: it can be opened for query by this user and hasn't exited. Elsewhere: assumed
+/// running.
 fn process_is_ours(pid: u32) -> bool {
     #[cfg(unix)]
     {
@@ -326,7 +327,28 @@ fn process_is_ours(pid: u32) -> bool {
         // SAFETY: signal 0 only checks that the process exists and may be signalled.
         pid > 0 && unsafe { kill(pid, 0) } == 0
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::Foundation::{CloseHandle, STILL_ACTIVE};
+        use windows_sys::Win32::System::Threading::{
+            GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+        };
+        if pid == 0 {
+            return false;
+        }
+        // SAFETY: plain Win32 calls; the handle is checked and closed here.
+        unsafe {
+            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            if handle.is_null() {
+                return false;
+            }
+            let mut code = 0u32;
+            let running = GetExitCodeProcess(handle, &mut code) != 0 && code == STILL_ACTIVE as u32;
+            CloseHandle(handle);
+            running
+        }
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         let _ = pid;
         true
