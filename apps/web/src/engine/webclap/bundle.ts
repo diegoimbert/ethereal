@@ -13,6 +13,33 @@ export interface Bundle {
 /** Largest bundle accepted (unpacked). */
 export const MAX_BUNDLE_BYTES = 256 * 1024 * 1024;
 
+/** `res`'s body, refused ("too big") past `max` bytes (announced or received). */
+export async function readCapped(res: Response, max: number): Promise<Uint8Array> {
+  const tooBig = (): Error => new Error("the file is too big");
+  const announced = Number(res.headers.get("content-length") ?? NaN);
+  if (announced > max) throw tooBig();
+  const reader = res.body?.getReader();
+  const parts: Uint8Array[] = [];
+  let total = 0;
+  while (reader) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.length;
+    if (total > max) {
+      await reader.cancel();
+      throw tooBig();
+    }
+    parts.push(value);
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
+}
+
 async function gunzip(bytes: Uint8Array): Promise<Uint8Array> {
   const stream = new Blob([bytes as BlobPart]).stream().pipeThrough(new DecompressionStream("gzip"));
   const reader = stream.getReader();

@@ -8,7 +8,7 @@
 
 import type { WebclapApi, WebclapModuleView } from "@/features/webclap/api";
 import type { WebclapModuleMsg, WebclapPortMsg } from "../protocol";
-import { MAX_BUNDLE_BYTES, contentId, readBundle } from "./bundle";
+import { MAX_BUNDLE_BYTES, contentId, readBundle, readCapped } from "./bundle";
 import { MAX_UI_MESSAGE_BYTES, PLUGIN_PATH } from "./instance";
 import type { ScanResult } from "./scan";
 import { type InstalledModule, store } from "./store";
@@ -202,7 +202,7 @@ export class WebclapManager implements WebclapApi {
     if (u.protocol !== "https:" && u.hostname !== "localhost" && u.hostname !== "127.0.0.1") throw new Error("only https addresses can be installed");
     const res = await fetch(u, { credentials: "omit", referrerPolicy: "no-referrer", cache: "no-cache" });
     if (!res.ok) throw new Error(`the download failed (${res.status})`);
-    const bytes = new Uint8Array(await res.arrayBuffer());
+    const bytes = await readCapped(res, MAX_BUNDLE_BYTES);
     const name = decodeURIComponent(u.pathname.split("/").filter(Boolean).pop() ?? u.hostname);
     return this.install(bytes, name, u.href);
   }

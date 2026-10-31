@@ -71,6 +71,8 @@ export const MAX_UI_MESSAGE_BYTES = 4 * 1024 * 1024;
  * and the state is copied a few times on its way to the document.
  */
 export const MAX_STATE_BYTES = 32 * 1024 * 1024;
+/** Largest file a plugin's web ui may serve (`get_resource`); larger ones are refused. */
+export const MAX_UI_RESOURCE_BYTES = 64 * 1024 * 1024;
 
 /** Events per block into the plugin (all-notes-off expands to two). */
 const IN_EVENT_SLOTS = 2048;
@@ -1112,10 +1114,18 @@ export class ClapInstance {
     if (!this.ext.webview) return null;
     const mime = this.scratch + PARAM_INFO.size;
     this.streamOut = [];
-    const ok = this.extFn(this.ext.webview, WEBVIEW_EXT.getResource)(this.plugin, this.m.writeString(path), mime, 256, this.stream.out);
+    this.streamRoom = MAX_UI_RESOURCE_BYTES;
+    let ok: unknown;
+    let refused: boolean;
+    try {
+      ok = this.extFn(this.ext.webview, WEBVIEW_EXT.getResource)(this.plugin, this.m.writeString(path), mime, 256, this.stream.out);
+    } finally {
+      refused = this.streamRoom < 0;
+      this.streamRoom = Infinity;
+    }
     const parts = this.streamOut;
     this.streamOut = [];
-    if (!ok) return null;
+    if (!ok || refused) return null;
     const total = parts.reduce((n, p) => n + p.length, 0);
     const bytes = new Uint8Array(total);
     let at = 0;
