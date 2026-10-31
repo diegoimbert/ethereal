@@ -28,6 +28,8 @@ use crate::backend::{Backend, Pending, wait};
 /// Read poll of the I/O thread (bounds the latency of writes).
 const POLL: Duration = Duration::from_millis(5);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+/// A send blocked this long (the peer stopped reading) ends the connection.
+const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Where to connect.
 #[derive(Clone, Debug)]
@@ -153,10 +155,57 @@ fn set_read_timeout(ws: &Ws, t: Duration) {
     }
 }
 
+/// The TCP connection and WebSocket upgrade, each bounded by [`CONNECT_TIMEOUT`] (a peer
+/// that accepts and never answers would otherwise hold the caller, and the connection lock
+/// every other tool call waits on, forever). Writes time out after [`WRITE_TIMEOUT`] from
+/// then on: a peer that stops reading ends the connection, and the next call reconnects.
+fn handshake(url: &str, timeout: Duration) -> Result<Ws, String> {
+    use std::net::ToSocketAddrs;
+    use tungstenite::client::IntoClientRequest;
+    let request = url.into_client_request().map_err(|e| e.to_string())?;
+    let uri = request.uri();
+    if uri.scheme_str() != Some("ws") {
+        return Err(format!("{url}: only ws:// is supported"));
+    }
+    let host = uri.host().ok_or_else(|| format!("{url}: no host"))?;
+    // `[::1]` in a URI is `::1` to the resolver.
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    let port = uri.port_u16().unwrap_or(80);
+    let addrs: Vec<_> = (host, port)
+        .to_socket_addrs()
+        .map_err(|e| format!("{host}: {e}"))?
+        .collect();
+    let mut last = format!("{host}: no address");
+    let stream = addrs
+        .iter()
+        .find_map(|a| match TcpStream::connect_timeout(a, timeout) {
+            Ok(s) => Some(s),
+            Err(e) => {
+                last = e.to_string();
+                None
+            }
+        })
+        .ok_or(last)?;
+    stream
+        .set_read_timeout(Some(timeout))
+        .and_then(|()| stream.set_write_timeout(Some(WRITE_TIMEOUT)))
+        .map_err(|e| e.to_string())?;
+    let _ = stream.set_nodelay(true);
+    let (ws, _) =
+        tungstenite::client(request, MaybeTlsStream::Plain(stream)).map_err(|e| match e {
+            // A read timeout: `WouldBlock` (Unix, "interrupted") or `TimedOut` (Windows).
+            tungstenite::HandshakeError::Interrupted(_) => "the upgrade timed out".into(),
+            tungstenite::HandshakeError::Failure(e) if would_block(&e) => {
+                "the upgrade timed out".into()
+            }
+            tungstenite::HandshakeError::Failure(e) => e.to_string(),
+        })?;
+    Ok(ws)
+}
+
 /// Connect, say hello, and start the I/O thread.
 fn open(url: &str, token: Option<&str>, pending: Arc<Pending>) -> Result<Connection, String> {
-    let (mut ws, _) = tungstenite::connect(url).map_err(|e| e.to_string())?;
-    set_read_timeout(&ws, CONNECT_TIMEOUT);
+    let mut ws = handshake(url, CONNECT_TIMEOUT)?;
     let hello = ClientHello {
         protocol_version: PROTOCOL_VERSION,
         token: token.map(str::to_string),
@@ -266,5 +315,29 @@ fn process_is_ours(pid: u32) -> bool {
     {
         let _ = pid;
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::TcpListener;
+
+    /// A peer that accepts and never answers the upgrade: the connect gives up.
+    #[test]
+    fn a_silent_peer_times_out() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("ws://{}/", listener.local_addr().unwrap());
+        let t = Instant::now();
+        let e = handshake(&url, Duration::from_millis(300)).expect_err("an error");
+        assert!(t.elapsed() < Duration::from_secs(5), "{:?}", t.elapsed());
+        assert!(e.contains("timed out"), "{e}");
+        drop(listener);
+    }
+
+    #[test]
+    fn only_plain_websockets() {
+        let e = handshake("wss://127.0.0.1:1/", Duration::from_millis(300)).expect_err("an error");
+        assert!(e.contains("only ws://"), "{e}");
     }
 }
