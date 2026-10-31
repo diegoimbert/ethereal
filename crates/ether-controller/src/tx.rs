@@ -116,9 +116,15 @@ impl<'a> Tx<'a> {
     }
 
     fn unwind(&mut self) {
-        while let Some(inv) = self.inverses.pop() {
-            // Inverses of applied ops always apply (model guarantee).
-            let _ = self.project.apply(&inv);
+        // Inverses of applied ops always apply (model guarantee). As one batch: the
+        // document-wide checks once, not once per op (every command's ops are unwound here,
+        // and checking routing after each one made big edits quadratic).
+        let inverses: Vec<Op> = self.inverses.drain(..).rev().collect();
+        if self.project.apply_all(&inverses).is_err() {
+            // All or nothing: nothing was applied. Op by op, as before.
+            for inv in &inverses {
+                let _ = self.project.apply(inv);
+            }
         }
         self.ops.clear();
     }
