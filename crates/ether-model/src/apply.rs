@@ -58,9 +58,37 @@ fn invariant(msg: impl Into<String>) -> ModelError {
 fn global_key(op: &Op) -> Option<EntityKey> {
     match op {
         Op::Insert { entity } => Some(entity.key()),
+        Op::Update { update } if globals_neutral(update) => None,
         Op::Update { update } => Some(update.key()),
         Op::Remove { key } => Some(*key),
         Op::Settings { .. } => None,
+    }
+}
+
+/// Updates of fields the document-wide checks never read (routing reads tracks' parent,
+/// input and output, sends' ends, devices' and modulators' track and sidechains; the
+/// sidechain rules read devices' place in chains, pads and racks, and chains' order): a
+/// fader, a parameter or a name. Checking routing over the whole project after each one
+/// made parameter bursts and preset loads O(ops x project).
+fn globals_neutral(update: &EntityUpdate) -> bool {
+    use EntityUpdate as U;
+    match update {
+        U::Track { change, .. } => !matches!(
+            change,
+            TrackChange::Parent(_) | TrackChange::Input(_) | TrackChange::Output(_)
+        ),
+        U::Device { change, .. } => matches!(
+            change,
+            DeviceChange::Name(_)
+                | DeviceChange::Enabled(_)
+                | DeviceChange::Param { .. }
+                | DeviceChange::Plugin(_)
+        ),
+        U::Send { .. } => true,
+        U::Modulator { change, .. } => !matches!(change, ModulatorChange::Sidechain(_)),
+        U::DrumPad { .. } => true,
+        U::RackChain { change, .. } => !matches!(change, RackChainChange::Order(_)),
+        _ => false,
     }
 }
 
