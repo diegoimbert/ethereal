@@ -175,6 +175,38 @@ fn resolve_in(root: &Path, rel: &str) -> Result<PathBuf, StoreError> {
     }
 }
 
+/// Create a fresh hidden temp file next to `name` in `dir` (`.{name}.{pid}-{n}.{ext}`):
+/// never an existing entry (`create_new`: an entry planted at the name, a symlink included, is
+/// never written through), and two writers of one file in this process never share one.
+fn create_temp(dir: &Path, name: &str, ext: &str) -> std::io::Result<(PathBuf, fs::File)> {
+    use std::hash::{BuildHasher, Hasher};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let mut last = None;
+    for _ in 0..16 {
+        let n = NEXT.fetch_add(1, Ordering::Relaxed);
+        // Unpredictable across runs: a name can't be planted ahead of the write.
+        let salt = std::collections::hash_map::RandomState::new()
+            .build_hasher()
+            .finish()
+            & 0xffff_ffff;
+        let tmp = dir.join(format!(
+            ".{name}.{}-{n}-{salt:08x}.{ext}",
+            std::process::id()
+        ));
+        match fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&tmp)
+        {
+            Ok(f) => return Ok((tmp, f)),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => last = Some(e),
+            Err(e) => return Err(e),
+        }
+    }
+    Err(last.unwrap_or_else(|| std::io::Error::other("no free temp name")))
+}
+
 /// Write `bytes` to `path` atomically (temp file in the same folder + fsync + rename).
 pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), StoreError> {
     let dir = path
@@ -185,9 +217,8 @@ pub fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), StoreError> {
         .file_name()
         .ok_or_else(|| StoreError::InvalidPath(path.display().to_string()))?
         .to_string_lossy();
-    let tmp = dir.join(format!(".{name}.{}.tmp", std::process::id()));
+    let (tmp, mut f) = create_temp(dir, &name, "tmp").map_err(io_err)?;
     let result = (|| {
-        let mut f = fs::File::create(&tmp)?;
         f.write_all(bytes)?;
         f.sync_all()?;
         drop(f);
@@ -232,8 +263,7 @@ impl PartFile {
             .file_name()
             .ok_or_else(|| StoreError::InvalidPath(path.display().to_string()))?
             .to_string_lossy();
-        let tmp = dir.join(format!(".{name}.{}.part", std::process::id()));
-        let file = fs::File::create(&tmp).map_err(io_err)?;
+        let (tmp, file) = create_temp(dir, &name, "part").map_err(io_err)?;
         Ok(Self {
             file: Some(BufWriter::with_capacity(1 << 20, file)),
             tmp,
@@ -1697,6 +1727,35 @@ mod tests {
             read_regular_file(&file, "song.als", 2),
             Err(StoreError::Io(_))
         ));
+    }
+
+    /// Writers of one file (an autosave racing a save) never share a temp file: each write
+    /// lands whole, and no temp file is left behind.
+    #[test]
+    fn concurrent_atomic_writes_never_mix() {
+        let tmp = TempDir::new("store-atomic-race");
+        let path = tmp.path().join("project.ether");
+        let writers: Vec<_> = (0..4u8)
+            .map(|w| {
+                let path = path.clone();
+                std::thread::spawn(move || {
+                    for _ in 0..50 {
+                        atomic_write(&path, &vec![w; 64 * 1024]).unwrap();
+                    }
+                })
+            })
+            .collect();
+        for w in writers {
+            w.join().unwrap();
+        }
+        let bytes = fs::read(&path).unwrap();
+        assert_eq!(bytes.len(), 64 * 1024);
+        assert!(bytes.iter().all(|b| *b == bytes[0]), "one writer's bytes");
+        let names: Vec<String> = fs::read_dir(tmp.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(names, ["project.ether"]);
     }
 
     /// A streamed export is written under a hidden temp name, seekable (headers are
