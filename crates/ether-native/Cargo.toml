@@ -41,7 +41,8 @@ rubato.workspace = true
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"], optional = true }
 
 # ASIO driver support on Windows (cpal's asio-sys builds against the Steinberg ASIO SDK).
-# O_NONBLOCK: regular-file checks on the open handle (store::open_regular_file).
+# O_NONBLOCK: regular-file checks on the open handle (store::open_regular_file); no-replace
+# renames (store::rename_no_replace).
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
@@ -51,7 +52,8 @@ cpal = { workspace = true, features = ["asio"] }
 asio-sys = "0.2"
 # COM on the threads that open ASIO drivers (`cpal_host.rs`).
 # MMCSS for the audio threads and the physical core count (`workers.rs`).
-windows-sys = { workspace = true, features = ["Win32_System_Com", "Win32_Media", "Win32_System_Threading", "Win32_System_SystemInformation"] }
+# No-replace renames in the user library (`store.rs`).
+windows-sys = { workspace = true, features = ["Win32_System_Com", "Win32_Media", "Win32_System_Threading", "Win32_System_SystemInformation", "Win32_Storage_FileSystem"] }
 
 [lints]
 workspace = true
