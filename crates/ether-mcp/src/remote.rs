@@ -115,7 +115,7 @@ impl RemoteBackend {
         let c =
             open(&url, token.as_deref(), self.pending.clone()).map_err(|e| match &self.target {
                 Target::Desktop { candidates } => desktop_unreachable(candidates, &e),
-                Target::Fixed { .. } => format!("cannot connect to {url}: {e}"),
+                Target::Fixed { .. } => format!("cannot connect to {}: {e}", redact(&url)),
             })?;
         let tx = c.tx.clone();
         *conn = Some(c);
@@ -141,9 +141,22 @@ impl Backend for RemoteBackend {
 
     fn describe(&self) -> String {
         match &self.target {
-            Target::Fixed { url, .. } => format!("the Ethereal engine at {url}"),
+            Target::Fixed { url, .. } => format!("the Ethereal engine at {}", redact(url)),
             Target::Desktop { .. } => "the running Ethereal desktop app".into(),
         }
+    }
+}
+
+/// `url` without a `user:password@` part: what the model (the MCP instructions) and the
+/// logs see.
+pub fn redact(url: &str) -> String {
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return url.to_string();
+    };
+    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    match rest[..end].rfind('@') {
+        Some(at) => format!("{scheme}://{}", &rest[at + 1..]),
+        None => url.to_string(),
     }
 }
 
@@ -165,9 +178,11 @@ fn handshake(url: &str, timeout: Duration) -> Result<Ws, String> {
     let request = url.into_client_request().map_err(|e| e.to_string())?;
     let uri = request.uri();
     if uri.scheme_str() != Some("ws") {
-        return Err(format!("{url}: only ws:// is supported"));
+        return Err(format!("{}: only ws:// is supported", redact(url)));
     }
-    let host = uri.host().ok_or_else(|| format!("{url}: no host"))?;
+    let host = uri
+        .host()
+        .ok_or_else(|| format!("{}: no host", redact(url)))?;
     // `[::1]` in a URI is `::1` to the resolver.
     let host = host.trim_start_matches('[').trim_end_matches(']');
     let port = uri.port_u16().unwrap_or(80);
@@ -333,6 +348,14 @@ mod tests {
         assert!(t.elapsed() < Duration::from_secs(5), "{:?}", t.elapsed());
         assert!(e.contains("timed out"), "{e}");
         drop(listener);
+    }
+
+    #[test]
+    fn urls_lose_their_credentials() {
+        assert_eq!(redact("ws://u:p@host:1/x?y"), "ws://host:1/x?y");
+        assert_eq!(redact("ws://host:1/a@b"), "ws://host:1/a@b");
+        assert_eq!(redact("ws://a@b@host"), "ws://host");
+        assert_eq!(redact("not a url"), "not a url");
     }
 
     #[test]
