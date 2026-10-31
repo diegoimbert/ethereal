@@ -62,7 +62,11 @@ impl EtherMcp {
         });
         let (mut content, is_error) = match self.request(command).await {
             Ok(ReplyValue::AgentToolResult { content, is_error }) => (content, is_error),
-            Ok(other) => (format!("unexpected reply: {other:?}"), true),
+            // Only the kind of reply: the rest is the peer's, unbounded and unmarked.
+            Ok(other) => (
+                format!("unexpected reply from the engine ({})", reply_kind(&other)),
+                true,
+            ),
             Err(e) => (e, true),
         };
         if name == SAVE_TOOL && !is_error {
@@ -186,5 +190,29 @@ impl ServerHandler for EtherMcp {
         .with_ttl_ms(0)
         .with_cache_scope(CacheScope::Private)
         .into())
+    }
+}
+
+/// The variant name of a reply (`AgentTools`, ...), at most 64 characters.
+fn reply_kind(reply: &ReplyValue) -> String {
+    let debug = format!("{reply:?}");
+    debug
+        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .next()
+        .unwrap_or("")
+        .chars()
+        .take(64)
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn an_unexpected_reply_is_named_not_dumped() {
+        assert_eq!(reply_kind(&ReplyValue::Unit), "Unit");
+        let tools = ReplyValue::AgentTools { tools: Vec::new() };
+        assert_eq!(reply_kind(&tools), "AgentTools");
     }
 }
