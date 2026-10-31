@@ -39,6 +39,9 @@ const SEEDS = {
     ],
   },
   commands: { dirs: ["fuzz/seeds/commands"] },
+  // Stored ZIPs with valid checksums (the fuzzer can't forge a CRC): document + media, entries
+  // the layout skips, a name escaping the bundle, a compressed entry.
+  bundle: { dirs: ["fuzz/seeds/bundle"] },
   server_frames: {
     inline: [Buffer.from('{"type":"Command","id":1,"command":{"type":"Transport","command":{"type":"Play"}}}')],
   },
