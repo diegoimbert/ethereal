@@ -279,17 +279,24 @@ impl WebclapBridge {
                         self.replies.insert(seq, Reply::State(None));
                         continue;
                     }
+                    let (offset, total) = (offset as usize, total as usize);
+                    // A chunk past the announced total is malformed (never sliced past
+                    // the buffer).
+                    let Some(end) = offset.checked_add(bytes.len()).filter(|&e| e <= total) else {
+                        self.partial.remove(&seq);
+                        self.replies
+                            .insert(seq, Reply::Failed("malformed state chunk".into()));
+                        continue;
+                    };
                     let buf = self
                         .partial
                         .entry(seq)
-                        .or_insert_with(|| Vec::with_capacity(total as usize));
-                    let end = offset as usize + bytes.len();
+                        .or_insert_with(|| Vec::with_capacity(total));
                     if buf.len() < end {
-                        buf.resize(end.min(total as usize), 0);
+                        buf.resize(end, 0);
                     }
-                    let n = bytes.len().min(buf.len().saturating_sub(offset as usize));
-                    buf[offset as usize..offset as usize + n].copy_from_slice(&bytes[..n]);
-                    if end >= total as usize {
+                    buf[offset..end].copy_from_slice(&bytes);
+                    if end >= total {
                         let buf = self.partial.remove(&seq).unwrap_or_default();
                         self.replies.insert(seq, Reply::State(Some(buf)));
                     }
@@ -450,6 +457,45 @@ mod tests {
         b.take_reports(&mut shared);
         assert_eq!(b.replies.keys().copied().collect::<Vec<_>>(), [4]);
         assert!(matches!(&b.replies[&4], Reply::State(Some(s)) if s == &[7, 7]));
+    }
+
+    /// Chunks (in order) are placed at their offset; one past the announced total fails the reply
+    /// (no panic, nothing kept).
+    #[test]
+    fn state_chunks_assemble_and_bad_ones_fail() {
+        let chunk = |seq, total, offset, bytes: Vec<u8>| PluginReport::State {
+            key: KEY,
+            seq,
+            has_state: true,
+            total,
+            offset,
+            bytes,
+        };
+        let mut b = WebclapBridge {
+            waiting: Some(5),
+            ..Default::default()
+        };
+        let mut shared = WebclapShared {
+            reports: vec![chunk(5, 4, 0, vec![1, 2]), chunk(5, 4, 2, vec![3, 4])],
+            ..Default::default()
+        };
+        b.take_reports(&mut shared);
+        assert!(matches!(&b.replies[&5], Reply::State(Some(s)) if s == &[1, 2, 3, 4]));
+
+        for bad in [
+            chunk(6, 4, 9, vec![]),
+            chunk(6, 4, 3, vec![1, 2]),
+            chunk(6, 4, u32::MAX, vec![1]),
+        ] {
+            let mut b = WebclapBridge {
+                waiting: Some(6),
+                ..Default::default()
+            };
+            shared.reports = vec![chunk(6, 4, 0, vec![1]), bad];
+            b.take_reports(&mut shared);
+            assert!(b.partial.is_empty());
+            assert!(matches!(&b.replies[&6], Reply::Failed(m) if m.contains("malformed")));
+        }
     }
 
     /// A state announced over the cap fails without a buffer of its size.
