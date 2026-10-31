@@ -41,6 +41,10 @@ rubato.workspace = true
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"], optional = true }
 
 # ASIO driver support on Windows (cpal's asio-sys builds against the Steinberg ASIO SDK).
+# O_NONBLOCK: regular-file checks on the open handle (store::open_regular_file).
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [target.'cfg(windows)'.dependencies]
 cpal = { workspace = true, features = ["asio"] }
 # The ASIO driver names without loading the drivers (the version cpal uses).

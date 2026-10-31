@@ -918,33 +918,13 @@ impl ProjectStore for DiskStore {
                 "not an absolute DAWproject/.als/.flp/.rpp path: {path}"
             )));
         }
-        let meta = fs::metadata(p).map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => StoreError::NotFound(path.to_string()),
-            _ => io_err(e),
-        })?;
-        if !meta.is_file() {
-            return Err(StoreError::InvalidPath(format!("not a file: {path}")));
-        }
-        if meta.len() > u32::MAX as u64 {
-            return Err(StoreError::Io(format!("{path} is larger than 4 GiB")));
-        }
-        fs::read(p).map_err(io_err)
+        read_regular_file(p, path, u32::MAX as u64)
     }
 
     fn read_bundle_file(&mut self, path: &str) -> Result<Vec<u8>, StoreError> {
         self.check_os_paths()?;
         let p = bundle_path(path)?;
-        let meta = fs::metadata(p).map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => StoreError::NotFound(path.to_string()),
-            _ => io_err(e),
-        })?;
-        if !meta.is_file() {
-            return Err(StoreError::InvalidPath(format!("not a file: {path}")));
-        }
-        if meta.len() > u32::MAX as u64 {
-            return Err(StoreError::Io(format!("{path} is larger than 4 GiB")));
-        }
-        fs::read(p).map_err(io_err)
+        read_regular_file(p, path, u32::MAX as u64)
     }
 
     fn projects_os_path(&self) -> Option<String> {
@@ -1256,14 +1236,28 @@ const MAX_SIDECAR_BYTES: u64 = 16 << 20;
 
 /// Opens `path` for reading if it is a regular file (symlinks followed): a FIFO or a device
 /// would block or never end. `NotFound` when missing, `InvalidInput` when not a file.
+///
+/// Checked on the opened handle, not before: a path swapped for a FIFO between a check and
+/// the open would block the open itself. On Unix the open doesn't wait for a FIFO's writer
+/// (`O_NONBLOCK`, which changes nothing for a regular file's reads).
 pub(crate) fn open_regular_file(path: &Path) -> std::io::Result<fs::File> {
-    if !fs::metadata(path)?.is_file() {
+    #[cfg(unix)]
+    let file = {
+        use std::os::unix::fs::OpenOptionsExt;
+        fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_NONBLOCK)
+            .open(path)?
+    };
+    #[cfg(not(unix))]
+    let file = fs::File::open(path)?;
+    if !file.metadata()?.is_file() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
             "not a regular file",
         ));
     }
-    fs::File::open(path)
+    Ok(file)
 }
 
 /// Reads the regular file at `path` (symlinks followed) of at most `max` bytes; `shown` names
@@ -1275,22 +1269,23 @@ fn read_regular_file(path: &Path, shown: &str, max: u64) -> Result<Vec<u8>, Stor
         std::io::ErrorKind::NotFound => StoreError::NotFound(shown.to_string()),
         _ => io_err(e),
     };
-    let meta = fs::metadata(path).map_err(not_found)?;
-    if !meta.is_file() {
-        return Err(StoreError::InvalidPath(format!("not a file: {shown}")));
-    }
-    if meta.len() > max {
+    let file = open_regular_file(path).map_err(|e| match e.kind() {
+        std::io::ErrorKind::InvalidInput => StoreError::InvalidPath(format!("not a file: {shown}")),
+        _ => not_found(e),
+    })?;
+    let len = file.metadata().map_err(io_err)?.len();
+    if len > max {
         return Err(StoreError::Io(format!(
             "{shown} is larger than {} MiB",
             max >> 20
         )));
     }
-    let mut bytes = Vec::with_capacity(meta.len() as usize);
-    fs::File::open(path)
-        .map_err(not_found)?
-        .take(max + 1)
-        .read_to_end(&mut bytes)
-        .map_err(io_err)?;
+    // Up to 4 GiB: a failed reservation is an error, not an abort of the engine.
+    let mut bytes = Vec::new();
+    bytes
+        .try_reserve_exact(len as usize)
+        .map_err(|_| StoreError::Io(format!("not enough memory to read {shown}")))?;
+    file.take(max + 1).read_to_end(&mut bytes).map_err(io_err)?;
     if bytes.len() as u64 > max {
         return Err(StoreError::Io(format!(
             "{shown} is larger than {} MiB",
@@ -1663,6 +1658,45 @@ mod tests {
         assert_eq!(listed.unwrap(), 0);
         assert!(matches!(loaded, Err(StoreError::InvalidPath(_))));
         assert!(matches!(read, Err(StoreError::InvalidPath(_))));
+    }
+
+    /// The regular-file check is made on the opened handle, and opening a FIFO doesn't wait
+    /// for a writer: a path swapped for one after any earlier check can't block the open.
+    #[cfg(unix)]
+    #[test]
+    fn opening_a_fifo_never_blocks() {
+        let tmp = TempDir::new("store-open-fifo");
+        let fifo = tmp.path().join("pipe.als");
+        let file = tmp.path().join("song.als");
+        fs::write(&file, b"als").unwrap();
+        let made = std::process::Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .is_ok_and(|s| s.success());
+        if !made {
+            return;
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        let p = fifo.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(open_regular_file(&p).map(|_| ()).map_err(|e| e.kind()));
+        });
+        let opened = rx
+            .recv_timeout(std::time::Duration::from_secs(20))
+            .expect("opening a FIFO doesn't block");
+        assert_eq!(opened, Err(std::io::ErrorKind::InvalidInput));
+        assert!(matches!(
+            read_regular_file(&fifo, "pipe.als", 1 << 20),
+            Err(StoreError::InvalidPath(_))
+        ));
+        assert_eq!(
+            read_regular_file(&file, "song.als", 1 << 20).unwrap(),
+            b"als"
+        );
+        assert!(matches!(
+            read_regular_file(&file, "song.als", 2),
+            Err(StoreError::Io(_))
+        ));
     }
 
     /// A streamed export is written under a hidden temp name, seekable (headers are
