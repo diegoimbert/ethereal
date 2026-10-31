@@ -1,0 +1,7 @@
+{"domain":"Edit","command":{"type":"Batch","label":"b","commands":[{"domain":"Track","command":{"type":"Create","id":"@new","kind":"Audio","name":"a","color":null,"parent":null,"before":null}},{"domain":"Mixer","command":{"type":"SetVolume","track":"@t1","volume":-6}},{"domain":"Clip","command":{"type":"Delete","ids":["@c0"]}}]}}
+{"domain":"Edit","command":{"type":"Batch","label":"nested","commands":[{"domain":"Edit","command":{"type":"Batch","label":"inner","commands":[{"domain":"Note","command":{"type":"Remove","ids":["@n0"]}}]}},{"domain":"Edit","command":{"type":"Undo"}}]}}
+{"domain":"Edit","command":{"type":"Batch","label":"fails","commands":[{"domain":"Mixer","command":{"type":"SetPan","track":"@t2","pan":0.3}},{"domain":"Clip","command":{"type":"Delete","ids":["nope"]}}]}}
+{"domain":"Version","command":{"type":"Create","name":"v"}}
+{"domain":"Track","command":{"type":"Delete","id":"@t1"}}
+{"domain":"Edit","command":{"type":"Undo"}}
+{"domain":"Edit","command":{"type":"Redo"}}
