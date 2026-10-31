@@ -155,6 +155,31 @@ fn ungroup_restores_children_in_place() {
     assert_eq!(h.project(), &before);
 }
 
+/// Many children: they keep their order between the group's neighbours, with keys spread
+/// over the gap (placed one after another, each key grew a little: 62 characters at 300).
+#[test]
+fn ungroup_of_many_children_keeps_short_keys() {
+    let mut h = Harness::with_project();
+    let a = track(&mut h, TrackKind::Audio);
+    let g = track(&mut h, TrackKind::Group);
+    let b = track(&mut h, TrackKind::Audio);
+    let kids: Vec<TrackId> = (0..300).map(|_| child(&mut h, g)).collect();
+    h.ok(Command::Track(TrackCommand::Ungroup {
+        group: g,
+        force: false,
+    }));
+    let top = order(&h, None);
+    let at = top.iter().position(|t| *t == a).unwrap();
+    assert_eq!(top[at + 1..at + 1 + kids.len()], kids[..]);
+    assert_eq!(top[at + 1 + kids.len()], b);
+    let longest = kids
+        .iter()
+        .map(|k| h.project().tracks[k].order.0.len())
+        .max()
+        .unwrap();
+    assert!(longest <= 8, "keys up to {longest} characters");
+}
+
 #[test]
 fn ungroup_of_a_nested_group_goes_to_its_parent() {
     let mut h = Harness::with_project();
