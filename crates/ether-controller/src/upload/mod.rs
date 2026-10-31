@@ -140,7 +140,7 @@ where
                     return Err(invalid("bad upload offset"));
                 }
                 let offset = *offset as u64;
-                let end = offset + bytes.len() as u64;
+                let end = offset.saturating_add(bytes.len() as u64);
                 if offset < u.received && end <= u.received {
                     // A retried chunk we already have: nothing to do.
                     return Ok(ReplyValue::Unit);
@@ -210,6 +210,11 @@ where
 /// function so `import` can call it while it borrows the document). The upload is consumed
 /// (its staging dropped) whether or not the import then succeeds. `NotFound` for unknown
 /// ids, `InvalidState` while incomplete.
+/// The name and announced size of the upload `upload` (to refuse it before reading it).
+pub fn upload_info<'a>(state: &'a UploadState, upload: &str) -> Option<(&'a str, u64)> {
+    state.uploads.get(upload).map(|u| (u.name.as_str(), u.size))
+}
+
 pub fn take_upload<S: ProjectStore>(
     state: &mut UploadState,
     store: &mut S,

@@ -117,6 +117,23 @@ fn reads_a_library_midi_file_without_editing_the_project() {
         },
     }));
     assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+
+    // An upload too large for a MIDI file, or not named as one, is refused by its announced
+    // size and name, before its bytes are read.
+    for (name, size) in [("big.mid", 64.0 * 1048576.0), ("song.wav", 1024.0)] {
+        h.ok(Command::Media(MediaCommand::BeginUpload {
+            upload: name.replace('.', "_"),
+            name: name.into(),
+            size,
+        }));
+        let out = h.send(Command::Media(MediaCommand::ReadMidiFile {
+            source: MediaSource::Upload {
+                upload: name.replace('.', "_"),
+            },
+        }));
+        let e = err(&out);
+        assert_eq!(e.code, ErrorCode::InvalidArgument, "{name}: {e:?}");
+    }
 }
 
 /// A MIDI track with a 2-beat looped clip at beat 4, 7 beats long (C4 at 0, E4 at 1.5).
