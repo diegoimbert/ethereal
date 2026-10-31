@@ -1,0 +1,25 @@
+{"domain":"Recording","command":{"type":"SetInput","track":"@t1","input":{"type":"Audio","first":0,"count":2}}}
+{"domain":"Recording","command":{"type":"Arm","track":"@t1","armed":true,"exclusive":false}}
+{"domain":"Recording","command":{"type":"SetInput","track":"@t2","input":{"type":"Midi","port":null,"channel":null}}}
+{"domain":"Recording","command":{"type":"Arm","track":"@t2","armed":true,"exclusive":false}}
+{"domain":"Recording","command":{"type":"SetCountIn","bars":0}}
+{"domain":"Recording","command":{"type":"SetRecording","enabled":true}}
+tick 3
+live audio "@t1" 0 0 0 64
+live midi "@t2" 60 100 0.5
+tick 3
+live midi "@t2" 60 100 0.5 1
+live audio "@t1" 0 0 64 64
+rec audio "@t1" 0 24000 2 48000
+rec audio "@t1" 4 12000 1 44100
+rec midi "@t2" 0.5 144 60 100
+rec midi "@t2" 1.5 128 60 0
+rec midi nil 2 144 64 90
+rec midi nil 2.5 128 64 0
+rec midi "@t2" 1 176 1 64
+rec midi "@t2" 1.2 224 0 80
+tick 2
+{"domain":"Transport","command":{"type":"Stop"}}
+tick 5
+{"domain":"Edit","command":{"type":"Undo"}}
+{"domain":"Edit","command":{"type":"Redo"}}

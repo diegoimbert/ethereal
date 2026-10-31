@@ -1,0 +1,27 @@
+{"domain":"Transport","command":{"type":"SetLoopRegion","region":{"start":0,"end":2}}}
+{"domain":"Transport","command":{"type":"SetLoopEnabled","enabled":true}}
+{"domain":"Recording","command":{"type":"SetPunch","enabled":true}}
+{"domain":"Expression","command":{"type":"SetTrackMpe","track":"@t2","mpe":{"zone":"Lower","member_channels":15,"note_pitch_range":48,"master_pitch_range":2}}}
+{"domain":"Recording","command":{"type":"Arm","track":"@t2","armed":true,"exclusive":true}}
+{"domain":"Recording","command":{"type":"SetInput","track":"@t1","input":{"type":"Track","track":"@t2"}}}
+{"domain":"Recording","command":{"type":"Arm","track":"@t1","armed":true,"exclusive":false}}
+{"domain":"Recording","command":{"type":"SetRecording","enabled":true}}
+tick 10
+rec midi "@t2" 0.25 145 60 100
+rec midi "@t2" 0.3 225 0 70
+rec midi "@t2" 0.4 209 90 0
+rec midi "@t2" 0.5 177 74 30
+rec midi "@t2" 1 129 60 0
+rec midi "@t2" 0.25 146 62 100 1
+rec midi "@t2" 1.75 130 62 0 1
+rec midi "@t2" 0.5 144 64 80 2
+rec audio "@t1" 0 48000 2 48000
+rec audio "@t1" 0 48000 2 48000
+tick 2
+{"domain":"Recording","command":{"type":"SetRecording","enabled":false}}
+tick 3
+{"domain":"Take","command":{"type":"SetComp","id":"@new","split_id":"@new","track":"@t2","lane":"@y2","start":0.5,"end":1.5}}
+{"domain":"Take","command":{"type":"Flatten","track":"@t2","seed":"@new","seed_notes":"@new","keep_lanes":false}}
+{"domain":"Edit","command":{"type":"Undo"}}
+{"domain":"Take","command":{"type":"RemoveLane","id":"@y0"}}
+{"domain":"Clip","command":{"type":"Delete","ids":["@c3"]}}
