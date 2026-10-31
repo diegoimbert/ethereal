@@ -218,6 +218,42 @@ fn routing_and_grouping_cycles_are_rejected() {
     assert!(f.p.child_tracks(g1).iter().any(|t| t.id == a));
 }
 
+/// Updates of fields the routing and sidechain rules never read (faders, names, params)
+/// skip the document-wide checks; their own rules still apply, and an update of a routed
+/// field (input, output, parent) is still checked over the whole document.
+#[test]
+fn routed_fields_are_checked_document_wide_and_faders_locally() {
+    let mut f = Fx::new();
+    let a = f.add_track(TrackKind::Audio, None);
+    let r = f.add_track(TrackKind::Return, None);
+    f.p.apply(&upd_track(
+        a,
+        TrackChange::Output(TrackOutput::Track { track: r }),
+    ))
+    .unwrap();
+    // `a` feeds `r`; `a` taking `r` as its input closes a loop.
+    assert!(matches!(
+        f.p.apply(&upd_track(
+            a,
+            TrackChange::Input(TrackInput::Track {
+                track: r,
+                tap: InputTap::PostFader,
+            })
+        )),
+        Err(ModelError::Invariant(_))
+    ));
+    f.p.apply(&upd_track(a, TrackChange::Volume(Decibels(-6.0))))
+        .unwrap();
+    f.p.apply(&upd_track(a, TrackChange::Name("lead".into())))
+        .unwrap();
+    assert!(
+        f.p.apply(&upd_track(a, TrackChange::Volume(Decibels(f32::NAN))))
+            .is_err(),
+        "a fader's own rule"
+    );
+    f.p.validate().unwrap();
+}
+
 #[test]
 fn tempo_and_signature_at_zero_are_required() {
     let mut f = Fx::new();
