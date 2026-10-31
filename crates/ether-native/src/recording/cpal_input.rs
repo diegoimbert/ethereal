@@ -227,10 +227,10 @@ where
                 // RT: only the ring and atomics.
                 let ts = info.timestamp();
                 if let Some(d) = ts.callback.duration_since(&ts.capture) {
-                    shared
-                        .recording
-                        .input_latency
-                        .store((d.as_secs_f64() * rate).round() as u32, Ordering::Relaxed);
+                    shared.recording.input_latency.store(
+                        super::latency_samples(d.as_secs_f64(), rate),
+                        Ordering::Relaxed,
+                    );
                 }
                 let frames = (data.len() / channels).min(ring.slots() / kept);
                 let Ok(mut chunk) = ring.write_chunk(frames * kept) else {
