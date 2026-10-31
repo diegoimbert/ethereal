@@ -133,7 +133,9 @@ fn same_entry(a: &Path, b: &Path) -> bool {
     #[cfg(unix)]
     {
         use std::os::unix::fs::MetadataExt;
-        match (fs::metadata(a), fs::metadata(b)) {
+        // The entries themselves: a symlink at `b` to `a` is another entry (renaming over
+        // it would replace the link).
+        match (fs::symlink_metadata(a), fs::symlink_metadata(b)) {
             (Ok(x), Ok(y)) => x.dev() == y.dev() && x.ino() == y.ino(),
             _ => false,
         }
@@ -1097,8 +1099,9 @@ impl Library for DiskStore {
         if !fs::symlink_metadata(&src).is_ok_and(|m| m.is_file()) {
             return Err(StoreError::NotFound(from.to_string()));
         }
-        // Case-only renames on case-insensitive file systems see the target as existing.
-        if dst.exists() && !same_entry(&src, &dst) {
+        // Case-only renames on case-insensitive file systems see the target as existing. Any
+        // entry counts (a dangling symlink too: `rename` would replace it).
+        if fs::symlink_metadata(&dst).is_ok() && !same_entry(&src, &dst) {
             return Err(StoreError::AlreadyExists(to.to_string()));
         }
         if let Some(parent) = dst.parent() {
@@ -1756,6 +1759,39 @@ mod tests {
             .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
             .collect();
         assert_eq!(names, ["project.ether"]);
+    }
+
+    /// A rename never replaces an entry at the target: a symlink to the source (not "the same
+    /// file") or a dangling one.
+    #[cfg(unix)]
+    #[test]
+    fn renames_never_replace_a_link() {
+        let tmp = TempDir::new("store-rename-links");
+        let mut s = store(&tmp);
+        s.write_file("user", "Presets/A.etherpreset", b"a").unwrap();
+        let dir = tmp.path().join(USER_LIBRARY_DIR).join("Presets");
+        std::os::unix::fs::symlink(dir.join("A.etherpreset"), dir.join("L.etherpreset")).unwrap();
+        std::os::unix::fs::symlink(dir.join("gone"), dir.join("D.etherpreset")).unwrap();
+        assert!(matches!(
+            s.rename_file("user", "Presets/A.etherpreset", "Presets/L.etherpreset"),
+            Err(StoreError::AlreadyExists(_))
+        ));
+        // A dangling one is refused as well (it resolves nowhere in the library).
+        assert!(
+            s.rename_file("user", "Presets/A.etherpreset", "Presets/D.etherpreset")
+                .is_err()
+        );
+        assert!(
+            fs::symlink_metadata(dir.join("D.etherpreset"))
+                .unwrap()
+                .is_symlink()
+        );
+        assert!(
+            fs::symlink_metadata(dir.join("L.etherpreset"))
+                .unwrap()
+                .is_symlink()
+        );
+        assert_eq!(fs::read(dir.join("A.etherpreset")).unwrap(), b"a");
     }
 
     /// A streamed export is written under a hidden temp name, seekable (headers are
