@@ -1,0 +1,22 @@
+{"domain":"MidiMap","command":{"type":"Learn","target":{"type":"Param","target":{"type":"DeviceParam","device":"@d0","param":0}}}}
+midi 176 7 64
+tick
+{"domain":"MidiMap","command":{"type":"Learn","target":{"type":"TrackMute","track":"@t1"}}}
+midi 144 36 100 pad
+tick
+{"domain":"MidiMap","command":{"type":"Learn","target":{"type":"TrackArm","track":"@t2"}}}
+midi 177 20 127
+tick
+{"domain":"MidiMap","command":{"type":"Learn","target":{"type":"Transport","action":"ToggleRecord"}}}
+midi 176 21 127
+tick
+midi 176 7 0
+midi 176 7 127
+midi 144 36 100 pad
+midi 177 20 0
+midi 176 21 0
+midi 176 21 127
+tick 3
+{"domain":"MidiMap","command":{"type":"Learn","target":null}}
+{"domain":"MidiMap","command":{"type":"List"}}
+{"domain":"Edit","command":{"type":"Undo"}}
