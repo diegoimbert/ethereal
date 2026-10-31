@@ -1014,10 +1014,7 @@ impl Library for DiskStore {
     fn read(&mut self, root: &str, rel_path: &str) -> Result<Vec<u8>, StoreError> {
         let dir = self.root_dir(root)?;
         let path = resolve_in(&dir, rel_path)?;
-        fs::read(&path).map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => StoreError::NotFound(rel_path.to_string()),
-            _ => io_err(e),
-        })
+        read_regular_file(&path, rel_path, MAX_LIBRARY_BYTES)
     }
 
     /// v0.2 (`presets`): only the user library (and, imported folders) is
@@ -1219,6 +1216,43 @@ pub fn list_external_dir(path: &str) -> Result<Vec<(String, bool)>, StoreError> 
 /// Largest external file read (same as the upload limit: 1 GiB).
 pub const MAX_EXTERNAL_BYTES: u64 = 1 << 30;
 
+/// Largest file read from a library root (as bundle files: what a 4 GiB WAV can hold).
+pub const MAX_LIBRARY_BYTES: u64 = u32::MAX as u64;
+
+/// Reads the regular file at `path` (symlinks followed) of at most `max` bytes; `shown` names
+/// it in errors. Anything else is refused before it is opened: a FIFO or a device in a
+/// folder the user browses would block the read (and the controller) forever.
+fn read_regular_file(path: &Path, shown: &str, max: u64) -> Result<Vec<u8>, StoreError> {
+    use std::io::Read;
+    let not_found = |e: std::io::Error| match e.kind() {
+        std::io::ErrorKind::NotFound => StoreError::NotFound(shown.to_string()),
+        _ => io_err(e),
+    };
+    let meta = fs::metadata(path).map_err(not_found)?;
+    if !meta.is_file() {
+        return Err(StoreError::InvalidPath(format!("not a file: {shown}")));
+    }
+    if meta.len() > max {
+        return Err(StoreError::Io(format!(
+            "{shown} is larger than {} MiB",
+            max >> 20
+        )));
+    }
+    let mut bytes = Vec::with_capacity(meta.len() as usize);
+    fs::File::open(path)
+        .map_err(not_found)?
+        .take(max + 1)
+        .read_to_end(&mut bytes)
+        .map_err(io_err)?;
+    if bytes.len() as u64 > max {
+        return Err(StoreError::Io(format!(
+            "{shown} is larger than {} MiB",
+            max >> 20
+        )));
+    }
+    Ok(bytes)
+}
+
 /// See `Library::read_external` for `DiskStore`.
 /// An absolute `.ether` path from the desktop's OS save/open dialog.
 fn bundle_path(path: &str) -> Result<&Path, StoreError> {
@@ -1247,21 +1281,7 @@ pub fn read_external_file(path: &str) -> Result<Vec<u8>, StoreError> {
             "not an audio or MIDI file: {path}"
         )));
     }
-    let not_found = |e: std::io::Error| match e.kind() {
-        std::io::ErrorKind::NotFound => StoreError::NotFound(path.to_string()),
-        _ => io_err(e),
-    };
-    let meta = fs::metadata(p).map_err(not_found)?;
-    if !meta.is_file() {
-        return Err(StoreError::InvalidPath(format!("not a file: {path}")));
-    }
-    if meta.len() > MAX_EXTERNAL_BYTES {
-        return Err(StoreError::Io(format!(
-            "{name} is larger than {} MiB",
-            MAX_EXTERNAL_BYTES >> 20
-        )));
-    }
-    fs::read(p).map_err(not_found)
+    read_regular_file(p, path, MAX_EXTERNAL_BYTES)
 }
 
 #[cfg(test)]
@@ -2266,6 +2286,29 @@ mod tests {
             Library::read(&mut s, "lib", "../projects"),
             Err(StoreError::InvalidPath(_))
         ));
+        assert!(matches!(
+            Library::read(&mut s, "lib", "drums"),
+            Err(StoreError::InvalidPath(_))
+        ));
+        assert!(matches!(
+            Library::read(&mut s, "lib", "drums/none.wav"),
+            Err(StoreError::NotFound(_))
+        ));
+        // A FIFO is refused without being opened (opening it would wait for a writer).
+        #[cfg(unix)]
+        {
+            let fifo = tmp.path().join("lib/drums/pipe.wav");
+            let made = std::process::Command::new("mkfifo")
+                .arg(&fifo)
+                .status()
+                .is_ok_and(|s| s.success());
+            if made {
+                assert!(matches!(
+                    Library::read(&mut s, "lib", "drums/pipe.wav"),
+                    Err(StoreError::InvalidPath(_))
+                ));
+            }
+        }
         assert!(matches!(
             Library::list_dir(&mut s, "nope", ""),
             Err(StoreError::NotFound(_))
