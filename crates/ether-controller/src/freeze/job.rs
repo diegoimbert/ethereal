@@ -284,6 +284,8 @@ fn isolate_device(
         d.chain = None;
         d.pad = None;
     }
+    // References changed in place: the dependents index must not answer for the old ones.
+    p.invalidate_index();
     for &(id, param, value) in params {
         if let Some(d) = p.devices.get_mut(&id) {
             d.params.insert(param, value);

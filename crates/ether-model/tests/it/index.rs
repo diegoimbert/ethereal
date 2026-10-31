@@ -323,3 +323,84 @@ fn notes_revision_follows_note_changes_only() {
     let r3 = p.notes_revision(clip).unwrap();
     assert!(r3 != r0 && r3 != r1 && r3 != r2);
 }
+
+/// The dependents index ("who references this entity") answers like a scan of the tables,
+/// and a reference changed in place is never reported once it no longer holds.
+#[test]
+fn dependents_index_answers_like_a_scan() {
+    let Doc {
+        mut p,
+        mut ids,
+        track,
+        clip,
+        ..
+    } = doc();
+    let device: DeviceId = ids.next(NOW);
+    let lane: AutomationLaneId = ids.next(NOW);
+    p.apply_all(&[
+        Op::Insert {
+            entity: Entity::Device(Device {
+                sidechain_tap: None,
+                midi_sidechain: None,
+                chain: None,
+                id: device,
+                track,
+                order: OrderKey::between(None, None),
+                name: "u".into(),
+                enabled: true,
+                kind: DeviceKind::Builtin {
+                    device: BuiltinDevice::Utility,
+                },
+                params: Default::default(),
+                sidechain: None,
+                pad: None,
+            }),
+        },
+        Op::Insert {
+            entity: Entity::AutomationLane(AutomationLane {
+                id: lane,
+                owner: AutomationOwner::Track { track },
+                target: AutomationTarget::DeviceEnabled { device },
+                enabled: true,
+            }),
+        },
+    ])
+    .unwrap();
+    assert!(p.index_is_consistent());
+    let clip_lane = p.lane_ids_owned_by(AutomationOwner::Clip { clip })[0];
+    let mut want = vec![
+        EntityKey::Clip(clip),
+        EntityKey::Device(device),
+        EntityKey::AutomationLane(lane),
+        EntityKey::AutomationLane(clip_lane),
+    ];
+    want.sort();
+    assert_eq!(p.referencing(EntityKey::Track(track)), want);
+    assert_eq!(
+        p.referencing(EntityKey::Device(device)),
+        vec![EntityKey::AutomationLane(lane)]
+    );
+    // Same answers from the scan.
+    let mut scanned = p.clone();
+    scanned.invalidate_index();
+    assert_eq!(scanned.referencing(EntityKey::Track(track)), want);
+    // Referenced: not removable; the lane goes first, then the device can.
+    assert!(matches!(
+        p.apply(&Op::Remove {
+            key: EntityKey::Device(device)
+        }),
+        Err(ModelError::HasChildren(_))
+    ));
+    p.apply(&Op::Remove {
+        key: EntityKey::AutomationLane(lane),
+    })
+    .unwrap();
+    assert!(p.referencing(EntityKey::Device(device)).is_empty());
+    assert!(p.index_is_consistent());
+    // A reference dropped in place (without `invalidate_index`): never reported.
+    p.automation_lanes.get_mut(&clip_lane).unwrap().target = AutomationTarget::ClipGain;
+    assert!(
+        !p.referencing(EntityKey::Track(track))
+            .contains(&EntityKey::AutomationLane(clip_lane))
+    );
+}

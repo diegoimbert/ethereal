@@ -190,6 +190,50 @@ impl DocCtx<'_, '_> {
         self.tx.remove(EntityKey::AutomationLane(id))
     }
 
+    /// Automation lanes and MIDI mappings that reference `key` (a track, device or send)
+    /// and pass `lane` / `mapping`, in id order: indexed (`Project::referencing`), so a
+    /// cascading delete doesn't scan the tables once per removed entity.
+    fn lanes_and_mappings_of(
+        &self,
+        key: EntityKey,
+        lane: impl Fn(&AutomationLane) -> bool,
+        mapping: impl Fn(&MidiMapTarget) -> bool,
+    ) -> (Vec<AutomationLaneId>, Vec<MidiMappingId>) {
+        let p = self.p();
+        let (mut lanes, mut mappings) = (Vec::new(), Vec::new());
+        for k in p.referencing(key) {
+            match k {
+                EntityKey::AutomationLane(id) if p.automation_lanes.get(&id).is_some_and(&lane) => {
+                    lanes.push(id)
+                }
+                EntityKey::MidiMapping(id)
+                    if p.midi_mappings.get(&id).is_some_and(|m| mapping(&m.target)) =>
+                {
+                    mappings.push(id)
+                }
+                _ => {}
+            }
+        }
+        (lanes, mappings)
+    }
+
+    /// Delete what [`Self::lanes_and_mappings_of`] lists: lanes first, then mappings.
+    fn delete_lanes_and_mappings_of(
+        &mut self,
+        key: EntityKey,
+        lane: impl Fn(&AutomationLane) -> bool,
+        mapping: impl Fn(&MidiMapTarget) -> bool,
+    ) -> CmdResult<()> {
+        let (lanes, mappings) = self.lanes_and_mappings_of(key, lane, mapping);
+        for l in lanes {
+            self.delete_lane(l)?;
+        }
+        for m in mappings {
+            self.tx.remove(EntityKey::MidiMapping(m))?;
+        }
+        Ok(())
+    }
+
     pub fn delete_lanes_where(&mut self, pred: impl Fn(&AutomationLane) -> bool) -> CmdResult<()> {
         let lanes: Vec<AutomationLaneId> = self
             .p()
@@ -234,12 +278,11 @@ impl DocCtx<'_, '_> {
     }
 
     pub fn delete_send(&mut self, id: SendId) -> CmdResult<()> {
-        self.delete_lanes_where(
+        self.delete_lanes_and_mappings_of(
+            EntityKey::Send(id),
             |l| matches!(l.target, AutomationTarget::SendLevel { send } if send == id),
+            |t| matches!(t, MidiMapTarget::Param { target: AutomationTarget::SendLevel { send } } if *send == id),
         )?;
-        self.delete_mappings_where(|t| {
-            matches!(t, MidiMapTarget::Param { target: AutomationTarget::SendLevel { send } } if *send == id)
-        })?;
         self.tx.remove(EntityKey::Send(id))
     }
 
@@ -248,9 +291,11 @@ impl DocCtx<'_, '_> {
         // that undoing the removal puts back carries it.
         self.device(id)?;
         self.keep_running_plugin_state(id);
-        self.delete_lanes_where(|l| l.target.device() == Some(id))?;
-        // Roadmap v2: MIDI mappings of the device, and a drum rack's pads with their chains.
-        self.delete_mappings_where(
+        // Its automation, roadmap v2: its MIDI mappings, and a drum rack's pads with their
+        // chains.
+        self.delete_lanes_and_mappings_of(
+            EntityKey::Device(id),
+            |l| l.target.device() == Some(id),
             |t| matches!(t, MidiMapTarget::Param { target } if target.device() == Some(id)),
         )?;
         let pads: Vec<DrumPadId> = self.p().pads_of(id).iter().map(|p| p.id).collect();
@@ -259,28 +304,29 @@ impl DocCtx<'_, '_> {
         }
         // v0.2: modulation mappings targeting the device or sourced from its modulators /
         // macros, its modulators, and a rack's chains with their devices.
-        let mappings: Vec<ModMappingId> = self
-            .p()
-            .mod_mappings
-            .values()
+        let p = self.p();
+        let modulators: Vec<ModulatorId> = p.modulators_of(id).iter().map(|m| m.id).collect();
+        let mut mappings: Vec<ModMappingId> = std::iter::once(EntityKey::Device(id))
+            .chain(modulators.iter().map(|m| EntityKey::Modulator(*m)))
+            .flat_map(|k| p.referencing(k))
+            .filter_map(|k| match k {
+                EntityKey::ModMapping(m) => p.mod_mappings.get(&m),
+                _ => None,
+            })
             .filter(|m| {
                 m.device == id
                     || match m.source {
                         ModSource::Macro { rack, .. } => rack == id,
-                        ModSource::Modulator { modulator } => self
-                            .p()
-                            .modulators
-                            .get(&modulator)
-                            .is_some_and(|x| x.device == id),
+                        ModSource::Modulator { modulator } => modulators.contains(&modulator),
                     }
             })
             .map(|m| m.id)
             .collect();
+        mappings.sort();
+        mappings.dedup();
         for m in mappings {
             self.tx.remove(EntityKey::ModMapping(m))?;
         }
-        let modulators: Vec<ModulatorId> =
-            self.p().modulators_of(id).iter().map(|m| m.id).collect();
         for m in modulators {
             self.tx.remove(EntityKey::Modulator(m))?;
         }
@@ -293,10 +339,18 @@ impl DocCtx<'_, '_> {
 
     /// Cut the sidechains tapping chain `chain` (before it goes).
     fn cut_chain_listeners(&mut self, chain: SidechainChain) -> CmdResult<()> {
-        let listeners: Vec<Device> = self
-            .p()
-            .devices
-            .values()
+        let key = match chain {
+            SidechainChain::Rack { chain } => EntityKey::RackChain(chain),
+            SidechainChain::Pad { pad } => EntityKey::DrumPad(pad),
+        };
+        let p = self.p();
+        let listeners: Vec<Device> = p
+            .referencing(key)
+            .into_iter()
+            .filter_map(|k| match k {
+                EntityKey::Device(d) => p.devices.get(&d),
+                _ => None,
+            })
             .filter(|d| d.sidechain_tap.and_then(|t| t.chain) == Some(chain))
             .cloned()
             .collect();
@@ -400,10 +454,15 @@ impl DocCtx<'_, '_> {
         }
         // Sidechains listening to it are cut first (they may tap its chains, which go
         // with its devices).
-        let listeners: Vec<Device> = self
-            .p()
-            .devices
-            .values()
+        // What references the track, once (indexed): the scans below were per deleted track.
+        let refs = self.p().referencing(EntityKey::Track(id));
+        let p = self.p();
+        let listeners: Vec<Device> = refs
+            .iter()
+            .filter_map(|k| match k {
+                EntityKey::Device(d) => p.devices.get(d),
+                _ => None,
+            })
             .filter(|d| d.sidechain == Some(id) && d.track != id)
             .cloned()
             .collect();
@@ -425,22 +484,35 @@ impl DocCtx<'_, '_> {
         for d in devices {
             self.delete_device(d)?;
         }
-        // Roadmap v2: mappings targeting the track.
-        self.delete_mappings_where(|t| match t {
-            MidiMapTarget::Param {
-                target:
-                    AutomationTarget::TrackVolume { track } | AutomationTarget::TrackPan { track },
-            }
-            | MidiMapTarget::TrackMute { track }
-            | MidiMapTarget::TrackSolo { track }
-            | MidiMapTarget::TrackArm { track } => *track == id,
-            _ => false,
-        })?;
+        // Roadmap v2: mappings targeting the track; its lanes and the lanes targeting it go
+        // after the sends.
+        let (_, mappings) =
+            self.lanes_and_mappings_of(
+                EntityKey::Track(id),
+                |_| false,
+                |t| match t {
+                    MidiMapTarget::Param {
+                        target:
+                            AutomationTarget::TrackVolume { track }
+                            | AutomationTarget::TrackPan { track },
+                    }
+                    | MidiMapTarget::TrackMute { track }
+                    | MidiMapTarget::TrackSolo { track }
+                    | MidiMapTarget::TrackArm { track } => *track == id,
+                    _ => false,
+                },
+            );
+        for m in mappings {
+            self.tx.remove(EntityKey::MidiMapping(m))?;
+        }
         // v0.2: envelope followers listening to it too.
-        let followers: Vec<ModulatorId> = self
-            .p()
-            .modulators
-            .values()
+        let p = self.p();
+        let followers: Vec<ModulatorId> = refs
+            .iter()
+            .filter_map(|k| match k {
+                EntityKey::Modulator(m) => p.modulators.get(m),
+                _ => None,
+            })
             .filter(|m| m.sidechain == Some(id))
             .map(|m| m.id)
             .collect();
@@ -450,29 +522,40 @@ impl DocCtx<'_, '_> {
                 change: ModulatorChange::Sidechain(None),
             })?;
         }
-        let sends: Vec<SendId> = self
-            .p()
-            .sends
-            .values()
+        let p = self.p();
+        let sends: Vec<SendId> = refs
+            .iter()
+            .filter_map(|k| match k {
+                EntityKey::Send(s) => p.sends.get(s),
+                _ => None,
+            })
             .filter(|s| s.from == id || s.to == id)
             .map(|s| s.id)
             .collect();
         for s in sends {
             self.delete_send(s)?;
         }
-        self.delete_lanes_where(|l| {
-            matches!(l.owner, AutomationOwner::Track { track } if track == id)
-                || matches!(
-                    l.target,
-                    AutomationTarget::TrackVolume { track } | AutomationTarget::TrackPan { track }
-                        if track == id
-                )
-        })?;
+        self.delete_lanes_and_mappings_of(
+            EntityKey::Track(id),
+            |l| {
+                matches!(l.owner, AutomationOwner::Track { track } if track == id)
+                    || matches!(
+                        l.target,
+                        AutomationTarget::TrackVolume { track }
+                            | AutomationTarget::TrackPan { track }
+                            if track == id
+                    )
+            },
+            |_| false,
+        )?;
         // Re-route tracks that pointed at this one.
-        let others: Vec<Track> = self
-            .p()
-            .tracks
-            .values()
+        let p = self.p();
+        let others: Vec<Track> = refs
+            .iter()
+            .filter_map(|k| match k {
+                EntityKey::Track(t) => p.tracks.get(t),
+                _ => None,
+            })
             .filter(|t| t.id != id)
             .cloned()
             .collect();

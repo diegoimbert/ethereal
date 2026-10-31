@@ -12,7 +12,7 @@
 //! checks over the whole document, so: a project reached by successful ops always validates,
 //! and the inverse of an applied op always applies (it leads back to a valid state).
 
-use crate::index::Link;
+use crate::index::{Link, Refs};
 use crate::*;
 
 /// Calls `$m!` with the `Entity` variant → `Project` table mapping.
@@ -755,8 +755,10 @@ impl Project {
         if self.index().is_some() {
             let old = Link::current(self, entity.key());
             let new = Link::of(&entity);
+            let (old_refs, new_refs) = (Refs::current(self, entity.key()), Refs::of(&entity));
             self.upsert_raw(entity);
             self.index.relink(old, new);
+            self.index.relink_refs(old_refs, new_refs);
         } else {
             self.upsert_raw(entity);
         }
@@ -775,8 +777,10 @@ impl Project {
     pub(crate) fn remove_unchecked(&mut self, key: EntityKey) -> Option<Entity> {
         if self.index().is_some() {
             let old = Link::current(self, key);
+            let old_refs = Refs::current(self, key);
             let removed = self.remove_raw(key);
             self.index.remove(old);
+            self.index.remove_refs(old_refs);
             removed
         } else {
             self.remove_raw(key)
@@ -824,15 +828,16 @@ impl Project {
                 let key = update.key();
                 // Updates can move an entity to another parent (`ClipChange::Track`).
                 let indexed = self.index().is_some();
-                let old = if indexed {
-                    Link::current(self, key)
+                let (old, old_refs) = if indexed {
+                    (Link::current(self, key), Refs::current(self, key))
                 } else {
-                    Link::None
+                    (Link::None, None)
                 };
                 let inverse = self.apply_update(update)?;
                 if indexed {
                     let new = Link::current(self, key);
                     self.index.relink(old, new);
+                    self.index.relink_refs(old_refs, Refs::current(self, key));
                 }
                 Ok(inverse)
             }
@@ -1217,12 +1222,12 @@ impl Project {
                 // A rack's pad devices must stay on the rack's track (checked from the rack
                 // too, so moving or re-kinding a rack can't strand its pad chains).
                 if is_drum_rack(&d.kind)
-                    && let Some(stray) = self.devices.values().find(|o| {
-                        o.pad
-                            .and_then(|p| self.drum_pads.get(&p))
-                            .is_some_and(|p| p.rack == d.id)
-                            && o.track != d.track
-                    })
+                    && let Some(stray) = self
+                        .pads_of(d.id)
+                        .into_iter()
+                        .flat_map(|p| self.pad_devices_of(p.id))
+                        .filter(|o| o.track != d.track)
+                        .min_by_key(|o| o.id)
                 {
                     return Err(invariant(format!(
                         "pad device {} is not on its drum rack's track",
@@ -1433,9 +1438,9 @@ impl Project {
                     )));
                 }
                 if self
-                    .expression_lanes
-                    .values()
-                    .any(|o| o.id != l.id && o.clip == l.clip && o.kind == l.kind)
+                    .expression_lanes_of(l.clip)
+                    .into_iter()
+                    .any(|o| o.id != l.id && o.kind == l.kind)
                 {
                     return Err(invariant("a clip has at most one expression lane per kind"));
                 }
@@ -1445,9 +1450,9 @@ impl Project {
                 let e = &self.note_expressions[&id];
                 self.require(key, EntityKey::Note(e.note))?;
                 if self
-                    .note_expressions
-                    .values()
-                    .any(|o| o.id != e.id && o.note == e.note && o.kind == e.kind)
+                    .note_expressions_of(e.note)
+                    .into_iter()
+                    .any(|o| o.id != e.id && o.kind == e.kind)
                 {
                     return Err(invariant("a note has at most one expression per kind"));
                 }
@@ -1520,12 +1525,7 @@ impl Project {
         }
         // A rack's chain devices must stay on the rack's track.
         if is_rack(&d.kind)
-            && let Some(stray) = self.devices.values().find(|o| {
-                o.chain
-                    .and_then(|c| self.rack_chains.get(&c))
-                    .is_some_and(|c| c.rack == d.id)
-                    && o.track != d.track
-            })
+            && let Some(stray) = self.rack_chain_devices(d.id).find(|o| o.track != d.track)
         {
             return Err(invariant(format!(
                 "rack chain device {} is not on its rack's track",
@@ -1533,26 +1533,87 @@ impl Project {
             )));
         }
         // Modulators only on track-chain devices.
-        if (d.pad.is_some() || d.chain.is_some())
-            && self.modulators.values().any(|m| m.device == d.id)
-        {
+        if (d.pad.is_some() || d.chain.is_some()) && self.modulators_on(d.id).next().is_some() {
             return Err(invariant(
                 "modulators live on track-chain devices (not on drum pads or rack chains)",
             ));
         }
         // Its modulators' sidechains stay off its own track when it moves.
         if self
-            .modulators
-            .values()
-            .any(|m| m.device == d.id && m.sidechain == Some(d.track))
+            .modulators_on(d.id)
+            .any(|m| m.sidechain == Some(d.track))
         {
             return Err(invariant("a modulator cannot sidechain its own track"));
         }
         // Mappings targeting this device stay in scope when it moves.
-        for m in self.mod_mappings.values().filter(|m| m.device == d.id) {
+        for m in self.mod_mappings_targeting(d.id) {
             self.check_mod_mapping(m)?;
         }
         Ok(())
+    }
+
+    /// Devices on the chains of rack `rack`, in id order (dependents index when usable).
+    fn rack_chain_devices(&self, rack: DeviceId) -> Box<dyn Iterator<Item = &Device> + '_> {
+        let on_rack = move |o: &&Device| {
+            o.chain
+                .and_then(|c| self.rack_chains.get(&c))
+                .is_some_and(|c| c.rack == rack)
+        };
+        match self.referrers(EntityKey::Device(rack)) {
+            Some(refs) => {
+                let mut devices: Vec<&Device> = refs
+                    .filter_map(|k| match k {
+                        EntityKey::RackChain(c) => self.referrers(EntityKey::RackChain(c)),
+                        _ => None,
+                    })
+                    .flatten()
+                    .filter_map(|k| match k {
+                        EntityKey::Device(id) => self.devices.get(&id),
+                        _ => None,
+                    })
+                    .filter(on_rack)
+                    .collect();
+                devices.sort_by_key(|o| o.id);
+                devices.dedup_by_key(|o| o.id);
+                Box::new(devices.into_iter())
+            }
+            None => Box::new(self.devices.values().filter(on_rack)),
+        }
+    }
+
+    /// Modulators on `device`, in id order.
+    fn modulators_on(&self, device: DeviceId) -> Box<dyn Iterator<Item = &Modulator> + '_> {
+        match self.referrers(EntityKey::Device(device)) {
+            Some(refs) => Box::new(
+                refs.filter_map(|k| match k {
+                    EntityKey::Modulator(id) => self.modulators.get(&id),
+                    _ => None,
+                })
+                .filter(move |m| m.device == device),
+            ),
+            None => Box::new(self.modulators.values().filter(move |m| m.device == device)),
+        }
+    }
+
+    /// Modulation mappings whose target is a parameter of `device`, in id order.
+    fn mod_mappings_targeting(
+        &self,
+        device: DeviceId,
+    ) -> Box<dyn Iterator<Item = &ModMapping> + '_> {
+        match self.referrers(EntityKey::Device(device)) {
+            Some(refs) => Box::new(
+                refs.filter_map(|k| match k {
+                    EntityKey::ModMapping(id) => self.mod_mappings.get(&id),
+                    _ => None,
+                })
+                .filter(move |m| m.device == device),
+            ),
+            None => Box::new(
+                self.mod_mappings
+                    .values()
+                    .filter(move |m| m.device == device),
+            ),
+        }
     }
 
     fn check_comp_region(&self, r: &CompRegion) -> Result<(), ModelError> {
@@ -1577,9 +1638,8 @@ impl Project {
                 "comp crossfade must be 0..={MAX_COMP_CROSSFADE} s"
             )));
         }
-        if self.comp_regions.values().any(|o| {
+        if self.comp_of(r.track).into_iter().any(|o| {
             o.id != r.id
-                && o.track == r.track
                 && o.start.0 < r.end.0 - Beats::EPSILON
                 && r.start.0 < o.end.0 - Beats::EPSILON
         }) {
@@ -1676,9 +1736,11 @@ impl Project {
                 }
             }
         }
-        if self.mod_mappings.values().any(|o| {
-            o.id != m.id && o.source == m.source && o.device == m.device && o.param == m.param
-        }) {
+        if self
+            .mappings_to(m.device)
+            .into_iter()
+            .any(|o| o.id != m.id && o.source == m.source && o.param == m.param)
+        {
             return Err(invariant("duplicate modulation mapping"));
         }
         Ok(())
@@ -1714,9 +1776,9 @@ impl Project {
             return Err(invalid("pan must be in -1..=1"));
         }
         if self
-            .drum_pads
-            .values()
-            .any(|o| o.id != p.id && o.rack == p.rack && o.note == p.note)
+            .pads_of(p.rack)
+            .into_iter()
+            .any(|o| o.id != p.id && o.note == p.note)
         {
             return Err(invariant("two pads of a drum rack share a note"));
         }
@@ -2176,10 +2238,54 @@ impl Project {
         Ok(())
     }
 
+    /// The entities that reference `key` (a track, device, send, drum pad, rack chain,
+    /// modulator or take lane), from the dependents index, each re-checked against the
+    /// tables. `None` when the index is unusable or doesn't cover `key`'s kind.
+    pub(crate) fn referrers(&self, key: EntityKey) -> Option<impl Iterator<Item = EntityKey> + '_> {
+        if !matches!(
+            key,
+            EntityKey::Track(_)
+                | EntityKey::Device(_)
+                | EntityKey::Send(_)
+                | EntityKey::DrumPad(_)
+                | EntityKey::RackChain(_)
+                | EntityKey::Modulator(_)
+                | EntityKey::TakeLane(_)
+        ) {
+            return None;
+        }
+        let ix = self.index()?;
+        Some(
+            ix.referrers(key)
+                .filter(move |from| Refs::current(self, *from).is_some_and(|r| r.contains(key))),
+        )
+    }
+
+    /// The entities that reference `key`, a track, device, send, drum pad, rack chain,
+    /// modulator or take lane (empty for other kinds), in key order: tracks routed to a
+    /// track, devices on it or sidechaining it, its clips, sends, take lanes and comp
+    /// regions, automation lanes and MIDI mappings targeting it, a rack's chains and pads, a
+    /// device's modulators and modulation mappings... Not MIDI sidechains (by design, as in
+    /// the removal check). From the dependents index when usable, else a scan.
+    pub fn referencing(&self, key: EntityKey) -> Vec<EntityKey> {
+        if let Some(refs) = self.referrers(key) {
+            return refs.collect();
+        }
+        let mut v: Vec<EntityKey> = Refs::all(self)
+            .filter(|r| r.contains(key))
+            .map(|r| r.from())
+            .collect();
+        v.sort();
+        v
+    }
+
     /// Some entity that references `key` (so `key` cannot be removed), if any.
     /// Uses the parent → children indexes when they are usable.
     pub(crate) fn first_dependent(&self, key: EntityKey) -> Option<EntityKey> {
         let ix = self.index();
+        if let Some(mut found) = self.referrers(key) {
+            return found.next();
+        }
         match key {
             EntityKey::Track(id) => self
                 .tracks

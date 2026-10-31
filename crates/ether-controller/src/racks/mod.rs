@@ -1158,11 +1158,11 @@ fn carry_automation(ctx: &mut DocCtx, ids: &BTreeMap<DeviceId, DeviceId>) -> Cmd
 /// Copy the modulators of the devices in `devices` (old → new) and the mappings between
 /// them (source and target both copied) onto the copies.
 pub fn copy_modulation(ctx: &mut DocCtx, devices: &BTreeMap<DeviceId, DeviceId>) -> CmdResult<()> {
-    let mut mods: Vec<Modulator> = ctx
-        .p()
-        .modulators
-        .values()
-        .filter(|m| devices.contains_key(&m.device))
+    // Per copied device (indexed), not a scan of the tables per copied track.
+    let p = ctx.p();
+    let mut mods: Vec<Modulator> = devices
+        .keys()
+        .flat_map(|d| p.modulators_of(*d))
         .cloned()
         .collect();
     mods.sort_by_key(|m| m.id);
@@ -1174,11 +1174,10 @@ pub fn copy_modulation(ctx: &mut DocCtx, devices: &BTreeMap<DeviceId, DeviceId>)
         new_mods.insert(m.id, nm.id);
         ctx.tx.insert(Entity::Modulator(nm))?;
     }
-    let mut maps: Vec<ModMapping> = ctx
-        .p()
-        .mod_mappings
-        .values()
-        .filter(|m| devices.contains_key(&m.device))
+    let p = ctx.p();
+    let mut maps: Vec<ModMapping> = devices
+        .keys()
+        .flat_map(|d| p.mappings_to(*d))
         .cloned()
         .collect();
     maps.sort_by_key(|m| m.id);

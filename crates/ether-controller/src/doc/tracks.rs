@@ -308,10 +308,14 @@ fn duplicate(
     // v0.2: rack chains, modulators and mappings.
     crate::racks::copy_for_track(ctx, &mut device_ids)?;
     let mut send_ids = BTreeMap::new();
-    let sends: Vec<TrackSend> = ctx
-        .p()
-        .sends
-        .values()
+    let p = ctx.p();
+    let sends: Vec<TrackSend> = p
+        .referencing(EntityKey::Track(t.id))
+        .into_iter()
+        .filter_map(|k| match k {
+            EntityKey::Send(s) => p.sends.get(&s),
+            _ => None,
+        })
         .filter(|s| s.from == t.id)
         .cloned()
         .collect();
