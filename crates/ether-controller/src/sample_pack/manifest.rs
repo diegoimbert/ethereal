@@ -158,6 +158,11 @@ pub fn is_loopback(url: &str) -> bool {
         .or_else(|| url.strip_prefix("https://"));
     let Some(rest) = rest else { return false };
     let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    // User info (`127.0.0.1:1@host`) or a backslash: the host isn't the first thing in the
+    // authority, so refuse rather than guess what the HTTP client will connect to.
+    if authority.contains(['@', '\\']) {
+        return false;
+    }
     let host = match authority.strip_prefix('[') {
         Some(v6) => v6.split(']').next().unwrap_or(""),
         None => authority.split(':').next().unwrap_or(""),

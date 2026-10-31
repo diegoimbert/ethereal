@@ -995,12 +995,13 @@ fn fork_origin(original: ProjectId, name: &str, now_ms: u64) -> ForkOrigin {
 /// can't be used to read an arbitrary file of this machine: it must carry the content hash
 /// (checked when the file is read; without it any audio file at that path would be taken,
 /// and re-shared by a later bundle export or collaboration), and must not be a network path
-/// (`\\host\share`, `//host/share`: on Windows looking at one authenticates to the host).
+/// ([`ether_core::protocol::model::is_network_path`]: on Windows looking at one authenticates
+/// to the host).
 /// Others become project copies, missing until relinked.
 pub(crate) fn drop_foreign_external_refs(project: &mut Project) {
     for m in project.media.values_mut() {
         if let MediaLocation::External { path } = &m.location
-            && (m.hash.is_none() || path.starts_with("\\\\") || path.starts_with("//"))
+            && (m.hash.is_none() || ether_core::protocol::model::is_network_path(path))
         {
             m.location = MediaLocation::Project;
         }
