@@ -151,7 +151,7 @@ fn windows_aliasing_segment(seg: &str) -> bool {
         && seg != ".."
         && (seg.contains(':')
             || seg.ends_with(['.', ' '])
-            || crate::project_dirs::is_windows_device_name(seg))
+            || ether_core::protocol::model::is_windows_device_name(seg))
 }
 
 /// Join `rel` under `root`, rejecting anything that could leave it. The nearest existing

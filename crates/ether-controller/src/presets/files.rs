@@ -62,29 +62,11 @@ fn safe_component(s: &str) -> String {
 }
 
 /// A file stem for a preset name: characters that are unsafe in file names on any OS become
-/// `-`, leading dots and surrounding spaces are trimmed, at most [`MAX_STEM`] characters.
+/// `-`, leading dots and surrounding spaces are trimmed, at most [`MAX_STEM`] characters
+/// (`safe_file_stem`: also a byte cap, Windows device names prefixed).
 pub fn file_stem(name: &str) -> String {
-    let cleaned: String = name
-        .chars()
-        .map(|c| {
-            if c.is_control() || matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') {
-                '-'
-            } else {
-                c
-            }
-        })
-        .take(MAX_STEM)
-        .collect();
-    let trimmed = cleaned
-        .trim()
-        .trim_start_matches('.')
-        .trim_end_matches('.')
-        .trim();
-    if trimmed.is_empty() {
-        "Preset".into()
-    } else {
-        trimmed.to_string()
-    }
+    ether_core::protocol::model::safe_file_stem(name, '-', MAX_STEM)
+        .unwrap_or_else(|| "Preset".into())
 }
 
 /// Library path (relative to the user root) of a user preset id.
