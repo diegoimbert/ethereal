@@ -1,0 +1,20 @@
+midi 144 60 100
+midi 144 64 90
+tick 5
+midi 128 60 0
+midi 128 64 0
+midi 176 1 64
+midi 224 0 80
+tick 5
+{"domain":"Capture","command":{"type":"Status"}}
+{"domain":"Capture","command":{"type":"Capture","track":"@t2","clip":"@new","seed_notes":"@new","adopt_tempo":true}}
+{"domain":"Recording","command":{"type":"SetInput","track":"@t2","input":{"type":"Midi","port":"fuzz","channel":1}}}
+{"domain":"Transport","command":{"type":"Play"}}
+midi 145 72 100
+tick 10
+midi 129 72 0
+midi 144 72 100
+tick 3
+{"domain":"Transport","command":{"type":"Stop"}}
+{"domain":"Capture","command":{"type":"Capture","track":"@t2","clip":"@new","seed_notes":"@new","adopt_tempo":false}}
+{"domain":"Capture","command":{"type":"Clear"}}

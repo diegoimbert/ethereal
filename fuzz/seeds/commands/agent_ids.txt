@@ -1,0 +1,27 @@
+{"domain":"Agent","command":{"type":"CallTool","name":"get_track","input":"{\"track_id\": \"@t2\"}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"get_device_params","input":"{\"device_id\": \"@d1\"}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"get_device_param","input":"{\"device_id\": \"@d1\", \"param\": \"1\"}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"set_device_param","input":"{\"device_id\": \"@d1\", \"param\": \"1\", \"value\": 0.4}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"set_device_param","input":"{\"device_id\": \"@d0\", \"param\": \"0\", \"delta_percent\": 1e+300}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"get_clip_notes","input":"{\"clip_id\": \"@c1\"}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"remove_notes","input":"{\"clip_id\": \"@c1\", \"note_ids\": [\"@n0\", \"@n1\"]}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"transpose","input":"{\"clip_ids\": [\"@c1\"], \"semitones\": 12}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"transpose","input":"{\"track_id\": \"@t2\", \"semitones\": -200, \"from_beats\": 0, \"to_beats\": 2}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"split_clip","input":"{\"clip_id\": \"@c1\", \"at_beats\": [1, 2, 1000000000000.0]}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"duplicate_clip","input":"{\"clip_id\": \"@c1\", \"count\": 3, \"start_beats\": 8}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"set_clip","input":"{\"clip_id\": \"@c1\", \"name\": \"z\", \"start_beats\": 1, \"loop_enabled\": true, \"loop_start_beats\": 3, \"loop_end_beats\": 1}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"set_track_mix","input":"{\"track_id\": \"@t1\", \"volume_db\": -3, \"pan\": 0.2, \"mute\": true}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"rename_track","input":"{\"track_id\": \"@t1\", \"name\": \"r\"}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"add_device","input":"{\"track_id\": \"@t2\", \"type\": \"DrumRack\", \"index\": 0}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"set_drum_pad","input":"{\"device_id\": \"@d1\", \"note\": 36, \"name\": \"k\", \"new_note\": 38}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"load_drum_pad_sample","input":"{\"device_id\": \"@d1\", \"note\": 36, \"item_id\": \"@m0\"}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"set_rack_chain","input":"{\"chain\": \"@h0\", \"device_id\": \"@d1\", \"volume_db\": -6}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"list_device_presets","input":"{\"device_id\": \"@d0\"}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"load_device_preset","input":"{\"device_id\": \"@d0\", \"preset\": \"x\"}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"load_browser_item","input":"{\"item_id\": \"lib:loop.wav\", \"track_id\": \"@t1\", \"start_beats\": 2}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"remove_device","input":"{\"device_id\": \"@d0\"}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"delete_clip","input":"{\"clip_ids\": [\"@c0\", \"@c2\"]}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"delete_track","input":"{\"track_id\": \"@t3\"}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"create_track","input":"{\"kind\": \"midi\", \"parent_track_id\": \"@t1\", \"instrument\": \"synth\"}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"undo","input":"{}"}}
+{"domain":"Agent","command":{"type":"CallTool","name":"redo","input":"{}"}}

@@ -1,0 +1,8 @@
+{"domain":"AudioToMidi","command":{"type":"Start","job":"j","clip":"@c0","mode":"Melody","options":{"sensitivity":0.5,"min_duration":0.05,"min_pitch":21,"max_pitch":108,"kick_key":36,"snare_key":38,"hihat_key":42},"track":"@new","new_clip":"@new","seed_notes":"@new","instrument":"@new"}}
+{"domain":"AudioToMidi","command":{"type":"Start","job":"k","clip":"@c0","mode":"Drums","options":{"sensitivity":1,"min_duration":0,"min_pitch":0,"max_pitch":127,"kick_key":36,"snare_key":36,"hihat_key":36},"track":"@new","new_clip":"@new","seed_notes":"@new","instrument":"@new"}}
+tick 20
+{"domain":"AudioToMidi","command":{"type":"Start","job":"k","clip":"@c0","mode":"Drums","options":{"sensitivity":1,"min_duration":0,"min_pitch":0,"max_pitch":127,"kick_key":36,"snare_key":36,"hihat_key":36},"track":"@new","new_clip":"@new","seed_notes":"@new","instrument":"@new"}}
+tick 10
+{"domain":"AudioToMidi","command":{"type":"Cancel","job":"k"}}
+{"domain":"AudioToMidi","command":{"type":"Start","job":"h","clip":"@c0","mode":"Harmony","options":{"sensitivity":0,"min_duration":1e30,"min_pitch":108,"max_pitch":21,"kick_key":200,"snare_key":38,"hihat_key":42},"track":"@t1","new_clip":"@c1","seed_notes":"@n0","instrument":null}}
+tick 30

@@ -92,6 +92,8 @@ pub struct FakeBridge {
     /// The render preview begun last, and the frames pushed to it since (planar).
     pub preview: Option<ether_core::render_preview::PreviewSpec>,
     pub preview_audio: [Vec<f32>; 2],
+    /// What `poll_midi_input` hands out next (MIDI capture, MIDI learn).
+    pub midi_input: Vec<ether_core::protocol::midi_map::MidiInputEvent>,
 }
 
 /// A fake capture host: what `poll_recording` hands out next and what `stop_recording`
@@ -342,6 +344,10 @@ impl EngineBridge for FakeBridge {
 
     fn poll_plugins(&mut self, out: &mut Vec<(DeviceId, PluginNotification)>) {
         out.append(&mut self.plugin_notes);
+    }
+
+    fn poll_midi_input(&mut self, out: &mut Vec<ether_core::protocol::midi_map::MidiInputEvent>) {
+        out.append(&mut self.midi_input);
     }
 
     fn create_offline_plugin(
