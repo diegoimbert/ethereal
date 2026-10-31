@@ -637,3 +637,40 @@ fn chain_plugins_keep_their_state_and_chain_samplers_their_sample() {
         Call::CreatePlugin(id, _, Some(state)) if *id == fx2 && state.0 == b"fx-state"
     )));
 }
+
+/// A rack preset with more chains than a rack preset holds is refused before anything is
+/// built (loading rebuilds the rack one chain at a time).
+#[test]
+fn oversized_rack_presets_refused() {
+    let chain = r#"{"name":"A","color":null,"volume":0,"pan":0,"mute":false,"solo":false,
+        "keys":{"lo":0,"hi":127},"velocities":{"lo":0,"hi":127},"select":{"lo":0,"hi":127},
+        "devices":[]}"#;
+    let chains = vec![chain; ether_core::protocol::model::MAX_PRESET_CHAINS + 1].join(",");
+    let json = format!(
+        r#"{{"format":"ethereal-preset","version":2,"app_version":"x","preset":{{
+        "name":"Big","device":{{"type":"Builtin","device":"AudioEffectRack"}},
+        "rack":{{"chains":[{chains}]}}}}}}"#
+    );
+    let mut library = MemoryLibrary::new();
+    library.add_file(
+        USER,
+        "Presets/audio-effect-rack/Big.etherpreset",
+        json.into_bytes(),
+    );
+    let mut h = harness_with(FakeBridge::default(), library);
+    let t = track(&mut h, TrackKind::Audio);
+    let rack = insert(&mut h, t, BuiltinDeviceType::AudioEffectRack);
+    let before = h.project().clone();
+    let seed: RackChainId = h.id();
+    let out = load(
+        &mut h,
+        rack,
+        PresetRef {
+            source: PresetSource::User,
+            id: "audio-effect-rack/Big.etherpreset".into(),
+        },
+        Some(seed),
+    );
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    assert_eq!(h.project().rack_chains, before.rack_chains);
+}

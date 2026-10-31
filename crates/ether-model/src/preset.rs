@@ -229,7 +229,17 @@ pub enum PresetModTarget {
     PadDevice { pad: u32, device: u32 },
 }
 
-/// Parse and validate a preset file (format tag, version, device/kind consistency).
+/// Most chains a rack preset holds (loading rebuilds the rack one chain at a time).
+pub const MAX_PRESET_CHAINS: usize = 1024;
+/// Most devices a rack preset's chains and pads hold together.
+pub const MAX_PRESET_DEVICES: usize = 4096;
+/// Most modulators of a rack preset.
+pub const MAX_PRESET_MODULATORS: usize = 1024;
+/// Most modulation mappings of a rack preset.
+pub const MAX_PRESET_MAPPINGS: usize = 8192;
+
+/// Parse and validate a preset file (format tag, version, device/kind consistency, rack
+/// sizes).
 pub fn load_preset(json: &str) -> Result<Preset, FileError> {
     let doc: serde_json::Value = serde_json::from_str(json)?;
     if doc.get("format").and_then(|f| f.as_str()) != Some(PRESET_FORMAT_TAG) {
@@ -250,6 +260,18 @@ pub fn load_preset(json: &str) -> Result<Preset, FileError> {
     let file: PresetFile = serde_json::from_value(doc)?;
     let p = file.preset;
     if let Some(rack) = &p.rack {
+        let devices = rack.chains.iter().map(|c| c.devices.len()).sum::<usize>()
+            + rack.pads.iter().map(|p| p.devices.len()).sum::<usize>();
+        if rack.chains.len() > MAX_PRESET_CHAINS
+            || devices > MAX_PRESET_DEVICES
+            || rack.modulators.len() > MAX_PRESET_MODULATORS
+            || rack.mappings.len() > MAX_PRESET_MAPPINGS
+        {
+            return Err(FileError::Migration {
+                from: version as u32,
+                message: "the preset's rack is too large".into(),
+            });
+        }
         let ty = match &p.device {
             PresetDevice::Builtin { device } => Some(*device),
             PresetDevice::Plugin { .. } => None,
