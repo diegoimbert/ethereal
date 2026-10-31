@@ -126,6 +126,24 @@ pub fn sanitize_rel(rel: &str) -> Result<PathBuf, StoreError> {
     Ok(out)
 }
 
+/// `a` and `b` (both existing) name the same file: a case-only rename on a case-insensitive
+/// file system. On Unix by file identity (a case-sensitive file system can hold both
+/// `pad` and `Pad`); elsewhere by a case-insensitive path comparison.
+fn same_entry(a: &Path, b: &Path) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        match (fs::metadata(a), fs::metadata(b)) {
+            (Ok(x), Ok(y)) => x.dev() == y.dev() && x.ino() == y.ino(),
+            _ => false,
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase()
+    }
+}
+
 /// A path segment Windows resolves to something else than a file of that name (see
 /// [`sanitize_rel`]). `.` and `..` are left to the component checks.
 fn windows_aliasing_segment(seg: &str) -> bool {
@@ -1070,9 +1088,7 @@ impl Library for DiskStore {
             return Err(StoreError::NotFound(from.to_string()));
         }
         // Case-only renames on case-insensitive file systems see the target as existing.
-        let same_file =
-            src.to_string_lossy().to_lowercase() == dst.to_string_lossy().to_lowercase();
-        if dst.exists() && !same_file {
+        if dst.exists() && !same_entry(&src, &dst) {
             return Err(StoreError::AlreadyExists(to.to_string()));
         }
         if let Some(parent) = dst.parent() {
@@ -1476,6 +1492,26 @@ mod tests {
             "Presets/synth/a.etherpreset",
         )
         .unwrap();
+        // On a case-sensitive file system, two names differing by case are two files: a
+        // rename onto the other one is refused (it overwrote it).
+        s.write_file("user", "Presets/synth/pad.etherpreset", b"low")
+            .unwrap();
+        s.write_file("user", "Presets/synth/Pad.etherpreset", b"up")
+            .unwrap();
+        if fs::read(dir.join("pad.etherpreset")).unwrap() == b"low" {
+            assert!(matches!(
+                s.rename_file(
+                    "user",
+                    "Presets/synth/pad.etherpreset",
+                    "Presets/synth/Pad.etherpreset"
+                ),
+                Err(StoreError::AlreadyExists(_))
+            ));
+            assert_eq!(fs::read(dir.join("Pad.etherpreset")).unwrap(), b"up");
+        }
+        s.remove_file("user", "Presets/synth/pad.etherpreset")
+            .unwrap();
+        let _ = s.remove_file("user", "Presets/synth/Pad.etherpreset");
         s.rename_file(
             "user",
             "Presets/synth/a.etherpreset",
