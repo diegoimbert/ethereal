@@ -22,6 +22,11 @@
 //!   now on; `<device>` is a quoted placeholder (`"@d3"`) or id;
 //! - `midi <status> <data1> <data2> [port]`: a MIDI input message the host receives next tick
 //!   (MIDI capture, MIDI learn);
+//! - `rec audio <track> <start> <frames> <channels> <rate>` / `rec midi <track> <position>
+//!   <status> <data1> <data2> [pass]`: a take the capture host returns when recording stops
+//!   (the audio take's file is written into the project); `live audio <track> <take> <start>
+//!   <first peak> <peaks>` / `live midi <track> <pitch> <velocity> <start> [length]`: the live
+//!   view it hands out while recording; `<track>` is a placeholder, an id or `nil`;
 //! - `tick` (or `tick <n>`, at most 50): the clock moves 20 ms and the controller ticks (media
 //!   and render jobs, autosave);
 //! - empty or `#...`: ignored.
@@ -44,6 +49,8 @@ use std::collections::BTreeMap;
 use common::*;
 use ether_controller::Controller;
 use ether_controller::memory::MemoryLibrary;
+use ether_controller::store::ProjectStore;
+use ether_controller::{AudioTake, RecordedMidi};
 use ether_core::plugin::PluginNotification;
 use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::devices::{DeviceCategory, DeviceCommand, DeviceSpec};
@@ -53,6 +60,7 @@ use ether_core::protocol::mixer::MixerCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::notes::{NoteCommand, NoteSpec};
 use ether_core::protocol::project::EditCommand;
+use ether_core::protocol::recording::{LiveAudioChunk, LiveMidiNote};
 use ether_core::protocol::tracks::TrackCommand;
 use ether_core::protocol::undo_history::HistoryCommand;
 use ether_core::protocol::*;
@@ -516,11 +524,16 @@ fn gesture_prefix(line: &str) -> Option<(GestureId, &str)> {
 /// `false` when the line isn't one.
 fn engine_input(st: &mut State, line: &str) -> bool {
     let mut words = line.split_ascii_whitespace();
-    let (Some(what @ ("plugin" | "state" | "midi")), Some(first)) = (words.next(), words.next())
+    let (Some(what @ ("plugin" | "state" | "midi" | "rec" | "live")), Some(first)) =
+        (words.next(), words.next())
     else {
         return false;
     };
     let args: Vec<&str> = words.collect();
+    if what == "rec" || what == "live" {
+        capture_input(st, what, first, &args);
+        return true;
+    }
     let num = |i: usize| {
         args.get(i)
             .and_then(|a| a.parse::<f64>().ok())
@@ -577,6 +590,107 @@ fn engine_input(st: &mut State, line: &str) -> bool {
     true
 }
 
+/// `rec audio|midi ...` and `live audio|midi ...` lines: what the fake capture host hands
+/// out when recording stops, or polls while it runs. Values stay within what a real host
+/// produces (finite positions, a take file that exists and matches its announced format).
+fn capture_input(st: &mut State, what: &str, kind: &str, args: &[&str]) {
+    let num = |i: usize| {
+        args.get(i)
+            .and_then(|a| a.parse::<f64>().ok())
+            .filter(|v| v.is_finite())
+            .unwrap_or(0.0)
+    };
+    let int = |i: usize| num(i).clamp(0.0, u32::MAX as f64) as u32;
+    let byte = |i: usize| int(i).min(255) as u8;
+    let track = match args.first().copied() {
+        Some("nil") | None => TrackId::NIL,
+        Some(t) => match substitute(st, t).trim_matches('"').parse::<TrackId>() {
+            Ok(t) => t,
+            Err(_) => return,
+        },
+    };
+    let Some(project) = st.h.ctl.project().map(|p| p.id) else {
+        return;
+    };
+    let ctl = &mut st.h.ctl;
+    let rec = ctl.bridge.recording.get_or_insert_with(Default::default);
+    match (what, kind) {
+        ("rec", "audio") if rec.takes.audio.len() < 16 => {
+            // rec audio <track> <start> <frames> <channels> <rate>
+            let frames = int(2).min(SR * 2) as usize;
+            let channels = int(3).clamp(1, 2) as u16;
+            let rate = int(4).clamp(8_000, 192_000);
+            let n = rec.takes.audio.len();
+            let file = format!("media/rec-fuzz-{}-{n}.wav", ctl.host.now);
+            let audio = vec![sine(rate, 220.0, frames, 0.3); channels as usize];
+            if ProjectStore::write(&mut ctl.store, project, &file, &wav(rate, &audio)).is_err() {
+                return;
+            }
+            rec.takes.audio.push(AudioTake {
+                track,
+                file,
+                start: num(1),
+                frames: frames as u64,
+                channels,
+                sample_rate: rate,
+            });
+        }
+        ("rec", "midi") if rec.takes.midi.len() < 4096 => {
+            // rec midi <track> <position> <status> <data1> <data2> [pass]
+            rec.takes.midi.push(RecordedMidi {
+                track,
+                position: num(1),
+                data: [byte(2), byte(3), byte(4)],
+                pass: int(5).min(64),
+            });
+            // Hosts hand them out sorted by position.
+            rec.takes
+                .midi
+                .sort_by(|a, b| a.position.total_cmp(&b.position));
+        }
+        ("live", "audio") if rec.live_audio.len() < 256 => {
+            // live audio <track> <take> <start> <first peak> <peaks>
+            let peaks = int(4).min(4096) as usize;
+            rec.live_audio.push(LiveAudioChunk {
+                track,
+                take: int(1),
+                start: num(2),
+                sample_rate: SR,
+                frames_per_peak: 256,
+                first_peak: int(3) as u64,
+                min: vec![-0.5; peaks],
+                max: vec![0.5; peaks],
+            });
+        }
+        ("live", "midi") if rec.live_midi.len() < 4096 => {
+            // live midi <track> <pitch> <velocity> <start> [length]
+            rec.live_midi.push(LiveMidiNote {
+                track,
+                pitch: byte(1),
+                velocity: byte(2),
+                start: num(3),
+                length: args.get(4).map(|_| num(4)),
+            });
+        }
+        _ => {}
+    }
+}
+
+/// `FUZZ_COMMANDS_DEBUG`: the recording, MIDI map and notification events in `out`.
+fn debug_events(out: &[ServerMessage]) {
+    for m in out {
+        if let ServerMessage::Event(
+            e @ (Event::Recording { .. }
+            | Event::Notification { .. }
+            | Event::MidiMap { .. }
+            | Event::Freeze { .. }),
+        ) = m
+        {
+            eprintln!("  event {e:?}");
+        }
+    }
+}
+
 fuzz_target!(|data: &[u8]| {
     let Ok(text) = std::str::from_utf8(data) else {
         return;
@@ -615,6 +729,9 @@ fuzz_target!(|data: &[u8]| {
             for _ in 0..n {
                 st.h.advance(20);
                 let out = st.h.tick();
+                if debug {
+                    debug_events(&out);
+                }
                 st.harvest(&out);
             }
             st.note_history(&seed_steps);
@@ -647,6 +764,7 @@ fuzz_target!(|data: &[u8]| {
         let before = Snapshot::take(&mut st.h);
         let out = send_with(&mut st.h, command, gesture);
         if debug {
+            debug_events(&out);
             if let Some(ServerMessage::Reply(r)) = out.last() {
                 eprintln!("{json}\n  -> {:?}", r.result);
             }
