@@ -230,7 +230,8 @@ pub enum EditCommand {
         gesture: GestureId,
     },
     /// Apply several commands as ONE undo step (all-or-nothing). Only document-mutating
-    /// commands are allowed inside (no transport, queries or nested batches).
+    /// commands are allowed inside (no transport, queries or nested batches), at most
+    /// [`MAX_BATCH_COMMANDS`] of them (`InvalidArgument` otherwise).
     Batch {
         /// The undo label in English (agents, logs, the fallback).
         label: String,
@@ -243,6 +244,11 @@ pub enum EditCommand {
         key: Option<crate::model::text::TextKey>,
     },
 }
+
+/// Most commands in one `Edit::Batch`. Clients batch per clip or per track (a selection's
+/// notes go in one command), far below this; every command in a batch runs on the
+/// controller's thread before anything else is answered.
+pub const MAX_BATCH_COMMANDS: usize = 65_536;
 
 fn default_true() -> bool {
     true

@@ -639,6 +639,13 @@ where
                 commands,
                 key,
             } => {
+                if commands.len() > ether_core::protocol::project::MAX_BATCH_COMMANDS {
+                    return Err(invalid(format!(
+                        "a batch holds at most {} commands ({} sent)",
+                        ether_core::protocol::project::MAX_BATCH_COMMANDS,
+                        commands.len()
+                    )));
+                }
                 let current = self.doc.as_ref().map(|d| d.project.id);
                 for sub in commands {
                     if !doc::is_document_command(sub, current)
