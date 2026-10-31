@@ -40,6 +40,7 @@ class SerialEngine implements EngineTransport {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   cleanup();
   resetDrafts();
   resetStores();
@@ -48,6 +49,9 @@ afterEach(() => {
 
 it("launch lists the projects at most twice, then not again while idle", async () => {
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
+  // Fake timers: the 150 ms "slow" replies, the app's own timers and the idle window all run on
+  // the test's clock, so a loaded machine can't stretch the launch past the windows below.
+  vi.useFakeTimers({ shouldAdvanceTime: false });
   const engine = new SerialEngine(new MockTransport({ timers: "manual", seed: 7 }));
   render(
     <TransportProvider transport={engine}>
@@ -55,11 +59,11 @@ it("launch lists the projects at most twice, then not again while idle", async (
     </TransportProvider>,
   );
   const lists = () => engine.handled.filter((n) => n === "Project.List").length;
-  await act(() => new Promise((r) => setTimeout(r, 2000)));
+  await act(() => vi.advanceTimersByTimeAsync(2000));
   expect(useProjectScreen.getState().open).toBe(true);
   expect(lists()).toBeGreaterThanOrEqual(1);
   expect(lists()).toBeLessThanOrEqual(2);
   const settled = engine.handled.length;
-  await act(() => new Promise((r) => setTimeout(r, 1000)));
+  await act(() => vi.advanceTimersByTimeAsync(1000));
   expect(engine.handled.slice(settled).filter((n) => n === "Project.List")).toEqual([]);
 }, 15000);
