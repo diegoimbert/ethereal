@@ -79,20 +79,37 @@ pub(crate) fn order_at_end(
     parent: Option<TrackId>,
     except: Option<TrackId>,
 ) -> CmdResult<OrderKey> {
+    let (lo, hi) = end_gap(p, kind, parent, except);
+    OrderKey::try_between(lo.as_ref(), hi.as_ref()).map_err(invalid)
+}
+
+/// The keys [`order_at_end`] places a track between: `(after, before)`, `None` = open end.
+pub(crate) fn end_gap(
+    p: &Project,
+    kind: TrackKind,
+    parent: Option<TrackId>,
+    except: Option<TrackId>,
+) -> (Option<OrderKey>, Option<OrderKey>) {
     let sibs = siblings(p, parent, except);
+    let last = || sibs.last().map(|s| s.0.clone());
     if parent.is_some() || kind == TrackKind::Master {
-        return order_before(&sibs, None);
+        return (last(), None);
     }
     let rank_of = |id: &TrackId| p.tracks.get(id).map_or(0, |t| rank(t.kind));
-    if let Some(last) = sibs.iter().rev().find(|s| rank_of(&s.1) == rank(kind)) {
-        return order_after(&sibs, last.1);
+    if let Some(i) = sibs.iter().rposition(|s| rank_of(&s.1) == rank(kind)) {
+        return (
+            Some(sibs[i].0.clone()),
+            sibs.get(i + 1).map(|s| s.0.clone()),
+        );
     }
     // None of its rank yet: before the first track that shows after it.
-    let next = sibs
-        .iter()
-        .find(|s| rank_of(&s.1) > rank(kind))
-        .map(|s| s.1);
-    order_before(&sibs, next)
+    match sibs.iter().position(|s| rank_of(&s.1) > rank(kind)) {
+        Some(i) => (
+            i.checked_sub(1).map(|j| sibs[j].0.clone()),
+            Some(sibs[i].0.clone()),
+        ),
+        None => (last(), None),
+    }
 }
 
 fn validate_parent(

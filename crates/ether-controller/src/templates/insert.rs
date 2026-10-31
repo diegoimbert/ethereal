@@ -18,7 +18,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use ether_core::protocol::model::*;
 
-use crate::doc::{DocCtx, order_before};
+use crate::doc::DocCtx;
 use crate::tx::{CmdResult, internal, invalid};
 
 /// A loaded track template, ready to insert.
@@ -100,6 +100,80 @@ pub fn remap(prepared: &Prepared, seed: TrackId) -> CmdResult<Vec<Entity>> {
         .collect()
 }
 
+/// Which run of keys a top-level template track takes: all of them before `before`, else
+/// one run per display rank (regular tracks, returns), as `Track::Create` places them.
+fn key_rank(kind: TrackKind, before: Option<TrackId>) -> u8 {
+    match (before, kind) {
+        (None, TrackKind::Return) => 1,
+        _ => 0,
+    }
+}
+
+/// The order keys of the template's top-level tracks, in entity order per run (see
+/// [`key_rank`]): each run is spread over one gap of the project, worked out once (placing
+/// the tracks one by one sorted the project's tracks once per track, and each key went
+/// between the last one and its neighbour).
+fn top_level_keys(
+    p: &Project,
+    entities: &[Entity],
+    tracks: &BTreeSet<TrackId>,
+    parent: Option<TrackId>,
+    before: Option<TrackId>,
+) -> CmdResult<BTreeMap<u8, std::vec::IntoIter<OrderKey>>> {
+    let mut counts: BTreeMap<u8, (TrackKind, usize)> = BTreeMap::new();
+    for e in entities {
+        if let Entity::Track(t) = e
+            && t.parent.is_none_or(|g| !tracks.contains(&g))
+        {
+            counts
+                .entry(key_rank(t.kind, before))
+                .or_insert((t.kind, 0))
+                .1 += 1;
+        }
+    }
+    let mut runs: Vec<(u8, usize, Gap)> = Vec::new();
+    for (rank, (kind, n)) in counts {
+        // `before: None`: as `Track::Create` (after the last track of its rank).
+        let gap = match before {
+            Some(b) => {
+                let sibs = siblings(p, parent);
+                let i = sibs
+                    .iter()
+                    .position(|s| s.1 == b)
+                    .ok_or_else(|| invalid(format!("{b} is not a sibling")))?;
+                (
+                    i.checked_sub(1).map(|j| sibs[j].0.clone()),
+                    Some(sibs[i].0.clone()),
+                )
+            }
+            None => crate::doc::end_gap(p, kind, parent, None),
+        };
+        runs.push((rank, n, gap));
+    }
+    // Runs that land in the same gap (no regular track and no return yet: both go before
+    // master) share it, in rank order, as placing them one by one did.
+    let mut out = BTreeMap::new();
+    let mut i = 0;
+    while i < runs.len() {
+        let gap = runs[i].2.clone();
+        let same = runs[i..].iter().take_while(|r| r.2 == gap).count();
+        let total: usize = runs[i..i + same].iter().map(|r| r.1).sum();
+        let (lo, hi) = (gap.0.as_ref(), gap.1.as_ref());
+        // Checked first: `n_between` panics on malformed keys.
+        OrderKey::try_between(lo, hi).map_err(invalid)?;
+        let mut keys = OrderKey::n_between(lo, hi, total).into_iter();
+        for (rank, n, _) in &runs[i..i + same] {
+            let run: Vec<OrderKey> = keys.by_ref().take(*n).collect();
+            out.insert(*rank, run.into_iter());
+        }
+        i += same;
+    }
+    Ok(out)
+}
+
+/// The keys a run of tracks goes between: `(after, before)`, `None` = open end.
+type Gap = (Option<OrderKey>, Option<OrderKey>);
+
 fn siblings(p: &Project, parent: Option<TrackId>) -> Vec<(OrderKey, TrackId)> {
     let tracks = match parent {
         None => p.tracks_ordered(),
@@ -169,6 +243,18 @@ pub fn insert(
     if !matches!(entities.first(), Some(Entity::Track(_))) {
         return Err(invalid("a track template starts with a track"));
     }
+    let mut keys = top_level_keys(ctx.p(), &entities, &tracks, parent, before)?;
+    // The template's devices and their tracks (lanes on them are kept).
+    let device_tracks: BTreeMap<DeviceId, TrackId> = entities
+        .iter()
+        .filter_map(|e| match e {
+            Entity::Device(d) => Some((d.id, d.track)),
+            _ => None,
+        })
+        .collect();
+    // Applied together at the end: the document-wide checks run once, not once per entity.
+    let mut ops: Vec<Op> = Vec::with_capacity(entities.len());
+    let mut add = |e: Entity| ops.push(Op::Insert { entity: e });
     let mut sends: BTreeSet<SendId> = BTreeSet::new();
     let mut lanes: BTreeSet<AutomationLaneId> = BTreeSet::new();
     for e in entities {
@@ -182,11 +268,10 @@ pub fn insert(
                         return Err(invalid("return tracks must be top-level"));
                     }
                     t.parent = parent;
-                    // `before: None`: as `Track::Create` (after the last track of its rank).
-                    t.order = match before {
-                        Some(b) => order_before(&siblings(ctx.p(), parent), Some(b))?,
-                        None => crate::doc::order_at_end(ctx.p(), t.kind, parent, None)?,
-                    };
+                    t.order = keys
+                        .get_mut(&key_rank(t.kind, before))
+                        .and_then(|k| k.next())
+                        .ok_or_else(|| internal("template track without an order key"))?;
                 }
                 if matches!(t.output, TrackOutput::Track { track } if !tracks.contains(&track)) {
                     t.output = TrackOutput::Default;
@@ -198,7 +283,7 @@ pub fn insert(
                     t.vca = None;
                 }
                 t.freeze = None;
-                ctx.tx.insert(Entity::Track(t))?;
+                add(Entity::Track(t));
             }
             Entity::Device(mut d) => {
                 if d.sidechain.is_some_and(|s| !tracks.contains(&s)) {
@@ -210,18 +295,18 @@ pub fn insert(
                 if let DeviceKind::Builtin { device } = &mut d.kind {
                     clear_missing_media(device, &ctx.p().media);
                 }
-                ctx.tx.insert(Entity::Device(d))?;
+                add(Entity::Device(d));
             }
             Entity::Modulator(mut m) => {
                 if m.sidechain.is_some_and(|s| !tracks.contains(&s)) {
                     m.sidechain = None;
                 }
-                ctx.tx.insert(Entity::Modulator(m))?;
+                add(Entity::Modulator(m));
             }
             Entity::Send(s) => {
                 if tracks.contains(&s.from) && tracks.contains(&s.to) {
                     sends.insert(s.id);
-                    ctx.tx.insert(Entity::Send(s))?;
+                    add(Entity::Send(s));
                 }
             }
             Entity::AutomationLane(l) => {
@@ -232,27 +317,25 @@ pub fn insert(
                     | AutomationTarget::TrackPan { track } => tracks.contains(&track),
                     AutomationTarget::SendLevel { send } => sends.contains(&send),
                     AutomationTarget::DeviceParam { device, .. }
-                    | AutomationTarget::DeviceEnabled { device } => ctx
-                        .p()
-                        .devices
+                    | AutomationTarget::DeviceEnabled { device } => device_tracks
                         .get(&device)
-                        .is_some_and(|d| tracks.contains(&d.track)),
+                        .is_some_and(|t| tracks.contains(t)),
                     AutomationTarget::ClipGain | AutomationTarget::ClipTranspose => false,
                 };
                 if owner_in && target_in {
                     lanes.insert(l.id);
-                    ctx.tx.insert(Entity::AutomationLane(l))?;
+                    add(Entity::AutomationLane(l));
                 }
             }
             Entity::AutomationPoint(pt) if lanes.contains(&pt.lane) => {
-                ctx.tx.insert(Entity::AutomationPoint(pt))?;
+                add(Entity::AutomationPoint(pt));
             }
             e @ (Entity::DrumPad(_) | Entity::RackChain(_) | Entity::ModMapping(_)) => {
-                ctx.tx.insert(e)?;
+                add(e);
             }
             // Not carried by track templates.
             _ => {}
         }
     }
-    Ok(())
+    ctx.tx.apply_all(ops)
 }

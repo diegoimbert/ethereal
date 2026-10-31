@@ -98,6 +98,17 @@ impl<'a> Tx<'a> {
         self.apply(Op::Insert { entity })
     }
 
+    /// Apply many ops at once, all or nothing: each is checked on its own and the
+    /// document-wide invariants (routing, sidechains) once at the end ([`Project::apply_all`]),
+    /// where one [`Self::apply`] per op re-checks them over the whole project every time.
+    pub fn apply_all(&mut self, ops: Vec<Op>) -> CmdResult<()> {
+        let inverses = self.project.apply_all(&ops).map_err(model_err)?;
+        self.ops.extend(ops);
+        // `apply_all` returns them last op first; `unwind` takes them from the end.
+        self.inverses.extend(inverses.into_iter().rev());
+        Ok(())
+    }
+
     pub fn remove(&mut self, key: EntityKey) -> CmdResult<()> {
         self.apply(Op::Remove { key })
     }

@@ -830,3 +830,57 @@ fn saved_files_are_valid_template_files() {
         other => panic!("{other:?}"),
     }
 }
+
+/// Several top-level tracks: regular tracks go after the last regular track and returns
+/// after the last return (as `Track::Create`), each run in the template's order; with
+/// `before`, all of them before it, in order.
+#[test]
+fn a_template_of_several_top_level_tracks_keeps_its_order() {
+    let mut h = harness();
+    let a = track(&mut h, TrackKind::Audio, None);
+    let r = track(&mut h, TrackKind::Return, None);
+    let x = track(&mut h, TrackKind::Audio, None);
+    let y = track(&mut h, TrackKind::Return, None);
+    let z = track(&mut h, TrackKind::Midi, None);
+    save_tracks(&mut h, vec![x, y, z], "Three");
+    let top = |h: &Harness| -> Vec<TrackId> {
+        h.project().tracks_ordered().iter().map(|t| t.id).collect()
+    };
+    let master = *top(&h).last().unwrap();
+    assert_eq!(top(&h), [a, x, z, r, y, master]);
+    let kind = |h: &Harness, id: TrackId| h.project().tracks[&id].kind;
+    let new = |h: &Harness, before: &[TrackId]| -> Vec<TrackId> {
+        top(h).into_iter().filter(|t| !before.contains(t)).collect()
+    };
+
+    let was = top(&h);
+    insert_template(&mut h, "tracks/Three", None, None);
+    let added = new(&h, &was);
+    let kinds: Vec<TrackKind> = added.iter().map(|&t| kind(&h, t)).collect();
+    assert_eq!(
+        kinds,
+        [TrackKind::Audio, TrackKind::Midi, TrackKind::Return]
+    );
+    assert_eq!(
+        top(&h),
+        [a, x, z, added[0], added[1], r, y, added[2], master]
+    );
+
+    let was = top(&h);
+    insert_template(&mut h, "tracks/Three", None, Some(a));
+    let added = new(&h, &was);
+    let kinds: Vec<TrackKind> = added.iter().map(|&t| kind(&h, t)).collect();
+    // The keys keep the template's order (as saved: regular tracks, then returns) before
+    // `a`; display order then sorts by rank.
+    let mut keys: Vec<(OrderKey, TrackKind)> = added
+        .iter()
+        .map(|&t| (h.project().tracks[&t].order.clone(), kind(&h, t)))
+        .collect();
+    keys.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(
+        keys.iter().map(|k| k.1).collect::<Vec<_>>(),
+        [TrackKind::Audio, TrackKind::Midi, TrackKind::Return]
+    );
+    assert!(keys.iter().all(|k| k.0 < h.project().tracks[&a].order));
+    assert_eq!(kinds.len(), 3);
+}
