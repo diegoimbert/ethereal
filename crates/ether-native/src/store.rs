@@ -126,23 +126,84 @@ pub fn sanitize_rel(rel: &str) -> Result<PathBuf, StoreError> {
     Ok(out)
 }
 
-/// `a` and `b` (both existing) name the same file: a case-only rename on a case-insensitive
-/// file system. On Unix by file identity (a case-sensitive file system can hold both
-/// `pad` and `Pad`); elsewhere by a case-insensitive path comparison.
+/// `a` and `b` (both existing) are the same entry, by file identity: a case-only rename on a
+/// case-insensitive file system (a case-sensitive one can hold both `pad` and `Pad`). The
+/// entries themselves: a symlink at `b` to `a` is another entry (renaming over it would
+/// replace the link).
+#[cfg(unix)]
 fn same_entry(a: &Path, b: &Path) -> bool {
-    #[cfg(unix)]
+    use std::os::unix::fs::MetadataExt;
+    match (fs::symlink_metadata(a), fs::symlink_metadata(b)) {
+        (Ok(x), Ok(y)) => x.dev() == y.dev() && x.ino() == y.ino(),
+        _ => false,
+    }
+}
+
+/// Moves `src` to `dst` unless an entry exists at `dst` (`AlreadyExists`), in one step where
+/// the system can (Linux `renameat2(RENAME_NOREPLACE)`, macOS `renamex_np(RENAME_EXCL)`,
+/// Windows `MoveFileExW` without replacing; there a case-only rename of one file works too).
+/// Elsewhere, or on a file system without it, the target is checked first.
+fn rename_no_replace(src: &Path, dst: &Path) -> std::io::Result<()> {
+    #[cfg(any(
+        all(target_os = "linux", target_env = "gnu"),
+        target_os = "android",
+        target_vendor = "apple"
+    ))]
     {
-        use std::os::unix::fs::MetadataExt;
-        // The entries themselves: a symlink at `b` to `a` is another entry (renaming over
-        // it would replace the link).
-        match (fs::symlink_metadata(a), fs::symlink_metadata(b)) {
-            (Ok(x), Ok(y)) => x.dev() == y.dev() && x.ino() == y.ino(),
-            _ => false,
+        use std::os::unix::ffi::OsStrExt;
+        let c = |p: &Path| {
+            std::ffi::CString::new(p.as_os_str().as_bytes())
+                .map_err(|_| std::io::Error::from(std::io::ErrorKind::InvalidInput))
+        };
+        let (from, to) = (c(src)?, c(dst)?);
+        // SAFETY: two NUL-terminated paths that outlive the call.
+        #[cfg(not(target_vendor = "apple"))]
+        let r = unsafe {
+            libc::renameat2(
+                libc::AT_FDCWD,
+                from.as_ptr(),
+                libc::AT_FDCWD,
+                to.as_ptr(),
+                libc::RENAME_NOREPLACE as _,
+            )
+        };
+        // SAFETY: as above.
+        #[cfg(target_vendor = "apple")]
+        let r = unsafe { libc::renamex_np(from.as_ptr(), to.as_ptr(), libc::RENAME_EXCL) };
+        if r == 0 {
+            return Ok(());
+        }
+        let e = std::io::Error::last_os_error();
+        // Not supported by this file system (or kernel): checked rename below.
+        if !matches!(
+            e.raw_os_error(),
+            Some(libc::EINVAL | libc::ENOSYS | libc::ENOTSUP)
+        ) {
+            return Err(e);
         }
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
     {
-        a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase()
+        use std::os::windows::ffi::OsStrExt;
+        let w = |p: &Path| -> Vec<u16> { p.as_os_str().encode_wide().chain([0]).collect() };
+        let (from, to) = (w(src), w(dst));
+        // SAFETY: two NUL-terminated wide paths that outlive the call. No
+        // MOVEFILE_REPLACE_EXISTING: an existing target fails the move.
+        let ok = unsafe {
+            windows_sys::Win32::Storage::FileSystem::MoveFileExW(from.as_ptr(), to.as_ptr(), 0)
+        };
+        return if ok != 0 {
+            Ok(())
+        } else {
+            Err(std::io::Error::last_os_error())
+        };
+    }
+    #[allow(unreachable_code)]
+    {
+        if fs::symlink_metadata(dst).is_ok() {
+            return Err(std::io::ErrorKind::AlreadyExists.into());
+        }
+        fs::rename(src, dst)
     }
 }
 
@@ -1101,13 +1162,27 @@ impl Library for DiskStore {
         }
         // Case-only renames on case-insensitive file systems see the target as existing. Any
         // entry counts (a dangling symlink too: `rename` would replace it).
-        if fs::symlink_metadata(&dst).is_ok() && !same_entry(&src, &dst) {
+        #[cfg(unix)]
+        let case_only = fs::symlink_metadata(&dst).is_ok() && same_entry(&src, &dst);
+        // `MoveFileExW` renames one file to another case of its name and refuses any other.
+        #[cfg(not(unix))]
+        let case_only = false;
+        if !case_only && fs::symlink_metadata(&dst).is_ok() {
             return Err(StoreError::AlreadyExists(to.to_string()));
         }
         if let Some(parent) = dst.parent() {
             fs::create_dir_all(parent).map_err(io_err)?;
         }
-        fs::rename(&src, &dst).map_err(io_err)
+        let moved = if case_only {
+            fs::rename(&src, &dst)
+        } else {
+            // An entry created at the target since the check isn't replaced.
+            rename_no_replace(&src, &dst)
+        };
+        moved.map_err(|e| match e.kind() {
+            std::io::ErrorKind::AlreadyExists => StoreError::AlreadyExists(to.to_string()),
+            _ => io_err(e),
+        })
     }
 
     fn user_root(&self) -> Option<String> {
@@ -1769,6 +1844,23 @@ mod tests {
             .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
             .collect();
         assert_eq!(names, ["project.ether"]);
+    }
+
+    /// The move itself never replaces an entry that appears at the target after the check.
+    #[test]
+    fn rename_no_replace_keeps_the_target() {
+        let tmp = TempDir::new("store-rename-no-replace");
+        let (a, b) = (tmp.path().join("a"), tmp.path().join("b"));
+        fs::write(&a, b"a").unwrap();
+        fs::write(&b, b"b").unwrap();
+        let e = rename_no_replace(&a, &b).unwrap_err();
+        assert_eq!(e.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(fs::read(&b).unwrap(), b"b");
+        assert_eq!(fs::read(&a).unwrap(), b"a");
+        let c = tmp.path().join("c");
+        rename_no_replace(&a, &c).unwrap();
+        assert!(!a.exists());
+        assert_eq!(fs::read(&c).unwrap(), b"a");
     }
 
     /// A rename never replaces an entry at the target: a symlink to the source (not "the same
