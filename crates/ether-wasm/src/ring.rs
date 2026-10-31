@@ -158,6 +158,11 @@ impl<M: RingMemory> RingWriter<M> {
         }
     }
 
+    /// The ring's size in bytes (a message needs [`FRAME_HEADER`] more).
+    pub fn capacity(&self) -> usize {
+        self.mem.capacity()
+    }
+
     /// Queue a message and write as much as fits now.
     pub fn send(&mut self, msg: &[u8]) {
         let mut framed = Vec::with_capacity(FRAME_HEADER + msg.len());
