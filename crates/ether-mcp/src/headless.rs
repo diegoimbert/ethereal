@@ -94,7 +94,9 @@ fn now_ms() -> u64 {
 }
 
 /// `Some((projects_root, id))` if `path` is a project folder of a store (or its
-/// `project.ether`).
+/// `project.ether`): named like one (a bare UUID, or `<title> - <short id>` of the id in
+/// its document). Any other folder is not a store's: its parent would become the engine's
+/// projects root, whose project folders the engine renames after their titles at start.
 fn in_store(path: &Path) -> Option<(PathBuf, ProjectId)> {
     let dir = if path.file_name().is_some_and(|n| n == PROJECT_FILE) {
         path.parent()?
@@ -104,10 +106,16 @@ fn in_store(path: &Path) -> Option<(PathBuf, ProjectId)> {
     if !dir.join(PROJECT_FILE).is_file() {
         return None;
     }
-    // A bare-UUID folder, else the id in its document (`project_dirs`).
-    let id: ProjectId = match dir.file_name()?.to_str()?.parse() {
+    let name = dir.file_name()?.to_str()?;
+    let id: ProjectId = match name.parse() {
         Ok(id) => id,
-        Err(_) => project_dirs::head_of(dir)?.id?,
+        Err(_) => {
+            let id = project_dirs::head_of(dir)?.id?;
+            if !name.ends_with(&format!(" - {}", project_dirs::short_id(id))) {
+                return None;
+            }
+            id
+        }
     };
     Some((dir.parent()?.to_path_buf(), id))
 }
@@ -287,7 +295,47 @@ impl Backend for HeadlessBackend {
 
 #[cfg(test)]
 mod tests {
-    use super::WorkDir;
+    use super::*;
+
+    fn project(dir: &Path, id: ProjectId, name: &str) {
+        std::fs::create_dir_all(dir).unwrap();
+        let doc = serde_json::json!({
+            "format": "ethereal-project",
+            "format_version": 1,
+            "app_version": "test",
+            "project": { "id": id.to_string(), "settings": { "name": name } },
+        });
+        std::fs::write(dir.join(PROJECT_FILE), doc.to_string()).unwrap();
+    }
+
+    /// Only folders named like a store's are opened in place (their parent is then the
+    /// engine's projects root, whose folders it renames).
+    #[test]
+    fn store_folders_are_recognised_by_name() {
+        let tmp = ether_native::test_util::TempDir::new("mcp-in-store");
+        let root = tmp.path();
+        let id = ProjectId::v7(1_700_000_000_000, [7; 10]);
+        let readable = root.join(project_dirs::folder_name("Song", id));
+        project(&readable, id, "Song");
+        assert_eq!(in_store(&readable), Some((root.to_path_buf(), id)));
+        assert_eq!(
+            in_store(&readable.join(PROJECT_FILE)),
+            Some((root.to_path_buf(), id))
+        );
+        let bare = root.join(id.to_string());
+        project(&bare, id, "Song");
+        assert_eq!(in_store(&bare), Some((root.to_path_buf(), id)));
+        // A folder of the user's (`~/Downloads/song/project.ether`): standalone.
+        let mine = root.join("song");
+        project(&mine, id, "Song");
+        assert_eq!(in_store(&mine.join(PROJECT_FILE)), None);
+        assert_eq!(in_store(&mine), None);
+        // Named like a store's, but for another project.
+        let other = ProjectId::v7(1_700_000_000_001, [8; 10]);
+        let wrong = root.join(project_dirs::folder_name("Song", other));
+        project(&wrong, id, "Song");
+        assert_eq!(in_store(&wrong), None);
+    }
 
     #[test]
     fn work_dir_is_new_private_and_removed() {

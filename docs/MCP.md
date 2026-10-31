@@ -153,7 +153,8 @@ played. The `--project` argument can be:
 
 - a project folder of an Ethereal store (`<projects root>/<title> - <short id>/`) or the `project.ether`
   in it. It is opened in place, with its media.
-- any other `.ether` path, existing or new. A new file is created named after the path.
+- any other `.ether` path, existing or new (a `project.ether` in a folder not named like a
+  store's included). A new file is created named after the path.
   `save_project` writes the document there. Media imported in this mode are not kept.
 
 ### Against `ether-server`
