@@ -275,3 +275,80 @@ fn group_delete_and_duplicate_timings() {
         );
     }
 }
+
+/// A rack preset of `ETHER_SCALE_CHAINS` (default 256) chains of 4 effects loaded onto a rack
+/// in the big project, and its undo.
+#[test]
+#[ignore = "perf harness: run in release with --ignored --nocapture"]
+fn rack_preset_load_timings() {
+    let chains: usize = std::env::var("ETHER_SCALE_CHAINS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(256);
+    let device = |d: &str| {
+        format!(r#"{{"name":"{d}","enabled":true,"device":{{"type":"Builtin","device":"{d}"}}}}"#)
+    };
+    let devices = ["Eq", "Compressor", "Delay", "Utility"]
+        .map(device)
+        .join(",");
+    let chain = format!(
+        r#"{{"name":"A","color":null,"volume":0,"pan":0,"mute":false,"solo":false,
+        "keys":{{"lo":0,"hi":127}},"velocities":{{"lo":0,"hi":127}},"select":{{"lo":0,"hi":127}},
+        "devices":[{devices}]}}"#
+    );
+    let json = format!(
+        r#"{{"format":"ethereal-preset","version":2,"app_version":"x","preset":{{
+        "name":"Big","device":{{"type":"Builtin","device":"AudioEffectRack"}},
+        "rack":{{"chains":[{}]}}}}}}"#,
+        vec![chain; chains].join(",")
+    );
+    for n in sizes() {
+        let mut library = ether_controller::memory::MemoryLibrary::new();
+        library.add_file(
+            "user",
+            "Presets/audio-effect-rack/Big.etherpreset",
+            json.clone().into_bytes(),
+        );
+        let mut h = Harness::with(
+            FakeBridge::default(),
+            library.with_user_root("user"),
+            Default::default(),
+        );
+        h.create_project("Scale");
+        let mut ids = IdGen::new(7);
+        let (p, group) = synthetic(&mut ids, n);
+        open(&mut h, &p);
+        let track = h.project().child_tracks(group)[0].id;
+        let rack: DeviceId = h.id();
+        h.ok(Command::Device(
+            ether_core::protocol::devices::DeviceCommand::Insert {
+                id: rack,
+                track,
+                device: ether_core::protocol::devices::DeviceSpec::Builtin {
+                    device: BuiltinDevice::new(BuiltinDeviceType::AudioEffectRack),
+                },
+                before: None,
+            },
+        ));
+        let seed: RackChainId = h.id();
+        let load = timed(
+            &mut h,
+            Command::Preset(ether_core::protocol::presets::PresetCommand::Load {
+                device: rack,
+                preset: ether_core::protocol::presets::PresetRef {
+                    source: ether_core::protocol::presets::PresetSource::User,
+                    id: "audio-effect-rack/Big.etherpreset".into(),
+                },
+                seed: Some(seed),
+            }),
+        );
+        assert_eq!(h.project().chains_of(rack).len(), chains);
+        let undo = timed(&mut h, Command::Edit(EditCommand::Undo));
+        assert!(h.project().chains_of(rack).len() < chains);
+        println!(
+            "{n} tracks, preset of {chains} chains x 4 devices: load {}, undo {}",
+            ms(load),
+            ms(undo)
+        );
+    }
+}

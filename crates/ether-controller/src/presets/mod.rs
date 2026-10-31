@@ -619,7 +619,10 @@ where
                     out,
                     |ctx| {
                         if let Some((structure, seed)) = structure {
-                            plugins = rack::rebuild(ctx, device, structure, seed, &map)?;
+                            // Thousands of structural ops: routing checked once.
+                            plugins = ctx.deferring_checks(|ctx| {
+                                rack::rebuild(ctx, device, structure, seed, &map)
+                            })?;
                         }
                         if let Some(kind) = kind
                             && &kind != current
