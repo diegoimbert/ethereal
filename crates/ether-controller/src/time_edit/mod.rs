@@ -65,17 +65,7 @@ pub struct TimeEditState {
 
 /// Every track in display order (depth first).
 fn display_order(p: &Project) -> Vec<TrackId> {
-    fn walk(p: &Project, t: &Track, out: &mut Vec<TrackId>) {
-        out.push(t.id);
-        for c in p.child_tracks(t.id) {
-            walk(p, c, out);
-        }
-    }
-    let mut out = Vec::new();
-    for t in p.tracks_ordered() {
-        walk(p, t, &mut out);
-    }
-    out
+    p.tracks_depth_first().iter().map(|t| t.id).collect()
 }
 
 fn content_kind(k: TrackKind) -> bool {

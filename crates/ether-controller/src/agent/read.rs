@@ -163,17 +163,7 @@ pub(super) fn device_tree(p: &Project, d: &Device, depth: usize) -> Value {
 
 /// Tracks in display order (groups followed by their children, depth-first).
 pub(super) fn tracks_in_order(p: &Project) -> Vec<&Track> {
-    fn walk<'a>(p: &'a Project, t: &'a Track, out: &mut Vec<&'a Track>) {
-        out.push(t);
-        for c in p.child_tracks(t.id) {
-            walk(p, c, out);
-        }
-    }
-    let mut out = Vec::with_capacity(p.tracks.len());
-    for t in p.tracks_ordered() {
-        walk(p, t, &mut out);
-    }
-    out
+    p.tracks_depth_first()
 }
 
 fn export_status_json(job: &str, s: &ExportStatus) -> Value {
