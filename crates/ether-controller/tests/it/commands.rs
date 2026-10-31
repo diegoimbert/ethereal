@@ -412,6 +412,23 @@ fn batch_is_one_undo_step_and_rejects_non_document_commands() {
         commands: vec![Command::Transport(TransportCommand::Play)],
     }));
     assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+
+    // Past the cap: refused before anything runs.
+    let rename = Command::Track(TrackCommand::Rename {
+        id: t,
+        name: "x".into(),
+    });
+    let out = h.send(Command::Edit(EditCommand::Batch {
+        key: None,
+        label: "x".into(),
+        commands: vec![rename; ether_core::protocol::project::MAX_BATCH_COMMANDS + 1],
+    }));
+    assert_eq!(err(&out).code, ErrorCode::InvalidArgument);
+    assert!(
+        err(&out).message.contains("at most"),
+        "{}",
+        err(&out).message
+    );
 }
 
 #[test]

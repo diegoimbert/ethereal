@@ -286,7 +286,8 @@ v2 adds `export`, `tempo`, `markers`, `midi_map`, `groove`, `drum_rack` (with sl
     one transaction per tick, and gesture-less edits less than 250 ms apart share one
     "plugin edit" undo step (so a plugin preset switch is one step, not one per param).
 - **`Edit::Batch { label, commands }`** applies several commands as one undo step. For
-  example, create a MIDI track and insert a synth.
+  example, create a MIDI track and insert a synth. At most `MAX_BATCH_COMMANDS` (65 536)
+  commands; more is `InvalidArgument`.
 - **Undo labels** (history panel, "Undo …"): short, lowercase, verb first, acronyms
   uppercase, counts when several ("move 3 clips", "set volume", "add reverb", "set
   cutoff"). The controller labels every command (`doc/labels.rs`, one exhaustive match);
