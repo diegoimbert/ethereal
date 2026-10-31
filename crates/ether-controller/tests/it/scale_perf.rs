@@ -1,5 +1,5 @@
-//! Structural edits on a big group: delete, duplicate and their undo, timed through the real
-//! controller with the fake bridge. A harness for before/after numbers:
+//! Structural edits on a big group: delete, duplicate, ungroup and their undo, timed through
+//! the real controller with the fake bridge. A harness for before/after numbers:
 //!
 //! ```text
 //! ETHER_SCALE_TRACKS=250,500,1000 cargo test --release -p ether-controller --test it scale_perf:: -- --ignored --nocapture
@@ -255,12 +255,23 @@ fn group_delete_and_duplicate_timings() {
         assert_eq!(h.project().tracks.len(), tracks + n + 1);
         let undo_duplicate = timed(&mut h, Command::Edit(EditCommand::Undo));
         assert_eq!(h.project().tracks.len(), tracks);
+
+        let ungroup = timed(
+            &mut h,
+            Command::Track(TrackCommand::Ungroup { group, force: true }),
+        );
+        assert_eq!(h.project().tracks.len(), tracks - 1);
+        let undo_ungroup = timed(&mut h, Command::Edit(EditCommand::Undo));
+        assert_eq!(h.project().tracks.len(), tracks);
         println!(
-            "{n} tracks ({entities} entities): delete {}, undo {}, duplicate {}, undo {}",
+            "{n} tracks ({entities} entities): delete {}, undo {}, duplicate {}, undo {}, \
+             ungroup {}, undo {}",
             ms(delete),
             ms(undo_delete),
             ms(duplicate),
             ms(undo_duplicate),
+            ms(ungroup),
+            ms(undo_ungroup),
         );
     }
 }

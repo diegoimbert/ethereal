@@ -197,16 +197,20 @@ fn ungroup(ctx: &mut DocCtx, group: TrackId, force: bool) -> CmdResult<()> {
         .position(|(_, id)| *id == group)
         .ok_or_else(|| invalid("group not found among its siblings"))?;
     let hi = sibs.get(at + 1).map(|s| s.0.clone());
-    let mut lo = at.checked_sub(1).map(|i| sibs[i].0.clone());
+    let lo = at.checked_sub(1).map(|i| sibs[i].0.clone());
     let kids: Vec<TrackId> = ctx.p().child_tracks(group).iter().map(|t| t.id).collect();
-    for k in kids {
-        let order = OrderKey::try_between(lo.as_ref(), hi.as_ref()).map_err(invalid)?;
-        ctx.set_track(k, TrackChange::Parent(g.parent))?;
-        ctx.set_track(k, TrackChange::Order(order.clone()))?;
-        lo = Some(order);
-    }
-    // Devices, lanes, sends and routings go with the group (outputs reset to `Default`).
-    ctx.delete_track_only(group)
+    // Spread over the gap (one key after another grew them by a digit or so each), and
+    // routing checked once at the end, not after each child's move.
+    OrderKey::try_between(lo.as_ref(), hi.as_ref()).map_err(invalid)?;
+    let orders = OrderKey::n_between(lo.as_ref(), hi.as_ref(), kids.len());
+    ctx.deferring_checks(|ctx| {
+        for (k, order) in kids.into_iter().zip(orders) {
+            ctx.set_track(k, TrackChange::Parent(g.parent))?;
+            ctx.set_track(k, TrackChange::Order(order))?;
+        }
+        // Devices, lanes, sends and routings go with the group (outputs reset to `Default`).
+        ctx.delete_track_only(group)
+    })
 }
 
 fn set_vca(ctx: &mut DocCtx, id: TrackId, vca: Option<TrackId>) -> CmdResult<()> {
