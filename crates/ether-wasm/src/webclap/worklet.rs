@@ -18,6 +18,9 @@ use crate::ring::{RingMemory, RingWriter};
 
 /// Report bytes written per block at most (the rest waits).
 const FLUSH_BUDGET: usize = 64 * 1024;
+/// A parameter values reply bigger than this (12 bytes a parameter: about 10 900) is
+/// answered `Failed`: it could not share the report ring (256 KiB) with anything else.
+const MAX_VALUES_BYTES: usize = 128 * 1024;
 
 struct Live {
     handle: u32,
@@ -128,7 +131,14 @@ impl WorkletWebclap {
                 }
                 WebclapRequest::Values => {
                     let report = match with_guest(|g| g.param_values(handle)).flatten() {
-                        Some(values) => PluginReport::Values { key, seq, values },
+                        Some(values) if 12 * values.len() <= MAX_VALUES_BYTES => {
+                            PluginReport::Values { key, seq, values }
+                        }
+                        Some(values) => PluginReport::Failed {
+                            key,
+                            seq,
+                            message: format!("too many parameters ({})", values.len()),
+                        },
                         None => PluginReport::Failed {
                             key,
                             seq,
@@ -157,16 +167,48 @@ impl WorkletWebclap {
             };
             self.outbox.push_back(report.encode());
         }
-        let mut written = 0;
-        while let Some(frame) = self.outbox.front() {
-            if written + frame.len() > FLUSH_BUDGET && written > 0 {
-                break;
-            }
-            if !reports.try_send_now(frame) {
-                break;
-            }
-            written += frame.len();
-            self.outbox.pop_front();
+        flush(&mut self.outbox, reports);
+    }
+}
+
+/// Write queued reports to the ring while they fit, at most [`FLUSH_BUDGET`] bytes. A report
+/// the ring can never hold (a plugin's huge crash message, say) is dropped: waiting at the
+/// front, it would hold back every later report for good.
+fn flush<M: RingMemory>(outbox: &mut VecDeque<Vec<u8>>, reports: &mut RingWriter<M>) {
+    let mut written = 0;
+    while let Some(frame) = outbox.front() {
+        if crate::ring::FRAME_HEADER + frame.len() > reports.capacity() {
+            outbox.pop_front();
+            continue;
         }
+        if written + frame.len() > FLUSH_BUDGET && written > 0 {
+            break;
+        }
+        if !reports.try_send_now(frame) {
+            break;
+        }
+        written += frame.len();
+        outbox.pop_front();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ring::{HeapMemory, RingReader};
+
+    #[test]
+    fn a_report_bigger_than_the_ring_is_dropped_not_waited_for() {
+        let mem = HeapMemory::new(64);
+        let (mut w, mut r) = (RingWriter::new(mem.clone()), RingReader::new(mem));
+        let mut outbox: VecDeque<Vec<u8>> = VecDeque::from([vec![1; 100], vec![2; 8]]);
+        flush(&mut outbox, &mut w);
+        assert!(outbox.is_empty());
+        let mut got = Vec::new();
+        r.drain(usize::MAX, |m| {
+            got.push(m.to_vec());
+            true
+        });
+        assert_eq!(got, [vec![2; 8]]);
     }
 }
