@@ -37,3 +37,6 @@ full = ["ether-server/full"]
 [[bin]]
 name = "ether-mcp"
 path = "src/main.rs"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = ["Win32_System_Threading"] }

@@ -12,7 +12,8 @@ USAGE:
 
 OPTIONS:
   --server <URL>        ether-server URL (ws://host:port/).
-  --token <T>           Its token (or $ETHER_SERVER_TOKEN).
+  --token <T>           Its token. Prefer $ETHER_SERVER_TOKEN: arguments are visible
+                        to other local users in the process list.
   --project <PATH>      A project folder or .ether file (created if missing). No audio
                         output; save_project writes the file.
   --runtime-file <F>    Desktop mode: the app's agent-bridge.json (default: the dev

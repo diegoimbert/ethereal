@@ -42,7 +42,7 @@ impl EtherMcp {
     /// still see the tools; calls then explain how to connect).
     async fn tool_specs(&self) -> Vec<AgentToolSpec> {
         match self.request(Command::Agent(AgentCommand::ListTools)).await {
-            Ok(ReplyValue::AgentTools { tools }) => tools,
+            Ok(ReplyValue::AgentTools { tools }) => bounded(tools),
             Ok(other) => {
                 tracing::warn!(?other, "unexpected reply to ListTools");
                 ether_controller::agent::tool_specs()
@@ -193,6 +193,44 @@ impl ServerHandler for EtherMcp {
     }
 }
 
+/// Most tools listed from the engine.
+const MAX_TOOLS: usize = 512;
+/// A tool name's longest (the MCP spec's limit is 128).
+const MAX_TOOL_NAME: usize = 128;
+/// A tool description's longest, in bytes.
+const MAX_TOOL_DESCRIPTION: usize = 16 * 1024;
+/// A tool input schema's longest, in bytes.
+const MAX_TOOL_SCHEMA: usize = 64 * 1024;
+
+/// The engine's tool list as handed to the MCP client (and so to the model): at most
+/// [`MAX_TOOLS`], each with a plain name (`[A-Za-z0-9_.-]`) and a description and schema of
+/// bounded size. The engine is whatever answers at the configured address, and its specs go
+/// straight into the model's context: anything else is dropped, with a warning.
+fn bounded(tools: Vec<AgentToolSpec>) -> Vec<AgentToolSpec> {
+    let total = tools.len();
+    let kept: Vec<AgentToolSpec> = tools
+        .into_iter()
+        .filter(|t| {
+            !t.name.is_empty()
+                && t.name.len() <= MAX_TOOL_NAME
+                && t.name
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+                && t.description.len() <= MAX_TOOL_DESCRIPTION
+                && t.input_schema.len() <= MAX_TOOL_SCHEMA
+        })
+        .take(MAX_TOOLS)
+        .collect();
+    if kept.len() < total {
+        tracing::warn!(
+            listed = total,
+            kept = kept.len(),
+            "the engine listed tools over the limits; they were left out"
+        );
+    }
+    kept
+}
+
 /// The variant name of a reply (`AgentTools`, ...), at most 64 characters.
 fn reply_kind(reply: &ReplyValue) -> String {
     let debug = format!("{reply:?}");
@@ -208,6 +246,37 @@ fn reply_kind(reply: &ReplyValue) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_built_in_tools_are_within_the_limits() {
+        let specs = ether_controller::agent::tool_specs();
+        assert_eq!(bounded(specs.clone()).len(), specs.len());
+    }
+
+    #[test]
+    fn tools_over_the_limits_are_left_out() {
+        let spec = |name: &str, description: usize, schema: usize| AgentToolSpec {
+            name: name.into(),
+            description: "d".repeat(description),
+            input_schema: " ".repeat(schema),
+        };
+        let kept = bounded(vec![
+            spec("ok", 10, 10),
+            spec("", 1, 1),
+            spec("bad name", 1, 1),
+            spec(&"n".repeat(MAX_TOOL_NAME + 1), 1, 1),
+            spec("long_description", MAX_TOOL_DESCRIPTION + 1, 1),
+            spec("long_schema", 1, MAX_TOOL_SCHEMA + 1),
+        ]);
+        assert_eq!(
+            kept.iter().map(|t| t.name.as_str()).collect::<Vec<_>>(),
+            ["ok"]
+        );
+        let many = (0..MAX_TOOLS + 5)
+            .map(|i| spec(&format!("t{i}"), 1, 1))
+            .collect();
+        assert_eq!(bounded(many).len(), MAX_TOOLS);
+    }
 
     #[test]
     fn an_unexpected_reply_is_named_not_dumped() {
