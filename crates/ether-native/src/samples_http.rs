@@ -11,6 +11,10 @@ use crossbeam_channel::{Receiver, Sender, unbounded};
 use ether_controller::HttpEvent;
 
 const CHUNK: usize = 64 * 1024;
+/// Longest wait for the server (answer head, each body read).
+const READ_TIMEOUT: Duration = Duration::from_secs(60);
+/// Longest download (a 64 MiB pack file at ~40 KB/s).
+const MAX_DOWNLOAD: Duration = Duration::from_secs(30 * 60);
 
 #[derive(Clone)]
 pub(crate) struct Http {
@@ -38,7 +42,9 @@ fn client() -> Result<Arc<reqwest::blocking::Client>, String> {
             reqwest::blocking::Client::builder()
                 .user_agent(concat!("ethereal/", env!("CARGO_PKG_VERSION")))
                 .connect_timeout(Duration::from_secs(15))
-                .timeout(None)
+                // Per wait (the answer's head, each body read): a server that stalls is
+                // dropped; `fetch` also bounds the whole download.
+                .timeout(READ_TIMEOUT)
                 .build()
                 .map(Arc::new)
                 .map_err(|e| e.to_string())
@@ -47,6 +53,7 @@ fn client() -> Result<Arc<reqwest::blocking::Client>, String> {
 }
 
 fn fetch(id: u64, url: &str, max: u64, tx: &Sender<HttpEvent>) -> Result<(u16, Vec<u8>), String> {
+    let started = std::time::Instant::now();
     let mut resp = client()?.get(url).send().map_err(|e| e.to_string())?;
     let status = resp.status().as_u16();
     let total = resp.content_length();
@@ -62,6 +69,9 @@ fn fetch(id: u64, url: &str, max: u64, tx: &Sender<HttpEvent>) -> Result<(u16, V
         }
         if (body.len() + n) as u64 > max {
             return Err("the download is bigger than expected".into());
+        }
+        if started.elapsed() > MAX_DOWNLOAD {
+            return Err("the download took too long".into());
         }
         body.extend_from_slice(&buf[..n]);
         let _ = tx.send(HttpEvent::Progress {

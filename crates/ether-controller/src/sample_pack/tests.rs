@@ -47,6 +47,10 @@ fn loopback_hosts() {
         "https://evil.com/?h=localhost",
         "file:///etc",
         "http://user@evil.com/x",
+        "http://127.0.0.1:1@evil.com/x",
+        "http://localhost@evil.com/x",
+        "http://[::1]@evil.com/x",
+        "http://127.0.0.1\\@evil.com/x",
     ] {
         assert!(!manifest::is_loopback(url), "{url}");
     }
