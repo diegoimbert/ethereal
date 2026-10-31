@@ -14,6 +14,14 @@
 //!   fresh project id and `"@P<n>"` the `n`th project id seen (the seeded one, then each
 //!   `"@Pnew"`), `"@R<n>"`/`"@T<n>"`/`"@K<n>"`/`"@V<n>"` the `n`th preset id, template id,
 //!   export download token or version id a reply or an event named, so mutations keep hitting real entities;
+//! - `g<n> <command>`: that JSON command sent with the gesture id `n` (commands of one open
+//!   gesture merge into one undo step; `Edit` `EndGesture`/`CancelGesture` take `n` too);
+//! - `plugin <device> <what> [args]`: a notification the device's plugin sends next tick
+//!   (`edit <param> <value>`, `begin <param>`, `end <param>`, `latency <n>`, `restart`,
+//!   `params`, `dirty`, `closed`, `crash`), `state <device> <hex>` the state it reports from
+//!   now on; `<device>` is a quoted placeholder (`"@d3"`) or id;
+//! - `midi <status> <data1> <data2> [port]`: a MIDI input message the host receives next tick
+//!   (MIDI capture, MIDI learn);
 //! - `tick` (or `tick <n>`, at most 50): the clock moves 20 ms and the controller ticks (media
 //!   and render jobs, autosave);
 //! - empty or `#...`: ignored.
@@ -23,7 +31,8 @@
 //! loads back. At the end, when the seeded project is still open and its own history is intact,
 //! undoing every step the script made gives the seeded document back, and redoing them the
 //! edited one; after each command that made one undo step, undoing it and redoing it gives the
-//! documents before and after it (mute and solo aside: never undo steps).
+//! documents before and after it (mute and solo aside: never undo steps); cancelling an open
+//! gesture gives the document and the history from before the gesture began.
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 
@@ -35,9 +44,11 @@ use std::collections::BTreeMap;
 use common::*;
 use ether_controller::Controller;
 use ether_controller::memory::MemoryLibrary;
+use ether_core::plugin::PluginNotification;
 use ether_core::protocol::clips::ClipCommand;
 use ether_core::protocol::devices::{DeviceCategory, DeviceCommand, DeviceSpec};
 use ether_core::protocol::media::*;
+use ether_core::protocol::midi_map::MidiInputEvent;
 use ether_core::protocol::mixer::MixerCommand;
 use ether_core::protocol::model::*;
 use ether_core::protocol::notes::{NoteCommand, NoteSpec};
@@ -181,6 +192,23 @@ struct State {
     templates: Vec<String>,
     tokens: Vec<String>,
     versions: Vec<String>,
+    /// The open gesture the script began and the project before its first command.
+    gesture: Option<(GestureId, Snapshot)>,
+    /// After every line so far, the seeded project was open with its history starting with
+    /// the seeding steps. A history replaced on the way (a version restored, the project
+    /// reopened) restarts its step ids, so a later list can look like the seeded one again.
+    seeded: bool,
+}
+
+impl State {
+    fn note_history(&mut self, seed_steps: &[u32]) {
+        if !self.seeded {
+            return;
+        }
+        let open = self.h.ctl.project().map(|p| p.id.to_string());
+        self.seeded = open.as_ref() == self.projects.first()
+            && applied_steps(&mut self.h).is_some_and(|s| s.starts_with(seed_steps));
+    }
 }
 
 fn nth(v: &[String], n: usize) -> Option<String> {
@@ -282,12 +310,16 @@ fn check_document(h: &Harness, line: &str) {
 /// Sends `command`: exactly one reply, and no document change after it (a publish that
 /// follows the reply may still notify, e.g. a device the engine couldn't create).
 fn send(h: &mut Harness, command: Command) -> Vec<ServerMessage> {
+    send_with(h, command, None)
+}
+
+fn send_with(h: &mut Harness, command: Command, gesture: Option<GestureId>) -> Vec<ServerMessage> {
     const ID: u32 = 1 << 30;
     let mut out = Vec::new();
     h.ctl.handle(
         ClientMessage {
             id: ID,
-            gesture: None,
+            gesture,
             command,
         },
         &mut out,
@@ -330,7 +362,7 @@ fn applied_steps(h: &mut Harness) -> Option<Vec<u32>> {
 }
 
 /// The document as JSON, without what isn't an undo step by design: mute and solo clicks
-/// (docs/CONTRACTS.md, "Undoable vs. not undoable").
+/// (docs/CONTRACTS.md, "Undoable vs. not undoable") and plugin state blobs.
 fn undoable_state(p: &Project) -> Value {
     let mut v = serde_json::to_value(p).expect("the document serializes");
     let clear = |v: &mut Value| {
@@ -348,6 +380,15 @@ fn undoable_state(p: &Project) -> Value {
     }
     if let Some(Value::Object(pads)) = v.get_mut("drum_pads") {
         pads.values_mut().for_each(clear);
+    }
+    // A plugin's state blob is the live state read back from the plugin (on save, reload or
+    // a sandbox switch), never an undo step.
+    if let Some(Value::Object(devices)) = v.get_mut("devices") {
+        for d in devices.values_mut() {
+            if let Some(state) = d.pointer_mut("/kind/plugin/state") {
+                *state = Value::Null;
+            }
+        }
     }
     v
 }
@@ -376,9 +417,11 @@ fn diff(path: &str, a: &Value, b: &Value, out: &mut Vec<String>) {
 }
 
 /// Undoes the script's steps; the document must then be the seeded one again. Skipped when
-/// another project is open or the script undid into the seeding steps (its history no longer
-/// starts with them).
+/// another project is open or the seeded history didn't last the script (`State::seeded`).
 fn check_undo_all(st: &mut State, seeded: &Value, seed_steps: &[u32]) {
+    if !st.seeded {
+        return;
+    }
     let h = &mut st.h;
     let edited = undoable_state(h.project());
     for undone in 0..=MAX_LINES * 2 {
@@ -455,6 +498,85 @@ fn same(expected: &Value, p: &Project, after: &str) {
     );
 }
 
+fn open_gesture(h: &Harness, g: GestureId) -> bool {
+    h.ctl
+        .doc
+        .as_ref()
+        .is_some_and(|d| d.history.is_open_gesture(g))
+}
+
+/// A `g<n> ` line prefix: the gesture and the rest of the line.
+fn gesture_prefix(line: &str) -> Option<(GestureId, &str)> {
+    let rest = line.strip_prefix('g')?;
+    let (n, rest) = rest.split_once(' ')?;
+    Some((GestureId(n.parse().ok()?), rest.trim_start()))
+}
+
+/// A `plugin ...`, `state ...` or `midi ...` line: queues what the fake engine reports next.
+/// `false` when the line isn't one.
+fn engine_input(st: &mut State, line: &str) -> bool {
+    let mut words = line.split_ascii_whitespace();
+    let (Some(what @ ("plugin" | "state" | "midi")), Some(first)) = (words.next(), words.next())
+    else {
+        return false;
+    };
+    let args: Vec<&str> = words.collect();
+    let num = |i: usize| {
+        args.get(i)
+            .and_then(|a| a.parse::<f64>().ok())
+            .unwrap_or(0.0)
+    };
+    let byte = |s: Option<&&str>| s.and_then(|a| a.parse::<u8>().ok()).unwrap_or(0);
+    if what == "midi" {
+        let event = MidiInputEvent {
+            port: args.get(2).unwrap_or(&"fuzz").to_string(),
+            data: [byte(Some(&first)), byte(args.first()), byte(args.get(1))],
+            time_ms: st.h.ctl.host.now as f64,
+        };
+        if st.h.ctl.bridge.midi_input.len() < 4096 {
+            st.h.ctl.bridge.midi_input.push(event);
+        }
+        return true;
+    }
+    let device = substitute(st, first);
+    let Ok(device) = device.trim_matches('"').parse::<DeviceId>() else {
+        return true;
+    };
+    let bridge = &mut st.h.ctl.bridge;
+    if what == "state" {
+        let hex = args.first().copied().unwrap_or("");
+        let bytes = (0..hex.len() / 2)
+            .filter_map(|i| u8::from_str_radix(hex.get(i * 2..i * 2 + 2)?, 16).ok())
+            .collect();
+        bridge.plugin_states.insert(device, Base64Bytes(bytes));
+        return true;
+    }
+    let param = ParamId(num(1) as u32);
+    let note = match args.first().copied() {
+        Some("edit") => PluginNotification::ParamEdited {
+            param,
+            value: num(2),
+        },
+        Some("begin") => PluginNotification::GestureBegin { param },
+        Some("end") => PluginNotification::GestureEnd { param },
+        Some("latency") => PluginNotification::LatencyChanged {
+            samples: num(1) as u32,
+        },
+        Some("restart") => PluginNotification::RestartRequested,
+        Some("params") => PluginNotification::ParamsChanged,
+        Some("dirty") => PluginNotification::StateDirty,
+        Some("closed") => PluginNotification::EditorClosed,
+        Some("crash") => PluginNotification::Crashed {
+            message: "fuzz".into(),
+        },
+        _ => return true,
+    };
+    if bridge.plugin_notes.len() < 4096 {
+        bridge.plugin_notes.push((device, note));
+    }
+    true
+}
+
 fuzz_target!(|data: &[u8]| {
     let Ok(text) = std::str::from_utf8(data) else {
         return;
@@ -480,6 +602,8 @@ fuzz_target!(|data: &[u8]| {
         templates: Vec::new(),
         tokens: Vec::new(),
         versions: Vec::new(),
+        gesture: None,
+        seeded: true,
     };
     for line in text.lines().take(MAX_LINES) {
         let line = line.trim();
@@ -493,8 +617,16 @@ fuzz_target!(|data: &[u8]| {
                 let out = st.h.tick();
                 st.harvest(&out);
             }
+            st.note_history(&seed_steps);
             continue;
         }
+        if engine_input(&mut st, line) {
+            continue;
+        }
+        let (gesture, line) = match gesture_prefix(line) {
+            Some((g, rest)) => (Some(g), rest),
+            None => (None, line),
+        };
         let json = substitute(&mut st, line);
         let command = match serde_json::from_str::<Command>(&json) {
             Ok(c) => c,
@@ -505,8 +637,15 @@ fuzz_target!(|data: &[u8]| {
                 continue;
             }
         };
+        let cancel = match &command {
+            Command::Edit(EditCommand::CancelGesture { gesture: g }) if open_gesture(&st.h, *g) => {
+                st.gesture.take().filter(|(open, _)| open == g)
+            }
+            _ => None,
+        };
+        let began = gesture.filter(|g| !open_gesture(&st.h, *g));
         let before = Snapshot::take(&mut st.h);
-        let out = send(&mut st.h, command);
+        let out = send_with(&mut st.h, command, gesture);
         if debug {
             if let Some(ServerMessage::Reply(r)) = out.last() {
                 eprintln!("{json}\n  -> {:?}", r.result);
@@ -514,9 +653,45 @@ fuzz_target!(|data: &[u8]| {
         }
         st.harvest(&out);
         check_document(&st.h, line);
-        if let Some(before) = before {
-            check_step(&mut st.h, before, line);
+        if let Some((_, base)) = cancel {
+            // Back to the document and the history from before the gesture.
+            if debug {
+                eprintln!("cancel: back to before the gesture");
+            }
+            same(
+                &base.doc,
+                st.h.project(),
+                &format!("cancelling the gesture (`{line}`)"),
+            );
+            let steps = applied_steps(&mut st.h);
+            assert_eq!(
+                steps.as_ref(),
+                Some(&base.steps),
+                "cancelling the gesture (`{line}`)"
+            );
         }
+        match gesture {
+            // A gesture's commands stay open (undoing and redoing would close it): remember
+            // the document before the first one.
+            Some(g) => {
+                if began.is_some() && open_gesture(&st.h, g) {
+                    st.gesture = before.map(|b| (g, b));
+                }
+            }
+            None => {
+                if let Some(before) = before {
+                    check_step(&mut st.h, before, line);
+                }
+            }
+        }
+        if st
+            .gesture
+            .as_ref()
+            .is_some_and(|(g, _)| !open_gesture(&st.h, *g))
+        {
+            st.gesture = None;
+        }
+        st.note_history(&seed_steps);
     }
     check_undo_all(&mut st, &seeded, &seed_steps);
 });

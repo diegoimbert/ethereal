@@ -1,0 +1,31 @@
+{"domain":"Device","command":{"type":"Insert","id":"@new","track":"@t1","device":{"type":"Plugin","plugin_id":"com.test.Fx","sandboxed":null},"before":null}}
+state "@d2" 0102030405
+plugin "@d2" edit 7 0.25
+plugin "@d2" edit 7 0.75
+tick
+plugin "@d2" begin 7
+plugin "@d2" edit 7 0.5
+plugin "@d2" edit 7 0.6
+tick 2
+plugin "@d2" end 7
+plugin "@d2" dirty
+plugin "@d2" latency 512
+tick 2
+{"domain":"Edit","command":{"type":"Undo"}}
+{"domain":"Device","command":{"type":"Duplicate","id":"@d2","new_id":"@new"}}
+plugin "@d3" begin 7
+plugin "@d3" edit 7 2
+g9 {"domain":"Device","command":{"type":"SetParam","device":"@d3","param":7,"value":0.4}}
+tick
+plugin "@d3" restart
+plugin "@d3" params
+plugin "@d3" closed
+plugin "@d2" crash
+tick 3
+{"domain":"Plugin","command":{"type":"Reload","device":"@d2"}}
+{"domain":"Plugin","command":{"type":"SetSandboxed","device":"@d3","sandboxed":true}}
+{"domain":"Project","command":{"type":"Save"}}
+tick 60
+{"domain":"Device","command":{"type":"Remove","id":"@d3"}}
+plugin "@d3" edit 7 0.1
+tick

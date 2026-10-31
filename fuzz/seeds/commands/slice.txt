@@ -1,0 +1,13 @@
+{"domain":"Track","command":{"type":"Create","id":"@new","kind":"Midi","name":null,"color":null,"parent":null,"before":null}}
+{"domain":"Device","command":{"type":"Insert","id":"@new","track":"@t4","device":{"type":"Builtin","device":{"type":"DrumRack"}},"before":null}}
+{"domain":"Device","command":{"type":"Insert","id":"@new","track":"@t2","device":{"type":"Builtin","device":{"type":"Sampler","sample":"@m0","slices":{"enabled":true,"base_note":36,"markers":[0.0,0.02]}}},"before":null}}
+{"domain":"Slice","command":{"type":"Add","device":"@d3","positions":[0.01,0.03,0.05]}}
+{"domain":"Slice","command":{"type":"Move","device":"@d3","index":1,"position":0.02}}
+{"domain":"Slice","command":{"type":"SetBaseNote","device":"@d3","note":125}}
+{"domain":"Slice","command":{"type":"SampleToPads","rack":"@d2","media":"@m0","mode":{"type":"Grid","beats":0.05},"base_note":120,"pads":[{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"}]}}
+{"domain":"DrumRack","command":{"type":"SetChokeGroup","id":"@q0","group":2}}
+{"domain":"Slice","command":{"type":"SampleToPads","rack":"@d2","media":"@m0","mode":{"type":"Grid","beats":0.05},"base_note":118,"pads":[{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"}]}}
+{"domain":"Slice","command":{"type":"SampleToPads","rack":"@d2","media":"@m0","mode":{"type":"Grid","beats":0.05},"base_note":118,"pads":[{"pad":"@q0","device":"@d0"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"}]}}
+{"domain":"Slice","command":{"type":"ToDrumRack","device":"@d3","rack":"@new","pads":[{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"},{"pad":"@new","device":"@new"}]}}
+{"domain":"Slice","command":{"type":"ToDrumRack","device":"@d3","rack":"@new","pads":[{"pad":"@q0","device":"@new"},{"pad":"@q0","device":"@new"},{"pad":"@new","device":"@d1"}]}}
+{"domain":"DrumRack","command":{"type":"RemovePad","id":"@q1"}}

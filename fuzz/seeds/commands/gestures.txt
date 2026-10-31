@@ -1,0 +1,26 @@
+g1 {"domain":"Mixer","command":{"type":"SetVolume","track":"@t1","volume":-3}}
+g1 {"domain":"Mixer","command":{"type":"SetVolume","track":"@t1","volume":-9}}
+g1 {"domain":"Device","command":{"type":"SetParam","device":"@d0","param":0,"value":0.3}}
+g1 {"domain":"Mixer","command":{"type":"SetPan","track":"@t2","pan":0.5}}
+{"domain":"Edit","command":{"type":"CancelGesture","gesture":1}}
+g2 {"domain":"Clip","command":{"type":"Move","moves":[{"id":"@c1","track":"@t2","start":2}]}}
+g2 {"domain":"Note","command":{"type":"Edit","edits":[{"id":"@n0","pitch":70,"velocity":null,"start":null,"duration":null}]}}
+g2 {"domain":"Track","command":{"type":"Create","id":"@new","kind":"Midi","name":"x","color":null,"parent":null,"before":null}}
+g2 {"domain":"Mixer","command":{"type":"SetVolume","track":"@t1","volume":-1}}
+{"domain":"Edit","command":{"type":"EndGesture","gesture":2}}
+g3 {"domain":"Automation","command":{"type":"CreateLane","id":"@new","owner":{"type":"Track","track":"@t1"},"target":{"type":"TrackVolume","track":"@t1"}}}
+g3 {"domain":"Automation","command":{"type":"AddPoints","lane":"@l0","points":[{"id":"@new","time":0,"value":0.2,"curve":{"type":"Linear"}}]}}
+g3 {"domain":"Device","command":{"type":"SetParam","device":"@d1","param":1,"value":0.7}}
+g3 {"domain":"Device","command":{"type":"SetParam","device":"@d1","param":1,"value":0.1}}
+g3 {"domain":"Device","command":{"type":"Remove","id":"@d1"}}
+g3 {"domain":"Device","command":{"type":"SetParam","device":"@d0","param":1,"value":0.9}}
+{"domain":"Edit","command":{"type":"CancelGesture","gesture":3}}
+g4 {"domain":"Mixer","command":{"type":"SetMute","track":"@t1","mute":true}}
+g4 {"domain":"Mixer","command":{"type":"SetVolume","track":"@t1","volume":-4}}
+{"domain":"Transport","command":{"type":"TapTempo"}}
+g4 {"domain":"Mixer","command":{"type":"SetVolume","track":"@t1","volume":-5}}
+{"domain":"Edit","command":{"type":"Undo"}}
+{"domain":"Edit","command":{"type":"CancelGesture","gesture":4}}
+g5 {"domain":"Edit","command":{"type":"Batch","label":"b","commands":[{"domain":"Mixer","command":{"type":"SetVolume","track":"@t2","volume":-2}}]}}
+g5 {"domain":"Mixer","command":{"type":"SetVolume","track":"@t2","volume":-7}}
+{"domain":"Edit","command":{"type":"CancelGesture","gesture":5}}
