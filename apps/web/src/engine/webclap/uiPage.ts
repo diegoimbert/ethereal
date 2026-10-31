@@ -49,17 +49,29 @@ export function references(html: string): string[] {
   return [...out];
 }
 
-/** The start page `path` (with `query`) and the files it references. */
+/** Most files a ui page takes along, and their total size: the page is copied to its frame
+ * every time the ui opens. */
+export const MAX_UI_PAGE_FILES = 256;
+export const MAX_UI_PAGE_BYTES = 128 * 1024 * 1024;
+
+/** The start page `path` (with `query`) and the files it references (at most
+ * `MAX_UI_PAGE_FILES`, `MAX_UI_PAGE_BYTES` in all: past that, an error). */
 export async function collectUiPage(path: string, query: string, load: ResourceLoader): Promise<UiPage> {
   const page = await load(path);
   if (!page) throw new Error(`the plugin has no ui page at ${path}`);
   const html = new TextDecoder().decode(page.bytes);
   const files: UiPage["files"] = {};
+  let count = 0;
+  let total = page.bytes.length;
   for (const ref of references(html)) {
     const p = resolvePath(path, ref);
     if (!p || p in files) continue;
+    if (++count > MAX_UI_PAGE_FILES) throw new Error(`the plugin's ui page references more than ${MAX_UI_PAGE_FILES} files`);
     const r = await load(p);
-    if (r) files[p] = { mime: r.mime, data: r.bytes.slice().buffer as ArrayBuffer };
+    if (!r) continue;
+    total += r.bytes.length;
+    if (total > MAX_UI_PAGE_BYTES) throw new Error("the plugin's ui page is too big");
+    files[p] = { mime: r.mime, data: r.bytes.slice().buffer as ArrayBuffer };
   }
   return { path, query, html, files };
 }
