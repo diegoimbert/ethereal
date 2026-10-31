@@ -92,33 +92,10 @@ pub fn folder_name(title: &str, id: ProjectId) -> String {
     if title.is_empty() {
         title = FALLBACK_TITLE.to_string();
     }
-    if is_windows_device_name(&title) {
+    if ether_core::protocol::model::is_windows_device_name(&title) {
         title.insert(0, '_');
     }
     format!("{title} - {}", short_id(id))
-}
-
-/// `name` (a file or folder name) opens a device on Windows whatever its extension: `CON`,
-/// `PRN`, `AUX`, `NUL`, `COM0`..`COM9`, `LPT0`..`LPT9` (also with superscript digits),
-/// `CONIN$`, `CONOUT$`.
-pub(crate) fn is_windows_device_name(name: &str) -> bool {
-    let stem = name
-        .split('.')
-        .next()
-        .unwrap_or("")
-        .trim()
-        .to_ascii_uppercase();
-    let numbered = |prefix: &str| {
-        stem.strip_prefix(prefix).is_some_and(|rest| {
-            let mut c = rest.chars();
-            matches!((c.next(), c.next()), (Some(d), None) if d.is_ascii_digit() || "¹²³".contains(d))
-        })
-    };
-    matches!(
-        stem.as_str(),
-        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
-    ) || numbered("COM")
-        || numbered("LPT")
 }
 
 /// What the head of a `project.ether` says: `project.id` and `project.settings.name`.

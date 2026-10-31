@@ -286,25 +286,7 @@ pub struct Job {
 
 /// `name` made safe as a single, visible file-name segment.
 pub fn sanitize(name: &str) -> String {
-    let cleaned: String = name
-        .chars()
-        .map(|c| {
-            if c.is_control() || matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') {
-                '_'
-            } else {
-                c
-            }
-        })
-        .collect();
-    // No leading dots or spaces in any combination (" .x", ". .x"): never a hidden file.
-    let trimmed = cleaned.trim_start_matches(|c: char| c == '.' || c.is_whitespace());
-    let s: String = trimmed.chars().take(120).collect();
-    let s = s.trim_end_matches(|c: char| c == '.' || c.is_whitespace());
-    if s.is_empty() {
-        "Export".into()
-    } else {
-        s.to_string()
-    }
+    ether_core::protocol::model::safe_file_stem(name, '_', 120).unwrap_or_else(|| "Export".into())
 }
 
 /// Timeline range of a request, in beats (`Err` = user-facing message).
