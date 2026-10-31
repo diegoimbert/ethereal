@@ -14,6 +14,12 @@ use ether_core::recording::{CaptureBlock, CaptureReader, RecordedMidi as EngineM
 
 use super::live::{LiveNotes, LiveShared, PeakAcc};
 
+/// Most MIDI messages one recording session keeps (about 30 MB); a device flooding
+/// messages can't grow the session without bound.
+pub(super) const MAX_RECORDED_MIDI: usize = 1 << 20;
+/// Warning when messages past [`MAX_RECORDED_MIDI`] were dropped.
+pub(super) const MIDI_DROPPED: &str =
+    "some midi input was not recorded: too many messages in one recording";
 /// Warning for a take of pure digital silence (at least one second).
 pub(super) const SILENT_INPUT: &str = "The recorded audio input is completely silent. If the \
     system denied microphone access, allow Ethereal in the privacy settings (macOS: System \
@@ -187,6 +193,8 @@ pub(super) struct Session {
     /// Loop pass of the next MIDI event (`comping`): bumped when the position jumps back.
     midi_pass: u32,
     midi_last: f64,
+    /// Messages dropped past [`MAX_RECORDED_MIDI`].
+    midi_dropped: u64,
     error: Option<String>,
     /// Hardware frames kept and whether any of them was not exactly zero (a denied
     /// microphone permission delivers pure digital silence).
@@ -224,6 +232,7 @@ impl Session {
             midi: Vec::new(),
             midi_pass: 0,
             midi_last: f64::NEG_INFINITY,
+            midi_dropped: 0,
             error: None,
             frames_kept: 0,
             heard: false,
@@ -480,6 +489,10 @@ impl Session {
                 self.midi_pass += 1;
             }
             self.midi_last = position;
+            if self.midi.len() >= MAX_RECORDED_MIDI {
+                self.midi_dropped += 1;
+                return;
+            }
             self.midi.push(RecordedMidi {
                 track: m.track,
                 position,
@@ -508,6 +521,13 @@ impl Session {
         let mut warnings = Vec::new();
         if !self.heard && self.frames_kept >= u64::from(self.config.sample_rate) {
             warnings.push(SILENT_INPUT.to_string());
+        }
+        if self.midi_dropped > 0 {
+            tracing::warn!(
+                dropped = self.midi_dropped,
+                "recorded midi: messages dropped"
+            );
+            warnings.push(MIDI_DROPPED.to_string());
         }
         Ok(RecordedTakes {
             audio: self.done,

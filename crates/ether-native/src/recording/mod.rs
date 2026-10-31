@@ -227,8 +227,8 @@ impl RecordingShared {
     /// Round-trip latency compensated on recorded audio: `in + out + backlog` (samples).
     pub fn round_trip_latency(&self) -> u32 {
         self.input_latency()
-            + self.output_latency.load(Ordering::Relaxed)
-            + f32::from_bits(self.backlog.load(Ordering::Relaxed)).round() as u32
+            .saturating_add(self.output_latency.load(Ordering::Relaxed))
+            .saturating_add(f32::from_bits(self.backlog.load(Ordering::Relaxed)).round() as u32)
     }
 
     fn now_ns(&self) -> u64 {
@@ -289,8 +289,23 @@ impl RecordingShared {
 
     /// MIDI latency compensated on recorded notes: scheduling delay + output latency.
     fn midi_latency(&self) -> u32 {
-        self.block.load(Ordering::Relaxed) + self.output_latency.load(Ordering::Relaxed)
+        self.block
+            .load(Ordering::Relaxed)
+            .saturating_add(self.output_latency.load(Ordering::Relaxed))
     }
+}
+
+/// Longest input or output latency a device report is taken at (seconds): a driver's
+/// timestamps can be off by far more (a capture time of 0), which would place takes
+/// hours away and keep the take writer from ever pruning its segments.
+const MAX_DEVICE_LATENCY_SECONDS: f64 = 2.0;
+
+/// **RT.** A device-reported latency of `seconds` in samples at `rate`, at most
+/// [`MAX_DEVICE_LATENCY_SECONDS`].
+pub(crate) fn latency_samples(seconds: f64, rate: f64) -> u32 {
+    (seconds.clamp(0.0, MAX_DEVICE_LATENCY_SECONDS) * rate)
+        .round()
+        .clamp(0.0, f64::from(u32::MAX)) as u32
 }
 
 pub(crate) fn parse_loopback(name: &str) -> Option<usize> {
@@ -334,7 +349,7 @@ pub fn output_timing(shared: &AudioShared, info: &cpal::OutputCallbackInfo) {
     let ts = info.timestamp();
     if let Some(d) = ts.playback.duration_since(&ts.callback) {
         let sr = shared.recording.sample_rate.load(Ordering::Relaxed);
-        let samples = (d.as_secs_f64() * f64::from(sr)).round() as u32;
+        let samples = latency_samples(d.as_secs_f64(), f64::from(sr));
         shared
             .recording
             .output_latency

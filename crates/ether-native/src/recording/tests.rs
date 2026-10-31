@@ -539,3 +539,18 @@ fn a_silent_input_take_warns() {
 /// Tap recording (uses this module's rig and helpers).
 #[path = "tap_tests.rs"]
 mod tap;
+
+/// Device latency reports are taken at most 2 s (a bogus capture time of 0 would place the
+/// takes hours away); sums never overflow.
+#[test]
+fn device_latency_reports_bounded() {
+    assert_eq!(latency_samples(0.005, 48_000.0), 240);
+    assert_eq!(latency_samples(1e9, 48_000.0), 96_000);
+    assert_eq!(latency_samples(-1.0, 48_000.0), 0);
+    assert_eq!(latency_samples(f64::NAN, 48_000.0), 0);
+    let rec = RecordingShared::default();
+    rec.input_latency.store(u32::MAX, Ordering::Relaxed);
+    rec.output_latency.store(u32::MAX, Ordering::Relaxed);
+    assert_eq!(rec.round_trip_latency(), u32::MAX);
+    assert_eq!(rec.midi_latency(), u32::MAX);
+}
