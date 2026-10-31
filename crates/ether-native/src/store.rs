@@ -515,7 +515,7 @@ impl DiskStore {
 
     fn summary(&self, id: ProjectId) -> Result<ProjectSummary, StoreError> {
         let dir = self.existing_project_dir(id)?;
-        let reader = fs::File::open(dir.join(PROJECT_FILE)).map_err(|e| match e.kind() {
+        let reader = open_regular_file(&dir.join(PROJECT_FILE)).map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => StoreError::NotFound(id.to_string()),
             _ => io_err(e),
         })?;
@@ -548,7 +548,10 @@ impl DiskStore {
     }
 
     fn summary_ext_at(dir: &Path) -> Option<ether_core::protocol::ext::ExtValue> {
-        summary_ext(&mut |f| fs::read(dir.join(sanitize_rel(f).ok()?)).ok())
+        summary_ext(&mut |f| {
+            let rel = sanitize_rel(f).ok()?;
+            read_regular_file(&dir.join(rel), f, MAX_SIDECAR_BYTES).ok()
+        })
     }
 
     /// Accesses to `project.ether` (or a save's sidecar) through the generic file methods
@@ -641,10 +644,13 @@ impl ProjectStore for DiskStore {
     fn load(&mut self, id: ProjectId) -> Result<String, StoreError> {
         self.writer.flush();
         let dir = self.existing_project_dir(id)?;
-        fs::read_to_string(dir.join(PROJECT_FILE)).map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => StoreError::NotFound(format!("{id}/{PROJECT_FILE}")),
-            _ => io_err(e),
-        })
+        let bytes = read_regular_file(
+            &dir.join(PROJECT_FILE),
+            &format!("{id}/{PROJECT_FILE}"),
+            MAX_LIBRARY_BYTES,
+        )?;
+        String::from_utf8(bytes)
+            .map_err(|_| StoreError::Io(format!("{id}/{PROJECT_FILE} is not UTF-8")))
     }
 
     fn save(&mut self, id: ProjectId, ether_json: &str) -> Result<ProjectSummary, StoreError> {
@@ -735,10 +741,7 @@ impl ProjectStore for DiskStore {
         self.flush_if_document(rel_path);
         let dir = self.existing_project_dir(id)?;
         let path = resolve_in(&dir, rel_path)?;
-        fs::read(&path).map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => StoreError::NotFound(rel_path.to_string()),
-            _ => io_err(e),
-        })
+        read_regular_file(&path, rel_path, MAX_LIBRARY_BYTES)
     }
 
     fn write(&mut self, id: ProjectId, rel_path: &str, bytes: &[u8]) -> Result<(), StoreError> {
@@ -953,10 +956,7 @@ impl ProjectStore for DiskStore {
 impl Library for DiskStore {
     fn sample_cache_read(&mut self, rel: &str) -> Result<Vec<u8>, StoreError> {
         let path = resolve_in(&self.sample_dir()?, rel)?;
-        fs::read(&path).map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => StoreError::NotFound(rel.to_string()),
-            _ => io_err(e),
-        })
+        read_regular_file(&path, rel, MAX_LIBRARY_BYTES)
     }
 
     fn sample_cache_write(&mut self, rel: &str, bytes: &[u8]) -> Result<(), StoreError> {
@@ -1218,6 +1218,21 @@ pub const MAX_EXTERNAL_BYTES: u64 = 1 << 30;
 
 /// Largest file read from a library root (as bundle files: what a 4 GiB WAV can hold).
 pub const MAX_LIBRARY_BYTES: u64 = u32::MAX as u64;
+
+/// Largest extension sidecar a project summary reads (`summary_ext`).
+const MAX_SIDECAR_BYTES: u64 = 16 << 20;
+
+/// Opens `path` for reading if it is a regular file (symlinks followed): a FIFO or a device
+/// would block or never end. `NotFound` when missing, `InvalidInput` when not a file.
+pub(crate) fn open_regular_file(path: &Path) -> std::io::Result<fs::File> {
+    if !fs::metadata(path)?.is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "not a regular file",
+        ));
+    }
+    fs::File::open(path)
+}
 
 /// Reads the regular file at `path` (symlinks followed) of at most `max` bytes; `shown` names
 /// it in errors. Anything else is refused before it is opened: a FIFO or a device in a
@@ -1531,6 +1546,41 @@ mod tests {
         assert!(s.create_export_in("bounces", "Song.wav").is_err());
         assert!(s.create_export_in(f, "../Song.wav").is_err());
         assert!(s.create_export_in(f, ".hidden").is_err());
+    }
+
+    /// A FIFO in a project folder (copied in by hand) is refused without being opened:
+    /// opening it would wait for a writer and block the controller (listing at startup,
+    /// loading, reading a media file).
+    #[cfg(unix)]
+    #[test]
+    fn project_fifos_refused() {
+        let tmp = TempDir::new("store-project-fifos");
+        let mut s = store(&tmp);
+        let a = pid(1);
+        s.create(a).unwrap();
+        let dir = s.project_dir(a);
+        let fifo = |p: &Path| {
+            std::process::Command::new("mkfifo")
+                .arg(p)
+                .status()
+                .is_ok_and(|s| s.success())
+        };
+        if !fifo(&dir.join(PROJECT_FILE)) || !fifo(&dir.join("media/pipe.wav")) {
+            return;
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let listed = ProjectStore::list(&mut s).map(|l| l.len());
+            let loaded = s.load(a).map(|_| ());
+            let read = ProjectStore::read(&mut s, a, "media/pipe.wav").map(|_| ());
+            let _ = tx.send((listed, loaded, read));
+        });
+        let (listed, loaded, read) = rx
+            .recv_timeout(std::time::Duration::from_secs(20))
+            .expect("no read blocks on a FIFO");
+        assert_eq!(listed.unwrap(), 0);
+        assert!(matches!(loaded, Err(StoreError::InvalidPath(_))));
+        assert!(matches!(read, Err(StoreError::InvalidPath(_))));
     }
 
     /// A streamed export is written under a hidden temp name, seekable (headers are
