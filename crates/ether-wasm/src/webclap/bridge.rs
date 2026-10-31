@@ -57,6 +57,9 @@ pub struct WebclapBridge {
     replies: BTreeMap<u32, Reply>,
     /// State chunks being assembled, by request.
     partial: BTreeMap<u32, Vec<u8>>,
+    /// The request being waited for. Replies to any other (one that timed out, answered
+    /// late) are dropped as they come: nothing would ever take them.
+    waiting: Option<u32>,
     waiter: Option<Box<dyn FnMut(u32)>>,
 }
 
@@ -248,6 +251,22 @@ impl WebclapBridge {
                             .push((d, PluginNotification::Crashed { message }));
                     }
                 }
+                PluginReport::State { seq, .. }
+                | PluginReport::Values { seq, .. }
+                | PluginReport::Failed { seq, .. }
+                    if self.waiting != Some(seq) => {}
+                PluginReport::State { seq, total, .. }
+                    if total as usize > super::worklet::MAX_STATE_BYTES =>
+                {
+                    self.partial.remove(&seq);
+                    self.replies.insert(
+                        seq,
+                        Reply::Failed(format!(
+                            "state larger than {} bytes",
+                            super::worklet::MAX_STATE_BYTES
+                        )),
+                    );
+                }
                 PluginReport::State {
                     seq,
                     has_state,
@@ -306,6 +325,22 @@ impl WebclapBridge {
     ) -> Option<Reply> {
         let key = self.live.get(&device)?.key;
         let seq = self.next_seq();
+        self.waiting = Some(seq);
+        let reply = self.wait_for(seq, key, request, send, pump);
+        self.waiting = None;
+        // Chunks of a state cut short (timed out).
+        self.partial.clear();
+        reply
+    }
+
+    fn wait_for(
+        &mut self,
+        seq: u32,
+        key: NodeKey,
+        request: WebclapRequest,
+        send: &mut dyn FnMut(WebclapMsg),
+        pump: &mut dyn FnMut(&mut Self) -> u64,
+    ) -> Option<Reply> {
         send(WebclapMsg::Request { key, seq, request });
         let start = pump(self);
         let mut waited = 0;
@@ -363,5 +398,77 @@ impl WebclapBridge {
             Some(Reply::Values(v)) => v.into_iter().map(|(id, x)| (ParamId(id), x)).collect(),
             _ => Vec::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const KEY: NodeKey = NodeKey {
+        index: 1,
+        generation: 1,
+    };
+
+    fn state(seq: u32, total: u32, bytes: Vec<u8>) -> PluginReport {
+        PluginReport::State {
+            key: KEY,
+            seq,
+            has_state: true,
+            total,
+            offset: 0,
+            bytes,
+        }
+    }
+
+    /// Replies nobody waits for (a request that timed out, answered late) are dropped as
+    /// they come, chunks included; the awaited one is kept.
+    #[test]
+    fn late_replies_are_dropped() {
+        let mut b = WebclapBridge::default();
+        let mut shared = WebclapShared {
+            reports: vec![
+                state(1, 8, vec![1; 4]),
+                PluginReport::Values {
+                    key: KEY,
+                    seq: 2,
+                    values: vec![(1, 0.5)],
+                },
+                PluginReport::Failed {
+                    key: KEY,
+                    seq: 3,
+                    message: "late".into(),
+                },
+            ],
+            ..Default::default()
+        };
+        b.take_reports(&mut shared);
+        assert!(b.replies.is_empty() && b.partial.is_empty());
+
+        b.waiting = Some(4);
+        shared.reports = vec![state(1, 8, vec![1; 8]), state(4, 2, vec![7, 7])];
+        b.take_reports(&mut shared);
+        assert_eq!(b.replies.keys().copied().collect::<Vec<_>>(), [4]);
+        assert!(matches!(&b.replies[&4], Reply::State(Some(s)) if s == &[7, 7]));
+    }
+
+    /// A state announced over the cap fails without a buffer of its size.
+    #[test]
+    fn a_state_announced_over_the_cap_fails() {
+        let mut b = WebclapBridge {
+            waiting: Some(9),
+            ..Default::default()
+        };
+        let mut shared = WebclapShared {
+            reports: vec![state(
+                9,
+                (super::super::worklet::MAX_STATE_BYTES + 1) as u32,
+                vec![0; 4],
+            )],
+            ..Default::default()
+        };
+        b.take_reports(&mut shared);
+        assert!(b.partial.is_empty());
+        assert!(matches!(&b.replies[&9], Reply::Failed(m) if m.contains("larger than")));
     }
 }
