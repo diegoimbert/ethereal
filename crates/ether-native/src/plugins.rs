@@ -427,7 +427,17 @@ pub struct PluginHost {
     notes_queued: Arc<AtomicBool>,
     editor_windows: EditorWindows,
     always: AlwaysSwitches,
+    /// The "done" flag of the last call that timed out while its work was still queued or
+    /// running on the main thread: while it is unset, the main thread is hung (a plugin
+    /// stuck in a call) and later calls wait [`STALLED_TIMEOUT`] instead of the full
+    /// timeout each.
+    stalled_on: Arc<Mutex<Option<Arc<AtomicBool>>>>,
 }
+
+/// How long a main-thread call waits while an earlier one is still stuck there: a hung
+/// plugin must not block the controller the full timeout once per plugin call (a save
+/// reads every plugin's state).
+pub const STALLED_TIMEOUT: Duration = Duration::from_millis(250);
 
 impl std::fmt::Debug for PluginHost {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -471,6 +481,7 @@ impl PluginHost {
             notes_queued: Arc::default(),
             editor_windows: EditorWindows::default(),
             always: Arc::default(),
+            stalled_on: Arc::default(),
         }
     }
 
@@ -527,14 +538,27 @@ impl PluginHost {
         let (tx, rx) = bounded(1);
         let _waiting = self.health.waiting_for_main(work);
         let health = self.health.clone();
+        let done = Arc::new(AtomicBool::new(false));
+        let finished = done.clone();
+        let timeout = {
+            let mut stalled = self.stalled_on.lock().unwrap_or_else(|e| e.into_inner());
+            match &*stalled {
+                Some(d) if !d.load(Ordering::SeqCst) => STALLED_TIMEOUT.min(self.timeout),
+                _ => {
+                    *stalled = None;
+                    self.timeout
+                }
+            }
+        };
         self.main.spawn(Box::new(move || {
             let _running = health.main_call(work, device);
             let started = Instant::now();
             let r = f();
             log_slow(&health, work, device, started.elapsed());
+            finished.store(true, Ordering::SeqCst);
             let _ = tx.send(r);
         }));
-        let deadline = Instant::now() + self.timeout;
+        let deadline = Instant::now() + timeout;
         loop {
             match rx.recv_timeout(Duration::from_millis(20)) {
                 Ok(r) => return Ok(r),
@@ -546,6 +570,11 @@ impl PluginHost {
                         return Err(closed());
                     }
                     if Instant::now() >= deadline {
+                        let mut stalled = self.stalled_on.lock().unwrap_or_else(|e| e.into_inner());
+                        // The oldest stuck call stands for the hang (it runs first).
+                        if stalled.as_ref().is_none_or(|d| d.load(Ordering::SeqCst)) {
+                            *stalled = Some(done);
+                        }
                         return Err(PluginError::Ipc("main thread did not respond".into()));
                     }
                 }
@@ -2428,6 +2457,36 @@ mod tests {
         assert_eq!(counts.deactivated.load(Ordering::SeqCst), 1);
         assert_eq!(host.live_count(), 0);
         assert!(matches!(host.save_state(d), Ok(None)));
+    }
+
+    /// A hung main thread (a plugin stuck in a call) costs the full timeout once: the
+    /// calls queued behind it give up after [`STALLED_TIMEOUT`], and the full timeout
+    /// is back once the stuck call returns.
+    #[test]
+    fn calls_behind_a_hung_main_thread_give_up_early() {
+        let mut host = PluginHost::new(Arc::new(DedicatedThread::new()));
+        host.timeout = Duration::from_millis(1500);
+        let (release_tx, release_rx) = bounded::<()>(1);
+        let started = Instant::now();
+        let hung = host.call(move || {
+            let _ = release_rx.recv();
+        });
+        assert!(hung.is_err());
+        assert!(started.elapsed() >= Duration::from_millis(1500));
+        for _ in 0..3 {
+            let t = Instant::now();
+            assert!(host.call(|| ()).is_err());
+            let took = t.elapsed();
+            assert!(took >= STALLED_TIMEOUT, "{took:?}");
+            assert!(took < Duration::from_millis(1200), "{took:?}");
+        }
+        release_tx.send(()).unwrap();
+        // The queued calls drain, then a slow call gets the full timeout again.
+        wait_for("the main thread to be back", || host.call(|| ()).is_ok());
+        assert!(
+            host.call(|| std::thread::sleep(Duration::from_millis(600)))
+                .is_ok()
+        );
     }
 
     /// Issue the late race: the caller gives up after the load registered its
