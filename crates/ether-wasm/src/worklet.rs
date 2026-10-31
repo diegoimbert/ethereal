@@ -42,7 +42,7 @@
 //! pushed per quantum, so a backlog (e.g. after a suspended AudioContext resumes) is
 //! applied over several quanta instead of failing with `QueueFull`.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::sync::Arc;
 
 use ether_core::graph::AutomationDesc;
@@ -74,6 +74,8 @@ pub const IR_FILL_PER_QUANTUM: usize = 128 * 1024;
 pub const MAX_FRAMES_PER_QUANTUM: usize = 64;
 /// Report every N blocks (~12 ms at 48 kHz / 128 frames).
 pub const REPORT_INTERVAL_BLOCKS: u32 = 4;
+/// Undelivered errors kept for the next reports; more are only counted.
+pub const MAX_PENDING_ERRORS: usize = 64;
 /// Marks automation whose node is unknown (dropped before publishing).
 const DEAD_KEY: NodeKey = NodeKey {
     index: u32::MAX,
@@ -192,8 +194,11 @@ pub struct EngineHost<M: RingMemory> {
     tap_clock: Vec<f64>,
     blocks_since_report: u32,
     blocks: u64,
-    /// Errors not yet delivered (report ring was full).
-    errors: Vec<String>,
+    /// Errors not yet delivered (report ring was full), at most [`MAX_PENDING_ERRORS`]
+    /// (pre-sized: queuing one doesn't grow the queue on the audio thread).
+    errors: VecDeque<String>,
+    /// Errors dropped because the queue was full, reported once there's room.
+    dropped_errors: u64,
     /// `media-preview`: a natural preview end not yet delivered (reports are lossy).
     preview_ended: Option<u64>,
     /// Streamed media caches ([`crate::media_stream`]).
@@ -265,7 +270,8 @@ impl<M: RingMemory> EngineHost<M> {
             tap_clock: vec![0.0; tap_clock::LEN],
             blocks_since_report: 0,
             blocks: 0,
-            errors: Vec::new(),
+            errors: VecDeque::with_capacity(MAX_PENDING_ERRORS),
+            dropped_errors: 0,
             preview_ended: None,
             streams: Default::default(),
             latency,
@@ -401,8 +407,7 @@ impl<M: RingMemory> EngineHost<M> {
         });
         let skipped = control.take_skipped();
         if skipped > 0 {
-            self.errors
-                .push(format!("control ring corrupt: skipped {skipped} bytes"));
+            self.error(format!("control ring corrupt: skipped {skipped} bytes"));
         }
         self.control = Some(control);
     }
@@ -489,7 +494,7 @@ impl<M: RingMemory> EngineHost<M> {
             },
         };
         if let Err(e) = res {
-            self.errors.push(e);
+            self.error(e);
         }
         heavy
     }
@@ -536,7 +541,7 @@ impl<M: RingMemory> EngineHost<M> {
                 .map_err(|e| e.to_string())
         });
         if let Err(e) = res {
-            self.errors.push(e);
+            self.error(e);
         }
     }
 
@@ -620,8 +625,7 @@ impl<M: RingMemory> EngineHost<M> {
                 let (graph, unknown) = self.remap_graph(*graph);
                 let res = self.handle.publish(graph).map_err(|e| e.to_string());
                 if unknown > 0 {
-                    self.errors
-                        .push(format!("graph references {unknown} unknown node(s)"));
+                    self.error(format!("graph references {unknown} unknown node(s)"));
                 }
                 res
             }
@@ -776,15 +780,34 @@ impl<M: RingMemory> EngineHost<M> {
         remap_graph(&self.keys, graph)
     }
 
+    /// Queue an error for the next report; past [`MAX_PENDING_ERRORS`] undelivered ones
+    /// it is only counted (the report ring may stay full while the page is throttled).
+    fn error(&mut self, e: String) {
+        if self.errors.len() < MAX_PENDING_ERRORS {
+            self.errors.push_back(e);
+        } else {
+            self.dropped_errors += 1;
+        }
+    }
+
     fn send_report(&mut self) {
-        while let Some(e) = self.errors.first() {
+        while let Some(e) = self.errors.front() {
             let mut msg = Vec::with_capacity(1 + e.len());
             msg.push(REPORT_ERROR);
             msg.extend_from_slice(e.as_bytes());
             if !self.reports.try_send_now(&msg) {
                 break;
             }
-            self.errors.remove(0);
+            self.errors.pop_front();
+        }
+        if self.errors.is_empty() && self.dropped_errors > 0 {
+            let msg = format!("{} more engine errors dropped", self.dropped_errors);
+            let mut frame = Vec::with_capacity(1 + msg.len());
+            frame.push(REPORT_ERROR);
+            frame.extend_from_slice(msg.as_bytes());
+            if self.reports.try_send_now(&frame) {
+                self.dropped_errors = 0;
+            }
         }
         self.handle.poll(&mut self.outputs);
         self.report.playhead = self.outputs.playhead.unwrap_or_default();
@@ -914,6 +937,25 @@ fn remap_graph(
 mod tests {
     use super::*;
     use crate::ring::HeapMemory;
+
+    /// Undelivered errors (the report ring full, e.g. a throttled page) stay bounded: the
+    /// rest is counted, and the queue never grows past its pre-sized capacity.
+    #[test]
+    fn undelivered_errors_are_bounded() {
+        let mut host = EngineHost::new(48_000, HeapMemory::new(1 << 12), HeapMemory::new(1 << 12));
+        let capacity = host.errors.capacity();
+        for i in 0..1000 {
+            host.error(format!("error {i}"));
+        }
+        assert_eq!(host.errors.len(), MAX_PENDING_ERRORS);
+        assert_eq!(host.dropped_errors, 1000 - MAX_PENDING_ERRORS as u64);
+        assert_eq!(host.errors.capacity(), capacity);
+        // Nobody reads the reports: rendering keeps them bounded too.
+        for _ in 0..64 {
+            host.render(RENDER_QUANTUM);
+        }
+        assert!(host.errors.len() <= MAX_PENDING_ERRORS);
+    }
 
     #[test]
     fn stream_tap_is_drained_every_render() {
