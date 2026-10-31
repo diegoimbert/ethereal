@@ -68,6 +68,13 @@
             q.textContent = "history.replaceState(null, '', " + JSON.stringify(page.query) + ");";
             doc.head.prepend(q);
           }
+          // First of all: the ui hears only the app and itself. Other frames of the app's page
+          // (another plugin's ui) can post to this window too, and the plugin's own listeners
+          // would take that for the app's messages.
+          var guard = doc.createElement("script");
+          guard.textContent =
+            "addEventListener('message', function (e) { if (e.source !== parent && e.source !== window) e.stopImmediatePropagation(); }, true);";
+          doc.head.prepend(guard);
           return "<!doctype html>\n" + doc.documentElement.outerHTML;
         }
         function load(e) {
