@@ -19,7 +19,6 @@
 //! moved cursors and misses (the audio thread never signals: no syscalls there).
 
 use std::collections::BTreeMap;
-use std::fs::File;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -97,7 +96,8 @@ impl DiskStreams {
         engine_rate: u32,
     ) -> Result<StreamInfo, MediaError> {
         let path = media_path(source, projects_root)?;
-        let file = File::open(&path)
+        // Regular files only, checked on the handle (a FIFO swapped in would block here).
+        let file = crate::store::open_regular_file(&path)
             .map_err(|e| MediaError::Decode(format!("{}: {e}", path.display())))?;
         let ext = path.extension().and_then(|e| e.to_str());
         let decoder = ChunkDecoder::new(Box::new(file), ext, source.media.frames, engine_rate)?;
