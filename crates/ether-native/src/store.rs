@@ -109,6 +109,12 @@ pub fn sanitize_rel(rel: &str) -> Result<PathBuf, StoreError> {
     if rel.len() >= 2 && rel.as_bytes()[1] == b':' {
         return Err(bad());
     }
+    // On Windows a `:` in a name opens an alternate data stream of another file, a name
+    // ending in `.` or a space names the file without them, and device names (`CON`,
+    // `NUL`, ...) open devices: no such file can exist there, so such paths only alias.
+    if cfg!(windows) && rel.split('/').any(windows_aliasing_segment) {
+        return Err(bad());
+    }
     let mut out = PathBuf::new();
     for c in Path::new(rel).components() {
         match c {
@@ -118,6 +124,16 @@ pub fn sanitize_rel(rel: &str) -> Result<PathBuf, StoreError> {
         }
     }
     Ok(out)
+}
+
+/// A path segment Windows resolves to something else than a file of that name (see
+/// [`sanitize_rel`]). `.` and `..` are left to the component checks.
+fn windows_aliasing_segment(seg: &str) -> bool {
+    seg != "."
+        && seg != ".."
+        && (seg.contains(':')
+            || seg.ends_with(['.', ' '])
+            || crate::project_dirs::is_windows_device_name(seg))
 }
 
 /// Join `rel` under `root`, rejecting anything that could leave it. The nearest existing
@@ -1520,6 +1536,36 @@ mod tests {
             sanitize_rel("media//a.wav").unwrap(),
             PathBuf::from("media/a.wav")
         );
+        // Names Windows resolves to another file, a data stream or a device: refused there
+        // (they can't be files on Windows), kept elsewhere.
+        for alias in [
+            "media/a.wav:stream",
+            "media/a.wav.",
+            "media/a.wav ",
+            "media/CON",
+            "media/nul.wav",
+            "Com1.txt",
+            "media/LPT\u{b9}.wav",
+            "conin$",
+        ] {
+            assert_eq!(sanitize_rel(alias).is_err(), cfg!(windows), "{alias}");
+        }
+        for fine in [
+            "media/console.wav",
+            "media/COM10.wav",
+            "media/a.b.wav",
+            "media/.hidden",
+        ] {
+            assert!(
+                !windows_aliasing_segment(fine.rsplit('/').next().unwrap()),
+                "{fine}"
+            );
+            assert!(sanitize_rel(fine).is_ok(), "{fine}");
+        }
+        assert!(windows_aliasing_segment("a.wav:s"));
+        assert!(windows_aliasing_segment("LPT\u{b9}"));
+        assert!(windows_aliasing_segment("aux.mid"));
+        assert!(windows_aliasing_segment("x. "));
     }
 
     /// `ExportRequest::folder`: files go into the chosen folder (created when missing),
