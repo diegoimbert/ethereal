@@ -1,0 +1,19 @@
+{"domain":"Project","command":{"type":"Duplicate","id":"@proj","new_id":"@Pnew","name":"d"}}
+{"domain":"Project","command":{"type":"List"}}
+{"domain":"Project","command":{"type":"Create","id":"@Pnew","name":"c"}}
+{"domain":"Track","command":{"type":"Create","id":"@new","kind":"Audio","name":null,"color":null,"parent":null,"before":null}}
+{"domain":"Project","command":{"type":"Open","id":"@P1"}}
+{"domain":"Clip","command":{"type":"Delete","ids":["@c0"]}}
+{"domain":"Project","command":{"type":"OpenSafe","id":"@P2"}}
+{"domain":"Project","command":{"type":"MoveToBin","id":"@P1"}}
+{"domain":"Project","command":{"type":"ListBin"}}
+{"domain":"Project","command":{"type":"RestoreFromBin","id":"@P1"}}
+{"domain":"Project","command":{"type":"SetArchived","id":"@P0","archived":true}}
+{"domain":"Project","command":{"type":"Discard","id":"@proj"}}
+{"domain":"Project","command":{"type":"Open","id":"@P0"}}
+{"domain":"Edit","command":{"type":"Undo"}}
+{"domain":"Project","command":{"type":"Delete","id":"@P2"}}
+{"domain":"Project","command":{"type":"EmptyBin"}}
+{"domain":"Project","command":{"type":"ExportBundle","id":"@proj","path":null,"include_media":true}}
+tick 10
+{"domain":"Project","command":{"type":"OpenMirrored","id":"@P1","safe":true}}

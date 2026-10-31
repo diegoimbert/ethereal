@@ -1,0 +1,7 @@
+{"domain":"Export","command":{"type":"Render","job":"e1","request":{"range":{"type":"Custom","start":0,"end":2},"format":{"container":"Wav","bit_depth":"Int16","sample_rate":null},"mode":{"type":"MixAndStems","tracks":["@t1","@t2"]},"normalize":true,"tail_seconds":0.5,"name":"x","in_memory":true,"extra_formats":[{"container":"Flac","bit_depth":"Int24","sample_rate":44100}],"folder":null}}}
+tick 30
+{"domain":"Export","command":{"type":"ReadChunk","token":"@K0","offset":0,"length":1024}}
+{"domain":"Export","command":{"type":"Render","job":"e2","request":{"range":{"type":"Loop"},"format":{"container":"Mp3","bit_depth":"Float32","sample_rate":22050},"mode":{"type":"Mix"},"normalize":false,"tail_seconds":0,"name":null,"folder":"sub"}}}
+{"domain":"Export","command":{"type":"Cancel","job":"e2"}}
+tick 10
+{"domain":"Export","command":{"type":"Release","token":"@K0"}}

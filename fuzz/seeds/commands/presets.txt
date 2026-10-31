@@ -1,0 +1,8 @@
+{"domain":"Preset","command":{"type":"Save","device":"@d1","name":"p1","meta":{"tags":["a"],"author":null,"description":null},"overwrite":false}}
+{"domain":"Preset","command":{"type":"List","device":null,"text":null}}
+{"domain":"Preset","command":{"type":"Load","device":"@d0","preset":{"source":"User","id":"@R0"}}}
+{"domain":"Preset","command":{"type":"Load","device":"@d1","preset":{"source":"Factory","id":"@R1"}}}
+{"domain":"Preset","command":{"type":"Rename","preset":{"source":"User","id":"@R0"},"name":"p2"}}
+{"domain":"Preset","command":{"type":"SetMeta","preset":{"source":"User","id":"@R0"},"meta":{"tags":[],"author":"x","description":"y"}}}
+{"domain":"Preset","command":{"type":"Delete","preset":{"source":"User","id":"@R0"}}}
+{"domain":"Preset","command":{"type":"Save","device":"@d1","name":"../p","meta":{},"overwrite":true}}

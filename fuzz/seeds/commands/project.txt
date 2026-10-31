@@ -1,3 +1,4 @@
+{"domain":"Analysis","command":{"type":"Watch","device":"@d0"}}
 {"domain":"Mixer","command":{"type":"SetVolume","track":"@t1","volume":-12}}
 {"domain":"Mixer","command":{"type":"SetPan","track":"@t2","pan":-0.5}}
 {"domain":"Mixer","command":{"type":"SetSolo","track":"@t1","solo":true,"exclusive":true}}
@@ -13,7 +14,6 @@
 {"domain":"Project","command":{"type":"SaveAs","new_id":"0199a000-0000-7000-8000-000000000001","name":"copy"}}
 {"domain":"Project","command":{"type":"Get"}}
 {"domain":"Capture","command":{"type":"Status"}}
-{"domain":"Analysis","command":{"type":"Watch","device":"@d0"}}
 {"domain":"MediaRef","command":{"type":"ListMissing"}}
 {"domain":"MidiMap","command":{"type":"List"}}
 {"domain":"External","command":{"type":"ListPorts"}}
