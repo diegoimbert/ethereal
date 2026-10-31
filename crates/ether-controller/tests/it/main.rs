@@ -76,6 +76,7 @@ mod safe_open;
 mod samples;
 mod sandbox_defaults;
 mod save_failures;
+mod scale_perf;
 mod section_edit;
 mod shaper;
 mod sidechain;

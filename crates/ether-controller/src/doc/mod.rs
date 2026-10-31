@@ -91,6 +91,20 @@ pub struct DocCtx<'a, 'p> {
 }
 
 impl DocCtx<'_, '_> {
+    /// Run `f` with the document-wide checks of its ops deferred to its end
+    /// ([`Tx::defer_checks`]): deleting or duplicating a big group is thousands of
+    /// structural ops, each of which re-checked routing over the whole project.
+    pub fn deferring_checks<T>(
+        &mut self,
+        f: impl FnOnce(&mut Self) -> CmdResult<T>,
+    ) -> CmdResult<T> {
+        let started = self.tx.defer_checks();
+        let out = f(self);
+        let checked = self.tx.end_deferred(started);
+        let out = out?;
+        checked.map(|()| out)
+    }
+
     pub fn p(&self) -> &Project {
         self.tx.p()
     }

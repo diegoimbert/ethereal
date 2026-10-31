@@ -65,6 +65,9 @@ pub struct Tx<'a> {
     pub project: &'a mut Project,
     ops: Vec<Op>,
     inverses: Vec<Op>,
+    /// While [`Self::defer_checks`] is on: the kinds of table whose document-wide checks are
+    /// left to [`Self::end_deferred`].
+    deferred: Option<Vec<EntityKey>>,
 }
 
 impl<'a> Tx<'a> {
@@ -75,6 +78,7 @@ impl<'a> Tx<'a> {
             project,
             ops: Vec::new(),
             inverses: Vec::new(),
+            deferred: None,
         }
     }
 
@@ -88,7 +92,11 @@ impl<'a> Tx<'a> {
     }
 
     pub fn apply(&mut self, op: Op) -> CmdResult<()> {
-        let inverse = self.project.apply(&op).map_err(model_err)?;
+        let inverse = match &mut self.deferred {
+            Some(kinds) => self.project.apply_deferred(&op, kinds),
+            None => self.project.apply(&op),
+        }
+        .map_err(model_err)?;
         self.ops.push(op);
         self.inverses.push(inverse);
         Ok(())
@@ -107,6 +115,30 @@ impl<'a> Tx<'a> {
         // `apply_all` returns them last op first; `unwind` takes them from the end.
         self.inverses.extend(inverses.into_iter().rev());
         Ok(())
+    }
+
+    /// From now on each op gets only its own checks; the document-wide ones (routing,
+    /// sidechains, ...) run once in [`Self::end_deferred`]. For commands made of many
+    /// structural ops (deleting or duplicating a big group): checking the whole project
+    /// after each op made them quadratic. Returns false when already deferring (the
+    /// outer scope ends it).
+    pub fn defer_checks(&mut self) -> bool {
+        if self.deferred.is_some() {
+            return false;
+        }
+        self.deferred = Some(Vec::new());
+        true
+    }
+
+    /// End what [`Self::defer_checks`] started (`started` = what it returned) and run the
+    /// deferred checks. On error the project may break document-wide invariants: the
+    /// caller propagates it and the transaction is rolled back.
+    pub fn end_deferred(&mut self, started: bool) -> CmdResult<()> {
+        if !started {
+            return Ok(());
+        }
+        let kinds = self.deferred.take().unwrap_or_default();
+        self.project.check_deferred(&kinds).map_err(model_err)
     }
 
     pub fn remove(&mut self, key: EntityKey) -> CmdResult<()> {
