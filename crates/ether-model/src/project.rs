@@ -255,8 +255,9 @@ impl Project {
     }
 
     /// Drop the indexes (rebuilt by the next [`Self::ensure_index`] or `apply`). Code that
-    /// changes a parent reference in place in the public tables (`clip.track`,
-    /// `note.clip`, `point.lane`, a lane's owner, ...) must call this.
+    /// changes a reference in place in the public tables (`clip.track`, `note.clip`,
+    /// `point.lane`, a lane's owner or target, a device's track, chain, pad or sidechain, a
+    /// track's parent, output, input or VCA, ...) must call this.
     pub fn invalidate_index(&mut self) {
         self.index.invalidate();
     }
@@ -502,11 +503,15 @@ impl Project {
 
     /// Direct children of a group track, sorted by `order`.
     pub fn child_tracks(&self, group: TrackId) -> Vec<&Track> {
-        let mut v: Vec<&Track> = self
-            .tracks
-            .values()
-            .filter(|t| t.parent == Some(group))
-            .collect();
+        let mut v = self.rows_referencing(
+            EntityKey::Track(group),
+            &self.tracks,
+            |k| match k {
+                EntityKey::Track(id) => Some(id),
+                _ => None,
+            },
+            |t| t.parent == Some(group),
+        );
         v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
         v
     }
@@ -627,37 +632,69 @@ impl Project {
         out
     }
 
+    /// The rows of `table` that reference `key` and pass `keep`, in id order: from the
+    /// dependents index when it is usable (see [`Self::referencing`]), else a scan. `id`
+    /// picks `table`'s keys out of the referrers.
+    fn rows_referencing<'a, I: Ord, T>(
+        &'a self,
+        key: EntityKey,
+        table: &'a BTreeMap<I, T>,
+        id: impl Fn(EntityKey) -> Option<I>,
+        keep: impl Fn(&T) -> bool,
+    ) -> Vec<&'a T> {
+        match self.referrers(key) {
+            Some(refs) => refs
+                .filter_map(id)
+                .filter_map(|i| table.get(&i))
+                .filter(|t| keep(t))
+                .collect(),
+            None => table.values().filter(|t| keep(t)).collect(),
+        }
+    }
+
     /// The device chain of a track, sorted by `order`. Devices on drum pads
     /// (`Device::pad`) and rack chains (`Device::chain`) are not part of it: see
     /// [`Self::pad_devices_of`], [`Self::chain_devices_of`].
     pub fn devices_of(&self, track: TrackId) -> Vec<&Device> {
-        let mut v: Vec<&Device> = self
-            .devices
-            .values()
-            .filter(|d| d.track == track && d.pad.is_none() && d.chain.is_none())
-            .collect();
+        let mut v = self.rows_referencing(
+            EntityKey::Track(track),
+            &self.devices,
+            |k| match k {
+                EntityKey::Device(id) => Some(id),
+                _ => None,
+            },
+            |d| d.track == track && d.pad.is_none() && d.chain.is_none(),
+        );
         v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
         v
     }
 
     /// The device chain of a drum pad, sorted by `order`.
     pub fn pad_devices_of(&self, pad: DrumPadId) -> Vec<&Device> {
-        let mut v: Vec<&Device> = self
-            .devices
-            .values()
-            .filter(|d| d.pad == Some(pad))
-            .collect();
+        let mut v = self.rows_referencing(
+            EntityKey::DrumPad(pad),
+            &self.devices,
+            |k| match k {
+                EntityKey::Device(id) => Some(id),
+                _ => None,
+            },
+            |d| d.pad == Some(pad),
+        );
         v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
         v
     }
 
     /// The device chain of a rack chain, sorted by `order` (v0.2).
     pub fn chain_devices_of(&self, chain: RackChainId) -> Vec<&Device> {
-        let mut v: Vec<&Device> = self
-            .devices
-            .values()
-            .filter(|d| d.chain == Some(chain))
-            .collect();
+        let mut v = self.rows_referencing(
+            EntityKey::RackChain(chain),
+            &self.devices,
+            |k| match k {
+                EntityKey::Device(id) => Some(id),
+                _ => None,
+            },
+            |d| d.chain == Some(chain),
+        );
         v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
         v
     }
@@ -734,15 +771,29 @@ impl Project {
     }
 
     /// The devices directly inside `rack`: on its chains (chain rack) or its pads (drum rack).
-    fn rack_children(&self, rack: DeviceId) -> impl Iterator<Item = &Device> + '_ {
-        self.devices.values().filter(move |d| {
+    /// Indexed (its chains and pads, then their devices) when the index is usable: the
+    /// device rules ask this for every device nested in a rack. A device may come twice.
+    fn rack_children(&self, rack: DeviceId) -> Box<dyn Iterator<Item = &Device> + '_> {
+        let inside = move |d: &&Device| {
             d.chain
                 .and_then(|c| self.rack_chains.get(&c))
                 .is_some_and(|c| c.rack == rack)
                 || d.pad
                     .and_then(|p| self.drum_pads.get(&p))
                     .is_some_and(|p| p.rack == rack)
-        })
+        };
+        match self.referrers(EntityKey::Device(rack)) {
+            Some(refs) => Box::new(
+                refs.filter(|k| matches!(k, EntityKey::RackChain(_) | EntityKey::DrumPad(_)))
+                    .flat_map(|k| self.referrers(k).into_iter().flatten())
+                    .filter_map(|k| match k {
+                        EntityKey::Device(id) => self.devices.get(&id),
+                        _ => None,
+                    })
+                    .filter(inside),
+            ),
+            None => Box::new(self.devices.values().filter(inside)),
+        }
     }
 
     /// Whether a drum rack sits anywhere inside `rack` (on its chains or pads, at any depth,
@@ -769,11 +820,15 @@ impl Project {
 
     /// Chains of a rack device, sorted by `order` (v0.2).
     pub fn chains_of(&self, rack: DeviceId) -> Vec<&RackChain> {
-        let mut v: Vec<&RackChain> = self
-            .rack_chains
-            .values()
-            .filter(|c| c.rack == rack)
-            .collect();
+        let mut v = self.rows_referencing(
+            EntityKey::Device(rack),
+            &self.rack_chains,
+            |k| match k {
+                EntityKey::RackChain(id) => Some(id),
+                _ => None,
+            },
+            |c| c.rack == rack,
+        );
         v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
         v
     }
@@ -842,55 +897,75 @@ impl Project {
 
     /// Modulators inside a device, sorted by `order` (v0.2).
     pub fn modulators_of(&self, device: DeviceId) -> Vec<&Modulator> {
-        let mut v: Vec<&Modulator> = self
-            .modulators
-            .values()
-            .filter(|m| m.device == device)
-            .collect();
+        let mut v = self.rows_referencing(
+            EntityKey::Device(device),
+            &self.modulators,
+            |k| match k {
+                EntityKey::Modulator(id) => Some(id),
+                _ => None,
+            },
+            |m| m.device == device,
+        );
         v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
         v
     }
 
     /// Modulation mappings targeting a device's params, sorted by (param, id) (v0.2).
     pub fn mappings_to(&self, device: DeviceId) -> Vec<&ModMapping> {
-        let mut v: Vec<&ModMapping> = self
-            .mod_mappings
-            .values()
-            .filter(|m| m.device == device)
-            .collect();
+        let mut v = self.rows_referencing(
+            EntityKey::Device(device),
+            &self.mod_mappings,
+            |k| match k {
+                EntityKey::ModMapping(id) => Some(id),
+                _ => None,
+            },
+            |m| m.device == device,
+        );
         v.sort_by(|a, b| a.param.cmp(&b.param).then(a.id.cmp(&b.id)));
         v
     }
 
     /// Take lanes of a track, sorted by `order` (v0.2).
     pub fn lanes_of(&self, track: TrackId) -> Vec<&TakeLane> {
-        let mut v: Vec<&TakeLane> = self
-            .take_lanes
-            .values()
-            .filter(|l| l.track == track)
-            .collect();
+        let mut v = self.rows_referencing(
+            EntityKey::Track(track),
+            &self.take_lanes,
+            |k| match k {
+                EntityKey::TakeLane(id) => Some(id),
+                _ => None,
+            },
+            |l| l.track == track,
+        );
         v.sort_by(|a, b| by_order((&a.order, a.id), (&b.order, b.id)));
         v
     }
 
     /// Clips of a take lane sorted by start (v0.2).
     pub fn lane_clips_of(&self, lane: TakeLaneId) -> Vec<&Clip> {
-        let mut v: Vec<&Clip> = self
-            .clips
-            .values()
-            .filter(|c| c.lane == Some(lane))
-            .collect();
+        let mut v = self.rows_referencing(
+            EntityKey::TakeLane(lane),
+            &self.clips,
+            |k| match k {
+                EntityKey::Clip(id) => Some(id),
+                _ => None,
+            },
+            |c| c.lane == Some(lane),
+        );
         v.sort_by(|a, b| a.start.0.total_cmp(&b.start.0).then(a.id.cmp(&b.id)));
         v
     }
 
     /// Comp regions of a track sorted by start (v0.2).
     pub fn comp_of(&self, track: TrackId) -> Vec<&CompRegion> {
-        let mut v: Vec<&CompRegion> = self
-            .comp_regions
-            .values()
-            .filter(|r| r.track == track)
-            .collect();
+        let mut v = self.rows_referencing(
+            EntityKey::Track(track),
+            &self.comp_regions,
+            |k| match k {
+                EntityKey::CompRegion(id) => Some(id),
+                _ => None,
+            },
+            |r| r.track == track,
+        );
         v.sort_by(|a, b| a.start.0.total_cmp(&b.start.0).then(a.id.cmp(&b.id)));
         v
     }
@@ -931,7 +1006,15 @@ impl Project {
 
     /// Pads of a drum rack device, sorted by note.
     pub fn pads_of(&self, rack: DeviceId) -> Vec<&DrumPad> {
-        let mut v: Vec<&DrumPad> = self.drum_pads.values().filter(|p| p.rack == rack).collect();
+        let mut v = self.rows_referencing(
+            EntityKey::Device(rack),
+            &self.drum_pads,
+            |k| match k {
+                EntityKey::DrumPad(id) => Some(id),
+                _ => None,
+            },
+            |p| p.rack == rack,
+        );
         v.sort_by(|a, b| a.note.cmp(&b.note).then(a.id.cmp(&b.id)));
         v
     }
