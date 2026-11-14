@@ -21,9 +21,9 @@ Components: 597 (Rust crates, npm packages and vendored source).
 | `@opentelemetry/api` | 1.9.1 | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-js/tree/main/api |
 | `@stablelib/base64` | 1.0.1 | MIT | https://github.com/StableLib/stablelib/tree/master/packages/base64 |
 | `@tauri-apps/api` | 2.12.4 | Apache-2.0 OR MIT | https://github.com/tauri-apps/tauri#readme |
-| `@tauri-apps/plugin-dialog` | 2.8.3 | MIT OR Apache-2.0 | https://github.com/tauri-apps/plugins-workspace#readme |
+| `@tauri-apps/plugin-dialog` | 2.8.4 | MIT OR Apache-2.0 | https://github.com/tauri-apps/plugins-workspace#readme |
 | `@tauri-apps/plugin-fs` | 2.7.1 | MIT OR Apache-2.0 | https://github.com/tauri-apps/plugins-workspace#readme |
-| `@tauri-apps/plugin-http` | 2.8.3 | MIT OR Apache-2.0 | https://github.com/tauri-apps/plugins-workspace#readme |
+| `@tauri-apps/plugin-http` | 2.9.0 | MIT OR Apache-2.0 | https://github.com/tauri-apps/plugins-workspace#readme |
 | `adler2` | 2.0.1 | 0BSD OR MIT OR Apache-2.0 | https://github.com/oyvindln/adler2 |
 | `aho-corasick` | 1.1.5 | Unlicense OR MIT | https://github.com/BurntSushi/aho-corasick |
 | `alloc-no-stdlib` | 3.0.0 | BSD-3-Clause | https://github.com/dropbox/rust-alloc-no-stdlib |
